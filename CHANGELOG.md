@@ -1,0 +1,4 @@
+# Changelog
+
+## Next version
+

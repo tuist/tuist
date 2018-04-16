@@ -1,0 +1,1 @@
+https://www.objc.io/issues/6-build-tools/travis-ci/#app-signing

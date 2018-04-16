@@ -1,0 +1,10 @@
+framework module Paddle {
+    header "Paddle.h"
+    header "PaddleAnalyticsKit.h"
+    header "PaddleToolKit.h"
+    header "PaddleStoreKit.h"
+    header "PADProduct.h"
+    header "PSKProduct.h"
+    header "PSKReceipt.h"
+    export *
+}

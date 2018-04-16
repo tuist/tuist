@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>xcbuddy's Changelog</title>
+    <link>https://github.com/xcbuddy/xcbuddy/raw/master/appcast.xml</link>
+    <description>Most recent changes with links to updates.</description>
+    <language>en</language>
+    <item>
+      <title>Version 0.20.0</title>
+      <description><![CDATA[]]></description>
+      <pubDate>Sat, 31 Mar 2018 19:56:20 +0200</pubDate>
+      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/tag/0.20.0" length="7912171" sparkle:version="0.20.0" sparkle:dsaSignature="MEQCIH1v0QHxTYYfMKDW0DFnRyh+g77JWRYd8sSwEjxP3OWBAiBLNu/D8ugQzbhoz23gSpwTQA4HeR0XUzwnunR1H50gUg=="/>
+    </item>
+  </channel>
+</rss>
