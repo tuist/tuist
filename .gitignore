@@ -96,3 +96,6 @@ build/
 
 .env
 keys/dsa_priv.pem
+certs/dist.cer
+certs/dist.p12
+certs/xcbuddy_dist.provisionprofile
