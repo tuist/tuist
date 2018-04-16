@@ -3,6 +3,9 @@
   <br/><br/>
 </p>
 
+## Continuous Integration
+- Master: [![Build Status](https://travis-ci.org/xcbuddy/xcbuddy.svg?branch=master)](https://travis-ci.org/xcbuddy/xcbuddy)
+
 ## Setup for development
 
 1. Git clone: `git@github.com:xcbuddy/xcbuddy.git`
