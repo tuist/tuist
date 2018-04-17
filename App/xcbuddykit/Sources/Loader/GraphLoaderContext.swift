@@ -24,6 +24,13 @@ class GraphLoaderContext: GraphLoaderContexting {
         self.projectPath = projectPath
         self.fileHandler = fileHandler
     }
+    
+    init(projectPath: AbsolutePath) {
+        self.manifestLoader = GraphManifestLoader()
+        self.cache = GraphLoaderCache()
+        self.projectPath = projectPath
+        self.fileHandler = FileHandler()
+    }
 
     func with(projectPath: AbsolutePath) -> GraphLoaderContexting {
         return GraphLoaderContext(manifestLoader: manifestLoader,

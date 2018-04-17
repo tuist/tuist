@@ -22,47 +22,42 @@ class TargetNode: GraphNode {
         super.init(path: project.path)
     }
 
-    static func read(name: String, path: AbsolutePath, manifestLoader: GraphManifestLoading, cache: GraphLoaderCaching) throws -> TargetNode {
-        if let targetNode = cache.node(path) as? TargetNode { return targetNode }
-        let project = try Project.read(path: path, manifestLoader: manifestLoader, cache: cache)
+    static func read(name: String, path: AbsolutePath, context: GraphLoaderContexting) throws -> TargetNode {
+        if let targetNode = context.cache.node(path) as? TargetNode { return targetNode }
+        let project = try Project.read(path: path, context: context)
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
-        let dependencyMapper = TargetNode.readDependency(path: path, manifestLoader: manifestLoader, cache: cache)
+        let dependencyMapper = TargetNode.readDependency(path: path, context: context)
         let dependencies: [GraphNode] = try target.dependencies.compactMap(dependencyMapper)
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
-        cache.add(node: targetNode)
+        context.cache.add(node: targetNode)
         return targetNode
     }
 
-    static func readDependency(path: AbsolutePath, manifestLoader: GraphManifestLoading, cache: GraphLoaderCaching) -> (_ dictionary: [String: Any]) throws -> GraphNode {
-        return { jsonDependency in
-            let unboxer = Unboxer(dictionary: jsonDependency)
-            let type: String = try unboxer.unbox(key: "type")
+    static func readDependency(path: AbsolutePath, context: GraphLoaderContexting) -> (_ dictionary: JSON) throws -> GraphNode {
+        return { json in
+            let type: String = try json.get("type")
             if type == "target" {
-                let name: String = try unboxer.unbox(key: "name")
-                return try TargetNode.read(name: name, path: path, manifestLoader: manifestLoader, cache: cache)
+                let name: String = try json.get("name")
+                return try TargetNode.read(name: name, path: path, context: context)
             } else if type == "project" {
-                let name: String = try unboxer.unbox(key: "name")
-                let projectRelativePath: Path = try unboxer.unbox(key: "path")
-                try projectRelativePath.assertRelative()
-                let projectPath = path + projectRelativePath
-                return try TargetNode.read(name: name, path: projectPath, manifestLoader: manifestLoader, cache: cache)
+                let name: String = try json.get("name")
+                let projectRelativePath: RelativePath = try RelativePath(json.get("path"))
+                let projectPath = path.appending(projectRelativePath)
+                return try TargetNode.read(name: name, path: projectPath, context: context)
             } else if type == "framework" {
-                let frameworkRelativePath: Path = try unboxer.unbox(key: "path")
-                try frameworkRelativePath.assertRelative()
-                let frameworkPath = path + frameworkRelativePath
-                return try FrameworkNode.read(dictionary: jsonDependency,
+                let frameworkRelativePath: RelativePath = try RelativePath(json.get("path"))
+                let frameworkPath = path.appending(frameworkRelativePath)
+                return try FrameworkNode.read(json: json,
                                               path: frameworkPath,
-                                              cache: cache)
+                                              context: context)
             } else if type == "library" {
-                let libraryRelativePath: Path = try unboxer.unbox(key: "path")
-                try libraryRelativePath.assertRelative()
-                let libraryPath = path + libraryRelativePath
-                return try LibraryNode.read(dictionary: jsonDependency,
-                                            projectPath: path,
+                let libraryRelativePath: RelativePath = try RelativePath(json.get("path"))
+                let libraryPath = path.appending(libraryRelativePath)
+                return try LibraryNode.read(json: json,
                                             path: libraryPath,
-                                            cache: cache)
+                                            context: context)
             } else {
                 fatalError("Invalid dependency type: \(type)")
             }
@@ -71,50 +66,43 @@ class TargetNode: GraphNode {
 }
 
 class FrameworkNode: GraphNode {
-    static func read(dictionary _: [String: Any],
-                     path: Path,
-                     cache: GraphLoaderCaching) throws -> FrameworkNode {
-        try path.assertExists()
-        if let frameworkNode = cache.node(path) as? FrameworkNode { return frameworkNode }
+    static func read(json: JSON,
+                     path: AbsolutePath,
+                     context: GraphLoaderContexting) throws -> FrameworkNode {
+        if let frameworkNode = context.cache.node(path) as? FrameworkNode { return frameworkNode }
         let framewokNode = FrameworkNode(path: path)
-        cache.add(node: framewokNode)
+        context.cache.add(node: framewokNode)
         return framewokNode
     }
 }
 
 class LibraryNode: GraphNode {
-    let publicHeader: Path
-    let swiftModuleMap: Path?
+    let publicHeader: AbsolutePath
+    let swiftModuleMap: AbsolutePath?
 
-    init(path: Path,
-         publicHeader: Path,
-         swiftModuleMap: Path? = nil) {
+    init(path: AbsolutePath,
+         publicHeader: AbsolutePath,
+         swiftModuleMap: AbsolutePath? = nil) {
         self.publicHeader = publicHeader
         self.swiftModuleMap = swiftModuleMap
         super.init(path: path)
     }
 
-    static func read(dictionary: [String: Any],
-                     projectPath: Path,
-                     path: Path,
-                     cache: GraphLoaderCaching) throws -> LibraryNode {
-        try path.assertExists()
-        if let libraryNode = cache.node(path) as? LibraryNode { return libraryNode }
-        let unboxer = Unboxer(dictionary: dictionary)
-        let publicHeadersRelativePath: Path = try unboxer.unbox(key: "public_headers")
-        try publicHeadersRelativePath.assertRelative()
-        let publicHeadersPath = projectPath + publicHeadersRelativePath
-        try publicHeadersPath.assertExists()
-        var swiftModuleMapPath: Path?
-        if let swiftModuleMapRelativePath: Path = unboxer.unbox(key: "swift_module_map") {
-            try swiftModuleMapRelativePath.assertRelative()
-            swiftModuleMapPath = projectPath + swiftModuleMapRelativePath
-            try swiftModuleMapPath?.assertExists()
+    static func read(json: JSON,
+                     path: AbsolutePath,
+                     context: GraphLoaderContexting) throws -> LibraryNode {
+        if let libraryNode = context.cache.node(path) as? LibraryNode { return libraryNode }
+        let publicHeadersRelativePath: RelativePath = try RelativePath(json.get("public_headers"))
+        let publicHeadersPath = context.projectPath.appending(publicHeadersRelativePath)
+        var swiftModuleMapPath: AbsolutePath?
+        if let swiftModuleMapRelativePathString: String = json.get("swift_module_map") {
+            let swiftModuleMapRelativePath = RelativePath(swiftModuleMapRelativePathString)
+            swiftModuleMapPath = context.projectPath.appending(swiftModuleMapRelativePath)
         }
         let libraryNode = LibraryNode(path: path,
                                       publicHeader: publicHeadersPath,
                                       swiftModuleMap: swiftModuleMapPath)
-        cache.add(node: libraryNode)
+        context.cache.add(node: libraryNode)
         return libraryNode
     }
 }

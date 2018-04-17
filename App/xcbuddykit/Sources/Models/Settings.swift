@@ -6,7 +6,7 @@ class Settings {
         let settings: [String: String]
         let xcconfig: AbsolutePath?
 
-        init(settings: [String: String] = [:], xcconfig: Path? = nil) {
+        init(settings: [String: String] = [:], xcconfig: AbsolutePath? = nil) {
             self.settings = settings
             self.xcconfig = xcconfig
         }
@@ -14,7 +14,7 @@ class Settings {
         init(json: JSON, context: GraphLoaderContexting) throws {
             settings = try json.get("settings")
             let xcconfigString: String? = json.get("xcconfig")
-            xcconfig = xcconfigString.flatMap({ context.projectPath + RelativePath($0) })
+            xcconfig = xcconfigString.flatMap({ context.projectPath.appending(component: $0) })
         }
     }
 
@@ -32,9 +32,9 @@ class Settings {
 
     init(json: JSON, context: GraphLoaderContexting) throws {
         base = try json.get("base")
-        let debugJSON: JSON? = json.get("debug")
-        debug = try debugJSON.flatMap({ Configuration(json: $0, context: context) })
-        let releaseJSON: JSON? = json.get("release")
-        release = try releaseJSON.flatMap({ Configuration(json: $0, context: context) })
+        let debugJSON: JSON? = try json.get("debug")
+        debug = try debugJSON.flatMap({ try Configuration(json: $0, context: context) })
+        let releaseJSON: JSON? = try json.get("release")
+        release = try releaseJSON.flatMap({ try Configuration(json: $0, context: context) })
     }
 }

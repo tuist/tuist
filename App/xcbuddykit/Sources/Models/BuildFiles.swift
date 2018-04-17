@@ -43,15 +43,17 @@ extension BuildFiles: JSONMappable {
 // MARK: - Array (BuildFiles)
 
 extension Array where Element == BuildFiles {
-    func list(context: GraphLoaderContexting) -> Set<Path> {
-        let reduced = reduce(into: (included: Array<Path>(), excluded: Array<Path>()), { prev, buildFiles in
+    func list(context: GraphLoaderContexting) -> Set<AbsolutePath> {
+        let reduced = reduce(into: (included: Array<AbsolutePath>(), excluded: Array<AbsolutePath>()), { prev, buildFiles in
             switch buildFiles {
             case let .include(paths):
-                let absolutePaths = paths.flatMap { context.fileHandler.glob(context.projectPath, glob: $0.string) }
-                prev.included.append(contentsOf: absolutePaths)
+                prev.included.append(contentsOf: [])
+//                let absolutePaths = paths.flatMap { context.fileHandler.glob(context.projectPath, glob: $0.string) }
+//                prev.included.append(contentsOf: absolutePaths)
             case let .exclude(paths):
-                let absolutePaths = paths.flatMap { context.fileHandler.glob(context.projectPath, glob: $0.string) }
-                prev.excluded.append(contentsOf: absolutePaths)
+//                let absolutePaths = paths.flatMap { context.fileHandler.glob(context.projectPath, glob: $0.string) }
+//                prev.excluded.append(contentsOf: absolutePaths)
+                prev.excluded.append(contentsOf: [])
             }
         })
         let included = Set(reduced.included)
