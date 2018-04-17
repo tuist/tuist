@@ -33,7 +33,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<string>YES</string>
 	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/pepibumur/xcbuddy/master/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/xcbuddy/xcbuddy/master/appcast.xml</string>
 	<key>SUPublicDSAKeyFile</key>
 	<string>dsa_pub.pem</string>
 </dict>
