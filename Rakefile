@@ -128,7 +128,7 @@ def release
   changelog = changelog(new_version)
   release = client.create_release(REPOSITORY, new_version, name: new_version, body: changelog, draft: false)
   client.upload_asset(release.url, "#{BUILD_PATH}/#{APP_NAME}.zip",
-                      content_type: 'application/zip, application/octet-stream')
+                      content_type: 'application/zip')
 end
 
 desc 'Formats the swift code'
