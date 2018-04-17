@@ -29,5 +29,11 @@
       <pubDate>Tue, 17 Apr 2018 15:26:01 +0200</pubDate>
       <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/tag/0.29.0" length="8117130" sparkle:version="0.29.0" sparkle:dsaSignature="MEQCIDKZZ5CZPuCbp4EJUuLhTIIuqeu/9l/ZjZxrKKtxGaBjAiBDomrFIgPlur5zzlBxY1pY2fA3TjKbJ2Ace606tiihBQ=="/>
     </item>
+    <item>
+      <title>Version 0.30.0</title>
+      <description><![CDATA[]]></description>
+      <pubDate>Tue, 17 Apr 2018 15:31:18 +0200</pubDate>
+      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/tag/0.30.0" length="8117163" sparkle:version="0.30.0" sparkle:dsaSignature="MEQCIDPs6RJJQlohwgP+MsZsQalWjzMuaRYrpYxPqep6mNaCAiAubY8kQ4XcZ4AsO4PZz4KZQ0hUaeN4gpFQvtxdaCKyIA=="/>
+    </item>
   </channel>
 </rss>
