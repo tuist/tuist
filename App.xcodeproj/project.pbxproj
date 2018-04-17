@@ -7,10 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B9013DB1206FCF48007B1A34 /* SwiftCLI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DB0206FCF48007B1A34 /* SwiftCLI.framework */; };
-		B9013DB2206FCF4E007B1A34 /* SwiftCLI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DB0206FCF48007B1A34 /* SwiftCLI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9013DB3206FCF5B007B1A34 /* SwiftCLI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DB0206FCF48007B1A34 /* SwiftCLI.framework */; };
-		B9013DB4206FCF6F007B1A34 /* SwiftCLI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DB0206FCF48007B1A34 /* SwiftCLI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9013DB6206FD207007B1A34 /* UpdateCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9013DB5206FD207007B1A34 /* UpdateCommand.swift */; };
 		B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; };
 		B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -42,9 +38,6 @@
 		B9287D09208090AB002DEFEE /* XcodeRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D08208090AB002DEFEE /* XcodeRepresentable.swift */; };
 		B9287D0C20809740002DEFEE /* BuildFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D0A2080971A002DEFEE /* BuildFilesTests.swift */; };
 		B9287D0F208097B7002DEFEE /* GraphLoaderContext+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D0D208097AB002DEFEE /* GraphLoaderContext+TestData.swift */; };
-		B92BF80D2073E42800EE4EBD /* Unbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B92BF80C2073E42800EE4EBD /* Unbox.framework */; };
-		B92BF80E2073E43000EE4EBD /* Unbox.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B92BF80C2073E42800EE4EBD /* Unbox.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B92BF80F2073E43700EE4EBD /* Unbox.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B92BF80C2073E42800EE4EBD /* Unbox.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B92BF8112073E4AB00EE4EBD /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF8102073E4AB00EE4EBD /* UpdateController.swift */; };
 		B92BF8132073E61600EE4EBD /* UpdateCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF8122073E61600EE4EBD /* UpdateCommandTests.swift */; };
 		B92BF8162073E66200EE4EBD /* MockUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF8152073E66200EE4EBD /* MockUpdateController.swift */; };
@@ -59,18 +52,12 @@
 		B92BF9FB20755D5300EE4EBD /* MockFileHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */; };
 		B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */; };
 		B92BFA0020756D0E00EE4EBD /* GraphController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FF20756D0E00EE4EBD /* GraphController.swift */; };
-		B93BDB7A2064E2C900C977D8 /* Paddle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915EC3A2062EC97004B6630 /* Paddle.framework */; };
 		B93BDB8D2064FEF200C977D8 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93BDB8B2064FEEC00C977D8 /* App.swift */; };
-		B93BDB9B2065015800C977D8 /* Swifter.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B93BDB9C2065015800C977D8 /* Swifter.framework */; };
-		B93BDB9D2065016600C977D8 /* Swifter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B93BDB9C2065015800C977D8 /* Swifter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B93BDBA4206503EE00C977D8 /* Signals.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93BDBA3206503EE00C977D8 /* Signals.swift */; };
 		B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB72062B8A7009BF596 /* Assets.xcassets */; };
 		B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB82062B8A7009BF596 /* MainMenu.xib */; };
 		B94C7FC62062B8A8009BF596 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FC02062B8A8009BF596 /* AppDelegate.swift */; };
 		B94C7FC72062B8B2009BF596 /* xcbuddyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FBB2062B8A7009BF596 /* xcbuddyTests.swift */; };
-		B981A808206973B100ED2F72 /* SwiftShell.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B981A809206973B100ED2F72 /* SwiftShell.framework */; };
-		B981A80A206973BA00ED2F72 /* SwiftShell.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B981A809206973B100ED2F72 /* SwiftShell.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B981A80B206973D100ED2F72 /* SwiftShell.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B981A809206973B100ED2F72 /* SwiftShell.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B981A813206978E100ED2F72 /* String+Error.swift in Sources */ = {isa = PBXBuildFile; fileRef = B981A812206978E100ED2F72 /* String+Error.swift */; };
 		B981A81620697A8000ED2F72 /* GraphManifestLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B981A81520697A8000ED2F72 /* GraphManifestLoader.swift */; };
 		B98313782065432A00D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
@@ -78,10 +65,12 @@
 		B983137B2065437400D2D656 /* TechLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B983137A2065437400D2D656 /* TechLogger.swift */; };
 		B983137F2065473800D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
 		B9957E2220808BBF00FC2B87 /* GraphLoaderContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9957E2120808BBF00FC2B87 /* GraphLoaderContext.swift */; };
-		B9B80A97206A7BF40057482B /* PathKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3F2064DB5B0010BC33 /* PathKit.framework */; };
-		B9B80AA1206A859D0057482B /* ColorizeSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B80AA2206A859D0057482B /* ColorizeSwift.framework */; };
-		B9B80AA3206A85A10057482B /* ColorizeSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B80AA2206A859D0057482B /* ColorizeSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9B80AA4206A85D20057482B /* ColorizeSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B80AA2206A859D0057482B /* ColorizeSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B9B6298B20864C1800EE9E07 /* Utility.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B6298A20864C1800EE9E07 /* Utility.framework */; };
+		B9B6298D20864C1E00EE9E07 /* POSIX.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B6298C20864C1E00EE9E07 /* POSIX.framework */; };
+		B9B6298F20864C2300EE9E07 /* Basic.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B6298E20864C2300EE9E07 /* Basic.framework */; };
+		B9B6299020864C2D00EE9E07 /* Basic.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B6298E20864C2300EE9E07 /* Basic.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B9B6299120864C2D00EE9E07 /* POSIX.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B6298C20864C1E00EE9E07 /* POSIX.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B9B6299220864C2D00EE9E07 /* Utility.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B6298A20864C1800EE9E07 /* Utility.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9BFCF6B207B445A00ACC59D /* DumpCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFCF6A207B445A00ACC59D /* DumpCommand.swift */; };
 		B9BFCF6D207B469C00ACC59D /* DumpCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFCF6C207B469C00ACC59D /* DumpCommandTests.swift */; };
 		B9BFCF6F207B489D00ACC59D /* Printer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFCF6E207B489D00ACC59D /* Printer.swift */; };
@@ -89,11 +78,8 @@
 		B9EF68A9207E7AC300633C03 /* BuildFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EF68A8207E7AC300633C03 /* BuildFiles.swift */; };
 		B9EF68AB207F3D3D00633C03 /* Path+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EF68AA207F3D3D00633C03 /* Path+Extras.swift */; };
 		B9FB9D082066D18E00F13FFA /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FB9D092066D19000F13FFA /* Swifter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B93BDB9C2065015800C977D8 /* Swifter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB9D0A2066D19B00F13FFA /* xcproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED672063B18B004B6630 /* xcproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FB9D0B2066D19D00F13FFA /* Paddle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915EC3A2062EC97004B6630 /* Paddle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB9D0C2066D1B800F13FFA /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FB9D0D2066D1C000F13FFA /* PathKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3F2064DB5B0010BC33 /* PathKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB9D0F2066D1E200F13FFA /* AppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9CF62066D05A00F13FFA /* AppTests.swift */; };
 		B9FB9D122066D2C000F13FFA /* Generator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D112066D2C000F13FFA /* Generator.swift */; };
 		B9FB9D162066D2F100F13FFA /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D152066D2F100F13FFA /* Config.swift */; };
@@ -101,12 +87,10 @@
 		B9FB9D1A2066D31400F13FFA /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D192066D31400F13FFA /* Project.swift */; };
 		B9FB9D232066D51800F13FFA /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D222066D51800F13FFA /* Logger.swift */; };
 		B9FB9D252066D56D00F13FFA /* MockLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D242066D56D00F13FFA /* MockLogger.swift */; };
-		B9FDBF34206423590010BC33 /* Paddle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915EC3A2062EC97004B6630 /* Paddle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF36206423670010BC33 /* xcproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED672063B18B004B6630 /* xcproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF3920642D980010BC33 /* xcbuddykit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
 		B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FDBF402064DB600010BC33 /* PathKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3F2064DB5B0010BC33 /* PathKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF422064DCB70010BC33 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF412064DCB70010BC33 /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
@@ -160,17 +144,13 @@
 			dstSubfolderSpec = 10;
 			files = (
 				B91834C0207CBCFE008935B4 /* ProjectDescription.framework in Embed Frameworks */,
-				B92BF80E2073E43000EE4EBD /* Unbox.framework in Embed Frameworks */,
-				B9013DB2206FCF4E007B1A34 /* SwiftCLI.framework in Embed Frameworks */,
-				B9B80AA3206A85A10057482B /* ColorizeSwift.framework in Embed Frameworks */,
 				B9FB9D082066D18E00F13FFA /* Sentry.framework in Embed Frameworks */,
 				B9FB9D0C2066D1B800F13FFA /* AEXML.framework in Embed Frameworks */,
-				B9FB9D0D2066D1C000F13FFA /* PathKit.framework in Embed Frameworks */,
 				B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */,
-				B981A80A206973BA00ED2F72 /* SwiftShell.framework in Embed Frameworks */,
-				B9FB9D092066D19000F13FFA /* Swifter.framework in Embed Frameworks */,
-				B9FB9D0B2066D19D00F13FFA /* Paddle.framework in Embed Frameworks */,
 				B9FB9D0A2066D19B00F13FFA /* xcproj.framework in Embed Frameworks */,
+				B9B6299020864C2D00EE9E07 /* Basic.framework in Embed Frameworks */,
+				B9B6299120864C2D00EE9E07 /* POSIX.framework in Embed Frameworks */,
+				B9B6299220864C2D00EE9E07 /* Utility.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -181,17 +161,10 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				B92BF80F2073E43700EE4EBD /* Unbox.framework in Embed Frameworks */,
-				B9013DB4206FCF6F007B1A34 /* SwiftCLI.framework in Embed Frameworks */,
-				B981A80B206973D100ED2F72 /* SwiftShell.framework in Embed Frameworks */,
 				B9013DD7206FEEEF007B1A34 /* Sparkle.framework in Embed Frameworks */,
 				B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */,
-				B93BDB9D2065016600C977D8 /* Swifter.framework in Embed Frameworks */,
-				B9FDBF402064DB600010BC33 /* PathKit.framework in Embed Frameworks */,
 				B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */,
-				B9B80AA4206A85D20057482B /* ColorizeSwift.framework in Embed Frameworks */,
 				B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */,
-				B9FDBF34206423590010BC33 /* Paddle.framework in Embed Frameworks */,
 				B9FDBF36206423670010BC33 /* xcproj.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -200,7 +173,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		B9013DB0206FCF48007B1A34 /* SwiftCLI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = SwiftCLI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9013DB5206FD207007B1A34 /* UpdateCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCommand.swift; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B9013DDA206FF53F007B1A34 /* SPUUpdater+CommandLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SPUUpdater+CommandLine.swift"; sourceTree = "<group>"; };
@@ -217,7 +189,6 @@
 		B903F6FE20700DAC00E35767 /* GraphLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphLoader.swift; sourceTree = "<group>"; };
 		B903F70220700E1100E35767 /* BuildConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfiguration.swift; sourceTree = "<group>"; };
 		B903F704207014F100E35767 /* GraphLoadingError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphLoadingError.swift; sourceTree = "<group>"; };
-		B915EC3A2062EC97004B6630 /* Paddle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Paddle.framework; sourceTree = "<group>"; };
 		B915ECF6206395DA004B6630 /* xcbuddy */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xcbuddy; sourceTree = BUILT_PRODUCTS_DIR; };
 		B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xcbuddykit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xcbuddykitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -231,7 +202,6 @@
 		B9287D08208090AB002DEFEE /* XcodeRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XcodeRepresentable.swift; sourceTree = "<group>"; };
 		B9287D0A2080971A002DEFEE /* BuildFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildFilesTests.swift; sourceTree = "<group>"; };
 		B9287D0D208097AB002DEFEE /* GraphLoaderContext+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GraphLoaderContext+TestData.swift"; sourceTree = "<group>"; };
-		B92BF80C2073E42800EE4EBD /* Unbox.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Unbox.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B92BF8102073E4AB00EE4EBD /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
 		B92BF8122073E61600EE4EBD /* UpdateCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCommandTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
@@ -247,7 +217,6 @@
 		B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+TestData.swift"; sourceTree = "<group>"; };
 		B92BF9FF20756D0E00EE4EBD /* GraphController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphController.swift; sourceTree = "<group>"; };
 		B93BDB8B2064FEEC00C977D8 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
-		B93BDB9C2065015800C977D8 /* Swifter.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Swifter.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B93BDBA3206503EE00C977D8 /* Signals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signals.swift; sourceTree = "<group>"; };
 		B94C7F972062B829009BF596 /* xcbuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xcbuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B94C7FA72062B82A009BF596 /* xcbuddyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xcbuddyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -258,13 +227,14 @@
 		B94C7FBE2062B8A8009BF596 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = App/Info.plist; sourceTree = "<group>"; };
 		B94C7FC02062B8A8009BF596 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B94C7FC82062B8C6009BF596 /* Tests.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Tests.plist; path = App/Tests.plist; sourceTree = "<group>"; };
-		B981A809206973B100ED2F72 /* SwiftShell.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = SwiftShell.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B981A812206978E100ED2F72 /* String+Error.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Error.swift"; sourceTree = "<group>"; };
 		B981A81520697A8000ED2F72 /* GraphManifestLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphManifestLoader.swift; sourceTree = "<group>"; };
 		B98313772065432A00D2D656 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B983137A2065437400D2D656 /* TechLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TechLogger.swift; sourceTree = "<group>"; };
 		B9957E2120808BBF00FC2B87 /* GraphLoaderContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphLoaderContext.swift; sourceTree = "<group>"; };
-		B9B80AA2206A859D0057482B /* ColorizeSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = ColorizeSwift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B9B6298A20864C1800EE9E07 /* Utility.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Utility.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B9B6298C20864C1E00EE9E07 /* POSIX.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = POSIX.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B9B6298E20864C2300EE9E07 /* Basic.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Basic.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9BFCF6A207B445A00ACC59D /* DumpCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DumpCommand.swift; sourceTree = "<group>"; };
 		B9BFCF6C207B469C00ACC59D /* DumpCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DumpCommandTests.swift; sourceTree = "<group>"; };
 		B9BFCF6E207B489D00ACC59D /* Printer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Printer.swift; sourceTree = "<group>"; };
@@ -281,7 +251,6 @@
 		B9FB9D222066D51800F13FFA /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		B9FB9D242066D56D00F13FFA /* MockLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLogger.swift; sourceTree = "<group>"; };
 		B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = AEXML.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B9FDBF3F2064DB5B0010BC33 /* PathKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = PathKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FDBF412064DCB70010BC33 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -290,7 +259,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B9013DB3206FCF5B007B1A34 /* SwiftCLI.framework in Frameworks */,
 				B9FDBF422064DCB70010BC33 /* Foundation.framework in Frameworks */,
 				B9FDBF3920642D980010BC33 /* xcbuddykit.framework in Frameworks */,
 			);
@@ -300,17 +268,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B9B6298F20864C2300EE9E07 /* Basic.framework in Frameworks */,
+				B9B6298D20864C1E00EE9E07 /* POSIX.framework in Frameworks */,
+				B9B6298B20864C1800EE9E07 /* Utility.framework in Frameworks */,
 				B91834BF207CBCE6008935B4 /* ProjectDescription.framework in Frameworks */,
-				B92BF80D2073E42800EE4EBD /* Unbox.framework in Frameworks */,
-				B9013DB1206FCF48007B1A34 /* SwiftCLI.framework in Frameworks */,
-				B9B80AA1206A859D0057482B /* ColorizeSwift.framework in Frameworks */,
-				B9B80A97206A7BF40057482B /* PathKit.framework in Frameworks */,
-				B981A808206973B100ED2F72 /* SwiftShell.framework in Frameworks */,
 				B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */,
 				B98313782065432A00D2D656 /* Sentry.framework in Frameworks */,
-				B93BDB9B2065015800C977D8 /* Swifter.framework in Frameworks */,
 				B915ED662063B18B004B6630 /* xcproj.framework in Frameworks */,
-				B93BDB7A2064E2C900C977D8 /* Paddle.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -354,19 +318,15 @@
 		B915EC392062EC97004B6630 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				B9B6298E20864C2300EE9E07 /* Basic.framework */,
+				B9B6298C20864C1E00EE9E07 /* POSIX.framework */,
+				B9B6298A20864C1800EE9E07 /* Utility.framework */,
 				B91834BE207CBCE6008935B4 /* ProjectDescription.framework */,
-				B92BF80C2073E42800EE4EBD /* Unbox.framework */,
 				B9013DD4206FEEDF007B1A34 /* Sparkle.framework */,
-				B9013DB0206FCF48007B1A34 /* SwiftCLI.framework */,
-				B9B80AA2206A859D0057482B /* ColorizeSwift.framework */,
-				B981A809206973B100ED2F72 /* SwiftShell.framework */,
 				B98313772065432A00D2D656 /* Sentry.framework */,
-				B93BDB9C2065015800C977D8 /* Swifter.framework */,
 				B9FDBF412064DCB70010BC33 /* Foundation.framework */,
-				B9FDBF3F2064DB5B0010BC33 /* PathKit.framework */,
 				B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */,
 				B915ED672063B18B004B6630 /* xcproj.framework */,
-				B915EC3A2062EC97004B6630 /* Paddle.framework */,
 			);
 			name = Frameworks;
 			path = App/Frameworks;
