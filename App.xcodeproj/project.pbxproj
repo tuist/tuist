@@ -19,18 +19,6 @@
 		B91834C0207CBCFE008935B4 /* ProjectDescription.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B91834BE207CBCE6008935B4 /* ProjectDescription.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B91834C3207CBD36008935B4 /* Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91834C2207CBD36008935B4 /* Test.swift */; };
 		B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */ = {isa = PBXBuildFile; fileRef = B915ECF6206395DA004B6630 /* xcbuddy */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		B9287D0620808FFF002DEFEE /* BuildConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */; };
-		B9287D0C20809740002DEFEE /* BuildFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D0A2080971A002DEFEE /* BuildFilesTests.swift */; };
-		B9287D0F208097B7002DEFEE /* GraphLoaderContext+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D0D208097AB002DEFEE /* GraphLoaderContext+TestData.swift */; };
-		B92BF8132073E61600EE4EBD /* UpdateCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF8122073E61600EE4EBD /* UpdateCommandTests.swift */; };
-		B92BF8162073E66200EE4EBD /* MockUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF8152073E66200EE4EBD /* MockUpdateController.swift */; };
-		B92BF8182073E71300EE4EBD /* GraphManifestLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF8172073E71300EE4EBD /* GraphManifestLoaderTests.swift */; };
-		B92BF9EF207559A400EE4EBD /* ConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9EE207559A400EE4EBD /* ConfigTests.swift */; };
-		B92BF9F1207559E600EE4EBD /* MockGraphLoaderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */; };
-		B92BF9F320755A2C00EE4EBD /* Config+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */; };
-		B92BF9F520755A5B00EE4EBD /* Project+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */; };
-		B92BF9F720755B8500EE4EBD /* MockManifestLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */; };
-		B92BF9FB20755D5300EE4EBD /* MockFileHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */; };
 		B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */; };
 		B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB72062B8A7009BF596 /* Assets.xcassets */; };
 		B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB82062B8A7009BF596 /* MainMenu.xib */; };
@@ -55,8 +43,6 @@
 		B9B629C020864E7D00EE9E07 /* UpdateCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629BE20864E7D00EE9E07 /* UpdateCommand.swift */; };
 		B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629BF20864E7D00EE9E07 /* DumpCommand.swift */; };
 		B9B629CE20864E9800EE9E07 /* BuildConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C320864E9800EE9E07 /* BuildConfiguration.swift */; };
-		B9BFCF6D207B469C00ACC59D /* DumpCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFCF6C207B469C00ACC59D /* DumpCommandTests.swift */; };
-		B9BFCF72207B48DA00ACC59D /* MockPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFCF70207B48D500ACC59D /* MockPrinter.swift */; };
 		B9FB2DBF2086506E00BC2FB3 /* Basic.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; };
 		B9FB2DC62086515F00BC2FB3 /* Basic.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB2DC72086516500BC2FB3 /* POSIX.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DC02086507200BC2FB3 /* POSIX.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -82,8 +68,6 @@
 		B9FB9D082066D18E00F13FFA /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB9D0A2066D19B00F13FFA /* xcproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED672063B18B004B6630 /* xcproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB9D0C2066D1B800F13FFA /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FB9D0F2066D1E200F13FFA /* AppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9CF62066D05A00F13FFA /* AppTests.swift */; };
-		B9FB9D252066D56D00F13FFA /* MockLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D242066D56D00F13FFA /* MockLogger.swift */; };
 		B9FDBF36206423670010BC33 /* xcproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED672063B18B004B6630 /* xcproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF3920642D980010BC33 /* xcbuddykit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
 		B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -853,23 +837,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B92BF8182073E71300EE4EBD /* GraphManifestLoaderTests.swift in Sources */,
-				B92BF9EF207559A400EE4EBD /* ConfigTests.swift in Sources */,
-				B9FB9D0F2066D1E200F13FFA /* AppTests.swift in Sources */,
-				B92BF9F320755A2C00EE4EBD /* Config+TestData.swift in Sources */,
-				B9BFCF72207B48DA00ACC59D /* MockPrinter.swift in Sources */,
-				B92BF8132073E61600EE4EBD /* UpdateCommandTests.swift in Sources */,
-				B9287D0C20809740002DEFEE /* BuildFilesTests.swift in Sources */,
 				B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */,
-				B9BFCF6D207B469C00ACC59D /* DumpCommandTests.swift in Sources */,
-				B92BF9F520755A5B00EE4EBD /* Project+TestData.swift in Sources */,
-				B92BF8162073E66200EE4EBD /* MockUpdateController.swift in Sources */,
-				B92BF9FB20755D5300EE4EBD /* MockFileHandler.swift in Sources */,
-				B9FB9D252066D56D00F13FFA /* MockLogger.swift in Sources */,
-				B92BF9F1207559E600EE4EBD /* MockGraphLoaderCache.swift in Sources */,
-				B92BF9F720755B8500EE4EBD /* MockManifestLoader.swift in Sources */,
-				B9287D0F208097B7002DEFEE /* GraphLoaderContext+TestData.swift in Sources */,
-				B9287D0620808FFF002DEFEE /* BuildConfigurationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
