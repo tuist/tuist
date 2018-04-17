@@ -1,5 +1,5 @@
 import Foundation
-import Unbox
+import Basic
 
 class Scheme: Unboxable {
     let name: String

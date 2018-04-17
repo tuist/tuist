@@ -1,12 +1,11 @@
 import Foundation
-import PathKit
-import Unbox
+import Basic
 
 // MARK: - BuildFiles
 
 enum BuildFiles {
-    case include([Path])
-    case exclude([Path])
+    case include([RelativePath])
+    case exclude([RelativePath])
 }
 
 // MARK: - BuildFiles (Equatable)
@@ -26,11 +25,10 @@ extension BuildFiles: Equatable {
 
 // MARK: - BuildFiles (Unboxable)
 
-extension BuildFiles: Unboxable {
-    init(unboxer: Unboxer) throws {
-        let type: String = try unboxer.unbox(key: "type")
-        let paths: [Path] = try unboxer.unbox(key: "paths")
-        try paths.forEach({ try $0.assertRelative() })
+extension BuildFiles: JSONMappable {
+    init(json: JSON) throws {
+        let type: String = try json.get("type")
+        let paths: [RelativePath] = (try json.get("paths")).map({RelativePath($0)})
         if type == "include" {
             self = .include(paths)
         } else if type == "exclude" {

@@ -1,10 +1,9 @@
 import Foundation
-import PathKit
-import Unbox
+import Basic
 
 class GraphNode {
-    let path: Path
-    init(path: Path) {
+    let path: AbsolutePath
+    init(path: AbsolutePath) {
         self.path = path
     }
 }
@@ -23,7 +22,7 @@ class TargetNode: GraphNode {
         super.init(path: project.path)
     }
 
-    static func read(name: String, path: Path, manifestLoader: GraphManifestLoading, cache: GraphLoaderCaching) throws -> TargetNode {
+    static func read(name: String, path: AbsolutePath, manifestLoader: GraphManifestLoading, cache: GraphLoaderCaching) throws -> TargetNode {
         if let targetNode = cache.node(path) as? TargetNode { return targetNode }
         let project = try Project.read(path: path, manifestLoader: manifestLoader, cache: cache)
         guard let target = project.targets.first(where: { $0.name == name }) else {
@@ -36,7 +35,7 @@ class TargetNode: GraphNode {
         return targetNode
     }
 
-    static func readDependency(path: Path, manifestLoader: GraphManifestLoading, cache: GraphLoaderCaching) -> (_ dictionary: [String: Any]) throws -> GraphNode {
+    static func readDependency(path: AbsolutePath, manifestLoader: GraphManifestLoading, cache: GraphLoaderCaching) -> (_ dictionary: [String: Any]) throws -> GraphNode {
         return { jsonDependency in
             let unboxer = Unboxer(dictionary: jsonDependency)
             let type: String = try unboxer.unbox(key: "type")

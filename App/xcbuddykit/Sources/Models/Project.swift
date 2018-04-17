@@ -1,9 +1,8 @@
 import Foundation
-import PathKit
-import Unbox
+import Basic
 
 class Project {
-    let path: Path
+    let path: AbsolutePath
     let name: String
     let schemes: [Scheme]
     let targets: [Target]

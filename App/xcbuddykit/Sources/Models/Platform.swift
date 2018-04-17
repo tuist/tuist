@@ -1,7 +1,6 @@
 import Foundation
-import Unbox
 
-enum Platform: String, UnboxableEnum {
+enum Platform: String {
     case ios
     case macos
     case watchos

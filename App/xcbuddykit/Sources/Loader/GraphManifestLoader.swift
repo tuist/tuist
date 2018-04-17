@@ -1,29 +1,29 @@
 import Foundation
-import PathKit
-import SwiftShell
+import Basic
 
 protocol GraphManifestLoading {
-    func load(path: Path) throws -> Data
+    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> String
 }
 
 class GraphManifestLoader: GraphManifestLoading {
-    func load(path: Path) throws -> Data {
-        let swiftOutput = run(bash: "xcrun -f swift")
-        if let error = swiftOutput.error {
-            throw error
-        }
-        let swiftPath = Path(swiftOutput.stdout)
-        guard let frameworksPath = Bundle.app.privateFrameworksPath.map({ Path($0) }) else {
+    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> String {
+        
+        let swiftOutput = try run(bash: "xcrun -f swift")
+        let swiftPath = AbsolutePath(swiftOutput)
+        guard let frameworksPath = Bundle.app.privateFrameworksPath.map({ AbsolutePath($0) }) else {
             throw "Can't find xcbuddy frameworks folder"
         }
-        let projectDescriptionPath = frameworksPath + "ProjectDescription.framework"
-        if !projectDescriptionPath.exists {
+        let projectDescriptionPath = frameworksPath.appending(component: "ProjectDescription.framework")
+        if !context.fileHandler.exists(projectDescriptionPath) {
             throw "Couldn't find ProjectDescription.framework at \(projectDescriptionPath)"
         }
-        let jsonOutput = run(bash: "\(swiftPath.string) -F \(frameworksPath.string) -framework ProjectDescription \(path.string) --dump")
-        if let error = jsonOutput.error {
-            throw error
-        }
-        return jsonOutput.stdout.data(using: .utf8) ?? Data()
+        return try run(bash: "\(swiftPath.asString) -F \(frameworksPath.asString) -framework ProjectDescription \(path.asString) --dump")
+    }
+    
+    func run(bash: String) throws -> String {
+        let process = Process(arguments: ["/bin/bash -c '\(bash)'"], environment: [:], redirectOutput: true)
+        try process.launch()
+        let output = try process.waitUntilExit()
+        return try output.utf8Output()
     }
 }

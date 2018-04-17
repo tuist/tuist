@@ -1,38 +1,28 @@
 import Foundation
-import PathKit
-import Unbox
+import Basic
 
 class Config {
-    let path: Path
-    init(path: Path) {
+    let path: AbsolutePath
+    init(path: AbsolutePath) {
         self.path = path
     }
 }
 
 extension Config {
-    static func read(path: Path,
-                     manifestLoader: GraphManifestLoading,
-                     cache: GraphLoaderCaching,
-                     fileHandler: FileHandling = FileHandler()) throws -> Config {
-        if let config = cache.config(path) { return config }
-        let config = try Config(path: path,
-                                manifestLoader: manifestLoader,
-                                cache: cache,
-                                fileHandler: fileHandler)
-        cache.add(config: config)
+    static func read(path: AbsolutePath, context: GraphLoaderContexting) throws -> Config {
+        if let config = context.cache.config(path) { return config }
+        let config = try Config(path: path, context: context)
+        context.cache.add(config: config)
         return config
     }
 
-    fileprivate convenience init(path: Path,
-                                 manifestLoader: GraphManifestLoading,
-                                 cache _: GraphLoaderCaching,
-                                 fileHandler: FileHandling = FileHandler()) throws {
-        let configPath = path + "Config.swift"
-        if !fileHandler.exists(configPath) {
+    fileprivate convenience init(path: AbsolutePath, context: GraphLoaderContexting) throws {
+        let configPath = path.appending(RelativePath("Config.swift"))
+        if !context.fileHandler.exists(configPath) {
             throw GraphLoadingError.missingFile(configPath)
         }
-        let json = try manifestLoader.load(path: configPath)
-        _ = try Unboxer(data: json)
+        let json = try context.manifestLoader.load(path: configPath, context: context)
+        _ = try JSON(string: json)
         self.init(path: path)
     }
 }

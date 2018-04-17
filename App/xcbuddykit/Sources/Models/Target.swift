@@ -1,8 +1,7 @@
 import Foundation
-import PathKit
-import Unbox
+import Basic
 
-class Target: Unboxable {
+class Target: JSONMappable {
     let name: String
     let platform: Platform
     let product: Product
@@ -10,9 +9,9 @@ class Target: Unboxable {
     let entitlements: Path?
     let settings: Settings?
     let buildPhases: [BuildPhase]
-    let dependencies: [UnboxableDictionary]
+    let dependencies: [String: Any]
 
-    required init(unboxer: Unboxer) throws {
+    required init(json: JSON) throws {
         name = try unboxer.unbox(key: "name")
         platform = try unboxer.unbox(key: "platform")
         product = try unboxer.unbox(key: "product")

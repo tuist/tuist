@@ -1,9 +1,8 @@
 import Foundation
-import Unbox
 
 // MARK: - BuildConfiguration
 
-enum BuildConfiguration: String, UnboxableEnum {
+enum BuildConfiguration: String {
     case debug
     case release
 }

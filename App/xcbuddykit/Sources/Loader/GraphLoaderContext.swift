@@ -1,23 +1,23 @@
 import Foundation
-import PathKit
+import Basic
 
 protocol GraphLoaderContexting: AnyObject {
     var manifestLoader: GraphManifestLoading { get }
     var cache: GraphLoaderCaching { get }
-    var projectPath: Path { get }
+    var projectPath: AbsolutePath { get }
     var fileHandler: FileHandling { get }
-    func with(projectPath: Path) -> GraphLoaderContexting
+    func with(projectPath: AbsolutePath) -> GraphLoaderContexting
 }
 
 class GraphLoaderContext: GraphLoaderContexting {
     let manifestLoader: GraphManifestLoading
     let cache: GraphLoaderCaching
-    let projectPath: Path
+    let projectPath: AbsolutePath
     let fileHandler: FileHandling
 
     init(manifestLoader: GraphManifestLoading,
          cache: GraphLoaderCaching,
-         projectPath: Path,
+         projectPath: AbsolutePath,
          fileHandler: FileHandling = FileHandler()) {
         self.manifestLoader = manifestLoader
         self.cache = cache
@@ -25,7 +25,7 @@ class GraphLoaderContext: GraphLoaderContexting {
         self.fileHandler = fileHandler
     }
 
-    func with(projectPath: Path) -> GraphLoaderContexting {
+    func with(projectPath: AbsolutePath) -> GraphLoaderContexting {
         return GraphLoaderContext(manifestLoader: manifestLoader,
                                   cache: cache,
                                   projectPath: projectPath,

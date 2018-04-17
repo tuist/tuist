@@ -1,27 +1,23 @@
 import Foundation
-import PathKit
+import Basic
 
 protocol FileHandling: AnyObject {
-    var currentPath: Path { get }
-    func exists(_ path: Path) -> Bool
-    func isRelative(_ path: Path) -> Bool
-    func glob(_ path: Path, glob: String) -> [Path]
+    var currentPath: AbsolutePath { get }
+    func exists(_ path: AbsolutePath) -> Bool
+    func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
 }
 
 final class FileHandler: FileHandling {
-    var currentPath: Path {
-        return Path.current
+    var currentPath: AbsolutePath {
+        return AbsolutePath(FileManager.default.currentDirectoryPath)
     }
 
-    func exists(_ path: Path) -> Bool {
-        return path.exists
+    func exists(_ path: AbsolutePath) -> Bool {
+        return FileManager.default.fileExists(atPath: path.asString)
     }
 
-    func isRelative(_ path: Path) -> Bool {
-        return path.isRelative
-    }
-
-    func glob(_ path: Path, glob: String) -> [Path] {
-        return path.glob(glob)
+    func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
+        // TODO
+        return []
     }
 }

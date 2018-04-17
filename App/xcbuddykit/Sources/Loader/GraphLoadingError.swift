@@ -1,10 +1,10 @@
 import Foundation
-import PathKit
+import Basic
 
 enum GraphLoadingError: Error, Equatable {
-    case missingFile(Path)
-    case targetNotFound(String, Path)
-    case manifestNotFound(Path)
+    case missingFile(AbsolutePath)
+    case targetNotFound(String, AbsolutePath)
+    case manifestNotFound(AbsolutePath)
     case unexpected(String)
 
     static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
