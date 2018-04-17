@@ -6,7 +6,7 @@ require 'sparklecast'
 require 'date'
 require 'dotenv/load'
 
-REPOSITORY = 'xcbuddy/releases'
+REPOSITORY = 'xcbuddy/xcbuddy'
 BUILD_PATH = 'build'
 APP_NAME = 'xcbuddy'
 GITHUB_TOKEN = ENV['GH_TOKEN']
