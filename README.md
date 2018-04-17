@@ -3,8 +3,9 @@
   <br/><br/>
 </p>
 
-## Continuous Integration
-- Master: [![Build Status](https://travis-ci.org/xcbuddy/xcbuddy.svg?branch=master)](https://travis-ci.org/xcbuddy/xcbuddy)
+[![Build Status](https://travis-ci.org/xcbuddy/xcbuddy.svg?branch=master)](https://travis-ci.org/xcbuddy/xcbuddy)
+[![The MIT License](https://img.shields.io/badge/license-MIT-orange.svg?style=flat-square)](http://opensource.org/licenses/MIT)
+[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
 
 ## Setup for development
 
