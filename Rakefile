@@ -83,7 +83,7 @@ def changelog(version)
   version = Semantic::Version.new(version)
   version_regex = /##\s+#{version.major}\.#{version.minor}\.#{version.patch}/
   any_version_regex = /##\s+\d+\.\d+\.\d+/
-  changelog = ""
+  output = ""
   reading = false
   File.readlines(CHANGELOG_PATH).each do |line|
     if line =~ version_regex && !reading
@@ -94,9 +94,9 @@ def changelog(version)
       reading = false
       break
     end
-    changelog << line if reading
+    output << line if reading
   end
-  changelog
+  output
 end
 
 def release
