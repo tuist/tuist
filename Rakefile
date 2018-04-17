@@ -94,7 +94,7 @@ def changelog(version)
       reading = false
       break
     end
-    output = "#{output}#{line}" << line if reading
+    output = "#{output}#{line}" if reading
   end
   output
 end
