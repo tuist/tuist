@@ -11,6 +11,7 @@ BUILD_PATH = 'build'
 APP_NAME = 'xcbuddy'
 GITHUB_TOKEN = ENV['GH_TOKEN']
 APPCAST_PATH = 'appcast.xml'
+CHANGELOG_PATH = "CHANGELOG.md"
 
 def execute(command)
   sh(command)
@@ -78,6 +79,26 @@ def decrypt_and_install_keys
   install_keys
 end
 
+def changelog(version)
+  version = Semantic::Version.new(version)
+  version_regex = /##\s+#{version.major}\.#{version.minor}\.#{version.patch}/
+  any_version_regex = /##\s+\d+\.\d+\.\d+/
+  changelog = ""
+  reading = false
+  File.readlines(CHANGELOG_PATH).each do |line|
+    if line =~ version_regex && !reading
+      reading = true
+      next
+    end
+    if line =~ any_version_regex && reading
+      reading = false
+      break
+    end
+    changelog << line if reading
+  end
+  changelog
+end
+
 def release
   branch = `git rev-parse --abbrev-ref HEAD`.strip
   unless branch.include?("version/")
@@ -104,8 +125,7 @@ def release
 
   # Release
   client = Octokit::Client.new(access_token: GITHUB_TOKEN)
-  changelog = `git log #{current_version}...#{new_version} --pretty=format:'<li> <a href="http://github.com/#{REPOSITORY}/commit/%H">view commit &bull;</a> %s</li> ' --reverse | grep "#changelog" 2>/dev/null`.strip
-  changelog = ""
+  changelog = changelog(new_version)
   release = client.create_release(REPOSITORY, new_version, name: new_version, body: changelog, draft: false)
   client.upload_asset(release.url, "#{BUILD_PATH}/#{APP_NAME}.zip",
                       content_type: 'application/zip, application/octet-stream')
