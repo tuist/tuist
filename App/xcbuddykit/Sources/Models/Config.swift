@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 class Config {
     let path: AbsolutePath

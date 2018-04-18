@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 // MARK: - BuildPhase
 
@@ -25,42 +25,40 @@ class BuildPhase {
 // MARK: - SourcesBuildPhase
 
 class SourcesBuildPhase: BuildPhase {
-    let files: Set<AbsolutePath>
+    let buildFiles: BuildFiles
 
-    init(files: Set<AbsolutePath> = Set()) {
-        self.files = files
+    init(buildFiles: BuildFiles = BuildFiles()) {
+        self.buildFiles = buildFiles
     }
 
-    required init(json: JSON, context: GraphLoaderContexting) throws {
-        let buildFiles: [BuildFiles] = try json.get("files")
-        self.files = buildFiles.list(context: context)
+    init(json: JSON, context: GraphLoaderContexting) throws {
+        buildFiles = try BuildFiles(json: json.get("files"), context: context)
     }
 }
 
 extension SourcesBuildPhase: Equatable {
-    static func ==(lhs: SourcesBuildPhase, rhs: SourcesBuildPhase) -> Bool {
-        return lhs.files == rhs.files
+    static func == (lhs: SourcesBuildPhase, rhs: SourcesBuildPhase) -> Bool {
+        return lhs.buildFiles == rhs.buildFiles
     }
 }
 
 // MARK: - ResourcesBuildPhase
 
 class ResourcesBuildPhase: BuildPhase {
-    let files: Set<AbsolutePath>
+    let buildFiles: BuildFiles
 
-    init(files: Set<AbsolutePath> = Set()) {
-        self.files = files
+    init(buildFiles: BuildFiles = BuildFiles()) {
+        self.buildFiles = buildFiles
     }
 
     required init(json: JSON, context: GraphLoaderContexting) throws {
-        let buildFiles: [BuildFiles] = try json.get("files")
-        self.files = buildFiles.list(context: context)
+        buildFiles = try BuildFiles(json: json.get("files"), context: context)
     }
 }
 
 extension ResourcesBuildPhase: Equatable {
-    static func ==(lhs: ResourcesBuildPhase, rhs: ResourcesBuildPhase) -> Bool {
-        return lhs.files == rhs.files
+    static func == (lhs: ResourcesBuildPhase, rhs: ResourcesBuildPhase) -> Bool {
+        return lhs.buildFiles == rhs.buildFiles
     }
 }
 
@@ -133,24 +131,21 @@ class ScriptBuildPhase: BuildPhase {
 }
 
 class HeadersBuildPhase: BuildPhase {
-    let `public`: Set<AbsolutePath>
-    let project: Set<AbsolutePath>
-    let `private`: Set<AbsolutePath>
+    let `public`: BuildFiles
+    let project: BuildFiles
+    let `private`: BuildFiles
 
-    init(public: Set<AbsolutePath> = Set(),
-         project: Set<AbsolutePath> = Set(),
-         private: Set<AbsolutePath> = Set()) {
+    init(public: BuildFiles = BuildFiles(),
+         project: BuildFiles = BuildFiles(),
+         private: BuildFiles = BuildFiles()) {
         self.public = `public`
         self.project = project
         self.private = `private`
     }
 
     init(json: JSON, context: GraphLoaderContexting) throws {
-        let publicBuildFiles: [BuildFiles] = try json.get("public")
-        `public` = publicBuildFiles.list(context: context)
-        let projectBuildFiles: [BuildFiles] = try json.get("project")
-        project = projectBuildFiles.list(context: context)
-        let privateBuildfiles: [BuildFiles] = try json.get("private")
-        `private` = privateBuildfiles.list(context: context)
+        `public` = try BuildFiles(json: json.get("public"), context: context)
+        project = try BuildFiles(json: json.get("project"), context: context)
+        `private` = try BuildFiles(json: json.get("private"), context: context)
     }
 }

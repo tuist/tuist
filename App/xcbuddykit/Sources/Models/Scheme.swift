@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 class Scheme: JSONMappable {
     let name: String

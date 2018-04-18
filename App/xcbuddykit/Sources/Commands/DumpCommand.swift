@@ -1,9 +1,9 @@
-//import Foundation
-//import PathKit
-//import SwiftCLI
+// import Foundation
+// import PathKit
+// import SwiftCLI
 //
 ///// Checks if there are updates and updates the app.
-//public class DumpCommand: NSObject, Command {
+// public class DumpCommand: NSObject, Command {
 //    /// Name of the command.
 //    public let name: String = "dump"
 //
@@ -52,4 +52,4 @@
 //            print(error)
 //        }
 //    }
-//}
+// }

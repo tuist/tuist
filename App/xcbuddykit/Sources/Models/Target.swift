@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 class Target {
     let name: String
@@ -20,9 +20,9 @@ class Target {
         let infoPlistPath: String = try json.get("info_plist")
         infoPlist = context.projectPath.appending(component: infoPlistPath)
         let entitlementsPath: String? = json.get("entitlements")
-        entitlements = entitlementsPath.map({context.projectPath.appending(component: $0)})
+        entitlements = entitlementsPath.map({ context.projectPath.appending(component: $0) })
         let settingsJSON: JSON? = try json.get("settings")
-        settings = try settingsJSON.map({ try Settings(json: $0, context: context)})
+        settings = try settingsJSON.map({ try Settings(json: $0, context: context) })
         let buildPhasesJSONs: [JSON] = try json.get("build_phases")
         buildPhases = try buildPhasesJSONs.map({ try BuildPhase.from(json: $0, context: context) })
         dependencies = try json.get("dependencies")

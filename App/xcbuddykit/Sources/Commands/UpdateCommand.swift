@@ -1,9 +1,9 @@
-//import Foundation
-//import Sparkle
-//import SwiftCLI
+// import Foundation
+// import Sparkle
+// import SwiftCLI
 //
 ///// Checks if there are updates and updates the app.
-//public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
+// public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
 //    /// Name of the command.
 //    public let name: String = "update"
 //
@@ -28,4 +28,4 @@
 //    public func execute() throws {
 //        try controller.checkAndUpdateFromConsole()
 //    }
-//}
+// }

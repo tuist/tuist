@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 protocol GraphManifestLoading {
     func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON
@@ -7,7 +7,6 @@ protocol GraphManifestLoading {
 
 class GraphManifestLoader: GraphManifestLoading {
     func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {
-        
         let swiftOutput = try run(bash: "xcrun -f swift")
         let swiftPath = AbsolutePath(swiftOutput)
         guard let frameworksPath = Bundle.app.privateFrameworksPath.map({ AbsolutePath($0) }) else {
@@ -20,7 +19,7 @@ class GraphManifestLoader: GraphManifestLoading {
         let jsonString = try run(bash: "\(swiftPath.asString) -F \(frameworksPath.asString) -framework ProjectDescription \(path.asString) --dump")
         return try JSON(string: jsonString)
     }
-    
+
     func run(bash: String) throws -> String {
         let process = Process(arguments: ["/bin/bash -c '\(bash)'"], environment: [:], redirectOutput: true)
         try process.launch()

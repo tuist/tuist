@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 class Project {
     let path: AbsolutePath
@@ -47,7 +47,7 @@ class Project {
         settings = try settingsJSON.map({ try Settings(json: $0, context: context) })
     }
 
-    fileprivate static func config(projectPath: AbsolutePath,
+    fileprivate static func config(projectPath _: AbsolutePath,
                                    json: JSON,
                                    context: GraphLoaderContexting) throws -> Config? {
         guard let configStringPath: String = json.get("config") else { return nil }

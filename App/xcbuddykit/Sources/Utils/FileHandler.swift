@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 protocol FileHandling: AnyObject {
     var currentPath: AbsolutePath { get }
@@ -17,7 +17,6 @@ final class FileHandler: FileHandling {
     }
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
-        // TODO
-        return []
+        return path.glob(glob)
     }
 }

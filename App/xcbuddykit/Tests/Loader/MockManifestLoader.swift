@@ -1,9 +1,8 @@
-import Foundation
 import Basic
+import Foundation
 @testable import xcbuddykit
 
 final class MockGraphManifestLoader: GraphManifestLoading {
-    
     var loadStub: ((AbsolutePath, GraphLoaderContexting) throws -> JSON)?
 
     func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {

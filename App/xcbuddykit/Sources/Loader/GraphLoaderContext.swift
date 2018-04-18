@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 protocol GraphLoaderContexting: AnyObject {
     var manifestLoader: GraphManifestLoading { get }
@@ -24,12 +24,12 @@ class GraphLoaderContext: GraphLoaderContexting {
         self.projectPath = projectPath
         self.fileHandler = fileHandler
     }
-    
+
     init(projectPath: AbsolutePath) {
-        self.manifestLoader = GraphManifestLoader()
-        self.cache = GraphLoaderCache()
+        manifestLoader = GraphManifestLoader()
+        cache = GraphLoaderCache()
         self.projectPath = projectPath
-        self.fileHandler = FileHandler()
+        fileHandler = FileHandler()
     }
 
     func with(projectPath: AbsolutePath) -> GraphLoaderContexting {

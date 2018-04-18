@@ -1,14 +1,14 @@
 import Foundation
 import xcbuddykit
 
-//let cli = CLI(name: "xcbuddy", version: App().version, description: "Xcode projects at scale")
+// let cli = CLI(name: "xcbuddy", version: App().version, description: "Xcode projects at scale")
 //
-//cli.commands = [
+// cli.commands = [
 //    UpdateCommand(),
 //    DumpCommand(),
 //    // generate-xcodeproj
 //    // build
 //    // test
-//]
+// ]
 //
-//cli.goAndExit()
+// cli.goAndExit()

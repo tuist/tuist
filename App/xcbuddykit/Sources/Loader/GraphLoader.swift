@@ -1,8 +1,7 @@
-import Foundation
 import Basic
+import Foundation
 
 class GraphLoader {
-
     func load(path: AbsolutePath) throws -> GraphController {
         let context = GraphLoaderContext(projectPath: path)
         if context.fileHandler.exists(path.appending(component: Constants.Manifest.project)) {

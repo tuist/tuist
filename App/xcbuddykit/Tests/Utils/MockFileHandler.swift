@@ -1,14 +1,12 @@
-import Foundation
 import Basic
-
+import Foundation
 @testable import xcbuddykit
 
 final class MockFileHandler: FileHandling {
-    
     var existsStub: ((AbsolutePath) -> Bool)?
     var currentPathStub: AbsolutePath?
     var globStub: ((AbsolutePath, String) -> [AbsolutePath])?
-    
+
     var currentPath: AbsolutePath {
         return currentPathStub ?? AbsolutePath.current
     }

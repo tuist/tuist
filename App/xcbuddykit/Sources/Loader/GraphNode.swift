@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 class GraphNode {
     let path: AbsolutePath
@@ -66,7 +66,7 @@ class TargetNode: GraphNode {
 }
 
 class FrameworkNode: GraphNode {
-    static func read(json: JSON,
+    static func read(json _: JSON,
                      path: AbsolutePath,
                      context: GraphLoaderContexting) throws -> FrameworkNode {
         if let frameworkNode = context.cache.node(path) as? FrameworkNode { return frameworkNode }

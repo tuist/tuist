@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 enum GraphLoadingError: Error, Equatable {
     case missingFile(AbsolutePath)
