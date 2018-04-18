@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" width="250" align="center"/>
+  <img src="https://github.com/xcbuddy/xcbuddy/raw/master/assets/logo.png" width="250" align="center"/>
   <br/><br/>
 </p>
 
