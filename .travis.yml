@@ -14,3 +14,7 @@ install:
 script:
 - bundle exec rake test
 - bundle exec rake release
+- |
+  if [[ $TRAVIS_BRANCH == 'master' ]]
+  ./scripts/update-docs
+  fi
