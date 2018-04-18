@@ -1,0 +1,6 @@
+author: xcbuddy
+module: xcbuddykit
+github_url: https://github.com/xcbuddy/xcbuddy
+copyright: 'Copyright © 2018 Pedro Piñera. All rights reserved.'
+readme: README.md
+documentation: guides/*.md
