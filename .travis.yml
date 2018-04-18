@@ -1,6 +1,6 @@
 notifications:
   email: false
-osx_image: xcode9.3beta
+osx_image: xcode9.3
 language: objective-c
 gemfile: Gemfile
 bundler_args: "--without documentation --path bundle" # Don't download documentation for gems.

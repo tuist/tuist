@@ -1,31 +1,22 @@
 import Foundation
 import Sparkle
-import SwiftCLI
+import Utility
 
-/// Checks if there are updates and updates the app.
 public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
-    /// Name of the command.
-    public let name: String = "update"
-
-    /// Description of the command for the cli.
-    public let shortDescription = "Updates the app"
-
-    /// Update controller.
+    public let command = "update"
+    public let overview = "Updates the app."
     fileprivate let controller: UpdateControlling
 
-    public convenience override init() {
-        self.init(controller: UpdateController())
+    public required init(parser: ArgumentParser) {
+        parser.add(subparser: command, overview: overview)
+        controller = UpdateController()
     }
 
-    /// Default constructor.
     init(controller: UpdateControlling) {
         self.controller = controller
     }
 
-    /// Executes the command, checking if there are updates, and updating in case there are.
-    ///
-    /// - Throws: an error if something goes wrong.
-    public func execute() throws {
+    public func run(with _: ArgumentParser.Result) throws {
         try controller.checkAndUpdateFromConsole()
     }
 }

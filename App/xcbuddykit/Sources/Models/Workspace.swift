@@ -1,20 +1,19 @@
+import Basic
 import Foundation
-import PathKit
-import Unbox
 
 class Workspace {
-    var projects: [Path]
+    var projects: [AbsolutePath]
 
-    init(projects: [Path]) {
+    init(projects: [AbsolutePath]) {
         self.projects = projects
     }
 
-    init(path: Path, manifestLoader: GraphManifestLoading) throws {
-        let workspacePath = path + Constants.Manifest.workspace
-        if !workspacePath.exists { throw GraphLoadingError.missingFile(workspacePath) }
-        let json = try manifestLoader.load(path: workspacePath)
-        let unboxer = try Unboxer(data: json)
-        projects = try unboxer.unbox(key: "projects")
-        try projects.forEach { try $0.assertRelative() }
+    init(path: AbsolutePath, context: GraphLoaderContexting) throws {
+        let workspacePath = path.appending(component: Constants.Manifest.workspace)
+        if !context.fileHandler.exists(workspacePath) { throw GraphLoadingError.missingFile(workspacePath) }
+        let json = try context.manifestLoader.load(path: workspacePath, context: context)
+        let projectsStrings: [String] = try json.get("projects")
+        let projectsRelativePaths: [RelativePath] = projectsStrings.map({ RelativePath($0) })
+        projects = projectsRelativePaths.map({ path.appending($0) })
     }
 }

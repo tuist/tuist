@@ -1,53 +1,34 @@
+import Basic
 import Foundation
-import PathKit
-import SwiftCLI
+import Sparkle
+import Utility
 
-/// Checks if there are updates and updates the app.
-public class DumpCommand: NSObject, Command {
-    /// Name of the command.
-    public let name: String = "dump"
+public class DumpCommand: NSObject, Command, SPUUpdaterDelegate {
+    public let command = "dump"
+    public let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
+    fileprivate let context: GraphLoaderContexting
+    fileprivate let printer: Printing
 
-    /// Path of the file.
-    public let path = Parameter()
-
-    /// Description of the command for the cli.
-    public let shortDescription = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON"
-
-    /// Manifest loader.
-    private let manifestLoader: GraphManifestLoading
-
-    /// File handler.
-    private let fileHandler: FileHandling
-
-    /// Printer.
-    private let printer: Printing
-
-    public convenience override init() {
-        self.init(manifestLoader: GraphManifestLoader(),
-                  fileHandler: FileHandler(),
-                  printer: Printer())
+    public required init(parser: ArgumentParser) {
+        parser.add(subparser: command, overview: overview)
+        context = GraphLoaderContext(projectPath: AbsolutePath.current)
+        printer = Printer()
     }
 
-    init(manifestLoader: GraphManifestLoading,
-         fileHandler: FileHandling,
-         printer: Printing) {
-        self.manifestLoader = manifestLoader
-        self.fileHandler = fileHandler
+    init(printer: Printing,
+         context: GraphLoaderContexting) {
         self.printer = printer
+        self.context = context
     }
 
-    /// Executes the command
-    ///
-    /// - Throws: an error if something goes wrong.
-    public func execute() throws {
+    public func run(with _: ArgumentParser.Result) throws {
         do {
-            var _path = Path(path.value)
-            if fileHandler.isRelative(_path) { _path = fileHandler.currentPath + _path }
-            if !fileHandler.exists(_path) {
-                throw "Path \(_path.string) doesn't exist"
+            let path = AbsolutePath.current
+            if !context.fileHandler.exists(path) {
+                throw "Path \(path.asString) doesn't exist"
             }
-            let json = try manifestLoader.load(path: _path)
-            printer.print(String(data: json, encoding: .utf8) ?? "")
+            let json: JSON = try context.manifestLoader.load(path: path, context: context)
+            printer.print(json.toString(prettyPrint: true))
         } catch {
             print(error)
         }

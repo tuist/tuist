@@ -1,9 +1,9 @@
+import Basic
 import Foundation
-import PathKit
 @testable import xcbuddykit
 
 extension Project {
-    static func testData(path: Path = Path("/test/"),
+    static func testData(path: AbsolutePath = AbsolutePath("/test/"),
                          name: String = "Project",
                          schemes: [Scheme] = [],
                          targets: [Target] = [],

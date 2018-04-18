@@ -1,7 +1,6 @@
 import Foundation
-import Unbox
 
-public enum Product: String, UnboxableEnum {
+public enum Product: String {
     case app
     case module
     case unitTests

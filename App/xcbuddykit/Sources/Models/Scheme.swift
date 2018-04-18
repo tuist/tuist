@@ -1,62 +1,64 @@
+import Basic
 import Foundation
-import Unbox
 
-class Scheme: Unboxable {
+class Scheme: JSONMappable {
     let name: String
     let shared: Bool
     let buildAction: BuildAction?
     let testAction: TestAction?
     let runAction: RunAction?
 
-    required init(unboxer: Unboxer) throws {
-        name = try unboxer.unbox(key: "name")
-        shared = try unboxer.unbox(key: "shared")
-        buildAction = unboxer.unbox(key: "build_action")
-        testAction = unboxer.unbox(key: "test_action")
-        runAction = unboxer.unbox(key: "run_action")
+    required init(json: JSON) throws {
+        name = try json.get("name")
+        shared = try json.get("shared")
+        buildAction = json.get("build_action")
+        testAction = json.get("test_action")
+        runAction = json.get("run_action")
     }
 }
 
-public class Arguments: Unboxable {
+class Arguments: JSONMappable {
     let environment: [String: String]
     let launch: [String: Bool]
 
-    public required init(unboxer: Unboxer) throws {
-        environment = try unboxer.unbox(key: "environment")
-        launch = try unboxer.unbox(key: "launch")
+    required init(json: JSON) throws {
+        environment = try json.get("environment")
+        launch = try json.get("launch")
     }
 }
 
-public class BuildAction: Unboxable {
+public class BuildAction: JSONMappable {
     let targets: [String]
 
-    public required init(unboxer: Unboxer) throws {
-        targets = try unboxer.unbox(key: "targets")
+    public required init(json: JSON) throws {
+        targets = try json.get("targets")
     }
 }
 
-public class TestAction: Unboxable {
+public class TestAction: JSONMappable {
     let targets: [String]
     let arguments: Arguments?
     let config: BuildConfiguration
     let coverage: Bool
 
-    public required init(unboxer: Unboxer) throws {
-        targets = try unboxer.unbox(key: "targets")
-        arguments = unboxer.unbox(key: "arguments")
-        config = try unboxer.unbox(key: "config")
-        coverage = try unboxer.unbox(key: "coverage")
+    public required init(json: JSON) throws {
+        targets = try json.get("targets")
+        arguments = json.get("arguments")
+        let configString: String = try json.get("config")
+        config = BuildConfiguration(rawValue: configString)!
+        coverage = try json.get("coverage")
     }
 }
 
-class RunAction: Unboxable {
+class RunAction: JSONMappable {
     let config: BuildConfiguration
     let executable: String?
     let arguments: Arguments?
 
-    required init(unboxer: Unboxer) throws {
-        config = try unboxer.unbox(key: "config")
-        executable = unboxer.unbox(key: "executable")
-        arguments = unboxer.unbox(key: "arguments")
+    required init(json: JSON) throws {
+        let configString: String = try json.get("config")
+        config = BuildConfiguration(rawValue: configString)!
+        executable = json.get("executable")
+        arguments = json.get("arguments")
     }
 }

@@ -1,21 +1,21 @@
+import Basic
 import Foundation
-import PathKit
 
 protocol GraphLoaderCaching {
-    func project(_ path: Path) -> Project?
+    func project(_ path: AbsolutePath) -> Project?
     func add(project: Project)
-    func config(_ path: Path) -> Config?
+    func config(_ path: AbsolutePath) -> Config?
     func add(config: Config)
     func add(node: GraphNode)
-    func node(_ path: Path) -> GraphNode?
+    func node(_ path: AbsolutePath) -> GraphNode?
 }
 
 class GraphLoaderCache: GraphLoaderCaching {
-    var projects: [Path: Project] = [:]
-    var configs: [Path: Config] = [:]
-    var nodes: [Path: GraphNode] = [:]
+    var projects: [AbsolutePath: Project] = [:]
+    var configs: [AbsolutePath: Config] = [:]
+    var nodes: [AbsolutePath: GraphNode] = [:]
 
-    func project(_ path: Path) -> Project? {
+    func project(_ path: AbsolutePath) -> Project? {
         return projects[path]
     }
 
@@ -23,7 +23,7 @@ class GraphLoaderCache: GraphLoaderCaching {
         projects[project.path] = project
     }
 
-    func config(_ path: Path) -> Config? {
+    func config(_ path: AbsolutePath) -> Config? {
         return configs[path]
     }
 
@@ -35,7 +35,7 @@ class GraphLoaderCache: GraphLoaderCaching {
         nodes[node.path] = node
     }
 
-    func node(_ path: Path) -> GraphNode? {
+    func node(_ path: AbsolutePath) -> GraphNode? {
         return nodes[path]
     }
 }

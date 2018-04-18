@@ -1,22 +1,21 @@
+import Basic
 import Foundation
-import PathKit
-import Unbox
 
 // MARK: - BuildPhase
 
 class BuildPhase {
-    static func from(unboxer: Unboxer, context: GraphLoaderContexting) throws -> BuildPhase {
-        let type: String = try unboxer.unbox(key: "type")
+    static func from(json: JSON, context: GraphLoaderContexting) throws -> BuildPhase {
+        let type: String = try json.get("type")
         if type == "sources" {
-            return try SourcesBuildPhase(unboxer: unboxer, context: context)
+            return try SourcesBuildPhase(json: json, context: context)
         } else if type == "resources" {
-            return try ResourcesBuildPhase(unboxer: unboxer, context: context)
+            return try ResourcesBuildPhase(json: json, context: context)
         } else if type == "copy" {
-            return try CopyBuildPhase(unboxer: unboxer)
+            return try CopyBuildPhase(json: json)
         } else if type == "script" {
-            return try ScriptBuildPhase(unboxer: unboxer)
+            return try ScriptBuildPhase(json: json)
         } else if type == "headers" {
-            return try HeadersBuildPhase(unboxer: unboxer)
+            return try HeadersBuildPhase(json: json, context: context)
         } else {
             fatalError()
         }
@@ -26,49 +25,47 @@ class BuildPhase {
 // MARK: - SourcesBuildPhase
 
 class SourcesBuildPhase: BuildPhase {
-    let files: Set<Path>
+    let buildFiles: BuildFiles
 
-    init(files: Set<Path> = Set()) {
-        self.files = files
+    init(buildFiles: BuildFiles = BuildFiles()) {
+        self.buildFiles = buildFiles
     }
 
-    required init(unboxer: Unboxer, context: GraphLoaderContexting) throws {
-        let buildFiles: [BuildFiles] = try unboxer.unbox(key: "files")
-        self.files = buildFiles.list(context: context)
+    init(json: JSON, context: GraphLoaderContexting) throws {
+        buildFiles = try BuildFiles(json: json.get("files"), context: context)
     }
 }
 
 extension SourcesBuildPhase: Equatable {
-    static func ==(lhs: SourcesBuildPhase, rhs: SourcesBuildPhase) -> Bool {
-        return lhs.files == rhs.files
+    static func == (lhs: SourcesBuildPhase, rhs: SourcesBuildPhase) -> Bool {
+        return lhs.buildFiles == rhs.buildFiles
     }
 }
 
 // MARK: - ResourcesBuildPhase
 
 class ResourcesBuildPhase: BuildPhase {
-    let files: Set<Path>
+    let buildFiles: BuildFiles
 
-    init(files: Set<Path> = Set()) {
-        self.files = files
+    init(buildFiles: BuildFiles = BuildFiles()) {
+        self.buildFiles = buildFiles
     }
 
-    required init(unboxer: Unboxer, context: GraphLoaderContexting) throws {
-        let buildFiles: [BuildFiles] = try unboxer.unbox(key: "files")
-        self.files = buildFiles.list(context: context)
+    required init(json: JSON, context: GraphLoaderContexting) throws {
+        buildFiles = try BuildFiles(json: json.get("files"), context: context)
     }
 }
 
 extension ResourcesBuildPhase: Equatable {
-    static func ==(lhs: ResourcesBuildPhase, rhs: ResourcesBuildPhase) -> Bool {
-        return lhs.files == rhs.files
+    static func == (lhs: ResourcesBuildPhase, rhs: ResourcesBuildPhase) -> Bool {
+        return lhs.buildFiles == rhs.buildFiles
     }
 }
 
 // MARK: - CopyBuildPhase
 
-class CopyBuildPhase: BuildPhase, Unboxable {
-    enum Destination: String, UnboxableEnum {
+class CopyBuildPhase: BuildPhase {
+    enum Destination: String {
         case absolutePath = "absolute_path"
         case productsDirectory = "products_directory"
         case wrapper
@@ -96,15 +93,16 @@ class CopyBuildPhase: BuildPhase, Unboxable {
         self.copyWhenInstalling = copyWhenInstalling
     }
 
-    required init(unboxer: Unboxer) throws {
-        name = try unboxer.unbox(key: "name")
-        destination = try unboxer.unbox(key: "destination")
-        subpath = unboxer.unbox(key: "subpath")
-        copyWhenInstalling = try unboxer.unbox(key: "copy_when_installing")
+    init(json: JSON) throws {
+        name = try json.get("name")
+        let destinationString: String = try json.get("destination")
+        destination = Destination(rawValue: destinationString)!
+        subpath = json.get("subpath")
+        copyWhenInstalling = try json.get("copy_when_installing")
     }
 }
 
-class ScriptBuildPhase: BuildPhase, Unboxable {
+class ScriptBuildPhase: BuildPhase {
     let name: String
     let shell: String
     let script: String
@@ -123,31 +121,31 @@ class ScriptBuildPhase: BuildPhase, Unboxable {
         self.outputFiles = outputFiles
     }
 
-    required init(unboxer: Unboxer) throws {
-        name = try unboxer.unbox(key: "name")
-        shell = try unboxer.unbox(key: "shell")
-        script = try unboxer.unbox(key: "script")
-        inputFiles = try unboxer.unbox(key: "input_files")
-        outputFiles = try unboxer.unbox(key: "output_files")
+    init(json: JSON) throws {
+        name = try json.get("name")
+        shell = try json.get("shell")
+        script = try json.get("script")
+        inputFiles = try json.get("input_files")
+        outputFiles = try json.get("output_files")
     }
 }
 
-class HeadersBuildPhase: BuildPhase, Unboxable {
-    let `public`: [BuildFiles]
-    let project: [BuildFiles]
-    let `private`: [BuildFiles]
+class HeadersBuildPhase: BuildPhase {
+    let `public`: BuildFiles
+    let project: BuildFiles
+    let `private`: BuildFiles
 
-    init(public: [BuildFiles] = [],
-         project: [BuildFiles] = [],
-         private: [BuildFiles] = []) {
+    init(public: BuildFiles = BuildFiles(),
+         project: BuildFiles = BuildFiles(),
+         private: BuildFiles = BuildFiles()) {
         self.public = `public`
         self.project = project
         self.private = `private`
     }
 
-    required init(unboxer: Unboxer) throws {
-        `public` = try unboxer.unbox(key: "public")
-        project = try unboxer.unbox(key: "project")
-        `private` = try unboxer.unbox(key: "private")
+    init(json: JSON, context: GraphLoaderContexting) throws {
+        `public` = try BuildFiles(json: json.get("public"), context: context)
+        project = try BuildFiles(json: json.get("project"), context: context)
+        `private` = try BuildFiles(json: json.get("private"), context: context)
     }
 }

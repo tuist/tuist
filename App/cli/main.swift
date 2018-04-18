@@ -1,15 +1,9 @@
 import Foundation
-import SwiftCLI
 import xcbuddykit
 
-let cli = CLI(name: "xcbuddy", version: App().version, description: "Xcode projects at scale")
+var registry = CommandRegistry(usage: "<command> <options>", overview: "Your Xcode buddy")
 
-cli.commands = [
-    UpdateCommand(),
-    DumpCommand(),
-    // generate-xcodeproj
-    // build
-    // test
-]
+registry.register(command: UpdateCommand.self)
+registry.register(command: DumpCommand.self)
 
-cli.goAndExit()
+registry.run()

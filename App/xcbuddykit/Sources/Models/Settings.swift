@@ -1,21 +1,20 @@
+import Basic
 import Foundation
-import PathKit
-import Unbox
 
-class Settings: Unboxable {
-    class Configuration: Unboxable {
+class Settings {
+    class Configuration {
         let settings: [String: String]
-        let xcconfig: Path?
+        let xcconfig: AbsolutePath?
 
-        init(settings: [String: String] = [:], xcconfig: Path? = nil) {
+        init(settings: [String: String] = [:], xcconfig: AbsolutePath? = nil) {
             self.settings = settings
             self.xcconfig = xcconfig
         }
 
-        required init(unboxer: Unboxer) throws {
-            settings = try unboxer.unbox(key: "settings")
-            xcconfig = unboxer.unbox(key: "xcconfig")
-            try xcconfig?.assertRelative()
+        init(json: JSON, context: GraphLoaderContexting) throws {
+            settings = try json.get("settings")
+            let xcconfigString: String? = json.get("xcconfig")
+            xcconfig = xcconfigString.flatMap({ context.projectPath.appending(component: $0) })
         }
     }
 
@@ -31,9 +30,11 @@ class Settings: Unboxable {
         self.release = release
     }
 
-    required init(unboxer: Unboxer) throws {
-        base = try unboxer.unbox(key: "base")
-        debug = unboxer.unbox(key: "debug")
-        release = unboxer.unbox(key: "release")
+    init(json: JSON, context: GraphLoaderContexting) throws {
+        base = try json.get("base")
+        let debugJSON: JSON? = try json.get("debug")
+        debug = try debugJSON.flatMap({ try Configuration(json: $0, context: context) })
+        let releaseJSON: JSON? = try json.get("release")
+        release = try releaseJSON.flatMap({ try Configuration(json: $0, context: context) })
     }
 }

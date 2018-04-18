@@ -1,11 +1,11 @@
+import Basic
 import Foundation
-import PathKit
 @testable import xcbuddykit
 
 extension GraphLoaderContext {
     static func test(manifestLoading: GraphManifestLoading = MockGraphManifestLoader(),
                      cache: GraphLoaderCaching = MockGraphLoaderCache(),
-                     projectPath: Path = Path("/test"),
+                     projectPath: AbsolutePath = AbsolutePath("/test"),
                      fileHandler: FileHandling = MockFileHandler()) -> GraphLoaderContext {
         return GraphLoaderContext(manifestLoader: manifestLoading,
                                   cache: cache,

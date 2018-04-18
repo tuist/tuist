@@ -1,25 +1,21 @@
+import Basic
 import Foundation
-import PathKit
 @testable import xcbuddykit
 
 final class MockFileHandler: FileHandling {
-    var existsStub: ((Path) -> Bool)?
-    var isRelativeStub: ((Path) -> Bool)?
-    var currentPathStub: Path?
-    var globStub: ((Path, String) -> [Path])?
-    var currentPath: Path {
-        return currentPathStub ?? Path.current
+    var existsStub: ((AbsolutePath) -> Bool)?
+    var currentPathStub: AbsolutePath?
+    var globStub: ((AbsolutePath, String) -> [AbsolutePath])?
+
+    var currentPath: AbsolutePath {
+        return currentPathStub ?? AbsolutePath.current
     }
 
-    func exists(_ path: Path) -> Bool {
+    func exists(_ path: AbsolutePath) -> Bool {
         return existsStub?(path) ?? false
     }
 
-    func isRelative(_ path: Path) -> Bool {
-        return isRelativeStub?(path) ?? false
-    }
-
-    func glob(_ path: Path, glob: String) -> [Path] {
+    func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
         return globStub?(path, glob) ?? []
     }
 }

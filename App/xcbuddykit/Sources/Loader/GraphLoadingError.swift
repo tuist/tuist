@@ -1,10 +1,10 @@
+import Basic
 import Foundation
-import PathKit
 
-enum GraphLoadingError: Error, Equatable {
-    case missingFile(Path)
-    case targetNotFound(String, Path)
-    case manifestNotFound(Path)
+enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
+    case missingFile(AbsolutePath)
+    case targetNotFound(String, AbsolutePath)
+    case manifestNotFound(AbsolutePath)
     case unexpected(String)
 
     static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
@@ -19,6 +19,19 @@ enum GraphLoadingError: Error, Equatable {
             return lhsMessage == rhsMessage
         default:
             return false
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .manifestNotFound(path):
+            return "Couldn't find manifest at path: '\(path)'"
+        case let .targetNotFound(targetName, path):
+            return "Couldn't find target '\(targetName)' at '\(path)'"
+        case let .missingFile(path):
+            return "Couldn't find file at path '\(path)'"
+        case let .unexpected(message):
+            return message
         }
     }
 }
