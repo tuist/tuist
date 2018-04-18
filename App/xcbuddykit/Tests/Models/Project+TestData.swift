@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 @testable import xcbuddykit
 
 extension Project {

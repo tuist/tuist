@@ -7,7 +7,9 @@ protocol GraphManifestLoading {
 
 class GraphManifestLoader: GraphManifestLoading {
     func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {
-        let swiftOutput = try run(bash: "xcrun -f swift")
+        guard let swiftOutput = try run("xcrun", "-f", "swift").chuzzle() else {
+            throw GraphLoadingError.unexpected("Couldn't find swift binary")
+        }
         let swiftPath = AbsolutePath(swiftOutput)
         guard let frameworksPath = Bundle.app.privateFrameworksPath.map({ AbsolutePath($0) }) else {
             throw "Can't find xcbuddy frameworks folder"
@@ -16,14 +18,14 @@ class GraphManifestLoader: GraphManifestLoading {
         if !context.fileHandler.exists(projectDescriptionPath) {
             throw "Couldn't find ProjectDescription.framework at \(projectDescriptionPath)"
         }
-        let jsonString = try run(bash: "\(swiftPath.asString) -F \(frameworksPath.asString) -framework ProjectDescription \(path.asString) --dump")
+        guard let jsonString = try run(swiftPath.asString, "-F", frameworksPath.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle() else {
+            throw GraphLoadingError.unexpected("Couldn't read manifest at path \(path.asString)")
+        }
         return try JSON(string: jsonString)
     }
 
-    func run(bash: String) throws -> String {
-        let process = Process(args: "/bin/bash -c '\(bash)'")
-        try process.launch()
-        let output = try process.waitUntilExit()
-        return try output.utf8Output()
+    func run(_ args: String...) throws -> String {
+        let result = try Process.popen(arguments: args)
+        return try result.utf8Output()
     }
 }
