@@ -23,4 +23,4 @@ Just run this command on your terminal:
 4. Have fun :tada:
 
 ## Documentation
-If you would like to contribute to the project, we recommend you to check out the [project documentation](docs.xcbuddy.io) generated using [Jazzy](https://github.com/realm/jazzy).
+If you would like to contribute to the project, we recommend you to check out the [project documentation](https://xcbuddy.github.io/xcbuddy/) generated using [Jazzy](https://github.com/realm/jazzy).
