@@ -21,7 +21,7 @@ class GraphManifestLoader: GraphManifestLoading {
     }
 
     func run(bash: String) throws -> String {
-        let process = Process(arguments: ["/bin/bash -c '\(bash)'"], environment: [:], redirectOutput: true)
+        let process = Process(args: "/bin/bash -c '\(bash)'")
         try process.launch()
         let output = try process.waitUntilExit()
         return try output.utf8Output()
