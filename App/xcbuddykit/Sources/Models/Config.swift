@@ -22,7 +22,6 @@ extension Config {
             throw GraphLoadingError.missingFile(configPath)
         }
         let json = try context.manifestLoader.load(path: configPath, context: context)
-        _ = try JSON(string: json)
         self.init(path: path)
     }
 }

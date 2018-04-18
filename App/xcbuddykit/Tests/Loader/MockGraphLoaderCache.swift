@@ -1,27 +1,27 @@
 import Foundation
-import PathKit
+import Basic
 @testable import xcbuddykit
 
 final class MockGraphLoaderCache: GraphLoaderCaching {
-    var projectStub: ((Path) -> Project?)?
+    var projectStub: ((AbsolutePath) -> Project?)?
     var projectCount: UInt = 0
     var addProjectCount: UInt = 0
     var addProjectArgs: [Project] = []
     var addConfigCount: UInt = 0
     var addConfigArgs: [Config] = []
-    var configStub: ((Path) -> Config?)?
+    var configStub: ((AbsolutePath) -> Config?)?
     var configCount: UInt = 0
     var addNodeCount: UInt = 0
     var addNodeArgs: [GraphNode] = []
     var nodeCount: UInt = 0
-    var nodeStub: ((Path) -> GraphNode?)?
+    var nodeStub: ((AbsolutePath) -> GraphNode?)?
 
-    func project(_ path: Path) -> Project? {
+    func project(_ path: AbsolutePath) -> Project? {
         projectCount += 1
         return projectStub?(path)
     }
 
-    func config(_ path: Path) -> Config? {
+    func config(_ path: AbsolutePath) -> Config? {
         configCount += 1
         return configStub?(path)
     }
@@ -41,7 +41,7 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
         addNodeArgs.append(node)
     }
 
-    func node(_ path: Path) -> GraphNode? {
+    func node(_ path: AbsolutePath) -> GraphNode? {
         nodeCount += 1
         return nodeStub?(path)
     }

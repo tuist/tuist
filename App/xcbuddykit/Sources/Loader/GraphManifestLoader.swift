@@ -2,11 +2,11 @@ import Foundation
 import Basic
 
 protocol GraphManifestLoading {
-    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> String
+    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON
 }
 
 class GraphManifestLoader: GraphManifestLoading {
-    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> String {
+    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {
         
         let swiftOutput = try run(bash: "xcrun -f swift")
         let swiftPath = AbsolutePath(swiftOutput)
@@ -17,7 +17,8 @@ class GraphManifestLoader: GraphManifestLoading {
         if !context.fileHandler.exists(projectDescriptionPath) {
             throw "Couldn't find ProjectDescription.framework at \(projectDescriptionPath)"
         }
-        return try run(bash: "\(swiftPath.asString) -F \(frameworksPath.asString) -framework ProjectDescription \(path.asString) --dump")
+        let jsonString = try run(bash: "\(swiftPath.asString) -F \(frameworksPath.asString) -framework ProjectDescription \(path.asString) --dump")
+        return try JSON(string: jsonString)
     }
     
     func run(bash: String) throws -> String {

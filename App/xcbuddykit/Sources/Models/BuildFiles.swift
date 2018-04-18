@@ -3,9 +3,9 @@ import Basic
 
 // MARK: - BuildFiles
 
-enum BuildFiles {
-    case include([RelativePath])
-    case exclude([RelativePath])
+class BuildFiles {
+    let files: [AbsolutePath] = []
+    
 }
 
 // MARK: - BuildFiles (Equatable)

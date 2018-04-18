@@ -36,7 +36,7 @@ class Project {
     init(path: AbsolutePath, context: GraphLoaderContexting) throws {
         let projectPath = path.appending(component: Constants.Manifest.project)
         if !context.fileHandler.exists(projectPath) { throw GraphLoadingError.missingFile(projectPath) }
-        let json = try JSON(string: context.manifestLoader.load(path: projectPath, context: context))
+        let json = try context.manifestLoader.load(path: projectPath, context: context)
         self.path = path
         name = try json.get("name")
         let targetsJSONs: [JSON] = try json.get("targets")
