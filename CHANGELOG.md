@@ -3,6 +3,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Changed
+- Replace dependencies with SPM's modules https://github.com/xcbuddy/xcbuddy/pull/7 by @pepibumur
+
 ## 0.32.0
 - Second test
 
