@@ -21,3 +21,6 @@ Just run this command on your terminal:
 2. Generate SPM project `swift package generate-xcodeproj`.
 3. Open `xcbuddy.xcworkspace`.
 4. Have fun :tada:
+
+## Documentation
+If you would like to contribute to the project, we recommend you to check out the [project documentation](docs.xcbuddy.io) generated using [Jazzy](https://github.com/realm/jazzy).
