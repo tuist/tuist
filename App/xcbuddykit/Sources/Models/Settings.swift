@@ -14,7 +14,7 @@ class Settings {
         init(json: JSON, context: GraphLoaderContexting) throws {
             settings = try json.get("settings")
             let xcconfigString: String? = json.get("xcconfig")
-            xcconfig = xcconfigString.flatMap({ context.projectPath.appending(component: $0) })
+            xcconfig = xcconfigString.flatMap({ context.path.appending(component: $0) })
         }
     }
 

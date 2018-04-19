@@ -4,38 +4,38 @@ import Foundation
 protocol GraphLoaderContexting: AnyObject {
     var manifestLoader: GraphManifestLoading { get }
     var cache: GraphLoaderCaching { get }
-    var projectPath: AbsolutePath { get }
+    var path: AbsolutePath { get }
     var fileHandler: FileHandling { get }
-    func with(projectPath: AbsolutePath) -> GraphLoaderContexting
+    func with(path: AbsolutePath) -> GraphLoaderContexting
 }
 
 class GraphLoaderContext: GraphLoaderContexting {
     let manifestLoader: GraphManifestLoading
     let cache: GraphLoaderCaching
-    let projectPath: AbsolutePath
+    let path: AbsolutePath
     let fileHandler: FileHandling
-
+    
     init(manifestLoader: GraphManifestLoading,
          cache: GraphLoaderCaching,
-         projectPath: AbsolutePath,
+         path: AbsolutePath,
          fileHandler: FileHandling = FileHandler()) {
         self.manifestLoader = manifestLoader
         self.cache = cache
-        self.projectPath = projectPath
+        self.path = path
         self.fileHandler = fileHandler
     }
-
+    
     init(projectPath: AbsolutePath) {
         manifestLoader = GraphManifestLoader()
         cache = GraphLoaderCache()
-        self.projectPath = projectPath
+        self.path = projectPath
         fileHandler = FileHandler()
     }
-
-    func with(projectPath: AbsolutePath) -> GraphLoaderContexting {
+    
+    func with(path: AbsolutePath) -> GraphLoaderContexting {
         return GraphLoaderContext(manifestLoader: manifestLoader,
                                   cache: cache,
-                                  projectPath: projectPath,
+                                  path: path,
                                   fileHandler: fileHandler)
     }
 }

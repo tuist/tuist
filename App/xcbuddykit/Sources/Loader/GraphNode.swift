@@ -93,11 +93,11 @@ class LibraryNode: GraphNode {
                      context: GraphLoaderContexting) throws -> LibraryNode {
         if let libraryNode = context.cache.node(path) as? LibraryNode { return libraryNode }
         let publicHeadersRelativePath: RelativePath = try RelativePath(json.get("public_headers"))
-        let publicHeadersPath = context.projectPath.appending(publicHeadersRelativePath)
+        let publicHeadersPath = context.path.appending(publicHeadersRelativePath)
         var swiftModuleMapPath: AbsolutePath?
         if let swiftModuleMapRelativePathString: String = json.get("swift_module_map") {
             let swiftModuleMapRelativePath = RelativePath(swiftModuleMapRelativePathString)
-            swiftModuleMapPath = context.projectPath.appending(swiftModuleMapRelativePath)
+            swiftModuleMapPath = context.path.appending(swiftModuleMapRelativePath)
         }
         let libraryNode = LibraryNode(path: path,
                                       publicHeader: publicHeadersPath,

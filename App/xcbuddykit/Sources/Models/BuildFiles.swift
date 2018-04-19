@@ -18,9 +18,9 @@ class BuildFiles {
                 let type: String = try buildFiles.get("type")
                 let paths: [String] = try buildFiles.get("paths")
                 if type == "include" {
-                    included.append(contentsOf: paths.flatMap({ context.fileHandler.glob(context.projectPath, glob: $0) }))
+                    included.append(contentsOf: paths.flatMap({ context.fileHandler.glob(context.path, glob: $0) }))
                 } else if type == "exclude" {
-                    excluded.append(contentsOf: paths.flatMap({ context.fileHandler.glob(context.projectPath, glob: $0) }))
+                    excluded.append(contentsOf: paths.flatMap({ context.fileHandler.glob(context.path, glob: $0) }))
                 } else {
                     let message = "Buildfile type \(type) not supported"
                     throw GraphLoadingError.unexpected(message)

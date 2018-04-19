@@ -52,7 +52,7 @@ class Project {
                                    context: GraphLoaderContexting) throws -> Config? {
         guard let configStringPath: String = json.get("config") else { return nil }
         let configPath = RelativePath(configStringPath)
-        let path = context.projectPath.appending(configPath)
+        let path = context.path.appending(configPath)
         return try Config.read(path: path, context: context)
     }
 }
