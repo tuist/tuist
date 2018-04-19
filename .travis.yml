@@ -12,6 +12,7 @@ env:
 install:
 - bundle install
 script:
+- travis_wait swift package generate-xcodeproj
 - bundle exec rake test
 - bundle exec rake release
 - |
