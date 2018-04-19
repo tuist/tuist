@@ -64,7 +64,7 @@ def add_appcast_entry(version, length, signature)
   appcast_string = File.open(APPCAST_PATH, 'rb', &:read)
   item = Sparklecast::Appcast::Item.new
   item.title = "Version #{version}"
-  item.url = "https://github.com/#{REPOSITORY}/releases/tag/#{version}"
+  item.url = "https://github.com/#{REPOSITORY}/releases/download/#{version}/xcbuddy.zip"
   item.length = length
   item.dsa_signature = signature
   item.pub_date = Time.now

@@ -6,7 +6,7 @@ import Utility
 public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
 
     // MARK: - Command
-    
+
     /// Command name.
     public let command = "update"
 
@@ -20,15 +20,14 @@ public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
         parser.add(subparser: command, overview: overview)
         controller = UpdateController()
     }
-    
+
     public func run(with _: ArgumentParser.Result) throws {
         try controller.checkAndUpdateFromConsole()
     }
-    
+
     // MARK: - Init
-    
+
     init(controller: UpdateControlling) {
         self.controller = controller
     }
-    
 }

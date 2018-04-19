@@ -2,7 +2,6 @@ import Utility
 
 /// Protocol that defines a command line command.
 public protocol Command {
-
     /// Command name.
     var command: String { get }
 
@@ -13,7 +12,7 @@ public protocol Command {
     ///
     /// - Parameter parser: argument parser.
     init(parser: ArgumentParser)
-    
+
     /// Runs the command with the given arguments.
     ///
     /// - Parameter arguments: arguments.

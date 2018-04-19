@@ -2,7 +2,6 @@ import Foundation
 
 /// All the project constants.
 struct Constants {
-    
     /// Manifests' names.
     struct Manifest {
         static let project = "Project.swift"
