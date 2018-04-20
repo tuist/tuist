@@ -30,6 +30,7 @@
 		B95895F7208A2B5800F00ACF /* GeneratorError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F6208A2B5800F00ACF /* GeneratorError.swift */; };
 		B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */; };
 		B95895FB208A2FFB00F00ACF /* WorkspaceGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */; };
+		B95895FD208A361D00F00ACF /* GraphLoadingErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */; };
 		B98313782065432A00D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
 		B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B983137F2065473800D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
@@ -232,6 +233,7 @@
 		B95895F6208A2B5800F00ACF /* GeneratorError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorError.swift; sourceTree = "<group>"; };
 		B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetGenerator.swift; sourceTree = "<group>"; };
 		B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceGenerator.swift; sourceTree = "<group>"; };
+		B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphLoadingErrorTests.swift; sourceTree = "<group>"; };
 		B98313772065432A00D2D656 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
@@ -416,6 +418,7 @@
 				B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */,
 				B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */,
 				B9287D0D208097AB002DEFEE /* MockGraphLoaderContext.swift */,
+				B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -938,6 +941,7 @@
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
 				66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */,
+				B95895FD208A361D00F00ACF /* GraphLoadingErrorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
