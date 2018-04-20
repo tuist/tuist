@@ -254,135 +254,79 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 6,
+      "line": 4,
       "symbol": "BuildPhase",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 125,
+      "line": 114,
       "symbol": "CopyBuildPhase.Destination.absolutePath",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 126,
+      "line": 115,
       "symbol": "CopyBuildPhase.Destination.productsDirectory",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 127,
+      "line": 116,
       "symbol": "CopyBuildPhase.Destination.wrapper",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 128,
+      "line": 117,
       "symbol": "CopyBuildPhase.Destination.resources",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 129,
+      "line": 118,
       "symbol": "CopyBuildPhase.Destination.executables",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 130,
+      "line": 119,
       "symbol": "CopyBuildPhase.Destination.javaResources",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 131,
+      "line": 120,
       "symbol": "CopyBuildPhase.Destination.frameworks",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 132,
+      "line": 121,
       "symbol": "CopyBuildPhase.Destination.sharedFrameworks",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 133,
+      "line": 122,
       "symbol": "CopyBuildPhase.Destination.sharedSupport",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 134,
+      "line": 123,
       "symbol": "CopyBuildPhase.Destination.plugins",
       "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 137,
-      "symbol": "CopyBuildPhase.name",
-      "symbol_kind": "source.lang.swift.decl.var.instance",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 138,
-      "symbol": "CopyBuildPhase.destination",
-      "symbol_kind": "source.lang.swift.decl.var.instance",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 139,
-      "symbol": "CopyBuildPhase.subpath",
-      "symbol_kind": "source.lang.swift.decl.var.instance",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 140,
-      "symbol": "CopyBuildPhase.copyWhenInstalling",
-      "symbol_kind": "source.lang.swift.decl.var.instance",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 142,
-      "symbol": "CopyBuildPhase.init(name:destination:subpath:copyWhenInstalling:)",
-      "symbol_kind": "source.lang.swift.decl.function.method.instance",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 152,
-      "symbol": "CopyBuildPhase.init(json:)",
-      "symbol_kind": "source.lang.swift.decl.function.method.instance",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 161,
-      "symbol": "ScriptBuildPhase",
-      "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 189,
-      "symbol": "HeadersBuildPhase",
-      "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
@@ -519,13 +463,6 @@
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Project.swift",
-      "line": 4,
-      "symbol": "Project",
-      "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Scheme.swift",
       "line": 4,
       "symbol": "Scheme",
@@ -557,13 +494,6 @@
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Scheme.swift",
       "line": 53,
       "symbol": "RunAction",
-      "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Workspace.swift",
-      "line": 4,
-      "symbol": "Workspace",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },

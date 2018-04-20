@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>TechLogger Class Reference</title>
+    <title>ScriptBuildPhase Class Reference</title>
     <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
     <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
     <meta charset="utf-8">
@@ -14,9 +14,9 @@
   </head>
   <body>
 
-    <a name="//apple_ref/swift/Class/TechLogger" class="dashAnchor"></a>
+    <a name="//apple_ref/swift/Class/ScriptBuildPhase" class="dashAnchor"></a>
 
-    <a title="TechLogger Class Reference"></a>
+    <a title="ScriptBuildPhase Class Reference"></a>
 
     <header class="header">
       <p class="header-col header-col--primary">
@@ -44,7 +44,7 @@
     <p class="breadcrumbs">
       <a class="breadcrumb" href="../index.html">xcbuddykit Reference</a>
       <img class="carat" src="../img/carat.png" />
-      TechLogger Class Reference
+      ScriptBuildPhase Class Reference
     </p>
 
     <div class="content-wrapper">
@@ -222,14 +222,14 @@
 
         <section class="section">
           <div class="section-content">
-            <h1>TechLogger</h1>
+            <h1>ScriptBuildPhase</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">TechLogger</span><span class="p">:</span> <span class="kt"><a href="../Protocols/TechLogging.html">TechLogging</a></span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">ScriptBuildPhase</span><span class="p">:</span> <span class="kt">BuildPhase</span><span class="p">,</span> <span class="kt">Equatable</span></code></pre>
 
                 </div>
               </div>
-            <p>Default tech logger conforming TechLogging</p>
+            <p>Script build phase.</p>
 
           </div>
         </section>
@@ -241,9 +241,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit10TechLoggerC6clientSo6ClientCSgvp"></a>
-                    <a name="//apple_ref/swift/Property/client" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit10TechLoggerC6clientSo6ClientCSgvp">client</a>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseC4nameSSvp"></a>
+                    <a name="//apple_ref/swift/Property/name" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseC4nameSSvp">name</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -251,14 +251,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Sentry client.</p>
+                        <p>Build phase name.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">client</span><span class="p">:</span> <span class="kt">Client</span><span class="p">?</span></code></pre>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">name</span><span class="p">:</span> <span class="kt">String</span></code></pre>
 
                         </div>
                       </div>
@@ -268,9 +268,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit10TechLoggerCACs10DictionaryVyS2SG4tags_tcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(tags:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit10TechLoggerCACs10DictionaryVyS2SG4tags_tcfc">init(tags:)</a>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseC5shellSSvp"></a>
+                    <a name="//apple_ref/swift/Property/shell" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseC5shellSSvp">shell</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -278,14 +278,126 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Initializes the tech logger with some default tags.</p>
+                        <p>Shell used to run the script.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span><span class="nv">tags</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">:</span> <span class="kt">String</span><span class="p">]</span> <span class="o">=</span> <span class="kt">TechLogger</span><span class="o">.</span><span class="nf">defaultTags</span><span class="p">())</span></code></pre>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">shell</span><span class="p">:</span> <span class="kt">String</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseC6scriptSSvp"></a>
+                    <a name="//apple_ref/swift/Property/script" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseC6scriptSSvp">script</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Script  to be executed.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">script</span><span class="p">:</span> <span class="kt">String</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseC10inputFilesSaySSGvp"></a>
+                    <a name="//apple_ref/swift/Property/inputFiles" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseC10inputFilesSaySSGvp">inputFiles</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Input files.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">inputFiles</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseC11outputFilesSaySSGvp"></a>
+                    <a name="//apple_ref/swift/Property/outputFiles" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseC11outputFilesSaySSGvp">outputFiles</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Output files.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">outputFiles</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseCACSS4name_SS5shellSS6scriptSaySSG10inputFilesAG06outputI0tcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(name:shell:script:inputFiles:outputFiles:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseCACSS4name_SS5shellSS6scriptSaySSG10inputFilesAG06outputI0tcfc">init(name:shell:script:inputFiles:outputFiles:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Initialies the build phase with its properties.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">name</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+     <span class="nv">shell</span><span class="p">:</span> <span class="kt">String</span> <span class="o">=</span> <span class="s">"/bin/sh"</span><span class="p">,</span>
+     <span class="nv">script</span><span class="p">:</span> <span class="kt">String</span> <span class="o">=</span> <span class="s">""</span><span class="p">,</span>
+     <span class="nv">inputFiles</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">]</span> <span class="o">=</span> <span class="p">[],</span>
+     <span class="nv">outputFiles</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">]</span> <span class="o">=</span> <span class="p">[])</span></code></pre>
 
                         </div>
                       </div>
@@ -296,12 +408,60 @@
                             <tr>
                               <td>
                                 <code>
-                                <em>tags</em>
+                                <em>name</em>
                                 </code>
                               </td>
                               <td>
                                 <div>
-                                  <p>default tags to be used.</p>
+                                  <p>build phase name.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>shell</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>shell used to run the script.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>script</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>script to be  run.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>inputFiles</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>input files.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>outputFiles</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>output files.</p>
                                 </div>
                               </td>
                             </tr>
@@ -314,9 +474,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit10TechLoggerC5eventySS7message_s10DictionaryVySSypG5extraAA8SeverityO8severitytF"></a>
-                    <a name="//apple_ref/swift/Method/event(message:extra:severity:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit10TechLoggerC5eventySS7message_s10DictionaryVySSypG5extraAA8SeverityO8severitytF">event(message:extra:severity:)</a>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseCAC5Basic4JSONO4json_tKcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(json:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseCAC5Basic4JSONO4json_tKcfc">init(json:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -324,14 +484,19 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Reports an event.</p>
+                        <p>Initializes the build phase from its JSON representation.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    an error if the build phase cannot be parsed from the JSON.
+
+</div>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">event</span><span class="p">(</span><span class="nv">message</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">extra</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">:</span> <span class="kt">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[:],</span> <span class="nv">severity</span><span class="p">:</span> <span class="kt"><a href="../Enums/Severity.html">Severity</a></span> <span class="o">=</span> <span class="o">.</span><span class="n">info</span><span class="p">)</span></code></pre>
+                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">json</span><span class="p">:</span> <span class="kt">JSON</span><span class="p">)</span> <span class="k">throws</span></code></pre>
 
                         </div>
                       </div>
@@ -342,36 +507,12 @@
                             <tr>
                               <td>
                                 <code>
-                                <em>message</em>
+                                <em>json</em>
                                 </code>
                               </td>
                               <td>
                                 <div>
-                                  <p>message to ge included in the event.</p>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>extra</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>extra information to be attached to the event.</p>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>severity</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>severity of the event.</p>
+                                  <p>JSON representation.</p>
                                 </div>
                               </td>
                             </tr>
@@ -384,9 +525,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit10TechLoggerC10breadCrumbySS8category_AA8SeverityO8severitytF"></a>
-                    <a name="//apple_ref/swift/Method/breadCrumb(category:severity:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit10TechLoggerC10breadCrumbySS8category_AA8SeverityO8severitytF">breadCrumb(category:severity:)</a>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseC2eeoiSbAC_ACtFZ"></a>
+                    <a name="//apple_ref/swift/Method/==(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseC2eeoiSbAC_ACtFZ">==(_:_:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -394,14 +535,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Sends a breadcrumb event.</p>
+                        <p>Compares two script build phases.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">breadCrumb</span><span class="p">(</span><span class="nv">category</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">severity</span><span class="p">:</span> <span class="kt"><a href="../Enums/Severity.html">Severity</a></span> <span class="o">=</span> <span class="o">.</span><span class="n">info</span><span class="p">)</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">static</span> <span class="kd">func</span> <span class="o">==</span> <span class="p">(</span><span class="nv">lhs</span><span class="p">:</span> <span class="kt">ScriptBuildPhase</span><span class="p">,</span> <span class="nv">rhs</span><span class="p">:</span> <span class="kt">ScriptBuildPhase</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Bool</span></code></pre>
 
                         </div>
                       </div>
@@ -412,71 +553,33 @@
                             <tr>
                               <td>
                                 <code>
-                                <em>category</em>
+                                <em>lhs</em>
                                 </code>
                               </td>
                               <td>
                                 <div>
-                                  <p>category of the event.</p>
+                                  <p>first build phase to be compared.</p>
                                 </div>
                               </td>
                             </tr>
                             <tr>
                               <td>
                                 <code>
-                                <em>severity</em>
+                                <em>rhs</em>
                                 </code>
                               </td>
                               <td>
                                 <div>
-                                  <p>severity of the event.</p>
+                                  <p>second build  phase to be compared.</p>
                                 </div>
                               </td>
                             </tr>
                           </tbody>
                         </table>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-              </ul>
-            </div>
-            <div class="task-group">
-              <div class="task-name-container">
-                <a name="/Static"></a>
-                <a name="//apple_ref/swift/Section/Static" class="dashAnchor"></a>
-                <a href="#/Static">
-                  <h3 class="section-name">Static</h3>
-                </a>
-              </div>
-              <ul class="item-container">
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit10TechLoggerC11defaultTagss10DictionaryVyS2SGyFZ"></a>
-                    <a name="//apple_ref/swift/Method/defaultTags()" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit10TechLoggerC11defaultTagss10DictionaryVyS2SGyFZ">defaultTags()</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Returns the default tags to be used with a new instance of the tech logger.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">static</span> <span class="kd">func</span> <span class="nf">defaultTags</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">String</span><span class="p">:</span> <span class="kt">String</span><span class="p">]</span></code></pre>
-
-                        </div>
                       </div>
                       <div>
                         <h4>Return Value</h4>
-                        <p>default tags that include information about the platform where the app is being run in.</p>
+                        <p>true if the two build phases are the same.</p>
                       </div>
                     </section>
                   </div>

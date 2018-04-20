@@ -9,7 +9,7 @@ class Config {
 }
 
 extension Config {
-    static func read(path: AbsolutePath, context: GraphLoaderContexting) throws -> Config {
+    static func at(_ path: AbsolutePath, context: GraphLoaderContexting) throws -> Config {
         if let config = context.cache.config(path) { return config }
         let config = try Config(path: path, context: context)
         context.cache.add(config: config)

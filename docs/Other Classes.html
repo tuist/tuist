@@ -22,7 +22,7 @@
         <a class="header-link" href="index.html">
           xcbuddykit Docs
         </a>
-         (58% documented)
+         (66% documented)
       </p>
     
       <p class="header-col--secondary">
@@ -79,6 +79,12 @@
                 <a class="nav-group-task-link" href="Classes/Target.html">Target</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Classes/Workspace.html">Workspace</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Classes/Project.html">Project</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="Classes/Settings.html">Settings</a>
               </li>
               <li class="nav-group-task">
@@ -95,6 +101,9 @@
           <li class="nav-group-name">
             <a class="nav-group-name-link" href="Other Guides.html">Other Guides</a>
             <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="getting--started.html">Getting  Started</a>
+              </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="install.html">Install</a>
               </li>
@@ -125,10 +134,16 @@
                 <a class="nav-group-task-link" href="Classes/GraphNode.html">GraphNode</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Classes/HeadersBuildPhase.html">HeadersBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="Classes/Printer.html">Printer</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="Classes/ResourcesBuildPhase.html">ResourcesBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Classes/ScriptBuildPhase.html">ScriptBuildPhase</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="Classes/SourcesBuildPhase.html">SourcesBuildPhase</a>
@@ -398,13 +413,6 @@
               </ul>
             </div>
             <div class="task-group">
-              <div class="task-name-container">
-                <a name="/SourcesBuildPhase"></a>
-                <a name="//apple_ref/swift/Section/SourcesBuildPhase" class="dashAnchor"></a>
-                <a href="#/SourcesBuildPhase">
-                  <h3 class="section-name">SourcesBuildPhase</h3>
-                </a>
-              </div>
               <ul class="item-container">
                 <li class="item">
                   <div>
@@ -434,17 +442,6 @@
                     </section>
                   </div>
                 </li>
-              </ul>
-            </div>
-            <div class="task-group">
-              <div class="task-name-container">
-                <a name="/ResourcesBuildPhase"></a>
-                <a name="//apple_ref/swift/Section/ResourcesBuildPhase" class="dashAnchor"></a>
-                <a href="#/ResourcesBuildPhase">
-                  <h3 class="section-name">ResourcesBuildPhase</h3>
-                </a>
-              </div>
-              <ul class="item-container">
                 <li class="item">
                   <div>
                     <code>
@@ -473,17 +470,6 @@
                     </section>
                   </div>
                 </li>
-              </ul>
-            </div>
-            <div class="task-group">
-              <div class="task-name-container">
-                <a name="/CopyBuildPhase"></a>
-                <a name="//apple_ref/swift/Section/CopyBuildPhase" class="dashAnchor"></a>
-                <a href="#/CopyBuildPhase">
-                  <h3 class="section-name">CopyBuildPhase</h3>
-                </a>
-              </div>
-              <ul class="item-container">
                 <li class="item">
                   <div>
                     <code>
@@ -505,7 +491,63 @@
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">CopyBuildPhase</span><span class="p">:</span> <span class="kt">BuildPhase</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">CopyBuildPhase</span><span class="p">:</span> <span class="kt">BuildPhase</span><span class="p">,</span> <span class="kt">Equatable</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit16ScriptBuildPhaseC"></a>
+                    <a name="//apple_ref/swift/Class/ScriptBuildPhase" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16ScriptBuildPhaseC">ScriptBuildPhase</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Script build phase.</p>
+
+                        <a href="Classes/ScriptBuildPhase.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">ScriptBuildPhase</span><span class="p">:</span> <span class="kt">BuildPhase</span><span class="p">,</span> <span class="kt">Equatable</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit17HeadersBuildPhaseC"></a>
+                    <a name="//apple_ref/swift/Class/HeadersBuildPhase" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit17HeadersBuildPhaseC">HeadersBuildPhase</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Headers build phase.</p>
+
+                        <a href="Classes/HeadersBuildPhase.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">HeadersBuildPhase</span><span class="p">:</span> <span class="kt">BuildPhase</span><span class="p">,</span> <span class="kt"><a href="Protocols/GraphJSONInitiatable.html">GraphJSONInitiatable</a></span><span class="p">,</span> <span class="kt">Equatable</span></code></pre>
 
                         </div>
                       </div>

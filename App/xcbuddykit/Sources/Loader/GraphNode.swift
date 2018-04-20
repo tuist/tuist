@@ -46,7 +46,7 @@ class TargetNode: GraphNode {
 
     static func read(name: String, path: AbsolutePath, context: GraphLoaderContexting) throws -> TargetNode {
         if let targetNode = context.cache.node(path) as? TargetNode { return targetNode }
-        let project = try Project.read(path: path, context: context)
+        let project = try Project.at(path, context: context)
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
         }

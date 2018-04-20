@@ -14,7 +14,7 @@ class GraphLoader {
     }
 
     fileprivate func loadProject(path: AbsolutePath, context: GraphLoaderContext) throws -> GraphController {
-        let project = try Project.read(path: path, context: context)
+        let project = try Project.at(path, context: context)
         let entryNodes: [GraphNode] = try project.targets.map({ $0.name }).map { targetName in
             return try TargetNode.read(name: targetName, path: path, context: context)
         }
@@ -22,9 +22,9 @@ class GraphLoader {
     }
 
     fileprivate func loadWorkspace(path: AbsolutePath, context: GraphLoaderContext) throws -> GraphController {
-        let workspace = try Workspace(path: path, context: context)
+        let workspace = try Workspace.parse(from: path, context: context)
         let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
-            return try (projectPath, Project.read(path: projectPath, context: context))
+            return try (projectPath, Project.at(projectPath, context: context))
         }
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
             return try project.1.targets.map({ $0.name }).map { targetName in

@@ -10,12 +10,14 @@
 
 ## Features
 
+* 🥘 100% open source and written in Swift.
 * 🐦 Type-safe Swift manifests editable with Xcode.
 * ↗️ Local dependencies support.
 * ⚠️ Misconfiguration catching.
 * 📦 Precompiled binaries _(Frameworks & Libraries support)_.
 * 🎉 CocoaPods support.
 * 😍 Dynamic static and dynamic linking setup.
+* 💻 CLI and macOS application.
 
 ## Install
 
@@ -30,7 +32,7 @@ Just run this command on your terminal:
 1.  Git clone: `git@github.com:xcbuddy/xcbuddy.git`
 2.  Generate SPM project `swift package generate-xcodeproj`.
 3.  Open `xcbuddy.xcworkspace`.
-4.  Have fun :tada:
+4.  Have fun 🤖
 
 ## Documentation
 

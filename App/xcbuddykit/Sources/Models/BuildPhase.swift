@@ -1,8 +1,6 @@
 import Basic
 import Foundation
 
-// MARK: - BuildPhase
-
 class BuildPhase {
     /// Static build phase initializer that returns the right BuildPhase based on the build phase type.
     ///
@@ -29,8 +27,6 @@ class BuildPhase {
         }
     }
 }
-
-// MARK: - SourcesBuildPhase
 
 /// Sources build phase
 class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
@@ -66,8 +62,6 @@ class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
     }
 }
 
-// MARK: - ResourcesBuildPhase
-
 /// Resources build phase.
 class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
     /// Build files.
@@ -102,10 +96,8 @@ class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
     }
 }
 
-// MARK: - CopyBuildPhase
-
 /// Copy files build phase.
-class CopyBuildPhase: BuildPhase {
+class CopyBuildPhase: BuildPhase, Equatable {
     /// Destination where the files from the build phase get copied.
     ///
     /// - absolutePath: absolute path  to the dest
@@ -131,11 +123,25 @@ class CopyBuildPhase: BuildPhase {
         case plugins = "plug_ins"
     }
 
+    /// Build phase name.
     let name: String
+
+    /// Destination.
     let destination: Destination
+
+    /// Subpath.
     let subpath: String?
+
+    /// True if resources should be copied only when installing.
     let copyWhenInstalling: Bool
 
+    /// Initializes the build phase with its attributes.
+    ///
+    /// - Parameters:
+    ///   - name: build phase name.
+    ///   - destination: build phase destination.
+    ///   - subpath: sub-path inside destination.
+    ///   - copyWhenInstalling: true if resources should be copied only when installing.
     init(name: String,
          destination: Destination,
          subpath: String? = nil,
@@ -146,6 +152,10 @@ class CopyBuildPhase: BuildPhase {
         self.copyWhenInstalling = copyWhenInstalling
     }
 
+    /// Initializes the build phase from its JSON representation.
+    ///
+    /// - Parameter json: JSON representation.
+    /// - Throws: an error if the build phase cannot be parsed from the JSON.
     init(json: JSON) throws {
         name = try json.get("name")
         let destinationString: String = try json.get("destination")
@@ -153,15 +163,46 @@ class CopyBuildPhase: BuildPhase {
         subpath = json.get("subpath")
         copyWhenInstalling = try json.get("copy_when_installing")
     }
+
+    /// Compares copy files build phases.
+    ///
+    /// - Parameters:
+    ///   - lhs: first build phase to compare.
+    ///   - rhs: second build phase to compare.
+    /// - Returns: true if the two build phases are the same
+    static func == (lhs: CopyBuildPhase, rhs: CopyBuildPhase) -> Bool {
+        return lhs.name == rhs.name &&
+            lhs.destination == rhs.destination &&
+            lhs.subpath == rhs.subpath &&
+            lhs.copyWhenInstalling == rhs.copyWhenInstalling
+    }
 }
 
-class ScriptBuildPhase: BuildPhase {
+/// Script build phase.
+class ScriptBuildPhase: BuildPhase, Equatable {
+    /// Build phase name.
     let name: String
+
+    /// Shell used to run the script.
     let shell: String
+
+    /// Script  to be executed.
     let script: String
+
+    /// Input files.
     let inputFiles: [String]
+
+    /// Output files.
     let outputFiles: [String]
 
+    /// Initialies the build phase with its properties.
+    ///
+    /// - Parameters:
+    ///   - name: build phase name.
+    ///   - shell: shell used to run the script.
+    ///   - script: script to be  run.
+    ///   - inputFiles: input files.
+    ///   - outputFiles: output files.
     init(name: String,
          shell: String = "/bin/sh",
          script: String = "",
@@ -174,6 +215,10 @@ class ScriptBuildPhase: BuildPhase {
         self.outputFiles = outputFiles
     }
 
+    /// Initializes the build phase from its JSON representation.
+    ///
+    /// - Parameter json: JSON representation.
+    /// - Throws: an error if the build phase cannot be parsed from the JSON.
     init(json: JSON) throws {
         name = try json.get("name")
         shell = try json.get("shell")
@@ -181,13 +226,39 @@ class ScriptBuildPhase: BuildPhase {
         inputFiles = try json.get("input_files")
         outputFiles = try json.get("output_files")
     }
+
+    /// Compares two script build phases.
+    ///
+    /// - Parameters:
+    ///   - lhs: first build phase to be compared.
+    ///   - rhs: second build  phase to be compared.
+    /// - Returns: true if the two build phases are the same.
+    static func == (lhs: ScriptBuildPhase, rhs: ScriptBuildPhase) -> Bool {
+        return lhs.name == rhs.name &&
+            lhs.shell == rhs.name &&
+            lhs.script == rhs.script &&
+            lhs.inputFiles == rhs.inputFiles &&
+            lhs.outputFiles == rhs.outputFiles
+    }
 }
 
-class HeadersBuildPhase: BuildPhase {
+/// Headers build phase.
+class HeadersBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
+    /// Public headers.
     let `public`: BuildFiles
+
+    /// Project headers.
     let project: BuildFiles
+
+    /// Private headers.
     let `private`: BuildFiles
 
+    /// Initializes the headers build phase with its attributes.
+    ///
+    /// - Parameters:
+    ///   - public: public headers.
+    ///   - project: project headers.
+    ///   - private: private headers.
     init(public: BuildFiles = BuildFiles(),
          project: BuildFiles = BuildFiles(),
          private: BuildFiles = BuildFiles()) {
@@ -196,9 +267,28 @@ class HeadersBuildPhase: BuildPhase {
         self.private = `private`
     }
 
-    init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+    /// Initializes the build phase from its JSON representation.
+    ///
+    /// - Parameters:
+    ///   - json: target JSON representation.
+    ///   - projectPath: path to the folder that contains the project's manifest.
+    ///   - context: graph loader  context.
+    /// - Throws: an error if build files cannot be parsed.
+    required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
         `public` = try BuildFiles(json: json.get("public"), projectPath: projectPath, context: context)
         project = try BuildFiles(json: json.get("project"), projectPath: projectPath, context: context)
         `private` = try BuildFiles(json: json.get("private"), projectPath: projectPath, context: context)
+    }
+
+    /// Compares two headers build phases.
+    ///
+    /// - Parameters:
+    ///   - lhs: first build phase to be compared.
+    ///   - rhs: second build  phase to be compared.
+    /// - Returns: true if the two build phases are the same.
+    static func == (lhs: HeadersBuildPhase, rhs: HeadersBuildPhase) -> Bool {
+        return lhs.public == rhs.public &&
+            lhs.project == rhs.project &&
+            lhs.private == rhs.private
     }
 }
