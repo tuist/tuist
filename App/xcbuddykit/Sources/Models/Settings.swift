@@ -11,10 +11,13 @@ class Settings {
             self.xcconfig = xcconfig
         }
 
-        init(json: JSON, context: GraphLoaderContexting) throws {
+        init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
             settings = try json.get("settings")
             let xcconfigString: String? = json.get("xcconfig")
-            xcconfig = xcconfigString.flatMap({ context.path.appending(component: $0) })
+            xcconfig = xcconfigString.flatMap({ projectPath.appending(component: $0) })
+            if let xcconfig = xcconfig, !context.fileHandler.exists(xcconfig) {
+                throw GraphLoadingError.missingFile(xcconfig)
+            }
         }
     }
 
@@ -30,11 +33,11 @@ class Settings {
         self.release = release
     }
 
-    init(json: JSON, context: GraphLoaderContexting) throws {
+    init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
         base = try json.get("base")
         let debugJSON: JSON? = try json.get("debug")
-        debug = try debugJSON.flatMap({ try Configuration(json: $0, context: context) })
+        debug = try debugJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, context: context) })
         let releaseJSON: JSON? = try json.get("release")
-        release = try releaseJSON.flatMap({ try Configuration(json: $0, context: context) })
+        release = try releaseJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, context: context) })
     }
 }

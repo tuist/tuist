@@ -1,18 +1,40 @@
 import Basic
 import Foundation
 
-class GraphNode {
+/// Dependency graph node.
+class GraphNode: Equatable {
+    /// Node path.
     let path: AbsolutePath
+
+    /// Initializes the node with its path.
+    ///
+    /// - Parameter path: path to the node.
     init(path: AbsolutePath) {
         self.path = path
     }
+
+    static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
+        return lhs.path == rhs.path
+    }
 }
 
+/// Graph node that represents a project target (to be generaterd).
 class TargetNode: GraphNode {
+    /// Project that contains the target definition.
     let project: Project
+
+    /// Target definition.
     let target: Target
+
+    /// Node dependencies.
     var dependencies: [GraphNode]
 
+    /// Initializes the target node with its attribute.
+    ///
+    /// - Parameters:
+    ///   - project: project that contains the target definition.
+    ///   - target: target description.
+    ///   - dependencies: node dependencies.
     init(project: Project,
          target: Target,
          dependencies: [GraphNode]) {
@@ -28,34 +50,34 @@ class TargetNode: GraphNode {
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
-        let dependencyMapper = TargetNode.readDependency(path: path, context: context)
+        let dependencyMapper = TargetNode.readDependency(projectPath: path, context: context)
         let dependencies: [GraphNode] = try target.dependencies.compactMap(dependencyMapper)
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
         context.cache.add(node: targetNode)
         return targetNode
     }
 
-    static func readDependency(path: AbsolutePath, context: GraphLoaderContexting) -> (_ dictionary: JSON) throws -> GraphNode {
+    static func readDependency(projectPath: AbsolutePath, context: GraphLoaderContexting) -> (_ dictionary: JSON) throws -> GraphNode {
         return { json in
             let type: String = try json.get("type")
             if type == "target" {
                 let name: String = try json.get("name")
-                return try TargetNode.read(name: name, path: path, context: context)
+                return try TargetNode.read(name: name, path: projectPath, context: context)
             } else if type == "project" {
                 let name: String = try json.get("name")
                 let projectRelativePath: RelativePath = try RelativePath(json.get("path"))
-                let projectPath = path.appending(projectRelativePath)
+                let projectPath = projectPath.appending(projectRelativePath)
                 return try TargetNode.read(name: name, path: projectPath, context: context)
             } else if type == "framework" {
-                let frameworkRelativePath: RelativePath = try RelativePath(json.get("path"))
-                let frameworkPath = path.appending(frameworkRelativePath)
+                let frameworkPath: RelativePath = try RelativePath(json.get("path"))
                 return try FrameworkNode.read(json: json,
+                                              projectPath: projectPath,
                                               path: frameworkPath,
                                               context: context)
             } else if type == "library" {
-                let libraryRelativePath: RelativePath = try RelativePath(json.get("path"))
-                let libraryPath = path.appending(libraryRelativePath)
+                let libraryPath: RelativePath = try RelativePath(json.get("path"))
                 return try LibraryNode.read(json: json,
+                                            projectPath: projectPath,
                                             path: libraryPath,
                                             context: context)
             } else {
@@ -65,12 +87,18 @@ class TargetNode: GraphNode {
     }
 }
 
+/// Graph node that represents a framework.
 class FrameworkNode: GraphNode {
     static func read(json _: JSON,
-                     path: AbsolutePath,
+                     projectPath: AbsolutePath,
+                     path: RelativePath,
                      context: GraphLoaderContexting) throws -> FrameworkNode {
-        if let frameworkNode = context.cache.node(path) as? FrameworkNode { return frameworkNode }
-        let framewokNode = FrameworkNode(path: path)
+        let absolutePath = projectPath.appending(path)
+        if !context.fileHandler.exists(absolutePath) {
+            throw GraphLoadingError.missingFile(absolutePath)
+        }
+        if let frameworkNode = context.cache.node(absolutePath) as? FrameworkNode { return frameworkNode }
+        let framewokNode = FrameworkNode(path: absolutePath)
         context.cache.add(node: framewokNode)
         return framewokNode
     }
@@ -89,17 +117,28 @@ class LibraryNode: GraphNode {
     }
 
     static func read(json: JSON,
-                     path: AbsolutePath,
+                     projectPath: AbsolutePath,
+                     path: RelativePath,
                      context: GraphLoaderContexting) throws -> LibraryNode {
-        if let libraryNode = context.cache.node(path) as? LibraryNode { return libraryNode }
+        let libraryAbsolutePath = projectPath.appending(path)
+        if !context.fileHandler.exists(libraryAbsolutePath) {
+            throw GraphLoadingError.missingFile(libraryAbsolutePath)
+        }
+        if let libraryNode = context.cache.node(libraryAbsolutePath) as? LibraryNode { return libraryNode }
         let publicHeadersRelativePath: RelativePath = try RelativePath(json.get("public_headers"))
-        let publicHeadersPath = context.path.appending(publicHeadersRelativePath)
+        let publicHeadersPath = projectPath.appending(publicHeadersRelativePath)
+        if !context.fileHandler.exists(publicHeadersPath) {
+            throw GraphLoadingError.missingFile(publicHeadersPath)
+        }
         var swiftModuleMapPath: AbsolutePath?
         if let swiftModuleMapRelativePathString: String = json.get("swift_module_map") {
             let swiftModuleMapRelativePath = RelativePath(swiftModuleMapRelativePathString)
-            swiftModuleMapPath = context.path.appending(swiftModuleMapRelativePath)
+            swiftModuleMapPath = projectPath.appending(swiftModuleMapRelativePath)
+            if !context.fileHandler.exists(swiftModuleMapPath!) {
+                throw GraphLoadingError.missingFile(swiftModuleMapPath!)
+            }
         }
-        let libraryNode = LibraryNode(path: path,
+        let libraryNode = LibraryNode(path: libraryAbsolutePath,
                                       publicHeader: publicHeadersPath,
                                       swiftModuleMap: swiftModuleMapPath)
         context.cache.add(node: libraryNode)

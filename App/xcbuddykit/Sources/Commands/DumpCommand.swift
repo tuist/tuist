@@ -22,7 +22,7 @@ public class DumpCommand: NSObject, Command, SPUUpdaterDelegate {
     /// - Parameter parser: argument parser.
     public required init(parser: ArgumentParser) {
         parser.add(subparser: command, overview: overview)
-        graphLoaderContext = GraphLoaderContext(projectPath: AbsolutePath.current)
+        graphLoaderContext = GraphLoaderContext()
         commandsContext = CommandsContext()
     }
 

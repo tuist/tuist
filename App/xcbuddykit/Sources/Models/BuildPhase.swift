@@ -4,18 +4,18 @@ import Foundation
 // MARK: - BuildPhase
 
 class BuildPhase {
-    static func from(json: JSON, context: GraphLoaderContexting) throws -> BuildPhase {
+    static func from(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws -> BuildPhase {
         let type: String = try json.get("type")
         if type == "sources" {
-            return try SourcesBuildPhase(json: json, context: context)
+            return try SourcesBuildPhase(json: json, projectPath: projectPath, context: context)
         } else if type == "resources" {
-            return try ResourcesBuildPhase(json: json, context: context)
+            return try ResourcesBuildPhase(json: json, projectPath: projectPath, context: context)
         } else if type == "copy" {
             return try CopyBuildPhase(json: json)
         } else if type == "script" {
             return try ScriptBuildPhase(json: json)
         } else if type == "headers" {
-            return try HeadersBuildPhase(json: json, context: context)
+            return try HeadersBuildPhase(json: json, projectPath: projectPath, context: context)
         } else {
             fatalError()
         }
@@ -31,8 +31,8 @@ class SourcesBuildPhase: BuildPhase {
         self.buildFiles = buildFiles
     }
 
-    init(json: JSON, context: GraphLoaderContexting) throws {
-        buildFiles = try BuildFiles(json: json.get("files"), context: context)
+    init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+        buildFiles = try BuildFiles(json: json.get("files"), projectPath: projectPath, context: context)
     }
 }
 
@@ -51,8 +51,8 @@ class ResourcesBuildPhase: BuildPhase {
         self.buildFiles = buildFiles
     }
 
-    required init(json: JSON, context: GraphLoaderContexting) throws {
-        buildFiles = try BuildFiles(json: json.get("files"), context: context)
+    required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+        buildFiles = try BuildFiles(json: json.get("files"), projectPath: projectPath, context: context)
     }
 }
 
@@ -143,9 +143,9 @@ class HeadersBuildPhase: BuildPhase {
         self.private = `private`
     }
 
-    init(json: JSON, context: GraphLoaderContexting) throws {
-        `public` = try BuildFiles(json: json.get("public"), context: context)
-        project = try BuildFiles(json: json.get("project"), context: context)
-        `private` = try BuildFiles(json: json.get("private"), context: context)
+    init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+        `public` = try BuildFiles(json: json.get("public"), projectPath: projectPath, context: context)
+        project = try BuildFiles(json: json.get("project"), projectPath: projectPath, context: context)
+        `private` = try BuildFiles(json: json.get("private"), projectPath: projectPath, context: context)
     }
 }

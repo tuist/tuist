@@ -25,6 +25,11 @@
 		B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB82062B8A7009BF596 /* MainMenu.xib */; };
 		B94C7FC62062B8A8009BF596 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FC02062B8A8009BF596 /* AppDelegate.swift */; };
 		B94C7FC72062B8B2009BF596 /* xcbuddyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FBB2062B8A7009BF596 /* xcbuddyTests.swift */; };
+		B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */; };
+		B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */; };
+		B95895F7208A2B5800F00ACF /* GeneratorError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F6208A2B5800F00ACF /* GeneratorError.swift */; };
+		B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */; };
+		B95895FB208A2FFB00F00ACF /* WorkspaceGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */; };
 		B98313782065432A00D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
 		B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B983137F2065473800D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
@@ -222,6 +227,11 @@
 		B94C7FBE2062B8A8009BF596 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = App/Info.plist; sourceTree = "<group>"; };
 		B94C7FC02062B8A8009BF596 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B94C7FC82062B8C6009BF596 /* Tests.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Tests.plist; path = App/Tests.plist; sourceTree = "<group>"; };
+		B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGenerator.swift; sourceTree = "<group>"; };
+		B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorContext.swift; sourceTree = "<group>"; };
+		B95895F6208A2B5800F00ACF /* GeneratorError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorError.swift; sourceTree = "<group>"; };
+		B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetGenerator.swift; sourceTree = "<group>"; };
+		B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceGenerator.swift; sourceTree = "<group>"; };
 		B98313772065432A00D2D656 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
@@ -386,6 +396,7 @@
 		B915ED3E2063B04C004B6630 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				B95895F1208A2A9E00F00ACF /* Generator */,
 				B9B6299C20864E2300EE9E07 /* App */,
 				B9B629BD20864E7D00EE9E07 /* Commands */,
 				B9B629BA20864E7000EE9E07 /* Extensions */,
@@ -491,6 +502,18 @@
 			);
 			name = Sources;
 			path = App/Sources;
+			sourceTree = "<group>";
+		};
+		B95895F1208A2A9E00F00ACF /* Generator */ = {
+			isa = PBXGroup;
+			children = (
+				B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */,
+				B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */,
+				B95895F6208A2B5800F00ACF /* GeneratorError.swift */,
+				B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */,
+				B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */,
+			);
+			path = Generator;
 			sourceTree = "<group>";
 		};
 		B9B6299C20864E2300EE9E07 /* App */ = {
@@ -848,6 +871,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B9B629AC20864E3A00EE9E07 /* FileHandler.swift in Sources */,
+				B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */,
 				B9FB2DE52086544900BC2FB3 /* Workspace.swift in Sources */,
 				B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */,
 				B9FB2DE42086544900BC2FB3 /* Config.swift in Sources */,
@@ -874,13 +898,17 @@
 				B9FB2DDD208653DA00BC2FB3 /* GraphLoaderContext.swift in Sources */,
 				B9FB2DE82086544900BC2FB3 /* Settings.swift in Sources */,
 				B9E2DCAA208774550061DF86 /* CommandRegistry.swift in Sources */,
+				B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */,
 				B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */,
+				B95895F7208A2B5800F00ACF /* GeneratorError.swift in Sources */,
+				B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */,
 				B9FB2DEA2086544900BC2FB3 /* BuildPhase.swift in Sources */,
 				B9E2DCCD2089BF3B0061DF86 /* CommandsContext.swift in Sources */,
 				B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */,
 				B9FB2DE72086544900BC2FB3 /* Project.swift in Sources */,
 				B9B629AE20864E3A00EE9E07 /* App.swift in Sources */,
 				B9FB2DE62086544900BC2FB3 /* Scheme.swift in Sources */,
+				B95895FB208A2FFB00F00ACF /* WorkspaceGenerator.swift in Sources */,
 				B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */,
 				B9FB2DCA2086527B00BC2FB3 /* BuildFiles.swift in Sources */,
 				B9FB2DE1208653F500BC2FB3 /* GraphController.swift in Sources */,

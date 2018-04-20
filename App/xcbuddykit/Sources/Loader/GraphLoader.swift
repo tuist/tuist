@@ -3,7 +3,7 @@ import Foundation
 
 class GraphLoader {
     func load(path: AbsolutePath) throws -> GraphController {
-        let context = GraphLoaderContext(projectPath: path)
+        let context = GraphLoaderContext()
         if context.fileHandler.exists(path.appending(component: Constants.Manifest.project)) {
             return try loadProject(path: path, context: context)
         } else if context.fileHandler.exists(path.appending(component: Constants.Manifest.workspace)) {

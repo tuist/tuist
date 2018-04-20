@@ -40,19 +40,19 @@ class Project {
         self.path = path
         name = try json.get("name")
         let targetsJSONs: [JSON] = try json.get("targets")
-        targets = try targetsJSONs.map({ try Target(json: $0, context: context) })
+        targets = try targetsJSONs.map({ try Target(json: $0, projectPath: path, context: context) })
         schemes = try json.get("schemes")
-        config = try Project.config(projectPath: path, json: json, context: context)
+        config = try Project.config(json: json, projectPath: path, context: context)
         let settingsJSON: JSON? = try json.get("settings")
-        settings = try settingsJSON.map({ try Settings(json: $0, context: context) })
+        settings = try settingsJSON.map({ try Settings(json: $0, projectPath: path, context: context) })
     }
 
-    fileprivate static func config(projectPath _: AbsolutePath,
-                                   json: JSON,
+    fileprivate static func config(json: JSON,
+                                   projectPath: AbsolutePath,
                                    context: GraphLoaderContexting) throws -> Config? {
         guard let configStringPath: String = json.get("config") else { return nil }
         let configPath = RelativePath(configStringPath)
-        let path = context.path.appending(configPath)
+        let path = projectPath.appending(configPath)
         return try Config.read(path: path, context: context)
     }
 }
