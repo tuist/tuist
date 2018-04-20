@@ -5,11 +5,11 @@ import Foundation
 extension GraphLoaderContext {
     static func test(manifestLoading: GraphManifestLoading = MockGraphManifestLoader(),
                      cache: GraphLoaderCaching = MockGraphLoaderCache(),
-                     projectPath: AbsolutePath = AbsolutePath("/test"),
+                     path: AbsolutePath = AbsolutePath("/test"),
                      fileHandler: FileHandling = MockFileHandler()) -> GraphLoaderContext {
         return GraphLoaderContext(manifestLoader: manifestLoading,
                                   cache: cache,
-                                  projectPath: projectPath,
+                                  path: path,
                                   fileHandler: fileHandler)
     }
 }

@@ -14,8 +14,8 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B915ECF5206395DA004B6630"
-               BuildableName = "xcbuddy"
+               BlueprintIdentifier = "B94C7F962062B829009BF596"
+               BuildableName = "xcbuddy.app"
                BlueprintName = "xcbuddy"
                ReferencedContainer = "container:App.xcodeproj">
             </BuildableReference>
@@ -65,8 +65,8 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B915ECF5206395DA004B6630"
-            BuildableName = "xcbuddy"
+            BlueprintIdentifier = "B94C7F962062B829009BF596"
+            BuildableName = "xcbuddy.app"
             BlueprintName = "xcbuddy"
             ReferencedContainer = "container:App.xcodeproj">
          </BuildableReference>

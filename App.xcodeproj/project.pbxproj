@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */; };
 		B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; };
 		B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9013DD7206FEEEF007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -67,6 +68,8 @@
 		B9E2DCB22087757D0061DF86 /* PathKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9E2DCAF2087756D0061DF86 /* PathKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9E2DCB3208775860061DF86 /* PathKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9E2DCAF2087756D0061DF86 /* PathKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCBA2088E0B50061DF86 /* UpdateCommandTests.swift */; };
+		B9E2DCC42088EEFC0061DF86 /* CommandRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCC32088EEFC0061DF86 /* CommandRegistryTests.swift */; };
+		B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCC52088F0970061DF86 /* MockCommand.swift */; };
 		B9FB2DBF2086506E00BC2FB3 /* Basic.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; };
 		B9FB2DC62086515F00BC2FB3 /* Basic.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB2DC72086516500BC2FB3 /* POSIX.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DC02086507200BC2FB3 /* POSIX.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -187,6 +190,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B915ECF6206395DA004B6630 /* xcbuddy */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xcbuddy; sourceTree = BUILT_PRODUCTS_DIR; };
 		B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xcbuddykit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -248,6 +252,8 @@
 		B9E2DCA9208774550061DF86 /* CommandRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandRegistry.swift; sourceTree = "<group>"; };
 		B9E2DCAF2087756D0061DF86 /* PathKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = PathKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9E2DCBA2088E0B50061DF86 /* UpdateCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCommandTests.swift; sourceTree = "<group>"; };
+		B9E2DCC32088EEFC0061DF86 /* CommandRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandRegistryTests.swift; sourceTree = "<group>"; };
+		B9E2DCC52088F0970061DF86 /* MockCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCommand.swift; sourceTree = "<group>"; };
 		B9FB2DBB20864FF800BC2FB3 /* Basic.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Basic.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FB2DBD2086502100BC2FB3 /* Utility.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Utility.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FB2DC02086507200BC2FB3 /* POSIX.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = POSIX.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -349,10 +355,10 @@
 		B915ED3A2063B04C004B6630 /* xcbuddykit */ = {
 			isa = PBXGroup;
 			children = (
-				B915ED3D2063B04C004B6630 /* Tests.plist */,
 				B915ED4D2063B04C004B6630 /* Info.plist */,
-				B915ED3B2063B04C004B6630 /* Tests */,
 				B915ED3E2063B04C004B6630 /* Sources */,
+				B915ED3B2063B04C004B6630 /* Tests */,
+				B915ED3D2063B04C004B6630 /* Tests.plist */,
 			);
 			name = xcbuddykit;
 			path = App/xcbuddykit;
@@ -419,6 +425,7 @@
 			isa = PBXGroup;
 			children = (
 				B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */,
+				66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -595,6 +602,8 @@
 			isa = PBXGroup;
 			children = (
 				B9E2DCBA2088E0B50061DF86 /* UpdateCommandTests.swift */,
+				B9E2DCC32088EEFC0061DF86 /* CommandRegistryTests.swift */,
+				B9E2DCC52088F0970061DF86 /* MockCommand.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -876,7 +885,9 @@
 				B9E2DC9620872B3A0061DF86 /* MockGraphLoaderCache.swift in Sources */,
 				B9E2DC9520872B300061DF86 /* MockUpdateController.swift in Sources */,
 				B9E2DC9D20872D3B0061DF86 /* MockPrinter.swift in Sources */,
+				B9E2DCC42088EEFC0061DF86 /* CommandRegistryTests.swift in Sources */,
 				B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */,
+				B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */,
 				B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */,
 				B9E2DC9E20872D400061DF86 /* AppTests.swift in Sources */,
 				B9E2DC9720872B5D0061DF86 /* MockManifestLoader.swift in Sources */,
@@ -886,6 +897,7 @@
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
+				66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
