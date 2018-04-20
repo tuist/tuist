@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - BuildConfiguration
-
 /// Build configuration.
 ///
 /// - debug: debug build configuration.

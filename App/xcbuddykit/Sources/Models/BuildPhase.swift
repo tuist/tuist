@@ -4,7 +4,15 @@ import Foundation
 // MARK: - BuildPhase
 
 class BuildPhase {
-    static func from(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws -> BuildPhase {
+    /// Static build phase initializer that returns the right BuildPhase based on the build phase type.
+    ///
+    /// - Parameters:
+    ///   - json: JSON representation of the build phase.
+    ///   - projectPath: path to the  folder where the project manifest is.
+    ///   - context: graph loader context.
+    /// - Returns: initialized build phase.
+    /// - Throws: an error if the build phase cannot be parsed.
+    static func parse(from json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws -> BuildPhase {
         let type: String = try json.get("type")
         if type == "sources" {
             return try SourcesBuildPhase(json: json, projectPath: projectPath, context: context)
@@ -24,19 +32,35 @@ class BuildPhase {
 
 // MARK: - SourcesBuildPhase
 
-class SourcesBuildPhase: BuildPhase {
+/// Sources build phase
+class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
+    /// Build files.
     let buildFiles: BuildFiles
 
+    /// Initializes the sources build phase with its build files.
+    ///
+    /// - Parameter buildFiles: build files.
     init(buildFiles: BuildFiles = BuildFiles()) {
         self.buildFiles = buildFiles
     }
 
-    init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+    /// Initializes the build phase from its JSON representation.
+    ///
+    /// - Parameters:
+    ///   - json: target JSON representation.
+    ///   - projectPath: path to the folder that contains the project's manifest.
+    ///   - context: graph loader  context.
+    /// - Throws: an error if build files cannot be parsed.
+    required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
         buildFiles = try BuildFiles(json: json.get("files"), projectPath: projectPath, context: context)
     }
-}
 
-extension SourcesBuildPhase: Equatable {
+    /// Compares two sources build phases.
+    ///
+    /// - Parameters:
+    ///   - lhs: first sources build phase.
+    ///   - rhs: second sources build phase.
+    /// - Returns: true if the two build phases are the same.
     static func == (lhs: SourcesBuildPhase, rhs: SourcesBuildPhase) -> Bool {
         return lhs.buildFiles == rhs.buildFiles
     }
@@ -44,19 +68,35 @@ extension SourcesBuildPhase: Equatable {
 
 // MARK: - ResourcesBuildPhase
 
-class ResourcesBuildPhase: BuildPhase {
+/// Resources build phase.
+class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
+    /// Build files.
     let buildFiles: BuildFiles
 
+    /// Initializes the resources build phase with its build files.
+    ///
+    /// - Parameter buildFiles: build files.
     init(buildFiles: BuildFiles = BuildFiles()) {
         self.buildFiles = buildFiles
     }
 
+    /// Initializes the build phase from its JSON representation.
+    ///
+    /// - Parameters:
+    ///   - json: target JSON representation.
+    ///   - projectPath: path to the folder that contains the project's manifest.
+    ///   - context: graph loader  context.
+    /// - Throws: an error if build files cannot be parsed.
     required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
         buildFiles = try BuildFiles(json: json.get("files"), projectPath: projectPath, context: context)
     }
-}
 
-extension ResourcesBuildPhase: Equatable {
+    /// Compares two resources build phases.
+    ///
+    /// - Parameters:
+    ///   - lhs: first resources build phase.
+    ///   - rhs: second resources build phase.
+    /// - Returns: true if the two build phases are the same.
     static func == (lhs: ResourcesBuildPhase, rhs: ResourcesBuildPhase) -> Bool {
         return lhs.buildFiles == rhs.buildFiles
     }
@@ -64,7 +104,20 @@ extension ResourcesBuildPhase: Equatable {
 
 // MARK: - CopyBuildPhase
 
+/// Copy files build phase.
 class CopyBuildPhase: BuildPhase {
+    /// Destination where the files from the build phase get copied.
+    ///
+    /// - absolutePath: absolute path  to the dest
+    /// - productsDirectory: products directory.
+    /// - wrapper: wrapper directory.
+    /// - resources: resources directory.
+    /// - executables: executables directory.
+    /// - javaResources: java resources directory.
+    /// - frameworks: frameworks directory.
+    /// - sharedFrameworks: shared frameworks directory.
+    /// - sharedSupport: shared support directory.
+    /// - plugins: plugins directory.
     enum Destination: String {
         case absolutePath = "absolute_path"
         case productsDirectory = "products_directory"

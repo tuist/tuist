@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>GraphLoaderContext Class Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset="utf-8">
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+
+    <a name="//apple_ref/swift/Class/GraphLoaderContext" class="dashAnchor"></a>
+
+    <a title="GraphLoaderContext Class Reference"></a>
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="../index.html">
+          xcbuddykit Docs
+        </a>
+         (58% documented)
+      </p>
+    
+      <p class="header-col--secondary">
+        <form role="search" action="../search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </p>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/xcbuddy/xcbuddy">
+            <img class="header-icon" src="../img/gh.png"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="../index.html">xcbuddykit Reference</a>
+      <img class="carat" src="../img/carat.png" />
+      GraphLoaderContext Class Reference
+    </p>
+
+    <div class="content-wrapper">
+      <nav class="navigation">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Commands.html">Commands</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Command.html">Command</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/CommandRegistry.html">CommandRegistry</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/DumpCommand.html">DumpCommand</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/UpdateCommand.html">UpdateCommand</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/CommandsContext.html">CommandsContext</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Models.html">Models</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/BuildConfiguration.html">BuildConfiguration</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Target.html">Target</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Settings.html">Settings</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Settings/Configuration.html">– Configuration</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Platform.html">Platform</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Product.html">Product</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Other Guides.html">Other Guides</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../install.html">Install</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Other Classes.html">Other Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/App.html">App</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/CopyBuildPhase.html">CopyBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/CopyBuildPhase.html#/s:10xcbuddykit14CopyBuildPhaseC11DestinationO">– Destination</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/FileHandler.html">FileHandler</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit13FrameworkNodeC">FrameworkNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/GraphLoaderContext.html">GraphLoaderContext</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/GraphNode.html">GraphNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Printer.html">Printer</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/ResourcesBuildPhase.html">ResourcesBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/SourcesBuildPhase.html">SourcesBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/TargetNode.html">TargetNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/TechLogger.html">TechLogger</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Other Enums.html">Other Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/GraphLoadingError.html">GraphLoadingError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Severity.html">Severity</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Other Extensions.html">Other Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Bundle.html">Bundle</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/SPUStandardUpdaterController.html">SPUStandardUpdaterController</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Other Protocols.html">Other Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/CommandsContexting.html">CommandsContexting</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/GraphJSONInitiatable.html">GraphJSONInitiatable</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/GraphLoaderContexting.html">GraphLoaderContexting</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Logging.html">Logging</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Printing.html">Printing</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/TechLogging.html">TechLogging</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Other Structs.html">Other Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/Constants.html">Constants</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/Constants.html#/s:10xcbuddykit9ConstantsV8ManifestV">– Manifest</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+
+        <section class="section">
+          <div class="section-content">
+            <h1>GraphLoaderContext</h1>
+              <div class="declaration">
+                <div class="language">
+                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">GraphLoaderContext</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphLoaderContexting.html">GraphLoaderContexting</a></span></code></pre>
+
+                </div>
+              </div>
+            <p>Object passed during the graph loading that contains utils to be used.</p>
+
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-content">
+            <div class="task-group">
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextC08manifestC0AA0B15ManifestLoading_pvp"></a>
+                    <a name="//apple_ref/swift/Property/manifestLoader" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextC08manifestC0AA0B15ManifestLoading_pvp">manifestLoader</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Manifest loader. It&rsquo;s used to get a JSON representation of the manifests.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">manifestLoader</span><span class="p">:</span> <span class="kt">GraphManifestLoading</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextC5cacheAA0bC7Caching_pvp"></a>
+                    <a name="//apple_ref/swift/Property/cache" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextC5cacheAA0bC7Caching_pvp">cache</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Contains a reference to the manifests that are parsed during the graph loading.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">cache</span><span class="p">:</span> <span class="kt">GraphLoaderCaching</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextC11fileHandlerAA12FileHandling_pvp"></a>
+                    <a name="//apple_ref/swift/Property/fileHandler" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextC11fileHandlerAA12FileHandling_pvp">fileHandler</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Util to handle files.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlertcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(manifestLoader:cache:fileHandler:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlertcfc">init(manifestLoader:cache:fileHandler:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Initializes the context with its attributes.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">manifestLoader</span><span class="p">:</span> <span class="kt">GraphManifestLoading</span><span class="p">,</span>
+     <span class="nv">cache</span><span class="p">:</span> <span class="kt">GraphLoaderCaching</span><span class="p">,</span>
+     <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/FileHandler.html">FileHandler</a></span><span class="p">())</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>manifestLoader</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Manifest loader that is used to get a JSON representation of the manifests.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>cache</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Contains a reference to the manifests that are parsed during the graph loading.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>fileHandler</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Util to handle files.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextCACycfc"></a>
+                    <a name="//apple_ref/swift/Method/init()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCACycfc">init()</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Default context constructor.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">()</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </article>
+    </div>
+    <section class="footer">
+      <p>Copyright © 2018 Pedro Piñera. All rights reserved.</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external">jazzy ♪♫ v0.9.1</a>, a <a class="link" href="http://realm.io" target="_blank" rel="external">Realm</a> project.</p>
+    </section>
+  </body>
+</div>
+</html>

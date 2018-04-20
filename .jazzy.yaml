@@ -9,6 +9,7 @@ theme: fullwidth
 xcodebuild_arguments: [-workspace, 'xcbuddy.xcworkspace', -scheme, 'xcbuddykit']
 sdk: macosx
 clean: true
+min_acl: internal
 custom_categories:
   - name: Commands
     children:

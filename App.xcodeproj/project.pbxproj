@@ -33,6 +33,7 @@
 		B95895FD208A361D00F00ACF /* GraphLoadingErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */; };
 		B9589600208A37B700F00ACF /* GraphJSONInitiatable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */; };
 		B9589602208A3CBA00F00ACF /* PlatformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589601208A3CBA00F00ACF /* PlatformTests.swift */; };
+		B9589604208A405D00F00ACF /* ProductTests .swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589603208A405D00F00ACF /* ProductTests .swift */; };
 		B98313782065432A00D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
 		B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B983137F2065473800D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
@@ -238,6 +239,7 @@
 		B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphLoadingErrorTests.swift; sourceTree = "<group>"; };
 		B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphJSONInitiatable.swift; sourceTree = "<group>"; };
 		B9589601208A3CBA00F00ACF /* PlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformTests.swift; sourceTree = "<group>"; };
+		B9589603208A405D00F00ACF /* ProductTests .swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProductTests .swift"; sourceTree = "<group>"; };
 		B98313772065432A00D2D656 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
@@ -442,6 +444,7 @@
 				B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */,
 				B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */,
 				B9589601208A3CBA00F00ACF /* PlatformTests.swift */,
+				B9589603208A405D00F00ACF /* ProductTests .swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -933,6 +936,7 @@
 				B9E2DC9620872B3A0061DF86 /* MockGraphLoaderCache.swift in Sources */,
 				B9E2DC9520872B300061DF86 /* MockUpdateController.swift in Sources */,
 				B9E2DC9D20872D3B0061DF86 /* MockPrinter.swift in Sources */,
+				B9589604208A405D00F00ACF /* ProductTests .swift in Sources */,
 				B9E2DCC42088EEFC0061DF86 /* CommandRegistryTests.swift in Sources */,
 				B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */,
 				B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */,

@@ -53,7 +53,7 @@ class Target: GraphJSONInitiatable {
         let settingsJSON: JSON? = try json.get("settings")
         settings = try settingsJSON.map({ try Settings(json: $0, projectPath: projectPath, context: context) })
         let buildPhasesJSONs: [JSON] = try json.get("build_phases")
-        buildPhases = try buildPhasesJSONs.map({ try BuildPhase.from(json: $0, projectPath: projectPath, context: context) })
+        buildPhases = try buildPhasesJSONs.map({ try BuildPhase.parse(from: $0, projectPath: projectPath, context: context) })
         dependencies = try json.get("dependencies")
     }
 }

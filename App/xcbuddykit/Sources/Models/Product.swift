@@ -1,5 +1,20 @@
 import Foundation
 
+/// Product type.
+///
+/// - app: application.
+/// - module: module.
+/// - unitTests: unit tests.
+/// - uiTests: ui tests.
+/// - appExtension: application extension.
+/// - watchApp: watchOS 1 application.
+/// - watch2App: watchOS version >= 2 application.
+/// - watchExtension: watchOS 1 extension.
+/// - watch2Extension: watchOS version >=2 extension.
+/// - tvExtension: tvOS extension
+/// - messagesApplication: iMessage application.
+/// - messagesExtension: iMessage extension.
+/// - stickerPack: Stickers pack.
 public enum Product: String {
     case app
     case module
@@ -17,6 +32,7 @@ public enum Product: String {
 }
 
 extension Product {
+    /// Returns the Xcode value.
     var xcodeValue: String {
         switch self {
         case .app:
