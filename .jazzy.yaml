@@ -17,3 +17,16 @@ custom_categories:
       - DumpCommand
       - UpdateCommand
       - CommandsContext
+  - name: Models
+    children:
+      - BuildConfiguration
+      - BuildFiles
+      - Target
+      - Config
+      - Workspace
+      - Scheme
+      - Project
+      - Settings
+      - Platform
+      - BuildPhase
+      - Product

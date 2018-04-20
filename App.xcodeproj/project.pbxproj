@@ -31,6 +31,8 @@
 		B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */; };
 		B95895FB208A2FFB00F00ACF /* WorkspaceGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */; };
 		B95895FD208A361D00F00ACF /* GraphLoadingErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */; };
+		B9589600208A37B700F00ACF /* GraphJSONInitiatable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */; };
+		B9589602208A3CBA00F00ACF /* PlatformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589601208A3CBA00F00ACF /* PlatformTests.swift */; };
 		B98313782065432A00D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
 		B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B983137F2065473800D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
@@ -234,6 +236,8 @@
 		B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetGenerator.swift; sourceTree = "<group>"; };
 		B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceGenerator.swift; sourceTree = "<group>"; };
 		B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphLoadingErrorTests.swift; sourceTree = "<group>"; };
+		B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphJSONInitiatable.swift; sourceTree = "<group>"; };
+		B9589601208A3CBA00F00ACF /* PlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformTests.swift; sourceTree = "<group>"; };
 		B98313772065432A00D2D656 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
@@ -437,6 +441,7 @@
 				B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */,
 				B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */,
 				B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */,
+				B9589601208A3CBA00F00ACF /* PlatformTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -608,6 +613,7 @@
 				B9FB2DD22086538E00BC2FB3 /* GraphLoader.swift */,
 				B9FB2DD32086538E00BC2FB3 /* GraphLoaderContext.swift */,
 				B9FB2DD42086538E00BC2FB3 /* GraphLoaderCache.swift */,
+				B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -912,6 +918,7 @@
 				B9B629AE20864E3A00EE9E07 /* App.swift in Sources */,
 				B9FB2DE62086544900BC2FB3 /* Scheme.swift in Sources */,
 				B95895FB208A2FFB00F00ACF /* WorkspaceGenerator.swift in Sources */,
+				B9589600208A37B700F00ACF /* GraphJSONInitiatable.swift in Sources */,
 				B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */,
 				B9FB2DCA2086527B00BC2FB3 /* BuildFiles.swift in Sources */,
 				B9FB2DE1208653F500BC2FB3 /* GraphController.swift in Sources */,
@@ -941,6 +948,7 @@
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
 				66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */,
+				B9589602208A3CBA00F00ACF /* PlatformTests.swift in Sources */,
 				B95895FD208A361D00F00ACF /* GraphLoadingErrorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
