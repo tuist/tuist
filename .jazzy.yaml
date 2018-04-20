@@ -4,3 +4,16 @@ github_url: https://github.com/xcbuddy/xcbuddy
 copyright: 'Copyright © 2018 Pedro Piñera. All rights reserved.'
 readme: README.md
 documentation: guides/*.md
+skip_undocumented: true
+theme: fullwidth
+xcodebuild_arguments: [-workspace, 'xcbuddy.xcworkspace', -scheme, 'xcbuddykit']
+sdk: macosx
+clean: true
+custom_categories:
+  - name: Commands
+    children:
+      - Command
+      - CommandRegistry
+      - DumpCommand
+      - UpdateCommand
+      - CommandsContext

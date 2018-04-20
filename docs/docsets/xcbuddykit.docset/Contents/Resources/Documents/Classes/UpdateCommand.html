@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>App Class Reference</title>
+    <title>UpdateCommand Class Reference</title>
     <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
     <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
     <meta charset="utf-8">
@@ -14,9 +14,9 @@
   </head>
   <body>
 
-    <a name="//apple_ref/swift/Class/App" class="dashAnchor"></a>
+    <a name="//apple_ref/swift/Class/UpdateCommand" class="dashAnchor"></a>
 
-    <a title="App Class Reference"></a>
+    <a title="UpdateCommand Class Reference"></a>
 
     <header class="header">
       <p class="header-col header-col--primary">
@@ -44,7 +44,7 @@
     <p class="breadcrumbs">
       <a class="breadcrumb" href="../index.html">xcbuddykit Reference</a>
       <img class="carat" src="../img/carat.png" />
-      App Class Reference
+      UpdateCommand Class Reference
     </p>
 
     <div class="content-wrapper">
@@ -103,14 +103,14 @@
 
         <section class="section">
           <div class="section-content">
-            <h1>App</h1>
+            <h1>UpdateCommand</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">App</span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">UpdateCommand</span><span class="p">:</span> <span class="kt">NSObject</span><span class="p">,</span> <span class="kt"><a href="../Protocols/Command.html">Command</a></span><span class="p">,</span> <span class="kt">SPUUpdaterDelegate</span></code></pre>
 
                 </div>
               </div>
-            <p>Util class that contains information about the app.</p>
+            <p>Command that updates the app.</p>
 
           </div>
         </section>
@@ -118,13 +118,20 @@
         <section class="section">
           <div class="section-content">
             <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Command"></a>
+                <a name="//apple_ref/swift/Section/Command" class="dashAnchor"></a>
+                <a href="#/Command">
+                  <h3 class="section-name">Command</h3>
+                </a>
+              </div>
               <ul class="item-container">
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit3AppCACycfc"></a>
-                    <a name="//apple_ref/swift/Method/init()" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit3AppCACycfc">init()</a>
+                    <a name="/s:10xcbuddykit13UpdateCommandC7commandSSvp"></a>
+                    <a name="//apple_ref/swift/Property/command" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit13UpdateCommandC7commandSSvp">command</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -132,14 +139,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Default constructor.</p>
+                        <p>Command name.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="n">convenience</span> <span class="nf">init</span><span class="p">()</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">let</span> <span class="nv">command</span> <span class="o">=</span> <span class="s">"update"</span></code></pre>
 
                         </div>
                       </div>
@@ -149,9 +156,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit3AppCACs10DictionaryVySSypG04infoC0_tcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(infoDictionary:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit3AppCACs10DictionaryVySSypG04infoC0_tcfc">init(infoDictionary:)</a>
+                    <a name="/s:10xcbuddykit13UpdateCommandC8overviewSSvp"></a>
+                    <a name="//apple_ref/swift/Property/overview" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit13UpdateCommandC8overviewSSvp">overview</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -159,35 +166,16 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Initializes the app with the app&rsquo;s bundle info dictionary.</p>
+                        <p>Command description.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span><span class="nv">infoDictionary</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">:</span> <span class="kt">Any</span><span class="p">])</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">let</span> <span class="nv">overview</span> <span class="o">=</span> <span class="s">"Updates the app."</span></code></pre>
 
                         </div>
-                      </div>
-                      <div>
-                        <h4>Parameters</h4>
-                        <table class="graybox">
-                          <tbody>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>infoDictionary</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>info dictionary.</p>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
                       </div>
                     </section>
                   </div>
@@ -195,9 +183,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit3AppC7versionSSvp"></a>
-                    <a name="//apple_ref/swift/Property/version" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit3AppC7versionSSvp">version</a>
+                    <a name="/s:10xcbuddykit7CommandPx7Utility14ArgumentParserC6parser_tcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(parser:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit7CommandPx7Utility14ArgumentParserC6parser_tcfc">init(parser:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -205,14 +193,39 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>App version.</p>
-
+                        
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">var</span> <span class="nv">version</span><span class="p">:</span> <span class="kt">String</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">required</span> <span class="nf">init</span><span class="p">(</span><span class="nv">parser</span><span class="p">:</span> <span class="kt">ArgumentParser</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit7CommandP3runy7Utility14ArgumentParserC6ResultC4with_tKF"></a>
+                    <a name="//apple_ref/swift/Method/run(with:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit7CommandP3runy7Utility14ArgumentParserC6ResultC4with_tKF">run(with:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">run</span><span class="p">(</span><span class="n">with</span> <span class="nv">_</span><span class="p">:</span> <span class="kt">ArgumentParser</span><span class="o">.</span><span class="kt">Result</span><span class="p">)</span> <span class="k">throws</span></code></pre>
 
                         </div>
                       </div>

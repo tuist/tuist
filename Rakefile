@@ -100,7 +100,7 @@ def changelog(version)
 end
 
 def docs
-  execute("bundle exec jazzy --clean --sdk macosx --xcodebuild-arguments -workspace,xcbuddy.xcworkspace,-scheme,xcbuddykit --skip-undocumented")
+  execute("bundle exec jazzy")
 end
 
 def release

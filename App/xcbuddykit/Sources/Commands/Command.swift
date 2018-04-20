@@ -2,10 +2,10 @@ import Utility
 
 /// Protocol that defines a command line command.
 public protocol Command {
-    /// Command name.
+    /// Command name. This name is used from the command line to call the command.
     var command: String { get }
 
-    /// Command overview.
+    /// Command overview. It's used to show more details about your command from the command line.
     var overview: String { get }
 
     /// Initializes the command with the argument parser.

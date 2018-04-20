@@ -1,34 +1,6 @@
 {
   "warnings": [
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/Command.swift",
-      "line": 3,
-      "symbol": "Command",
-      "symbol_kind": "source.lang.swift.decl.protocol",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/CommandRegistry.swift",
-      "line": 5,
-      "symbol": "CommandRegistry",
-      "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/DumpCommand.swift",
-      "line": 6,
-      "symbol": "DumpCommand",
-      "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/UpdateCommand.swift",
-      "line": 5,
-      "symbol": "UpdateCommand",
-      "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Extensions/AbsolutePath+Extras.swift",
       "line": 12,
       "symbol": "AbsolutePath.glob(_:)",
@@ -72,23 +44,37 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/TechLogger.swift",
-      "line": 5,
-      "symbol": "Severity",
-      "symbol_kind": "source.lang.swift.decl.enum",
+      "line": 13,
+      "symbol": "Severity.fatal",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/TechLogger.swift",
-      "line": 25,
-      "symbol": "TechLogging",
-      "symbol_kind": "source.lang.swift.decl.protocol",
+      "line": 14,
+      "symbol": "Severity.error",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/TechLogger.swift",
-      "line": 30,
-      "symbol": "TechLogger",
-      "symbol_kind": "source.lang.swift.decl.class",
+      "line": 15,
+      "symbol": "Severity.warning",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/TechLogger.swift",
+      "line": 16,
+      "symbol": "Severity.info",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/TechLogger.swift",
+      "line": 17,
+      "symbol": "Severity.debug",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     }
   ],

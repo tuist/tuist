@@ -2,8 +2,7 @@ import Foundation
 
 fileprivate class Dummy {}
 
-// MARK: - Bundle (Extras)
-
+// MARK: - Bundle Extension
 extension Bundle {
     /// Returns the application bundle. Since this variable is accessed from the cli, using Bundle.main wouldn't return the expected bundle.
     /// We use a dummy clase contained in this bundle to get the framework bundle and then we get the app's from that one.
