@@ -8,4 +8,9 @@ struct Constants {
         static let config = "Config.swift"
         static let workspace = "Woskspace.swift"
     }
+
+    /// Xcode constants.
+    struct Xcode {
+        static let workspaceName = "Project.xcworkspace"
+    }
 }

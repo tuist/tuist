@@ -3,6 +3,7 @@ import Foundation
 @testable import xcbuddykit
 
 final class MockGraphLoaderContext: GraphLoaderContexting {
+    var circularDetector: GraphCircularDetecting = GraphCircularDetector() // TODO:
     var manifestLoader: GraphManifestLoading { return mockManifestLoader }
     let mockManifestLoader: MockGraphManifestLoader
     var cache: GraphLoaderCaching { return mockCache }

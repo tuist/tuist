@@ -18,6 +18,7 @@
 * 🎉 CocoaPods support.
 * 😍 Dynamic static and dynamic linking setup.
 * 💻 CLI and macOS application.
+* 🔄 Circular dependency detection.
 
 ## Install
 

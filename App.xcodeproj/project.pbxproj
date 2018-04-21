@@ -34,6 +34,10 @@
 		B9589600208A37B700F00ACF /* GraphJSONInitiatable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */; };
 		B9589602208A3CBA00F00ACF /* PlatformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589601208A3CBA00F00ACF /* PlatformTests.swift */; };
 		B9589604208A405D00F00ACF /* ProductTests .swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589603208A405D00F00ACF /* ProductTests .swift */; };
+		B9589607208B4E4700F00ACF /* WorkspaceGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589606208B4E4700F00ACF /* WorkspaceGeneratorTests.swift */; };
+		B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */; };
+		B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960A208B578700F00ACF /* GraphCircularDetector.swift */; };
+		B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */; };
 		B98313782065432A00D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
 		B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B983137F2065473800D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
@@ -240,6 +244,10 @@
 		B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphJSONInitiatable.swift; sourceTree = "<group>"; };
 		B9589601208A3CBA00F00ACF /* PlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformTests.swift; sourceTree = "<group>"; };
 		B9589603208A405D00F00ACF /* ProductTests .swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProductTests .swift"; sourceTree = "<group>"; };
+		B9589606208B4E4700F00ACF /* WorkspaceGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceGeneratorTests.swift; sourceTree = "<group>"; };
+		B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockProjectGenerator.swift; sourceTree = "<group>"; };
+		B958960A208B578700F00ACF /* GraphCircularDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetector.swift; sourceTree = "<group>"; };
+		B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetectorTests.swift; sourceTree = "<group>"; };
 		B98313772065432A00D2D656 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
@@ -391,6 +399,7 @@
 		B915ED3B2063B04C004B6630 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				B9589605208B4E3500F00ACF /* Generator */,
 				B92BF9FC2075607C00EE4EBD /* Extensions */,
 				B92BF9ED2075599900EE4EBD /* Models */,
 				B92BF8142073E65800EE4EBD /* Updater */,
@@ -425,6 +434,7 @@
 				B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */,
 				B9287D0D208097AB002DEFEE /* MockGraphLoaderContext.swift */,
 				B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */,
+				B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -527,6 +537,15 @@
 			path = Generator;
 			sourceTree = "<group>";
 		};
+		B9589605208B4E3500F00ACF /* Generator */ = {
+			isa = PBXGroup;
+			children = (
+				B9589606208B4E4700F00ACF /* WorkspaceGeneratorTests.swift */,
+				B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */,
+			);
+			path = Generator;
+			sourceTree = "<group>";
+		};
 		B9B6299C20864E2300EE9E07 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -617,6 +636,7 @@
 				B9FB2DD32086538E00BC2FB3 /* GraphLoaderContext.swift */,
 				B9FB2DD42086538E00BC2FB3 /* GraphLoaderCache.swift */,
 				B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */,
+				B958960A208B578700F00ACF /* GraphCircularDetector.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -899,6 +919,7 @@
 				B9FB2DDE208653DD00BC2FB3 /* GraphLoaderCache.swift in Sources */,
 				B9B629B620864E4700EE9E07 /* SPUStandardUpdaterController+App.swift in Sources */,
 				B9FB2DE92086544900BC2FB3 /* Platform.swift in Sources */,
+				B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */,
 				B9E2DC9C20872CD60061DF86 /* AbsolutePath+Extras.swift in Sources */,
 				B9B629AF20864E3A00EE9E07 /* Signals.swift in Sources */,
 				B9B629B520864E4700EE9E07 /* UpdateController.swift in Sources */,
@@ -949,10 +970,13 @@
 				B9E2DCA32087651D0061DF86 /* Project+TestData.swift in Sources */,
 				B9E2DCA12087650C0061DF86 /* Config+TestData.swift in Sources */,
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
+				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
 				66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */,
+				B9589607208B4E4700F00ACF /* WorkspaceGeneratorTests.swift in Sources */,
 				B9589602208A3CBA00F00ACF /* PlatformTests.swift in Sources */,
+				B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */,
 				B95895FD208A361D00F00ACF /* GraphLoadingErrorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -45,39 +45,46 @@ class TargetNode: GraphNode {
     }
 
     static func read(name: String, path: AbsolutePath, context: GraphLoaderContexting) throws -> TargetNode {
-        if let targetNode = context.cache.node(path) as? TargetNode { return targetNode }
+        if let targetNode = context.cache.targetNode(path, name: name) { return targetNode }
         let project = try Project.at(path, context: context)
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
-        let dependencyMapper = TargetNode.readDependency(projectPath: path, context: context)
+        let dependencyMapper = TargetNode.readDependency(path: path, name: name, context: context)
         let dependencies: [GraphNode] = try target.dependencies.compactMap(dependencyMapper)
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
-        context.cache.add(node: targetNode)
+        context.circularDetector.complete(GraphCircularDetectorNode(path: path, name: name))
+        context.cache.add(targetNode: targetNode)
         return targetNode
     }
 
-    static func readDependency(projectPath: AbsolutePath, context: GraphLoaderContexting) -> (_ dictionary: JSON) throws -> GraphNode {
+    static func readDependency(path: AbsolutePath, name: String, context: GraphLoaderContexting) -> (_ dictionary: JSON) throws -> GraphNode {
         return { json in
             let type: String = try json.get("type")
             if type == "target" {
                 let name: String = try json.get("name")
-                return try TargetNode.read(name: name, path: projectPath, context: context)
+                let circularFrom = GraphCircularDetectorNode(path: path, name: name)
+                let circularTo = GraphCircularDetectorNode(path: path, name: name)
+                try context.circularDetector.start(from: circularFrom, to: circularTo)
+                return try TargetNode.read(name: name, path: path, context: context)
             } else if type == "project" {
+                let circularFrom = GraphCircularDetectorNode(path: path, name: name)
                 let name: String = try json.get("name")
                 let projectRelativePath: RelativePath = try RelativePath(json.get("path"))
-                let projectPath = projectPath.appending(projectRelativePath)
+                let projectPath = path.appending(projectRelativePath)
+                let circularTo = GraphCircularDetectorNode(path: projectPath, name: name)
+                try context.circularDetector.start(from: circularFrom, to: circularTo)
                 return try TargetNode.read(name: name, path: projectPath, context: context)
             } else if type == "framework" {
                 let frameworkPath: RelativePath = try RelativePath(json.get("path"))
                 return try FrameworkNode.read(json: json,
-                                              projectPath: projectPath,
+                                              projectPath: path,
                                               path: frameworkPath,
                                               context: context)
             } else if type == "library" {
                 let libraryPath: RelativePath = try RelativePath(json.get("path"))
                 return try LibraryNode.read(json: json,
-                                            projectPath: projectPath,
+                                            projectPath: path,
                                             path: libraryPath,
                                             context: context)
             } else {
@@ -87,8 +94,11 @@ class TargetNode: GraphNode {
     }
 }
 
+/// Precompiled node.
+class PrecompiledNode: GraphNode {}
+
 /// Graph node that represents a framework.
-class FrameworkNode: GraphNode {
+class FrameworkNode: PrecompiledNode {
     static func read(json _: JSON,
                      projectPath: AbsolutePath,
                      path: RelativePath,
@@ -97,14 +107,14 @@ class FrameworkNode: GraphNode {
         if !context.fileHandler.exists(absolutePath) {
             throw GraphLoadingError.missingFile(absolutePath)
         }
-        if let frameworkNode = context.cache.node(absolutePath) as? FrameworkNode { return frameworkNode }
+        if let frameworkNode = context.cache.precompiledNode(absolutePath) as? FrameworkNode { return frameworkNode }
         let framewokNode = FrameworkNode(path: absolutePath)
-        context.cache.add(node: framewokNode)
+        context.cache.add(precompiledNode: framewokNode)
         return framewokNode
     }
 }
 
-class LibraryNode: GraphNode {
+class LibraryNode: PrecompiledNode {
     let publicHeader: AbsolutePath
     let swiftModuleMap: AbsolutePath?
 
@@ -124,7 +134,7 @@ class LibraryNode: GraphNode {
         if !context.fileHandler.exists(libraryAbsolutePath) {
             throw GraphLoadingError.missingFile(libraryAbsolutePath)
         }
-        if let libraryNode = context.cache.node(libraryAbsolutePath) as? LibraryNode { return libraryNode }
+        if let libraryNode = context.cache.precompiledNode(libraryAbsolutePath) as? LibraryNode { return libraryNode }
         let publicHeadersRelativePath: RelativePath = try RelativePath(json.get("public_headers"))
         let publicHeadersPath = projectPath.appending(publicHeadersRelativePath)
         if !context.fileHandler.exists(publicHeadersPath) {
@@ -141,7 +151,7 @@ class LibraryNode: GraphNode {
         let libraryNode = LibraryNode(path: libraryAbsolutePath,
                                       publicHeader: publicHeadersPath,
                                       swiftModuleMap: swiftModuleMapPath)
-        context.cache.add(node: libraryNode)
+        context.cache.add(precompiledNode: libraryNode)
         return libraryNode
     }
 }

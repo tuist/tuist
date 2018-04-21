@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Documentation generation https://github.com/xcbuddy/xcbuddy/pull/11 by @pepibumur.
 * Documentation to `xcbuddykit` models.
 * Equatable conformance to `xcbuddykit` models.
+* Circular dependency detection.
 
 ### Changed
 

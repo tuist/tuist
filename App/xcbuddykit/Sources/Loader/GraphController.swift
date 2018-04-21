@@ -1,7 +1,6 @@
 import Foundation
 
 protocol GraphControlling: AnyObject {
-    // TODO:
 }
 
 class GraphController: GraphControlling {

@@ -11,6 +11,7 @@ enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
     case missingFile(AbsolutePath)
     case targetNotFound(String, AbsolutePath)
     case manifestNotFound(AbsolutePath)
+    case circularDependency(GraphCircularDetectorNode, GraphCircularDetectorNode)
     case unexpected(String)
 
     /// Compares two GraphLoadingError instances.
@@ -29,6 +30,8 @@ enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
             return lhsPath == rhsPath
         case let (.unexpected(lhsMessage), .unexpected(rhsMessage)):
             return lhsMessage == rhsMessage
+        case let (.circularDependency(lhsFrom, lhsTo), .circularDependency(rhsFrom, rhsTo)):
+            return lhsFrom == rhsFrom && lhsTo == rhsTo
         default:
             return false
         }
@@ -44,6 +47,8 @@ enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
             return "Couldn't find file at path '\(path.asString)'"
         case let .unexpected(message):
             return message
+        case let .circularDependency(from, to):
+            return "Found circular dependency between the target '\(from.name)' at '\(from.path.asString)' and the target '\(to.name)' at '\(to.path.asString)'"
         }
     }
 }
