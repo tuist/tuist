@@ -2,7 +2,7 @@ import Basic
 import Foundation
 
 /// Project target.
-class Target: GraphJSONInitiatable {
+class Target: GraphJSONInitiatable, Equatable {
     /// Target name.
     let name: String
 
@@ -26,6 +26,35 @@ class Target: GraphJSONInitiatable {
 
     /// List of dependencies (JSON representations)
     let dependencies: [JSON]
+
+    /// Initializes the target with its properties.
+    ///
+    /// - Parameters:
+    ///   - name: target name.
+    ///   - platform: target platform.
+    ///   - product: target product type.
+    ///   - infoPlist: info plist absolute path.
+    ///   - entitlements: entitlements absolute path.
+    ///   - settings: target settings.
+    ///   - buildPhases: target build phases.
+    ///   - dependencies: target dependencies.
+    init(name: String,
+         platform: Platform,
+         product: Product,
+         infoPlist: AbsolutePath,
+         entitlements: AbsolutePath? = nil,
+         settings: Settings? = nil,
+         buildPhases: [BuildPhase] = [],
+         dependencies: [JSON] = []) {
+        self.name = name
+        self.product = product
+        self.platform = platform
+        self.infoPlist = infoPlist
+        self.entitlements = entitlements
+        self.settings = settings
+        self.buildPhases = buildPhases
+        self.dependencies = dependencies
+    }
 
     /// Initializes the target from its JSON representation.
     ///
@@ -55,5 +84,22 @@ class Target: GraphJSONInitiatable {
         let buildPhasesJSONs: [JSON] = try json.get("build_phases")
         buildPhases = try buildPhasesJSONs.map({ try BuildPhase.parse(from: $0, projectPath: projectPath, context: context) })
         dependencies = try json.get("dependencies")
+    }
+
+    /// Compares two targets.
+    ///
+    /// - Parameters:
+    ///   - lhs: first target to be compared.
+    ///   - rhs: second target to be compared.
+    /// - Returns: true if the two targets are the same.
+    static func == (lhs: Target, rhs: Target) -> Bool {
+        return lhs.name == rhs.name &&
+            lhs.platform == rhs.platform &&
+            lhs.product == rhs.product &&
+            lhs.infoPlist == rhs.infoPlist &&
+            lhs.entitlements == rhs.entitlements &&
+            lhs.settings == rhs.settings &&
+            lhs.buildPhases == rhs.buildPhases &&
+            lhs.dependencies == rhs.dependencies
     }
 }

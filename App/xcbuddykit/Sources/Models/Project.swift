@@ -2,7 +2,7 @@ import Basic
 import Foundation
 
 /// Class that represents an Xcode project.
-class Project {
+class Project: Equatable {
     /// Path where the project is defined. The path points to the folder where the Project.swift file is.
     let path: AbsolutePath
 
@@ -85,5 +85,20 @@ class Project {
         }
         let settingsJSON: JSON? = try json.get("settings")
         settings = try settingsJSON.map({ try Settings(json: $0, projectPath: path, context: context) })
+    }
+
+    /// Compares two instances of a project.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
+    static func == (lhs: Project, rhs: Project) -> Bool {
+        return lhs.path == rhs.path &&
+            lhs.name == rhs.name &&
+            lhs.schemes == rhs.schemes &&
+            lhs.targets == rhs.targets &&
+            lhs.settings == rhs.settings &&
+            lhs.config == rhs.config
     }
 }

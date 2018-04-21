@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-class BuildPhase {
+class BuildPhase: Equatable {
     /// Static build phase initializer that returns the right BuildPhase based on the build phase type.
     ///
     /// - Parameters:
@@ -26,10 +26,14 @@ class BuildPhase {
             fatalError()
         }
     }
+
+    static func == (_: BuildPhase, _: BuildPhase) -> Bool {
+        return true
+    }
 }
 
 /// Sources build phase
-class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
+class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
     /// Build files.
     let buildFiles: BuildFiles
 
@@ -63,7 +67,7 @@ class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
 }
 
 /// Resources build phase.
-class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
+class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
     /// Build files.
     let buildFiles: BuildFiles
 
@@ -97,7 +101,7 @@ class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
 }
 
 /// Copy files build phase.
-class CopyBuildPhase: BuildPhase, Equatable {
+class CopyBuildPhase: BuildPhase {
     /// Destination where the files from the build phase get copied.
     ///
     /// - absolutePath: absolute path  to the dest
@@ -179,7 +183,7 @@ class CopyBuildPhase: BuildPhase, Equatable {
 }
 
 /// Script build phase.
-class ScriptBuildPhase: BuildPhase, Equatable {
+class ScriptBuildPhase: BuildPhase {
     /// Build phase name.
     let name: String
 
@@ -243,7 +247,7 @@ class ScriptBuildPhase: BuildPhase, Equatable {
 }
 
 /// Headers build phase.
-class HeadersBuildPhase: BuildPhase, GraphJSONInitiatable, Equatable {
+class HeadersBuildPhase: BuildPhase, GraphJSONInitiatable {
     /// Public headers.
     let `public`: BuildFiles
 
