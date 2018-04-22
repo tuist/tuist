@@ -1,17 +1,8 @@
 import Foundation
 import ProjectDescription
 
-let project = ProjectDescription.Project(name: "name",
-                                         schemes: [ProjectDescription.Scheme(name: "scheme",
-                                                                             shared: true,
-                                                                             buildAction: ProjectDescription.BuildAction(targets: ["build_target"]),
-                                                                             testAction: ProjectDescription.TestAction(targets: ["test_target"],
-                                                                                                                       arguments: ProjectDescription.Arguments(environment: ["env": "env"], launch: ["a": true]),
-                                                                                                                       config: .debug,
-                                                                                                                       coverage: true),
-                                                                             runAction: ProjectDescription.RunAction(config: .debug,
-                                                                                                                     executable: "executable",
-                                                                                                                     arguments: ProjectDescription.Arguments(environment: ["env": "env"], launch: ["a": true])))],
+let project = ProjectDescription.Project(name: "{{NAME}}",
+                                         schemes: [],
                                          targets: [ProjectDescription.Target(name: "target",
                                                                              platform: ProjectDescription.Platform.ios,
                                                                              product: ProjectDescription.Product.app,

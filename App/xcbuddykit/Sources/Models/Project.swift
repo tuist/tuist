@@ -26,19 +26,19 @@ class Project: Equatable {
     /// - Parameters:
     ///   - path: path to the folder where the manifest is.
     ///   - name: project name.
-    ///   - schemes: project schemes.
-    ///   - targets: project targets.
-    ///   - settings: project build settings.
     ///   - config: project configuration.
+    ///   - schemes: project schemes.
+    ///   - settings: project build settings.
+    ///   - targets: project targets.
     init(path: AbsolutePath,
          name: String,
+         config: Config? = nil
          schemes: [Scheme],
-         targets: [Target],
          settings: Settings? = nil,
-         config: Config? = nil) {
+         targets: [Target]) {
         self.path = path
         self.name = name
-        self.schemes = schemes
+        schemes = schemes
         self.targets = targets
         self.settings = settings
         self.config = config

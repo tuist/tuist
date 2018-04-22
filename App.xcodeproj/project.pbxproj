@@ -85,6 +85,7 @@
 		B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCC52088F0970061DF86 /* MockCommand.swift */; };
 		B9E2DCC82089B78D0061DF86 /* DumpCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCC72089B78D0061DF86 /* DumpCommandTests.swift */; };
 		B9E2DCCD2089BF3B0061DF86 /* CommandsContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */; };
+		B9F1EDCD208CBE1800477835 /* InitCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDCC208CBE1800477835 /* InitCommand.swift */; };
 		B9FB20B82089C0CC007BB186 /* MockCommandsContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB20B72089C0CC007BB186 /* MockCommandsContext.swift */; };
 		B9FB2DBF2086506E00BC2FB3 /* Basic.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; };
 		B9FB2DC62086515F00BC2FB3 /* Basic.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -285,6 +286,7 @@
 		B9E2DCC52088F0970061DF86 /* MockCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCommand.swift; sourceTree = "<group>"; };
 		B9E2DCC72089B78D0061DF86 /* DumpCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DumpCommandTests.swift; sourceTree = "<group>"; };
 		B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandsContext.swift; sourceTree = "<group>"; };
+		B9F1EDCC208CBE1800477835 /* InitCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitCommand.swift; sourceTree = "<group>"; };
 		B9FB20B72089C0CC007BB186 /* MockCommandsContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCommandsContext.swift; sourceTree = "<group>"; };
 		B9FB2DBB20864FF800BC2FB3 /* Basic.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Basic.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FB2DBD2086502100BC2FB3 /* Utility.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Utility.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -603,6 +605,7 @@
 				B9E2DCA720876F8A0061DF86 /* Command.swift */,
 				B9E2DCA9208774550061DF86 /* CommandRegistry.swift */,
 				B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */,
+				B9F1EDCC208CBE1800477835 /* InitCommand.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -935,6 +938,7 @@
 				B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */,
 				B95895F7208A2B5800F00ACF /* GeneratorError.swift in Sources */,
 				B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */,
+				B9F1EDCD208CBE1800477835 /* InitCommand.swift in Sources */,
 				B9FB2DEA2086544900BC2FB3 /* BuildPhase.swift in Sources */,
 				B9E2DCCD2089BF3B0061DF86 /* CommandsContext.swift in Sources */,
 				B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */,
