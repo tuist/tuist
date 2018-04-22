@@ -38,3 +38,7 @@ Just run this command on your terminal:
 ## Documentation
 
 If you would like to contribute to the project, we recommend you to check out the [project documentation](https://xcbuddy.github.io/xcbuddy/) generated using [Jazzy](https://github.com/realm/jazzy).
+
+## References
+
+* [SwiftGraph](https://github.com/davecom/SwiftGraph)
