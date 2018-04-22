@@ -45,6 +45,8 @@ extension Target: JSONConvertible {
         dictionary["dependencies"] = dependencies.toJSON()
         if let settings = settings {
             dictionary["settings"] = settings.toJSON()
+        }  else {
+            dictionary["settings"] = .null
         }
         dictionary["build_phases"] = .array(buildPhases.compactMap({ $0 as? JSONConvertible }).map({ $0.toJSON() }))
         return .dictionary(dictionary)

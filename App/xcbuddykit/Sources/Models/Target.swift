@@ -70,17 +70,19 @@ class Target: GraphJSONInitiatable, Equatable {
         let productString: String = try json.get("product")
         product = Product(rawValue: productString)!
         let infoPlistPath: String = try json.get("info_plist")
-        infoPlist = projectPath.appending(component: infoPlistPath)
+        infoPlist = projectPath.appending(RelativePath(infoPlistPath))
         if !context.fileHandler.exists(infoPlist) {
             throw GraphLoadingError.missingFile(infoPlist)
         }
         let entitlementsPath: String? = json.get("entitlements")
-        entitlements = entitlementsPath.map({ projectPath.appending(component: $0) })
+        entitlements = entitlementsPath.map({ projectPath.appending(RelativePath($0)) })
         if let entitlements = entitlements, !context.fileHandler.exists(entitlements) {
             throw GraphLoadingError.missingFile(entitlements)
         }
-        let settingsJSON: JSON? = try json.get("settings")
-        settings = try settingsJSON.map({ try Settings(json: $0, projectPath: projectPath, context: context) })
+        let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")
+        settings = try settingsDictionary.map({  dictionary in
+            return try Settings(json: JSON.init(dictionary), projectPath: projectPath, context: context)
+        })
         let buildPhasesJSONs: [JSON] = try json.get("build_phases")
         buildPhases = try buildPhasesJSONs.map({ try BuildPhase.parse(from: $0, projectPath: projectPath, context: context) })
         dependencies = try json.get("dependencies")

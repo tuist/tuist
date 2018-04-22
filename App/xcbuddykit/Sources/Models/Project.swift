@@ -83,7 +83,7 @@ class Project: Equatable {
         } else {
             config = nil
         }
-        let settingsJSON: JSON? = try json.get("settings")
+        let settingsJSON: JSON? = try? json.get("settings")
         settings = try settingsJSON.map({ try Settings(json: $0, projectPath: path, context: context) })
     }
 

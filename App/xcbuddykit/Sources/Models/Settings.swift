@@ -29,7 +29,7 @@ class Configuration: Equatable {
     init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
         settings = try json.get("settings")
         let xcconfigString: String? = json.get("xcconfig")
-        xcconfig = xcconfigString.flatMap({ projectPath.appending(component: $0) })
+        xcconfig = xcconfigString.flatMap({ projectPath.appending(RelativePath($0)) })
         if let xcconfig = xcconfig, !context.fileHandler.exists(xcconfig) {
             throw GraphLoadingError.missingFile(xcconfig)
         }
@@ -80,9 +80,9 @@ class Settings: GraphJSONInitiatable, Equatable {
     /// - Throws: an error if build files cannot be parsed.
     required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
         base = try json.get("base")
-        let debugJSON: JSON? = try json.get("debug")
+        let debugJSON: JSON? = try? json.get("debug")
         debug = try debugJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, context: context) })
-        let releaseJSON: JSON? = try json.get("release")
+        let releaseJSON: JSON? = try? json.get("release")
         release = try releaseJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, context: context) })
     }
 

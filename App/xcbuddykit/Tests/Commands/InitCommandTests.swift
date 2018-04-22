@@ -6,12 +6,16 @@ import XCTest
 
 final class InitCommandTests: XCTestCase {
     var subject: InitCommand!
-    var argumentParser: ArgumentParser!
-
+    var parser: ArgumentParser!
+    var manitestLoader: GraphManifestLoader!
+    var graphLoaderContext: GraphLoaderContext!
+    
     override func setUp() {
         super.setUp()
-        argumentParser = ArgumentParser.test()
-        subject = InitCommand(parser: argumentParser)
+        parser = ArgumentParser.test()
+        subject = InitCommand(parser: parser)
+        graphLoaderContext = GraphLoaderContext()
+        manitestLoader = GraphManifestLoader()
     }
 
     func test_initCommandError_has_the_right_description_when_alreadyExists() {
@@ -25,7 +29,7 @@ final class InitCommandTests: XCTestCase {
     }
 
     func test_init_registersTheSubparser() {
-        XCTAssertTrue(argumentParser.subparsers.keys.contains(subject.command))
+        XCTAssertTrue(parser.subparsers.keys.contains(subject.command))
     }
 
     func test_pathArgument() {
@@ -36,5 +40,19 @@ final class InitCommandTests: XCTestCase {
 
     func test_command() throws {
         let tmpDir = try TemporaryDirectory()
+        try "".write(toFile: tmpDir.path.appending(component: "Info.plist").asString, atomically: true, encoding: .utf8)
+        try "".write(toFile: tmpDir.path.appending(component: "Debug.xcconfig").asString, atomically: true, encoding: .utf8)
+        let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
+        try subject.run(with: result)
+        let project = try Project.at(tmpDir.path, context: graphLoaderContext)
+        XCTAssertEqual(project.name, tmpDir.path.components.last)
+        XCTAssertEqual(project.schemes.count, 1)
+        XCTAssertEqual(project.settings?.debug?.xcconfig, tmpDir.path.appending(component: "Debug.xcconfig"))
+        XCTAssertEqual(project.targets.first?.name, tmpDir.path.components.last)
+        XCTAssertEqual(project.targets.first?.platform, .ios)
+        XCTAssertEqual(project.targets.first?.product, .app)
+        XCTAssertEqual(project.targets.first?.dependencies.count, 0)
+        XCTAssertNil(project.targets.first?.settings)
+        XCTAssertEqual(project.targets.first?.buildPhases.count, 1)
     }
 }

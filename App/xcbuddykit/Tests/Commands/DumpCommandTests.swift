@@ -60,5 +60,6 @@ final class DumpCommandTests: XCTestCase {
                          encoding: .utf8)
         let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
         try subject.run(with: result)
+        XCTAssertEqual(printer.printArgs.first, "{\n\n}\n")
     }
 }

@@ -70,6 +70,8 @@ class InitCommand: NSObject, Command {
 
     fileprivate func projectSwift(name: String) -> String {
         return """
+        import ProjectDescription
+        
         let project = Project(name: "{{NAME}}",
                       schemes: [
                           /* Project schemes are defined here */
@@ -79,7 +81,7 @@ class InitCommand: NSObject, Command {
                       ],
                       settings: Settings(base: [:],
                                          debug: Configuration(settings: [:],
-                                                              xcconfig: "Configs/Debug.xcconfig")),
+                                                              xcconfig: "Debug.xcconfig")),
                       targets: [
                           Target(name: "{{NAME}}",
                                  platform: .ios,
