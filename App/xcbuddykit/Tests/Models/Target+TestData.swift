@@ -6,8 +6,8 @@ extension Target {
     static func test(name: String = "Target",
                      platform: Platform = .ios,
                      product: Product = .module,
-                     infoPlist: AbsolutePath = AbsolutePath("Info.plist"),
-                     entitlements: AbsolutePath? = AbsolutePath("Test.entitlements"),
+                     infoPlist: AbsolutePath = AbsolutePath("/Info.plist"),
+                     entitlements: AbsolutePath? = AbsolutePath("/Test.entitlements"),
                      settings: Settings? = Settings.test(),
                      buildPhases: [BuildPhase] = [
                          SourcesBuildPhase.test(),
