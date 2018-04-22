@@ -13,42 +13,42 @@ enum InitCommandError: Error, CustomStringConvertible {
         case let .alreadyExists(path):
             return "\(path.asString) already exists"
         case let .ungettableProjectName(path):
-            return "Cannot infer project name from path \(path.asString)"
+            return "Couldn't infer the project name from path \(path.asString)"
         }
     }
 }
 
 /// Command that initializes a Project.swift in the current folder.
-public class InitCommand: NSObject, Command {
-
+class InitCommand: NSObject, Command {
+    
     // MARK: - Command
-
+    
     /// Command name.
-    public let command = "init"
-
+    let command = "init"
+    
     /// Command description.
-    public let overview = "Initializes a Project.swift in the current folder."
-
+    let overview = "Initializes a Project.swift in the current folder."
+    
     /// Path argument.
-    private let pathArgument: OptionArgument<String>
-
+    let pathArgument: OptionArgument<String>
+    
     private let fileHandler: FileHandling
-
-    public required init(parser: ArgumentParser) {
+    
+    required init(parser: ArgumentParser) {
         let subParser = parser.add(subparser: command, overview: overview)
         pathArgument = subParser.add(option: "--path",
-                                     shortName: "-path",
+                                     shortName: "-p",
                                      kind: String.self,
                                      usage: "The path where the Project.swift file will be generated",
                                      completion: .filename)
         fileHandler = FileHandler()
     }
-
+    
     /// Runs the command.
     ///
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
-    public func run(with arguments: ArgumentParser.Result) throws {
+    func run(with arguments: ArgumentParser.Result) throws {
         var path: AbsolutePath! = arguments
             .get(pathArgument)
             .map({ AbsolutePath($0) })
@@ -67,7 +67,7 @@ public class InitCommand: NSObject, Command {
                                atomically: true,
                                encoding: .utf8)
     }
-
+    
     fileprivate func projectSwift(name: String) -> String {
         return """
         let project = Project(name: "{{NAME}}",

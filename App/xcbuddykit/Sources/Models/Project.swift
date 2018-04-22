@@ -32,13 +32,13 @@ class Project: Equatable {
     ///   - targets: project targets.
     init(path: AbsolutePath,
          name: String,
-         config: Config? = nil
+         config: Config? = nil,
          schemes: [Scheme],
          settings: Settings? = nil,
          targets: [Target]) {
         self.path = path
         self.name = name
-        schemes = schemes
+        self.schemes = schemes
         self.targets = targets
         self.settings = settings
         self.config = config
