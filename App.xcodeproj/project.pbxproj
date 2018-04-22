@@ -88,6 +88,10 @@
 		B9F1EDD1208CD18100477835 /* AargumentParser+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDD0208CD18100477835 /* AargumentParser+TestData.swift */; };
 		B9F1EDD3208CD2E200477835 /* ShellCompletion+Equatable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDD2208CD2E200477835 /* ShellCompletion+Equatable.swift */; };
 		B9F1EDD5208D080C00477835 /* GraphManifestLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDD4208D080C00477835 /* GraphManifestLoaderTests.swift */; };
+		B9F1EDED208D1CFE00477835 /* Target+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDEC208D1CFE00477835 /* Target+TestData.swift */; };
+		B9F1EDEF208D1DB200477835 /* BuildPhase+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDEE208D1DB200477835 /* BuildPhase+TestData.swift */; };
+		B9F1EDF1208D1F0F00477835 /* Settings+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDF0208D1F0F00477835 /* Settings+TestData.swift */; };
+		B9F1EDF3208D200C00477835 /* Scheme+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDF2208D200C00477835 /* Scheme+TestData.swift */; };
 		B9FB2DBF2086506E00BC2FB3 /* Basic.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; };
 		B9FB2DC62086515F00BC2FB3 /* Basic.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBB20864FF800BC2FB3 /* Basic.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB2DC72086516500BC2FB3 /* POSIX.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DC02086507200BC2FB3 /* POSIX.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -290,6 +294,10 @@
 		B9F1EDD0208CD18100477835 /* AargumentParser+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AargumentParser+TestData.swift"; sourceTree = "<group>"; };
 		B9F1EDD2208CD2E200477835 /* ShellCompletion+Equatable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShellCompletion+Equatable.swift"; sourceTree = "<group>"; };
 		B9F1EDD4208D080C00477835 /* GraphManifestLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphManifestLoaderTests.swift; sourceTree = "<group>"; };
+		B9F1EDEC208D1CFE00477835 /* Target+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Target+TestData.swift"; sourceTree = "<group>"; };
+		B9F1EDEE208D1DB200477835 /* BuildPhase+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildPhase+TestData.swift"; sourceTree = "<group>"; };
+		B9F1EDF0208D1F0F00477835 /* Settings+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Settings+TestData.swift"; sourceTree = "<group>"; };
+		B9F1EDF2208D200C00477835 /* Scheme+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Scheme+TestData.swift"; sourceTree = "<group>"; };
 		B9FB2DBB20864FF800BC2FB3 /* Basic.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Basic.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FB2DBD2086502100BC2FB3 /* Utility.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Utility.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FB2DC02086507200BC2FB3 /* POSIX.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = POSIX.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -458,6 +466,10 @@
 				B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */,
 				B9589601208A3CBA00F00ACF /* PlatformTests.swift */,
 				B9589603208A405D00F00ACF /* ProductTests .swift */,
+				B9F1EDEC208D1CFE00477835 /* Target+TestData.swift */,
+				B9F1EDEE208D1DB200477835 /* BuildPhase+TestData.swift */,
+				B9F1EDF0208D1F0F00477835 /* Settings+TestData.swift */,
+				B9F1EDF2208D200C00477835 /* Scheme+TestData.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -966,15 +978,19 @@
 				B9589604208A405D00F00ACF /* ProductTests .swift in Sources */,
 				B9E2DCC42088EEFC0061DF86 /* CommandRegistryTests.swift in Sources */,
 				B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */,
+				B9F1EDEF208D1DB200477835 /* BuildPhase+TestData.swift in Sources */,
+				B9F1EDF1208D1F0F00477835 /* Settings+TestData.swift in Sources */,
 				B9F1EDD5208D080C00477835 /* GraphManifestLoaderTests.swift in Sources */,
 				B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */,
 				B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */,
+				B9F1EDED208D1CFE00477835 /* Target+TestData.swift in Sources */,
 				B9F1EDD3208CD2E200477835 /* ShellCompletion+Equatable.swift in Sources */,
 				B9E2DC9E20872D400061DF86 /* AppTests.swift in Sources */,
 				B9E2DC9720872B5D0061DF86 /* MockManifestLoader.swift in Sources */,
 				B9E2DCC82089B78D0061DF86 /* DumpCommandTests.swift in Sources */,
 				B9E2DCA32087651D0061DF86 /* Project+TestData.swift in Sources */,
 				B9F1EDCF208CD0B800477835 /* InitCommandTests.swift in Sources */,
+				B9F1EDF3208D200C00477835 /* Scheme+TestData.swift in Sources */,
 				B9E2DCA12087650C0061DF86 /* Config+TestData.swift in Sources */,
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
