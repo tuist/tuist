@@ -11,6 +11,7 @@ env:
     - NOKOGIRI_USE_SYSTEM_LIBRARIES=true
 install:
 - bundle install
+- swift package update
 script:
 - bundle exec rake test
 - bundle exec rake release
