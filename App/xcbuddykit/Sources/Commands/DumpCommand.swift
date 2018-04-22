@@ -10,13 +10,14 @@ enum DumpCommandError: Error, CustomStringConvertible, Equatable {
     case manifestNotFound(AbsolutePath)
     var description: String {
         switch self {
-        case .manifestNotFound(let path):
+        case let .manifestNotFound(path):
             return "Couldn't find Project.swift, Workspace.swift, or Config.swift in the directory \(path.asString)"
         }
     }
-    static func ==(lhs: DumpCommandError, rhs: DumpCommandError) -> Bool {
+
+    static func == (lhs: DumpCommandError, rhs: DumpCommandError) -> Bool {
         switch (lhs, rhs) {
-        case (.manifestNotFound(let lhsPath), .manifestNotFound(let rhsPath)):
+        case let (.manifestNotFound(lhsPath), .manifestNotFound(rhsPath)):
             return lhsPath == rhsPath
         }
     }
@@ -26,28 +27,28 @@ enum DumpCommandError: Error, CustomStringConvertible, Equatable {
 public class DumpCommand: NSObject, Command, SPUUpdaterDelegate {
     /// Command name.
     public let command = "dump"
-    
+
     // Command overview.
     public let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
-    
+
     /// Graph loading context.
     fileprivate let graphLoaderContext: GraphLoaderContexting
-    
+
     /// Commands context.
     fileprivate let commandsContext: CommandsContexting
-    
+
     /// Path argument.
     let pathArgument: OptionArgument<String>
-    
+
     /// Initializes the dump command with the argument parser.
     ///
     /// - Parameter parser: argument parser.
-    public convenience required init(parser: ArgumentParser) {
+    public required convenience init(parser: ArgumentParser) {
         self.init(graphLoaderContext: GraphLoaderContext(),
                   commandsContext: CommandsContext(),
                   parser: parser)
     }
-    
+
     /// Initializes the command with the printer and the graph loading context.
     ///
     /// - Parameters:
@@ -66,7 +67,7 @@ public class DumpCommand: NSObject, Command, SPUUpdaterDelegate {
                                      usage: "The path where the Project.swift file will be generated",
                                      completion: .filename)
     }
-    
+
     /// Runs the command.
     ///
     /// - Parameter _: argument parser arguments.

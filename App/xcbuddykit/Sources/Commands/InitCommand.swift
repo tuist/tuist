@@ -20,20 +20,20 @@ enum InitCommandError: Error, CustomStringConvertible {
 
 /// Command that initializes a Project.swift in the current folder.
 class InitCommand: NSObject, Command {
-    
+
     // MARK: - Command
-    
+
     /// Command name.
     let command = "init"
-    
+
     /// Command description.
     let overview = "Initializes a Project.swift in the current folder."
-    
+
     /// Path argument.
     let pathArgument: OptionArgument<String>
-    
+
     private let fileHandler: FileHandling
-    
+
     required init(parser: ArgumentParser) {
         let subParser = parser.add(subparser: command, overview: overview)
         pathArgument = subParser.add(option: "--path",
@@ -43,7 +43,7 @@ class InitCommand: NSObject, Command {
                                      completion: .filename)
         fileHandler = FileHandler()
     }
-    
+
     /// Runs the command.
     ///
     /// - Parameter arguments: input arguments.
@@ -67,7 +67,7 @@ class InitCommand: NSObject, Command {
                                atomically: true,
                                encoding: .utf8)
     }
-    
+
     fileprivate func projectSwift(name: String) -> String {
         return """
         let project = Project(name: "{{NAME}}",
