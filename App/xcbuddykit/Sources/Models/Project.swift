@@ -76,7 +76,7 @@ class Project: Equatable {
         let targetsJSONs: [JSON] = try json.get("targets")
         targets = try targetsJSONs.map({ try Target(json: $0, projectPath: path, context: context) })
         schemes = try json.get("schemes")
-        if let configStringPath: String = json.get("config") {
+        if let configStringPath: String = try? json.get("config") {
             let configPath = RelativePath(configStringPath)
             let path = projectPath.appending(configPath)
             config = try Config.at(path, context: context)

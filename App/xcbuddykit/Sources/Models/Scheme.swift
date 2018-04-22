@@ -45,9 +45,9 @@ class Scheme: JSONMappable, Equatable {
     required init(json: JSON) throws {
         name = try json.get("name")
         shared = try json.get("shared")
-        buildAction = json.get("build_action")
-        testAction = json.get("test_action")
-        runAction = json.get("run_action")
+        buildAction = try? json.get("build_action")
+        testAction = try? json.get("test_action")
+        runAction = try? json.get("run_action")
     }
 
     /// Compares two schemes.
@@ -173,7 +173,7 @@ class TestAction: JSONMappable, Equatable {
     /// - Throws: an error if the action cannot be parsed.
     required init(json: JSON) throws {
         targets = try json.get("targets")
-        arguments = json.get("arguments")
+        arguments = try? json.get("arguments")
         let configString: String = try json.get("config")
         config = BuildConfiguration(rawValue: configString)!
         coverage = try json.get("coverage")
@@ -225,8 +225,8 @@ class RunAction: JSONMappable, Equatable {
     required init(json: JSON) throws {
         let configString: String = try json.get("config")
         config = BuildConfiguration(rawValue: configString)!
-        executable = json.get("executable")
-        arguments = json.get("arguments")
+        executable = try? json.get("executable")
+        arguments = try? json.get("arguments")
     }
 
     static func == (lhs: RunAction, rhs: RunAction) -> Bool {

@@ -164,7 +164,7 @@ class CopyBuildPhase: BuildPhase {
         name = try json.get("name")
         let destinationString: String = try json.get("destination")
         destination = Destination(rawValue: destinationString)!
-        subpath = json.get("subpath")
+        subpath = try? json.get("subpath")
         copyWhenInstalling = try json.get("copy_when_installing")
     }
 

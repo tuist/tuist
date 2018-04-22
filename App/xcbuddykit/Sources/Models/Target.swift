@@ -74,14 +74,14 @@ class Target: GraphJSONInitiatable, Equatable {
         if !context.fileHandler.exists(infoPlist) {
             throw GraphLoadingError.missingFile(infoPlist)
         }
-        let entitlementsPath: String? = json.get("entitlements")
+        let entitlementsPath: String? = try? json.get("entitlements")
         entitlements = entitlementsPath.map({ projectPath.appending(RelativePath($0)) })
         if let entitlements = entitlements, !context.fileHandler.exists(entitlements) {
             throw GraphLoadingError.missingFile(entitlements)
         }
         let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")
-        settings = try settingsDictionary.map({  dictionary in
-            return try Settings(json: JSON.init(dictionary), projectPath: projectPath, context: context)
+        settings = try settingsDictionary.map({ dictionary in
+            try Settings(json: JSON(dictionary), projectPath: projectPath, context: context)
         })
         let buildPhasesJSONs: [JSON] = try json.get("build_phases")
         buildPhases = try buildPhasesJSONs.map({ try BuildPhase.parse(from: $0, projectPath: projectPath, context: context) })

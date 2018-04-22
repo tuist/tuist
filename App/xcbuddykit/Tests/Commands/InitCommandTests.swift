@@ -9,7 +9,7 @@ final class InitCommandTests: XCTestCase {
     var parser: ArgumentParser!
     var manitestLoader: GraphManifestLoader!
     var graphLoaderContext: GraphLoaderContext!
-    
+
     override func setUp() {
         super.setUp()
         parser = ArgumentParser.test()
