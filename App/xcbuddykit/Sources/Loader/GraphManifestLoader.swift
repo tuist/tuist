@@ -67,16 +67,10 @@ class GraphManifestLoader: GraphManifestLoading {
             throw GraphManifestLoaderError.swiftNotFound
         }
         let swiftPath = AbsolutePath(swiftOutput)
-        guard let frameworksPath = Bundle.app.privateFrameworksPath.map({ AbsolutePath($0) }) else {
-            throw GraphManifestLoaderError.frameworksFolderNotFound
-        }
-        let projectDescriptionPath = frameworksPath.appending(component: "ProjectDescription.framework")
-        if !context.fileHandler.exists(projectDescriptionPath) {
-            throw GraphManifestLoaderError.projectDescriptionNotFound(projectDescriptionPath)
-        }
+        let manifestFrameworkPath = try projectDescriptionPath(context: context)
         var jsonString: String!
         do {
-            jsonString = try run(swiftPath.asString, "-F", frameworksPath.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
+            jsonString = try run(swiftPath.asString, "-F", manifestFrameworkPath.parentDirectory.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
         } catch {
             throw GraphManifestLoaderError.compileError(error, path)
         }
@@ -86,8 +80,29 @@ class GraphManifestLoader: GraphManifestLoading {
         return try JSON(string: jsonString)
     }
 
+    /// Runs a bash command.
+    ///
+    /// - Parameter args: arguments.
+    /// - Returns: command output as a string.
+    /// - Throws: an error if the command execution fails.
     func run(_ args: String...) throws -> String {
         let result = try Process.popen(arguments: args)
         return try result.utf8Output()
+    }
+
+    /// Returns the path where the ProjectDescription.framework is.
+    ///
+    /// - Parameter context: graph loader context.
+    /// - Returns: ProjectDescription.framework path.
+    /// - Throws: an error if the framework cannot be found.
+    fileprivate func projectDescriptionPath(context: GraphLoaderContexting) throws -> AbsolutePath {
+        let xcbuddyKitPath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
+        let xcbuddyKitParentPath = xcbuddyKitPath.parentDirectory
+        let projectDescriptionPath = xcbuddyKitParentPath.appending(component: "ProjectDescription.framework")
+        if context.fileHandler.exists(projectDescriptionPath) {
+            return projectDescriptionPath
+        } else {
+            throw GraphManifestLoaderError.projectDescriptionNotFound(projectDescriptionPath)
+        }
     }
 }

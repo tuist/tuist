@@ -179,10 +179,10 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
 private var _commandlineUpdater: SPUUpdater!
 
 extension SPUUpdater {
-    static var commandLine: SPUUpdater {
+    static func commandLine() throws -> SPUUpdater {
         if _commandlineUpdater != nil { return _commandlineUpdater }
         let driver = SPUCommandLineUserDriver()
-        let bundle = Bundle.app
+        let bundle = try Bundle.app()
         _commandlineUpdater = SPUUpdater(hostBundle: bundle, applicationBundle: bundle, userDriver: driver, delegate: nil)
         return _commandlineUpdater
     }

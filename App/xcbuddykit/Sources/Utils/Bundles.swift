@@ -1,14 +1,22 @@
+import Basic
 import Foundation
 
 fileprivate class Dummy {}
 
+enum BundleError: Error {
+    case frameworkNotEmbedded(AbsolutePath)
+}
+
 // MARK: - Bundle Extension
+
 extension Bundle {
-    /// Returns the application bundle. Since this variable is accessed from the cli, using Bundle.main wouldn't return the expected bundle.
-    /// We use a dummy clase contained in this bundle to get the framework bundle and then we get the app's from that one.
-    static var app: Bundle {
+    /// If xcbuddykit is embedded in the an app, this getter returns the bundle of the app where the framework is contained.
+    static func app() throws -> Bundle {
         let path = Bundle(for: Dummy.self).bundleURL
         let appBundlePath = path.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        return Bundle(url: appBundlePath)!
+        if appBundlePath.pathExtension == "app" {
+            return Bundle(url: appBundlePath)!
+        }
+        throw BundleError.frameworkNotEmbedded(AbsolutePath(path.path))
     }
 }

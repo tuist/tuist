@@ -103,7 +103,7 @@ public class TechLogger: TechLogging {
     public static func defaultTags() -> [String: String] {
         var tags: [String: String] = [:]
         tags["osx"] = ProcessInfo.processInfo.operatingSystemVersionString
-        tags["version"] = App().version
+        tags["version"] = (try? App().version) ?? ""
         return tags
     }
 }
