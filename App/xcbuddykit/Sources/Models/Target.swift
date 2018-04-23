@@ -12,6 +12,9 @@ class Target: GraphJSONInitiatable, Equatable {
     /// Target product type.
     let product: Product
 
+    /// Product bundle id.
+    let bundleId: String
+    
     /// Target info plist path.
     let infoPlist: AbsolutePath
 
@@ -33,6 +36,7 @@ class Target: GraphJSONInitiatable, Equatable {
     ///   - name: target name.
     ///   - platform: target platform.
     ///   - product: target product type.
+    ///   - bundleId: product bundle id.
     ///   - infoPlist: info plist absolute path.
     ///   - entitlements: entitlements absolute path.
     ///   - settings: target settings.
@@ -41,6 +45,7 @@ class Target: GraphJSONInitiatable, Equatable {
     init(name: String,
          platform: Platform,
          product: Product,
+         bundleId: String,
          infoPlist: AbsolutePath,
          entitlements: AbsolutePath? = nil,
          settings: Settings? = nil,
@@ -49,6 +54,7 @@ class Target: GraphJSONInitiatable, Equatable {
         self.name = name
         self.product = product
         self.platform = platform
+        self.bundleId = bundleId
         self.infoPlist = infoPlist
         self.entitlements = entitlements
         self.settings = settings
@@ -69,6 +75,7 @@ class Target: GraphJSONInitiatable, Equatable {
         platform = Platform(rawValue: platformString)!
         let productString: String = try json.get("product")
         product = Product(rawValue: productString)!
+        bundleId = try json.get("bundle_id")
         let infoPlistPath: String = try json.get("info_plist")
         infoPlist = projectPath.appending(RelativePath(infoPlistPath))
         if !context.fileHandler.exists(infoPlist) {
@@ -98,6 +105,7 @@ class Target: GraphJSONInitiatable, Equatable {
         return lhs.name == rhs.name &&
             lhs.platform == rhs.platform &&
             lhs.product == rhs.product &&
+            lhs.bundleId == rhs.bundleId &&
             lhs.infoPlist == rhs.infoPlist &&
             lhs.entitlements == rhs.entitlements &&
             lhs.settings == rhs.settings &&

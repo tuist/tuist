@@ -51,6 +51,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(project.targets.first?.name, tmpDir.path.components.last)
         XCTAssertEqual(project.targets.first?.platform, .ios)
         XCTAssertEqual(project.targets.first?.product, .app)
+        XCTAssertEqual(project.targets.first?.bundleId, "com.xcbuddy.\(tmpDir.path.components.last!)")
         XCTAssertEqual(project.targets.first?.dependencies.count, 0)
         XCTAssertNil(project.targets.first?.settings)
         XCTAssertEqual(project.targets.first?.buildPhases.count, 1)

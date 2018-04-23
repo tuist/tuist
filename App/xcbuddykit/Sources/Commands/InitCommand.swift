@@ -86,6 +86,7 @@ public class InitCommand: NSObject, Command {
                           Target(name: "{{NAME}}",
                                  platform: .ios,
                                  product: .app,
+                                 bundleId: "com.xcbuddy.{{NAME}}",
                                  infoPlist: "Info.plist",
                                  dependencies: [
                                      /* Target dependencies can be defined here */
