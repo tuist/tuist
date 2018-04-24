@@ -37,12 +37,8 @@
 		B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */; };
 		B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960A208B578700F00ACF /* GraphCircularDetector.swift */; };
 		B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */; };
-		B98313782065432A00D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
-		B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B983137F2065473800D2D656 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; };
 		B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B6299D20864E2300EE9E07 /* Constants.swift */; };
 		B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A220864E3A00EE9E07 /* Logger.swift */; };
-		B9B629AA20864E3A00EE9E07 /* TechLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A320864E3A00EE9E07 /* TechLogger.swift */; };
 		B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A420864E3A00EE9E07 /* Printer.swift */; };
 		B9B629AC20864E3A00EE9E07 /* FileHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A520864E3A00EE9E07 /* FileHandler.swift */; };
 		B9B629AD20864E3A00EE9E07 /* Bundles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A620864E3A00EE9E07 /* Bundles.swift */; };
@@ -118,7 +114,6 @@
 		B9FB2DE92086544900BC2FB3 /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629CB20864E9800EE9E07 /* Platform.swift */; };
 		B9FB2DEA2086544900BC2FB3 /* BuildPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629CC20864E9800EE9E07 /* BuildPhase.swift */; };
 		B9FB2DEB2086544900BC2FB3 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629CD20864E9800EE9E07 /* Product.swift */; };
-		B9FB9D082066D18E00F13FFA /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B98313772065432A00D2D656 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB9D0A2066D19B00F13FFA /* xcproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED672063B18B004B6630 /* xcproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB9D0C2066D1B800F13FFA /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF36206423670010BC33 /* xcproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED672063B18B004B6630 /* xcproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -184,7 +179,6 @@
 				B9FB2DC72086516500BC2FB3 /* POSIX.framework in Embed Frameworks */,
 				B9FB2DC62086515F00BC2FB3 /* Basic.framework in Embed Frameworks */,
 				B91834C0207CBCFE008935B4 /* ProjectDescription.framework in Embed Frameworks */,
-				B9FB9D082066D18E00F13FFA /* Sentry.framework in Embed Frameworks */,
 				B9FB9D0C2066D1B800F13FFA /* AEXML.framework in Embed Frameworks */,
 				B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */,
 				B9FB9D0A2066D19B00F13FFA /* xcproj.framework in Embed Frameworks */,
@@ -205,7 +199,6 @@
 				B9E2DCAB2087750F0061DF86 /* Basic.framework in Embed Frameworks */,
 				B9E2DCA620876F710061DF86 /* Utility.framework in Embed Frameworks */,
 				B9013DD7206FEEEF007B1A34 /* Sparkle.framework in Embed Frameworks */,
-				B98313792065433500D2D656 /* Sentry.framework in Embed Frameworks */,
 				B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */,
 				B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */,
 				B9FDBF36206423670010BC33 /* xcproj.framework in Embed Frameworks */,
@@ -256,10 +249,8 @@
 		B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockProjectGenerator.swift; sourceTree = "<group>"; };
 		B958960A208B578700F00ACF /* GraphCircularDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetector.swift; sourceTree = "<group>"; };
 		B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetectorTests.swift; sourceTree = "<group>"; };
-		B98313772065432A00D2D656 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
-		B9B629A320864E3A00EE9E07 /* TechLogger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TechLogger.swift; sourceTree = "<group>"; };
 		B9B629A420864E3A00EE9E07 /* Printer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Printer.swift; sourceTree = "<group>"; };
 		B9B629A520864E3A00EE9E07 /* FileHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileHandler.swift; sourceTree = "<group>"; };
 		B9B629A620864E3A00EE9E07 /* Bundles.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Bundles.swift; sourceTree = "<group>"; };
@@ -343,7 +334,6 @@
 				B9FB2DBF2086506E00BC2FB3 /* Basic.framework in Frameworks */,
 				B91834BF207CBCE6008935B4 /* ProjectDescription.framework in Frameworks */,
 				B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */,
-				B98313782065432A00D2D656 /* Sentry.framework in Frameworks */,
 				B915ED662063B18B004B6630 /* xcproj.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -361,7 +351,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B915ED2F2063AFBD004B6630 /* xcbuddykit.framework in Frameworks */,
-				B983137F2065473800D2D656 /* Sentry.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -386,7 +375,6 @@
 				B9FB2DBB20864FF800BC2FB3 /* Basic.framework */,
 				B91834BE207CBCE6008935B4 /* ProjectDescription.framework */,
 				B9013DD4206FEEDF007B1A34 /* Sparkle.framework */,
-				B98313772065432A00D2D656 /* Sentry.framework */,
 				B9FDBF412064DCB70010BC33 /* Foundation.framework */,
 				B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */,
 				B915ED672063B18B004B6630 /* xcproj.framework */,
@@ -585,7 +573,6 @@
 			isa = PBXGroup;
 			children = (
 				B9B629A220864E3A00EE9E07 /* Logger.swift */,
-				B9B629A320864E3A00EE9E07 /* TechLogger.swift */,
 				B9B629A420864E3A00EE9E07 /* Printer.swift */,
 				B9B629A520864E3A00EE9E07 /* FileHandler.swift */,
 				B9B629A620864E3A00EE9E07 /* Bundles.swift */,
@@ -780,7 +767,6 @@
 				B94C7F942062B829009BF596 /* Frameworks */,
 				B94C7F952062B829009BF596 /* Resources */,
 				B9FDBF33206423460010BC33 /* Embed Frameworks */,
-				B983137E206545A400D2D656 /* Upload Symbols */,
 				B9B80AB0206AAFC30057482B /* Copy CLI */,
 				B91834CF207CEB00008935B4 /* Copy ProjectDescription Framework */,
 			);
@@ -919,20 +905,6 @@
 			shellPath = /bin/sh;
 			shellScript = "${SRCROOT}/scripts/copy-framework.sh ProjectDescription.framework";
 		};
-		B983137E206545A400D2D656 /* Upload Symbols */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Upload Symbols";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "export SENTRY_ORG=xcbuddy\nexport SENTRY_PROJECT=xcbuddy\nERROR=$(./bin/sentry-cli upload-dsym 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -995,7 +967,6 @@
 				B9F1EDF6208D228600477835 /* ProjectValidator.swift in Sources */,
 				B9FB2DCA2086527B00BC2FB3 /* BuildFiles.swift in Sources */,
 				B9FB2DE1208653F500BC2FB3 /* GraphController.swift in Sources */,
-				B9B629AA20864E3A00EE9E07 /* TechLogger.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1259,8 +1230,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_SWIFT_FLAGS = "-Xcc -fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-package-manager.git--5789260357088934756/Sources/clibc/include/module.modulemap";
 				SDKROOT = macosx;
-				SENTRY_AUTH_TOKEN = "$(SENTRY_AUTH_TOKEN)";
-				SENTRY_DSN = "$(SENTRY_DSN)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -1311,8 +1280,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				OTHER_SWIFT_FLAGS = "-Xcc -fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-package-manager.git--5789260357088934756/Sources/clibc/include/module.modulemap";
 				SDKROOT = macosx;
-				SENTRY_AUTH_TOKEN = "$(SENTRY_AUTH_TOKEN)";
-				SENTRY_DSN = "$(SENTRY_DSN)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
 			};
 			name = Release;
