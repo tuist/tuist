@@ -3,10 +3,9 @@ import Foundation
 
 /// Workspace that references other projects.
 class Workspace: Equatable {
-    
     /// Workspace name.
     let name: String
-    
+
     /// Worskpace projects.
     let projects: [AbsolutePath]
 
@@ -26,7 +25,7 @@ class Workspace: Equatable {
     ///   - context: graph loader context.
     /// - Returns: initialized Workspace.
     /// - Throws: an error if the workspace cannot be parsed
-    static func parse(from path: AbsolutePath, context: GraphLoaderContexting) throws -> Workspace {
+    static func at(_ path: AbsolutePath, context: GraphLoaderContexting) throws -> Workspace {
         let workspacePath = path.appending(component: Constants.Manifest.workspace)
         if !context.fileHandler.exists(workspacePath) { throw GraphLoadingError.missingFile(workspacePath) }
         let json = try context.manifestLoader.load(path: workspacePath, context: context)

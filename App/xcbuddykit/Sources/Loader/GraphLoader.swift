@@ -1,7 +1,18 @@
 import Basic
 import Foundation
 
-class GraphLoader {
+/// Loads the graph that starts at the given path.
+protocol GraphLoading: AnyObject {
+    func load(path: AbsolutePath) throws -> GraphController
+}
+
+/// Default graph loader.
+class GraphLoader: GraphLoading {
+    /// Loads the graph at the given path.
+    ///
+    /// - Parameter path: path where the graph starts from. It's the path where the Workspace.swift or the Project.swift file is.
+    /// - Returns: a graph controller with that contains the graph representation.
+    /// - Throws: an error if the graph cannot be loaded.
     func load(path: AbsolutePath) throws -> GraphController {
         let context = GraphLoaderContext()
         if context.fileHandler.exists(path.appending(component: Constants.Manifest.project)) {
@@ -13,6 +24,13 @@ class GraphLoader {
         }
     }
 
+    /// Loads a project graph.
+    ///
+    /// - Parameters:
+    ///   - path: path to the Project.swift.
+    ///   - context: loader context.
+    /// - Returns: a graph controller with that contains the graph representation.
+    /// - Throws: an error if the graph cannot be loaded.
     fileprivate func loadProject(path: AbsolutePath, context: GraphLoaderContext) throws -> GraphController {
         let project = try Project.at(path, context: context)
         let entryNodes: [GraphNode] = try project.targets.map({ $0.name }).map { targetName in
@@ -21,8 +39,15 @@ class GraphLoader {
         return GraphController(cache: context.cache, entryNodes: entryNodes)
     }
 
+    /// Loads a workspace graph.
+    ///
+    /// - Parameters:
+    ///   - path: path to the Project.swift.
+    ///   - context: loader context.
+    /// - Returns: a graph controller with that contains the graph representation.
+    /// - Throws: an error if the graph cannot be loaded.
     fileprivate func loadWorkspace(path: AbsolutePath, context: GraphLoaderContext) throws -> GraphController {
-        let workspace = try Workspace.parse(from: path, context: context)
+        let workspace = try Workspace.at(path, context: context)
         let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
             return try (projectPath, Project.at(projectPath, context: context))
         }

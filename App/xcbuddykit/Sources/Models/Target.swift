@@ -14,7 +14,7 @@ class Target: GraphJSONInitiatable, Equatable {
 
     /// Product bundle id.
     let bundleId: String
-    
+
     /// Target info plist path.
     let infoPlist: AbsolutePath
 
