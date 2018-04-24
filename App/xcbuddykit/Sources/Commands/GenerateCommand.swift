@@ -70,5 +70,6 @@ public class GenerateCommand: NSObject, Command {
         }
         let context = try GeneratorContext(graph: graphLoader.load(path: path))
         try workspaceGenerator.generate(path: path, context: context)
+        context.printer.print(section: "Generate command succeeded 🎉")
     }
 }

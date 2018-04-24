@@ -72,7 +72,8 @@ class GraphManifestLoader: GraphManifestLoading {
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
-        return try JSON(string: jsonString)
+        let json = try JSON(string: jsonString)
+        return json
     }
 
     /// Runs a bash command.

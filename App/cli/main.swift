@@ -1,11 +1,5 @@
 import Foundation
 import xcbuddykit
 
-var registry = CommandRegistry(usage: "<command> <options>", overview: "Your Xcode buddy")
-
-registry.register(command: InitCommand.self)
-registry.register(command: GenerateCommand.self)
-registry.register(command: UpdateCommand.self)
-registry.register(command: DumpCommand.self)
-
+var registry = CommandRegistry()
 registry.run()

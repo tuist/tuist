@@ -32,6 +32,9 @@ public class InitCommand: NSObject, Command {
     /// Path argument.
     let pathArgument: OptionArgument<String>
 
+    /// Printer
+    let printer: Printing
+
     private let fileHandler: FileHandling
 
     public required init(parser: ArgumentParser) {
@@ -42,6 +45,7 @@ public class InitCommand: NSObject, Command {
                                      usage: "The path where the Project.swift file will be generated",
                                      completion: .filename)
         fileHandler = FileHandler()
+        printer = Printer()
     }
 
     /// Runs the command.
@@ -66,6 +70,7 @@ public class InitCommand: NSObject, Command {
         try projectSwift.write(toFile: path.asString,
                                atomically: true,
                                encoding: .utf8)
+        printer.print(section: "Project.swift generated at path \(path.asString)")
     }
 
     fileprivate func projectSwift(name: String) -> String {

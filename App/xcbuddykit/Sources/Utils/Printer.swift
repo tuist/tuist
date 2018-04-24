@@ -8,10 +8,20 @@ protocol Printing: AnyObject {
     /// - Parameter text: message to be printed.
     func print(_ text: String)
 
+    /// Prints a section.
+    ///
+    /// - Parameter section: section title.
+    func print(section: String)
+
     /// Prints an error.
     ///
     /// - Parameter error: error to be printed.
     func print(error: Error)
+
+    /// Prints an error message.
+    ///
+    /// - Parameter errorMessage: error message to be printed.
+    func print(errorMessage: String)
 }
 
 /// Default printer that conforms the printing protocol.
@@ -34,6 +44,25 @@ class Printer: Printing {
         let writer = InteractiveWriter.stderr
         writer.write("Error: ", inColor: .red, bold: true)
         writer.write(error.localizedDescription)
+        writer.write("\n")
+    }
+
+    /// Prints an error message.
+    ///
+    /// - Parameter errorMessage: error message.
+    func print(errorMessage: String) {
+        let writer = InteractiveWriter.stderr
+        writer.write("Error: ", inColor: .red, bold: true)
+        writer.write(errorMessage)
+        writer.write("\n")
+    }
+
+    /// Prints an error.
+    ///
+    /// - Parameter error: error to be printed.
+    func print(section: String) {
+        let writer = InteractiveWriter.stdout
+        writer.write("\(section)", inColor: .green, bold: true)
         writer.write("\n")
     }
 }

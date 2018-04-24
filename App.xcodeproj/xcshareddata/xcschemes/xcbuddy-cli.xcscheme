@@ -48,7 +48,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "generate -p /Users/pedropinera/Desktop/Test"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
       <AdditionalOptions>

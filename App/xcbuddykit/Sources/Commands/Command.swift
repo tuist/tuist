@@ -1,7 +1,7 @@
 import Utility
 
 /// Protocol that defines a command line command.
-public protocol Command {
+protocol Command {
     /// Command name. This name is used from the command line to call the command.
     var command: String { get }
 

@@ -14,10 +14,11 @@ final class ProjectGenerator: ProjectGenerating {
         self.targetGenerator = targetGenerator
     }
 
-    func generate(project: Project, context _: GeneratorContexting) throws -> AbsolutePath {
+    func generate(project: Project, context: GeneratorContexting) throws -> AbsolutePath {
+        context.printer.print("Generating project \(project.name)")
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        let pbxProj = PBXProj(rootObject: "")
+        let pbxProj = PBXProj(rootObject: "") // The reference gets added later
         let configurationList = XCConfigurationList(buildConfigurations: [])
         let configurationListReference = pbxProj.objects.generateReference(configurationList, project.name)
         pbxProj.objects.addObject(configurationList, reference: configurationListReference)

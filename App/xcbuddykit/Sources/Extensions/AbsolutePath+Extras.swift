@@ -11,7 +11,7 @@ extension AbsolutePath {
 
     public func glob(_ pattern: String) -> [AbsolutePath] {
         var gt = glob_t()
-        let cPattern = strdup(pattern)
+        let cPattern = strdup(appending(RelativePath(pattern)).asString)
         defer {
             globfree(&gt)
             free(cPattern)

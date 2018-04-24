@@ -7,22 +7,25 @@ public final class CommandRegistry {
     // Argument parser.
     private let parser: ArgumentParser
 
+    /// Printer.
+    private let printer: Printing
+
     // Registered commands.
     var commands: [Command] = []
 
     /// Returns the process arguments.
     private let processArguments: () -> [String]
 
-    /// Initialies the registry.
-    ///
-    /// - Parameters:
-    ///   - usage: tool usage.
-    ///   - overview: tool  overview.
-    public init(usage: String,
-                overview: String,
-                processArguments: @escaping () -> [String] = CommandRegistry.processArguments) {
-        parser = ArgumentParser(usage: usage, overview: overview)
-        self.processArguments = processArguments
+    /// Initializes the command registry
+    public init() {
+        printer = Printer()
+        parser = ArgumentParser(usage: "<command> <options>",
+                                overview: "Your Xcode buddy")
+        processArguments = CommandRegistry.processArguments
+        register(command: InitCommand.self)
+        register(command: GenerateCommand.self)
+        register(command: UpdateCommand.self)
+        register(command: DumpCommand.self)
     }
 
     /// Returns the process arguments
@@ -35,7 +38,7 @@ public final class CommandRegistry {
     /// Register a new command.
     ///
     /// - Parameter command: command type.
-    public func register(command: Command.Type) {
+    func register(command: Command.Type) {
         commands.append(command.init(parser: parser))
     }
 
@@ -45,11 +48,14 @@ public final class CommandRegistry {
             let parsedArguments = try parse()
             try process(arguments: parsedArguments)
         } catch let error as ArgumentParserError {
-            print(error.description)
+            printer.print(errorMessage: error.localizedDescription)
+            exit(1)
         } catch let error as CustomStringConvertible {
-            print(error.description)
+            printer.print(errorMessage: error.description)
+            exit(1)
         } catch {
-            print(error.localizedDescription)
+            printer.print(errorMessage: error.localizedDescription)
+            exit(1)
         }
     }
 
