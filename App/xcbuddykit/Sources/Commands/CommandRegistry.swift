@@ -13,9 +13,13 @@ public final class CommandRegistry {
     // Registered commands.
     var commands: [Command] = []
 
+    /// Error handler.
+    let errorHandler: CommandLineErrorHandling
+    
     /// Returns the process arguments.
     private let processArguments: () -> [String]
 
+<<<<<<< HEAD
     /// Initializes the command registry
     public init(processArguments: @escaping () -> [String] = CommandRegistry.processArguments) {
         printer = Printer()
@@ -26,6 +30,21 @@ public final class CommandRegistry {
         register(command: GenerateCommand.self)
         register(command: UpdateCommand.self)
         register(command: DumpCommand.self)
+=======
+    /// Initialies the registry.
+    ///
+    /// - Parameters:
+    ///   - usage: tool usage.
+    ///   - errorHandler: error handler.
+    ///   - overview: tool  overview.
+    public init(usage: String,
+                overview: String,
+                errorHandler: CommandLineErrorHandling,
+                processArguments: @escaping () -> [String] = CommandRegistry.processArguments) {
+        parser = ArgumentParser(usage: usage, overview: overview)
+        self.processArguments = processArguments
+        self.errorHandler = errorHandler
+>>>>>>> [error-handler] Replace Sentry with Bugsnag
     }
 
     /// Returns the process arguments
@@ -44,9 +63,10 @@ public final class CommandRegistry {
 
     /// Runs the command line interface.
     public func run() {
-        do {
+        errorHandler.run {
             let parsedArguments = try parse()
             try process(arguments: parsedArguments)
+<<<<<<< HEAD
         } catch let error as ArgumentParserError {
             printer.print(errorMessage: error.localizedDescription)
             exit(1)
@@ -56,6 +76,8 @@ public final class CommandRegistry {
         } catch {
             printer.print(errorMessage: error.localizedDescription)
             exit(1)
+=======
+>>>>>>> [error-handler] Replace Sentry with Bugsnag
         }
     }
 
