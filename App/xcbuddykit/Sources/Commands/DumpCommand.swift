@@ -1,6 +1,5 @@
 import Basic
 import Foundation
-import Sparkle
 import Utility
 
 /// Dump command error.
@@ -24,7 +23,7 @@ enum DumpCommandError: Error, CustomStringConvertible, Equatable {
 }
 
 /// Command that dumps the manifest into the console.
-public class DumpCommand: NSObject, Command, SPUUpdaterDelegate {
+public class DumpCommand: NSObject, Command {
     /// Command name.
     public let command = "dump"
 

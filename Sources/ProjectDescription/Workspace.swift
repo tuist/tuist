@@ -3,8 +3,11 @@ import Foundation
 // MARK: - Workspace
 
 public class Workspace {
+    public let name: String
     public let projects: [String]
-    public init(projects: [String]) {
+    public init(name: String,
+                projects: [String]) {
+        self.name = name
         self.projects = projects
         dumpIfNeeded(self)
     }
@@ -14,6 +17,6 @@ public class Workspace {
 
 extension Workspace: JSONConvertible {
     func toJSON() -> JSON {
-        return projects.toJSON()
+        return .dictionary(["name": name.toJSON(), "project": projects.toJSON()])
     }
 }

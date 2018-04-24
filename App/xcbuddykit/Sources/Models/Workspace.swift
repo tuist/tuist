@@ -3,13 +3,19 @@ import Foundation
 
 /// Workspace that references other projects.
 class Workspace: Equatable {
+    
+    /// Workspace name.
+    let name: String
+    
     /// Worskpace projects.
-    var projects: [AbsolutePath]
+    let projects: [AbsolutePath]
 
     /// Initializes the Workspace with its attributes.
     ///
+    /// - Parameter name: workspace name.
     /// - Parameter projects: paths to the projects.
-    init(projects: [AbsolutePath]) {
+    init(name: String, projects: [AbsolutePath]) {
+        self.name = name
         self.projects = projects
     }
 
@@ -25,9 +31,10 @@ class Workspace: Equatable {
         if !context.fileHandler.exists(workspacePath) { throw GraphLoadingError.missingFile(workspacePath) }
         let json = try context.manifestLoader.load(path: workspacePath, context: context)
         let projectsStrings: [String] = try json.get("projects")
+        let name: String = try json.get("name")
         let projectsRelativePaths: [RelativePath] = projectsStrings.map({ RelativePath($0) })
         let projects = projectsRelativePaths.map({ path.appending($0) })
-        return Workspace(projects: projects)
+        return Workspace(name: name, projects: projects)
     }
 
     /// Compares two workspaces.

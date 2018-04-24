@@ -79,6 +79,7 @@
 		B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCC52088F0970061DF86 /* MockCommand.swift */; };
 		B9E2DCC82089B78D0061DF86 /* DumpCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCC72089B78D0061DF86 /* DumpCommandTests.swift */; };
 		B9E2DCCD2089BF3B0061DF86 /* CommandsContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */; };
+		B9E65C99208F8B2200A9D7AC /* GenerateCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E65C98208F8B2200A9D7AC /* GenerateCommand.swift */; };
 		B9F1EDCD208CBE1800477835 /* InitCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDCC208CBE1800477835 /* InitCommand.swift */; };
 		B9F1EDCF208CD0B800477835 /* InitCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDCE208CD0B800477835 /* InitCommandTests.swift */; };
 		B9F1EDD1208CD18100477835 /* AargumentParser+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F1EDD0208CD18100477835 /* AargumentParser+TestData.swift */; };
@@ -284,6 +285,7 @@
 		B9E2DCC52088F0970061DF86 /* MockCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCommand.swift; sourceTree = "<group>"; };
 		B9E2DCC72089B78D0061DF86 /* DumpCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DumpCommandTests.swift; sourceTree = "<group>"; };
 		B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandsContext.swift; sourceTree = "<group>"; };
+		B9E65C98208F8B2200A9D7AC /* GenerateCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerateCommand.swift; sourceTree = "<group>"; };
 		B9F1EDCC208CBE1800477835 /* InitCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitCommand.swift; sourceTree = "<group>"; };
 		B9F1EDCE208CD0B800477835 /* InitCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitCommandTests.swift; sourceTree = "<group>"; };
 		B9F1EDD0208CD18100477835 /* AargumentParser+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AargumentParser+TestData.swift"; sourceTree = "<group>"; };
@@ -618,6 +620,7 @@
 				B9E2DCA9208774550061DF86 /* CommandRegistry.swift */,
 				B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */,
 				B9F1EDCC208CBE1800477835 /* InitCommand.swift */,
+				B9E65C98208F8B2200A9D7AC /* GenerateCommand.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -962,6 +965,7 @@
 				B9F1EDFD208D26B200477835 /* GraphValidator.swift in Sources */,
 				B95895FB208A2FFB00F00ACF /* WorkspaceGenerator.swift in Sources */,
 				B9589600208A37B700F00ACF /* GraphJSONInitiatable.swift in Sources */,
+				B9E65C99208F8B2200A9D7AC /* GenerateCommand.swift in Sources */,
 				B9F1EDF8208D22D900477835 /* TargetValidator.swift in Sources */,
 				B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */,
 				B9F1EDF6208D228600477835 /* ProjectValidator.swift in Sources */,
