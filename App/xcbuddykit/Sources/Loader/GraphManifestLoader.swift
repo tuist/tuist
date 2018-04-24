@@ -20,7 +20,7 @@ enum GraphManifestLoaderError: Error, CustomStringConvertible, Equatable {
     case frameworksFolderNotFound
     case swiftNotFound
     case unexpectedOutput(AbsolutePath)
-    case compileError(Error, AbsolutePath)
+    case compileError(String)
 
     var description: String {
         switch self {
@@ -32,8 +32,8 @@ enum GraphManifestLoaderError: Error, CustomStringConvertible, Equatable {
             return "Couldn't find Swift on your environment. Run 'xcode-select -p' to see if the Xcode path is properly setup."
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.asString)."
-        case let .compileError(error, path):
-            return "Error trying to compile manifest at path \(path.asString): \(error.localizedDescription)."
+        case let .compileError(error):
+            return "Error trying to compile manifest: \(error)."
         }
     }
 
@@ -45,8 +45,8 @@ enum GraphManifestLoaderError: Error, CustomStringConvertible, Equatable {
         case (.swiftNotFound, .swiftNotFound): return true
         case let (.unexpectedOutput(lhsPath), .unexpectedOutput(rhsPath)):
             return lhsPath == rhsPath
-        case let (.compileError(lhsError, lhsPath), .compileError(rhsError, rhsPath)):
-            return lhsPath == rhsPath && rhsError.localizedDescription == lhsError.localizedDescription
+        case let (.compileError(lhsError), .compileError(rhsError)):
+            return rhsError == lhsError
         default:
             return false
         }
@@ -68,12 +68,7 @@ class GraphManifestLoader: GraphManifestLoading {
         }
         let swiftPath = AbsolutePath(swiftOutput)
         let manifestFrameworkPath = try projectDescriptionPath(context: context)
-        var jsonString: String!
-        do {
-            jsonString = try run(swiftPath.asString, "-F", manifestFrameworkPath.parentDirectory.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
-        } catch {
-            throw GraphManifestLoaderError.compileError(error, path)
-        }
+        let jsonString: String! = try run(swiftPath.asString, "-F", manifestFrameworkPath.parentDirectory.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
@@ -87,7 +82,11 @@ class GraphManifestLoader: GraphManifestLoading {
     /// - Throws: an error if the command execution fails.
     func run(_ args: String...) throws -> String {
         let result = try Process.popen(arguments: args)
-        return try result.utf8Output()
+        if result.exitStatus == .terminated(code: 0) {
+            return try result.utf8Output()
+        } else {
+            throw GraphManifestLoaderError.compileError(try result.utf8stderrOutput())
+        }
     }
 
     /// Returns the path where the ProjectDescription.framework is.

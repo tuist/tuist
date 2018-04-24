@@ -46,7 +46,9 @@ public final class CommandRegistry {
             try process(arguments: parsedArguments)
         } catch let error as ArgumentParserError {
             print(error.description)
-        } catch let error {
+        } catch let error as CustomStringConvertible {
+            print(error.description)
+        } catch {
             print(error.localizedDescription)
         }
     }

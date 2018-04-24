@@ -1,13 +1,13 @@
 import Foundation
 
 protocol GeneratorContexting: AnyObject {
-    var graphController: GraphController { get }
+    var graph: Graphing { get }
 }
 
 class GeneratorContext: GeneratorContexting {
-    let graphController: GraphController
+    let graph: Graphing
 
-    init(graphController: GraphController) {
-        self.graphController = graphController
+    init(graph: Graphing) {
+        self.graph = graph
     }
 }

@@ -104,7 +104,7 @@
 		B9FB2DDE208653DD00BC2FB3 /* GraphLoaderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DD42086538E00BC2FB3 /* GraphLoaderCache.swift */; };
 		B9FB2DDF208653E000BC2FB3 /* GraphNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DD12086538E00BC2FB3 /* GraphNode.swift */; };
 		B9FB2DE0208653EF00BC2FB3 /* GraphManifestLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DD02086538E00BC2FB3 /* GraphManifestLoader.swift */; };
-		B9FB2DE1208653F500BC2FB3 /* GraphController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DCE2086538E00BC2FB3 /* GraphController.swift */; };
+		B9FB2DE1208653F500BC2FB3 /* Graph.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DCE2086538E00BC2FB3 /* Graph.swift */; };
 		B9FB2DE2208653F900BC2FB3 /* GraphLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DD22086538E00BC2FB3 /* GraphLoader.swift */; };
 		B9FB2DE32086542F00BC2FB3 /* Target.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C520864E9800EE9E07 /* Target.swift */; };
 		B9FB2DE42086544900BC2FB3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C620864E9800EE9E07 /* Config.swift */; };
@@ -152,6 +152,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = B915ECF5206395DA004B6630;
 			remoteInfo = xcbuddy;
+		};
+		B9E65C9C208F919800A9D7AC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B915ED192063AFBC004B6630;
+			remoteInfo = xcbuddykit;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -304,7 +311,7 @@
 		B9FB2DC02086507200BC2FB3 /* POSIX.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = POSIX.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FB2DC22086507700BC2FB3 /* clibc.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = clibc.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FB2DC42086507700BC2FB3 /* SPMLibc.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = SPMLibc.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B9FB2DCE2086538E00BC2FB3 /* GraphController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GraphController.swift; sourceTree = "<group>"; };
+		B9FB2DCE2086538E00BC2FB3 /* Graph.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Graph.swift; sourceTree = "<group>"; };
 		B9FB2DCF2086538E00BC2FB3 /* GraphLoadingError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GraphLoadingError.swift; sourceTree = "<group>"; };
 		B9FB2DD02086538E00BC2FB3 /* GraphManifestLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GraphManifestLoader.swift; sourceTree = "<group>"; };
 		B9FB2DD12086538E00BC2FB3 /* GraphNode.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GraphNode.swift; sourceTree = "<group>"; };
@@ -664,7 +671,7 @@
 		B9FB2DCD2086538E00BC2FB3 /* Loader */ = {
 			isa = PBXGroup;
 			children = (
-				B9FB2DCE2086538E00BC2FB3 /* GraphController.swift */,
+				B9FB2DCE2086538E00BC2FB3 /* Graph.swift */,
 				B9FB2DCF2086538E00BC2FB3 /* GraphLoadingError.swift */,
 				B9FB2DD02086538E00BC2FB3 /* GraphManifestLoader.swift */,
 				B9FB2DD12086538E00BC2FB3 /* GraphNode.swift */,
@@ -721,6 +728,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				B9E65C9D208F919800A9D7AC /* PBXTargetDependency */,
 			);
 			name = xcbuddy;
 			productName = xcbuddy;
@@ -970,7 +978,7 @@
 				B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */,
 				B9F1EDF6208D228600477835 /* ProjectValidator.swift in Sources */,
 				B9FB2DCA2086527B00BC2FB3 /* BuildFiles.swift in Sources */,
-				B9FB2DE1208653F500BC2FB3 /* GraphController.swift in Sources */,
+				B9FB2DE1208653F500BC2FB3 /* Graph.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1051,6 +1059,11 @@
 			target = B915ECF5206395DA004B6630 /* xcbuddy */;
 			targetProxy = B9B80AB2206AB4630057482B /* PBXContainerItemProxy */;
 		};
+		B9E65C9D208F919800A9D7AC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B915ED192063AFBC004B6630 /* xcbuddykit */;
+			targetProxy = B9E65C9C208F919800A9D7AC /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
@@ -1073,7 +1086,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
-				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks $(PROJECT_DIR)/App/Frameworks $(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited) -DXcode";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1091,7 +1104,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
-				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks $(PROJECT_DIR)/App/Frameworks $(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited) -DXcode";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
