@@ -14,6 +14,9 @@ protocol GraphLoaderContexting: AnyObject {
 
     /// Circular dependency detector.
     var circularDetector: GraphCircularDetecting { get }
+
+    /// Shell.
+    var shell: Shelling { get }
 }
 
 /// Object passed during the graph loading that contains utils to be used.
@@ -30,6 +33,9 @@ class GraphLoaderContext: GraphLoaderContexting {
     /// Circular dependency detector.
     let circularDetector: GraphCircularDetecting
 
+    /// Shell.
+    let shell: Shelling
+
     /// Initializes the context with its attributes.
     ///
     /// - Parameters:
@@ -37,13 +43,16 @@ class GraphLoaderContext: GraphLoaderContexting {
     ///   - cache: Contains a reference to the manifests that are parsed during the graph loading.
     ///   - fileHandler: Util to handle files.
     ///   - circularDetector: Circular dependency detector.
+    ///   - shell: shell.
     init(manifestLoader: GraphManifestLoading = GraphManifestLoader(),
          cache: GraphLoaderCaching = GraphLoaderCache(),
          fileHandler: FileHandling = FileHandler(),
-         circularDetector: GraphCircularDetecting = GraphCircularDetector()) {
+         circularDetector: GraphCircularDetecting = GraphCircularDetector(),
+         shell: Shelling = Shell()) {
         self.manifestLoader = manifestLoader
         self.cache = cache
         self.fileHandler = fileHandler
         self.circularDetector = circularDetector
+        self.shell = shell
     }
 }

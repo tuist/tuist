@@ -17,11 +17,11 @@ public final class CommandRegistry {
     private let processArguments: () -> [String]
 
     /// Initializes the command registry
-    public init() {
+    public init(processArguments: @escaping () -> [String] = CommandRegistry.processArguments) {
         printer = Printer()
         parser = ArgumentParser(usage: "<command> <options>",
                                 overview: "Your Xcode buddy")
-        processArguments = CommandRegistry.processArguments
+        self.processArguments = processArguments
         register(command: InitCommand.self)
         register(command: GenerateCommand.self)
         register(command: UpdateCommand.self)
