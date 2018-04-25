@@ -8,12 +8,9 @@ final class CommandRegistryTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = CommandRegistry(usage: "usage",
-                                  overview: "overview") { () -> [String] in
-            ["binary", "command"]
-        }
+        subject = CommandRegistry { ["xcbuddy", "command"] }
         subject.register(command: MockCommand.self)
-        command = subject.commands.first! as! MockCommand
+        command = subject.commands.last! as! MockCommand
     }
 
     func test_run() throws {

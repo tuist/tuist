@@ -14,13 +14,11 @@ protocol GraphManifestLoading {
 /// - frameworksFolderNotFound: error thrown when the frameworks fodler that contains the ProjectDescription.framework cannot be found.
 /// - swiftNotFound: error thrown when Swift is not found in the system.
 /// - unexpectedOutput: error throw when we get an unexpected output trying to compile the manifest.
-/// - compileError: error trying to compile the manifest file, most likely because the syntax is not correct.
 enum GraphManifestLoaderError: Error, CustomStringConvertible, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case frameworksFolderNotFound
     case swiftNotFound
     case unexpectedOutput(AbsolutePath)
-    case compileError(String)
 
     var description: String {
         switch self {
@@ -32,8 +30,6 @@ enum GraphManifestLoaderError: Error, CustomStringConvertible, Equatable {
             return "Couldn't find Swift on your environment. Run 'xcode-select -p' to see if the Xcode path is properly setup."
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.asString)."
-        case let .compileError(error):
-            return "Error trying to compile manifest: \(error)."
         }
     }
 
@@ -45,8 +41,6 @@ enum GraphManifestLoaderError: Error, CustomStringConvertible, Equatable {
         case (.swiftNotFound, .swiftNotFound): return true
         case let (.unexpectedOutput(lhsPath), .unexpectedOutput(rhsPath)):
             return lhsPath == rhsPath
-        case let (.compileError(lhsError), .compileError(rhsError)):
-            return rhsError == lhsError
         default:
             return false
         }
@@ -63,31 +57,17 @@ class GraphManifestLoader: GraphManifestLoading {
     /// - Returns: jSON representation of the manifest.
     /// - Throws: an error if the manifest cannot be loaded.
     func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {
-        guard let swiftOutput = try run("xcrun", "-f", "swift").chuzzle() else {
+        guard let swiftOutput = try context.shell.run("xcrun", "-f", "swift").chuzzle() else {
             throw GraphManifestLoaderError.swiftNotFound
         }
         let swiftPath = AbsolutePath(swiftOutput)
         let manifestFrameworkPath = try projectDescriptionPath(context: context)
-        let jsonString: String! = try run(swiftPath.asString, "-F", manifestFrameworkPath.parentDirectory.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
+        let jsonString: String! = try context.shell.run(swiftPath.asString, "-F", manifestFrameworkPath.parentDirectory.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
         let json = try JSON(string: jsonString)
         return json
-    }
-
-    /// Runs a bash command.
-    ///
-    /// - Parameter args: arguments.
-    /// - Returns: command output as a string.
-    /// - Throws: an error if the command execution fails.
-    func run(_ args: String...) throws -> String {
-        let result = try Process.popen(arguments: args)
-        if result.exitStatus == .terminated(code: 0) {
-            return try result.utf8Output()
-        } else {
-            throw GraphManifestLoaderError.compileError(try result.utf8stderrOutput())
-        }
     }
 
     /// Returns the path where the ProjectDescription.framework is.

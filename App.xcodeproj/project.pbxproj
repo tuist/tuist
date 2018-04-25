@@ -24,6 +24,7 @@
 		B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB82062B8A7009BF596 /* MainMenu.xib */; };
 		B94C7FC62062B8A8009BF596 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FC02062B8A8009BF596 /* AppDelegate.swift */; };
 		B94C7FC72062B8B2009BF596 /* xcbuddyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FBB2062B8A7009BF596 /* xcbuddyTests.swift */; };
+		B9553DEA2090690000050311 /* Shell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DE92090690000050311 /* Shell.swift */; };
 		B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */; };
 		B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */; };
 		B95895F7208A2B5800F00ACF /* GeneratorError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F6208A2B5800F00ACF /* GeneratorError.swift */; };
@@ -244,6 +245,7 @@
 		B94C7FBE2062B8A8009BF596 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = App/Info.plist; sourceTree = "<group>"; };
 		B94C7FC02062B8A8009BF596 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B94C7FC82062B8C6009BF596 /* Tests.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Tests.plist; path = App/Tests.plist; sourceTree = "<group>"; };
+		B9553DE92090690000050311 /* Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell.swift; sourceTree = "<group>"; };
 		B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGenerator.swift; sourceTree = "<group>"; };
 		B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorContext.swift; sourceTree = "<group>"; };
 		B95895F6208A2B5800F00ACF /* GeneratorError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorError.swift; sourceTree = "<group>"; };
@@ -587,6 +589,7 @@
 				B9B629A620864E3A00EE9E07 /* Bundles.swift */,
 				B9B629A720864E3A00EE9E07 /* App.swift */,
 				B9B629A820864E3A00EE9E07 /* Signals.swift */,
+				B9553DE92090690000050311 /* Shell.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -932,6 +935,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B9B629AC20864E3A00EE9E07 /* FileHandler.swift in Sources */,
+				B9553DEA2090690000050311 /* Shell.swift in Sources */,
 				B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */,
 				B9FB2DE52086544900BC2FB3 /* Workspace.swift in Sources */,
 				B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */,
