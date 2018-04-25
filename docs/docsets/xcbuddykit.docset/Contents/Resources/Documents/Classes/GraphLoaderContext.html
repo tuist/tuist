@@ -23,7 +23,7 @@
         <a class="header-link" href="../index.html">
           xcbuddykit Docs
         </a>
-         (75% documented)
+         (77% documented)
       </p>
     
       <p class="header-col--secondary">
@@ -138,7 +138,10 @@
                 <a class="nav-group-task-link" href="../Classes/FileHandler.html">FileHandler</a>
               </li>
               <li class="nav-group-task">
-                <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit13FrameworkNodeC">FrameworkNode</a>
+                <a class="nav-group-task-link" href="../Classes/FrameworkNode.html">FrameworkNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/GeneratorContext.html">GeneratorContext</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/Graph.html">Graph</a>
@@ -168,7 +171,16 @@
                 <a class="nav-group-task-link" href="../Classes/InitCommand.html">InitCommand</a>
               </li>
               <li class="nav-group-task">
-                <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit15PrecompiledNodeC">PrecompiledNode</a>
+                <a class="nav-group-task-link" href="../Classes/LibraryNode.html">LibraryNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html">PrecompiledNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html#/s:10xcbuddykit15PrecompiledNodeC7LinkingO">– Linking</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html#/s:10xcbuddykit15PrecompiledNodeC12ArchitectureO">– Architecture</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/Printer.html">Printer</a>
@@ -184,6 +196,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/ScriptBuildPhase.html">ScriptBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Shell.html">Shell</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/SourcesBuildPhase.html">SourcesBuildPhase</a>
@@ -214,6 +229,9 @@
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/InitCommandError.html">InitCommandError</a>
               </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/PrecompiledNodeError.html">PrecompiledNodeError</a>
+              </li>
             </ul>
           </li>
           <li class="nav-group-name">
@@ -235,6 +253,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/GeneratorContexting.html">GeneratorContexting</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a>
@@ -264,6 +285,9 @@
                 <a class="nav-group-task-link" href="../Protocols/Printing.html">Printing</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Shelling.html">Shelling</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/WorkspaceGenerating.html">WorkspaceGenerating</a>
               </li>
             </ul>
@@ -279,6 +303,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Structs/GraphCircularDetectorNode.html">GraphCircularDetectorNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/ShellError.html">ShellError</a>
               </li>
             </ul>
           </li>
@@ -415,9 +442,36 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectortcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(manifestLoader:cache:fileHandler:circularDetector:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectortcfc">init(manifestLoader:cache:fileHandler:circularDetector:)</a>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextC5shellAA8Shelling_pvp"></a>
+                    <a name="//apple_ref/swift/Property/shell" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextC5shellAA8Shelling_pvp">shell</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Shell.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shelltcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(manifestLoader:cache:fileHandler:circularDetector:shell:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shelltcfc">init(manifestLoader:cache:fileHandler:circularDetector:shell:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -435,7 +489,8 @@
                           <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">manifestLoader</span><span class="p">:</span> <span class="kt"><a href="../Other Protocols.html#/s:10xcbuddykit20GraphManifestLoadingP">GraphManifestLoading</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphManifestLoader.html">GraphManifestLoader</a></span><span class="p">(),</span>
      <span class="nv">cache</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphLoaderCaching.html">GraphLoaderCaching</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphLoaderCache.html">GraphLoaderCache</a></span><span class="p">(),</span>
      <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/FileHandler.html">FileHandler</a></span><span class="p">(),</span>
-     <span class="nv">circularDetector</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphCircularDetector.html">GraphCircularDetector</a></span><span class="p">())</span></code></pre>
+     <span class="nv">circularDetector</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphCircularDetector.html">GraphCircularDetector</a></span><span class="p">(),</span>
+     <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Shell.html">Shell</a></span><span class="p">())</span></code></pre>
 
                         </div>
                       </div>
@@ -488,6 +543,18 @@
                               <td>
                                 <div>
                                   <p>Circular dependency detector.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>shell</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>shell.</p>
                                 </div>
                               </td>
                             </tr>

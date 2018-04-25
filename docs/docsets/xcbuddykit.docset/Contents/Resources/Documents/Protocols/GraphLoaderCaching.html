@@ -23,7 +23,7 @@
         <a class="header-link" href="../index.html">
           xcbuddykit Docs
         </a>
-         (75% documented)
+         (77% documented)
       </p>
     
       <p class="header-col--secondary">
@@ -138,7 +138,10 @@
                 <a class="nav-group-task-link" href="../Classes/FileHandler.html">FileHandler</a>
               </li>
               <li class="nav-group-task">
-                <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit13FrameworkNodeC">FrameworkNode</a>
+                <a class="nav-group-task-link" href="../Classes/FrameworkNode.html">FrameworkNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/GeneratorContext.html">GeneratorContext</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/Graph.html">Graph</a>
@@ -168,7 +171,16 @@
                 <a class="nav-group-task-link" href="../Classes/InitCommand.html">InitCommand</a>
               </li>
               <li class="nav-group-task">
-                <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit15PrecompiledNodeC">PrecompiledNode</a>
+                <a class="nav-group-task-link" href="../Classes/LibraryNode.html">LibraryNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html">PrecompiledNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html#/s:10xcbuddykit15PrecompiledNodeC7LinkingO">– Linking</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html#/s:10xcbuddykit15PrecompiledNodeC12ArchitectureO">– Architecture</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/Printer.html">Printer</a>
@@ -184,6 +196,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/ScriptBuildPhase.html">ScriptBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Shell.html">Shell</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/SourcesBuildPhase.html">SourcesBuildPhase</a>
@@ -214,6 +229,9 @@
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/InitCommandError.html">InitCommandError</a>
               </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/PrecompiledNodeError.html">PrecompiledNodeError</a>
+              </li>
             </ul>
           </li>
           <li class="nav-group-name">
@@ -235,6 +253,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/GeneratorContexting.html">GeneratorContexting</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a>
@@ -264,6 +285,9 @@
                 <a class="nav-group-task-link" href="../Protocols/Printing.html">Printing</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Shelling.html">Shelling</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/WorkspaceGenerating.html">WorkspaceGenerating</a>
               </li>
             </ul>
@@ -279,6 +303,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Structs/GraphCircularDetectorNode.html">GraphCircularDetectorNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/ShellError.html">ShellError</a>
               </li>
             </ul>
           </li>
@@ -378,7 +405,7 @@
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">var</span> <span class="nv">precompiledNodes</span><span class="p">:</span> <span class="p">[</span><span class="kt">AbsolutePath</span><span class="p">:</span> <span class="kt"><a href="../Other Classes.html#/s:10xcbuddykit15PrecompiledNodeC">PrecompiledNode</a></span><span class="p">]</span></code></pre>
+                          <pre class="highlight swift"><code><span class="k">var</span> <span class="nv">precompiledNodes</span><span class="p">:</span> <span class="p">[</span><span class="kt">AbsolutePath</span><span class="p">:</span> <span class="kt"><a href="../Classes/PrecompiledNode.html">PrecompiledNode</a></span><span class="p">]</span></code></pre>
 
                         </div>
                       </div>
@@ -597,7 +624,7 @@
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">func</span> <span class="nf">add</span><span class="p">(</span><span class="nv">precompiledNode</span><span class="p">:</span> <span class="kt"><a href="../Other Classes.html#/s:10xcbuddykit15PrecompiledNodeC">PrecompiledNode</a></span><span class="p">)</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">func</span> <span class="nf">add</span><span class="p">(</span><span class="nv">precompiledNode</span><span class="p">:</span> <span class="kt"><a href="../Classes/PrecompiledNode.html">PrecompiledNode</a></span><span class="p">)</span></code></pre>
 
                         </div>
                       </div>
@@ -643,7 +670,7 @@
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">func</span> <span class="nf">precompiledNode</span><span class="p">(</span><span class="n">_</span> <span class="nv">path</span><span class="p">:</span> <span class="kt">AbsolutePath</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Other Classes.html#/s:10xcbuddykit15PrecompiledNodeC">PrecompiledNode</a></span><span class="p">?</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">func</span> <span class="nf">precompiledNode</span><span class="p">(</span><span class="n">_</span> <span class="nv">path</span><span class="p">:</span> <span class="kt">AbsolutePath</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Classes/PrecompiledNode.html">PrecompiledNode</a></span><span class="p">?</span></code></pre>
 
                         </div>
                       </div>
