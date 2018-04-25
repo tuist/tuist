@@ -23,7 +23,7 @@
         <a class="header-link" href="../index.html">
           xcbuddykit Docs
         </a>
-         (75% documented)
+         (77% documented)
       </p>
     
       <p class="header-col--secondary">
@@ -138,7 +138,10 @@
                 <a class="nav-group-task-link" href="../Classes/FileHandler.html">FileHandler</a>
               </li>
               <li class="nav-group-task">
-                <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit13FrameworkNodeC">FrameworkNode</a>
+                <a class="nav-group-task-link" href="../Classes/FrameworkNode.html">FrameworkNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/GeneratorContext.html">GeneratorContext</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/Graph.html">Graph</a>
@@ -168,7 +171,16 @@
                 <a class="nav-group-task-link" href="../Classes/InitCommand.html">InitCommand</a>
               </li>
               <li class="nav-group-task">
-                <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit15PrecompiledNodeC">PrecompiledNode</a>
+                <a class="nav-group-task-link" href="../Classes/LibraryNode.html">LibraryNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html">PrecompiledNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html#/s:10xcbuddykit15PrecompiledNodeC7LinkingO">– Linking</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/PrecompiledNode.html#/s:10xcbuddykit15PrecompiledNodeC12ArchitectureO">– Architecture</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/Printer.html">Printer</a>
@@ -184,6 +196,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/ScriptBuildPhase.html">ScriptBuildPhase</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Shell.html">Shell</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/SourcesBuildPhase.html">SourcesBuildPhase</a>
@@ -214,6 +229,9 @@
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/InitCommandError.html">InitCommandError</a>
               </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/PrecompiledNodeError.html">PrecompiledNodeError</a>
+              </li>
             </ul>
           </li>
           <li class="nav-group-name">
@@ -235,6 +253,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/GeneratorContexting.html">GeneratorContexting</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a>
@@ -264,6 +285,9 @@
                 <a class="nav-group-task-link" href="../Protocols/Printing.html">Printing</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Shelling.html">Shelling</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/WorkspaceGenerating.html">WorkspaceGenerating</a>
               </li>
             </ul>
@@ -279,6 +303,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Structs/GraphCircularDetectorNode.html">GraphCircularDetectorNode</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/ShellError.html">ShellError</a>
               </li>
             </ul>
           </li>
@@ -307,9 +334,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit19WorkspaceGeneratingP8generatey5Basic12AbsolutePathV4path_AA19GeneratorContexting_p16generatorContexttKF"></a>
-                    <a name="//apple_ref/swift/Method/generate(path:generatorContext:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit19WorkspaceGeneratingP8generatey5Basic12AbsolutePathV4path_AA19GeneratorContexting_p16generatorContexttKF">generate(path:generatorContext:)</a>
+                    <a name="/s:10xcbuddykit18WorkspaceGeneratorC07projectC0AA17ProjectGenerating_pvp"></a>
+                    <a name="//apple_ref/swift/Property/projectGenerator" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18WorkspaceGeneratorC07projectC0AA17ProjectGenerating_pvp">projectGenerator</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -317,16 +344,126 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        
+                        <p>Project generator.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">projectGenerator</span><span class="p">:</span> <span class="kt">ProjectGenerating</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18WorkspaceGeneratorCAcA17ProjectGenerating_p07projectC0_tcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(projectGenerator:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18WorkspaceGeneratorCAcA17ProjectGenerating_p07projectC0_tcfc">init(projectGenerator:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Initializes the workspace generator with the project generator.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">projectGenerator</span><span class="p">:</span> <span class="kt">ProjectGenerating</span> <span class="o">=</span> <span class="kt">ProjectGenerator</span><span class="p">())</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>projectGenerator</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>project generator.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18WorkspaceGeneratorC8generatey5Basic12AbsolutePathV4path_AA0C10Contexting_p7contexttKF"></a>
+                    <a name="//apple_ref/swift/Method/generate(path:context:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18WorkspaceGeneratorC8generatey5Basic12AbsolutePathV4path_AA0C10Contexting_p7contexttKF">generate(path:context:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Generates the workspace at the given path.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    throw an error if the generation fails.
+
+</div>
+
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
                           <pre class="highlight swift"><code><span class="kd">func</span> <span class="nf">generate</span><span class="p">(</span><span class="nv">path</span><span class="p">:</span> <span class="kt">AbsolutePath</span><span class="p">,</span>
-              <span class="nv">generatorContext</span><span class="p">:</span> <span class="kt">GeneratorContexting</span><span class="p">)</span> <span class="k">throws</span></code></pre>
+              <span class="nv">context</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GeneratorContexting.html">GeneratorContexting</a></span><span class="p">)</span> <span class="k">throws</span></code></pre>
 
                         </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>path</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>path where the workspace should be generated.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>context</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>generator context.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
                     </section>
                   </div>

@@ -5,14 +5,14 @@ import Foundation
 class GraphNode: Equatable {
     /// Node path.
     let path: AbsolutePath
-    
+
     /// Initializes the node with its path.
     ///
     /// - Parameter path: path to the node.
     init(path: AbsolutePath) {
         self.path = path
     }
-    
+
     static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
         return lhs.path == rhs.path
     }
@@ -22,13 +22,13 @@ class GraphNode: Equatable {
 class TargetNode: GraphNode {
     /// Project that contains the target definition.
     let project: Project
-    
+
     /// Target definition.
     let target: Target
-    
+
     /// Node dependencies.
     var dependencies: [GraphNode]
-    
+
     /// Initializes the target node with its attribute.
     ///
     /// - Parameters:
@@ -43,7 +43,7 @@ class TargetNode: GraphNode {
         self.dependencies = dependencies
         super.init(path: project.path)
     }
-    
+
     static func read(name: String, path: AbsolutePath, context: GraphLoaderContexting) throws -> TargetNode {
         if let targetNode = context.cache.targetNode(path, name: name) { return targetNode }
         let project = try Project.at(path, context: context)
@@ -57,7 +57,7 @@ class TargetNode: GraphNode {
         context.cache.add(targetNode: targetNode)
         return targetNode
     }
-    
+
     static func readDependency(path: AbsolutePath, name: String, context: GraphLoaderContexting) -> (_ dictionary: JSON) throws -> GraphNode {
         return { json in
             let type: String = try json.get("type")
@@ -93,40 +93,36 @@ class TargetNode: GraphNode {
     }
 }
 
-
 /// Precompiled node errors.
 ///
 /// - architecturesNotFound: thrown when the architectures cannot be found.
 enum PrecompiledNodeError: Error, CustomStringConvertible, Equatable {
     case architecturesNotFound(AbsolutePath)
-    
+
     /// Error description.
     var description: String {
         switch self {
-        case .architecturesNotFound(let path):
+        case let .architecturesNotFound(path):
             return "Couldn't find architectures for binary at path \(path.asString)"
         }
     }
-    
+
     /// Compares two errors.
     ///
     /// - Parameters:
     ///   - lhs: first error to be compared.
     ///   - rhs: second error to be compared.
     /// - Returns: true if the two errors are the same.
-    static func ==(lhs: PrecompiledNodeError, rhs: PrecompiledNodeError) -> Bool {
+    static func == (lhs: PrecompiledNodeError, rhs: PrecompiledNodeError) -> Bool {
         switch (lhs, rhs) {
-        case (.architecturesNotFound(let lhsPath), .architecturesNotFound(let rhsPath)):
+        case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
             return lhsPath == rhsPath
-        default:
-            return false
         }
     }
 }
 
 /// Precompiled node.
 class PrecompiledNode: GraphNode {
-    
     /// Binary linking type.
     ///
     /// - `static`: static linking.
@@ -134,7 +130,7 @@ class PrecompiledNode: GraphNode {
     enum Linking {
         case `static`, dynamic
     }
-    
+
     /// Valid binary architectures.
     ///
     /// - x86_64: x86 64 bits.
@@ -142,46 +138,45 @@ class PrecompiledNode: GraphNode {
     /// - armv7: armv7 (OS device)
     /// - armv7s: armv7s (OS device)
     enum Architecture: String {
-        case x86_64 = "x86_64"
-        case i386 = "i386"
-        case armv7 = "armv7"
-        case armv7s = "armv7s"
+        case x86_64
+        case i386
+        case armv7
+        case armv7s
     }
-    
+
     /// Returns the path to the precompiled binary.
     var binaryPath: AbsolutePath {
         fatalError("This method should be overriden by the subclasses")
     }
-    
+
     /// Returns the supported architectures of the precompiled framework/library.
     ///
     /// - Parameter shell: shell needed to execute some commands.
     /// - Returns: list of architectures.
     /// - Throws: an error if architectures cannot be obtained for the framework/library.
     func architectures(shell: Shelling) throws -> [Architecture] {
-        let output = try shell.run("lipo -info \(self.binaryPath)")
+        let output = try shell.run("lipo -info \(binaryPath.asString)")
         let regex = try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: [])
-        guard let match = regex.firstMatch(in: output, options: [], range:  NSRange(location:0, length: output.count)) else {
+        guard let match = regex.firstMatch(in: output, options: [], range: NSRange(location: 0, length: output.count)) else {
             throw PrecompiledNodeError.architecturesNotFound(binaryPath)
         }
         let architecturesString = (output as NSString).substring(with: match.range(at: 1))
         return architecturesString.split(separator: " ").map(String.init).compactMap(Architecture.init)
     }
-    
+
     /// Returns the whether the framework/library should be linked dynamic or statically.
     ///
     /// - Parameter shell: shell util necessary to run some commands to get the linking information.
     /// - Returns: linking type.
     /// - Throws: throws an error if the linking cannot be obtained for the framework/library.
     func linking(shell: Shelling) throws -> Linking {
-        let output = try shell.run("file \(self.binaryPath.asString)")
-        return output.contains("dynamically linked") ? .static : .dynamic
+        let output = try shell.run("file \(binaryPath.asString)")
+        return output.contains("dynamically linked") ? .dynamic : .static
     }
 }
 
 /// Graph node that represents a framework.
 class FrameworkNode: PrecompiledNode {
-    
     /// Parses a framework node.
     ///
     /// - Parameters:
@@ -202,24 +197,22 @@ class FrameworkNode: PrecompiledNode {
         context.cache.add(precompiledNode: framewokNode)
         return framewokNode
     }
-    
+
     /// Returns the path to the framework binary.
     override var binaryPath: AbsolutePath {
         let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
         return path.appending(component: frameworkName)
     }
-    
 }
 
 /// Library precompiled node.
 class LibraryNode: PrecompiledNode {
-    
     /// Path to the public headers folder.
     let publicHeaders: AbsolutePath
-    
+
     /// Path to the Swift modulemap file.
     let swiftModuleMap: AbsolutePath?
-    
+
     /// Initializes the library node with its attributes.
     ///
     /// - Parameters:
@@ -233,7 +226,7 @@ class LibraryNode: PrecompiledNode {
         self.swiftModuleMap = swiftModuleMap
         super.init(path: path)
     }
-    
+
     /// Parses the library node from its JSON representation.
     ///
     /// - Parameters:
@@ -271,7 +264,7 @@ class LibraryNode: PrecompiledNode {
         context.cache.add(precompiledNode: libraryNode)
         return libraryNode
     }
-    
+
     /// Returns the library binary path.
     override var binaryPath: AbsolutePath {
         return path

@@ -23,7 +23,7 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/CommandRegistry.swift",
-      "line": 11,
+      "line": 14,
       "symbol": "CommandRegistry.commands",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
@@ -92,20 +92,6 @@
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/GeneratorContext.swift",
-      "line": 3,
-      "symbol": "GeneratorContexting",
-      "symbol_kind": "source.lang.swift.decl.protocol",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/GeneratorContext.swift",
-      "line": 7,
-      "symbol": "GeneratorContext",
-      "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/GeneratorError.swift",
       "line": 3,
       "symbol": "GeneratorError",
@@ -114,14 +100,14 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/ProjectGenerator.swift",
-      "line": 3,
+      "line": 6,
       "symbol": "ProjectGenerating",
       "symbol_kind": "source.lang.swift.decl.protocol",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/ProjectGenerator.swift",
-      "line": 6,
+      "line": 10,
       "symbol": "ProjectGenerator",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
@@ -138,20 +124,6 @@
       "line": 6,
       "symbol": "TargetGenerator",
       "symbol_kind": "source.lang.swift.decl.class",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/WorkspaceGenerator.swift",
-      "line": 20,
-      "symbol": "WorkspaceGenerator.projectGenerator",
-      "symbol_kind": "source.lang.swift.decl.var.instance",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/WorkspaceGenerator.swift",
-      "line": 22,
-      "symbol": "WorkspaceGenerator.init(projectGenerator:)",
-      "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
@@ -184,7 +156,14 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
-      "line": 26,
+      "line": 10,
+      "symbol": "Graphing.projects",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
+      "line": 32,
       "symbol": "Graph.init(name:entryPath:cache:entryNodes:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
@@ -247,36 +226,29 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 19,
+      "line": 18,
       "symbol": "GraphManifestLoaderError.projectDescriptionNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 20,
+      "line": 19,
       "symbol": "GraphManifestLoaderError.frameworksFolderNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 21,
+      "line": 20,
       "symbol": "GraphManifestLoaderError.swiftNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 22,
+      "line": 21,
       "symbol": "GraphManifestLoaderError.unexpectedOutput",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 23,
-      "symbol": "GraphManifestLoaderError.compileError",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
@@ -296,16 +268,51 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 102,
-      "symbol": "FrameworkNode.read(json:projectPath:path:context:)",
-      "symbol_kind": "source.lang.swift.decl.function.method.static",
+      "line": 100,
+      "symbol": "PrecompiledNodeError.architecturesNotFound",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 117,
-      "symbol": "LibraryNode",
-      "symbol_kind": "source.lang.swift.decl.class",
+      "line": 131,
+      "symbol": "PrecompiledNode.Linking.dynamic",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "line": 131,
+      "symbol": "PrecompiledNode.Linking.static",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "line": 141,
+      "symbol": "PrecompiledNode.Architecture.x86_64",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "line": 142,
+      "symbol": "PrecompiledNode.Architecture.i386",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "line": 143,
+      "symbol": "PrecompiledNode.Architecture.armv7",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "line": 144,
+      "symbol": "PrecompiledNode.Architecture.armv7s",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
@@ -583,14 +590,14 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Printer.swift",
-      "line": 19,
+      "line": 29,
       "symbol": "Printer.terminalController",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Printer.swift",
-      "line": 41,
+      "line": 70,
       "symbol": "InteractiveWriter",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"

@@ -25,6 +25,8 @@
 		B94C7FC62062B8A8009BF596 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FC02062B8A8009BF596 /* AppDelegate.swift */; };
 		B94C7FC72062B8B2009BF596 /* xcbuddyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FBB2062B8A7009BF596 /* xcbuddyTests.swift */; };
 		B9553DEA2090690000050311 /* Shell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DE92090690000050311 /* Shell.swift */; };
+		B9553DEC2090F62C00050311 /* GraphNodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DEB2090F62C00050311 /* GraphNodeTests.swift */; };
+		B9553DEF2090F6EC00050311 /* MockShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DED2090F6AE00050311 /* MockShell.swift */; };
 		B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */; };
 		B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */; };
 		B95895F7208A2B5800F00ACF /* GeneratorError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F6208A2B5800F00ACF /* GeneratorError.swift */; };
@@ -246,6 +248,8 @@
 		B94C7FC02062B8A8009BF596 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B94C7FC82062B8C6009BF596 /* Tests.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Tests.plist; path = App/Tests.plist; sourceTree = "<group>"; };
 		B9553DE92090690000050311 /* Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell.swift; sourceTree = "<group>"; };
+		B9553DEB2090F62C00050311 /* GraphNodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphNodeTests.swift; sourceTree = "<group>"; };
+		B9553DED2090F6AE00050311 /* MockShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockShell.swift; sourceTree = "<group>"; };
 		B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGenerator.swift; sourceTree = "<group>"; };
 		B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorContext.swift; sourceTree = "<group>"; };
 		B95895F6208A2B5800F00ACF /* GeneratorError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorError.swift; sourceTree = "<group>"; };
@@ -455,6 +459,7 @@
 				B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */,
 				B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */,
 				B9F1EDD4208D080C00477835 /* GraphManifestLoaderTests.swift */,
+				B9553DEB2090F62C00050311 /* GraphNodeTests.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -702,6 +707,7 @@
 				B9FB9D242066D56D00F13FFA /* MockLogger.swift */,
 				B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */,
 				B9BFCF70207B48D500ACC59D /* MockPrinter.swift */,
+				B9553DED2090F6AE00050311 /* MockShell.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1010,12 +1016,14 @@
 				B9E2DCA32087651D0061DF86 /* Project+TestData.swift in Sources */,
 				B9F1EDCF208CD0B800477835 /* InitCommandTests.swift in Sources */,
 				B9F1EDF3208D200C00477835 /* Scheme+TestData.swift in Sources */,
+				B9553DEF2090F6EC00050311 /* MockShell.swift in Sources */,
 				B9E2DCA12087650C0061DF86 /* Config+TestData.swift in Sources */,
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				B9F1EDD1208CD18100477835 /* AargumentParser+TestData.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
+				B9553DEC2090F62C00050311 /* GraphNodeTests.swift in Sources */,
 				66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */,
 				B9589607208B4E4700F00ACF /* WorkspaceGeneratorTests.swift in Sources */,
 				B9589602208A3CBA00F00ACF /* PlatformTests.swift in Sources */,
