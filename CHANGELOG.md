@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Add convenience methods to precompiled nodes https://github.com/xcbuddy/xcbuddy/pull/16 by @pepibumur.
 * Base context https://github.com/xcbuddy/xcbuddy/pull/17/files by @pepibumur.
 * Add `ResourceLocator` https://github.com/xcbuddy/xcbuddy/pull/18 by @pepibumur.
+* Add `BuildSettingsProvider` https://github.com/xcbuddy/xcbuddy/pull/19 by @pepibumur.
 
 ### Changed
 
