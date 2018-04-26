@@ -129,6 +129,9 @@
                 <a class="nav-group-task-link" href="../Classes/Configuration.html">Configuration</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Context.html">Context</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/CopyBuildPhase.html">CopyBuildPhase</a>
               </li>
               <li class="nav-group-task">
@@ -189,6 +192,9 @@
                 <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit16ProjectValidatorC">ProjectValidator</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/ResourceLocator.html">ResourceLocator</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/ResourcesBuildPhase.html">ResourcesBuildPhase</a>
               </li>
               <li class="nav-group-task">
@@ -232,6 +238,9 @@
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/PrecompiledNodeError.html">PrecompiledNodeError</a>
               </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/ResourceLocatingError.html">ResourceLocatingError</a>
+              </li>
             </ul>
           </li>
           <li class="nav-group-name">
@@ -250,6 +259,9 @@
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/CommandsContexting.html">CommandsContexting</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Contexting.html">Contexting</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
@@ -285,6 +297,9 @@
                 <a class="nav-group-task-link" href="../Protocols/Printing.html">Printing</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/ResourceLocating.html">ResourceLocating</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/Shelling.html">Shelling</a>
               </li>
               <li class="nav-group-task">
@@ -318,7 +333,7 @@
             <h1>GeneratorContext</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">GeneratorContext</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GeneratorContexting.html">GeneratorContexting</a></span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">GeneratorContext</span><span class="p">:</span> <span class="kt"><a href="../Classes/Context.html">Context</a></span><span class="p">,</span> <span class="kt"><a href="../Protocols/GeneratorContexting.html">GeneratorContexting</a></span></code></pre>
 
                 </div>
               </div>
@@ -361,36 +376,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit16GeneratorContextC7printerAA8Printing_pvp"></a>
-                    <a name="//apple_ref/swift/Property/printer" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit16GeneratorContextC7printerAA8Printing_pvp">printer</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Printer.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printertcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(graph:printer:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printertcfc">init(graph:printer:)</a>
+                    <a name="/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printerAA12FileHandling_p11fileHandlerAA8Shelling_p5shelltcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(graph:printer:fileHandler:shell:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printerAA12FileHandling_p11fileHandlerAA8Shelling_p5shelltcfc">init(graph:printer:fileHandler:shell:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -406,7 +394,9 @@
                         <div class="language">
                           <p class="aside-title">Swift</p>
                           <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">graph</span><span class="p">:</span> <span class="kt"><a href="../Other Protocols.html#/s:10xcbuddykit8GraphingP">Graphing</a></span><span class="p">,</span>
-     <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Printer.html">Printer</a></span><span class="p">())</span></code></pre>
+     <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Printer.html">Printer</a></span><span class="p">(),</span>
+     <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/FileHandler.html">FileHandler</a></span><span class="p">(),</span>
+     <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Shell.html">Shell</a></span><span class="p">())</span></code></pre>
 
                         </div>
                       </div>
@@ -435,6 +425,30 @@
                               <td>
                                 <div>
                                   <p>printer.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>fileHandler</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>file handler.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>shell</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>shell.</p>
                                 </div>
                               </td>
                             </tr>

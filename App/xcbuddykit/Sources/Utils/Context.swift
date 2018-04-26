@@ -10,6 +10,9 @@ protocol Contexting: AnyObject {
 
     /// Printer.
     var printer: Printing { get }
+
+    /// Resource locator.
+    var resourceLocator: ResourceLocating { get }
 }
 
 /// xcbuddy uses contexts as a dependency injection mechanism.
@@ -24,17 +27,23 @@ class Context: Contexting {
     /// Printer.
     let printer: Printing
 
+    /// Resource locator.
+    let resourceLocator: ResourceLocating
+
     /// Initializes the context with its attributess.
     ///
     /// - Parameters:
     ///   - fileHandler: file handler.
     ///   - shell: shell.
     ///   - printer: printer.
-    init(fileHandler: FileHandling,
-         shell: Shelling,
-         printer: Printing) {
+    ///   - resourceLocator: resource locator.
+    init(fileHandler: FileHandling = FileHandler(),
+         shell: Shelling = Shell(),
+         printer: Printing = Printer(),
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         self.fileHandler = fileHandler
         self.shell = shell
         self.printer = printer
+        self.resourceLocator = resourceLocator
     }
 }

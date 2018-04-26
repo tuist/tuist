@@ -603,6 +603,13 @@
       "warning": "undocumented"
     },
     {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/ResourceLocator.swift",
+      "line": 25,
+      "symbol": "ResourceLocatingError.notFound",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Signals.swift",
       "line": 31,
       "symbol": "Signals",
@@ -641,6 +648,13 @@
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Validator/TargetValidator.swift",
       "line": 3,
       "symbol": "TargetValidator",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Tests/Utils/MockRersourceLocator.swift",
+      "line": 4,
+      "symbol": "MockResourceLocator",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     }

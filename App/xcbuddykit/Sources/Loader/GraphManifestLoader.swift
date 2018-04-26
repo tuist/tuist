@@ -61,28 +61,12 @@ class GraphManifestLoader: GraphManifestLoading {
             throw GraphManifestLoaderError.swiftNotFound
         }
         let swiftPath = AbsolutePath(swiftOutput)
-        let manifestFrameworkPath = try projectDescriptionPath(context: context)
+        let manifestFrameworkPath = try context.resourceLocator.projectDescription(context: context)
         let jsonString: String! = try context.shell.run(swiftPath.asString, "-F", manifestFrameworkPath.parentDirectory.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
         let json = try JSON(string: jsonString)
         return json
-    }
-
-    /// Returns the path where the ProjectDescription.framework is.
-    ///
-    /// - Parameter context: graph loader context.
-    /// - Returns: ProjectDescription.framework path.
-    /// - Throws: an error if the framework cannot be found.
-    fileprivate func projectDescriptionPath(context: GraphLoaderContexting) throws -> AbsolutePath {
-        let xcbuddyKitPath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
-        let xcbuddyKitParentPath = xcbuddyKitPath.parentDirectory
-        let projectDescriptionPath = xcbuddyKitParentPath.appending(component: "ProjectDescription.framework")
-        if context.fileHandler.exists(projectDescriptionPath) {
-            return projectDescriptionPath
-        } else {
-            throw GraphManifestLoaderError.projectDescriptionNotFound(projectDescriptionPath)
-        }
     }
 }
