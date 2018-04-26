@@ -1,30 +1,30 @@
 import Foundation
 
 /// Generator context protocol.
-protocol GeneratorContexting: AnyObject {
+protocol GeneratorContexting: Contexting {
     /// Graph that is beging generated.
     var graph: Graphing { get }
-
-    /// Printer.
-    var printer: Printing { get }
 }
 
 /// Generator context.
-class GeneratorContext: GeneratorContexting {
+class GeneratorContext: Context, GeneratorContexting {
     /// Graph that is being generated.
     let graph: Graphing
-
-    /// Printer.
-    let printer: Printing
 
     /// Initializes the generator with its attributes.
     ///
     /// - Parameters:
     ///   - graph: graph that is being generated.
     ///   - printer: printer.
+    ///   - fileHandler: file handler.
+    ///   - shell: shell.
     init(graph: Graphing,
-         printer: Printing = Printer()) {
+         printer: Printing = Printer(),
+         fileHandler: FileHandling = FileHandler(),
+         shell: Shelling = Shell()) {
         self.graph = graph
-        self.printer = printer
+        super.init(fileHandler: fileHandler,
+                   shell: shell,
+                   printer: printer)
     }
 }
