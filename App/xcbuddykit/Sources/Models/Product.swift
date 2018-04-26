@@ -3,7 +3,9 @@ import Foundation
 /// Product type.
 ///
 /// - app: application.
-/// - module: module.
+/// - staticLibrary: static library.
+/// - dynamicLibrary: dynamic library.
+/// - framework: framework.
 /// - unitTests: unit tests.
 /// - uiTests: ui tests.
 /// - appExtension: application extension.
@@ -17,7 +19,9 @@ import Foundation
 /// - stickerPack: Stickers pack.
 public enum Product: String {
     case app
-    case module
+    case staticLibrary
+    case dynamicLibrary
+    case framework
     case unitTests
     case uiTests
     case appExtension
@@ -37,8 +41,12 @@ extension Product {
         switch self {
         case .app:
             return "com.apple.product-type.application"
-        case .module:
-            return "io.xcbuddy.product-type.module"
+        case .staticLibrary:
+            return "com.apple.product-type.library.static"
+        case .dynamicLibrary:
+            return "com.apple.product-type.library.dynamic"
+        case .framework:
+            return "com.apple.product-type.framework"
         case .unitTests:
             return "com.apple.product-type.bundle.unit-test"
         case .uiTests:

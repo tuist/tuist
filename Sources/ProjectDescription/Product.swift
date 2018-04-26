@@ -4,7 +4,9 @@ import Foundation
 
 public enum Product: String {
     case app
-    case module
+    case staticLibrary
+    case dynamicLibrary
+    case framework
     case unitTests
     case uiTests
     case appExtension
