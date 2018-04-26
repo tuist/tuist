@@ -129,6 +129,9 @@
                 <a class="nav-group-task-link" href="../Classes/Configuration.html">Configuration</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Context.html">Context</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/CopyBuildPhase.html">CopyBuildPhase</a>
               </li>
               <li class="nav-group-task">
@@ -189,6 +192,9 @@
                 <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit16ProjectValidatorC">ProjectValidator</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/ResourceLocator.html">ResourceLocator</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/ResourcesBuildPhase.html">ResourcesBuildPhase</a>
               </li>
               <li class="nav-group-task">
@@ -232,6 +238,9 @@
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/PrecompiledNodeError.html">PrecompiledNodeError</a>
               </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/ResourceLocatingError.html">ResourceLocatingError</a>
+              </li>
             </ul>
           </li>
           <li class="nav-group-name">
@@ -250,6 +259,9 @@
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/CommandsContexting.html">CommandsContexting</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Contexting.html">Contexting</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
@@ -285,6 +297,9 @@
                 <a class="nav-group-task-link" href="../Protocols/Printing.html">Printing</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/ResourceLocating.html">ResourceLocating</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/Shelling.html">Shelling</a>
               </li>
               <li class="nav-group-task">
@@ -318,7 +333,7 @@
             <h1>GraphLoaderContext</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">GraphLoaderContext</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphLoaderContexting.html">GraphLoaderContexting</a></span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">GraphLoaderContext</span><span class="p">:</span> <span class="kt"><a href="../Classes/Context.html">Context</a></span><span class="p">,</span> <span class="kt"><a href="../Protocols/GraphLoaderContexting.html">GraphLoaderContexting</a></span></code></pre>
 
                 </div>
               </div>
@@ -388,33 +403,6 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit18GraphLoaderContextC11fileHandlerAA12FileHandling_pvp"></a>
-                    <a name="//apple_ref/swift/Property/fileHandler" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextC11fileHandlerAA12FileHandling_pvp">fileHandler</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Util to handle files.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
                     <a name="/s:10xcbuddykit18GraphLoaderContextC16circularDetectorAA0B17CircularDetecting_pvp"></a>
                     <a name="//apple_ref/swift/Property/circularDetector" class="dashAnchor"></a>
                     <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextC16circularDetectorAA0B17CircularDetecting_pvp">circularDetector</a>
@@ -442,36 +430,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit18GraphLoaderContextC5shellAA8Shelling_pvp"></a>
-                    <a name="//apple_ref/swift/Property/shell" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextC5shellAA8Shelling_pvp">shell</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Shell.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shelltcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(manifestLoader:cache:fileHandler:circularDetector:shell:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shelltcfc">init(manifestLoader:cache:fileHandler:circularDetector:shell:)</a>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shellAA8Printing_p7printertcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(manifestLoader:cache:fileHandler:circularDetector:shell:printer:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shellAA8Printing_p7printertcfc">init(manifestLoader:cache:fileHandler:circularDetector:shell:printer:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -490,7 +451,8 @@
      <span class="nv">cache</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphLoaderCaching.html">GraphLoaderCaching</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphLoaderCache.html">GraphLoaderCache</a></span><span class="p">(),</span>
      <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/FileHandler.html">FileHandler</a></span><span class="p">(),</span>
      <span class="nv">circularDetector</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphCircularDetector.html">GraphCircularDetector</a></span><span class="p">(),</span>
-     <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Shell.html">Shell</a></span><span class="p">())</span></code></pre>
+     <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Shell.html">Shell</a></span><span class="p">(),</span>
+     <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Printer.html">Printer</a></span><span class="p">())</span></code></pre>
 
                         </div>
                       </div>
@@ -555,6 +517,103 @@
                               <td>
                                 <div>
                                   <p>shell.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>printer</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>printer.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0D0C7context_AA0B15ManifestLoading_p08manifestC0AA0bC7Caching_p5cacheAA0B17CircularDetecting_p16circularDetectortcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(context:manifestLoader:cache:circularDetector:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0D0C7context_AA0B15ManifestLoading_p08manifestC0AA0bC7Caching_p5cacheAA0B17CircularDetecting_p16circularDetectortcfc">init(context:manifestLoader:cache:circularDetector:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Initializes the graph loader context with a context and the extra attributes that the graph loader context has.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">context</span><span class="p">:</span> <span class="kt"><a href="../Classes/Context.html">Context</a></span><span class="p">,</span>
+     <span class="nv">manifestLoader</span><span class="p">:</span> <span class="kt"><a href="../Other Protocols.html#/s:10xcbuddykit20GraphManifestLoadingP">GraphManifestLoading</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphManifestLoader.html">GraphManifestLoader</a></span><span class="p">(),</span>
+     <span class="nv">cache</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphLoaderCaching.html">GraphLoaderCaching</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphLoaderCache.html">GraphLoaderCache</a></span><span class="p">(),</span>
+     <span class="nv">circularDetector</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphCircularDetector.html">GraphCircularDetector</a></span><span class="p">())</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>context</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>base context.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>manifestLoader</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>manifest loader.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>cache</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>graph loader cache.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>circularDetector</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>circular dependencies detector.</p>
                                 </div>
                               </td>
                             </tr>

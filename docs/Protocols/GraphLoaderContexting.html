@@ -129,6 +129,9 @@
                 <a class="nav-group-task-link" href="../Classes/Configuration.html">Configuration</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/Context.html">Context</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/CopyBuildPhase.html">CopyBuildPhase</a>
               </li>
               <li class="nav-group-task">
@@ -189,6 +192,9 @@
                 <a class="nav-group-task-link" href="../Other Classes.html#/s:10xcbuddykit16ProjectValidatorC">ProjectValidator</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/ResourceLocator.html">ResourceLocator</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/ResourcesBuildPhase.html">ResourcesBuildPhase</a>
               </li>
               <li class="nav-group-task">
@@ -232,6 +238,9 @@
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/PrecompiledNodeError.html">PrecompiledNodeError</a>
               </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/ResourceLocatingError.html">ResourceLocatingError</a>
+              </li>
             </ul>
           </li>
           <li class="nav-group-name">
@@ -250,6 +259,9 @@
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/CommandsContexting.html">CommandsContexting</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/Contexting.html">Contexting</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
@@ -285,6 +297,9 @@
                 <a class="nav-group-task-link" href="../Protocols/Printing.html">Printing</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/ResourceLocating.html">ResourceLocating</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/Shelling.html">Shelling</a>
               </li>
               <li class="nav-group-task">
@@ -318,7 +333,7 @@
             <h1>GraphLoaderContexting</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">protocol</span> <span class="kt">GraphLoaderContexting</span><span class="p">:</span> <span class="kt">AnyObject</span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">protocol</span> <span class="kt">GraphLoaderContexting</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Contexting.html">Contexting</a></span></code></pre>
 
                 </div>
               </div>
@@ -388,33 +403,6 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit21GraphLoaderContextingP11fileHandlerAA12FileHandling_pvp"></a>
-                    <a name="//apple_ref/swift/Property/fileHandler" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit21GraphLoaderContextingP11fileHandlerAA12FileHandling_pvp">fileHandler</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Util to handle files.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">var</span> <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
                     <a name="/s:10xcbuddykit21GraphLoaderContextingP16circularDetectorAA0B17CircularDetecting_pvp"></a>
                     <a name="//apple_ref/swift/Property/circularDetector" class="dashAnchor"></a>
                     <a class="token" href="#/s:10xcbuddykit21GraphLoaderContextingP16circularDetectorAA0B17CircularDetecting_pvp">circularDetector</a>
@@ -433,33 +421,6 @@
                         <div class="language">
                           <p class="aside-title">Swift</p>
                           <pre class="highlight swift"><code><span class="k">var</span> <span class="nv">circularDetector</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a></span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit21GraphLoaderContextingP5shellAA8Shelling_pvp"></a>
-                    <a name="//apple_ref/swift/Property/shell" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit21GraphLoaderContextingP5shellAA8Shelling_pvp">shell</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Shell.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">var</span> <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span></code></pre>
 
                         </div>
                       </div>

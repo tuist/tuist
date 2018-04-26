@@ -28,6 +28,8 @@
 		B9553DEC2090F62C00050311 /* GraphNodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DEB2090F62C00050311 /* GraphNodeTests.swift */; };
 		B9553DEF2090F6EC00050311 /* MockShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DED2090F6AE00050311 /* MockShell.swift */; };
 		B9553DF12092181500050311 /* Context.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DF02092181500050311 /* Context.swift */; };
+		B9553DF320921AF300050311 /* ResourceLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DF220921AF300050311 /* ResourceLocator.swift */; };
+		B9553DF5209228EB00050311 /* MockRersourceLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DF4209228EB00050311 /* MockRersourceLocator.swift */; };
 		B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */; };
 		B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */; };
 		B95895F7208A2B5800F00ACF /* GeneratorError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95895F6208A2B5800F00ACF /* GeneratorError.swift */; };
@@ -252,6 +254,8 @@
 		B9553DEB2090F62C00050311 /* GraphNodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphNodeTests.swift; sourceTree = "<group>"; };
 		B9553DED2090F6AE00050311 /* MockShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockShell.swift; sourceTree = "<group>"; };
 		B9553DF02092181500050311 /* Context.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Context.swift; sourceTree = "<group>"; };
+		B9553DF220921AF300050311 /* ResourceLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceLocator.swift; sourceTree = "<group>"; };
+		B9553DF4209228EB00050311 /* MockRersourceLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRersourceLocator.swift; sourceTree = "<group>"; };
 		B95895F2208A2ACF00F00ACF /* ProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGenerator.swift; sourceTree = "<group>"; };
 		B95895F4208A2ADB00F00ACF /* GeneratorContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorContext.swift; sourceTree = "<group>"; };
 		B95895F6208A2B5800F00ACF /* GeneratorError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratorError.swift; sourceTree = "<group>"; };
@@ -598,6 +602,7 @@
 				B9B629A820864E3A00EE9E07 /* Signals.swift */,
 				B9553DE92090690000050311 /* Shell.swift */,
 				B9553DF02092181500050311 /* Context.swift */,
+				B9553DF220921AF300050311 /* ResourceLocator.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -711,6 +716,7 @@
 				B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */,
 				B9BFCF70207B48D500ACC59D /* MockPrinter.swift */,
 				B9553DED2090F6AE00050311 /* MockShell.swift */,
+				B9553DF4209228EB00050311 /* MockRersourceLocator.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -964,6 +970,7 @@
 				B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */,
 				B9E2DC9C20872CD60061DF86 /* AbsolutePath+Extras.swift in Sources */,
 				B9B629AF20864E3A00EE9E07 /* Signals.swift in Sources */,
+				B9553DF5209228EB00050311 /* MockRersourceLocator.swift in Sources */,
 				B9B629B520864E4700EE9E07 /* UpdateController.swift in Sources */,
 				B9FB2DE2208653F900BC2FB3 /* GraphLoader.swift in Sources */,
 				B9B629AD20864E3A00EE9E07 /* Bundles.swift in Sources */,
@@ -980,6 +987,7 @@
 				B9F1EDCD208CBE1800477835 /* InitCommand.swift in Sources */,
 				B9FB2DEA2086544900BC2FB3 /* BuildPhase.swift in Sources */,
 				B9E2DCCD2089BF3B0061DF86 /* CommandsContext.swift in Sources */,
+				B9553DF320921AF300050311 /* ResourceLocator.swift in Sources */,
 				B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */,
 				B9FB2DE72086544900BC2FB3 /* Project.swift in Sources */,
 				B9B629AE20864E3A00EE9E07 /* App.swift in Sources */,
