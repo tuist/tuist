@@ -22,6 +22,7 @@
 		B918A22B20935ECF00E64FBE /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B918A22920935EC800E64FBE /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B918A22C20935ED700E64FBE /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B918A22920935EC800E64FBE /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B918A22E20935EE900E64FBE /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B918A22D20935EE900E64FBE /* ErrorHandler.swift */; };
+		B918A2312093680600E64FBE /* MockErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B918A2302093680600E64FBE /* MockErrorHandler.swift */; };
 		B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */ = {isa = PBXBuildFile; fileRef = B915ECF6206395DA004B6630 /* xcbuddy */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */; };
 		B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB72062B8A7009BF596 /* Assets.xcassets */; };
@@ -233,6 +234,7 @@
 		B91834BE207CBCE6008935B4 /* ProjectDescription.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = ProjectDescription.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B918A22920935EC800E64FBE /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B918A22D20935EE900E64FBE /* ErrorHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
+		B918A2302093680600E64FBE /* MockErrorHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockErrorHandler.swift; sourceTree = "<group>"; };
 		B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfigurationTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
 		B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphLoaderCache.swift; sourceTree = "<group>"; };
@@ -700,6 +702,7 @@
 				B9BFCF70207B48D500ACC59D /* MockPrinter.swift */,
 				B9553DED2090F6AE00050311 /* MockShell.swift */,
 				B9553DF4209228EB00050311 /* MockRersourceLocator.swift */,
+				B918A2302093680600E64FBE /* MockErrorHandler.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -991,6 +994,7 @@
 				B9F1EDD3208CD2E200477835 /* ShellCompletion+Equatable.swift in Sources */,
 				B9E2DC9E20872D400061DF86 /* AppTests.swift in Sources */,
 				B9F1EDFB208D24F700477835 /* ProjectValidatorTests.swift in Sources */,
+				B918A2312093680600E64FBE /* MockErrorHandler.swift in Sources */,
 				B9E2DC9720872B5D0061DF86 /* MockManifestLoader.swift in Sources */,
 				B9E2DCC82089B78D0061DF86 /* DumpCommandTests.swift in Sources */,
 				B9E2DCA32087651D0061DF86 /* Project+TestData.swift in Sources */,
