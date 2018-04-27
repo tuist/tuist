@@ -1,41 +1,66 @@
 import Basic
 import Foundation
 
-protocol GraphLoaderContexting: AnyObject {
+/// Protocol that defines the interface of the context that is used during the graph loading.
+protocol GraphLoaderContexting: Contexting {
+    /// Manifest loader that is used to get a JSON representation of the manifests.
     var manifestLoader: GraphManifestLoading { get }
+
+    /// Contains a reference to the manifests that are parsed during the graph loading.
     var cache: GraphLoaderCaching { get }
-    var path: AbsolutePath { get }
-    var fileHandler: FileHandling { get }
-    func with(path: AbsolutePath) -> GraphLoaderContexting
+
+    /// Circular dependency detector.
+    var circularDetector: GraphCircularDetecting { get }
 }
 
-class GraphLoaderContext: GraphLoaderContexting {
+/// Object passed during the graph loading that contains utils to be used.
+class GraphLoaderContext: Context, GraphLoaderContexting {
+    /// Manifest loader. It's used to get a JSON representation of the manifests.
     let manifestLoader: GraphManifestLoading
-    let cache: GraphLoaderCaching
-    let path: AbsolutePath
-    let fileHandler: FileHandling
 
-    init(manifestLoader: GraphManifestLoading,
-         cache: GraphLoaderCaching,
-         path: AbsolutePath,
-         fileHandler: FileHandling = FileHandler()) {
+    /// Contains a reference to the manifests that are parsed during the graph loading.
+    let cache: GraphLoaderCaching
+
+    /// Circular dependency detector.
+    let circularDetector: GraphCircularDetecting
+
+    /// Initializes the context with its attributes.
+    ///
+    /// - Parameters:
+    ///   - manifestLoader: Manifest loader that is used to get a JSON representation of the manifests.
+    ///   - cache: Contains a reference to the manifests that are parsed during the graph loading.
+    ///   - fileHandler: Util to handle files.
+    ///   - circularDetector: Circular dependency detector.
+    ///   - shell: shell.
+    ///   - printer: printer.
+    ///   - errorHandler: error handler.
+    init(manifestLoader: GraphManifestLoading = GraphManifestLoader(),
+         cache: GraphLoaderCaching = GraphLoaderCache(),
+         fileHandler: FileHandling = FileHandler(),
+         circularDetector: GraphCircularDetecting = GraphCircularDetector(),
+         shell: Shelling = Shell(),
+         printer: Printing = Printer(),
+         errorHandler: ErrorHandling = ErrorHandler()) {
         self.manifestLoader = manifestLoader
         self.cache = cache
-        self.path = path
-        self.fileHandler = fileHandler
+        self.circularDetector = circularDetector
+        super.init(fileHandler: fileHandler, shell: shell, printer: printer, errorHandler: errorHandler)
     }
 
-    init(projectPath: AbsolutePath) {
-        manifestLoader = GraphManifestLoader()
-        cache = GraphLoaderCache()
-        path = projectPath
-        fileHandler = FileHandler()
-    }
-
-    func with(path: AbsolutePath) -> GraphLoaderContexting {
-        return GraphLoaderContext(manifestLoader: manifestLoader,
-                                  cache: cache,
-                                  path: path,
-                                  fileHandler: fileHandler)
+    /// Initializes the graph loader context with a context and the extra attributes that the graph loader context has.
+    ///
+    /// - Parameters:
+    ///   - context: base context.
+    ///   - manifestLoader: manifest loader.
+    ///   - cache: graph loader cache.
+    ///   - circularDetector: circular dependencies detector.
+    init(context: Context,
+         manifestLoader: GraphManifestLoading = GraphManifestLoader(),
+         cache: GraphLoaderCaching = GraphLoaderCache(),
+         circularDetector: GraphCircularDetecting = GraphCircularDetector()) {
+        self.manifestLoader = manifestLoader
+        self.cache = cache
+        self.circularDetector = circularDetector
+        super.init(fileHandler: context.fileHandler, shell: context.shell, printer: context.printer, errorHandler: context.errorHandler)
     }
 }

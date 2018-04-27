@@ -24,5 +24,7 @@
 	<string>Copyright © 2018 ppinera.es. All rights reserved.</string>
 	<key>NSPrincipalClass</key>
 	<string></string>
+	<key>SENTRY_DSN</key>
+	<string>$(SENTRY_DSN)</string>
 </dict>
 </plist>

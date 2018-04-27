@@ -10,10 +10,10 @@ public class Project {
     public let config: String?
 
     public init(name: String,
+                config: String? = nil,
                 schemes: [Scheme] = [],
-                targets: [Target] = [],
                 settings: Settings? = nil,
-                config: String? = nil) {
+                targets: [Target] = []) {
         self.name = name
         self.schemes = schemes
         self.targets = targets
@@ -40,3 +40,32 @@ extension Project: JSONConvertible {
         return .dictionary(dictionary)
     }
 }
+
+// func initProject() {
+// let project = Project(name: "{{NAME}}",
+//                      schemes: [
+//                          /* Project schemes are defined here */
+//                          Scheme(name: "{{NAME}}",
+//                                 shared: true,
+//                                 buildAction: BuildAction(targets: ["{{NAME}}"])),
+//                      ],
+//                      settings: Settings(base: [:],
+//                                         debug: Configuration(settings: [:],
+//                                                              xcconfig: "Configs/Debug.xcconfig")),
+//                      targets: [
+//                          Target(name: "{{NAME}}",
+//                                 platform: .ios,
+//                                 product: .app,
+//                                 infoPlist: "Info.plist",
+//                                 dependencies: [
+//                                     /* Target dependencies can be defined here */
+//                                     /* .framework(path: "framework") */
+//                                 ],
+//                                 settings: nil,
+//                                 buildPhases: [
+//                                     .sources([.include(["./Sources/**/*.swift"])]),
+//                                     /* Other build phases can be added here */
+//                                     /* .resources([.include(["./Resousrces /**/ *"])]) */
+//                          ]),
+// ])
+// }

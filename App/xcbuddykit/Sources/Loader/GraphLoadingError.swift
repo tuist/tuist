@@ -1,12 +1,25 @@
 import Basic
 import Foundation
 
+/// Errors that can be thrown during the graph loading process.
+///
+/// - missingFile: error thrown when a manifest is refering to a file that is missing.
+/// - targetNotFound: error thrown when a target has a dependency with another target that doesn't exist.
+/// - manifestNotFound: error thrown when a manifest cannot be found.
+/// - unexpected: unexpected error.
 enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
     case missingFile(AbsolutePath)
     case targetNotFound(String, AbsolutePath)
     case manifestNotFound(AbsolutePath)
+    case circularDependency(GraphCircularDetectorNode, GraphCircularDetectorNode)
     case unexpected(String)
 
+    /// Compares two GraphLoadingError instances.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
     static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
         switch (lhs, rhs) {
         case let (.missingFile(lhsPath), .missingFile(rhsPath)):
@@ -17,6 +30,8 @@ enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
             return lhsPath == rhsPath
         case let (.unexpected(lhsMessage), .unexpected(rhsMessage)):
             return lhsMessage == rhsMessage
+        case let (.circularDependency(lhsFrom, lhsTo), .circularDependency(rhsFrom, rhsTo)):
+            return lhsFrom == rhsFrom && lhsTo == rhsTo
         default:
             return false
         }
@@ -25,13 +40,15 @@ enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
     var description: String {
         switch self {
         case let .manifestNotFound(path):
-            return "Couldn't find manifest at path: '\(path)'"
+            return "Couldn't find manifest at path: '\(path.asString)'"
         case let .targetNotFound(targetName, path):
-            return "Couldn't find target '\(targetName)' at '\(path)'"
+            return "Couldn't find target '\(targetName)' at '\(path.asString)'"
         case let .missingFile(path):
-            return "Couldn't find file at path '\(path)'"
+            return "Couldn't find file at path '\(path.asString)'"
         case let .unexpected(message):
             return message
+        case let .circularDependency(from, to):
+            return "Found circular dependency between the target '\(from.name)' at '\(from.path.asString)' and the target '\(to.name)' at '\(to.path.asString)'"
         }
     }
 }

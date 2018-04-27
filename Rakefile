@@ -29,7 +29,6 @@ end
 def test
   execute('swift package generate-xcodeproj')
   execute("xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddykit clean test CODE_SIGN_IDENTITY=''")
-  execute("xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy test CODE_SIGN_IDENTITY=''")
 end
 
 def decrypt_keys
@@ -100,7 +99,7 @@ def changelog(version)
 end
 
 def docs
-  execute("bundle exec jazzy --clean --sdk macosx --xcodebuild-arguments -workspace,xcbuddy.xcworkspace,-scheme,xcbuddykit --skip-undocumented")
+  execute("bundle exec jazzy")
 end
 
 def release

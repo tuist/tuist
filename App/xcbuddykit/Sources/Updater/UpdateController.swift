@@ -11,8 +11,8 @@ class UpdateController: UpdateControlling {
 
     func checkAndUpdateFromConsole() throws {
         let updater = SPUUpdater.commandLine
-        updater.checkForUpdates()
-        try updater.start()
+        try updater().checkForUpdates()
+        try updater().start()
         RunLoop.current.run()
     }
 

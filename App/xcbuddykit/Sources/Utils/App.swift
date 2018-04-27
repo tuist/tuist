@@ -6,8 +6,8 @@ public class App {
     private let infoDictionary: [String: Any]
 
     /// Default constructor.
-    public convenience init() {
-        self.init(infoDictionary: Bundle.app.infoDictionary!)
+    public convenience init() throws {
+        try self.init(infoDictionary: Bundle.app().infoDictionary!)
     }
 
     /// Initializes the app with the app's bundle info dictionary.
@@ -19,6 +19,6 @@ public class App {
 
     /// App version.
     public var version: String {
-        return infoDictionary["CFBundleShortVersionString"]! as! String
+        return (infoDictionary["CFBundleShortVersionString"] as? String) ?? ""
     }
 }

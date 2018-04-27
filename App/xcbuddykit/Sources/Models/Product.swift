@@ -1,8 +1,27 @@
 import Foundation
 
+/// Product type.
+///
+/// - app: application.
+/// - staticLibrary: static library.
+/// - dynamicLibrary: dynamic library.
+/// - framework: framework.
+/// - unitTests: unit tests.
+/// - uiTests: ui tests.
+/// - appExtension: application extension.
+/// - watchApp: watchOS 1 application.
+/// - watch2App: watchOS version >= 2 application.
+/// - watchExtension: watchOS 1 extension.
+/// - watch2Extension: watchOS version >=2 extension.
+/// - tvExtension: tvOS extension
+/// - messagesApplication: iMessage application.
+/// - messagesExtension: iMessage extension.
+/// - stickerPack: Stickers pack.
 public enum Product: String {
     case app
-    case module
+    case staticLibrary
+    case dynamicLibrary
+    case framework
     case unitTests
     case uiTests
     case appExtension
@@ -17,12 +36,17 @@ public enum Product: String {
 }
 
 extension Product {
+    /// Returns the Xcode value.
     var xcodeValue: String {
         switch self {
         case .app:
             return "com.apple.product-type.application"
-        case .module:
-            return "io.xcbuddy.product-type.module"
+        case .staticLibrary:
+            return "com.apple.product-type.library.static"
+        case .dynamicLibrary:
+            return "com.apple.product-type.library.dynamic"
+        case .framework:
+            return "com.apple.product-type.framework"
         case .unitTests:
             return "com.apple.product-type.bundle.unit-test"
         case .uiTests:

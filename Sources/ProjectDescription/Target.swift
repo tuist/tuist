@@ -6,6 +6,7 @@ public class Target {
     public let name: String
     public let platform: Platform
     public let product: Product
+    public let bundleId: String
     public let infoPlist: String
     public let entitlements: String?
     public let settings: Settings?
@@ -14,6 +15,7 @@ public class Target {
     public init(name: String,
                 platform: Platform,
                 product: Product,
+                bundleId: String,
                 infoPlist: String,
                 entitlements: String? = nil,
                 dependencies: [TargetDependency] = [],
@@ -21,6 +23,7 @@ public class Target {
                 buildPhases: [BuildPhase] = []) {
         self.name = name
         self.platform = platform
+        self.bundleId = bundleId
         self.product = product
         self.infoPlist = infoPlist
         self.entitlements = entitlements
@@ -38,6 +41,7 @@ extension Target: JSONConvertible {
         dictionary["name"] = name.toJSON()
         dictionary["platform"] = platform.toJSON()
         dictionary["product"] = product.toJSON()
+        dictionary["bundle_id"] = bundleId.toJSON()
         dictionary["info_plist"] = infoPlist.toJSON()
         if let entitlements = entitlements {
             dictionary["entitlements"] = entitlements.toJSON()

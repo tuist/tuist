@@ -54,7 +54,9 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
         }
     }
 
-    func showInformationalUpdateFound(with appcastItem: SUAppcastItem, userInitiated _: Bool, reply: @escaping (SPUInformationalUpdateAlertChoice) -> Void) {
+    func showInformationalUpdateFound(with appcastItem: SUAppcastItem,
+                                      userInitiated _: Bool,
+                                      reply: @escaping (SPUInformationalUpdateAlertChoice) -> Void) {
         DispatchQueue.main.async {
             print("Found information for new update: %s", appcastItem.infoURL.absoluteString.utf8)
             reply(.dismissInformationalNoticeChoice)
@@ -179,10 +181,10 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
 private var _commandlineUpdater: SPUUpdater!
 
 extension SPUUpdater {
-    static var commandLine: SPUUpdater {
+    static func commandLine() throws -> SPUUpdater {
         if _commandlineUpdater != nil { return _commandlineUpdater }
         let driver = SPUCommandLineUserDriver()
-        let bundle = Bundle.app
+        let bundle = try Bundle.app()
         _commandlineUpdater = SPUUpdater(hostBundle: bundle, applicationBundle: bundle, userDriver: driver, delegate: nil)
         return _commandlineUpdater
     }

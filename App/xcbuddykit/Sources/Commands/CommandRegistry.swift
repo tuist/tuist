@@ -2,34 +2,76 @@ import Basic
 import Foundation
 import Utility
 
+/// Registry that contains all the commands.
 public final class CommandRegistry {
+    // Argument parser.
     private let parser: ArgumentParser
-    private var commands: [Command] = []
 
-    public init(usage: String, overview: String) {
-        parser = ArgumentParser(usage: usage, overview: overview)
+    /// Printer.
+    private let printer: Printing
+
+    // Registered commands.
+    var commands: [Command] = []
+
+    /// Returns the process arguments.
+    private let processArguments: () -> [String]
+
+    /// Initializes the command registry
+    public init(processArguments: @escaping () -> [String] = CommandRegistry.processArguments) {
+        printer = Printer()
+        parser = ArgumentParser(usage: "<command> <options>",
+                                overview: "Your Xcode buddy")
+        self.processArguments = processArguments
+        register(command: InitCommand.self)
+        register(command: GenerateCommand.self)
+        register(command: UpdateCommand.self)
+        register(command: DumpCommand.self)
     }
 
-    public func register(command: Command.Type) {
+    /// Returns the process arguments
+    ///
+    /// - Returns: process arguments.
+    public static func processArguments() -> [String] {
+        return Array(ProcessInfo.processInfo.arguments)
+    }
+
+    /// Register a new command.
+    ///
+    /// - Parameter command: command type.
+    func register(command: Command.Type) {
         commands.append(command.init(parser: parser))
     }
 
+    /// Runs the command line interface.
     public func run() {
         do {
             let parsedArguments = try parse()
             try process(arguments: parsedArguments)
         } catch let error as ArgumentParserError {
-            print(error.description)
-        } catch let error {
-            print(error.localizedDescription)
+            printer.print(errorMessage: error.localizedDescription)
+            exit(1)
+        } catch let error as CustomStringConvertible {
+            printer.print(errorMessage: error.description)
+            exit(1)
+        } catch {
+            printer.print(errorMessage: error.localizedDescription)
+            exit(1)
         }
     }
 
+    /// Parses the CLI arguments that have been passed using the parser.
+    ///
+    /// - Returns: parsing result.
+    /// - Throws: an error if the parsing fails.
     private func parse() throws -> ArgumentParser.Result {
-        let arguments = Array(ProcessInfo.processInfo.arguments.dropFirst())
+        let arguments = Array(processArguments().dropFirst())
         return try parser.parse(arguments)
     }
 
+    /// Process the parsing result.
+    ///
+    /// - Parameter arguments: parsing result.
+    /// - Throws: an error if the output cannot be processed
     private func process(arguments: ArgumentParser.Result) throws {
         guard let subparser = arguments.subparser(parser),
             let command = commands.first(where: { $0.command == subparser }) else {
