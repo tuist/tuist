@@ -18,7 +18,8 @@ jobs:
       - run:
           name: Install Dependencies
           command: |
-            gem install sqlite3 -- --with-sqlite3-dir=/opt/local
+            brew upgrade sqlite3
+            brew upgrade libsqlite3-dev
             bundle install --path vendor/bundle
       - run:
           name: Run tests
