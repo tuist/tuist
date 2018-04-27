@@ -1,7 +1,7 @@
 import Foundation
 import Sparkle
 
-fileprivate var _app: SPUStandardUpdaterController!
+private var _app: SPUStandardUpdaterController!
 
 // MARK: - SPUStandardUpdaterController (App)
 

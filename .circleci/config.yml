@@ -22,6 +22,7 @@ jobs:
           name: Install Dependencies
           command: |
             bundle config build.sqlite3 --with-sqlite3-dir=/opt/local
+            brew install swiftlint
             bundle install --path vendor/bundle
       - run:
           name: Run tests

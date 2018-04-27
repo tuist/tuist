@@ -57,8 +57,10 @@ final class ErrorHandler: ErrorHandling {
     /// - Parameter printer: printer.
     init(printer: Printing = Printer()) {
         if let sentryDsn = Bundle(for: ErrorHandler.self).infoDictionary?["SENTRY_DSN"] as? String, !sentryDsn.isEmpty {
+            // swiftlint:disable force_try
             client = try! Client(dsn: sentryDsn)
             try! client?.startCrashHandler()
+            // swiftlint:enable force_try
         } else {
             client = nil
         }
