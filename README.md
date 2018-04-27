@@ -29,6 +29,7 @@ Just run this command on your terminal:
 ```
 
 [![CircleCI](https://circleci.com/gh/xcbuddy/xcbuddy.svg?style=svg)](https://circleci.com/gh/xcbuddy/xcbuddy)
+[![codecov](https://codecov.io/gh/xcbuddy/xcbuddy/branch/master/graph/badge.svg)](https://codecov.io/gh/xcbuddy/xcbuddy)
 
 ## Setup for development
 
