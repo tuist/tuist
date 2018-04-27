@@ -6,6 +6,7 @@ install:
 - bundle install
 - swift package update
 script:
+- travis_wait 40 swift package generate-xcodeproj
 - bundle exec rake test
 - bundle exec rake release
 - |
