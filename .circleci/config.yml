@@ -5,11 +5,29 @@ jobs:
       xcode: "9.3.0"
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - gem-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+            - gem-cache-{{ arch }}-{{ .Branch }}
+            - gem-cache
+      - restore_cache:
+          keys:
+            - swift-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Package.resolved" }}
+            - swift-cache-{{ arch }}-{{ .Branch }}
+            - swift-cache
       - run:
           name: Install Dependencies
           command: |
             brew install sqlite3
-            bundle install
+            bundle install --path vendor/bundle
       - run:
           name: Run tests
           command: bundle exec rake test
+      - save_cache:
+          key: gem-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+      - save_cache:
+          key: swift-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Package.resolved" }}
+          paths:
+            - .build/
