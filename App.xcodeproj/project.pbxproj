@@ -42,6 +42,7 @@
 		B91834C0207CBCFE008935B4 /* ProjectDescription.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B91834BE207CBCE6008935B4 /* ProjectDescription.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B918A2312093680600E64FBE /* MockErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B918A2302093680600E64FBE /* MockErrorHandler.swift */; };
 		B919C5C420B46D010041162E /* TargetGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B919C5C320B46D010041162E /* TargetGeneratorTests.swift */; };
+    B918A24220937ADF00E64FBE /* embed-framework in Copy CLI */ = {isa = PBXBuildFile; fileRef = B918A23720937A7700E64FBE /* embed-framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */ = {isa = PBXBuildFile; fileRef = B915ECF6206395DA004B6630 /* xcbuddy */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B92122BD20AF372F009C4691 /* CreateIssueCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */; };
 		B92122D820AF3951009C4691 /* CreateIssueCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */; };
@@ -197,6 +198,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 12;
 			files = (
+				B918A24220937ADF00E64FBE /* embed-framework in Copy CLI */,
 				B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */,
 			);
 			name = "Copy CLI";
@@ -279,6 +281,7 @@
 		B919C5C320B46D010041162E /* TargetGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetGeneratorTests.swift; sourceTree = "<group>"; };
 		B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommand.swift; sourceTree = "<group>"; };
 		B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommandTests.swift; sourceTree = "<group>"; };
+    B918A23720937A7700E64FBE /* embed-framework */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "embed-framework"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfigurationTests.swift; sourceTree = "<group>"; };
 		B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildFileTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
@@ -414,6 +417,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				B915ED232063AFBC004B6630 /* xcbuddykit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B918A23420937A7700E64FBE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B918A24120937AC400E64FBE /* xcbuddykit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -598,6 +609,15 @@
 			path = Sources;
 			sourceTree = "<group>";
 		};
+		B918A23E20937AB100E64FBE /* embed-framework */ = {
+			isa = PBXGroup;
+			children = (
+				B918A23F20937AB100E64FBE /* main.swift */,
+			);
+			name = "embed-framework";
+			path = "App/embed-framework";
+			sourceTree = "<group>";
+		};
 		B92BF80B2073E40500EE4EBD /* Loader */ = {
 			isa = PBXGroup;
 			children = (
@@ -647,6 +667,7 @@
 				B94C7FBD2062B8A8009BF596 /* xcbuddy.entitlements */,
 				B94C7FBE2062B8A8009BF596 /* Info.plist */,
 				B94C7FC82062B8C6009BF596 /* Tests.plist */,
+				B918A23E20937AB100E64FBE /* embed-framework */,
 				B9FB9CF02066B71700F13FFA /* keys */,
 				B915ED3A2063B04C004B6630 /* xcbuddykit */,
 				B915ED372063B03C004B6630 /* cli */,
@@ -664,6 +685,7 @@
 				B915ECF6206395DA004B6630 /* xcbuddy */,
 				B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */,
 				B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */,
+				B918A23720937A7700E64FBE /* embed-framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -947,6 +969,22 @@
 			productReference = B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		B918A23620937A7700E64FBE /* embed-framework */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B918A23D20937A7700E64FBE /* Build configuration list for PBXNativeTarget "embed-framework" */;
+			buildPhases = (
+				B918A23320937A7700E64FBE /* Sources */,
+				B918A23420937A7700E64FBE /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "embed-framework";
+			productName = "embed-framework";
+			productReference = B918A23720937A7700E64FBE /* embed-framework */;
+			productType = "com.apple.product-type.tool";
+		};
 		B94C7F962062B829009BF596 /* xcbuddy */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B94C7FB02062B82A009BF596 /* Build configuration list for PBXNativeTarget "xcbuddy" */;
@@ -994,6 +1032,10 @@
 						ProvisioningStyle = Automatic;
 						TestTargetID = B94C7F962062B829009BF596;
 					};
+					B918A23620937A7700E64FBE = {
+						CreatedOnToolsVersion = 9.3;
+						ProvisioningStyle = Automatic;
+					};
 					B94C7F962062B829009BF596 = {
 						CreatedOnToolsVersion = 9.2;
 						ProvisioningStyle = Automatic;
@@ -1019,9 +1061,10 @@
 			projectRoot = "";
 			targets = (
 				B94C7F962062B829009BF596 /* xcbuddy */,
-				B915ECF5206395DA004B6630 /* xcbuddy */,
 				B915ED192063AFBC004B6630 /* xcbuddykit */,
 				B915ED212063AFBC004B6630 /* xcbuddykitTests */,
+				B915ECF5206395DA004B6630 /* xcbuddy */,
+				B918A23620937A7700E64FBE /* embed-framework */,
 			);
 		};
 /* End PBXProject section */
@@ -1230,6 +1273,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B918A23320937A7700E64FBE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B918A24020937AB100E64FBE /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B94C7F932062B829009BF596 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1396,6 +1447,38 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 4.0;
+			};
+			name = Release;
+		};
+		B918A23B20937A7700E64FBE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks $(PROJECT_DIR)/App/Frameworks $(inherited)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_FORCE_DYNAMIC_LINK_STDLIB = YES;
+				SWIFT_FORCE_STATIC_LINK_STDLIB = NO;
+				SWIFT_VERSION = 4.0;
+			};
+			name = Debug;
+		};
+		B918A23C20937A7700E64FBE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks $(PROJECT_DIR)/App/Frameworks $(inherited)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_FORCE_DYNAMIC_LINK_STDLIB = YES;
+				SWIFT_FORCE_STATIC_LINK_STDLIB = NO;
 				SWIFT_VERSION = 4.0;
 			};
 			name = Release;
@@ -1600,6 +1683,15 @@
 			buildConfigurations = (
 				B915ED332063AFBD004B6630 /* Debug */,
 				B915ED342063AFBD004B6630 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B918A23D20937A7700E64FBE /* Build configuration list for PBXNativeTarget "embed-framework" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B918A23B20937A7700E64FBE /* Debug */,
+				B918A23C20937A7700E64FBE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
