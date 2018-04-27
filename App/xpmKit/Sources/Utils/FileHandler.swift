@@ -19,6 +19,17 @@ protocol FileHandling: AnyObject {
     ///   - glob: glob pattern.
     /// - Returns: list of paths that have been found matching the glob pattern.
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
+
+    /// Creates a folder at the given path.
+    ///
+    /// - Parameter path: path.
+    func createFolder(_ path: AbsolutePath) throws
+
+    /// Deletes the file at the given path.
+    ///
+    /// - Parameter path: path where the file is.
+    /// - Throws: an error if the deletion fails.
+    func delete(_ path: AbsolutePath) throws
 }
 
 /// Default file handler implementing FileHandling.
@@ -44,5 +55,22 @@ final class FileHandler: FileHandling {
     /// - Returns: list of paths that have been found matching the glob pattern.
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
         return path.glob(glob)
+    }
+
+    /// Creates a folder at the given path.
+    ///
+    /// - Parameter path: path.
+    func createFolder(_ path: AbsolutePath) throws {
+        try FileManager.default.createDirectory(atPath: path.asString,
+                                                withIntermediateDirectories: true,
+                                                attributes: nil)
+    }
+
+    /// Deletes the file at the given path.
+    ///
+    /// - Parameter path: path where the file is.
+    /// - Throws: an error if the deletion fails.
+    func delete(_ path: AbsolutePath) throws {
+        try FileManager.default.removeItem(atPath: path.asString)
     }
 }

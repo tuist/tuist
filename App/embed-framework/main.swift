@@ -1,12 +1,3 @@
-//
-//  main.swift
-//  embed-framework
-//
-//  Created by Pedro Piñera Buendía on 27.04.18.
-//  Copyright © 2018 ppinera.es. All rights reserved.
-//
+import xcbuddykit
 
-import Foundation
-
-print("Hello, World!")
-
+FrameworkEmbedder().embed()

@@ -42,7 +42,6 @@
 		B91834C0207CBCFE008935B4 /* ProjectDescription.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B91834BE207CBCE6008935B4 /* ProjectDescription.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B918A2312093680600E64FBE /* MockErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B918A2302093680600E64FBE /* MockErrorHandler.swift */; };
 		B919C5C420B46D010041162E /* TargetGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B919C5C320B46D010041162E /* TargetGeneratorTests.swift */; };
-    B918A24220937ADF00E64FBE /* embed-framework in Copy CLI */ = {isa = PBXBuildFile; fileRef = B918A23720937A7700E64FBE /* embed-framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */ = {isa = PBXBuildFile; fileRef = B915ECF6206395DA004B6630 /* xcbuddy */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B92122BD20AF372F009C4691 /* CreateIssueCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */; };
 		B92122D820AF3951009C4691 /* CreateIssueCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */; };
@@ -154,8 +153,8 @@
 		B9FB2DEA2086544900BC2FB3 /* BuildPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629CC20864E9800EE9E07 /* BuildPhase.swift */; };
 		B9FB2DEB2086544900BC2FB3 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629CD20864E9800EE9E07 /* Product.swift */; };
 		B9FB9D0C2066D1B800F13FFA /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FDBF3920642D980010BC33 /* xpmKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
-		B9FDBF3A2064DAEB0010BC33 /* xpmKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B9FDBF3920642D980010BC33 /* xcbuddykit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
+		B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF422064DCB70010BC33 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF412064DCB70010BC33 /* Foundation.framework */; };
 /* End PBXBuildFile section */
@@ -166,28 +165,28 @@
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ED192063AFBC004B6630;
-			remoteInfo = xpmKit;
+			remoteInfo = xcbuddykit;
 		};
 		B915ED2D2063AFBD004B6630 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ED192063AFBC004B6630;
-			remoteInfo = xpmKit;
+			remoteInfo = xcbuddykit;
 		};
 		B9B80AB2206AB4630057482B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ECF5206395DA004B6630;
-			remoteInfo = xpm;
+			remoteInfo = xcbuddy;
 		};
 		B9E65C9C208F919800A9D7AC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ED192063AFBC004B6630;
-			remoteInfo = xpmKit;
+			remoteInfo = xcbuddykit;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -198,7 +197,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 12;
 			files = (
-				B918A24220937ADF00E64FBE /* embed-framework in Copy CLI */,
 				B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */,
 			);
 			name = "Copy CLI";
@@ -239,7 +237,7 @@
 				B9E2DCA620876F710061DF86 /* Utility.framework in Embed Frameworks */,
 				B9013DD7206FEEEF007B1A34 /* Sparkle.framework in Embed Frameworks */,
 				B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */,
-				B9FDBF3A2064DAEB0010BC33 /* xpmKit.framework in Embed Frameworks */,
+				B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -270,9 +268,9 @@
 		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommandTests.swift; sourceTree = "<group>"; };
-		B915ECF6206395DA004B6630 /* xpm */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xpm; sourceTree = BUILT_PRODUCTS_DIR; };
-		B915ED1A2063AFBC004B6630 /* xpmKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xpmKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B915ED222063AFBC004B6630 /* xpmKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xpmKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B915ECF6206395DA004B6630 /* xcbuddy */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xcbuddy; sourceTree = BUILT_PRODUCTS_DIR; };
+		B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xcbuddykit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xcbuddykitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B915ED382063B03C004B6630 /* main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		B915ED3D2063B04C004B6630 /* Tests.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Tests.plist; sourceTree = "<group>"; };
 		B915ED4D2063B04C004B6630 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -281,7 +279,6 @@
 		B919C5C320B46D010041162E /* TargetGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetGeneratorTests.swift; sourceTree = "<group>"; };
 		B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommand.swift; sourceTree = "<group>"; };
 		B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommandTests.swift; sourceTree = "<group>"; };
-    B918A23720937A7700E64FBE /* embed-framework */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "embed-framework"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfigurationTests.swift; sourceTree = "<group>"; };
 		B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildFileTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
@@ -290,10 +287,10 @@
 		B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockManifestLoader.swift; sourceTree = "<group>"; };
 		B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFileHandler.swift; sourceTree = "<group>"; };
 		B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+TestData.swift"; sourceTree = "<group>"; };
-		B94C7F972062B829009BF596 /* xpm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xpm.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B94C7F972062B829009BF596 /* xcbuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xcbuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B94C7FB72062B8A7009BF596 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B94C7FB92062B8A7009BF596 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
-		B94C7FBD2062B8A8009BF596 /* xpm.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = xpm.entitlements; path = App/xpm.entitlements; sourceTree = "<group>"; };
+		B94C7FBD2062B8A8009BF596 /* xcbuddy.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = xcbuddy.entitlements; path = App/xcbuddy.entitlements; sourceTree = "<group>"; };
 		B94C7FBE2062B8A8009BF596 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = App/Info.plist; sourceTree = "<group>"; };
 		B94C7FC02062B8A8009BF596 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B94C7FC82062B8C6009BF596 /* Tests.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Tests.plist; path = App/Tests.plist; sourceTree = "<group>"; };
@@ -417,14 +414,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B915ED232063AFBC004B6630 /* xcbuddykit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B918A23420937A7700E64FBE /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B918A24120937AC400E64FBE /* xcbuddykit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -571,8 +560,8 @@
 				B915ED3B2063B04C004B6630 /* Tests */,
 				B915ED3D2063B04C004B6630 /* Tests.plist */,
 			);
-			name = xpmKit;
-			path = App/xpmKit;
+			name = xcbuddykit;
+			path = App/xcbuddykit;
 			sourceTree = "<group>";
 		};
 		B915ED3B2063B04C004B6630 /* Tests */ = {
@@ -607,15 +596,6 @@
 				B9B629A120864E3A00EE9E07 /* Utils */,
 			);
 			path = Sources;
-			sourceTree = "<group>";
-		};
-		B918A23E20937AB100E64FBE /* embed-framework */ = {
-			isa = PBXGroup;
-			children = (
-				B918A23F20937AB100E64FBE /* main.swift */,
-			);
-			name = "embed-framework";
-			path = "App/embed-framework";
 			sourceTree = "<group>";
 		};
 		B92BF80B2073E40500EE4EBD /* Loader */ = {
@@ -667,7 +647,6 @@
 				B94C7FBD2062B8A8009BF596 /* xcbuddy.entitlements */,
 				B94C7FBE2062B8A8009BF596 /* Info.plist */,
 				B94C7FC82062B8C6009BF596 /* Tests.plist */,
-				B918A23E20937AB100E64FBE /* embed-framework */,
 				B9FB9CF02066B71700F13FFA /* keys */,
 				B915ED3A2063B04C004B6630 /* xcbuddykit */,
 				B915ED372063B03C004B6630 /* cli */,
@@ -685,7 +664,6 @@
 				B915ECF6206395DA004B6630 /* xcbuddy */,
 				B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */,
 				B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */,
-				B918A23720937A7700E64FBE /* embed-framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -928,8 +906,8 @@
 			dependencies = (
 				B9E65C9D208F919800A9D7AC /* PBXTargetDependency */,
 			);
-			name = xpm;
-			productName = xpm;
+			name = xcbuddy;
+			productName = xcbuddy;
 			productReference = B915ECF6206395DA004B6630 /* xcbuddy */;
 			productType = "com.apple.product-type.tool";
 		};
@@ -945,8 +923,8 @@
 			);
 			dependencies = (
 			);
-			name = xpmKit;
-			productName = xpmKit;
+			name = xcbuddykit;
+			productName = xcbuddykit;
 			productReference = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */;
 			productType = "com.apple.product-type.framework";
 		};
@@ -964,26 +942,10 @@
 			dependencies = (
 				B915ED252063AFBC004B6630 /* PBXTargetDependency */,
 			);
-			name = xpmKitTests;
-			productName = xpmKitTests;
+			name = xcbuddykitTests;
+			productName = xcbuddykitTests;
 			productReference = B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		B918A23620937A7700E64FBE /* embed-framework */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = B918A23D20937A7700E64FBE /* Build configuration list for PBXNativeTarget "embed-framework" */;
-			buildPhases = (
-				B918A23320937A7700E64FBE /* Sources */,
-				B918A23420937A7700E64FBE /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = "embed-framework";
-			productName = "embed-framework";
-			productReference = B918A23720937A7700E64FBE /* embed-framework */;
-			productType = "com.apple.product-type.tool";
 		};
 		B94C7F962062B829009BF596 /* xcbuddy */ = {
 			isa = PBXNativeTarget;
@@ -1003,8 +965,8 @@
 				B9B80AB3206AB4630057482B /* PBXTargetDependency */,
 				B915ED2E2063AFBD004B6630 /* PBXTargetDependency */,
 			);
-			name = xpm;
-			productName = xpm;
+			name = xcbuddy;
+			productName = xcbuddy;
 			productReference = B94C7F972062B829009BF596 /* xcbuddy.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -1032,10 +994,6 @@
 						ProvisioningStyle = Automatic;
 						TestTargetID = B94C7F962062B829009BF596;
 					};
-					B918A23620937A7700E64FBE = {
-						CreatedOnToolsVersion = 9.3;
-						ProvisioningStyle = Automatic;
-					};
 					B94C7F962062B829009BF596 = {
 						CreatedOnToolsVersion = 9.2;
 						ProvisioningStyle = Automatic;
@@ -1061,10 +1019,9 @@
 			projectRoot = "";
 			targets = (
 				B94C7F962062B829009BF596 /* xcbuddy */,
+				B915ECF5206395DA004B6630 /* xcbuddy */,
 				B915ED192063AFBC004B6630 /* xcbuddykit */,
 				B915ED212063AFBC004B6630 /* xcbuddykitTests */,
-				B915ECF5206395DA004B6630 /* xcbuddy */,
-				B918A23620937A7700E64FBE /* embed-framework */,
 			);
 		};
 /* End PBXProject section */
@@ -1118,7 +1075,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if which sentry-cli >/dev/null; then\nexport SENTRY_ORG=xpm\nexport SENTRY_PROJECT=app\nERROR=$(bin/sentry-cli upload-dsym 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi";
+			shellScript = "if which sentry-cli >/dev/null; then\nexport SENTRY_ORG=xcbuddy\nexport SENTRY_PROJECT=app\nERROR=$(bin/sentry-cli upload-dsym 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi";
 		};
 		B918A2322093756700E64FBE /* Swift lint */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1273,14 +1230,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		B918A23320937A7700E64FBE /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B918A24020937AB100E64FBE /* main.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B94C7F932062B829009BF596 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1377,10 +1326,10 @@
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
 				FRAMEWORK_VERSION = A;
-				INFOPLIST_FILE = App/xpmKit/Info.plist;
+				INFOPLIST_FILE = App/xcbuddykit/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKit;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1405,10 +1354,10 @@
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
 				FRAMEWORK_VERSION = A;
-				INFOPLIST_FILE = App/xpmKit/Info.plist;
+				INFOPLIST_FILE = App/xcbuddykit/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKit;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 4.0;
@@ -1426,9 +1375,9 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
-				INFOPLIST_FILE = App/xpmKit/Tests.plist;
+				INFOPLIST_FILE = App/xcbuddykit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.0;
 			};
@@ -1443,42 +1392,10 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
-				INFOPLIST_FILE = App/xpmKit/Tests.plist;
+				INFOPLIST_FILE = App/xcbuddykit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 4.0;
-			};
-			name = Release;
-		};
-		B918A23B20937A7700E64FBE /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
-				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks $(PROJECT_DIR)/App/Frameworks $(inherited)";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_FORCE_DYNAMIC_LINK_STDLIB = YES;
-				SWIFT_FORCE_STATIC_LINK_STDLIB = NO;
-				SWIFT_VERSION = 4.0;
-			};
-			name = Debug;
-		};
-		B918A23C20937A7700E64FBE /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
-				LD_RUNPATH_SEARCH_PATHS = "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx @executable_path @executable_path/../Frameworks $(PROJECT_DIR)/App/Frameworks $(inherited)";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_FORCE_DYNAMIC_LINK_STDLIB = YES;
-				SWIFT_FORCE_STATIC_LINK_STDLIB = NO;
 				SWIFT_VERSION = 4.0;
 			};
 			name = Release;
@@ -1603,7 +1520,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BUGSNAG_API_KEY = "$(BUGSNAG_API_KEY)";
-				CODE_SIGN_ENTITLEMENTS = App/xpm.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/xcbuddy.entitlements;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1618,7 +1535,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/.build/x86_64-apple-macosx10.10/debug",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpm;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1633,7 +1550,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BUGSNAG_API_KEY = "$(BUGSNAG_API_KEY)";
-				CODE_SIGN_ENTITLEMENTS = App/xpm.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/xcbuddy.entitlements;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1648,7 +1565,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/.build/x86_64-apple-macosx10.10/debug",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpm;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1683,15 +1600,6 @@
 			buildConfigurations = (
 				B915ED332063AFBD004B6630 /* Debug */,
 				B915ED342063AFBD004B6630 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B918A23D20937A7700E64FBE /* Build configuration list for PBXNativeTarget "embed-framework" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B918A23B20937A7700E64FBE /* Debug */,
-				B918A23C20937A7700E64FBE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
