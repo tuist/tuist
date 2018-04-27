@@ -18,6 +18,10 @@
 		B915ED662063B18B004B6630 /* xcproj.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED672063B18B004B6630 /* xcproj.framework */; };
 		B91834BF207CBCE6008935B4 /* ProjectDescription.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B91834BE207CBCE6008935B4 /* ProjectDescription.framework */; };
 		B91834C0207CBCFE008935B4 /* ProjectDescription.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B91834BE207CBCE6008935B4 /* ProjectDescription.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B918A22A20935EC800E64FBE /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B918A22920935EC800E64FBE /* Sentry.framework */; };
+		B918A22B20935ECF00E64FBE /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B918A22920935EC800E64FBE /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B918A22C20935ED700E64FBE /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B918A22920935EC800E64FBE /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B918A22E20935EE900E64FBE /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B918A22D20935EE900E64FBE /* ErrorHandler.swift */; };
 		B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */ = {isa = PBXBuildFile; fileRef = B915ECF6206395DA004B6630 /* xcbuddy */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */; };
 		B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB72062B8A7009BF596 /* Assets.xcassets */; };
@@ -178,6 +182,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				B918A22B20935ECF00E64FBE /* Sentry.framework in Embed Frameworks */,
 				B9E2DCB22087757D0061DF86 /* PathKit.framework in Embed Frameworks */,
 				B9E2DCA520876F660061DF86 /* Utility.framework in Embed Frameworks */,
 				B9FB2DC82086516A00BC2FB3 /* clibc.framework in Embed Frameworks */,
@@ -198,6 +203,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				B918A22C20935ED700E64FBE /* Sentry.framework in Embed Frameworks */,
 				B9E2DCB3208775860061DF86 /* PathKit.framework in Embed Frameworks */,
 				B9E2DCAC208775160061DF86 /* clibc.framework in Embed Frameworks */,
 				B9E2DCAD208775160061DF86 /* SPMLibc.framework in Embed Frameworks */,
@@ -225,6 +231,8 @@
 		B915ED4D2063B04C004B6630 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B915ED672063B18B004B6630 /* xcproj.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = xcproj.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B91834BE207CBCE6008935B4 /* ProjectDescription.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = ProjectDescription.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B918A22920935EC800E64FBE /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
+		B918A22D20935EE900E64FBE /* ErrorHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfigurationTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
 		B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphLoaderCache.swift; sourceTree = "<group>"; };
@@ -344,6 +352,7 @@
 				B9E2DCA420876F490061DF86 /* Utility.framework in Frameworks */,
 				B9FB2DBF2086506E00BC2FB3 /* Basic.framework in Frameworks */,
 				B91834BF207CBCE6008935B4 /* ProjectDescription.framework in Frameworks */,
+				B918A22A20935EC800E64FBE /* Sentry.framework in Frameworks */,
 				B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */,
 				B915ED662063B18B004B6630 /* xcproj.framework in Frameworks */,
 			);
@@ -371,6 +380,7 @@
 		B915EC392062EC97004B6630 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				B918A22920935EC800E64FBE /* Sentry.framework */,
 				B9E2DCAF2087756D0061DF86 /* PathKit.framework */,
 				B9FB2DC22086507700BC2FB3 /* clibc.framework */,
 				B9FB2DC42086507700BC2FB3 /* SPMLibc.framework */,
@@ -575,6 +585,7 @@
 				B9553DE92090690000050311 /* Shell.swift */,
 				B9553DF02092181500050311 /* Context.swift */,
 				B9553DF220921AF300050311 /* ResourceLocator.swift */,
+				B918A22D20935EE900E64FBE /* ErrorHandler.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -770,6 +781,7 @@
 				B9FDBF33206423460010BC33 /* Embed Frameworks */,
 				B9B80AB0206AAFC30057482B /* Copy CLI */,
 				B91834CF207CEB00008935B4 /* Copy ProjectDescription Framework */,
+				B918A22F209365E900E64FBE /* Upload symbols to sentry */,
 			);
 			buildRules = (
 			);
@@ -875,6 +887,20 @@
 			shellPath = /bin/sh;
 			shellScript = "${SRCROOT}/scripts/copy-framework.sh ProjectDescription.framework";
 		};
+		B918A22F209365E900E64FBE /* Upload symbols to sentry */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Upload symbols to sentry";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if which sentry-cli >/dev/null; then\nexport SENTRY_ORG=xcbuddy\nexport SENTRY_PROJECT=app\nERROR=$(bin/sentry-cli upload-dsym 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -890,6 +916,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B918A22E20935EE900E64FBE /* ErrorHandler.swift in Sources */,
 				B9B629AC20864E3A00EE9E07 /* FileHandler.swift in Sources */,
 				B9553DEA2090690000050311 /* Shell.swift in Sources */,
 				B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */,

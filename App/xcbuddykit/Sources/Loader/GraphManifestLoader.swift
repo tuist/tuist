@@ -61,7 +61,7 @@ class GraphManifestLoader: GraphManifestLoading {
             throw GraphManifestLoaderError.swiftNotFound
         }
         let swiftPath = AbsolutePath(swiftOutput)
-        let manifestFrameworkPath = try context.resourceLocator.projectDescription(context: context)
+        let manifestFrameworkPath = try context.resourceLocator.projectDescription()
         let jsonString: String! = try context.shell.run(swiftPath.asString, "-F", manifestFrameworkPath.parentDirectory.asString, "-framework", "ProjectDescription", path.asString, "--dump").chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
