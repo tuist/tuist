@@ -6,8 +6,10 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Bundle Dependencies
-          command: bundle install
+          name: Install Dependencies
+          command: |
+            brew install sqlite3
+            bundle install
       - run:
           name: Run tests
           command: bundle exec rake test
