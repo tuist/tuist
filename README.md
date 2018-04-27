@@ -17,7 +17,6 @@
 * ⚠️ Misconfiguration catching.
 * 📦 Precompiled binaries _(Frameworks & Libraries support)_.
 * 🎉 CocoaPods support.
-* 😍 Dynamic static and dynamic linking setup.
 * 💻 CLI and macOS application.
 * 🔄 Circular dependency detection.
 
