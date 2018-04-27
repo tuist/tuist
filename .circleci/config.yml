@@ -28,6 +28,9 @@ jobs:
           name: Run tests
           command: bundle exec rake test
       - run:
+          name: Danger
+          command: bundle exec danger
+      - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)
       - save_cache:
