@@ -22,10 +22,14 @@ jobs:
           name: Install Dependencies
           command: |
             bundle config build.sqlite3 --with-sqlite3-dir=/opt/local
+            brew install swiftlint
             bundle install --path vendor/bundle
       - run:
           name: Run tests
           command: bundle exec rake test
+      - run:
+          name: Danger
+          command: bundle exec danger
       - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)

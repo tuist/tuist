@@ -26,7 +26,9 @@ protocol Printing: AnyObject {
 
 /// Default printer that conforms the printing protocol.
 class Printer: Printing {
+    // swiftlint:disable force_cast
     let terminalController: TerminalController = TerminalController(stream: stdoutStream as! LocalFileOutputByteStream)!
+    // swiftlint:enable force_cast
 
     /// Prints a message on the console.
     ///

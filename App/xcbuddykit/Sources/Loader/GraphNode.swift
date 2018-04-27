@@ -138,7 +138,7 @@ class PrecompiledNode: GraphNode {
     /// - armv7: armv7 (OS device)
     /// - armv7s: armv7s (OS device)
     enum Architecture: String {
-        case x86_64
+        case x8664 = "x86_64"
         case i386
         case armv7
         case armv7s

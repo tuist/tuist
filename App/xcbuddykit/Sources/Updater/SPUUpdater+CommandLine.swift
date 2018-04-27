@@ -54,7 +54,9 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
         }
     }
 
-    func showInformationalUpdateFound(with appcastItem: SUAppcastItem, userInitiated _: Bool, reply: @escaping (SPUInformationalUpdateAlertChoice) -> Void) {
+    func showInformationalUpdateFound(with appcastItem: SUAppcastItem,
+                                      userInitiated _: Bool,
+                                      reply: @escaping (SPUInformationalUpdateAlertChoice) -> Void) {
         DispatchQueue.main.async {
             print("Found information for new update: %s", appcastItem.infoURL.absoluteString.utf8)
             reply(.dismissInformationalNoticeChoice)

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-fileprivate class Dummy {}
+private class Dummy {}
 
 enum BundleError: Error {
     case frameworkNotEmbedded(AbsolutePath)
