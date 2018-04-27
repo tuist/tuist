@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>RunAction Class Reference</title>
+    <title>ErrorHandler Class Reference</title>
     <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
     <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
     <meta charset="utf-8">
@@ -14,9 +14,9 @@
   </head>
   <body>
 
-    <a name="//apple_ref/swift/Class/RunAction" class="dashAnchor"></a>
+    <a name="//apple_ref/swift/Class/ErrorHandler" class="dashAnchor"></a>
 
-    <a title="RunAction Class Reference"></a>
+    <a title="ErrorHandler Class Reference"></a>
 
     <header class="header">
       <p class="header-col header-col--primary">
@@ -44,7 +44,7 @@
     <p class="breadcrumbs">
       <a class="breadcrumb" href="../index.html">xcbuddykit Reference</a>
       <img class="carat" src="../img/carat.png" />
-      RunAction Class Reference
+      ErrorHandler Class Reference
     </p>
 
     <div class="content-wrapper">
@@ -339,14 +339,14 @@
 
         <section class="section">
           <div class="section-content">
-            <h1>RunAction</h1>
+            <h1>ErrorHandler</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">RunAction</span><span class="p">:</span> <span class="kt">JSONMappable</span><span class="p">,</span> <span class="kt">Equatable</span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">final</span> <span class="kd">class</span> <span class="kt">ErrorHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/ErrorHandling.html">ErrorHandling</a></span></code></pre>
 
                 </div>
               </div>
-            <p>Run action</p>
+            <p>Error handler.</p>
 
           </div>
         </section>
@@ -358,9 +358,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit9RunActionC6configAA18BuildConfigurationOvp"></a>
-                    <a name="//apple_ref/swift/Property/config" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionC6configAA18BuildConfigurationOvp">config</a>
+                    <a name="/s:10xcbuddykit12ErrorHandlerC7printerAA8Printing_pvp"></a>
+                    <a name="//apple_ref/swift/Property/printer" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit12ErrorHandlerC7printerAA8Printing_pvp">printer</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -368,14 +368,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Build configuration to be run.</p>
+                        <p>Printer.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">config</span><span class="p">:</span> <span class="kt"><a href="../Enums/BuildConfiguration.html">BuildConfiguration</a></span></code></pre>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span></code></pre>
 
                         </div>
                       </div>
@@ -385,9 +385,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit9RunActionC10executableSSSgvp"></a>
-                    <a name="//apple_ref/swift/Property/executable" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionC10executableSSSgvp">executable</a>
+                    <a name="/s:10xcbuddykit12ErrorHandlerC6clientSo6ClientCSgvp"></a>
+                    <a name="//apple_ref/swift/Property/client" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit12ErrorHandlerC6clientSo6ClientCSgvp">client</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -395,14 +395,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Name of the executable.</p>
+                        <p>Sentry client.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">executable</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span></code></pre>
+                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">client</span><span class="p">:</span> <span class="kt">Client</span><span class="p">?</span></code></pre>
 
                         </div>
                       </div>
@@ -412,9 +412,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit9RunActionC9argumentsAA9ArgumentsCSgvp"></a>
-                    <a name="//apple_ref/swift/Property/arguments" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionC9argumentsAA9ArgumentsCSgvp">arguments</a>
+                    <a name="/s:10xcbuddykit12ErrorHandlerCAcA8Printing_p7printer_tcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(printer:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit12ErrorHandlerCAcA8Printing_p7printer_tcfc">init(printer:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -422,43 +422,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Run action arguments.</p>
+                        <p>Initializes the error handler with its attributes.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">arguments</span><span class="p">:</span> <span class="kt"><a href="../Classes/Arguments.html">Arguments</a></span><span class="p">?</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit9RunActionCAcA18BuildConfigurationO6config_SSSg10executableAA9ArgumentsCSg9argumentstcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(config:executable:arguments:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionCAcA18BuildConfigurationO6config_SSSg10executableAA9ArgumentsCSg9argumentstcfc">init(config:executable:arguments:)</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Initializes the run action with its attributes.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">config</span><span class="p">:</span> <span class="kt"><a href="../Enums/BuildConfiguration.html">BuildConfiguration</a></span><span class="p">,</span>
-     <span class="nv">executable</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">,</span>
-     <span class="nv">arguments</span><span class="p">:</span> <span class="kt"><a href="../Classes/Arguments.html">Arguments</a></span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">)</span></code></pre>
+                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Printer.html">Printer</a></span><span class="p">())</span></code></pre>
 
                         </div>
                       </div>
@@ -469,36 +440,12 @@
                             <tr>
                               <td>
                                 <code>
-                                <em>config</em>
+                                <em>printer</em>
                                 </code>
                               </td>
                               <td>
                                 <div>
-                                  <p>build configuration.</p>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>executable</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>executable.</p>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>arguments</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>launch arguments.</p>
+                                  <p>printer.</p>
                                 </div>
                               </td>
                             </tr>
@@ -511,9 +458,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit9RunActionCAC5Basic4JSONO4json_tKcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(json:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionCAC5Basic4JSONO4json_tKcfc">init(json:)</a>
+                    <a name="/s:10xcbuddykit12ErrorHandlerC5fatalyAA05FatalB0O5error_tF"></a>
+                    <a name="//apple_ref/swift/Method/fatal(error:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit12ErrorHandlerC5fatalyAA05FatalB0O5error_tF">fatal(error:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -521,19 +468,15 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Initializes the run action with its JSON representation.</p>
-<div class="aside aside-throws">
-    <p class="aside-title">Throws</p>
-    throws an error if it cannot be parsed.
-
-</div>
+                        <p>It should be called when a fatal error happens. Depending on the error it
+prints, and reports the error to Sentry.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">required</span> <span class="nf">init</span><span class="p">(</span><span class="nv">json</span><span class="p">:</span> <span class="kt">JSON</span><span class="p">)</span> <span class="k">throws</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">func</span> <span class="nf">fatal</span><span class="p">(</span><span class="nv">error</span><span class="p">:</span> <span class="kt"><a href="../Enums/FatalError.html">FatalError</a></span><span class="p">)</span></code></pre>
 
                         </div>
                       </div>
@@ -544,43 +487,17 @@
                             <tr>
                               <td>
                                 <code>
-                                <em>json</em>
+                                <em>error</em>
                                 </code>
                               </td>
                               <td>
                                 <div>
-                                  <p>JSON representation.</p>
+                                  <p>error.</p>
                                 </div>
                               </td>
                             </tr>
                           </tbody>
                         </table>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:s9EquatableP2eeoiSbx_xtFZ"></a>
-                    <a name="//apple_ref/swift/Method/==(_:_:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:s9EquatableP2eeoiSbx_xtFZ">==(_:_:)</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">static</span> <span class="kd">func</span> <span class="o">==</span> <span class="p">(</span><span class="nv">lhs</span><span class="p">:</span> <span class="kt">RunAction</span><span class="p">,</span> <span class="nv">rhs</span><span class="p">:</span> <span class="kt">RunAction</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Bool</span></code></pre>
-
-                        </div>
                       </div>
                     </section>
                   </div>

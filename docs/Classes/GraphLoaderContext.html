@@ -138,6 +138,9 @@
                 <a class="nav-group-task-link" href="../Classes/CopyBuildPhase.html#/s:10xcbuddykit14CopyBuildPhaseC11DestinationO">– Destination</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/ErrorHandler.html">ErrorHandler</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/FileHandler.html">FileHandler</a>
               </li>
               <li class="nav-group-task">
@@ -227,6 +230,9 @@
                 <a class="nav-group-task-link" href="../Enums/DumpCommandError.html">DumpCommandError</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FatalError.html">FatalError</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/GraphLoadingError.html">GraphLoadingError</a>
               </li>
               <li class="nav-group-task">
@@ -262,6 +268,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/Contexting.html">Contexting</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/ErrorHandling.html">ErrorHandling</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
@@ -430,9 +439,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shellAA8Printing_p7printertcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(manifestLoader:cache:fileHandler:circularDetector:shell:printer:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shellAA8Printing_p7printertcfc">init(manifestLoader:cache:fileHandler:circularDetector:shell:printer:)</a>
+                    <a name="/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shellAA8Printing_p7printerAA05ErrorK0_p05errorM0tcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(manifestLoader:cache:fileHandler:circularDetector:shell:printer:errorHandler:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit18GraphLoaderContextCAcA0B15ManifestLoading_p08manifestC0_AA0bC7Caching_p5cacheAA12FileHandling_p11fileHandlerAA0B17CircularDetecting_p16circularDetectorAA8Shelling_p5shellAA8Printing_p7printerAA05ErrorK0_p05errorM0tcfc">init(manifestLoader:cache:fileHandler:circularDetector:shell:printer:errorHandler:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -452,7 +461,8 @@
      <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/FileHandler.html">FileHandler</a></span><span class="p">(),</span>
      <span class="nv">circularDetector</span><span class="p">:</span> <span class="kt"><a href="../Protocols/GraphCircularDetecting.html">GraphCircularDetecting</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/GraphCircularDetector.html">GraphCircularDetector</a></span><span class="p">(),</span>
      <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Shell.html">Shell</a></span><span class="p">(),</span>
-     <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Printer.html">Printer</a></span><span class="p">())</span></code></pre>
+     <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Printer.html">Printer</a></span><span class="p">(),</span>
+     <span class="nv">errorHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/ErrorHandling.html">ErrorHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/ErrorHandler.html">ErrorHandler</a></span><span class="p">())</span></code></pre>
 
                         </div>
                       </div>
@@ -529,6 +539,18 @@
                               <td>
                                 <div>
                                   <p>printer.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>errorHandler</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>error handler.</p>
                                 </div>
                               </td>
                             </tr>

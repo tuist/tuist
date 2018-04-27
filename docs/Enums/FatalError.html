@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>RunAction Class Reference</title>
+    <title>FatalError Enumeration Reference</title>
     <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
     <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
     <meta charset="utf-8">
@@ -14,9 +14,9 @@
   </head>
   <body>
 
-    <a name="//apple_ref/swift/Class/RunAction" class="dashAnchor"></a>
+    <a name="//apple_ref/swift/Enum/FatalError" class="dashAnchor"></a>
 
-    <a title="RunAction Class Reference"></a>
+    <a title="FatalError Enumeration Reference"></a>
 
     <header class="header">
       <p class="header-col header-col--primary">
@@ -44,7 +44,7 @@
     <p class="breadcrumbs">
       <a class="breadcrumb" href="../index.html">xcbuddykit Reference</a>
       <img class="carat" src="../img/carat.png" />
-      RunAction Class Reference
+      FatalError Enumeration Reference
     </p>
 
     <div class="content-wrapper">
@@ -339,14 +339,22 @@
 
         <section class="section">
           <div class="section-content">
-            <h1>RunAction</h1>
+            <h1>FatalError</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">class</span> <span class="kt">RunAction</span><span class="p">:</span> <span class="kt">JSONMappable</span><span class="p">,</span> <span class="kt">Equatable</span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">enum</span> <span class="kt">FatalError</span><span class="p">:</span> <span class="kt">Error</span></code></pre>
 
                 </div>
               </div>
-            <p>Run action</p>
+            <p>Fatal errors that can be thrown at any point of the execution.</p>
+<li>abort: used when something unexpected happens and the user should be alerted.</li>
+<div class="aside aside-bug">
+    <p class="aside-title">Bug</p>
+    like abort, but it also reports the event to Sentry.
+
+</div>
+<li>abortSilent: like abort, but it doesn&rsquo;t print anything in the console.</li>
+<li>bugSilent: like bug, but it doesn&rsquo;t print anything in the console.</li>
 
           </div>
         </section>
@@ -358,9 +366,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit9RunActionC6configAA18BuildConfigurationOvp"></a>
-                    <a name="//apple_ref/swift/Property/config" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionC6configAA18BuildConfigurationOvp">config</a>
+                    <a name="/s:10xcbuddykit10FatalErrorO11descriptionSSSgvp"></a>
+                    <a name="//apple_ref/swift/Property/description" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit10FatalErrorO11descriptionSSSgvp">description</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -368,14 +376,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Build configuration to be run.</p>
+                        <p>Returns the error description</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">config</span><span class="p">:</span> <span class="kt"><a href="../Enums/BuildConfiguration.html">BuildConfiguration</a></span></code></pre>
+                          <pre class="highlight swift"><code><span class="k">var</span> <span class="nv">description</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span></code></pre>
 
                         </div>
                       </div>
@@ -385,9 +393,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit9RunActionC10executableSSSgvp"></a>
-                    <a name="//apple_ref/swift/Property/executable" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionC10executableSSSgvp">executable</a>
+                    <a name="/s:10xcbuddykit10FatalErrorO3bugs0C0_pSgvp"></a>
+                    <a name="//apple_ref/swift/Property/bug" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit10FatalErrorO3bugs0C0_pSgvp">bug</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -395,190 +403,14 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Name of the executable.</p>
+                        <p>Returns a bug to be reported.</p>
 
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">executable</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit9RunActionC9argumentsAA9ArgumentsCSgvp"></a>
-                    <a name="//apple_ref/swift/Property/arguments" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionC9argumentsAA9ArgumentsCSgvp">arguments</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Run action arguments.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="k">let</span> <span class="nv">arguments</span><span class="p">:</span> <span class="kt"><a href="../Classes/Arguments.html">Arguments</a></span><span class="p">?</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit9RunActionCAcA18BuildConfigurationO6config_SSSg10executableAA9ArgumentsCSg9argumentstcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(config:executable:arguments:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionCAcA18BuildConfigurationO6config_SSSg10executableAA9ArgumentsCSg9argumentstcfc">init(config:executable:arguments:)</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Initializes the run action with its attributes.</p>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">config</span><span class="p">:</span> <span class="kt"><a href="../Enums/BuildConfiguration.html">BuildConfiguration</a></span><span class="p">,</span>
-     <span class="nv">executable</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">,</span>
-     <span class="nv">arguments</span><span class="p">:</span> <span class="kt"><a href="../Classes/Arguments.html">Arguments</a></span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">)</span></code></pre>
-
-                        </div>
-                      </div>
-                      <div>
-                        <h4>Parameters</h4>
-                        <table class="graybox">
-                          <tbody>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>config</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>build configuration.</p>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>executable</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>executable.</p>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>arguments</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>launch arguments.</p>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit9RunActionCAC5Basic4JSONO4json_tKcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(json:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit9RunActionCAC5Basic4JSONO4json_tKcfc">init(json:)</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Initializes the run action with its JSON representation.</p>
-<div class="aside aside-throws">
-    <p class="aside-title">Throws</p>
-    throws an error if it cannot be parsed.
-
-</div>
-
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">required</span> <span class="nf">init</span><span class="p">(</span><span class="nv">json</span><span class="p">:</span> <span class="kt">JSON</span><span class="p">)</span> <span class="k">throws</span></code></pre>
-
-                        </div>
-                      </div>
-                      <div>
-                        <h4>Parameters</h4>
-                        <table class="graybox">
-                          <tbody>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>json</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>JSON representation.</p>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:s9EquatableP2eeoiSbx_xtFZ"></a>
-                    <a name="//apple_ref/swift/Method/==(_:_:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:s9EquatableP2eeoiSbx_xtFZ">==(_:_:)</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">static</span> <span class="kd">func</span> <span class="o">==</span> <span class="p">(</span><span class="nv">lhs</span><span class="p">:</span> <span class="kt">RunAction</span><span class="p">,</span> <span class="nv">rhs</span><span class="p">:</span> <span class="kt">RunAction</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Bool</span></code></pre>
+                          <pre class="highlight swift"><code><span class="k">var</span> <span class="nv">bug</span><span class="p">:</span> <span class="kt">Error</span><span class="p">?</span></code></pre>
 
                         </div>
                       </div>

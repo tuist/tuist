@@ -450,91 +450,105 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 19,
+      "line": 21,
       "symbol": "Product.app",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 20,
-      "symbol": "Product.module",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 21,
-      "symbol": "Product.unitTests",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 22,
-      "symbol": "Product.uiTests",
+      "symbol": "Product.staticLibrary",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 23,
-      "symbol": "Product.appExtension",
+      "symbol": "Product.dynamicLibrary",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 24,
-      "symbol": "Product.watchApp",
+      "symbol": "Product.framework",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 25,
-      "symbol": "Product.watch2App",
+      "symbol": "Product.unitTests",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 26,
-      "symbol": "Product.watchExtension",
+      "symbol": "Product.uiTests",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 27,
-      "symbol": "Product.watch2Extension",
+      "symbol": "Product.appExtension",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 28,
-      "symbol": "Product.tvExtension",
+      "symbol": "Product.watchApp",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 29,
-      "symbol": "Product.messagesApplication",
+      "symbol": "Product.watch2App",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 30,
-      "symbol": "Product.messagesExtension",
+      "symbol": "Product.watchExtension",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
       "line": 31,
+      "symbol": "Product.watch2Extension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
+      "line": 32,
+      "symbol": "Product.tvExtension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
+      "line": 33,
+      "symbol": "Product.messagesApplication",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
+      "line": 34,
+      "symbol": "Product.messagesExtension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
+      "line": 35,
       "symbol": "Product.stickerPack",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
@@ -579,6 +593,34 @@
       "line": 6,
       "symbol": "BundleError",
       "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/ErrorHandler.swift",
+      "line": 20,
+      "symbol": "FatalError.abort",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/ErrorHandler.swift",
+      "line": 21,
+      "symbol": "FatalError.bug",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/ErrorHandler.swift",
+      "line": 22,
+      "symbol": "FatalError.abortSilent",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/ErrorHandler.swift",
+      "line": 23,
+      "symbol": "FatalError.bugSilent",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
