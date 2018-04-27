@@ -12,7 +12,7 @@ final class PrecompiledNodeTests: XCTestCase {
     }
 
     func test_architecture_rawValues() {
-        XCTAssertEqual(PrecompiledNode.Architecture.x86_64.rawValue, "x86_64")
+        XCTAssertEqual(PrecompiledNode.Architecture.x8664.rawValue, "x86_64")
         XCTAssertEqual(PrecompiledNode.Architecture.i386.rawValue, "i386")
         XCTAssertEqual(PrecompiledNode.Architecture.armv7.rawValue, "armv7")
         XCTAssertEqual(PrecompiledNode.Architecture.armv7s.rawValue, "armv7s")
@@ -42,7 +42,7 @@ final class FrameworkNodeTests: XCTestCase {
             }
             return ""
         }
-        try XCTAssertEqual(subject.architectures(shell: shell).first, .x86_64)
+        try XCTAssertEqual(subject.architectures(shell: shell).first, .x8664)
     }
 
     func test_linking() {
@@ -79,7 +79,7 @@ final class LibraryNodeTests: XCTestCase {
             }
             return ""
         }
-        try XCTAssertEqual(subject.architectures(shell: shell).first, .x86_64)
+        try XCTAssertEqual(subject.architectures(shell: shell).first, .x8664)
     }
 
     func test_linking() {
