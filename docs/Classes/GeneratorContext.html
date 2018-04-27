@@ -138,6 +138,9 @@
                 <a class="nav-group-task-link" href="../Classes/CopyBuildPhase.html#/s:10xcbuddykit14CopyBuildPhaseC11DestinationO">– Destination</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/ErrorHandler.html">ErrorHandler</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Classes/FileHandler.html">FileHandler</a>
               </li>
               <li class="nav-group-task">
@@ -227,6 +230,9 @@
                 <a class="nav-group-task-link" href="../Enums/DumpCommandError.html">DumpCommandError</a>
               </li>
               <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FatalError.html">FatalError</a>
+              </li>
+              <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Enums/GraphLoadingError.html">GraphLoadingError</a>
               </li>
               <li class="nav-group-task">
@@ -262,6 +268,9 @@
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/Contexting.html">Contexting</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/ErrorHandling.html">ErrorHandling</a>
               </li>
               <li class="nav-group-task">
                 <a class="nav-group-task-link" href="../Protocols/FileHandling.html">FileHandling</a>
@@ -376,9 +385,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printerAA12FileHandling_p11fileHandlerAA8Shelling_p5shelltcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(graph:printer:fileHandler:shell:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printerAA12FileHandling_p11fileHandlerAA8Shelling_p5shelltcfc">init(graph:printer:fileHandler:shell:)</a>
+                    <a name="/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printerAA12FileHandling_p11fileHandlerAA8Shelling_p5shellAA05ErrorI0_p05errorK0tcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(graph:printer:fileHandler:shell:errorHandler:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit16GeneratorContextCAcA8Graphing_p5graph_AA8Printing_p7printerAA12FileHandling_p11fileHandlerAA8Shelling_p5shellAA05ErrorI0_p05errorK0tcfc">init(graph:printer:fileHandler:shell:errorHandler:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -396,7 +405,8 @@
                           <pre class="highlight swift"><code><span class="nf">init</span><span class="p">(</span><span class="nv">graph</span><span class="p">:</span> <span class="kt"><a href="../Other Protocols.html#/s:10xcbuddykit8GraphingP">Graphing</a></span><span class="p">,</span>
      <span class="nv">printer</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Printing.html">Printing</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Printer.html">Printer</a></span><span class="p">(),</span>
      <span class="nv">fileHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FileHandling.html">FileHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/FileHandler.html">FileHandler</a></span><span class="p">(),</span>
-     <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Shell.html">Shell</a></span><span class="p">())</span></code></pre>
+     <span class="nv">shell</span><span class="p">:</span> <span class="kt"><a href="../Protocols/Shelling.html">Shelling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/Shell.html">Shell</a></span><span class="p">(),</span>
+     <span class="nv">errorHandler</span><span class="p">:</span> <span class="kt"><a href="../Protocols/ErrorHandling.html">ErrorHandling</a></span> <span class="o">=</span> <span class="kt"><a href="../Classes/ErrorHandler.html">ErrorHandler</a></span><span class="p">())</span></code></pre>
 
                         </div>
                       </div>
@@ -449,6 +459,18 @@
                               <td>
                                 <div>
                                   <p>shell.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>errorHandler</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>error handler.</p>
                                 </div>
                               </td>
                             </tr>

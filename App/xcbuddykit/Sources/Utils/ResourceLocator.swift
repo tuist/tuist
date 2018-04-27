@@ -8,14 +8,14 @@ protocol ResourceLocating: AnyObject {
     /// - Parameter context: context.
     /// - Returns: ProjectDescription.framework path.
     /// - Throws: an error if the framework cannot be found.
-    func projectDescription(context: Contexting) throws -> AbsolutePath
+    func projectDescription() throws -> AbsolutePath
 
     /// Returns the CLI path.
     ///
     /// - Parameter context: context.
     /// - Returns: path to the xcbuddy CLI.
     /// - Throws: an error if the CLI cannot be found.
-    func cliPath(context: Contexting) throws -> AbsolutePath
+    func cliPath() throws -> AbsolutePath
 }
 
 /// Resource locating error.
@@ -40,18 +40,27 @@ enum ResourceLocatingError: Error, CustomStringConvertible, Equatable {
 
 /// Resource locator.
 final class ResourceLocator: ResourceLocating {
+    /// File handler.
+    private let fileHandler: FileHandling
+
+    /// Initializes the locator with its attributes.
+    ///
+    /// - Parameter fileHandler: file handler.
+    init(fileHandler: FileHandling = FileHandler()) {
+        self.fileHandler = fileHandler
+    }
+
     /// Returns the ProjectDescription.framework path.
     ///
-    /// - Parameter context: context.
     /// - Returns: ProjectDescription.framework path.
     /// - Throws: an error if the framework cannot be found.
-    func projectDescription(context: Contexting) throws -> AbsolutePath {
+    func projectDescription() throws -> AbsolutePath {
         let frameworkName = "ProjectDescription.framework"
         let xcbuddyKitPath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
         let parentPath = xcbuddyKitPath.parentDirectory
         let pathInProducts = parentPath.appending(component: frameworkName)
         // Built products directory
-        if context.fileHandler.exists(pathInProducts) {
+        if fileHandler.exists(pathInProducts) {
             return pathInProducts
         }
         // Frameworks directory inside the app bundle.
@@ -63,7 +72,7 @@ final class ResourceLocator: ResourceLocating {
             throw ResourceLocatingError.notFound(frameworkName)
         }
         let frameworkPath = AbsolutePath(frameworksPath).appending(component: frameworkName)
-        if !context.fileHandler.exists(frameworkPath) {
+        if !fileHandler.exists(frameworkPath) {
             throw ResourceLocatingError.notFound(frameworkName)
         }
         return frameworkPath
@@ -71,16 +80,15 @@ final class ResourceLocator: ResourceLocating {
 
     /// Returns the CLI path.
     ///
-    /// - Parameter context: context.
     /// - Returns: path to the xcbuddy CLI.
     /// - Throws: an error if the CLI cannot be found.
-    func cliPath(context: Contexting) throws -> AbsolutePath {
+    func cliPath() throws -> AbsolutePath {
         let toolName = "xcbuddy"
         let xcbuddyKitPath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
         let parentPath = xcbuddyKitPath.parentDirectory
         let pathInProducts = parentPath.appending(component: toolName)
         // Built products directory
-        if context.fileHandler.exists(pathInProducts) {
+        if fileHandler.exists(pathInProducts) {
             return pathInProducts
         }
         // Frameworks directory inside the app bundle.
@@ -92,7 +100,7 @@ final class ResourceLocator: ResourceLocating {
             throw ResourceLocatingError.notFound(toolName)
         }
         let toolPath = AbsolutePath(frameworksPath).appending(component: toolName)
-        if !context.fileHandler.exists(toolPath) {
+        if !fileHandler.exists(toolPath) {
             throw ResourceLocatingError.notFound(toolName)
         }
         return toolPath

@@ -13,6 +13,9 @@ protocol Contexting: AnyObject {
 
     /// Resource locator.
     var resourceLocator: ResourceLocating { get }
+
+    /// Error handler.
+    var errorHandler: ErrorHandling { get }
 }
 
 /// xcbuddy uses contexts as a dependency injection mechanism.
@@ -30,6 +33,9 @@ class Context: Contexting {
     /// Resource locator.
     let resourceLocator: ResourceLocating
 
+    /// Error handler.
+    let errorHandler: ErrorHandling
+
     /// Initializes the context with its attributess.
     ///
     /// - Parameters:
@@ -40,10 +46,12 @@ class Context: Contexting {
     init(fileHandler: FileHandling = FileHandler(),
          shell: Shelling = Shell(),
          printer: Printing = Printer(),
-         resourceLocator: ResourceLocating = ResourceLocator()) {
+         resourceLocator: ResourceLocating = ResourceLocator(),
+         errorHandler: ErrorHandling = ErrorHandler()) {
         self.fileHandler = fileHandler
         self.shell = shell
         self.printer = printer
         self.resourceLocator = resourceLocator
+        self.errorHandler = errorHandler
     }
 }

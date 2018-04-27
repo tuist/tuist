@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+/* eslint-disable no-console */
+
+'use strict';
+
+const cli = require('../js');
+const child = require('child_process').spawn(cli.getPath(), process.argv.slice(2), {
+  stdio: 'inherit',
+});
+
+child.on('error', err => {
+  console.error('error: failed to invoke sentry-cli');
+  console.error(err.stack);
+});
+
+child.on('exit', code => {
+  process.exit(code);
+});
+
+process.on('SIGTERM', () => {
+  child.kill('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  child.kill('SIGINT');
+});

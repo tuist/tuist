@@ -33,16 +33,18 @@ class GraphLoaderContext: Context, GraphLoaderContexting {
     ///   - circularDetector: Circular dependency detector.
     ///   - shell: shell.
     ///   - printer: printer.
+    ///   - errorHandler: error handler.
     init(manifestLoader: GraphManifestLoading = GraphManifestLoader(),
          cache: GraphLoaderCaching = GraphLoaderCache(),
          fileHandler: FileHandling = FileHandler(),
          circularDetector: GraphCircularDetecting = GraphCircularDetector(),
          shell: Shelling = Shell(),
-         printer: Printing = Printer()) {
+         printer: Printing = Printer(),
+         errorHandler: ErrorHandling = ErrorHandler()) {
         self.manifestLoader = manifestLoader
         self.cache = cache
         self.circularDetector = circularDetector
-        super.init(fileHandler: fileHandler, shell: shell, printer: printer)
+        super.init(fileHandler: fileHandler, shell: shell, printer: printer, errorHandler: errorHandler)
     }
 
     /// Initializes the graph loader context with a context and the extra attributes that the graph loader context has.
@@ -59,6 +61,6 @@ class GraphLoaderContext: Context, GraphLoaderContexting {
         self.manifestLoader = manifestLoader
         self.cache = cache
         self.circularDetector = circularDetector
-        super.init(fileHandler: context.fileHandler, shell: context.shell, printer: context.printer)
+        super.init(fileHandler: context.fileHandler, shell: context.shell, printer: context.printer, errorHandler: context.errorHandler)
     }
 }
