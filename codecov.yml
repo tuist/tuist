@@ -1,0 +1,4 @@
+ignore:
+  - Sources
+  - Tests
+  - App/Tests
