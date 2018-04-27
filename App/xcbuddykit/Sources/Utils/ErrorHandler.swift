@@ -56,7 +56,7 @@ final class ErrorHandler: ErrorHandling {
     ///
     /// - Parameter printer: printer.
     init(printer: Printing = Printer()) {
-        if let sentryDsn = Bundle(for: ErrorHandler.self).infoDictionary?["SENTRY_DSN"] as? String {
+        if let sentryDsn = Bundle(for: ErrorHandler.self).infoDictionary?["SENTRY_DSN"] as? String, !sentryDsn.isEmpty {
             client = try! Client(dsn: sentryDsn)
             try! client?.startCrashHandler()
         } else {
