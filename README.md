@@ -7,6 +7,8 @@
 [![The MIT License](https://img.shields.io/badge/license-MIT-orange.svg?style=flat-square)](http://opensource.org/licenses/MIT)
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
 [![Join the community on Spectrum](https://withspectrum.github.io/badge/badge.svg)](https://spectrum.chat/xcbuddy)
+[![CircleCI](https://circleci.com/gh/xcbuddy/xcbuddy.svg?style=svg)](https://circleci.com/gh/xcbuddy/xcbuddy)
+[![codecov](https://codecov.io/gh/xcbuddy/xcbuddy/branch/master/graph/badge.svg)](https://codecov.io/gh/xcbuddy/xcbuddy)
 
 ## Features
 
@@ -27,9 +29,6 @@ Just run this command on your terminal:
 ```
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/xcbuddy/xcbuddy/master/scripts/install)"
 ```
-
-[![CircleCI](https://circleci.com/gh/xcbuddy/xcbuddy.svg?style=svg)](https://circleci.com/gh/xcbuddy/xcbuddy)
-[![codecov](https://codecov.io/gh/xcbuddy/xcbuddy/branch/master/graph/badge.svg)](https://codecov.io/gh/xcbuddy/xcbuddy)
 
 ## Setup for development
 
