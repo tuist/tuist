@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.33.0
+
+**Release Date:** 27/04/2018
+
 ### Added
 
 * Documentation generation https://github.com/xcbuddy/xcbuddy/pull/11 by @pepibumur.
