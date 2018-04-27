@@ -23,7 +23,6 @@
 		B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB72062B8A7009BF596 /* Assets.xcassets */; };
 		B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB82062B8A7009BF596 /* MainMenu.xib */; };
 		B94C7FC62062B8A8009BF596 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FC02062B8A8009BF596 /* AppDelegate.swift */; };
-		B94C7FC72062B8B2009BF596 /* xcbuddyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C7FBB2062B8A7009BF596 /* xcbuddyTests.swift */; };
 		B9553DEA2090690000050311 /* Shell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DE92090690000050311 /* Shell.swift */; };
 		B9553DEC2090F62C00050311 /* GraphNodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DEB2090F62C00050311 /* GraphNodeTests.swift */; };
 		B9553DEF2090F6EC00050311 /* MockShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9553DED2090F6AE00050311 /* MockShell.swift */; };
@@ -1056,7 +1055,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B94C7FC72062B8B2009BF596 /* xcbuddyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

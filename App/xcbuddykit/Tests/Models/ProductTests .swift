@@ -5,7 +5,9 @@ import XCTest
 final class ProductTests: XCTestCase {
     func test_xcodeValue() {
         XCTAssertEqual(Product.app.xcodeValue, "com.apple.product-type.application")
-        XCTAssertEqual(Product.module.xcodeValue, "io.xcbuddy.product-type.module")
+        XCTAssertEqual(Product.staticLibrary.xcodeValue, "com.apple.product-type.library.static")
+        XCTAssertEqual(Product.dynamicLibrary.xcodeValue, "com.apple.product-type.library.dynamic")
+        XCTAssertEqual(Product.framework.xcodeValue, "com.apple.product-type.framework")
         XCTAssertEqual(Product.unitTests.xcodeValue, "com.apple.product-type.bundle.unit-test")
         XCTAssertEqual(Product.uiTests.xcodeValue, "com.apple.product-type.bundle.ui-testing")
         XCTAssertEqual(Product.appExtension.xcodeValue, "com.apple.product-type.app-extension")

@@ -28,6 +28,8 @@ Just run this command on your terminal:
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/xcbuddy/xcbuddy/master/scripts/install)"
 ```
 
+[![CircleCI](https://circleci.com/gh/xcbuddy/xcbuddy.svg?style=svg)](https://circleci.com/gh/xcbuddy/xcbuddy)
+
 ## Setup for development
 
 1.  Git clone: `git@github.com:xcbuddy/xcbuddy.git`
