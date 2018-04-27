@@ -23,6 +23,9 @@ jobs:
       - run:
           name: Run tests
           command: bundle exec rake test
+      - run:
+          name: Send test coverage report
+          command: bash <(curl -s https://codecov.io/bash)
       - save_cache:
           key: gem-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
           paths:

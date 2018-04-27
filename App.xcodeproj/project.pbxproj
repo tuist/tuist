@@ -144,13 +144,6 @@
 			remoteGlobalIDString = B915ED192063AFBC004B6630;
 			remoteInfo = xcbuddykit;
 		};
-		B94C7FA82062B82A009BF596 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = B94C7F962062B829009BF596;
-			remoteInfo = xcbuddy;
-		};
 		B9B80AB2206AB4630057482B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
@@ -241,10 +234,8 @@
 		B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFileHandler.swift; sourceTree = "<group>"; };
 		B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+TestData.swift"; sourceTree = "<group>"; };
 		B94C7F972062B829009BF596 /* xcbuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xcbuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B94C7FA72062B82A009BF596 /* xcbuddyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xcbuddyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B94C7FB72062B8A7009BF596 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B94C7FB92062B8A7009BF596 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
-		B94C7FBB2062B8A7009BF596 /* xcbuddyTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = xcbuddyTests.swift; sourceTree = "<group>"; };
 		B94C7FBD2062B8A8009BF596 /* xcbuddy.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = xcbuddy.entitlements; path = App/xcbuddy.entitlements; sourceTree = "<group>"; };
 		B94C7FBE2062B8A8009BF596 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = App/Info.plist; sourceTree = "<group>"; };
 		B94C7FC02062B8A8009BF596 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -371,13 +362,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B915ED2F2063AFBD004B6630 /* xcbuddykit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B94C7FA42062B82A009BF596 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -516,7 +500,6 @@
 				B915EC392062EC97004B6630 /* Frameworks */,
 				B94C7FB62062B8A7009BF596 /* Resources */,
 				B94C7FBF2062B8A8009BF596 /* Sources */,
-				B94C7FBA2062B8A7009BF596 /* Tests */,
 				B94C7F982062B829009BF596 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -525,7 +508,6 @@
 			isa = PBXGroup;
 			children = (
 				B94C7F972062B829009BF596 /* xcbuddy.app */,
-				B94C7FA72062B82A009BF596 /* xcbuddyTests.xctest */,
 				B915ECF6206395DA004B6630 /* xcbuddy */,
 				B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */,
 				B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */,
@@ -541,15 +523,6 @@
 			);
 			name = Resources;
 			path = App/Resources;
-			sourceTree = "<group>";
-		};
-		B94C7FBA2062B8A7009BF596 /* Tests */ = {
-			isa = PBXGroup;
-			children = (
-				B94C7FBB2062B8A7009BF596 /* xcbuddyTests.swift */,
-			);
-			name = Tests;
-			path = App/Tests;
 			sourceTree = "<group>";
 		};
 		B94C7FBF2062B8A8009BF596 /* Sources */ = {
@@ -809,24 +782,6 @@
 			productReference = B94C7F972062B829009BF596 /* xcbuddy.app */;
 			productType = "com.apple.product-type.application";
 		};
-		B94C7FA62062B82A009BF596 /* xcbuddyTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = B94C7FB32062B82A009BF596 /* Build configuration list for PBXNativeTarget "xcbuddyTests" */;
-			buildPhases = (
-				B94C7FA32062B82A009BF596 /* Sources */,
-				B94C7FA42062B82A009BF596 /* Frameworks */,
-				B94C7FA52062B82A009BF596 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				B94C7FA92062B82A009BF596 /* PBXTargetDependency */,
-			);
-			name = xcbuddyTests;
-			productName = xcbuddyTests;
-			productReference = B94C7FA72062B82A009BF596 /* xcbuddyTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -860,11 +815,6 @@
 							};
 						};
 					};
-					B94C7FA62062B82A009BF596 = {
-						CreatedOnToolsVersion = 9.2;
-						ProvisioningStyle = Automatic;
-						TestTargetID = B94C7F962062B829009BF596;
-					};
 				};
 			};
 			buildConfigurationList = B94C7F922062B829009BF596 /* Build configuration list for PBXProject "App" */;
@@ -881,7 +831,6 @@
 			projectRoot = "";
 			targets = (
 				B94C7F962062B829009BF596 /* xcbuddy */,
-				B94C7FA62062B82A009BF596 /* xcbuddyTests */,
 				B915ECF5206395DA004B6630 /* xcbuddy */,
 				B915ED192063AFBC004B6630 /* xcbuddykit */,
 				B915ED212063AFBC004B6630 /* xcbuddykitTests */,
@@ -904,13 +853,6 @@
 				B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */,
 				B9013DD8206FF40B007B1A34 /* dsa_pub.pem in Resources */,
 				B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B94C7FA52062B82A009BF596 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1051,13 +993,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		B94C7FA32062B82A009BF596 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1070,11 +1005,6 @@
 			isa = PBXTargetDependency;
 			target = B915ED192063AFBC004B6630 /* xcbuddykit */;
 			targetProxy = B915ED2D2063AFBD004B6630 /* PBXContainerItemProxy */;
-		};
-		B94C7FA92062B82A009BF596 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = B94C7F962062B829009BF596 /* xcbuddy */;
-			targetProxy = B94C7FA82062B82A009BF596 /* PBXContainerItemProxy */;
 		};
 		B9B80AB3206AB4630057482B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1381,36 +1311,6 @@
 			};
 			name = Release;
 		};
-		B94C7FB42062B82A009BF596 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = App/Tests.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddyTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 4.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/xcbuddy.app/Contents/MacOS/xcbuddy";
-			};
-			name = Debug;
-		};
-		B94C7FB52062B82A009BF596 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = App/Tests.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddyTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 4.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/xcbuddy.app/Contents/MacOS/xcbuddy";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1455,15 +1355,6 @@
 			buildConfigurations = (
 				B94C7FB12062B82A009BF596 /* Debug */,
 				B94C7FB22062B82A009BF596 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B94C7FB32062B82A009BF596 /* Build configuration list for PBXNativeTarget "xcbuddyTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B94C7FB42062B82A009BF596 /* Debug */,
-				B94C7FB52062B82A009BF596 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
