@@ -10,8 +10,11 @@ Although you can use Swift built-in error handling mechanism with `do/try`, erro
 ```swift
 protocol ErrorHandling: AnyObject {
     func fatal(error: FatalError)
+    func try(_ closure: () throws -> Void)
 }
 ```
+
+## Fatal error
 
 A `FatalError` is an enum with the following cases:
 

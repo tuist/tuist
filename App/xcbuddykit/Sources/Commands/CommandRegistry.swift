@@ -79,6 +79,6 @@ public final class CommandRegistry {
             parser.printUsage(on: stdoutStream)
             return
         }
-        try command.run(with: arguments)
+        command.run(with: arguments)
     }
 }

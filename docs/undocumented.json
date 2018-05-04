@@ -65,8 +65,8 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/UpdateCommand.swift",
-      "line": 30,
-      "symbol": "UpdateCommand.init(controller:)",
+      "line": 36,
+      "symbol": "UpdateCommand.init(controller:context:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
@@ -597,9 +597,9 @@
     },
     {
       "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Protocols/XcodeRepresentable.swift",
-      "line": 3,
-      "symbol": "XcodeRepresentable",
-      "symbol_kind": "source.lang.swift.decl.protocol",
+      "line": 5,
+      "symbol": "XcodeRepresentable.Value",
+      "symbol_kind": "source.lang.swift.decl.associatedtype",
       "warning": "undocumented"
     },
     {

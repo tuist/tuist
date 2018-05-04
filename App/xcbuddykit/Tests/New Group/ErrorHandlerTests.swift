@@ -46,12 +46,6 @@ final class ErrorHandlerTests: XCTestCase {
         XCTAssertEqual(printer.printErrorMessageArgs.first, error.description)
     }
 
-    func test_fatalError_doesntPrint_whenSilentError() {
-        let error = NSError(domain: "domain", code: 20, userInfo: nil)
-        subject.fatal(error: .abortSilent(error))
-        XCTAssertEqual(printer.printErrorMessageArgs.count, 0)
-    }
-
     func test_fatalError_exitsWith1() {
         let error = NSError(domain: "domain", code: 20, userInfo: nil)
         subject.fatal(error: .abort(error))
@@ -74,7 +68,7 @@ final class ErrorHandlerTests: XCTestCase {
         let error = NSError(domain: "domain", code: 20, userInfo: nil)
         subject.fatal(error: .abortSilent(error))
         let expected = """
-        An unexpected error happened. We've open an issue to fix it as soon as possible.
+        An unexpected error happened. We've opened an issue to fix it as soon as possible.
         We are sorry for any inconviniences it might have caused.
         """
         XCTAssertEqual(printer.printErrorMessageArgs.first, expected)

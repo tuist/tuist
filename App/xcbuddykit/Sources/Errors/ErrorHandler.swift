@@ -16,6 +16,11 @@ protocol ErrorHandling: AnyObject {
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError)
+
+    /// Runs the given closure reporting thrown errors as FatalError.abort
+    ///
+    /// - Parameter closure: closure to be executed.
+    func `try`(_ closure: () throws -> Void)
 }
 
 /// Error handler.
@@ -59,6 +64,17 @@ final class ErrorHandler: ErrorHandling {
         self.exiter = exiter
     }
 
+    /// Runs the given closure reporting thrown errors as FatalError.abort
+    ///
+    /// - Parameter closure: closure to be executed.
+    func `try`(_ closure: () throws -> Void) {
+        do {
+            try closure()
+        } catch {
+            fatal(error: .abort(error as Error & CustomStringConvertible))
+        }
+    }
+
     /// It should be called when a fatal error happens. Depending on the error it
     /// prints, and reports the error to Sentry.
     ///
@@ -68,7 +84,7 @@ final class ErrorHandler: ErrorHandling {
             printer.print(errorMessage: description)
         } else {
             let message = """
-            An unexpected error happened. We've open an issue to fix it as soon as possible.
+            An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconviniences it might have caused.
             """
             printer.print(errorMessage: message)
@@ -80,7 +96,7 @@ final class ErrorHandler: ErrorHandling {
             client?.send(event: event) { _ in
                 semaphore.signal()
             }
-            semaphore.wait()
+            _ = semaphore.wait(timeout: DispatchTime.now() + 2.0)
         }
         exiter(1)
     }

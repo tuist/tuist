@@ -13,21 +13,29 @@ public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
     /// Command description.
     public let overview = "Updates the app."
 
+    /// Context.
+    fileprivate let context: CommandsContexting
+
     /// Controller used to update the app.
     fileprivate let controller: UpdateControlling
 
     public required init(parser: ArgumentParser) {
         parser.add(subparser: command, overview: overview)
         controller = UpdateController()
+        context = CommandsContext()
     }
 
-    public func run(with _: ArgumentParser.Result) throws {
-        try controller.checkAndUpdateFromConsole()
+    public func run(with _: ArgumentParser.Result) {
+        context.errorHandler.try {
+            try controller.checkAndUpdateFromConsole()
+        }
     }
 
     // MARK: - Init
 
-    init(controller: UpdateControlling) {
+    init(controller: UpdateControlling,
+         context: CommandsContexting) {
         self.controller = controller
+        self.context = context
     }
 }

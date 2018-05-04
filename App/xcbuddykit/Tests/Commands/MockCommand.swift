@@ -6,7 +6,7 @@ final class MockCommand: Command {
     var command: String = "command"
     var overview: String = "overview"
     var runArgs: [ArgumentParser.Result] = []
-    var runStub: (() throws -> Void)?
+    var runStub: (() -> Void)?
     init(parser: ArgumentParser = ArgumentParser(usage: "usage", overview: "overview")) {
         parser.add(subparser: command, overview: overview)
     }
@@ -17,8 +17,8 @@ final class MockCommand: Command {
         self.overview = overview
     }
 
-    func run(with arguments: ArgumentParser.Result) throws {
+    func run(with arguments: ArgumentParser.Result) {
         runArgs.append(arguments)
-        try runStub?()
+        runStub?()
     }
 }

@@ -6,16 +6,18 @@ import XCTest
 
 final class DumpCommandTests: XCTestCase {
     var printer: MockPrinter!
+    var errorHandler: MockErrorHandler!
     var subject: DumpCommand!
     var parser: ArgumentParser!
 
     override func setUp() {
         let graphLoaderContext = GraphLoaderContext()
         printer = MockPrinter()
-        let commandsContext = CommandsContext(printer: printer)
+        errorHandler = MockErrorHandler()
+        let commandsContext = CommandsContext(printer: printer, errorHandler: errorHandler)
         parser = ArgumentParser.test()
         subject = DumpCommand(graphLoaderContext: graphLoaderContext,
-                              commandsContext: commandsContext,
+                              context: commandsContext,
                               parser: parser)
     }
 
@@ -35,9 +37,8 @@ final class DumpCommandTests: XCTestCase {
     func test_run_throws_when_file_doesnt_exist() throws {
         let tmpDir = try TemporaryDirectory()
         let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
-        XCTAssertThrowsError(try subject.run(with: result)) { error in
-            XCTAssertEqual(error as? DumpCommandError, DumpCommandError.manifestNotFound(tmpDir.path))
-        }
+        subject.run(with: result)
+        XCTAssertEqual(errorHandler.tryErrors.first as? DumpCommandError, DumpCommandError.manifestNotFound(tmpDir.path))
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
@@ -46,7 +47,8 @@ final class DumpCommandTests: XCTestCase {
                                    atomically: true,
                                    encoding: .utf8)
         let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
-        XCTAssertThrowsError(try subject.run(with: result))
+        subject.run(with: result)
+        XCTAssertEqual(errorHandler.tryErrors.count, 1)
     }
 
     func test_prints_the_manifest() throws {
@@ -59,7 +61,7 @@ final class DumpCommandTests: XCTestCase {
                          atomically: true,
                          encoding: .utf8)
         let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
-        try subject.run(with: result)
+        subject.run(with: result)
         XCTAssertEqual(printer.printArgs.first, "{\n\n}\n")
     }
 }

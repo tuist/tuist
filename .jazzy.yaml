@@ -11,6 +11,9 @@ sdk: macosx
 clean: true
 min_acl: internal
 custom_categories:
+  - name: App
+    children:
+      - Constants
   - name: Commands
     children:
       - Command
@@ -18,6 +21,8 @@ custom_categories:
       - DumpCommand
       - UpdateCommand
       - CommandsContext
+      - InitCommand
+      - GenerateCommand
   - name: Models
     children:
       - BuildConfiguration
@@ -35,3 +40,17 @@ custom_categories:
     children:
       - ErrorHandler
       - FatalError
+  - name: Utils
+    children:
+      - Logger
+      - Printer
+      - FileHandler
+      - Bundles
+      - App
+      - Signals
+      - Shell
+      - Context
+      - ResourceLocator
+  - name: Protocols
+    children:
+      - XcodeRepresentable
