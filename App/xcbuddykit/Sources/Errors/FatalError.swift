@@ -11,7 +11,7 @@ enum FatalError: Error {
     case bug(Error & CustomStringConvertible)
     case abortSilent(Error)
     case bugSilent(Error)
-    
+
     /// Returns the error description
     var description: String? {
         switch self {
@@ -23,7 +23,7 @@ enum FatalError: Error {
             return nil
         }
     }
-    
+
     /// Returns a bug to be reported.
     var bug: Error? {
         switch self {

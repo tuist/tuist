@@ -47,6 +47,8 @@
 		B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */; };
 		B9B593C8209C13CB00C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9B593C9209C13D100C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B9B5943B209C176C00C59DA2 /* ErrorHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */; };
+		B9B5943D209C1D0D00C59DA2 /* FatalErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */; };
 		B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B6299D20864E2300EE9E07 /* Constants.swift */; };
 		B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A220864E3A00EE9E07 /* Logger.swift */; };
 		B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A420864E3A00EE9E07 /* Printer.swift */; };
@@ -270,6 +272,8 @@
 		B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetectorTests.swift; sourceTree = "<group>"; };
 		B9B593C4209C121000C59DA2 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
+		B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandlerTests.swift; sourceTree = "<group>"; };
+		B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FatalErrorTests.swift; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		B9B629A420864E3A00EE9E07 /* Printer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Printer.swift; sourceTree = "<group>"; };
@@ -425,6 +429,7 @@
 		B915ED3B2063B04C004B6630 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				B9B59438209C174A00C59DA2 /* Errors */,
 				B9F1EDF9208D24EA00477835 /* Validator */,
 				B9589605208B4E3500F00ACF /* Generator */,
 				B92BF9FC2075607C00EE4EBD /* Extensions */,
@@ -570,6 +575,17 @@
 			path = Generator;
 			sourceTree = "<group>";
 		};
+		B9B59438209C174A00C59DA2 /* Errors */ = {
+			isa = PBXGroup;
+			children = (
+				B918A2302093680600E64FBE /* MockErrorHandler.swift */,
+				B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */,
+				B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */,
+			);
+			name = Errors;
+			path = "New Group";
+			sourceTree = "<group>";
+		};
 		B9B6299C20864E2300EE9E07 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -713,7 +729,6 @@
 				B9BFCF70207B48D500ACC59D /* MockPrinter.swift */,
 				B9553DED2090F6AE00050311 /* MockShell.swift */,
 				B9553DF4209228EB00050311 /* MockRersourceLocator.swift */,
-				B918A2302093680600E64FBE /* MockErrorHandler.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1009,11 +1024,13 @@
 				B9E2DC9620872B3A0061DF86 /* MockGraphLoaderCache.swift in Sources */,
 				B9E2DC9520872B300061DF86 /* MockUpdateController.swift in Sources */,
 				B9E2DC9D20872D3B0061DF86 /* MockPrinter.swift in Sources */,
+				B9B5943B209C176C00C59DA2 /* ErrorHandlerTests.swift in Sources */,
 				B9589604208A405D00F00ACF /* ProductTests .swift in Sources */,
 				B9E2DCC42088EEFC0061DF86 /* CommandRegistryTests.swift in Sources */,
 				B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */,
 				B9F1EDEF208D1DB200477835 /* BuildPhase+TestData.swift in Sources */,
 				B9F1EDF1208D1F0F00477835 /* Settings+TestData.swift in Sources */,
+				B9B5943D209C1D0D00C59DA2 /* FatalErrorTests.swift in Sources */,
 				B9F1EDD5208D080C00477835 /* GraphManifestLoaderTests.swift in Sources */,
 				B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */,
 				B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */,
@@ -1184,6 +1201,10 @@
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/App/Frameworks",
+				);
 				INFOPLIST_FILE = App/xcbuddykit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykitTests;
@@ -1197,6 +1218,10 @@
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/App/Frameworks",
+				);
 				INFOPLIST_FILE = App/xcbuddykit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykitTests;
