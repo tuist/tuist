@@ -6,11 +6,14 @@ import XCTest
 final class UpdateCommandTests: XCTestCase {
     var updateController: MockUpdateController!
     var subject: UpdateCommand!
+    var context: CommandsContexting!
 
     override func setUp() {
         super.setUp()
         updateController = MockUpdateController()
-        subject = UpdateCommand(controller: updateController)
+        context = CommandsContext()
+        subject = UpdateCommand(controller: updateController,
+                                context: context)
     }
 
     func test_command() {
@@ -23,7 +26,7 @@ final class UpdateCommandTests: XCTestCase {
 
     func test_run() throws {
         let result = ArgumentParser.Result.test()
-        try subject.run(with: result)
+        subject.run(with: result)
         XCTAssertEqual(updateController.checkAndUpdateFromConsoleCount, 1)
     }
 }

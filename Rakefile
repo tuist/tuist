@@ -21,9 +21,12 @@ def format
   execute('swiftformat .')
 end
 
-def build
+def build(config = "Debug")
+  abort("SENTRY_DSN variable missing") unless ENV["SENTRY_DSN"]
+  abort("SENTRY_AUTH_TOKEN variable missing")  unless ENV["SENTRY_AUTH_TOKEN"]
   execute('swift package generate-xcodeproj')
-  execute('xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy build')
+  env_vars="SENTR_DSN=#{ENV["SENTR_DSN"]} SENTRY_AUTH_TOKEN=#{ENV["SENTRY_AUTH_TOKEN"]}"
+  execute("#{env_vars} xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy -configuration #{config} build")
 end
 
 def test
@@ -102,6 +105,10 @@ def docs
   execute("bundle exec jazzy")
 end
 
+def carthage
+  execute("carthage update; carthage build --platform macos")
+end
+
 def release
   branch = `git rev-parse --abbrev-ref HEAD`.strip
   unless branch.include?("version/")
@@ -147,6 +154,11 @@ end
 desc 'Runs the unit tests'
 task :test do
   test
+end
+
+desc 'Fetches Carthage dependencies'
+task :carthage do
+  carthage
 end
 
 desc 'Releases a new version of the app'

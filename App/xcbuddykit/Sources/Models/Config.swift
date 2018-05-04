@@ -38,7 +38,7 @@ class Config: Equatable {
         if !context.fileHandler.exists(configPath) {
             throw GraphLoadingError.missingFile(configPath)
         }
-        let json = try context.manifestLoader.load(path: configPath, context: context)
+        _ = try context.manifestLoader.load(path: configPath, context: context)
         self.init(path: path)
     }
 

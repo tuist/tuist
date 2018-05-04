@@ -14,7 +14,7 @@ final class CommandRegistryTests: XCTestCase {
     }
 
     func test_run() throws {
-        subject.run()
+        try subject.run()
         XCTAssertEqual(command.runArgs.count, 1)
     }
 }

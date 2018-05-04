@@ -34,7 +34,7 @@ public class DumpCommand: NSObject, Command {
     fileprivate let graphLoaderContext: GraphLoaderContexting
 
     /// Commands context.
-    fileprivate let commandsContext: CommandsContexting
+    fileprivate let context: CommandsContexting
 
     /// Path argument.
     let pathArgument: OptionArgument<String>
@@ -44,7 +44,7 @@ public class DumpCommand: NSObject, Command {
     /// - Parameter parser: argument parser.
     public required convenience init(parser: ArgumentParser) {
         self.init(graphLoaderContext: GraphLoaderContext(),
-                  commandsContext: CommandsContext(),
+                  context: CommandsContext(),
                   parser: parser)
     }
 
@@ -52,14 +52,14 @@ public class DumpCommand: NSObject, Command {
     ///
     /// - Parameters:
     ///   - graphLoaderContext: graph loading context.
-    ///   - commandsContext: commands context.
+    ///   - context: commands context.
     ///   - parser: argument parser.
     init(graphLoaderContext: GraphLoaderContexting,
-         commandsContext: CommandsContexting,
+         context: CommandsContexting,
          parser: ArgumentParser) {
         let subParser = parser.add(subparser: command, overview: overview)
         self.graphLoaderContext = graphLoaderContext
-        self.commandsContext = commandsContext
+        self.context = context
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -71,24 +71,26 @@ public class DumpCommand: NSObject, Command {
     ///
     /// - Parameter _: argument parser arguments.
     /// - Throws: an error if the command cannot be executed.
-    public func run(with arguments: ArgumentParser.Result) throws {
-        var path: AbsolutePath! = arguments.get(pathArgument).map({ AbsolutePath($0) })
-        if path == nil {
-            path = AbsolutePath.current
+    public func run(with arguments: ArgumentParser.Result) {
+        context.errorHandler.try {
+            var path: AbsolutePath! = arguments.get(pathArgument).map({ AbsolutePath($0) })
+            if path == nil {
+                path = AbsolutePath.current
+            }
+            let projectPath = path.appending(component: Constants.Manifest.project)
+            let workspacePath = path.appending(component: Constants.Manifest.workspace)
+            let configPath = path.appending(component: Constants.Manifest.config)
+            var json: JSON!
+            if graphLoaderContext.fileHandler.exists(projectPath) {
+                json = try graphLoaderContext.manifestLoader.load(path: projectPath, context: graphLoaderContext)
+            } else if graphLoaderContext.fileHandler.exists(workspacePath) {
+                json = try graphLoaderContext.manifestLoader.load(path: workspacePath, context: graphLoaderContext)
+            } else if graphLoaderContext.fileHandler.exists(configPath) {
+                json = try graphLoaderContext.manifestLoader.load(path: configPath, context: graphLoaderContext)
+            } else {
+                throw DumpCommandError.manifestNotFound(path)
+            }
+            context.printer.print(json.toString(prettyPrint: true))
         }
-        let projectPath = path.appending(component: Constants.Manifest.project)
-        let workspacePath = path.appending(component: Constants.Manifest.workspace)
-        let configPath = path.appending(component: Constants.Manifest.config)
-        var json: JSON!
-        if graphLoaderContext.fileHandler.exists(projectPath) {
-            json = try graphLoaderContext.manifestLoader.load(path: projectPath, context: graphLoaderContext)
-        } else if graphLoaderContext.fileHandler.exists(workspacePath) {
-            json = try graphLoaderContext.manifestLoader.load(path: workspacePath, context: graphLoaderContext)
-        } else if graphLoaderContext.fileHandler.exists(configPath) {
-            json = try graphLoaderContext.manifestLoader.load(path: configPath, context: graphLoaderContext)
-        } else {
-            throw DumpCommandError.manifestNotFound(path)
-        }
-        commandsContext.printer.print(json.toString(prettyPrint: true))
     }
 }
