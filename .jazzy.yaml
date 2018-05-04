@@ -31,3 +31,7 @@ custom_categories:
       - Platform
       - BuildPhase
       - Product
+  - name: Errors
+    children:
+      - ErrorHandler
+      - FatalError

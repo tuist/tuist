@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Commands  Reference</title>
+    <title>Errors  Reference</title>
     <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
     <link rel="stylesheet" type="text/css" href="css/highlight.css" />
     <meta charset="utf-8">
@@ -15,7 +15,7 @@
   <body>
 
 
-    <a title="Commands  Reference"></a>
+    <a title="Errors  Reference"></a>
 
     <header class="header">
       <p class="header-col header-col--primary">
@@ -43,7 +43,7 @@
     <p class="breadcrumbs">
       <a class="breadcrumb" href="index.html">xcbuddykit Reference</a>
       <img class="carat" src="img/carat.png" />
-      Commands  Reference
+      Errors  Reference
     </p>
 
     <div class="content-wrapper">
@@ -349,7 +349,7 @@
 
         <section class="section">
           <div class="section-content">
-            <h1>Commands</h1>
+            <h1>Errors</h1>
             
           </div>
         </section>
@@ -361,9 +361,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit7CommandP"></a>
-                    <a name="//apple_ref/swift/Protocol/Command" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit7CommandP">Command</a>
+                    <a name="/s:10xcbuddykit12ErrorHandlerC"></a>
+                    <a name="//apple_ref/swift/Class/ErrorHandler" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit12ErrorHandlerC">ErrorHandler</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -371,15 +371,15 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Protocol that defines a command line command.</p>
+                        <p>Error handler.</p>
 
-                        <a href="Protocols/Command.html" class="slightly-smaller">See more</a>
+                        <a href="Classes/ErrorHandler.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">protocol</span> <span class="kt">Command</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">final</span> <span class="kd">class</span> <span class="kt">ErrorHandler</span><span class="p">:</span> <span class="kt"><a href="Protocols/ErrorHandling.html">ErrorHandling</a></span></code></pre>
 
                         </div>
                       </div>
@@ -393,9 +393,9 @@
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:10xcbuddykit15CommandRegistryC"></a>
-                    <a name="//apple_ref/swift/Class/CommandRegistry" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit15CommandRegistryC">CommandRegistry</a>
+                    <a name="/s:10xcbuddykit10FatalErrorO"></a>
+                    <a name="//apple_ref/swift/Enum/FatalError" class="dashAnchor"></a>
+                    <a class="token" href="#/s:10xcbuddykit10FatalErrorO">FatalError</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -403,111 +403,23 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Registry that contains all the commands.</p>
+                        <p>Fatal errors that can be thrown at any point of the execution.</p>
+<li>abort: used when something unexpected happens and the user should be alerted.</li>
+<div class="aside aside-bug">
+    <p class="aside-title">Bug</p>
+    like abort, but it also reports the event to Sentry.
 
-                        <a href="Classes/CommandRegistry.html" class="slightly-smaller">See more</a>
+</div>
+<li>abortSilent: like abort, but it doesn&rsquo;t print anything in the console.</li>
+<li>bugSilent: like bug, but it doesn&rsquo;t print anything in the console.</li>
+
+                        <a href="Enums/FatalError.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">final</span> <span class="kd">class</span> <span class="kt">CommandRegistry</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-              </ul>
-            </div>
-            <div class="task-group">
-              <ul class="item-container">
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/c:@M@xcbuddykit@objc(cs)DumpCommand"></a>
-                    <a name="//apple_ref/swift/Class/DumpCommand" class="dashAnchor"></a>
-                    <a class="token" href="#/c:@M@xcbuddykit@objc(cs)DumpCommand">DumpCommand</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Command that dumps the manifest into the console.</p>
-
-                        <a href="Classes/DumpCommand.html" class="slightly-smaller">See more</a>
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">DumpCommand</span><span class="p">:</span> <span class="kt">NSObject</span><span class="p">,</span> <span class="kt"><a href="Protocols/Command.html">Command</a></span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-              </ul>
-            </div>
-            <div class="task-group">
-              <ul class="item-container">
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/c:@M@xcbuddykit@objc(cs)UpdateCommand"></a>
-                    <a name="//apple_ref/swift/Class/UpdateCommand" class="dashAnchor"></a>
-                    <a class="token" href="#/c:@M@xcbuddykit@objc(cs)UpdateCommand">UpdateCommand</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Command that updates the app.</p>
-
-                        <a href="Classes/UpdateCommand.html" class="slightly-smaller">See more</a>
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">UpdateCommand</span><span class="p">:</span> <span class="kt">NSObject</span><span class="p">,</span> <span class="kt"><a href="Protocols/Command.html">Command</a></span><span class="p">,</span> <span class="kt">SPUUpdaterDelegate</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-              </ul>
-            </div>
-            <div class="task-group">
-              <ul class="item-container">
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:10xcbuddykit15CommandsContextC"></a>
-                    <a name="//apple_ref/swift/Class/CommandsContext" class="dashAnchor"></a>
-                    <a class="token" href="#/s:10xcbuddykit15CommandsContextC">CommandsContext</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>Default commands context that conforms CommandsContexting.</p>
-
-                        <a href="Classes/CommandsContext.html" class="slightly-smaller">See more</a>
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">final</span> <span class="kd">class</span> <span class="kt">CommandsContext</span><span class="p">:</span> <span class="kt"><a href="Protocols/CommandsContexting.html">CommandsContexting</a></span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">enum</span> <span class="kt">FatalError</span><span class="p">:</span> <span class="kt">Error</span></code></pre>
 
                         </div>
                       </div>
