@@ -1258,6 +1258,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_SWIFT_FLAGS = "-Xcc -fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-package-manager.git--5789260357088934756/Sources/clibc/include/module.modulemap";
 				SDKROOT = macosx;
+				SENTRY_DSN = "$(SENTRY_DSN)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
