@@ -49,6 +49,7 @@
 		B9B593C9209C13D100C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9B5943B209C176C00C59DA2 /* ErrorHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */; };
 		B9B5943D209C1D0D00C59DA2 /* FatalErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */; };
+		B9B59443209F5E2100C59DA2 /* VersionCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B59442209F5E2100C59DA2 /* VersionCommand.swift */; };
 		B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B6299D20864E2300EE9E07 /* Constants.swift */; };
 		B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A220864E3A00EE9E07 /* Logger.swift */; };
 		B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A420864E3A00EE9E07 /* Printer.swift */; };
@@ -274,6 +275,7 @@
 		B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandlerTests.swift; sourceTree = "<group>"; };
 		B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FatalErrorTests.swift; sourceTree = "<group>"; };
+		B9B59442209F5E2100C59DA2 /* VersionCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommand.swift; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		B9B629A420864E3A00EE9E07 /* Printer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Printer.swift; sourceTree = "<group>"; };
@@ -647,6 +649,7 @@
 				B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */,
 				B9F1EDCC208CBE1800477835 /* InitCommand.swift */,
 				B9E65C98208F8B2200A9D7AC /* GenerateCommand.swift */,
+				B9B59442209F5E2100C59DA2 /* VersionCommand.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -990,6 +993,7 @@
 				B9FB2DE0208653EF00BC2FB3 /* GraphManifestLoader.swift in Sources */,
 				B9E2DCA820876F8A0061DF86 /* Command.swift in Sources */,
 				B9FB2DDD208653DA00BC2FB3 /* GraphLoaderContext.swift in Sources */,
+				B9B59443209F5E2100C59DA2 /* VersionCommand.swift in Sources */,
 				B9FB2DE82086544900BC2FB3 /* Settings.swift in Sources */,
 				B9E2DCAA208774550061DF86 /* CommandRegistry.swift in Sources */,
 				B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */,
