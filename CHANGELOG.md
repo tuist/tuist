@@ -12,6 +12,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 * Error handling https://github.com/xcbuddy/xcbuddy/pull/14 by @pepibumur.
 
+### Fixed
+
+* Auto updates https://github.com/xcbuddy/xcbuddy/pull/26 by @pepibumur.
+
 ## 0.33.0
 
 **Release Date:** 27/04/2018

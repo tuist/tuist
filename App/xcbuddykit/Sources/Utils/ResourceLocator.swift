@@ -16,6 +16,12 @@ protocol ResourceLocating: AnyObject {
     /// - Returns: path to the xcbuddy CLI.
     /// - Throws: an error if the CLI cannot be found.
     func cliPath() throws -> AbsolutePath
+
+    /// Returns the app bundle.
+    ///
+    /// - Returns: app bundle
+    /// - Throws: an error if the bundle cannot be found.
+    func appPath() throws -> AbsolutePath
 }
 
 /// Resource locating error.
@@ -104,5 +110,19 @@ final class ResourceLocator: ResourceLocating {
             throw ResourceLocatingError.notFound(toolName)
         }
         return toolPath
+    }
+
+    /// Returns the app bundle.
+    ///
+    /// - Returns: app bundle
+    /// - Throws: an error if the bundle cannot be found.
+    func appPath() throws -> AbsolutePath {
+        let path = AbsolutePath(Bundle(for: ResourceLocator.self).bundleURL.path)
+        let appPath = path.parentDirectory.parentDirectory.parentDirectory
+        if appPath.extension == "app" {
+            return appPath
+        } else {
+            throw ResourceLocatingError.notFound("xcbuddy.app")
+        }
     }
 }

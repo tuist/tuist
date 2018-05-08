@@ -1,8 +1,23 @@
 import Foundation
 import Sparkle
 
+/// Command line user driver for updates.
 class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
+
+    // MARK: Attributes
+
+    /// Sparke user driver core component.
     let coreComponent = SPUUserDriverCoreComponent()
+
+    /// Context
+    let context: Contexting
+
+    /// Initializes the command line user drive.
+    ///
+    /// - Parameter context: context.
+    init(context: Contexting) {
+        self.context = context
+    }
 
     // MARK: - SPUUserDriver
 
@@ -22,7 +37,7 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
     func showUserInitiatedUpdateCheck(completion updateCheckStatusCompletion: @escaping (SPUUserInitiatedCheckStatus) -> Void) {
         DispatchQueue.main.async {
             self.coreComponent.registerUpdateCheckStatusHandler(updateCheckStatusCompletion)
-            print("Checking for updates...")
+            self.context.printer.print("Checking for updates...")
         }
     }
 
@@ -58,7 +73,7 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
                                       userInitiated _: Bool,
                                       reply: @escaping (SPUInformationalUpdateAlertChoice) -> Void) {
         DispatchQueue.main.async {
-            print("Found information for new update: %s", appcastItem.infoURL.absoluteString.utf8)
+            self.context.printer.print("Found information for new update: \(appcastItem.infoURL.absoluteString.utf8)")
             reply(.dismissInformationalNoticeChoice)
         }
     }
@@ -77,13 +92,13 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
 
     func showUpdateReleaseNotesFailedToDownloadWithError(_ error: Error) {
         DispatchQueue.main.async {
-            print("Error: Unable to download release notes: %s", error.localizedDescription.utf8)
+            self.context.printer.print(errorMessage: "Error: Unable to download release notes: \(error.localizedDescription.utf8)")
         }
     }
 
     func showUpdateNotFound(acknowledgement _: @escaping () -> Void) {
         DispatchQueue.main.async {
-            print("No new update available!")
+            self.context.printer.print("No new update available!")
             exit(EXIT_SUCCESS)
         }
     }
@@ -98,7 +113,7 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
     func showDownloadInitiated(completion downloadUpdateStatusCompletion: @escaping (SPUDownloadUpdateStatus) -> Void) {
         DispatchQueue.main.async {
             self.coreComponent.registerDownloadStatusHandler(downloadUpdateStatusCompletion)
-            print("Downloading Update...")
+            self.context.printer.print("Downloading Update...")
         }
     }
 
@@ -113,13 +128,13 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
     func showDownloadDidStartExtractingUpdate() {
         DispatchQueue.main.async {
             self.coreComponent.completeDownloadStatus()
-            print("Extracting update...")
+            self.context.printer.print("Extracting update...")
         }
     }
 
-    func showExtractionReceivedProgress(_ progress: Double) {
+    func showExtractionReceivedProgress(_: Double) {
         DispatchQueue.main.async {
-            print("Extracting Update (%.0f%%)", progress * 100)
+            // self.context.printer.print(String("Extracting Update (%.0f%%)", progress * 100))
         }
     }
 
@@ -132,7 +147,7 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
 
     func showInstallingUpdate() {
         DispatchQueue.main.async {
-            print("Installing update...")
+            self.context.printer.print("Installing update...")
         }
     }
 
@@ -143,14 +158,14 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
     func showUpdateInstallationDidFinish(acknowledgement: @escaping () -> Void) {
         DispatchQueue.main.async {
             self.coreComponent.registerAcknowledgement(acknowledgement)
-            print("Installation finished.")
+            self.context.printer.print("Installation finished.")
             self.coreComponent.acceptAcknowledgement()
         }
     }
 
     func dismissUpdateInstallation() {
         DispatchQueue.main.async {
-            print("Exiting.")
+            self.context.printer.print("Exiting.")
             exit(0)
         }
     }
@@ -158,7 +173,7 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
     // MARK: - Private
 
     private func showUpdate(appcastItem: SUAppcastItem, updateAdjective: String) {
-        print("Found (%s) update! (%s)", updateAdjective, appcastItem.displayVersionString.utf8)
+        context.printer.print("Found (\(updateAdjective) update! (\(appcastItem.displayVersionString.utf8))")
         if appcastItem.itemDescription != nil {
             let data = appcastItem.itemDescription.data(using: .utf8) ?? Data()
             display(htmlReleaseNotes: data)
@@ -171,8 +186,8 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
     }
 
     private func display(releaseNotes: Any) {
-        print("Release notes:")
-        print("%s", releaseNotes)
+        context.printer.print("Release notes:")
+        context.printer.print("\(releaseNotes)")
     }
 }
 
@@ -181,10 +196,11 @@ class SPUCommandLineUserDriver: NSObject, SPUUserDriver {
 private var _commandlineUpdater: SPUUpdater!
 
 extension SPUUpdater {
-    static func commandLine() throws -> SPUUpdater {
+    static func commandLine(context: Contexting,
+                            resourceLocator: ResourceLocating = ResourceLocator()) throws -> SPUUpdater {
         if _commandlineUpdater != nil { return _commandlineUpdater }
-        let driver = SPUCommandLineUserDriver()
-        let bundle = try Bundle.app()
+        let driver = SPUCommandLineUserDriver(context: context)
+        let bundle = try Bundle(path: resourceLocator.appPath().asString)!
         _commandlineUpdater = SPUUpdater(hostBundle: bundle, applicationBundle: bundle, userDriver: driver, delegate: nil)
         return _commandlineUpdater
     }
