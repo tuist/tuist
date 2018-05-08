@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Added
+
+* Version command https://github.com/xcbuddy/xcbuddy/pull/25 by @pepibumur.
+
 ### Changed
 
 * Error handling https://github.com/xcbuddy/xcbuddy/pull/14 by @pepibumur.
