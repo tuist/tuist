@@ -71,7 +71,6 @@
 		B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */; };
 		B9E2DC9C20872CD60061DF86 /* AbsolutePath+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DC9A20872C650061DF86 /* AbsolutePath+Extras.swift */; };
 		B9E2DC9D20872D3B0061DF86 /* MockPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFCF70207B48D500ACC59D /* MockPrinter.swift */; };
-		B9E2DC9E20872D400061DF86 /* AppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9CF62066D05A00F13FFA /* AppTests.swift */; };
 		B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D242066D56D00F13FFA /* MockLogger.swift */; };
 		B9E2DCA12087650C0061DF86 /* Config+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */; };
 		B9E2DCA32087651D0061DF86 /* Project+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */; };
@@ -337,7 +336,6 @@
 		B9FB2DD32086538E00BC2FB3 /* GraphLoaderContext.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GraphLoaderContext.swift; sourceTree = "<group>"; };
 		B9FB2DD42086538E00BC2FB3 /* GraphLoaderCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GraphLoaderCache.swift; sourceTree = "<group>"; };
 		B9FB9CF22066B71700F13FFA /* dsa_pub.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = dsa_pub.pem; sourceTree = "<group>"; };
-		B9FB9CF62066D05A00F13FFA /* AppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTests.swift; sourceTree = "<group>"; };
 		B9FB9D242066D56D00F13FFA /* MockLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLogger.swift; sourceTree = "<group>"; };
 		B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = AEXML.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FDBF412064DCB70010BC33 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -722,7 +720,6 @@
 		B9FB9CF52066D04C00F13FFA /* Utils */ = {
 			isa = PBXGroup;
 			children = (
-				B9FB9CF62066D05A00F13FFA /* AppTests.swift */,
 				B9FB9D242066D56D00F13FFA /* MockLogger.swift */,
 				B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */,
 				B9BFCF70207B48D500ACC59D /* MockPrinter.swift */,
@@ -1035,7 +1032,6 @@
 				B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */,
 				B9F1EDED208D1CFE00477835 /* Target+TestData.swift in Sources */,
 				B9F1EDD3208CD2E200477835 /* ShellCompletion+Equatable.swift in Sources */,
-				B9E2DC9E20872D400061DF86 /* AppTests.swift in Sources */,
 				B9F1EDFB208D24F700477835 /* ProjectValidatorTests.swift in Sources */,
 				B918A2312093680600E64FBE /* MockErrorHandler.swift in Sources */,
 				B9E2DC9720872B5D0061DF86 /* MockManifestLoader.swift in Sources */,

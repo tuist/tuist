@@ -50,8 +50,8 @@ public class VersionCommand: NSObject, Command {
     ///
     /// - Returns: current application version.
     static func currentVersion() -> String {
-        let appBundle = Bundle.main
-        let info = appBundle.infoDictionary ?? [:]
+        let bundle = (try? ResourceLocator().appPath()).flatMap({Bundle.init(path: $0.asString)})
+        let info = bundle?.infoDictionary ?? [:]
         return (info["CFBundleShortVersionString"] as? String) ?? ""
     }
 }

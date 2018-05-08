@@ -101,3 +101,4 @@ certs/dist.p12
 certs/xcbuddy_dist.provisionprofile
 .idea/
 Carthage/Checkouts
+*.profraw
