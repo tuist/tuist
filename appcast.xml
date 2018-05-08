@@ -6,46 +6,10 @@
     <description>Most recent changes with links to updates.</description>
     <language>en</language>
     <item>
-      <title>Version 0.20.0</title>
-      <description><![CDATA[]]></description>
-      <pubDate>Sat, 31 Mar 2018 19:56:20 +0200</pubDate>
-      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.20.0/xcbuddy.zip" length="7912171" sparkle:version="0.20.0" sparkle:dsaSignature="MEQCIH1v0QHxTYYfMKDW0DFnRyh+g77JWRYd8sSwEjxP3OWBAiBLNu/D8ugQzbhoz23gSpwTQA4HeR0XUzwnunR1H50gUg=="/>
-    </item>
-    <item>
-      <title>Version 0.26.0</title>
-      <description><![CDATA[]]></description>
-      <pubDate>Tue, 17 Apr 2018 15:03:35 +0200</pubDate>
-      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.26.0/xcbuddy.zip" length="8117126" sparkle:version="0.26.0" sparkle:dsaSignature="MEQCIGs/hG2V6OsjhEwKZTD24gjx2E8rzl45r9hFw9JqXfJPAiA5e8rfzAW+LZE2aXSCJ+DBUJhscRqtbZXXjmzqkJd0Zw=="/>
-    </item>
-    <item>
-      <title>Version 0.28.0</title>
-      <description><![CDATA[]]></description>
-      <pubDate>Tue, 17 Apr 2018 15:23:59 +0200</pubDate>
-      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.28.0/xcbuddy.zip" length="8117116" sparkle:version="0.28.0" sparkle:dsaSignature="MEQCIEaUF9w6wEOY7GV2BZaX4N8JYKx7rmOPt76ZRNTUANH6AiBj5l9icocMujj+BTSoEw38k6cS8LGigpxtCenbdgmgcg=="/>
-    </item>
-    <item>
-      <title>Version 0.29.0</title>
-      <description><![CDATA[]]></description>
-      <pubDate>Tue, 17 Apr 2018 15:26:01 +0200</pubDate>
-      <enclosure url="hhttps://github.com/xcbuddy/xcbuddy/releases/download/0.29.0/xcbuddy.zip" length="8117130" sparkle:version="0.29.0" sparkle:dsaSignature="MEQCIDKZZ5CZPuCbp4EJUuLhTIIuqeu/9l/ZjZxrKKtxGaBjAiBDomrFIgPlur5zzlBxY1pY2fA3TjKbJ2Ace606tiihBQ=="/>
-    </item>
-    <item>
-      <title>Version 0.30.0</title>
-      <description><![CDATA[]]></description>
-      <pubDate>Tue, 17 Apr 2018 15:31:18 +0200</pubDate>
-      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.30.0/xcbuddy.zip" length="8117163" sparkle:version="0.30.0" sparkle:dsaSignature="MEQCIDPs6RJJQlohwgP+MsZsQalWjzMuaRYrpYxPqep6mNaCAiAubY8kQ4XcZ4AsO4PZz4KZQ0hUaeN4gpFQvtxdaCKyIA=="/>
-    </item>
-    <item>
-      <title>Version 0.32.0</title>
-      <description><![CDATA[]]></description>
-      <pubDate>Tue, 17 Apr 2018 15:34:22 +0200</pubDate>
-      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.32.0/xcbuddy.zip" length="8117140" sparkle:version="0.32.0" sparkle:dsaSignature="MEQCIHhkokO1B9pPujLbslrQi/0oZgRy4CBFB+FoiyQuDQSvAiAjPS0pBfKHmL+LMGDAOh55VyQb9s3OiBynM6L1Jwm6xg=="/>
-    </item>
-    <item>
       <title>Version 0.33.0</title>
       <description><![CDATA[]]></description>
       <pubDate>Fri, 27 Apr 2018 18:47:07 +0200</pubDate>
-      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.33.0/xcbuddy.zip" length="7297726" sparkle:version="0.33.0" sparkle:dsaSignature="MEQCIFoVJFVgianfGWR1kySn1PQSUJ25dXsAM1lNYlsd/7SiAiAPI4lIrGjYAxKcooszIaDNU5djKbmha+m9zfEmz9kPtg=="/>
+      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.33.0/xcbuddy.zip" length="7297726" sparkle:version="34" sparkle:shortVersionString="0.33.0" sparkle:dsaSignature="MEQCIFoVJFVgianfGWR1kySn1PQSUJ25dXsAM1lNYlsd/7SiAiAPI4lIrGjYAxKcooszIaDNU5djKbmha+m9zfEmz9kPtg=="/>
     </item>
   </channel>
 </rss>
