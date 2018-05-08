@@ -11,5 +11,11 @@
       <pubDate>Fri, 27 Apr 2018 18:47:07 +0200</pubDate>
       <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.33.0/xcbuddy.zip" length="7297726" sparkle:version="34" sparkle:shortVersionString="0.33.0" sparkle:dsaSignature="MEQCIFoVJFVgianfGWR1kySn1PQSUJ25dXsAM1lNYlsd/7SiAiAPI4lIrGjYAxKcooszIaDNU5djKbmha+m9zfEmz9kPtg=="/>
     </item>
+    <item>
+      <title>Version 0.34.0</title>
+      <description><![CDATA[]]></description>
+      <pubDate>Wed, 09 May 2018 00:05:43 +0200</pubDate>
+      <enclosure url="https://github.com/xcbuddy/xcbuddy/releases/download/0.34.0/xcbuddy.zip" length="7304051" sparkle:version="35" sparkle:dsaSignature="MEQCIB/WvO/33Yck4zmDgkmoBhk7AUYAGhlbWx1NPYQq4QVYAiBqmssmGefB1yHz5KHOXiWLxW6p37L26aAoSxBY95LWCA=="/>
+    </item>
   </channel>
 </rss>
