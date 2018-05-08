@@ -15,7 +15,7 @@ final class FatalErrorTests: XCTestCase {
         let error = NSError(domain: "test", code: 1, userInfo: nil)
         XCTAssertNil(FatalError.abort(error).bug)
         XCTAssertNil(FatalError.abortSilent(error).bug)
-        XCTAssertEqual(FatalError.bug(error).bug as? NSError, error)
-        XCTAssertEqual(FatalError.bugSilent(error).bug as? NSError, error)
+        XCTAssertEqual(FatalError.bug(error).bug as NSError?, error)
+        XCTAssertEqual(FatalError.bugSilent(error).bug as NSError?, error)
     }
 }

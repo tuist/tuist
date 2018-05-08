@@ -47,8 +47,13 @@ enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
             return "Couldn't find file at path '\(path.asString)'"
         case let .unexpected(message):
             return message
+        // swiftlint:disable:next identifier_name
         case let .circularDependency(from, to):
-            return "Found circular dependency between the target '\(from.name)' at '\(from.path.asString)' and the target '\(to.name)' at '\(to.path.asString)'"
+            var message = ""
+            message.append("Found circular dependency between the target")
+            message.append(" '\(from.name)' at '\(from.path.asString)'")
+            message.append(" and the target '\(to.name)' at '\(to.path.asString)'")
+            return message
         }
     }
 }

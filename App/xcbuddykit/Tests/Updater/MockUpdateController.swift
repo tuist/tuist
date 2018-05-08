@@ -9,7 +9,7 @@ class MockUpdateController: UpdateControlling {
         checkAndUpdateFromAppCount += 1
     }
 
-    func checkAndUpdateFromConsole(context: Contexting) throws {
+    func checkAndUpdateFromConsole(context _: Contexting) throws {
         checkAndUpdateFromConsoleCount += 1
     }
 }

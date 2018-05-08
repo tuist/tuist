@@ -1,7 +1,8 @@
 import Basic
 import Foundation
 
-/// The objects that conform this protocol are nodes that can be initialized with its JSON representation, the project path, and the graph loader context.
+/// The objects that conform this protocol are nodes that can be initialized
+/// with its JSON representation, the project path, and the graph loader context.
 protocol GraphJSONInitiatable: AnyObject {
     /// Default constructor.
     ///

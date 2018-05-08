@@ -18,6 +18,7 @@ protocol GraphCircularDetecting: AnyObject {
     ///   - from: the dependency source target.
     ///   - to: the dependency target that is going to be parsed.
     /// - Throws: an error if a circular dependency is found.
+    // swiftlint:disable:next identifier_name
     func start(from: GraphCircularDetectorNode, to: GraphCircularDetectorNode) throws
 
     /// Method that should be called when we've finished parsing a target.
@@ -36,6 +37,7 @@ final class GraphCircularDetector: GraphCircularDetecting {
     ///   - from: the dependency source target.
     ///   - to: the dependency target that is going to be parsed.
     /// - Throws: an error if a circular dependency is found.
+    // swiftlint:disable:next identifier_name
     func start(from: GraphCircularDetectorNode, to: GraphCircularDetectorNode) throws {
         if edges[to] != nil {
             throw GraphLoadingError.circularDependency(from, to)

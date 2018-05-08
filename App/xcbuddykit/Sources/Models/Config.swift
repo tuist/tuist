@@ -13,7 +13,8 @@ class Config: Equatable {
         self.path = path
     }
 
-    /// Static method that tries to fetch the config from the cache. If it doesn't exist, it creates and instance, adds it to the cache, and returns it.
+    /// Static method that tries to fetch the config from the cache.
+    /// If it doesn't exist, it creates and instance, adds it to the cache, and returns it.
     ///
     /// - Parameters:
     ///   - path: path to the folder that contains the Config.swift file.

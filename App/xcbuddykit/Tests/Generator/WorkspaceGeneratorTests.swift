@@ -12,9 +12,4 @@ final class WorkspaceGeneratorTests: XCTestCase {
         projectGenerator = MockProjectGenerator()
         subject = WorkspaceGenerator(projectGenerator: projectGenerator)
     }
-
-    func test_generate_generates_a_workspace() throws {
-        let tmpdir = try TemporaryDirectory(removeTreeOnDeinit: true)
-//        try subject.generate(path: tmpdir.path)
-    }
 }
