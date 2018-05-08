@@ -12,6 +12,7 @@
 		B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9013DD7206FEEEF007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9013DD8206FF40B007B1A34 /* dsa_pub.pem in Resources */ = {isa = PBXBuildFile; fileRef = B9FB9CF22066B71700F13FFA /* dsa_pub.pem */; };
+		B9157D5320A24B4300C2EEBA /* VersionCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */; };
 		B915ED232063AFBC004B6630 /* xcbuddykit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
 		B915ED2F2063AFBD004B6630 /* xcbuddykit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
 		B915ED392063B03C004B6630 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = B915ED382063B03C004B6630 /* main.swift */; };
@@ -49,6 +50,7 @@
 		B9B593C9209C13D100C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9B5943B209C176C00C59DA2 /* ErrorHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */; };
 		B9B5943D209C1D0D00C59DA2 /* FatalErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */; };
+		B9B59443209F5E2100C59DA2 /* VersionCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B59442209F5E2100C59DA2 /* VersionCommand.swift */; };
 		B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B6299D20864E2300EE9E07 /* Constants.swift */; };
 		B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A220864E3A00EE9E07 /* Logger.swift */; };
 		B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629A420864E3A00EE9E07 /* Printer.swift */; };
@@ -227,6 +229,7 @@
 /* Begin PBXFileReference section */
 		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
+		B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommandTests.swift; sourceTree = "<group>"; };
 		B915ECF6206395DA004B6630 /* xcbuddy */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xcbuddy; sourceTree = BUILT_PRODUCTS_DIR; };
 		B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xcbuddykit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xcbuddykitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -274,6 +277,7 @@
 		B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandlerTests.swift; sourceTree = "<group>"; };
 		B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FatalErrorTests.swift; sourceTree = "<group>"; };
+		B9B59442209F5E2100C59DA2 /* VersionCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommand.swift; sourceTree = "<group>"; };
 		B9B6299D20864E2300EE9E07 /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B9B629A220864E3A00EE9E07 /* Logger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		B9B629A420864E3A00EE9E07 /* Printer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Printer.swift; sourceTree = "<group>"; };
@@ -647,6 +651,7 @@
 				B9E2DCCC2089BF3B0061DF86 /* CommandsContext.swift */,
 				B9F1EDCC208CBE1800477835 /* InitCommand.swift */,
 				B9E65C98208F8B2200A9D7AC /* GenerateCommand.swift */,
+				B9B59442209F5E2100C59DA2 /* VersionCommand.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -741,6 +746,7 @@
 				B9E2DCC52088F0970061DF86 /* MockCommand.swift */,
 				B9E2DCC72089B78D0061DF86 /* DumpCommandTests.swift */,
 				B9F1EDCE208CD0B800477835 /* InitCommandTests.swift */,
+				B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -990,6 +996,7 @@
 				B9FB2DE0208653EF00BC2FB3 /* GraphManifestLoader.swift in Sources */,
 				B9E2DCA820876F8A0061DF86 /* Command.swift in Sources */,
 				B9FB2DDD208653DA00BC2FB3 /* GraphLoaderContext.swift in Sources */,
+				B9B59443209F5E2100C59DA2 /* VersionCommand.swift in Sources */,
 				B9FB2DE82086544900BC2FB3 /* Settings.swift in Sources */,
 				B9E2DCAA208774550061DF86 /* CommandRegistry.swift in Sources */,
 				B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */,
@@ -1049,6 +1056,7 @@
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
+				B9157D5320A24B4300C2EEBA /* VersionCommandTests.swift in Sources */,
 				B9F1EDD1208CD18100477835 /* AargumentParser+TestData.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
 				B9553DEC2090F62C00050311 /* GraphNodeTests.swift in Sources */,

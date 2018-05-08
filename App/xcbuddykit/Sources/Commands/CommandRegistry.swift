@@ -30,6 +30,7 @@ public final class CommandRegistry {
         register(command: GenerateCommand.self)
         register(command: UpdateCommand.self)
         register(command: DumpCommand.self)
+        register(command: VersionCommand.self)
     }
 
     /// Returns the process arguments
