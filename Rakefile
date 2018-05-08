@@ -59,10 +59,10 @@ def bump_version
   puts("Bumping version to #{new_version}(#{new_bundle_version})")
   execute("/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion #{new_bundle_version}\" \"#{info_plist_path}\"")
   execute("/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString #{new_version}\" \"#{info_plist_path}\"")
-  [current_version, new_version]
+  [new_bundle_version, new_version]
 end
 
-def add_appcast_entry(version, length, signature)
+def add_appcast_entry(version, new_bundle_version, length, signature)
   appcast_string = File.open(APPCAST_PATH, 'rb', &:read)
   item = Sparklecast::Appcast::Item.new
   item.title = "Version #{version}"
@@ -70,7 +70,7 @@ def add_appcast_entry(version, length, signature)
   item.length = length
   item.dsa_signature = signature
   item.pub_date = Time.now
-  item.sparkle_version = version
+  item.sparkle_version = new_bundle_version
   appcast_string = Sparklecast::Appcast.add_item(appcast_string, item)
   File.open(APPCAST_PATH, 'w') { |file| file.write(appcast_string) }
 end
@@ -116,7 +116,7 @@ def release
   end
 
   # Bump version
-  current_version, new_version = bump_version
+  new_bundle_version, new_version = bump_version
 
   # Archiving
   archive_and_export
@@ -125,7 +125,7 @@ def release
   # Updating appcast.xml
   signature = `./bin/sign_update #{BUILD_PATH}/#{APP_NAME}.zip keys/dsa_priv.pem`.delete("\n")
   length = `stat -f%z #{BUILD_PATH}/#{APP_NAME}.zip`.strip
-  add_appcast_entry(new_version, length, signature)
+  add_appcast_entry(new_version, new_bundle_version, length, signature)
 
   # Commiting changes
   execute('git add .')
