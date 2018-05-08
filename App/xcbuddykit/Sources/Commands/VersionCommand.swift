@@ -4,21 +4,21 @@ import Utility
 
 /// Command that outputs the version of the tool.
 public class VersionCommand: NSObject, Command {
-    
+
     // MARK: - Command
-    
+
     /// Command name.
     public let command = "version"
-    
+
     /// Command description.
     public let overview = "Outputs the current version of xcbuddy."
-    
+
     /// Context
     let context: CommandsContexting
-    
+
     /// Version fetcher.
     let version: () -> String
-    
+
     /// Initializes the command with the argument parser.
     ///
     /// - Parameter parser: argument parser.
@@ -27,7 +27,7 @@ public class VersionCommand: NSObject, Command {
         context = CommandsContext()
         version = VersionCommand.currentVersion
     }
-    
+
     /// Initializes the command with the context.
     ///
     /// - Parameter context: command context.
@@ -37,15 +37,15 @@ public class VersionCommand: NSObject, Command {
         self.context = context
         self.version = version
     }
-    
+
     /// Runs the command.
     ///
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
-    public func run(with arguments: ArgumentParser.Result) {
-        self.context.printer.print(self.version())
+    public func run(with _: ArgumentParser.Result) {
+        context.printer.print(version())
     }
-    
+
     /// Returns the current application version.
     ///
     /// - Returns: current application version.
@@ -54,5 +54,4 @@ public class VersionCommand: NSObject, Command {
         let info = appBundle.infoDictionary ?? [:]
         return (info["CFBundleShortVersionString"] as? String) ?? ""
     }
-    
 }
