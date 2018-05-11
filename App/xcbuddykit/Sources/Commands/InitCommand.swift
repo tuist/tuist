@@ -5,10 +5,10 @@ import Utility
 /// Init command error
 ///
 /// - alreadyExists: when a file already exists.
-enum InitCommandError: Error, CustomStringConvertible {
+enum InitCommandError: Error, ErrorStringConvertible {
     case alreadyExists(AbsolutePath)
     case ungettableProjectName(AbsolutePath)
-    var description: String {
+    var errorDescription: String {
         switch self {
         case let .alreadyExists(path):
             return "\(path.asString) already exists"

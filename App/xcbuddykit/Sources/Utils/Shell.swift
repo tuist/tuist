@@ -3,8 +3,8 @@ import Foundation
 import Utility
 
 /// Shell error.
-struct ShellError: Error, CustomStringConvertible, Equatable {
-    let description: String
+struct ShellError: Error, ErrorStringConvertible, Equatable {
+    let errorDescription: String
 }
 
 /// Protocol that represents a shell interface.
@@ -29,7 +29,7 @@ class Shell: Shelling {
         if result.exitStatus == .terminated(code: 0) {
             return try result.utf8Output()
         } else {
-            throw ShellError(description: try result.utf8stderrOutput())
+            throw ShellError(errorDescription: try result.utf8stderrOutput())
         }
     }
 }

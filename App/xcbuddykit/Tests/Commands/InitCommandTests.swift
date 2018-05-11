@@ -20,12 +20,12 @@ final class InitCommandTests: XCTestCase {
 
     func test_initCommandError_has_the_right_description_when_alreadyExists() {
         let error = InitCommandError.alreadyExists(AbsolutePath("/path"))
-        XCTAssertEqual(error.description, "/path already exists")
+        XCTAssertEqual(error.errorDescription, "/path already exists")
     }
 
     func test_initCommandError_has_the_right_description_when_ungettableProjectName() {
         let error = InitCommandError.ungettableProjectName(AbsolutePath("/path"))
-        XCTAssertEqual(error.description, "Couldn't infer the project name from path /path")
+        XCTAssertEqual(error.errorDescription, "Couldn't infer the project name from path /path")
     }
 
     func test_init_registersTheSubparser() {

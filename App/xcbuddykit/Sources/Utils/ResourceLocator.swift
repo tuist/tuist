@@ -27,9 +27,9 @@ protocol ResourceLocating: AnyObject {
 /// Resource locating error.
 ///
 /// - notFound: thrown then the resource cannot be found.
-enum ResourceLocatingError: Error, CustomStringConvertible, Equatable {
+enum ResourceLocatingError: Error, ErrorStringConvertible, Equatable {
     case notFound(String)
-    var description: String {
+    var errorDescription: String {
         switch self {
         case let .notFound(name):
             return "Couldn't find \(name)"

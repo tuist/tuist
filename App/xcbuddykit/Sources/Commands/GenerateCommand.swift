@@ -2,12 +2,12 @@ import Basic
 import Foundation
 import Utility
 
-enum GenerateCommandError: Error, CustomStringConvertible, Equatable {
+enum GenerateCommandError: Error, ErrorStringConvertible, Equatable {
     static func == (_: GenerateCommandError, _: GenerateCommandError) -> Bool {
         return true
     }
 
-    var description: String {
+    var errorDescription: String {
         return ""
     }
 }

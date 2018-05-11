@@ -71,7 +71,11 @@ final class ErrorHandler: ErrorHandling {
         do {
             try closure()
         } catch {
-            fatal(error: .abort(error as Error & CustomStringConvertible))
+            if let error = error as? (Error & ErrorStringConvertible) {
+                fatal(error: .abort(error))
+            } else {
+                fatal(error: .abortSilent(error as Error))
+            }
         }
     }
 
@@ -80,8 +84,8 @@ final class ErrorHandler: ErrorHandling {
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError) {
-        if let description = error.description {
-            printer.print(errorMessage: description)
+        if !error.errorDescription.isEmpty {
+            printer.print(errorMessage: error.errorDescription)
         } else {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.

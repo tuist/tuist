@@ -841,7 +841,7 @@
 					};
 					B94C7F962062B829009BF596 = {
 						CreatedOnToolsVersion = 9.2;
-						ProvisioningStyle = Manual;
+						ProvisioningStyle = Automatic;
 						SystemCapabilities = {
 							com.apple.Sandbox = {
 								enabled = 1;
@@ -1342,7 +1342,7 @@
 				BUGSNAG_API_KEY = "$(BUGSNAG_API_KEY)";
 				CODE_SIGN_ENTITLEMENTS = App/xcbuddy.entitlements;
 				CODE_SIGN_IDENTITY = "Mac Developer";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = U6LC622NKF;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -1357,8 +1357,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE = "743ba204-b728-43bd-9155-013830238edc";
-				PROVISIONING_PROFILE_SPECIFIER = "xcbuddy dev";
+				PROVISIONING_PROFILE = "";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_INCLUDE_PATHS = .build/debug/;
 				SWIFT_VERSION = 4.0;
 			};
@@ -1371,8 +1371,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BUGSNAG_API_KEY = "$(BUGSNAG_API_KEY)";
 				CODE_SIGN_ENTITLEMENTS = App/xcbuddy.entitlements;
-				CODE_SIGN_IDENTITY = "Developer ID Application";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = U6LC622NKF;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -1387,8 +1387,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE = "1c8827f5-51d9-4f3e-867c-00b9b3a7b642";
-				PROVISIONING_PROFILE_SPECIFIER = "xcbuddy dist";
+				PROVISIONING_PROFILE = "";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_INCLUDE_PATHS = .build/debug/;
 				SWIFT_VERSION = 4.0;
 			};

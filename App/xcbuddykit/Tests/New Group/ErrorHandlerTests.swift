@@ -3,6 +3,10 @@ import Sentry
 @testable import xcbuddykit
 import XCTest
 
+fileprivate struct TestError: Error, ErrorStringConvertible {
+    var errorDescription: String { return "Error" }
+}
+
 fileprivate final class MockSentryClient: SentryClienting {
     var startCrashHandlerCount: UInt = 0
     var startCrashHandlerStub: Error?
@@ -41,19 +45,19 @@ final class ErrorHandlerTests: XCTestCase {
     }
 
     func test_fatalError_printsTheDescription_whenPrintableError() {
-        let error = NSError(domain: "domain", code: 20, userInfo: nil)
+        let error = TestError()
         subject.fatal(error: .abort(error))
-        XCTAssertEqual(printer.printErrorMessageArgs.first, error.description)
+        XCTAssertEqual(printer.printErrorMessageArgs.first, error.errorDescription)
     }
 
     func test_fatalError_exitsWith1() {
-        let error = NSError(domain: "domain", code: 20, userInfo: nil)
+        let error = TestError()
         subject.fatal(error: .abort(error))
         XCTAssertEqual(exited, 1)
     }
 
     func test_fatalError_reports_whenBug() {
-        let error = NSError(domain: "domain", code: 20, userInfo: nil)
+        let error = TestError()
         var sentEvent: Event?
         client.sendEventStub = { event, completion in
             sentEvent = event

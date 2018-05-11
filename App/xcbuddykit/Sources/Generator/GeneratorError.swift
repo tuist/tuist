@@ -1,7 +1,7 @@
 import Foundation
 
-enum GeneratorError: Error, CustomStringConvertible {
-    var description: String {
+enum GeneratorError: Error, ErrorStringConvertible {
+    var errorDescription: String {
         return ""
     }
 }

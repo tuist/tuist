@@ -7,7 +7,7 @@ import Foundation
 /// - targetNotFound: error thrown when a target has a dependency with another target that doesn't exist.
 /// - manifestNotFound: error thrown when a manifest cannot be found.
 /// - unexpected: unexpected error.
-enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
+enum GraphLoadingError: Error, Equatable, ErrorStringConvertible {
     case missingFile(AbsolutePath)
     case targetNotFound(String, AbsolutePath)
     case manifestNotFound(AbsolutePath)
@@ -37,7 +37,7 @@ enum GraphLoadingError: Error, Equatable, CustomStringConvertible {
         }
     }
 
-    var description: String {
+    var errorDescription: String {
         switch self {
         case let .manifestNotFound(path):
             return "Couldn't find manifest at path: '\(path.asString)'"

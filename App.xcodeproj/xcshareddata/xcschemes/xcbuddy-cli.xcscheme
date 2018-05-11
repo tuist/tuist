@@ -47,8 +47,8 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "generate -p /Users/pedropinera/Desktop/Test"
-            isEnabled = "NO">
+            argument = "generate -p /Users/pepibumur/Desktop/Test"
+            isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
       <AdditionalOptions>

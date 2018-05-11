@@ -6,7 +6,7 @@ import XCTest
 final class ProjectValidationErrorTests: XCTestCase {
     func test_description_whenDuplicatedTargets() {
         let error = ProjectValidationError.duplicatedTargets(["A", "B"], AbsolutePath("/test"))
-        XCTAssertEqual(error.description, "Targets A, B from project at /test have duplicates.")
+        XCTAssertEqual(error.errorDescription, "Targets A, B from project at /test have duplicates.")
     }
 }
 
