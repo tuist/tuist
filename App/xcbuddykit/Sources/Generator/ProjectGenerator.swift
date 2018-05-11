@@ -2,15 +2,35 @@ import Basic
 import Foundation
 import xcodeproj
 
+/// Project generation protocol.
 protocol ProjectGenerating: AnyObject {
+    /// Generates the Xcode project from the spec.
+    ///
+    /// - Parameters:
+    ///   - project: project specification.
+    ///   - context: generation context.
+    /// - Returns: the path where the project has been generated.
+    /// - Throws: an error if the generation fails.
     func generate(project: Project, context: GeneratorContexting) throws -> AbsolutePath
 }
 
+/// Project generator.
 final class ProjectGenerator: ProjectGenerating {
+    /// Target generator.
     let targetGenerator: TargetGenerating
 
-    init(targetGenerator: TargetGenerating = TargetGenerator()) {
+    /// Config generator.
+    let configGenerator: ConfigGenerating
+
+    /// Initializes the generator with sub-generators.
+    ///
+    /// - Parameters:
+    ///   - targetGenerator: target generator.
+    ///   - configGenerator: config generator.
+    init(targetGenerator: TargetGenerating = TargetGenerator(),
+         configGenerator: ConfigGenerating = ConfigGenerator()) {
         self.targetGenerator = targetGenerator
+        self.configGenerator = configGenerator
     }
 
     func generate(project: Project, context: GeneratorContexting) throws -> AbsolutePath {
@@ -21,16 +41,7 @@ final class ProjectGenerator: ProjectGenerating {
                               archiveVersion: Xcode.LastKnown.archiveVersion,
                               classes: [:])
 
-        /// Configurations.
-        let debugConfiguration = XCBuildConfiguration(name: "Debug")
-        let debugConfigurationReference = pbxproj.objects.addObject(debugConfiguration)
-        let releaseConfiguration = XCBuildConfiguration(name: "Release")
-        let releaseConfigurationReference = pbxproj.objects.addObject(releaseConfiguration)
-
-        let configurationList = XCConfigurationList(buildConfigurations: [])
-        let configurationListReference = pbxproj.objects.addObject(configurationList)
-        configurationList.buildConfigurations.append(debugConfigurationReference)
-        configurationList.buildConfigurations.append(releaseConfigurationReference)
+        let configurationListReference = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, context: context)
 
         /// Project groups.
         let mainGroup = PBXGroup(children: [], sourceTree: .group)

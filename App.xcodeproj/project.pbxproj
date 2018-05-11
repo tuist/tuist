@@ -10,6 +10,7 @@
 		3D4C0B3920A6428A003D09B0 /* xcodeproj.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3D4C0B3820A6428A003D09B0 /* xcodeproj.framework */; };
 		3D4C0B3A20A64293003D09B0 /* xcodeproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3D4C0B3820A6428A003D09B0 /* xcodeproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		3D4C0B3B20A6429D003D09B0 /* xcodeproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3D4C0B3820A6428A003D09B0 /* xcodeproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		3D4C0B8820A6507B003D09B0 /* ConfigGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4C0B8720A6507B003D09B0 /* ConfigGenerator.swift */; };
 		66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */; };
 		B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; };
 		B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -221,6 +222,7 @@
 
 /* Begin PBXFileReference section */
 		3D4C0B3820A6428A003D09B0 /* xcodeproj.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = xcodeproj.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		3D4C0B8720A6507B003D09B0 /* ConfigGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigGenerator.swift; sourceTree = "<group>"; };
 		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommandTests.swift; sourceTree = "<group>"; };
@@ -554,6 +556,7 @@
 				B95895F6208A2B5800F00ACF /* GeneratorError.swift */,
 				B95895F8208A2B7C00F00ACF /* TargetGenerator.swift */,
 				B95895FA208A2FFB00F00ACF /* WorkspaceGenerator.swift */,
+				3D4C0B8720A6507B003D09B0 /* ConfigGenerator.swift */,
 			);
 			path = Generator;
 			sourceTree = "<group>";
@@ -962,6 +965,7 @@
 				B9FB2DEB2086544900BC2FB3 /* Product.swift in Sources */,
 				B9B629C020864E7D00EE9E07 /* UpdateCommand.swift in Sources */,
 				B9B629BC20864E7000EE9E07 /* String+Error.swift in Sources */,
+				3D4C0B8820A6507B003D09B0 /* ConfigGenerator.swift in Sources */,
 				B9B629B920864E5400EE9E07 /* XcodeRepresentable.swift in Sources */,
 				B9B629B420864E4700EE9E07 /* SPUUpdater+CommandLine.swift in Sources */,
 				B9FB2DE32086542F00BC2FB3 /* Target.swift in Sources */,
