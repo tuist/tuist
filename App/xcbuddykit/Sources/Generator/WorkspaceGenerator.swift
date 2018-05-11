@@ -1,7 +1,6 @@
 import Basic
 import Foundation
-import PathKit
-import xcproj
+import xcodeproj
 
 /// Workspace generation protocol.
 protocol WorkspaceGenerating: AnyObject {
@@ -37,7 +36,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   context: GeneratorContexting) throws {
         let workspaceName = "\(context.graph.name).xcworkspace"
         context.printer.print(section: "Generating workspace \(workspaceName)")
-        let workspacePath = Path(path.appending(component: workspaceName).asString)
+        let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
         try context.graph.projects.forEach { project in
