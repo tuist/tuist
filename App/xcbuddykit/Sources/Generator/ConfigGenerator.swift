@@ -1,3 +1,4 @@
+import Basic
 import Foundation
 import xcodeproj
 
@@ -8,23 +9,50 @@ protocol ConfigGenerating: AnyObject {
     /// - Parameters:
     ///   - project: project spec.
     ///   - pbxproj: Xcode project PBXProj object.
+    ///   - mainGroup: Xcode project main group.
+    ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
     /// - Returns: the confniguration list reference.
     /// - Throws: an error if the generation fails.
-    func generateProjectConfig(project: Project, pbxproj: PBXProj, context: GeneratorContexting) throws -> PBXObjectReference
+    func generateProjectConfig(project: Project,
+                               pbxproj: PBXProj,
+                               mainGroup: PBXGroup,
+                               sourceRootPath: AbsolutePath,
+                               context: GeneratorContexting) throws -> PBXObjectReference
 }
 
 /// Config generator.
 final class ConfigGenerator: ConfigGenerating {
+    /// File generator.
+    let fileGenerator: FileGenerating
+
+    /// Default config generator constructor.
+    ///
+    /// - Parameter fileGenerator: generator used to generate files.
+    init(fileGenerator: FileGenerating = FileGenerator()) {
+        self.fileGenerator = fileGenerator
+    }
+
     /// Generates the project configuration list and configurations.
     ///
     /// - Parameters:
     ///   - project: project spec.
     ///   - pbxproj: Xcode project PBXProj object.
+    ///   - mainGroup: Xcode project main group.
+    ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
     /// - Returns: the confniguration list reference.
     /// - Throws: an error if the generation fails.
-    func generateProjectConfig(project: Project, pbxproj: PBXProj, context _: GeneratorContexting) throws -> PBXObjectReference {
+    func generateProjectConfig(project: Project,
+                               pbxproj: PBXProj,
+                               mainGroup: PBXGroup,
+                               sourceRootPath: AbsolutePath,
+                               context: GeneratorContexting) throws -> PBXObjectReference {
+        /// Configurations group
+        let configsGroup = PBXGroup(children: [], sourceTree: .group, name: "Configurations")
+        let configsGroupReference = pbxproj.objects.addObject(configsGroup)
+        mainGroup.children.append(configsGroupReference)
+
         /// Default build settings
         let defaultAll = BuildSettingsProvider.projectDefault(variant: .all)
         let defaultDebug = BuildSettingsProvider.projectDefault(variant: .debug)
@@ -33,22 +61,38 @@ final class ConfigGenerator: ConfigGenerating {
         // Debug
         var debugSettings: [String: Any] = [:]
         extend(buildSettings: &debugSettings, with: defaultAll)
+        extend(buildSettings: &debugSettings, with: project.settings?.base ?? [:])
         extend(buildSettings: &debugSettings, with: defaultDebug)
+        let debugConfiguration = XCBuildConfiguration(name: "Debug")
         if let debugConfig = project.settings?.debug {
             extend(buildSettings: &debugSettings, with: debugConfig.settings)
+            if let xcconfigDebug = debugConfig.xcconfig {
+                let fileReference = try fileGenerator.generateFile(path: xcconfigDebug,
+                                                                   in: configsGroup,
+                                                                   sourceRootPath: sourceRootPath,
+                                                                   context: context)
+                debugConfiguration.baseConfigurationReference = fileReference.reference
+            }
         }
-        let debugConfiguration = XCBuildConfiguration(name: "Debug")
         debugConfiguration.buildSettings = debugSettings
         let debugConfigurationReference = pbxproj.objects.addObject(debugConfiguration)
 
         // Release
         var releaseSettings: [String: Any] = [:]
         extend(buildSettings: &releaseSettings, with: defaultAll)
+        extend(buildSettings: &debugSettings, with: project.settings?.base ?? [:])
         extend(buildSettings: &releaseSettings, with: defaultRelease)
+        let releaseConfiguration = XCBuildConfiguration(name: "Release")
         if let releaseConfig = project.settings?.release {
             extend(buildSettings: &releaseSettings, with: releaseConfig.settings)
+            if let xcconfigRelease = releaseConfig.xcconfig {
+                let fileReference = try fileGenerator.generateFile(path: xcconfigRelease,
+                                                                   in: configsGroup,
+                                                                   sourceRootPath: sourceRootPath,
+                                                                   context: context)
+                releaseConfiguration.baseConfigurationReference = fileReference.reference
+            }
         }
-        let releaseConfiguration = XCBuildConfiguration(name: "Release")
         releaseConfiguration.buildSettings = releaseSettings
         let releaseConfigurationReference = pbxproj.objects.addObject(releaseConfiguration)
 
@@ -66,6 +110,17 @@ final class ConfigGenerator: ConfigGenerating {
     ///   - settings: build settings to be extended.
     ///   - other: build settings to be extended with.
     fileprivate func extend(buildSettings: inout [String: Any], with other: [String: Any]) {
-        other.forEach { buildSettings[$0.key] = $0.value }
+        other.forEach { key, value in
+            if buildSettings[key] == nil {
+                buildSettings[key] = value
+            } else {
+                let previousValue: Any = buildSettings[key]!
+                if let previousValueString = previousValue as? String, let newValueString = value as? String {
+                    buildSettings[key] = "\(previousValueString) \(newValueString)"
+                } else {
+                    buildSettings[key] = value
+                }
+            }
+        }
     }
 }

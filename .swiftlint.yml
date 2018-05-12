@@ -11,6 +11,8 @@ disabled_rules:
   - cyclomatic_complexity
   - file_length
   - todo
+  - function_parameter_count
+  - function_body_length
 line_length:
   warning: 150
   error: 170

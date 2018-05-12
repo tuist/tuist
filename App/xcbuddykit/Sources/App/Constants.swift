@@ -8,4 +8,7 @@ struct Constants {
         static let config = "Config.swift"
         static let workspace = "Woskspace.swift"
     }
+
+    /// Targetted Swift version.
+    static let swiftVersion = "4.1"
 }
