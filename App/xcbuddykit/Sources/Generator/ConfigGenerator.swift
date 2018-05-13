@@ -9,18 +9,41 @@ protocol ConfigGenerating: AnyObject {
     /// - Parameters:
     ///   - project: project spec.
     ///   - pbxproj: Xcode project PBXProj object.
-    ///   - mainGroup: Xcode project main group.
+    ///   - groups: Project groups.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
-    /// - Returns: the confniguration list reference.
+    /// - Returns: the configuration list reference.
     /// - Throws: an error if the generation fails.
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               mainGroup: PBXGroup,
+                               groups: ProjectGroups,
                                sourceRootPath: AbsolutePath,
                                context: GeneratorContexting) throws -> PBXObjectReference
 
+    /// Generates the manifests target configuration.
+    ///
+    /// - Parameters:
+    ///   - pbxproj: Xcode project PBXProj object.
+    ///   - context: generation context.
+    /// - Returns: the configuration list reference.
+    /// - Throws: an error if the generation fails.
     func generateManifestsConfig(pbxproj: PBXProj, context: GeneratorContexting) throws -> PBXObjectReference
+
+    /// Generates the target configuration list and configurations.
+    ///
+    /// - Parameters:
+    ///   - target: target spec.
+    ///   - pbxproj: Xcode project PBXProj object.
+    ///   - groups: Project groups.
+    ///   - sourceRootPath: path to the folder that contains the generated project.
+    ///   - context: generation context.
+    /// - Returns: the configuration list reference.
+    /// - Throws: an error if the generation fails.
+    func generateTargetConfig(target: Target,
+                              pbxproj: PBXProj,
+                              groups: ProjectGroups,
+                              sourceRootPath: AbsolutePath,
+                              context: GeneratorContexting) throws -> PBXObjectReference
 }
 
 /// Config generator.
@@ -40,21 +63,16 @@ final class ConfigGenerator: ConfigGenerating {
     /// - Parameters:
     ///   - project: project spec.
     ///   - pbxproj: Xcode project PBXProj object.
-    ///   - mainGroup: Xcode project main group.
+    ///   - groups: Project groups.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
     /// - Returns: the confniguration list reference.
     /// - Throws: an error if the generation fails.
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               mainGroup: PBXGroup,
+                               groups: ProjectGroups,
                                sourceRootPath: AbsolutePath,
                                context: GeneratorContexting) throws -> PBXObjectReference {
-        /// Configurations group
-        let configsGroup = PBXGroup(children: [], sourceTree: .group, name: "Configurations")
-        let configsGroupReference = pbxproj.objects.addObject(configsGroup)
-        mainGroup.children.append(configsGroupReference)
-
         /// Default build settings
         let defaultAll = BuildSettingsProvider.projectDefault(variant: .all)
         let defaultDebug = BuildSettingsProvider.projectDefault(variant: .debug)
@@ -70,7 +88,7 @@ final class ConfigGenerator: ConfigGenerating {
             extend(buildSettings: &debugSettings, with: debugConfig.settings)
             if let xcconfigDebug = debugConfig.xcconfig {
                 let fileReference = try fileGenerator.generateFile(path: xcconfigDebug,
-                                                                   in: configsGroup,
+                                                                   in: groups.projectConfigurations(),
                                                                    sourceRootPath: sourceRootPath,
                                                                    context: context)
                 debugConfiguration.baseConfigurationReference = fileReference.reference
@@ -89,7 +107,7 @@ final class ConfigGenerator: ConfigGenerating {
             extend(buildSettings: &releaseSettings, with: releaseConfig.settings)
             if let xcconfigRelease = releaseConfig.xcconfig {
                 let fileReference = try fileGenerator.generateFile(path: xcconfigRelease,
-                                                                   in: configsGroup,
+                                                                   in: groups.projectConfigurations(),
                                                                    sourceRootPath: sourceRootPath,
                                                                    context: context)
                 releaseConfiguration.baseConfigurationReference = fileReference.reference
@@ -134,6 +152,29 @@ final class ConfigGenerator: ConfigGenerating {
         try addSettings(releaseConfig)
         return configurationListReference
     }
+
+    /// Generates the target configuration list and configurations.
+    ///
+    /// - Parameters:
+    ///   - target: target spec.
+    ///   - pbxproj: Xcode project PBXProj object.
+    ///   - groups: Project groups.
+    ///   - sourceRootPath: path to the folder that contains the generated project.
+    ///   - context: generation context.
+    /// - Returns: the configuration list reference.
+    /// - Throws: an error if the generation fails.
+    func generateTargetConfig(target _: Target,
+                              pbxproj: PBXProj,
+                              groups _: ProjectGroups,
+                              sourceRootPath _: AbsolutePath,
+                              context _: GeneratorContexting) throws -> PBXObjectReference {
+        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let configurationListReference = pbxproj.objects.addObject(configurationList)
+        // TODO:
+        return configurationListReference
+    }
+
+    // MARK: - Private
 
     /// Extends build settings with other build settings.
     ///

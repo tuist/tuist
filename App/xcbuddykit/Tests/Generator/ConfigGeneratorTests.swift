@@ -19,12 +19,10 @@ final class ConfigGeneratorTests: XCTestCase {
     }
 
     func testGenerateProjectConfig() throws {
-        let mainGroup = try generateProjectConfig()
+        let groups = try generateProjectConfig()
 
-        XCTAssertEqual(mainGroup.children.count, 1)
-
-        let configurationsGroup: PBXGroup = try mainGroup.children.first!.object()
-        XCTAssertEqual(configurationsGroup.name, "Configurations")
+        let configurationsGroup: PBXGroup = try groups.projectConfigurations()
+        XCTAssertEqual(configurationsGroup.name, "Project")
         XCTAssertEqual(configurationsGroup.sourceTree, .group)
         XCTAssertNil(configurationsGroup.path)
 
@@ -56,10 +54,8 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")
     }
 
-    private func generateProjectConfig() throws -> PBXGroup {
+    private func generateProjectConfig() throws -> ProjectGroups {
         let dir = try TemporaryDirectory()
-        let mainGroup = PBXGroup(sourceTree: .absolute, name: "main", path: dir.path.asString)
-        _ = pbxproj.objects.addObject(mainGroup)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try xcconfigsDir.mkpath()
         try xcconfigsDir.appending(component: "debug.xcconfig").write("")
@@ -74,11 +70,12 @@ final class ConfigGeneratorTests: XCTestCase {
                                                  release: Configuration(settings: ["Release": "Release"],
                                                                         xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))),
                               targets: [])
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: dir.path)
         _ = try subject.generateProjectConfig(project: project,
                                               pbxproj: pbxproj,
-                                              mainGroup: mainGroup,
+                                              groups: groups,
                                               sourceRootPath: dir.path,
                                               context: context)
-        return mainGroup
+        return groups
     }
 }

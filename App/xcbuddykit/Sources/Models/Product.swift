@@ -1,4 +1,5 @@
 import Foundation
+import xcodeproj
 
 /// Product type.
 ///
@@ -37,38 +38,38 @@ public enum Product: String {
 
 extension Product {
     /// Returns the Xcode value.
-    var xcodeValue: String {
+    var xcodeValue: PBXProductType {
         switch self {
         case .app:
-            return "com.apple.product-type.application"
+            return .application
         case .staticLibrary:
-            return "com.apple.product-type.library.static"
+            return .staticLibrary
         case .dynamicLibrary:
-            return "com.apple.product-type.library.dynamic"
+            return .dynamicLibrary
         case .framework:
-            return "com.apple.product-type.framework"
+            return .framework
         case .unitTests:
-            return "com.apple.product-type.bundle.unit-test"
+            return .unitTestBundle
         case .uiTests:
-            return "com.apple.product-type.bundle.ui-testing"
+            return .uiTestBundle
         case .appExtension:
-            return "com.apple.product-type.app-extension"
+            return .appExtension
         case .watchApp:
-            return "com.apple.product-type.application.watchapp"
+            return .watchApp
         case .watch2App:
-            return "com.apple.product-type.application.watchapp2"
+            return .watch2App
         case .watchExtension:
-            return "com.apple.product-type.watchkit-extension"
+            return .watch2App
         case .watch2Extension:
-            return "com.apple.product-type.watchkit2-extension"
+            return .watch2Extension
         case .tvExtension:
-            return "com.apple.product-type.tv-app-extension"
+            return .watch2Extension
         case .messagesApplication:
-            return "com.apple.product-type.application.messages"
+            return .messagesApplication
         case .messagesExtension:
-            return "com.apple.product-type.app-extension.messages"
+            return .messagesExtension
         case .stickerPack:
-            return "com.apple.product-type.app-extension.messages-sticker-pack"
+            return .stickerPack
         }
     }
 }
