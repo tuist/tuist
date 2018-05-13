@@ -13,11 +13,11 @@ enum GenerateCommandError: Error, ErrorStringConvertible, Equatable {
 }
 
 public class GenerateCommand: NSObject, Command {
-    /// Command name.
-    public let command = "generate"
+    /// Command name (static).
+    public static let command = "generate"
 
     /// Command description.
-    public let overview = "Generates an Xcode workspace to start working on the project."
+    public static let overview = "Generates an Xcode workspace to start working on the project."
 
     /// Graph loader context.
     fileprivate let graphLoaderContext: GraphLoaderContexting
@@ -58,7 +58,7 @@ public class GenerateCommand: NSObject, Command {
          workspaceGenerator: WorkspaceGenerating,
          parser: ArgumentParser,
          context: CommandsContexting) {
-        let subParser = parser.add(subparser: command, overview: overview)
+        let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.graphLoaderContext = graphLoaderContext
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator

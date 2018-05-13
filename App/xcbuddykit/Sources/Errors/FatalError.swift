@@ -38,4 +38,28 @@ enum FatalError: Error, ErrorStringConvertible {
         default: return nil
         }
     }
+
+    /// Returns if the error is silent.
+    var isSilent: Bool {
+        switch self {
+        case .abortSilent, .bugSilent: return true
+        default: return false
+        }
+    }
+
+    /// Returns if the error is an abort.
+    var isAbort: Bool {
+        switch self {
+        case .abort, .abortSilent: return true
+        default: return false
+        }
+    }
+
+    /// Returns if the error is a bug.
+    var isBug: Bool {
+        switch self {
+        case .bug, .bugSilent: return true
+        default: return false
+        }
+    }
 }

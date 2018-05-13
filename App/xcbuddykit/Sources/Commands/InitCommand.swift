@@ -24,10 +24,10 @@ public class InitCommand: NSObject, Command {
     // MARK: - Command
 
     /// Command name.
-    public let command = "init"
+    public static let command = "init"
 
     /// Command description.
-    public let overview = "Initializes a Project.swift in the current folder."
+    public static let overview = "Initializes a Project.swift in the current folder."
 
     /// Path argument.
     let pathArgument: OptionArgument<String>
@@ -36,7 +36,7 @@ public class InitCommand: NSObject, Command {
     let context: CommandsContexting
 
     public required init(parser: ArgumentParser) {
-        let subParser = parser.add(subparser: command, overview: overview)
+        let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,

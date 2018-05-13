@@ -27,16 +27,16 @@ final class DumpCommandTests: XCTestCase {
     }
 
     func test_name() {
-        XCTAssertEqual(subject.command, "dump")
+        XCTAssertEqual(DumpCommand.command, "dump")
     }
 
     func test_overview() {
-        XCTAssertEqual(subject.overview, "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON.")
+        XCTAssertEqual(DumpCommand.overview, "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON.")
     }
 
     func test_run_throws_when_file_doesnt_exist() throws {
         let tmpDir = try TemporaryDirectory()
-        let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
         subject.run(with: result)
         XCTAssertEqual(errorHandler.tryErrors.first as? DumpCommandError, DumpCommandError.manifestNotFound(tmpDir.path))
     }
@@ -46,7 +46,7 @@ final class DumpCommandTests: XCTestCase {
         try "invalid config".write(toFile: tmpDir.path.appending(component: "Config.swift").asString,
                                    atomically: true,
                                    encoding: .utf8)
-        let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
         subject.run(with: result)
         XCTAssertEqual(errorHandler.tryErrors.count, 1)
     }
@@ -60,7 +60,7 @@ final class DumpCommandTests: XCTestCase {
         try config.write(toFile: tmpDir.path.appending(component: "Config.swift").asString,
                          atomically: true,
                          encoding: .utf8)
-        let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
         subject.run(with: result)
         XCTAssertEqual(printer.printArgs.first, "{\n\n}\n")
     }

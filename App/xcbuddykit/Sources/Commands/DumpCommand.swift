@@ -24,11 +24,11 @@ enum DumpCommandError: Error, ErrorStringConvertible, Equatable {
 
 /// Command that dumps the manifest into the console.
 public class DumpCommand: NSObject, Command {
-    /// Command name.
-    public let command = "dump"
+    /// Command name (static)
+    public static let command = "dump"
 
     // Command overview.
-    public let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
+    public static let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
 
     /// Graph loading context.
     fileprivate let graphLoaderContext: GraphLoaderContexting
@@ -57,7 +57,7 @@ public class DumpCommand: NSObject, Command {
     init(graphLoaderContext: GraphLoaderContexting,
          context: CommandsContexting,
          parser: ArgumentParser) {
-        let subParser = parser.add(subparser: command, overview: overview)
+        let subParser = parser.add(subparser: DumpCommand.command, overview: DumpCommand.overview)
         self.graphLoaderContext = graphLoaderContext
         self.context = context
         pathArgument = subParser.add(option: "--path",

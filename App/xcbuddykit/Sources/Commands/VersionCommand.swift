@@ -8,10 +8,10 @@ public class VersionCommand: NSObject, Command {
     // MARK: - Command
 
     /// Command name.
-    public let command = "version"
+    public static let command = "version"
 
     /// Command description.
-    public let overview = "Outputs the current version of xcbuddy."
+    public static let overview = "Outputs the current version of xcbuddy."
 
     /// Context
     let context: CommandsContexting
@@ -23,7 +23,7 @@ public class VersionCommand: NSObject, Command {
     ///
     /// - Parameter parser: argument parser.
     public required init(parser: ArgumentParser) {
-        parser.add(subparser: command, overview: overview)
+        parser.add(subparser: VersionCommand.command, overview: VersionCommand.overview)
         context = CommandsContext()
         version = VersionCommand.currentVersion
     }

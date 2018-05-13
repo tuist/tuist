@@ -19,6 +19,8 @@ protocol ConfigGenerating: AnyObject {
                                mainGroup: PBXGroup,
                                sourceRootPath: AbsolutePath,
                                context: GeneratorContexting) throws -> PBXObjectReference
+
+    func generateManifestsConfig(pbxproj: PBXProj, context: GeneratorContexting) throws -> PBXObjectReference
 }
 
 /// Config generator.
@@ -101,6 +103,28 @@ final class ConfigGenerator: ConfigGenerating {
         let configurationListReference = pbxproj.objects.addObject(configurationList)
         configurationList.buildConfigurations.append(debugConfigurationReference)
         configurationList.buildConfigurations.append(releaseConfigurationReference)
+        return configurationListReference
+    }
+
+    func generateManifestsConfig(pbxproj: PBXProj, context: GeneratorContexting) throws -> PBXObjectReference {
+        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let debugConfig = XCBuildConfiguration(name: "Debug")
+        let debugConfigReference = pbxproj.objects.addObject(debugConfig)
+        debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .debug, platform: .macOS, product: .framework, swift: true)
+        let releaseConfig = XCBuildConfiguration(name: "Release")
+        let releaseConfigReference = pbxproj.objects.addObject(releaseConfig)
+        releaseConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .release, platform: .macOS, product: .framework, swift: true)
+        configurationList.buildConfigurations.append(debugConfigReference)
+        configurationList.buildConfigurations.append(releaseConfigReference)
+        let configurationListReference = pbxproj.objects.addObject(configurationList)
+
+        let addSettings: (XCBuildConfiguration) throws -> Void = { configuration in
+            let frameworkParentDirectory = try context.resourceLocator.projectDescription().parentDirectory
+            configuration.buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkParentDirectory.asString
+            configuration.buildSettings["SWIFT_VERSION"] = Constants.swiftVersion
+        }
+        try addSettings(debugConfig)
+        try addSettings(releaseConfig)
         return configurationListReference
     }
 

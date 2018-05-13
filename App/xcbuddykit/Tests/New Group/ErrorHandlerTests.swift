@@ -70,7 +70,7 @@ final class ErrorHandlerTests: XCTestCase {
 
     func test_fatalError_prints_whenItsSilent() {
         let error = NSError(domain: "domain", code: 20, userInfo: nil)
-        subject.fatal(error: .abortSilent(error))
+        subject.fatal(error: .bugSilent(error))
         let expected = """
         An unexpected error happened. We've opened an issue to fix it as soon as possible.
         We are sorry for any inconviniences it might have caused.

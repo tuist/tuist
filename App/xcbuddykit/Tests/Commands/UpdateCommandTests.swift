@@ -17,11 +17,11 @@ final class UpdateCommandTests: XCTestCase {
     }
 
     func test_command() {
-        XCTAssertEqual(subject.command, "update")
+        XCTAssertEqual(UpdateCommand.command, "update")
     }
 
     func test_overview() {
-        XCTAssertEqual(subject.overview, "Updates the app.")
+        XCTAssertEqual(UpdateCommand.overview, "Updates the app.")
     }
 
     func test_run() throws {

@@ -17,11 +17,11 @@ final class VersionCommandTests: XCTestCase {
     }
 
     func test_command() {
-        XCTAssertEqual(subject.command, "version")
+        XCTAssertEqual(VersionCommand.command, "version")
     }
 
     func test_description() {
-        XCTAssertEqual(subject.overview, "Outputs the current version of xcbuddy.")
+        XCTAssertEqual(VersionCommand.overview, "Outputs the current version of xcbuddy.")
     }
 
     func test_run() {

@@ -84,9 +84,9 @@ final class ErrorHandler: ErrorHandling {
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError) {
-        if !error.errorDescription.isEmpty {
+        if !error.errorDescription.isEmpty && !error.isSilent {
             printer.print(errorMessage: error.errorDescription)
-        } else {
+        } else if error.isBug {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconviniences it might have caused.

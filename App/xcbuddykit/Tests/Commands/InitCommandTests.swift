@@ -29,7 +29,7 @@ final class InitCommandTests: XCTestCase {
     }
 
     func test_init_registersTheSubparser() {
-        XCTAssertTrue(parser.subparsers.keys.contains(subject.command))
+        XCTAssertTrue(parser.subparsers.keys.contains(InitCommand.command))
     }
 
     func test_pathArgument() {
@@ -42,7 +42,7 @@ final class InitCommandTests: XCTestCase {
         let tmpDir = try TemporaryDirectory()
         try "".write(toFile: tmpDir.path.appending(component: "Info.plist").asString, atomically: true, encoding: .utf8)
         try "".write(toFile: tmpDir.path.appending(component: "Debug.xcconfig").asString, atomically: true, encoding: .utf8)
-        let result = try parser.parse([subject.command, "-p", tmpDir.path.asString])
+        let result = try parser.parse([InitCommand.command, "-p", tmpDir.path.asString])
         subject.run(with: result)
         let project = try Project.at(tmpDir.path, context: graphLoaderContext)
         XCTAssertEqual(project.name, tmpDir.path.components.last)

@@ -8,10 +8,10 @@ public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
     // MARK: - Command
 
     /// Command name.
-    public let command = "update"
+    public static let command = "update"
 
     /// Command description.
-    public let overview = "Updates the app."
+    public static let overview = "Updates the app."
 
     /// Context.
     fileprivate let context: CommandsContexting
@@ -20,7 +20,7 @@ public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
     fileprivate let controller: UpdateControlling
 
     public required init(parser: ArgumentParser) {
-        parser.add(subparser: command, overview: overview)
+        parser.add(subparser: UpdateCommand.command, overview: UpdateCommand.overview)
         controller = UpdateController()
         context = CommandsContext()
     }

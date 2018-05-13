@@ -5,13 +5,13 @@ import Utility
 /// Registry that contains all the commands.
 public final class CommandRegistry {
     // Argument parser.
-    private let parser: ArgumentParser
+    let parser: ArgumentParser
 
-    /// Printer.
-    private let printer: Printing
+    /// Context.
+    private let context: Contexting
 
-    /// Error handler.
-    private let errorHandler: ErrorHandling
+    /// Command check.
+    private let commandCheck: CommandChecking
 
     // Registered commands.
     var commands: [Command] = []
@@ -19,18 +19,27 @@ public final class CommandRegistry {
     /// Returns the process arguments.
     private let processArguments: () -> [String]
 
-    /// Initializes the command registry
-    public init(processArguments: @escaping () -> [String] = CommandRegistry.processArguments) {
-        printer = Printer()
-        errorHandler = ErrorHandler(printer: printer)
-        parser = ArgumentParser(usage: "<command> <options>",
-                                overview: "Your Xcode buddy")
-        self.processArguments = processArguments
+    /// Public ocnstructor that takes no arguments.
+    public convenience init() {
+        self.init(context: Context(),
+                  commandCheck: CommandCheck(),
+                  processArguments: CommandRegistry.processArguments)
         register(command: InitCommand.self)
         register(command: GenerateCommand.self)
         register(command: UpdateCommand.self)
         register(command: DumpCommand.self)
         register(command: VersionCommand.self)
+    }
+
+    /// Initializes the command registry
+    init(context: Contexting,
+         commandCheck: CommandChecking,
+         processArguments: @escaping () -> [String]) {
+        self.commandCheck = commandCheck
+        self.context = context
+        parser = ArgumentParser(usage: "<command> <options>",
+                                overview: "Your Xcode buddy")
+        self.processArguments = processArguments
     }
 
     /// Returns the process arguments
@@ -49,15 +58,9 @@ public final class CommandRegistry {
 
     /// Runs the command line interface.
     public func run() throws {
-        let parsedArguments = try parse()
-        do {
+        context.errorHandler.try {
+            let parsedArguments = try parse()
             try process(arguments: parsedArguments)
-        } catch {
-            // Errors shouldn't reach this point.
-            // In case we do we should check where the error is coming from and:
-            //  - Handle them if we can.
-            //  - Use the error handler from the context to fail the execution.
-            errorHandler.fatal(error: FatalError.bugSilent(error))
         }
     }
 
@@ -76,10 +79,11 @@ public final class CommandRegistry {
     /// - Throws: an error if the output cannot be processed
     private func process(arguments: ArgumentParser.Result) throws {
         guard let subparser = arguments.subparser(parser),
-            let command = commands.first(where: { $0.command == subparser }) else {
+            let command = commands.first(where: { type(of: $0).command == subparser }) else {
             parser.printUsage(on: stdoutStream)
             return
         }
+        try commandCheck.check(command: type(of: command).command)
         command.run(with: arguments)
     }
 }

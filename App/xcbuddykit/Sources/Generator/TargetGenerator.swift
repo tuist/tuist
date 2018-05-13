@@ -58,24 +58,7 @@ final class TargetGenerator: TargetGenerating {
         }
 
         // Configuration
-        let configurationList = XCConfigurationList(buildConfigurations: [])
-        let debugConfig = XCBuildConfiguration(name: "Debug")
-        let debugConfigReference = pbxproj.objects.addObject(debugConfig)
-        debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .debug, platform: .macOS, product: .framework, swift: true)
-        let releaseConfig = XCBuildConfiguration(name: "Release")
-        let releaseConfigReference = pbxproj.objects.addObject(releaseConfig)
-        releaseConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .release, platform: .macOS, product: .framework, swift: true)
-        configurationList.buildConfigurations.append(debugConfigReference)
-        configurationList.buildConfigurations.append(releaseConfigReference)
-        let configurationListReference = pbxproj.objects.addObject(configurationList)
-
-        func addSettings(configuration: XCBuildConfiguration) throws {
-            let frameworkParentDirectory = try context.resourceLocator.projectDescription().parentDirectory
-            configuration.buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkParentDirectory.asString
-            configuration.buildSettings["SWIFT_VERSION"] = Constants.swiftVersion
-        }
-        try addSettings(configuration: debugConfig)
-        try addSettings(configuration: releaseConfig)
+        let configurationListReference = try configGenerator.generateManifestsConfig(pbxproj: pbxproj, context: context)
 
         // Build phases
         let sourcesPhase = PBXSourcesBuildPhase(files: [])

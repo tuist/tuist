@@ -12,6 +12,10 @@
 		3D4C0B3B20A6429D003D09B0 /* xcodeproj.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3D4C0B3820A6428A003D09B0 /* xcodeproj.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		3D4C0B8820A6507B003D09B0 /* ConfigGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4C0B8720A6507B003D09B0 /* ConfigGenerator.swift */; };
 		3D4C0B9C20A6C470003D09B0 /* FileGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4C0B9B20A6C470003D09B0 /* FileGenerator.swift */; };
+		3D4C0BA220A6ED37003D09B0 /* CommandCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4C0BA120A6ED37003D09B0 /* CommandCheck.swift */; };
+		3D92B77B20A818CD006711E5 /* CommandCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4C0BA320A81828003D09B0 /* CommandCheckTests.swift */; };
+		3D92B77D20A821A6006711E5 /* MockCommandCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B77C20A821A6006711E5 /* MockCommandCheck.swift */; };
+		3D92B78020A823FF006711E5 /* NSError+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B77F20A823FF006711E5 /* NSError+TestData.swift */; };
 		66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */; };
 		B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; };
 		B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -225,6 +229,10 @@
 		3D4C0B3820A6428A003D09B0 /* xcodeproj.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = xcodeproj.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		3D4C0B8720A6507B003D09B0 /* ConfigGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigGenerator.swift; sourceTree = "<group>"; };
 		3D4C0B9B20A6C470003D09B0 /* FileGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileGenerator.swift; sourceTree = "<group>"; };
+		3D4C0BA120A6ED37003D09B0 /* CommandCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandCheck.swift; sourceTree = "<group>"; };
+		3D4C0BA320A81828003D09B0 /* CommandCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandCheckTests.swift; sourceTree = "<group>"; };
+		3D92B77C20A821A6006711E5 /* MockCommandCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCommandCheck.swift; sourceTree = "<group>"; };
+		3D92B77F20A823FF006711E5 /* NSError+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSError+TestData.swift"; sourceTree = "<group>"; };
 		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommandTests.swift; sourceTree = "<group>"; };
@@ -382,6 +390,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3D92B77E20A821AA006711E5 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B9FB9D242066D56D00F13FFA /* MockLogger.swift */,
+				B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */,
+				B9BFCF70207B48D500ACC59D /* MockPrinter.swift */,
+				B9553DED2090F6AE00050311 /* MockShell.swift */,
+				B9553DF4209228EB00050311 /* MockRersourceLocator.swift */,
+				3D92B77C20A821A6006711E5 /* MockCommandCheck.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
 		B915EC392062EC97004B6630 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -500,6 +521,7 @@
 				66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */,
 				B9F1EDD0208CD18100477835 /* AargumentParser+TestData.swift */,
 				B9F1EDD2208CD2E200477835 /* ShellCompletion+Equatable.swift */,
+				3D92B77F20A823FF006711E5 /* NSError+TestData.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -602,6 +624,7 @@
 				B9553DE92090690000050311 /* Shell.swift */,
 				B9553DF02092181500050311 /* Context.swift */,
 				B9553DF220921AF300050311 /* ResourceLocator.swift */,
+				3D4C0BA120A6ED37003D09B0 /* CommandCheck.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -720,11 +743,8 @@
 		B9FB9CF52066D04C00F13FFA /* Utils */ = {
 			isa = PBXGroup;
 			children = (
-				B9FB9D242066D56D00F13FFA /* MockLogger.swift */,
-				B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */,
-				B9BFCF70207B48D500ACC59D /* MockPrinter.swift */,
-				B9553DED2090F6AE00050311 /* MockShell.swift */,
-				B9553DF4209228EB00050311 /* MockRersourceLocator.swift */,
+				3D92B77E20A821AA006711E5 /* Mocks */,
+				3D4C0BA320A81828003D09B0 /* CommandCheckTests.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -963,6 +983,7 @@
 				B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */,
 				B9FB2DE52086544900BC2FB3 /* Workspace.swift in Sources */,
 				B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */,
+				3D4C0BA220A6ED37003D09B0 /* CommandCheck.swift in Sources */,
 				B9FB2DE42086544900BC2FB3 /* Config.swift in Sources */,
 				B9FB2DDF208653E000BC2FB3 /* GraphNode.swift in Sources */,
 				B9FB2DEB2086544900BC2FB3 /* Product.swift in Sources */,
@@ -1029,10 +1050,12 @@
 				B9F1EDEF208D1DB200477835 /* BuildPhase+TestData.swift in Sources */,
 				B9F1EDF1208D1F0F00477835 /* Settings+TestData.swift in Sources */,
 				B9B5943D209C1D0D00C59DA2 /* FatalErrorTests.swift in Sources */,
+				3D92B77D20A821A6006711E5 /* MockCommandCheck.swift in Sources */,
 				B9F1EDD5208D080C00477835 /* GraphManifestLoaderTests.swift in Sources */,
 				B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */,
 				B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */,
 				B9F1EDED208D1CFE00477835 /* Target+TestData.swift in Sources */,
+				3D92B77B20A818CD006711E5 /* CommandCheckTests.swift in Sources */,
 				B9F1EDD3208CD2E200477835 /* ShellCompletion+Equatable.swift in Sources */,
 				B9F1EDFB208D24F700477835 /* ProjectValidatorTests.swift in Sources */,
 				B918A2312093680600E64FBE /* MockErrorHandler.swift in Sources */,
@@ -1046,6 +1069,7 @@
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
+				3D92B78020A823FF006711E5 /* NSError+TestData.swift in Sources */,
 				B9157D5320A24B4300C2EEBA /* VersionCommandTests.swift in Sources */,
 				B9F1EDD1208CD18100477835 /* AargumentParser+TestData.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
