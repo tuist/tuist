@@ -41,7 +41,7 @@ final class CommandCheckTests: XCTestCase {
 
     func test_swiftVeresionCompatibility_throws_whenSwiftVersionsAreNotEqual() {
         shell.runStub = { command in
-            if command == ["swift", "version"] {
+            if command == ["swift", "--version"] {
                 return "Apple Swift version 3.0 (swiftlang-902.0.48 clang-902.0.37.1)"
             }
             return ""

@@ -82,7 +82,7 @@ final class ConfigGenerator: ConfigGenerating {
         // Release
         var releaseSettings: [String: Any] = [:]
         extend(buildSettings: &releaseSettings, with: defaultAll)
-        extend(buildSettings: &debugSettings, with: project.settings?.base ?? [:])
+        extend(buildSettings: &releaseSettings, with: project.settings?.base ?? [:])
         extend(buildSettings: &releaseSettings, with: defaultRelease)
         let releaseConfiguration = XCBuildConfiguration(name: "Release")
         if let releaseConfig = project.settings?.release {
@@ -106,6 +106,13 @@ final class ConfigGenerator: ConfigGenerating {
         return configurationListReference
     }
 
+    /// Generates the configuration for the manifests target.
+    ///
+    /// - Parameters:
+    ///   - pbxproj: PBXProj object.
+    ///   - context: generation context.
+    /// - Returns: the configuration list object reference.
+    /// - Throws: an error if the genreation fails.
     func generateManifestsConfig(pbxproj: PBXProj, context: GeneratorContexting) throws -> PBXObjectReference {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         let debugConfig = XCBuildConfiguration(name: "Debug")

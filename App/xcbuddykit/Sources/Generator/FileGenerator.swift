@@ -12,7 +12,10 @@ protocol FileGenerating: AnyObject {
     ///   - sourceRootPath: path to the folder that contains the Xcode project that is being generated.
     ///   - context: generation context.
     /// - Throws: an error if the generation fails.
-    func generateFile(path: AbsolutePath, in group: PBXGroup, sourceRootPath: AbsolutePath, context: GeneratorContexting) throws -> PBXFileReference
+    func generateFile(path: AbsolutePath,
+                      in group: PBXGroup,
+                      sourceRootPath: AbsolutePath,
+                      context: GeneratorContexting) throws -> PBXFileReference
 }
 
 final class FileGenerator: FileGenerating {
@@ -24,7 +27,10 @@ final class FileGenerator: FileGenerating {
     ///   - sourceRootPath: path to the folder that contains the Xcode project that is being generated.
     ///   - context: generation context.
     /// - Throws: an error if the generation fails.
-    func generateFile(path: AbsolutePath, in group: PBXGroup, sourceRootPath: AbsolutePath, context _: GeneratorContexting) throws -> PBXFileReference {
+    func generateFile(path: AbsolutePath,
+                      in group: PBXGroup,
+                      sourceRootPath: AbsolutePath,
+                      context _: GeneratorContexting) throws -> PBXFileReference {
         return try group.addFile(at: path, sourceTree: .group, sourceRoot: sourceRootPath)
     }
 }

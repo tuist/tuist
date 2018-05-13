@@ -71,11 +71,7 @@ final class ErrorHandler: ErrorHandling {
         do {
             try closure()
         } catch {
-            if let error = error as? (Error & ErrorStringConvertible) {
-                fatal(error: .abort(error))
-            } else {
-                fatal(error: .abortSilent(error as Error))
-            }
+            fatal(error: .abort(error))
         }
     }
 

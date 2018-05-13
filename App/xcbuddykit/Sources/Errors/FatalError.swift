@@ -13,8 +13,8 @@ protocol ErrorStringConvertible {
 /// - abortSilent: like abort, but it doesn't print anything in the console.
 /// - bugSilent: like bug, but it doesn't print anything in the console.
 enum FatalError: Error, ErrorStringConvertible {
-    case abort(Error & ErrorStringConvertible)
-    case bug(Error & ErrorStringConvertible)
+    case abort(Error)
+    case bug(Error)
     case abortSilent(Error)
     case bugSilent(Error)
 
@@ -22,9 +22,17 @@ enum FatalError: Error, ErrorStringConvertible {
     var errorDescription: String {
         switch self {
         case let .abort(error):
-            return error.errorDescription
+            if let errorStringConvertible = error as? ErrorStringConvertible {
+                return errorStringConvertible.errorDescription
+            } else {
+                return "\(error)"
+            }
         case let .bug(error):
-            return error.errorDescription
+            if let errorStringConvertible = error as? ErrorStringConvertible {
+                return errorStringConvertible.errorDescription
+            } else {
+                return "\(error)"
+            }
         default:
             return ""
         }
