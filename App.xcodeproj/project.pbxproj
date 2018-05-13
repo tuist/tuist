@@ -403,6 +403,72 @@
 			path = Mocks;
 			sourceTree = "<group>";
 		};
+		3D92B78120A82821006711E5 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B9E2DCC52088F0970061DF86 /* MockCommand.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		3D92B78220A82831006711E5 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */,
+				B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		3D92B78320A8283C006711E5 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B92BF8152073E66200EE4EBD /* MockUpdateController.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		3D92B78420A8284A006711E5 /* TestData */ = {
+			isa = PBXGroup;
+			children = (
+				B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */,
+				B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */,
+				B9F1EDEC208D1CFE00477835 /* Target+TestData.swift */,
+				B9F1EDEE208D1DB200477835 /* BuildPhase+TestData.swift */,
+				B9F1EDF0208D1F0F00477835 /* Settings+TestData.swift */,
+				B9F1EDF2208D200C00477835 /* Scheme+TestData.swift */,
+			);
+			path = TestData;
+			sourceTree = "<group>";
+		};
+		3D92B78520A82892006711E5 /* TestData */ = {
+			isa = PBXGroup;
+			children = (
+				3D92B77F20A823FF006711E5 /* NSError+TestData.swift */,
+				B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */,
+				66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */,
+				B9F1EDD0208CD18100477835 /* AargumentParser+TestData.swift */,
+				B9F1EDD2208CD2E200477835 /* ShellCompletion+Equatable.swift */,
+			);
+			path = TestData;
+			sourceTree = "<group>";
+		};
+		3D92B78620A8289F006711E5 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		3D92B78720A828AA006711E5 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B918A2302093680600E64FBE /* MockErrorHandler.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
 		B915EC392062EC97004B6630 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -480,8 +546,7 @@
 		B92BF80B2073E40500EE4EBD /* Loader */ = {
 			isa = PBXGroup;
 			children = (
-				B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */,
-				B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */,
+				3D92B78220A82831006711E5 /* Mocks */,
 				B95895FC208A361D00F00ACF /* GraphLoadingErrorTests.swift */,
 				B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */,
 				B9F1EDD4208D080C00477835 /* GraphManifestLoaderTests.swift */,
@@ -493,7 +558,7 @@
 		B92BF8142073E65800EE4EBD /* Updater */ = {
 			isa = PBXGroup;
 			children = (
-				B92BF8152073E66200EE4EBD /* MockUpdateController.swift */,
+				3D92B78320A8283C006711E5 /* Mocks */,
 			);
 			path = Updater;
 			sourceTree = "<group>";
@@ -501,15 +566,10 @@
 		B92BF9ED2075599900EE4EBD /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				3D92B78420A8284A006711E5 /* TestData */,
 				B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */,
-				B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */,
-				B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */,
 				B9589601208A3CBA00F00ACF /* PlatformTests.swift */,
 				B9589603208A405D00F00ACF /* ProductTests .swift */,
-				B9F1EDEC208D1CFE00477835 /* Target+TestData.swift */,
-				B9F1EDEE208D1DB200477835 /* BuildPhase+TestData.swift */,
-				B9F1EDF0208D1F0F00477835 /* Settings+TestData.swift */,
-				B9F1EDF2208D200C00477835 /* Scheme+TestData.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -517,11 +577,7 @@
 		B92BF9FC2075607C00EE4EBD /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
-				B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */,
-				66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */,
-				B9F1EDD0208CD18100477835 /* AargumentParser+TestData.swift */,
-				B9F1EDD2208CD2E200477835 /* ShellCompletion+Equatable.swift */,
-				3D92B77F20A823FF006711E5 /* NSError+TestData.swift */,
+				3D92B78520A82892006711E5 /* TestData */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -589,8 +645,8 @@
 		B9589605208B4E3500F00ACF /* Generator */ = {
 			isa = PBXGroup;
 			children = (
+				3D92B78620A8289F006711E5 /* Mocks */,
 				B9589606208B4E4700F00ACF /* WorkspaceGeneratorTests.swift */,
-				B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */,
 			);
 			path = Generator;
 			sourceTree = "<group>";
@@ -598,7 +654,7 @@
 		B9B59438209C174A00C59DA2 /* Errors */ = {
 			isa = PBXGroup;
 			children = (
-				B918A2302093680600E64FBE /* MockErrorHandler.swift */,
+				3D92B78720A828AA006711E5 /* Mocks */,
 				B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */,
 				B9B5943C209C1D0D00C59DA2 /* FatalErrorTests.swift */,
 			);
@@ -752,9 +808,9 @@
 		B9FB9D262066D5F400F13FFA /* Commands */ = {
 			isa = PBXGroup;
 			children = (
+				3D92B78120A82821006711E5 /* Mocks */,
 				B9E2DCBA2088E0B50061DF86 /* UpdateCommandTests.swift */,
 				B9E2DCC32088EEFC0061DF86 /* CommandRegistryTests.swift */,
-				B9E2DCC52088F0970061DF86 /* MockCommand.swift */,
 				B9E2DCC72089B78D0061DF86 /* DumpCommandTests.swift */,
 				B9F1EDCE208CD0B800477835 /* InitCommandTests.swift */,
 				B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */,
