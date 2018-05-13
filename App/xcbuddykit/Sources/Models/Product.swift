@@ -59,11 +59,11 @@ extension Product {
         case .watch2App:
             return .watch2App
         case .watchExtension:
-            return .watch2App
+            return .watchExtension
         case .watch2Extension:
             return .watch2Extension
         case .tvExtension:
-            return .watch2Extension
+            return .tvExtension
         case .messagesApplication:
             return .messagesApplication
         case .messagesExtension:

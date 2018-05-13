@@ -64,7 +64,7 @@ class ProjectGroups {
         if let group = targets.group(named: name) {
             return group
         } else {
-            return try targets.addGroup(named: name, options: .withoutFolder).first!
+            return try targets.addGroup(named: name, options: .withoutFolder).last!
         }
     }
 
@@ -77,7 +77,7 @@ class ProjectGroups {
         if let group = frameworks.group(named: target) {
             return group
         } else {
-            return try frameworks.addGroup(named: target, options: .withoutFolder).first!
+            return try frameworks.addGroup(named: target, options: .withoutFolder).last!
         }
     }
 
@@ -90,7 +90,7 @@ class ProjectGroups {
         if let group = configurations.group(named: target) {
             return group
         } else {
-            return try configurations.addGroup(named: target, options: .withoutFolder).first!
+            return try configurations.addGroup(named: target, options: .withoutFolder).last!
         }
     }
 
@@ -102,7 +102,7 @@ class ProjectGroups {
         if let group = configurations.group(named: "Project") {
             return group
         } else {
-            return try configurations.addGroup(named: "Project", options: .withoutFolder).first!
+            return try configurations.addGroup(named: "Project", options: .withoutFolder).last!
         }
     }
 
