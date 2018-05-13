@@ -17,16 +17,16 @@ class ProjectGroups {
     let projectDescription: PBXGroup
 
     /// Targets group.
-    fileprivate let targets: PBXGroup
+    let targets: PBXGroup
 
     /// Frameworks group.
-    fileprivate let frameworks: PBXGroup
+    let frameworks: PBXGroup
 
     /// PBXProj instance.
-    fileprivate let pbxproj: PBXProj
+    let pbxproj: PBXProj
 
     /// Project configurations group.
-    fileprivate let configurations: PBXGroup
+    let configurations: PBXGroup
 
     /// Initializes the object with the group.
     ///
@@ -138,7 +138,7 @@ class ProjectGroups {
         let supportGroupReference = pbxproj.objects.addObject(supportGroup)
         mainGroup.children.append(supportGroupReference)
 
-        /// Configurations
+        /// ProjectDescription
         let projectDescriptionGroup = PBXGroup(children: [], sourceTree: .group, name: "ProjectDescription")
         let projectDescriptionGroupReference = pbxproj.objects.addObject(projectDescriptionGroup)
         mainGroup.children.append(projectDescriptionGroupReference)

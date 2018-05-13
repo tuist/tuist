@@ -19,6 +19,7 @@
 		3D92B78E20A8298F006711E5 /* ConfigGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B78D20A8298F006711E5 /* ConfigGeneratorTests.swift */; };
 		3D92B79120A82A82006711E5 /* Graph+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B79020A82A82006711E5 /* Graph+TestData.swift */; };
 		3D92B79320A83BC3006711E5 /* ProjectGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B79220A83BC3006711E5 /* ProjectGroups.swift */; };
+		3D92B7E720A84888006711E5 /* ProjectGroupsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B7E620A84888006711E5 /* ProjectGroupsTests.swift */; };
 		66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */; };
 		B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; };
 		B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -239,6 +240,7 @@
 		3D92B78D20A8298F006711E5 /* ConfigGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigGeneratorTests.swift; sourceTree = "<group>"; };
 		3D92B79020A82A82006711E5 /* Graph+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Graph+TestData.swift"; sourceTree = "<group>"; };
 		3D92B79220A83BC3006711E5 /* ProjectGroups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGroups.swift; sourceTree = "<group>"; };
+		3D92B7E620A84888006711E5 /* ProjectGroupsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGroupsTests.swift; sourceTree = "<group>"; };
 		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommandTests.swift; sourceTree = "<group>"; };
@@ -664,6 +666,7 @@
 				3D92B78620A8289F006711E5 /* Mocks */,
 				B9589606208B4E4700F00ACF /* WorkspaceGeneratorTests.swift */,
 				3D92B78D20A8298F006711E5 /* ConfigGeneratorTests.swift */,
+				3D92B7E620A84888006711E5 /* ProjectGroupsTests.swift */,
 			);
 			path = Generator;
 			sourceTree = "<group>";
@@ -1145,6 +1148,7 @@
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
+				3D92B7E720A84888006711E5 /* ProjectGroupsTests.swift in Sources */,
 				3D92B78020A823FF006711E5 /* NSError+TestData.swift in Sources */,
 				B9157D5320A24B4300C2EEBA /* VersionCommandTests.swift in Sources */,
 				B9F1EDD1208CD18100477835 /* AargumentParser+TestData.swift in Sources */,
