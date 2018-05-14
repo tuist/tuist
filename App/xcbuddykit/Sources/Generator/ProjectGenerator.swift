@@ -11,9 +11,10 @@ protocol ProjectGenerating: AnyObject {
     ///   - sourceRootPath: path to the folder that contains the project that is being generated.
     ///     If it's not specified, it'll use the same folder where the spec is defined.
     ///   - context: generation context.
+    ///   - options: generation options.
     /// - Returns: the path where the project has been generated.
     /// - Throws: an error if the generation fails.
-    func generate(project: Project, sourceRootPath: AbsolutePath?, context: GeneratorContexting) throws -> AbsolutePath
+    func generate(project: Project, sourceRootPath: AbsolutePath?, context: GeneratorContexting, options: GenerationOptions) throws -> AbsolutePath
 }
 
 /// Project generator.
@@ -37,7 +38,8 @@ final class ProjectGenerator: ProjectGenerating {
 
     func generate(project: Project,
                   sourceRootPath: AbsolutePath? = nil,
-                  context: GeneratorContexting) throws -> AbsolutePath {
+                  context: GeneratorContexting,
+                  options: GenerationOptions) throws -> AbsolutePath {
         context.printer.print("Generating project \(project.name)")
 
         // Getting the path.
@@ -58,7 +60,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                                                    pbxproj: pbxproj,
                                                                                    groups: groups,
                                                                                    sourceRootPath: sourceRootPath,
-                                                                                   context: context)
+                                                                                   context: context,
+                                                                                   options: options)
 
         /// Generate project object.
         let pbxProject = PBXProject(name: project.name,
@@ -82,7 +85,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                     pbxProject: pbxProject,
                                                     groups: groups,
                                                     sourceRootPath: sourceRootPath,
-                                                    context: context)
+                                                    context: context,
+                                                    options: options)
         try project.targets.forEach { target in
             try targetGenerator.generateTarget(target: target,
                                                pbxproj: pbxproj,

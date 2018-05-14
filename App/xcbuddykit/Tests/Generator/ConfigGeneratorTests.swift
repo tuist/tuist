@@ -18,25 +18,20 @@ final class ConfigGeneratorTests: XCTestCase {
         subject = ConfigGenerator()
     }
 
-    func testGenerateProjectConfig() throws {
-        let groups = try generateProjectConfig()
+    func test_generateProjectConfig_whenDebug() throws {
+        let groups = try generateProjectConfig(config: .debug)
 
         let configurationsGroup: PBXGroup = try groups.projectConfigurations()
         XCTAssertEqual(configurationsGroup.name, "Project")
         XCTAssertEqual(configurationsGroup.sourceTree, .group)
         XCTAssertNil(configurationsGroup.path)
 
-        XCTAssertEqual(configurationsGroup.children.count, 2)
+        XCTAssertEqual(configurationsGroup.children.count, 1)
 
         let debugxcconfig: PBXFileReference = try configurationsGroup.children.first!.object()
         XCTAssertEqual(debugxcconfig.name, "debug.xcconfig")
         XCTAssertEqual(debugxcconfig.path, "xcconfigs/debug.xcconfig")
         XCTAssertEqual(debugxcconfig.sourceTree, .group)
-
-        let releasexcconfig: PBXFileReference = try configurationsGroup.children.last!.object()
-        XCTAssertEqual(releasexcconfig.name, "release.xcconfig")
-        XCTAssertEqual(releasexcconfig.path, "xcconfigs/release.xcconfig")
-        XCTAssertEqual(releasexcconfig.sourceTree, .group)
 
         XCTAssertEqual(pbxproj.objects.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.objects.configurationLists.first!.value
@@ -46,6 +41,25 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertTrue(debugConfig.baseConfigurationReference === debugxcconfig.reference)
         XCTAssertEqual(debugConfig.buildSettings["Debug"] as? String, "Debug")
         XCTAssertEqual(debugConfig.buildSettings["Base"] as? String, "Base")
+    }
+
+    func test_generateProjectConfig_whenRelease() throws {
+        let groups = try generateProjectConfig(config: .release)
+
+        let configurationsGroup: PBXGroup = try groups.projectConfigurations()
+        XCTAssertEqual(configurationsGroup.name, "Project")
+        XCTAssertEqual(configurationsGroup.sourceTree, .group)
+        XCTAssertNil(configurationsGroup.path)
+
+        XCTAssertEqual(configurationsGroup.children.count, 1)
+
+        let releasexcconfig: PBXFileReference = try configurationsGroup.children.last!.object()
+        XCTAssertEqual(releasexcconfig.name, "release.xcconfig")
+        XCTAssertEqual(releasexcconfig.path, "xcconfigs/release.xcconfig")
+        XCTAssertEqual(releasexcconfig.sourceTree, .group)
+
+        XCTAssertEqual(pbxproj.objects.configurationLists.count, 1)
+        let configurationList: XCConfigurationList = pbxproj.objects.configurationLists.first!.value
 
         let releaseConfig: XCBuildConfiguration = try configurationList.buildConfigurations.last!.object()
         XCTAssertEqual(releaseConfig.name, "Release")
@@ -54,7 +68,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")
     }
 
-    private func generateProjectConfig() throws -> ProjectGroups {
+    private func generateProjectConfig(config: BuildConfiguration) throws -> ProjectGroups {
         let dir = try TemporaryDirectory()
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try xcconfigsDir.mkpath()
@@ -75,7 +89,8 @@ final class ConfigGeneratorTests: XCTestCase {
                                               pbxproj: pbxproj,
                                               groups: groups,
                                               sourceRootPath: dir.path,
-                                              context: context)
+                                              context: context,
+                                              options: GenerationOptions(buildConfiguration: config))
         return groups
     }
 }

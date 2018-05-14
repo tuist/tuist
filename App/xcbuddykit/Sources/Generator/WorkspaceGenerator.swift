@@ -9,9 +9,11 @@ protocol WorkspaceGenerating: AnyObject {
     /// - Parameters:
     ///   - path: path where the workspace should be generated.
     ///   - context: generator context.
+    ///   - options: generation options.
     /// - Throws: throw an error if the generation fails.
     func generate(path: AbsolutePath,
-                  context: GeneratorContexting) throws
+                  context: GeneratorContexting,
+                  options: GenerationOptions) throws
 }
 
 /// Workspace generator.
@@ -31,16 +33,21 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     /// - Parameters:
     ///   - path: path where the workspace should be generated.
     ///   - context: generator context.
+    ///   - options: generation options.
     /// - Throws: throw an error if the generation fails.
     func generate(path: AbsolutePath,
-                  context: GeneratorContexting) throws {
+                  context: GeneratorContexting,
+                  options: GenerationOptions) throws {
         let workspaceName = "\(context.graph.name).xcworkspace"
         context.printer.print(section: "Generating workspace \(workspaceName)")
         let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
         try context.graph.projects.forEach { project in
-            let xcodeprojPath = try projectGenerator.generate(project: project, sourceRootPath: nil, context: context)
+            let xcodeprojPath = try projectGenerator.generate(project: project,
+                                                              sourceRootPath: nil,
+                                                              context: context,
+                                                              options: options)
             let relativePath = xcodeprojPath.relative(to: path)
             let location = XCWorkspaceDataElementLocationType.group(relativePath.asString)
             let fileRef = XCWorkspaceDataFileRef(location: location)
