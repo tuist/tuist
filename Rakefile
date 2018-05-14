@@ -157,7 +157,7 @@ task :release do
   release
 end
 
-desc 'Runs all the continuous integraiton tasks'
+desc 'Runs all the continuous integration tasks'
 task :ci do
   test
 end
