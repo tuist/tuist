@@ -105,10 +105,6 @@ def docs
   execute("bundle exec jazzy")
 end
 
-def carthage
-  execute("carthage update; carthage build --platform macos")
-end
-
 def release
   branch = `git rev-parse --abbrev-ref HEAD`.strip
   unless branch.include?("version/")
@@ -154,11 +150,6 @@ end
 desc 'Runs the unit tests'
 task :test do
   test
-end
-
-desc 'Fetches Carthage dependencies'
-task :carthage do
-  carthage
 end
 
 desc 'Releases a new version of the app'
