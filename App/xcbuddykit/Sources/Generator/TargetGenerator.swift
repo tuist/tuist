@@ -13,13 +13,15 @@ protocol TargetGenerating: AnyObject {
     ///   - groups: Project groups.
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
+    ///   - options: Generation options.
     /// - Throws: an error if the generation fails.
     func generateManifestsTarget(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
                                  groups: ProjectGroups,
                                  sourceRootPath: AbsolutePath,
-                                 context: GeneratorContexting) throws
+                                 context: GeneratorContexting,
+                                 options: GenerationOptions) throws
 
     /// Generates a native target.
     ///
@@ -67,13 +69,15 @@ final class TargetGenerator: TargetGenerating {
     ///   - groups: Project groups.
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
+    ///   - options: generation options.
     /// - Throws: an error if the generation fails.
     func generateManifestsTarget(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
                                  groups: ProjectGroups,
                                  sourceRootPath: AbsolutePath,
-                                 context: GeneratorContexting) throws {
+                                 context: GeneratorContexting,
+                                 options: GenerationOptions) throws {
         /// Names
         let name = "\(project.name)Description"
         let frameworkName = "\(name).framework"
@@ -101,7 +105,9 @@ final class TargetGenerator: TargetGenerating {
         }
 
         // Configuration
-        let configurationListReference = try configGenerator.generateManifestsConfig(pbxproj: pbxproj, context: context)
+        let configurationListReference = try configGenerator.generateManifestsConfig(pbxproj: pbxproj,
+                                                                                     context: context,
+                                                                                     options: options)
 
         // Build phases
         let sourcesPhase = PBXSourcesBuildPhase(files: [])

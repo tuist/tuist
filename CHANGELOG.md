@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 * Version command https://github.com/xcbuddy/xcbuddy/pull/25 by @pepibumur.
+* Generate only the specified configurations https://github.com/xcbuddy/xcbuddy/pull/27 by @pepibumur.
 
 ### Changed
 
