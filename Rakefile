@@ -137,6 +137,10 @@ def release
                       content_type: 'application/zip')
 end
 
+def make_project
+  execute("swift package generate-xcodeproj")
+end
+
 desc 'Formats the swift code'
 task :format do
   format
@@ -170,4 +174,9 @@ end
 desc 'Bumps the project minor version'
 task :bump_version do
   bump_version
+end
+
+desc 'Generates the Xcode project for xcbuddy'
+task :project do
+  make_project
 end

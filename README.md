@@ -31,7 +31,7 @@ Just run this command on your terminal:
 ## Setup for development
 
 1.  Git clone: `git@github.com:xcbuddy/xcbuddy.git`
-2.  Generate SPM project `swift package generate-xcodeproj`.
+2.  Generate SPM project `swift package generate-xcodeproj` or run `bundle exec rake project`
 3.  Open `xcbuddy.xcworkspace`.
 4.  Have fun 🤖
 
