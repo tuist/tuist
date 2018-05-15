@@ -26,7 +26,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(configurationsGroup.sourceTree, .group)
         XCTAssertNil(configurationsGroup.path)
 
-        XCTAssertEqual(configurationsGroup.children.count, 1)
+        XCTAssertEqual(configurationsGroup.children.count, 2)
 
         let debugxcconfig: PBXFileReference = try configurationsGroup.children.first!.object()
         XCTAssertEqual(debugxcconfig.name, "debug.xcconfig")
@@ -51,7 +51,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(configurationsGroup.sourceTree, .group)
         XCTAssertNil(configurationsGroup.path)
 
-        XCTAssertEqual(configurationsGroup.children.count, 1)
+        XCTAssertEqual(configurationsGroup.children.count, 2)
 
         let releasexcconfig: PBXFileReference = try configurationsGroup.children.last!.object()
         XCTAssertEqual(releasexcconfig.name, "release.xcconfig")
