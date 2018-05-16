@@ -25,20 +25,10 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(main.path, ".")
         XCTAssertEqual(main.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.files.reference))
-        XCTAssertEqual(subject.files.name, "Files")
-        XCTAssertNil(subject.files.path)
-        XCTAssertEqual(subject.files.sourceTree, .group)
-
-        XCTAssertTrue(main.children.contains(subject.configurations.reference))
-        XCTAssertEqual(subject.configurations.name, "Configurations")
-        XCTAssertNil(subject.configurations.path)
-        XCTAssertEqual(subject.configurations.sourceTree, .group)
-
-        XCTAssertTrue(main.children.contains(subject.support.reference))
-        XCTAssertEqual(subject.support.name, "Support")
-        XCTAssertNil(subject.support.path)
-        XCTAssertEqual(subject.support.sourceTree, .group)
+        XCTAssertTrue(main.children.contains(subject.project.reference))
+        XCTAssertEqual(subject.project.name, "Project")
+        XCTAssertNil(subject.project.path)
+        XCTAssertEqual(subject.project.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.projectDescription.reference))
         XCTAssertEqual(subject.projectDescription.name, "ProjectDescription")
@@ -61,19 +51,5 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(got.name, "Test")
         XCTAssertEqual(got.sourceTree, .group)
         XCTAssertTrue(subject.frameworks.children.contains(got.reference))
-    }
-
-    func test_targetConfigurations() throws {
-        let got = try subject.targetConfigurations("Test")
-        XCTAssertEqual(got.name, "Test")
-        XCTAssertEqual(got.sourceTree, .group)
-        XCTAssertTrue(subject.configurations.children.contains(got.reference))
-    }
-
-    func test_projectConfigurations() throws {
-        let got = try subject.projectConfigurations()
-        XCTAssertEqual(got.name, "Project")
-        XCTAssertEqual(got.sourceTree, .group)
-        XCTAssertTrue(subject.configurations.children.contains(got.reference))
     }
 }

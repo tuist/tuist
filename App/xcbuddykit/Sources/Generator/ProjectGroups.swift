@@ -10,14 +10,11 @@ class ProjectGroups {
     /// Project products group.
     let products: PBXGroup
 
-    /// Project support group.
-    let support: PBXGroup
-
     /// Project project description group.
     let projectDescription: PBXGroup
 
-    /// Files group.
-    let files: PBXGroup
+    /// Project group.
+    let project: PBXGroup
 
     /// Frameworks group.
     let frameworks: PBXGroup
@@ -25,35 +22,26 @@ class ProjectGroups {
     /// Project objects.
     let objects: PBXObjects
 
-    /// Project configurations group.
-    let configurations: PBXGroup
-
     /// Initializes the project groups with its attributes.
     ///
     /// - Parameters:
     ///   - main: main group.
     ///   - products: products group.
-    ///   - configurations: configurations group.
-    ///   - support: support group.
-    ///   - files: files group.
     ///   - projectDescription: project description group.
     ///   - frameworks: frameworks group.
+    ///   - project: project group.
     ///   - objects: project objects.objects
     init(main: PBXGroup,
          products: PBXGroup,
-         configurations: PBXGroup,
-         support: PBXGroup,
-         files: PBXGroup,
          projectDescription: PBXGroup,
          frameworks: PBXGroup,
+         project: PBXGroup,
          objects: PBXObjects) {
         self.main = main
         self.products = products
-        self.support = support
-        self.files = files
-        self.configurations = configurations
         self.projectDescription = projectDescription
         self.frameworks = frameworks
+        self.project = project
         self.objects = objects
     }
 
@@ -67,31 +55,6 @@ class ProjectGroups {
             return group
         } else {
             return try frameworks.addGroup(named: target, options: .withoutFolder).last!
-        }
-    }
-
-    /// Returns a group that should contain all the configurations of a given target.
-    ///
-    /// - Parameter target: target name.
-    /// - Returns: group to be used.
-    /// - Throws: an error if the creation fails.
-    func targetConfigurations(_ target: String) throws -> PBXGroup {
-        if let group = configurations.group(named: target) {
-            return group
-        } else {
-            return try configurations.addGroup(named: target, options: .withoutFolder).last!
-        }
-    }
-
-    /// Returns a group that should contain all the configurations of a project.
-    ///
-    /// - Returns: the group to be used.
-    /// - Throws: an error if the creation fails.
-    func projectConfigurations() throws -> PBXGroup {
-        if let group = configurations.group(named: "Project") {
-            return group
-        } else {
-            return try configurations.addGroup(named: "Project", options: .withoutFolder).last!
         }
     }
 
@@ -112,20 +75,10 @@ class ProjectGroups {
                                  path: project.path.relative(to: sourceRootPath).asString)
         objects.addObject(mainGroup)
 
-        /// Files
-        let filesGroup = PBXGroup(children: [], sourceTree: .group, name: "Files")
-        let filesGroupReference = objects.addObject(filesGroup)
-        mainGroup.children.append(filesGroupReference)
-
-        /// Configurations
-        let configurationsGroup = PBXGroup(children: [], sourceTree: .group, name: "Configurations")
-        let configurationsGroupReference = objects.addObject(configurationsGroup)
-        mainGroup.children.append(configurationsGroupReference)
-
-        /// Support
-        let supportGroup = PBXGroup(children: [], sourceTree: .group, name: "Support")
-        let supportGroupReference = objects.addObject(supportGroup)
-        mainGroup.children.append(supportGroupReference)
+        /// Project
+        let projectGroup = PBXGroup(children: [], sourceTree: .group, name: "Project")
+        let projectGroupReference = objects.addObject(projectGroup)
+        mainGroup.children.append(projectGroupReference)
 
         /// ProjectDescription
         let projectDescriptionGroup = PBXGroup(children: [], sourceTree: .group, name: "ProjectDescription")
@@ -144,11 +97,9 @@ class ProjectGroups {
 
         return ProjectGroups(main: mainGroup,
                              products: productsGroup,
-                             configurations: configurationsGroup,
-                             support: supportGroup,
-                             files: filesGroup,
                              projectDescription: projectDescriptionGroup,
                              frameworks: frameworksGroup,
+                             project: projectGroup,
                              objects: objects)
     }
 }

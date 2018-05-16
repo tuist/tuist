@@ -10,6 +10,7 @@ protocol ConfigGenerating: AnyObject {
     ///   - project: project spec.
     ///   - pbxproj: Xcode project PBXProj object.
     ///   - groups: Project groups.
+    ///   - fileElements: Project file elements.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
     ///   - options: generation options.
@@ -18,6 +19,7 @@ protocol ConfigGenerating: AnyObject {
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
                                groups: ProjectGroups,
+                               fileElements: ProjectFileElements,
                                sourceRootPath: AbsolutePath,
                                context: GeneratorContexting,
                                options: GenerationOptions) throws -> PBXObjectReference
@@ -69,6 +71,7 @@ final class ConfigGenerator: ConfigGenerating {
     ///   - project: project spec.
     ///   - pbxproj: Xcode project PBXProj object.
     ///   - groups: Project groups.
+    ///   - fileElements: Project file elements.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
     ///   - options: generation options.
@@ -77,6 +80,7 @@ final class ConfigGenerator: ConfigGenerating {
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
                                groups: ProjectGroups,
+                               fileElements: ProjectFileElements,
                                sourceRootPath: AbsolutePath,
                                context: GeneratorContexting,
                                options _: GenerationOptions) throws -> PBXObjectReference {
@@ -88,6 +92,7 @@ final class ConfigGenerator: ConfigGenerating {
                                        configuration: project.settings?.debug,
                                        project: project,
                                        groups: groups,
+                                       fileElements: fileElements,
                                        sourceRootPath: sourceRootPath,
                                        context: context,
                                        pbxproj: pbxproj,
@@ -96,6 +101,7 @@ final class ConfigGenerator: ConfigGenerating {
                                        configuration: project.settings?.release,
                                        project: project,
                                        groups: groups,
+                                       fileElements: fileElements,
                                        sourceRootPath: sourceRootPath,
                                        context: context,
                                        pbxproj: pbxproj,
@@ -108,7 +114,8 @@ final class ConfigGenerator: ConfigGenerating {
     /// - Parameters:
     ///   - buildConfiguration: build configuration (e.g. Debug or Release)
     ///   - configuration: configuration from the project specification.
-    ///   - project: projec specification.
+    ///   - project: project specification.
+    ///   - fileElements: project file elements.
     ///   - groups: project groups.
     ///   - sourceRootPath: path that points to the folder where the project is being created.
     ///   - context: generation context.
@@ -118,9 +125,10 @@ final class ConfigGenerator: ConfigGenerating {
     private func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
                                             configuration: Configuration?,
                                             project: Project,
-                                            groups: ProjectGroups,
-                                            sourceRootPath: AbsolutePath,
-                                            context: GeneratorContexting,
+                                            groups _: ProjectGroups,
+                                            fileElements: ProjectFileElements,
+                                            sourceRootPath _: AbsolutePath,
+                                            context _: GeneratorContexting,
                                             pbxproj: PBXProj,
                                             configurationList: XCConfigurationList) throws {
         let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
@@ -136,11 +144,8 @@ final class ConfigGenerator: ConfigGenerating {
         if let variantConfig = configuration {
             extend(buildSettings: &settings, with: variantConfig.settings)
             if let xcconfig = variantConfig.xcconfig {
-                let fileReference = try fileGenerator.generateFile(path: xcconfig,
-                                                                   in: groups.projectConfigurations(),
-                                                                   sourceRootPath: sourceRootPath,
-                                                                   context: context)
-                variantBuildConfiguration.baseConfigurationReference = fileReference.reference
+                let fileReference = fileElements.file(path: xcconfig)
+                variantBuildConfiguration.baseConfigurationReference = fileReference?.reference
             }
         }
         variantBuildConfiguration.buildSettings = settings

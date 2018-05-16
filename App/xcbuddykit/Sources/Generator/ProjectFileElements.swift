@@ -7,7 +7,7 @@ class ProjectFileElements {
     var elements: [AbsolutePath: PBXFileElement] = [:]
 
     /// Default constructor.
-    fileprivate init() {}
+    init() {}
 
     /// Generates all the project files.
     ///
@@ -16,26 +16,56 @@ class ProjectFileElements {
     ///   - groups: project groups.
     ///   - objects: project objects.
     ///   - sourceRootPath: source root path.
-    static func generateProjectFiles(project: Project,
-                                     groups: ProjectGroups,
-                                     objects: PBXObjects,
-                                     sourceRootPath: AbsolutePath) -> ProjectFileElements {
-        let fileElements = ProjectFileElements()
+    func generateProjectFiles(project: Project,
+                              groups: ProjectGroups,
+                              objects: PBXObjects,
+                              sourceRootPath: AbsolutePath) {
+        var files = Set<AbsolutePath>()
         project.targets.forEach { target in
-            target.buildPhases.forEach { buildPhase in
-                var files: [AbsolutePath] = []
-                if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
-                    files = Array(sourcesBuildPhase.buildFiles.files)
-                } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
-                    files = Array(resourcesBuildPhase.buildFiles.files)
-                }
-                fileElements.generate(files: files,
-                                      groups: groups,
-                                      objects: objects,
-                                      sourceRootPath: sourceRootPath)
+            files.formUnion(targetFiles(target: target, groups: groups, objects: objects, sourceRootPath: sourceRootPath))
+        }
+        if let debugConfigFile = project.settings?.debug?.xcconfig {
+            files.insert(debugConfigFile)
+        }
+        if let releaseConfigFile = project.settings?.release?.xcconfig {
+            files.insert(releaseConfigFile)
+        }
+        generate(files: files.sorted(),
+                 groups: groups,
+                 objects: objects,
+                 sourceRootPath: sourceRootPath)
+    }
+
+    /// Generates the target files.
+    ///
+    /// - Parameters:
+    ///   - target: target whose files will be generated.
+    ///   - groups: project groups.
+    ///   - objects: project objects.
+    ///   - sourceRootPath: project source root path.
+    func targetFiles(target: Target, groups _: ProjectGroups, objects _: PBXObjects, sourceRootPath _: AbsolutePath) -> Set<AbsolutePath> {
+        var files = Set<AbsolutePath>()
+        target.buildPhases.forEach { buildPhase in
+            if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
+                files.formUnion(sourcesBuildPhase.buildFiles.files)
+            } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
+                files.formUnion(resourcesBuildPhase.buildFiles.files)
             }
         }
-        return fileElements
+        // Support files
+        files.insert(target.infoPlist)
+        if let entitlements = target.entitlements {
+            files.insert(entitlements)
+        }
+
+        // Config files
+        if let debugConfigFile = target.settings?.debug?.xcconfig {
+            files.insert(debugConfigFile)
+        }
+        if let releaseConfigFile = target.settings?.release?.xcconfig {
+            files.insert(releaseConfigFile)
+        }
+        return files
     }
 
     /// Generates files in the project.
@@ -70,7 +100,7 @@ class ProjectFileElements {
         let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
 
         // Add the first relative element.
-        let firstElement = addComponent(relative: closestRelativeRelativePath, from: sourceRootPath, toGroup: groups.files, objects: objects)
+        let firstElement = addComponent(relative: closestRelativeRelativePath, from: sourceRootPath, toGroup: groups.project, objects: objects)
 
         // If it matches the file that we are adding or it's not a group we can exit.
         if (closestRelativeAbsolutePath == path) || !(firstElement.element is PBXGroup) {
