@@ -95,14 +95,6 @@ final class TargetGenerator: TargetGenerating {
                                                              sourceRootPath: sourceRootPath,
                                                              context: context)
         files.append(projectManifest.reference)
-        if let config = project.config {
-            let configManifestPath = config.path.appending(component: Constants.Manifest.config)
-            let configManifest = try fileGenerator.generateFile(path: configManifestPath,
-                                                                in: groups.projectDescription,
-                                                                sourceRootPath: sourceRootPath,
-                                                                context: context)
-            files.append(configManifest.reference)
-        }
 
         // Configuration
         let configurationListReference = try configGenerator.generateManifestsConfig(pbxproj: pbxproj,

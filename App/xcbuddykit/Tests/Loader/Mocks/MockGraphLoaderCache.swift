@@ -11,9 +11,6 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     var addProjectCount: UInt = 0
     var addProjectArgs: [Project] = []
     var addConfigCount: UInt = 0
-    var addConfigArgs: [Config] = []
-    var configStub: ((AbsolutePath) -> Config?)?
-    var configCount: UInt = 0
     var addPrecompiledNodeCount: UInt = 0
     var addPrecompiledArgs: [PrecompiledNode] = []
     var precompiledNodeCount: UInt = 0
@@ -28,19 +25,9 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
         return projectStub?(path)
     }
 
-    func config(_ path: AbsolutePath) -> Config? {
-        configCount += 1
-        return configStub?(path)
-    }
-
     func add(project: Project) {
         addProjectCount += 1
         addProjectArgs.append(project)
-    }
-
-    func add(config: Config) {
-        addConfigCount += 1
-        addConfigArgs.append(config)
     }
 
     func add(precompiledNode: PrecompiledNode) {

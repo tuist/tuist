@@ -18,21 +18,16 @@ class Project: Equatable {
     /// Project build settings.
     let settings: Settings?
 
-    /// Project configuration.
-    let config: Config?
-
     /// Initializes the project with its attributes.
     ///
     /// - Parameters:
     ///   - path: path to the folder where the manifest is.
     ///   - name: project name.
-    ///   - config: project configuration.
     ///   - schemes: project schemes.
     ///   - settings: project build settings.
     ///   - targets: project targets.
     init(path: AbsolutePath,
          name: String,
-         config: Config? = nil,
          schemes: [Scheme],
          settings: Settings? = nil,
          targets: [Target]) {
@@ -41,7 +36,6 @@ class Project: Equatable {
         self.schemes = schemes
         self.targets = targets
         self.settings = settings
-        self.config = config
     }
 
     /// Tries to fetch the Project from the cache and if if doesn't exist it parses it and stores it in the cache.
@@ -76,13 +70,6 @@ class Project: Equatable {
         let targetsJSONs: [JSON] = try json.get("targets")
         targets = try targetsJSONs.map({ try Target(json: $0, projectPath: path, context: context) })
         schemes = try json.get("schemes")
-        if let configStringPath: String = try? json.get("config") {
-            let configPath = RelativePath(configStringPath)
-            let path = projectPath.appending(configPath)
-            config = try Config.at(path, context: context)
-        } else {
-            config = nil
-        }
         let settingsJSON: JSON? = try? json.get("settings")
         settings = try settingsJSON.map({ try Settings(json: $0, projectPath: path, context: context) })
     }
@@ -98,7 +85,6 @@ class Project: Equatable {
             lhs.name == rhs.name &&
             lhs.schemes == rhs.schemes &&
             lhs.targets == rhs.targets &&
-            lhs.settings == rhs.settings &&
-            lhs.config == rhs.config
+            lhs.settings == rhs.settings
     }
 }

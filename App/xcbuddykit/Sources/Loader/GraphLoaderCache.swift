@@ -23,17 +23,6 @@ protocol GraphLoaderCaching: AnyObject {
     /// - Parameter project: project to be added to the cache.
     func add(project: Project)
 
-    /// Returns a configuration from the cache.
-    ///
-    /// - Parameter path: path to the folder where the Config.swift is.
-    /// - Returns: configuration if it exists in the cache.
-    func config(_ path: AbsolutePath) -> Config?
-
-    /// Adds a configuration to the cache.
-    ///
-    /// - Parameter config: configuration to be added.
-    func add(config: Config)
-
     /// Adds a precompiled node to the cache.
     ///
     /// - Parameter precompiledNode: precompiled node to be added.
@@ -64,9 +53,6 @@ class GraphLoaderCache: GraphLoaderCaching {
     /// Projects.
     var projects: [AbsolutePath: Project] = [:]
 
-    /// Configs.
-    var configs: [AbsolutePath: Config] = [:]
-
     /// Precompiled nodes.
     var precompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
 
@@ -86,21 +72,6 @@ class GraphLoaderCache: GraphLoaderCaching {
     /// - Parameter project: project to be added to the cache.
     func add(project: Project) {
         projects[project.path] = project
-    }
-
-    /// Returns a configuration from the cache.
-    ///
-    /// - Parameter path: path to the folder where the Config.swift is.
-    /// - Returns: configuration if it exists in the cache.
-    func config(_ path: AbsolutePath) -> Config? {
-        return configs[path]
-    }
-
-    /// Adds a configuration to the cache.
-    ///
-    /// - Parameter config: configuration to be added.
-    func add(config: Config) {
-        configs[config.path] = config
     }
 
     /// Adds a precompiled node to the cache.

@@ -89,7 +89,6 @@
 		B9E2DC9C20872CD60061DF86 /* AbsolutePath+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E2DC9A20872C650061DF86 /* AbsolutePath+Extras.swift */; };
 		B9E2DC9D20872D3B0061DF86 /* MockPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFCF70207B48D500ACC59D /* MockPrinter.swift */; };
 		B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB9D242066D56D00F13FFA /* MockLogger.swift */; };
-		B9E2DCA12087650C0061DF86 /* Config+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */; };
 		B9E2DCA32087651D0061DF86 /* Project+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */; };
 		B9E2DCA420876F490061DF86 /* Utility.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBD2086502100BC2FB3 /* Utility.framework */; };
 		B9E2DCA520876F660061DF86 /* Utility.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DBD2086502100BC2FB3 /* Utility.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -134,7 +133,6 @@
 		B9FB2DE1208653F500BC2FB3 /* Graph.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DCE2086538E00BC2FB3 /* Graph.swift */; };
 		B9FB2DE2208653F900BC2FB3 /* GraphLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DD22086538E00BC2FB3 /* GraphLoader.swift */; };
 		B9FB2DE32086542F00BC2FB3 /* Target.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C520864E9800EE9E07 /* Target.swift */; };
-		B9FB2DE42086544900BC2FB3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C620864E9800EE9E07 /* Config.swift */; };
 		B9FB2DE52086544900BC2FB3 /* Workspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C720864E9800EE9E07 /* Workspace.swift */; };
 		B9FB2DE62086544900BC2FB3 /* Scheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C820864E9800EE9E07 /* Scheme.swift */; };
 		B9FB2DE72086544900BC2FB3 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C920864E9800EE9E07 /* Project.swift */; };
@@ -264,7 +262,6 @@
 		B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfigurationTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
 		B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphLoaderCache.swift; sourceTree = "<group>"; };
-		B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Config+TestData.swift"; sourceTree = "<group>"; };
 		B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Project+TestData.swift"; sourceTree = "<group>"; };
 		B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockManifestLoader.swift; sourceTree = "<group>"; };
 		B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFileHandler.swift; sourceTree = "<group>"; };
@@ -315,7 +312,6 @@
 		B9B629C320864E9800EE9E07 /* BuildConfiguration.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildConfiguration.swift; sourceTree = "<group>"; };
 		B9B629C420864E9800EE9E07 /* BuildFiles.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildFiles.swift; sourceTree = "<group>"; };
 		B9B629C520864E9800EE9E07 /* Target.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Target.swift; sourceTree = "<group>"; };
-		B9B629C620864E9800EE9E07 /* Config.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		B9B629C720864E9800EE9E07 /* Workspace.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Workspace.swift; sourceTree = "<group>"; };
 		B9B629C820864E9800EE9E07 /* Scheme.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Scheme.swift; sourceTree = "<group>"; };
 		B9B629C920864E9800EE9E07 /* Project.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
@@ -449,7 +445,6 @@
 		3D92B78420A8284A006711E5 /* TestData */ = {
 			isa = PBXGroup;
 			children = (
-				B92BF9F220755A2C00EE4EBD /* Config+TestData.swift */,
 				B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */,
 				B9F1EDEC208D1CFE00477835 /* Target+TestData.swift */,
 				B9F1EDEE208D1DB200477835 /* BuildPhase+TestData.swift */,
@@ -765,7 +760,6 @@
 				B9B629C320864E9800EE9E07 /* BuildConfiguration.swift */,
 				B9B629C420864E9800EE9E07 /* BuildFiles.swift */,
 				B9B629C520864E9800EE9E07 /* Target.swift */,
-				B9B629C620864E9800EE9E07 /* Config.swift */,
 				B9B629C720864E9800EE9E07 /* Workspace.swift */,
 				B9B629C820864E9800EE9E07 /* Scheme.swift */,
 				B9B629C920864E9800EE9E07 /* Project.swift */,
@@ -1074,7 +1068,6 @@
 				B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */,
 				3D92B79320A83BC3006711E5 /* ProjectGroups.swift in Sources */,
 				3D4C0BA220A6ED37003D09B0 /* CommandCheck.swift in Sources */,
-				B9FB2DE42086544900BC2FB3 /* Config.swift in Sources */,
 				B9FB2DDF208653E000BC2FB3 /* GraphNode.swift in Sources */,
 				B9FB2DEB2086544900BC2FB3 /* Product.swift in Sources */,
 				B9B629C020864E7D00EE9E07 /* UpdateCommand.swift in Sources */,
@@ -1160,7 +1153,6 @@
 				B9F1EDCF208CD0B800477835 /* InitCommandTests.swift in Sources */,
 				B9F1EDF3208D200C00477835 /* Scheme+TestData.swift in Sources */,
 				B9553DEF2090F6EC00050311 /* MockShell.swift in Sources */,
-				B9E2DCA12087650C0061DF86 /* Config+TestData.swift in Sources */,
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,

@@ -76,7 +76,6 @@ final class ConfigGeneratorTests: XCTestCase {
         try xcconfigsDir.appending(component: "release.xcconfig").write("")
         let project = Project(path: dir.path,
                               name: "Test",
-                              config: nil,
                               schemes: [],
                               settings: Settings(base: ["Base": "Base"],
                                                  debug: Configuration(settings: ["Debug": "Debug"],
