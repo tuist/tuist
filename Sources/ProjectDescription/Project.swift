@@ -7,10 +7,8 @@ public class Project {
     public let schemes: [Scheme]
     public let targets: [Target]
     public let settings: Settings?
-    public let config: String?
 
     public init(name: String,
-                config: String? = nil,
                 schemes: [Scheme] = [],
                 settings: Settings? = nil,
                 targets: [Target] = []) {
@@ -18,7 +16,6 @@ public class Project {
         self.schemes = schemes
         self.targets = targets
         self.settings = settings
-        self.config = config
         dumpIfNeeded(self)
     }
 }
@@ -33,9 +30,6 @@ extension Project: JSONConvertible {
         dictionary["targets"] = targets.toJSON()
         if let settings = settings {
             dictionary["settings"] = settings.toJSON()
-        }
-        if let config = config {
-            dictionary["config"] = config.toJSON()
         }
         return .dictionary(dictionary)
     }

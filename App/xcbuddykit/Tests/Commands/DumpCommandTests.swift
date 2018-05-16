@@ -43,7 +43,7 @@ final class DumpCommandTests: XCTestCase {
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
         let tmpDir = try TemporaryDirectory()
-        try "invalid config".write(toFile: tmpDir.path.appending(component: "Config.swift").asString,
+        try "invalid config".write(toFile: tmpDir.path.appending(component: "Project.swift").asString,
                                    atomically: true,
                                    encoding: .utf8)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
@@ -55,13 +55,28 @@ final class DumpCommandTests: XCTestCase {
         let tmpDir = try TemporaryDirectory()
         let config = """
         import ProjectDescription
-        let config = Config()
+
+        let project = Project(name: "xcbuddy",
+              schemes: [],
+              settings: nil,
+              targets: [])
         """
         try config.write(toFile: tmpDir.path.appending(component: "Config.swift").asString,
                          atomically: true,
                          encoding: .utf8)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
         subject.run(with: result)
-        XCTAssertEqual(printer.printArgs.first, "{\n\n}\n")
+        let expected = """
+        {
+          "name": "xcbuddy",
+          "schemes": [
+
+          ],
+          "targets": [
+
+          ]
+        }\n
+        """
+        XCTAssertEqual(printer.printArgs.first, expected)
     }
 }
