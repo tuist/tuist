@@ -1,4 +1,6 @@
 #!/System/Library/Frameworks/Ruby.framework/Versions/Current/usr/bin/ruby
+# frozen_string_literal: true
+
 # Inspired by: https://raw.githubusercontent.com/Homebrew/install/master/install
 require 'tmpdir'
 
@@ -22,7 +24,7 @@ module Tty
   end
 
   def underline
-    escape "4;39"
+    escape '4;39'
   end
 
   def escape(n)
@@ -34,7 +36,7 @@ class Array
   def shell_s
     cp = dup
     first = cp.shift
-    cp.map { |arg| arg.gsub " ", "\\ " }.unshift(first).join(" ")
+    cp.map { |arg| arg.gsub ' ', '\\ ' }.unshift(first).join(' ')
   end
 end
 
@@ -51,19 +53,19 @@ def system(*args)
 end
 
 def getc
-  system "/bin/stty raw -echo"
+  system '/bin/stty raw -echo'
   if STDIN.respond_to?(:getbyte)
     STDIN.getbyte
   else
     STDIN.getc
   end
 ensure
-  system "/bin/stty -raw echo"
+  system '/bin/stty -raw echo'
 end
 
 def wait_for_user
   puts
-  puts "Press RETURN to continue or any other key to abort"
+  puts 'Press RETURN to continue or any other key to abort'
   c = getc
   # we test for \r and \n because some stuff does \r instead
   abort unless (c == 13) || (c == 10)
@@ -74,7 +76,7 @@ class Version
   attr_reader :parts
 
   def initialize(str)
-    @parts = str.split(".").map { |p| p.to_i }
+    @parts = str.split('.').map(&:to_i)
   end
 
   def <=>(other)
@@ -82,11 +84,11 @@ class Version
   end
 end
 
-ohai "This script will uninstall:"
-puts "/Applications/xcbuddy.app"
-puts "/usr/local/bin/xcbuddy"
+ohai 'This script will uninstall:'
+puts '/Applications/xcbuddy.app'
+puts '/usr/local/bin/xcbuddy'
 wait_for_user
-ohai "Uninstalling"
-system("rm -rf /Applications/xcbuddy.app 2> /dev/null")
-system("rm -f /usr/local/bin/xcbuddy 2> /dev/null")
-ohai "Uninstalled"
+ohai 'Uninstalling'
+system('rm -rf /Applications/xcbuddy.app 2> /dev/null')
+system('rm -f /usr/local/bin/xcbuddy 2> /dev/null')
+ohai 'Uninstalled'

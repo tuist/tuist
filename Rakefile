@@ -11,7 +11,7 @@ BUILD_PATH = 'build'
 APP_NAME = 'xcbuddy'
 GITHUB_TOKEN = ENV['GH_TOKEN']
 APPCAST_PATH = 'appcast.xml'
-CHANGELOG_PATH = "CHANGELOG.md"
+CHANGELOG_PATH = 'CHANGELOG.md'
 
 def execute(command)
   sh(command)
@@ -21,11 +21,11 @@ def format
   execute('swiftformat .')
 end
 
-def build(config = "Debug")
-  abort("SENTRY_DSN variable missing") unless ENV["SENTRY_DSN"]
-  abort("SENTRY_AUTH_TOKEN variable missing")  unless ENV["SENTRY_AUTH_TOKEN"]
+def build(config = 'Debug')
+  abort('SENTRY_DSN variable missing') unless ENV['SENTRY_DSN']
+  abort('SENTRY_AUTH_TOKEN variable missing') unless ENV['SENTRY_AUTH_TOKEN']
   execute('swift package generate-xcodeproj')
-  env_vars="SENTR_DSN=#{ENV["SENTR_DSN"]} SENTRY_AUTH_TOKEN=#{ENV["SENTRY_AUTH_TOKEN"]}"
+  env_vars = "SENTR_DSN=#{ENV['SENTR_DSN']} SENTRY_AUTH_TOKEN=#{ENV['SENTRY_AUTH_TOKEN']}"
   execute("#{env_vars} xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy -configuration #{config} build")
 end
 
@@ -85,7 +85,7 @@ def changelog(version)
   version = Semantic::Version.new(version)
   version_regex = /##\s+#{version.major}\.#{version.minor}\.#{version.patch}/
   any_version_regex = /##\s+\d+\.\d+\.\d+/
-  output = ""
+  output = ''
   reading = false
   File.readlines(CHANGELOG_PATH).each do |line|
     if line =~ version_regex && !reading
@@ -102,13 +102,13 @@ def changelog(version)
 end
 
 def docs
-  execute("bundle exec jazzy")
+  execute('bundle exec jazzy')
 end
 
 def release
   branch = `git rev-parse --abbrev-ref HEAD`.strip
-  unless branch.include?("version/")
-    abort("Branch name should be version/x.x.x where x.x.x is the version")
+  unless branch.include?('version/')
+    abort('Branch name should be version/x.x.x where x.x.x is the version')
   end
 
   # Bump version
@@ -162,7 +162,7 @@ task :ci do
   test
 end
 
-desc "Generates the documentation"
+desc 'Generates the documentation'
 task :docs do
   docs
 end
