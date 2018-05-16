@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Added
+
+* Files and groups generation https://github.com/xcbuddy/xcbuddy/pull/28 by @pepibumur.
+
 ## 0.34.0
 
 ### Added

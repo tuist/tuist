@@ -142,9 +142,6 @@ final class TargetGenerator: TargetGenerating {
         let productFileReferenceRef = pbxproj.objects.addObject(productFileReference)
         groups.products.children.append(productFileReferenceRef)
 
-        /// Group
-        let group = try groups.target(name: target.name)
-
         /// Target
         let target = PBXNativeTarget(name: target.name,
                                      buildConfigurationList: nil,

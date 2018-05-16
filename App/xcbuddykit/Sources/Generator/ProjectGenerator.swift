@@ -55,10 +55,14 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: Xcode.Default.objectVersion,
                               archiveVersion: Xcode.LastKnown.archiveVersion,
                               classes: [:])
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
+        let fileElements = ProjectFileElements()
+        fileElements.generateProjectFiles(project: project, groups: groups, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
+
         let configurationListReference = try configGenerator.generateProjectConfig(project: project,
                                                                                    pbxproj: pbxproj,
                                                                                    groups: groups,
+                                                                                   fileElements: fileElements,
                                                                                    sourceRootPath: sourceRootPath,
                                                                                    context: context,
                                                                                    options: options)
