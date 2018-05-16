@@ -84,7 +84,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                                  release: Configuration(settings: ["Release": "Release"],
                                                                         xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))),
                               targets: [])
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: dir.path)
+        let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: dir.path)
         _ = try subject.generateProjectConfig(project: project,
                                               pbxproj: pbxproj,
                                               groups: groups,

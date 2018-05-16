@@ -17,7 +17,7 @@ final class ProjectGroupsTests: XCTestCase {
                               settings: nil,
                               targets: [])
         let pbxproj = PBXProj()
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
+        subject = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
     }
 
     func test_generate() {
@@ -25,10 +25,10 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(main.path, ".")
         XCTAssertEqual(main.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.targets.reference))
-        XCTAssertEqual(subject.targets.name, "Targets")
-        XCTAssertNil(subject.targets.path)
-        XCTAssertEqual(subject.targets.sourceTree, .group)
+        XCTAssertTrue(main.children.contains(subject.files.reference))
+        XCTAssertEqual(subject.files.name, "Files")
+        XCTAssertNil(subject.files.path)
+        XCTAssertEqual(subject.files.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.configurations.reference))
         XCTAssertEqual(subject.configurations.name, "Configurations")
@@ -54,13 +54,6 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(subject.products.name, "Products")
         XCTAssertNil(subject.products.path)
         XCTAssertEqual(subject.products.sourceTree, .buildProductsDir)
-    }
-
-    func test_targetName() throws {
-        let got = try subject.target(name: "Test")
-        XCTAssertEqual(got.name, "Test")
-        XCTAssertEqual(got.sourceTree, .group)
-        XCTAssertTrue(subject.targets.children.contains(got.reference))
     }
 
     func test_targetFrameworks() throws {

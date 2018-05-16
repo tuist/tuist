@@ -21,10 +21,10 @@
 		3D92B79320A83BC3006711E5 /* ProjectGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B79220A83BC3006711E5 /* ProjectGroups.swift */; };
 		3D92B7E720A84888006711E5 /* ProjectGroupsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B7E620A84888006711E5 /* ProjectGroupsTests.swift */; };
 		3D92B7E920A857D9006711E5 /* GenerationOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B7E820A857D9006711E5 /* GenerationOptions.swift */; };
-		3D92B80420AABC3A006711E5 /* GenerateCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B80320AABC3A006711E5 /* GenerateCommandTests.swift */; };
 		3D92B80520AABC3A006711E5 /* GenerateCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B80320AABC3A006711E5 /* GenerateCommandTests.swift */; };
 		3D92B80720AABE55006711E5 /* MockGraphLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B80620AABE55006711E5 /* MockGraphLoader.swift */; };
 		3D92B80920AABEC7006711E5 /* MockWorkspaceGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B80820AABEC7006711E5 /* MockWorkspaceGenerator.swift */; };
+		3D92B80B20AAFC2D006711E5 /* ProjectFileElements.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B80A20AAFC2D006711E5 /* ProjectFileElements.swift */; };
 		66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */; };
 		B9013DD5206FEEDF007B1A34 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; };
 		B9013DD6206FEEEA007B1A34 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9013DD4206FEEDF007B1A34 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -250,6 +250,7 @@
 		3D92B80320AABC3A006711E5 /* GenerateCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerateCommandTests.swift; sourceTree = "<group>"; };
 		3D92B80620AABE55006711E5 /* MockGraphLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphLoader.swift; sourceTree = "<group>"; };
 		3D92B80820AABEC7006711E5 /* MockWorkspaceGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockWorkspaceGenerator.swift; sourceTree = "<group>"; };
+		3D92B80A20AAFC2D006711E5 /* ProjectFileElements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFileElements.swift; sourceTree = "<group>"; };
 		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommandTests.swift; sourceTree = "<group>"; };
@@ -668,6 +669,7 @@
 				3D4C0B9B20A6C470003D09B0 /* FileGenerator.swift */,
 				3D92B79220A83BC3006711E5 /* ProjectGroups.swift */,
 				3D92B7E820A857D9006711E5 /* GenerationOptions.swift */,
+				3D92B80A20AAFC2D006711E5 /* ProjectFileElements.swift */,
 			);
 			path = Generator;
 			sourceTree = "<group>";
@@ -1071,6 +1073,7 @@
 				B9F1EE00208E2D7F00477835 /* FatalError.swift in Sources */,
 				B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */,
 				B9FB2DE52086544900BC2FB3 /* Workspace.swift in Sources */,
+				3D92B80B20AAFC2D006711E5 /* ProjectFileElements.swift in Sources */,
 				B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */,
 				3D92B79320A83BC3006711E5 /* ProjectGroups.swift in Sources */,
 				3D4C0BA220A6ED37003D09B0 /* CommandCheck.swift in Sources */,
@@ -1183,7 +1186,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3D92B80420AABC3A006711E5 /* GenerateCommandTests.swift in Sources */,
 				B94C7FC62062B8A8009BF596 /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -16,56 +16,45 @@ class ProjectGroups {
     /// Project project description group.
     let projectDescription: PBXGroup
 
-    /// Targets group.
-    let targets: PBXGroup
+    /// Files group.
+    let files: PBXGroup
 
     /// Frameworks group.
     let frameworks: PBXGroup
 
-    /// PBXProj instance.
-    let pbxproj: PBXProj
+    /// Project objects.
+    let objects: PBXObjects
 
     /// Project configurations group.
     let configurations: PBXGroup
 
-    /// Initializes the object with the group.
+    /// Initializes the project groups with its attributes.
     ///
     /// - Parameters:
     ///   - main: main group.
     ///   - products: products group.
     ///   - configurations: configurations group.
     ///   - support: support group.
-    ///   - targets: targets group.
+    ///   - files: files group.
     ///   - projectDescription: project description group.
+    ///   - frameworks: frameworks group.
+    ///   - objects: project objects.objects
     init(main: PBXGroup,
          products: PBXGroup,
          configurations: PBXGroup,
          support: PBXGroup,
-         targets: PBXGroup,
+         files: PBXGroup,
          projectDescription: PBXGroup,
          frameworks: PBXGroup,
-         pbxproj: PBXProj) {
+         objects: PBXObjects) {
         self.main = main
         self.products = products
         self.support = support
-        self.targets = targets
+        self.files = files
         self.configurations = configurations
         self.projectDescription = projectDescription
         self.frameworks = frameworks
-        self.pbxproj = pbxproj
-    }
-
-    /// Returns a group that should contain all the target build files (sources & resources)
-    ///
-    /// - Parameter name: target name.
-    /// - Returns: group to be used.
-    /// - Throws: an error if the creation fails.
-    func target(name: String) throws -> PBXGroup {
-        if let group = targets.group(named: name) {
-            return group
-        } else {
-            return try targets.addGroup(named: name, options: .withoutFolder).last!
-        }
+        self.objects = objects
     }
 
     /// Returns a group that should contain all the frameworks of a given target.
@@ -111,55 +100,55 @@ class ProjectGroups {
     ///
     /// - Parameters:
     ///   - project: project spec.
-    ///   - pbxproj: PBXProj instance.
+    ///   - objects: project objects.
     ///   - sourceRootPath: path to the folder where the Xcode project is getting created.
     /// - Returns: project groups instance.
     static func generate(project: Project,
-                         pbxproj: PBXProj,
+                         objects: PBXObjects,
                          sourceRootPath: AbsolutePath) -> ProjectGroups {
         /// Main
         let mainGroup = PBXGroup(children: [],
                                  sourceTree: .group,
                                  path: project.path.relative(to: sourceRootPath).asString)
-        pbxproj.objects.addObject(mainGroup)
+        objects.addObject(mainGroup)
 
-        /// Targets
-        let targetsGroup = PBXGroup(children: [], sourceTree: .group, name: "Targets")
-        let targetsGroupReference = pbxproj.objects.addObject(targetsGroup)
-        mainGroup.children.append(targetsGroupReference)
+        /// Files
+        let filesGroup = PBXGroup(children: [], sourceTree: .group, name: "Files")
+        let filesGroupReference = objects.addObject(filesGroup)
+        mainGroup.children.append(filesGroupReference)
 
         /// Configurations
         let configurationsGroup = PBXGroup(children: [], sourceTree: .group, name: "Configurations")
-        let configurationsGroupReference = pbxproj.objects.addObject(configurationsGroup)
+        let configurationsGroupReference = objects.addObject(configurationsGroup)
         mainGroup.children.append(configurationsGroupReference)
 
         /// Support
         let supportGroup = PBXGroup(children: [], sourceTree: .group, name: "Support")
-        let supportGroupReference = pbxproj.objects.addObject(supportGroup)
+        let supportGroupReference = objects.addObject(supportGroup)
         mainGroup.children.append(supportGroupReference)
 
         /// ProjectDescription
         let projectDescriptionGroup = PBXGroup(children: [], sourceTree: .group, name: "ProjectDescription")
-        let projectDescriptionGroupReference = pbxproj.objects.addObject(projectDescriptionGroup)
+        let projectDescriptionGroupReference = objects.addObject(projectDescriptionGroup)
         mainGroup.children.append(projectDescriptionGroupReference)
 
         /// Frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
-        let frameworksGroupReference = pbxproj.objects.addObject(frameworksGroup)
+        let frameworksGroupReference = objects.addObject(frameworksGroup)
         mainGroup.children.append(frameworksGroupReference)
 
         /// Products
         let productsGroup = PBXGroup(children: [], sourceTree: .buildProductsDir, name: "Products")
-        let productsGroupReference = pbxproj.objects.addObject(productsGroup)
+        let productsGroupReference = objects.addObject(productsGroup)
         mainGroup.children.append(productsGroupReference)
 
         return ProjectGroups(main: mainGroup,
                              products: productsGroup,
                              configurations: configurationsGroup,
                              support: supportGroup,
-                             targets: targetsGroup,
+                             files: filesGroup,
                              projectDescription: projectDescriptionGroup,
                              frameworks: frameworksGroup,
-                             pbxproj: pbxproj)
+                             objects: objects)
     }
 }
