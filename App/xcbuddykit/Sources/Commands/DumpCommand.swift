@@ -79,26 +79,24 @@ public class DumpCommand: NSObject, Command {
     ///
     /// - Parameter _: argument parser arguments.
     /// - Throws: an error if the command cannot be executed.
-    public func run(with arguments: ArgumentParser.Result) {
-        context.errorHandler.try {
-            var path: AbsolutePath! = arguments.get(pathArgument).map({ AbsolutePath($0) })
-            if path == nil {
-                path = AbsolutePath.current
-            }
-            let projectPath = path.appending(component: Constants.Manifest.project)
-            let workspacePath = path.appending(component: Constants.Manifest.workspace)
-            let configPath = path.appending(component: Constants.Manifest.config)
-            var json: JSON!
-            if graphLoaderContext.fileHandler.exists(projectPath) {
-                json = try graphLoaderContext.manifestLoader.load(path: projectPath, context: graphLoaderContext)
-            } else if graphLoaderContext.fileHandler.exists(workspacePath) {
-                json = try graphLoaderContext.manifestLoader.load(path: workspacePath, context: graphLoaderContext)
-            } else if graphLoaderContext.fileHandler.exists(configPath) {
-                json = try graphLoaderContext.manifestLoader.load(path: configPath, context: graphLoaderContext)
-            } else {
-                throw DumpCommandError.manifestNotFound(path)
-            }
-            context.printer.print(json.toString(prettyPrint: true))
+    public func run(with arguments: ArgumentParser.Result) throws {
+        var path: AbsolutePath! = arguments.get(pathArgument).map({ AbsolutePath($0) })
+        if path == nil {
+            path = AbsolutePath.current
         }
+        let projectPath = path.appending(component: Constants.Manifest.project)
+        let workspacePath = path.appending(component: Constants.Manifest.workspace)
+        let configPath = path.appending(component: Constants.Manifest.config)
+        var json: JSON!
+        if graphLoaderContext.fileHandler.exists(projectPath) {
+            json = try graphLoaderContext.manifestLoader.load(path: projectPath, context: graphLoaderContext)
+        } else if graphLoaderContext.fileHandler.exists(workspacePath) {
+            json = try graphLoaderContext.manifestLoader.load(path: workspacePath, context: graphLoaderContext)
+        } else if graphLoaderContext.fileHandler.exists(configPath) {
+            json = try graphLoaderContext.manifestLoader.load(path: configPath, context: graphLoaderContext)
+        } else {
+            throw DumpCommandError.manifestNotFound(path)
+        }
+        context.printer.print(json.toString(prettyPrint: true))
     }
 }

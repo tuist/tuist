@@ -12,24 +12,17 @@ final class CommandRegistryTests: XCTestCase {
         super.setUp()
         commandCheck = MockCommandCheck()
         errorHandler = MockErrorHandler()
-        let context = Context(errorHandler: errorHandler)
+        let context = Context()
         subject = CommandRegistry(context: context,
-                                  commandCheck: commandCheck) { return ["xcbuddy", type(of: self.command).command] }
+                                  commandCheck: commandCheck,
+                                  errorHandler: errorHandler) { return ["xcbuddy", type(of: self.command).command] }
         command = MockCommand(parser: subject.parser)
         subject.register(command: MockCommand.self)
     }
 
     func test_run_reportsFatalErrors() throws {
-        var thrownError: Error?
-        errorHandler.tryStub = { block in
-            do {
-                try block()
-            } catch {
-                thrownError = error
-            }
-        }
         commandCheck.checkStub = { _ in throw NSError.test() }
-        try subject.run()
-        XCTAssertNotNil(thrownError)
+        subject.run()
+        XCTAssertNotNil(errorHandler.fatalErrorArgs.last)
     }
 }

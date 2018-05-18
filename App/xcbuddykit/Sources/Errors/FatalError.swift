@@ -13,6 +13,13 @@ enum ErrorType {
     case bugSilent
 }
 
+/// Unhandled error.
+struct UnhandledError: FatalError {
+    let error: Error
+    var type: ErrorType { return .bugSilent }
+    var description: String { return error.localizedDescription }
+}
+
 /// Fatal error protocol.
 protocol FatalError: Error, CustomStringConvertible {
     /// Error type.

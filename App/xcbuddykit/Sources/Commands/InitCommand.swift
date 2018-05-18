@@ -56,27 +56,25 @@ public class InitCommand: NSObject, Command {
     ///
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
-    public func run(with arguments: ArgumentParser.Result) {
-        context.errorHandler.try {
-            var path: AbsolutePath! = arguments
-                .get(pathArgument)
-                .map({ AbsolutePath($0) })
-                .map({ $0.appending(component: Constants.Manifest.project) })
-            if path == nil {
-                path = AbsolutePath.current.appending(component: Constants.Manifest.project)
-            }
-            if context.fileHandler.exists(path) {
-                throw InitCommandError.alreadyExists(path)
-            }
-            guard let projectName = path.parentDirectory.components.last else {
-                throw InitCommandError.ungettableProjectName(path)
-            }
-            let projectSwift = self.projectSwift(name: projectName)
-            try projectSwift.write(toFile: path.asString,
-                                   atomically: true,
-                                   encoding: .utf8)
-            context.printer.print(section: "Project.swift generated at path \(path.asString)")
+    public func run(with arguments: ArgumentParser.Result) throws {
+        var path: AbsolutePath! = arguments
+            .get(pathArgument)
+            .map({ AbsolutePath($0) })
+            .map({ $0.appending(component: Constants.Manifest.project) })
+        if path == nil {
+            path = AbsolutePath.current.appending(component: Constants.Manifest.project)
         }
+        if context.fileHandler.exists(path) {
+            throw InitCommandError.alreadyExists(path)
+        }
+        guard let projectName = path.parentDirectory.components.last else {
+            throw InitCommandError.ungettableProjectName(path)
+        }
+        let projectSwift = self.projectSwift(name: projectName)
+        try projectSwift.write(toFile: path.asString,
+                               atomically: true,
+                               encoding: .utf8)
+        context.printer.print(section: "Project.swift generated at path \(path.asString)")
     }
 
     fileprivate func projectSwift(name: String) -> String {

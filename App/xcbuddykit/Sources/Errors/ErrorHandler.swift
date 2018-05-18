@@ -16,11 +16,6 @@ protocol ErrorHandling: AnyObject {
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError)
-
-    /// Runs the given closure reporting thrown errors as FatalError.abort
-    ///
-    /// - Parameter closure: closure to be executed.
-    func `try`(_ closure: () throws -> Void)
 }
 
 /// Error handler.
@@ -62,19 +57,6 @@ final class ErrorHandler: ErrorHandling {
         // swiftlint:enable force_try
         self.printer = printer
         self.exiter = exiter
-    }
-
-    /// Runs the given closure reporting thrown errors as FatalError.abort
-    ///
-    /// - Parameter closure: closure to be executed.
-    func `try`(_ closure: () throws -> Void) {
-        do {
-            try closure()
-        } catch {
-            if let fatalError = error as? FatalError {
-                fatal(error: fatalError)
-            }
-        }
     }
 
     /// It should be called when a fatal error happens. Depending on the error it

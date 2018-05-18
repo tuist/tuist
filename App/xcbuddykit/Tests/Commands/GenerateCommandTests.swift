@@ -17,8 +17,8 @@ final class GenerateCommandTests: XCTestCase {
         super.setUp()
         printer = MockPrinter()
         errorHandler = MockErrorHandler()
-        let graphLoaderContext = GraphLoaderContext(errorHandler: errorHandler)
-        let commandsContext = CommandsContext(printer: printer, errorHandler: errorHandler)
+        let graphLoaderContext = GraphLoaderContext()
+        let commandsContext = CommandsContext(printer: printer)
         graphLoader = MockGraphLoader()
         workspaceGenerator = MockWorkspaceGenerator()
         parser = ArgumentParser.test()
@@ -39,8 +39,7 @@ final class GenerateCommandTests: XCTestCase {
 
     func test_run_fatalErrors_when_theConfigIsInvalid() throws {
         let result = try parser.parse([GenerateCommand.command, "-c", "invalid_config"])
-        subject.run(with: result)
-        XCTAssertNotNil(errorHandler.fatalErrorArgs.first)
+        XCTAssertThrowsError(try subject.run(with: result))
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
@@ -51,14 +50,15 @@ final class GenerateCommandTests: XCTestCase {
             configuration = options.buildConfiguration
             throw error
         }
-        subject.run(with: result)
+        XCTAssertThrowsError(try subject.run(with: result)) {
+            XCTAssertEqual($0 as NSError?, error)
+        }
         XCTAssertEqual(configuration, .debug)
-        XCTAssertEqual(errorHandler.tryErrors.first as NSError?, error)
     }
 
     func test_run_prints() throws {
         let result = try parser.parse([GenerateCommand.command, "-c", "Debug"])
-        subject.run(with: result)
+        try subject.run(with: result)
         XCTAssertEqual(printer.printSectionArgs.first, "Generate command succeeded 🎉")
     }
 }

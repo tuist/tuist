@@ -13,6 +13,9 @@ public final class CommandRegistry {
     /// Command check.
     private let commandCheck: CommandChecking
 
+    /// Error handler.
+    private let errorHandler: ErrorHandling
+
     // Registered commands.
     var commands: [Command] = []
 
@@ -23,6 +26,7 @@ public final class CommandRegistry {
     public convenience init() {
         self.init(context: Context(),
                   commandCheck: CommandCheck(),
+                  errorHandler: ErrorHandler(),
                   processArguments: CommandRegistry.processArguments)
         register(command: InitCommand.self)
         register(command: GenerateCommand.self)
@@ -34,9 +38,11 @@ public final class CommandRegistry {
     /// Initializes the command registry
     init(context: Contexting,
          commandCheck: CommandChecking,
+         errorHandler: ErrorHandling,
          processArguments: @escaping () -> [String]) {
         self.commandCheck = commandCheck
         self.context = context
+        self.errorHandler = errorHandler
         parser = ArgumentParser(usage: "<command> <options>",
                                 overview: "Your Xcode buddy")
         self.processArguments = processArguments
@@ -57,10 +63,14 @@ public final class CommandRegistry {
     }
 
     /// Runs the command line interface.
-    public func run() throws {
-        context.errorHandler.try {
+    public func run() {
+        do {
             let parsedArguments = try parse()
             try process(arguments: parsedArguments)
+        } catch let error as FatalError {
+            errorHandler.fatal(error: error)
+        } catch {
+            errorHandler.fatal(error: UnhandledError(error: error))
         }
     }
 
@@ -84,6 +94,6 @@ public final class CommandRegistry {
             return
         }
         try commandCheck.check(command: type(of: command).command)
-        command.run(with: arguments)
+        try command.run(with: arguments)
     }
 }

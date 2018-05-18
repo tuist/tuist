@@ -14,7 +14,7 @@ final class DumpCommandTests: XCTestCase {
         let graphLoaderContext = GraphLoaderContext()
         printer = MockPrinter()
         errorHandler = MockErrorHandler()
-        let commandsContext = CommandsContext(printer: printer, errorHandler: errorHandler)
+        let commandsContext = CommandsContext(printer: printer)
         parser = ArgumentParser.test()
         subject = DumpCommand(graphLoaderContext: graphLoaderContext,
                               context: commandsContext,
@@ -37,8 +37,9 @@ final class DumpCommandTests: XCTestCase {
     func test_run_throws_when_file_doesnt_exist() throws {
         let tmpDir = try TemporaryDirectory()
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
-        subject.run(with: result)
-        XCTAssertEqual(errorHandler.tryErrors.first as? DumpCommandError, DumpCommandError.manifestNotFound(tmpDir.path))
+        XCTAssertThrowsError(try subject.run(with: result)) {
+            XCTAssertEqual($0 as? DumpCommandError, DumpCommandError.manifestNotFound(tmpDir.path))
+        }
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
@@ -47,8 +48,7 @@ final class DumpCommandTests: XCTestCase {
                                    atomically: true,
                                    encoding: .utf8)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
-        subject.run(with: result)
-        XCTAssertEqual(errorHandler.tryErrors.count, 1)
+        XCTAssertThrowsError(try subject.run(with: result))
     }
 
     func test_prints_the_manifest() throws {
@@ -65,7 +65,7 @@ final class DumpCommandTests: XCTestCase {
                          atomically: true,
                          encoding: .utf8)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
-        subject.run(with: result)
+        try subject.run(with: result)
         let expected = """
         {
           "name": "xcbuddy",

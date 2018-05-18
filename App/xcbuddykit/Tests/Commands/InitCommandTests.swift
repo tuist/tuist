@@ -43,7 +43,7 @@ final class InitCommandTests: XCTestCase {
         try "".write(toFile: tmpDir.path.appending(component: "Info.plist").asString, atomically: true, encoding: .utf8)
         try "".write(toFile: tmpDir.path.appending(component: "Debug.xcconfig").asString, atomically: true, encoding: .utf8)
         let result = try parser.parse([InitCommand.command, "-p", tmpDir.path.asString])
-        subject.run(with: result)
+        try subject.run(with: result)
         let project = try Project.at(tmpDir.path, context: graphLoaderContext)
         XCTAssertEqual(project.name, tmpDir.path.components.last)
         XCTAssertEqual(project.schemes.count, 1)
