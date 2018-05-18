@@ -14,13 +14,14 @@ protocol GraphManifestLoading {
 /// - frameworksFolderNotFound: error thrown when the frameworks fodler that contains the ProjectDescription.framework cannot be found.
 /// - swiftNotFound: error thrown when Swift is not found in the system.
 /// - unexpectedOutput: error throw when we get an unexpected output trying to compile the manifest.
-enum GraphManifestLoaderError: Error, ErrorStringConvertible, Equatable {
+enum GraphManifestLoaderError: FatalError {
     case projectDescriptionNotFound(AbsolutePath)
     case frameworksFolderNotFound
     case swiftNotFound
     case unexpectedOutput(AbsolutePath)
 
-    var errorDescription: String {
+    /// Error description.
+    var description: String {
         switch self {
         case let .projectDescriptionNotFound(path):
             return "Couldn't find ProjectDescription.framework at path \(path.asString)."
@@ -33,6 +34,22 @@ enum GraphManifestLoaderError: Error, ErrorStringConvertible, Equatable {
         }
     }
 
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .unexpectedOutput:
+            return .bug
+        default:
+            return .abort
+        }
+    }
+
+    /// Compares two GraphManifestLoading instances.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
     static func == (lhs: GraphManifestLoaderError, rhs: GraphManifestLoaderError) -> Bool {
         switch (lhs, rhs) {
         case let (.projectDescriptionNotFound(lhsPath), .projectDescriptionNotFound(rhsPath)):

@@ -17,9 +17,7 @@ final class SchemeTests: XCTestCase {
                                                   arguments: Arguments(environment: ["a": "b"],
                                                                        launch: ["a": true])))
         let json = subject.toJSON()
-        let expected = """
-        {"build_action": {"targets": ["target"]}, "name": "scheme", "run_action": {"arguments": {"environment": {"a": "b"}, "launch": {"a": true}}, "config": "debug", "executable": "executable"}, "shared": true, "test_action": {"arguments": {"environment": {"a": "b"}, "launch": {"a": true}}, "config": "debug", "targets": ["target"]}}
-        """
+        let expected = "{\"build_action\": {\"targets\": [\"target\"]}, \"name\": \"scheme\", \"run_action\": {\"arguments\": {\"environment\": {\"a\": \"b\"}, \"launch\": {\"a\": true}}, \"config\": \"debug\", \"executable\": \"executable\"}, \"shared\": true, \"test_action\": {\"arguments\": {\"environment\": {\"a\": \"b\"}, \"launch\": {\"a\": true}}, \"config\": \"debug\", \"coverage\": true, \"targets\": [\"target\"]}}"
         XCTAssertEqual(json.toString(), expected)
     }
 }

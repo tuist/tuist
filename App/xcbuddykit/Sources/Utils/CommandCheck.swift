@@ -5,10 +5,10 @@ import Utility
 ///
 /// - swiftVersionNotFound: Thrown when the Swift version cannot be determined.
 /// - incompatibleSwiftVersion: Thrown when the version of Swift in the system is incompatible with the version of the precompiled frameworks.
-enum CommandCheckError: Error, ErrorStringConvertible, Equatable {
+enum CommandCheckError: FatalError, Equatable {
     case swiftVersionNotFound
     case incompatibleSwiftVersion(system: String, expected: String)
-    var errorDescription: String {
+    var description: String {
         switch self {
         case .swiftVersionNotFound:
             var message = "Error getting your Swift version."
@@ -18,6 +18,15 @@ enum CommandCheckError: Error, ErrorStringConvertible, Equatable {
             var message = "The Swift version in your system, \(system) is incompatible with the version xcbuddy expects \(expected)"
             message.append(" If you updated Xcode recently, update xcbuddy to the lastest version.")
             return message
+        }
+    }
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .incompatibleSwiftVersion: fallthrough
+        case .swiftVersionNotFound:
+            return .abort
         }
     }
 

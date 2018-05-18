@@ -20,12 +20,12 @@ final class InitCommandTests: XCTestCase {
 
     func test_initCommandError_has_the_right_description_when_alreadyExists() {
         let error = InitCommandError.alreadyExists(AbsolutePath("/path"))
-        XCTAssertEqual(error.errorDescription, "/path already exists")
+        XCTAssertEqual(error.description, "/path already exists")
     }
 
     func test_initCommandError_has_the_right_description_when_ungettableProjectName() {
         let error = InitCommandError.ungettableProjectName(AbsolutePath("/path"))
-        XCTAssertEqual(error.errorDescription, "Couldn't infer the project name from path /path")
+        XCTAssertEqual(error.description, "Couldn't infer the project name from path /path")
     }
 
     func test_init_registersTheSubparser() {
@@ -43,7 +43,7 @@ final class InitCommandTests: XCTestCase {
         try "".write(toFile: tmpDir.path.appending(component: "Info.plist").asString, atomically: true, encoding: .utf8)
         try "".write(toFile: tmpDir.path.appending(component: "Debug.xcconfig").asString, atomically: true, encoding: .utf8)
         let result = try parser.parse([InitCommand.command, "-p", tmpDir.path.asString])
-        subject.run(with: result)
+        try subject.run(with: result)
         let project = try Project.at(tmpDir.path, context: graphLoaderContext)
         XCTAssertEqual(project.name, tmpDir.path.components.last)
         XCTAssertEqual(project.schemes.count, 1)

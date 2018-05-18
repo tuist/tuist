@@ -96,14 +96,22 @@ class TargetNode: GraphNode {
 /// Precompiled node errors.
 ///
 /// - architecturesNotFound: thrown when the architectures cannot be found.
-enum PrecompiledNodeError: Error, ErrorStringConvertible, Equatable {
+enum PrecompiledNodeError: FatalError, Equatable {
     case architecturesNotFound(AbsolutePath)
 
     /// Error description.
-    var errorDescription: String {
+    var description: String {
         switch self {
         case let .architecturesNotFound(path):
             return "Couldn't find architectures for binary at path \(path.asString)"
+        }
+    }
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .architecturesNotFound:
+            return .abort
         }
     }
 

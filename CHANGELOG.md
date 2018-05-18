@@ -9,6 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Files and groups generation https://github.com/xcbuddy/xcbuddy/pull/28 by @pepibumur.
 * Sources build phase generation https://github.com/xcbuddy/xcbuddy/pull/30 by @pepibumur.
 
+### Changed
+
+* Error handling to use a protocol oriented approach https://github.com/xcbuddy/xcbuddy/pull/31 by @pepibumur.
+
 ## 0.34.0
 
 ### Added

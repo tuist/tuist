@@ -1,73 +1,27 @@
 import Foundation
 
-/// Protocol that should be conformed by errors that can provide a printable description.
-protocol ErrorStringConvertible {
-    /// Error description.
-    var errorDescription: String { get }
+/// Error type.
+///
+/// - abort: error thrown when an unexpected condition happens.
+/// - bug: error thrown when a bug is found and the execution cannot continue.
+/// - abortSilent: like abort but without printing anything to the user.
+/// - bugSilent: like bug but without printing anything to the user.
+enum ErrorType {
+    case abort
+    case bug
+    case abortSilent
+    case bugSilent
 }
 
-/// Fatal errors that can be thrown at any point of the execution.
-///
-/// - abort: used when something unexpected happens and the user should be alerted.
-/// - bug: like abort, but it also reports the event to Sentry.
-/// - abortSilent: like abort, but it doesn't print anything in the console.
-/// - bugSilent: like bug, but it doesn't print anything in the console.
-enum FatalError: Error, ErrorStringConvertible {
-    case abort(Error)
-    case bug(Error)
-    case abortSilent(Error)
-    case bugSilent(Error)
+/// Unhandled error.
+struct UnhandledError: FatalError {
+    let error: Error
+    var type: ErrorType { return .bugSilent }
+    var description: String { return error.localizedDescription }
+}
 
-    /// Returns the error description
-    var errorDescription: String {
-        switch self {
-        case let .abort(error):
-            if let errorStringConvertible = error as? ErrorStringConvertible {
-                return errorStringConvertible.errorDescription
-            } else {
-                return "\(error)"
-            }
-        case let .bug(error):
-            if let errorStringConvertible = error as? ErrorStringConvertible {
-                return errorStringConvertible.errorDescription
-            } else {
-                return "\(error)"
-            }
-        default:
-            return ""
-        }
-    }
-
-    /// Returns a bug to be reported.
-    var bug: Error? {
-        switch self {
-        case let .bug(error): return error
-        case let .bugSilent(error): return error
-        default: return nil
-        }
-    }
-
-    /// Returns if the error is silent.
-    var isSilent: Bool {
-        switch self {
-        case .abortSilent, .bugSilent: return true
-        default: return false
-        }
-    }
-
-    /// Returns if the error is an abort.
-    var isAbort: Bool {
-        switch self {
-        case .abort, .abortSilent: return true
-        default: return false
-        }
-    }
-
-    /// Returns if the error is a bug.
-    var isBug: Bool {
-        switch self {
-        case .bug, .bugSilent: return true
-        default: return false
-        }
-    }
+/// Fatal error protocol.
+protocol FatalError: Error, CustomStringConvertible {
+    /// Error type.
+    var type: ErrorType { get }
 }

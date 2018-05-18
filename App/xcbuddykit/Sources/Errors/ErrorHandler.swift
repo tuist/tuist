@@ -16,11 +16,6 @@ protocol ErrorHandling: AnyObject {
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError)
-
-    /// Runs the given closure reporting thrown errors as FatalError.abort
-    ///
-    /// - Parameter closure: closure to be executed.
-    func `try`(_ closure: () throws -> Void)
 }
 
 /// Error handler.
@@ -64,34 +59,25 @@ final class ErrorHandler: ErrorHandling {
         self.exiter = exiter
     }
 
-    /// Runs the given closure reporting thrown errors as FatalError.abort
-    ///
-    /// - Parameter closure: closure to be executed.
-    func `try`(_ closure: () throws -> Void) {
-        do {
-            try closure()
-        } catch {
-            fatal(error: .abort(error))
-        }
-    }
-
     /// It should be called when a fatal error happens. Depending on the error it
     /// prints, and reports the error to Sentry.
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError) {
-        if !error.errorDescription.isEmpty && !error.isSilent {
-            printer.print(errorMessage: error.errorDescription)
-        } else if error.isBug {
+        let isSilent = error.type == .abortSilent || error.type == .bugSilent
+        let isBug = error.type == .bug || error.type == .bugSilent
+        if !error.description.isEmpty && !isSilent {
+            printer.print(errorMessage: error.description)
+        } else if isSilent {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconviniences it might have caused.
             """
             printer.print(errorMessage: message)
         }
-        if let bug = error.bug {
+        if isBug {
             let event = Event(level: .debug)
-            event.message = bug.localizedDescription
+            event.message = error.description
             let semaphore = DispatchSemaphore(value: 0)
             client?.send(event: event) { _ in
                 semaphore.signal()

@@ -25,10 +25,8 @@ public class UpdateCommand: NSObject, Command, SPUUpdaterDelegate {
         context = CommandsContext()
     }
 
-    public func run(with _: ArgumentParser.Result) {
-        context.errorHandler.try {
-            try controller.checkAndUpdateFromConsole(context: self.context)
-        }
+    public func run(with _: ArgumentParser.Result) throws {
+        try controller.checkAndUpdateFromConsole(context: context)
     }
 
     // MARK: - Init

@@ -26,7 +26,7 @@ final class UpdateCommandTests: XCTestCase {
 
     func test_run() throws {
         let result = ArgumentParser.Result.test()
-        subject.run(with: result)
+        try subject.run(with: result)
         XCTAssertEqual(updateController.checkAndUpdateFromConsoleCount, 1)
     }
 }

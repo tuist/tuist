@@ -16,7 +16,7 @@ final class TargetDependencyTests: XCTestCase {
         let subject = TargetDependency.project(target: "target", path: "path")
         let json = subject.toJSON()
         let expected = """
-        {"path": "path", "target": "target", "type": "type"}
+        {"path": "path", "target": "target", "type": "project"}
         """
         XCTAssertEqual(json.toString(), expected)
     }

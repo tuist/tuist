@@ -72,14 +72,12 @@ public class GenerateCommand: NSObject, Command {
     ///
     /// - Parameter _: argument parser arguments.
     /// - Throws: an error if the command cannot be executed.
-    public func run(with arguments: ArgumentParser.Result) {
-        context.errorHandler.try {
-            let path = parsePath(arguments: arguments)
-            let config = parseConfig(arguments: arguments)
-            let context = try GeneratorContext(graph: graphLoader.load(path: path))
-            try workspaceGenerator.generate(path: path, context: context, options: GenerationOptions(buildConfiguration: config))
-            self.context.printer.print(section: "Generate command succeeded 🎉")
-        }
+    public func run(with arguments: ArgumentParser.Result) throws {
+        let path = parsePath(arguments: arguments)
+        let config = try parseConfig(arguments: arguments)
+        let context = try GeneratorContext(graph: graphLoader.load(path: path))
+        try workspaceGenerator.generate(path: path, context: context, options: GenerationOptions(buildConfiguration: config))
+        self.context.printer.print(section: "Generate command succeeded 🎉")
     }
 
     /// Parses the arguments and returns the path to the folder where the manifest file is.
@@ -99,14 +97,13 @@ public class GenerateCommand: NSObject, Command {
     /// - Parameters:
     ///     - arguments: argument parser result.
     /// - Returns: The build configuration.
-    private func parseConfig(arguments: ArgumentParser.Result) -> BuildConfiguration {
+    private func parseConfig(arguments: ArgumentParser.Result) throws -> BuildConfiguration {
         var config: BuildConfiguration = .debug
         if let configString = arguments.get(configArgument) {
             guard let buildConfiguration = BuildConfiguration(rawValue: configString.lowercased()) else {
                 let error = ArgumentParserError.invalidValue(argument: "config",
                                                              error: ArgumentConversionError.custom("config can only be debug or release"))
-                context.errorHandler.fatal(error: FatalError.abort(error))
-                return .debug
+                throw error
             }
             config = buildConfiguration
         }

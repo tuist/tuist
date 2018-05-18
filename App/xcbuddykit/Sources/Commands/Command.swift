@@ -17,5 +17,5 @@ protocol Command {
     ///
     /// - Parameter arguments: arguments.
     /// - Throws: an error if the command execution fails.
-    func run(with arguments: ArgumentParser.Result)
+    func run(with arguments: ArgumentParser.Result) throws
 }
