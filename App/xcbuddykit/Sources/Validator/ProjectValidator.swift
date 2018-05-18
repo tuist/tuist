@@ -1,9 +1,19 @@
 import Basic
 import Foundation
 
-enum ProjectValidationError: Error, ErrorStringConvertible, Equatable {
+enum ProjectValidationError: FatalError, Equatable {
     case duplicatedTargets([String], AbsolutePath)
-    var errorDescription: String {
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        default:
+            return .abort
+        }
+    }
+
+    /// Error description.
+    var description: String {
         switch self {
         case let .duplicatedTargets(targets, projectPath):
             return "Targets \(targets.joined(separator: ", ")) from project at \(projectPath.asString) have duplicates."

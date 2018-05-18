@@ -8,14 +8,14 @@ final class CommandCheckErrorTests: XCTestCase {
         let error = CommandCheckError.swiftVersionNotFound
         var expected = "Error getting your Swift version."
         expected.append(" Make sure 'swift' is available from your shell and that 'swift version' returns the language version")
-        XCTAssertEqual(error.errorDescription, expected)
+        XCTAssertEqual(error.description, expected)
     }
 
     func test_errorDescription_when_incompatibleSwiftVersion() {
         let error = CommandCheckError.incompatibleSwiftVersion(system: "4.0", expected: "4.1")
         var expected = "The Swift version in your system, 4.0 is incompatible with the version xcbuddy expects 4.1"
         expected.append(" If you updated Xcode recently, update xcbuddy to the lastest version.")
-        XCTAssertEqual(error.errorDescription, expected)
+        XCTAssertEqual(error.description, expected)
     }
 }
 

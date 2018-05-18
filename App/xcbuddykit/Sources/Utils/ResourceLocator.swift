@@ -27,15 +27,31 @@ protocol ResourceLocating: AnyObject {
 /// Resource locating error.
 ///
 /// - notFound: thrown then the resource cannot be found.
-enum ResourceLocatingError: Error, ErrorStringConvertible, Equatable {
+enum ResourceLocatingError: FatalError {
     case notFound(String)
-    var errorDescription: String {
+
+    /// Error description.
+    var description: String {
         switch self {
         case let .notFound(name):
             return "Couldn't find \(name)"
         }
     }
 
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        default:
+            return .bug
+        }
+    }
+
+    /// Compares two ResourceLocatingError instances.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
     static func == (lhs: ResourceLocatingError, rhs: ResourceLocatingError) -> Bool {
         switch (lhs, rhs) {
         case let (.notFound(lhsPath), .notFound(rhsPath)):

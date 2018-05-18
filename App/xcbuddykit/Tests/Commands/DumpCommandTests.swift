@@ -23,7 +23,7 @@ final class DumpCommandTests: XCTestCase {
 
     func test_dumpCommandError_returns_the_right_description_when_manifestNotFound() {
         let error = DumpCommandError.manifestNotFound(AbsolutePath("/test"))
-        XCTAssertEqual(error.errorDescription, "Couldn't find Project.swift, Workspace.swift, or Config.swift in the directory /test")
+        XCTAssertEqual(error.description, "Couldn't find Project.swift, Workspace.swift, or Config.swift in the directory /test")
     }
 
     func test_name() {

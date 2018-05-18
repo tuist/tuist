@@ -5,12 +5,20 @@ import Utility
 /// Dump command error.
 ///
 /// - manifestNotFound: thrown when the manifest cannot be found at the given path.
-enum DumpCommandError: Error, ErrorStringConvertible, Equatable {
+enum DumpCommandError: FatalError, Equatable {
     case manifestNotFound(AbsolutePath)
-    var errorDescription: String {
+    var description: String {
         switch self {
         case let .manifestNotFound(path):
             return "Couldn't find Project.swift, Workspace.swift, or Config.swift in the directory \(path.asString)"
+        }
+    }
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .manifestNotFound:
+            return .abort
         }
     }
 

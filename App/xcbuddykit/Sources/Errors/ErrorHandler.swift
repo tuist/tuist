@@ -71,7 +71,9 @@ final class ErrorHandler: ErrorHandling {
         do {
             try closure()
         } catch {
-            fatal(error: .abort(error))
+            if let fatalError = error as? FatalError {
+                fatal(error: fatalError)
+            }
         }
     }
 
@@ -80,18 +82,20 @@ final class ErrorHandler: ErrorHandling {
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError) {
-        if !error.errorDescription.isEmpty && !error.isSilent {
-            printer.print(errorMessage: error.errorDescription)
-        } else if error.isBug {
+        let silent = error.type == .abortSilent || error.type == .bugSilent
+        let bug = error.type == .bug || error.type == .bugSilent
+        if !error.description.isEmpty && !silent {
+            printer.print(errorMessage: error.description)
+        } else if silent {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconviniences it might have caused.
             """
             printer.print(errorMessage: message)
         }
-        if let bug = error.bug {
+        if bug {
             let event = Event(level: .debug)
-            event.message = bug.localizedDescription
+            event.message = error.description
             let semaphore = DispatchSemaphore(value: 0)
             client?.send(event: event) { _ in
                 semaphore.signal()

@@ -105,7 +105,7 @@ public class GenerateCommand: NSObject, Command {
             guard let buildConfiguration = BuildConfiguration(rawValue: configString.lowercased()) else {
                 let error = ArgumentParserError.invalidValue(argument: "config",
                                                              error: ArgumentConversionError.custom("config can only be debug or release"))
-                context.errorHandler.fatal(error: FatalError.abort(error))
+                context.errorHandler.fatal(error: error)
                 return .debug
             }
             config = buildConfiguration

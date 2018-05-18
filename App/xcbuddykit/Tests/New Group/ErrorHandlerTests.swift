@@ -3,8 +3,9 @@ import Sentry
 @testable import xcbuddykit
 import XCTest
 
-fileprivate struct TestError: Error, ErrorStringConvertible {
-    var errorDescription: String { return "Error" }
+fileprivate struct TestError: FatalError {
+    var description: String { return "Error" }
+    var type: ErrorType
 }
 
 fileprivate final class MockSentryClient: SentryClienting {
@@ -45,32 +46,32 @@ final class ErrorHandlerTests: XCTestCase {
     }
 
     func test_fatalError_printsTheDescription_whenPrintableError() {
-        let error = TestError()
-        subject.fatal(error: .abort(error))
-        XCTAssertEqual(printer.printErrorMessageArgs.first, error.errorDescription)
+        let error = TestError(type: .abort)
+        subject.fatal(error: error)
+        XCTAssertEqual(printer.printErrorMessageArgs.first, error.description)
     }
 
     func test_fatalError_exitsWith1() {
-        let error = TestError()
-        subject.fatal(error: .abort(error))
+        let error = TestError(type: .abort)
+        subject.fatal(error: error)
         XCTAssertEqual(exited, 1)
     }
 
     func test_fatalError_reports_whenBug() {
-        let error = TestError()
+        let error = TestError(type: .bug)
         var sentEvent: Event?
         client.sendEventStub = { event, completion in
             sentEvent = event
             completion?(nil)
         }
-        subject.fatal(error: .bug(error))
-        XCTAssertEqual(sentEvent?.message, error.localizedDescription)
+        subject.fatal(error: error)
+        XCTAssertEqual(sentEvent?.message, error.description)
         XCTAssertEqual(sentEvent?.level, .debug)
     }
 
     func test_fatalError_prints_whenItsSilent() {
-        let error = NSError(domain: "domain", code: 20, userInfo: nil)
-        subject.fatal(error: .bugSilent(error))
+        let error = TestError(type: .bugSilent)
+        subject.fatal(error: error)
         let expected = """
         An unexpected error happened. We've opened an issue to fix it as soon as possible.
         We are sorry for any inconviniences it might have caused.
