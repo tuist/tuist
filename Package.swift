@@ -6,7 +6,7 @@ let package = Package(
     name: "xcbuddy",
     dependencies: [
         .package(url: "git@github.com:xcbuddy/xcodeproj.git", .revision("37154751096c20fb8b082d314cfa94f358293e25")),
-        .package(url: "git@github.com:apple/swift-package-manager.git", .revision("26ab3997142ef464090c63f963d1dafef79a7c06")),
+        .package(url: "https://github.com/apple/swift-package-manager", from: "0.2.0"),
     ],
     targets: [
         .target(
