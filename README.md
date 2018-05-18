@@ -25,7 +25,7 @@
 Just run this command on your terminal:
 
 ```
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/xcbuddy/xcbuddy/master/scripts/install)"
+/usr/bin/ruby -e "$(curl -fsSL https://goo.gl/4cbZoL)"
 ```
 
 ## Setup for development
