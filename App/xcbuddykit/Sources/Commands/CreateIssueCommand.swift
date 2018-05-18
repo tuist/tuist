@@ -4,16 +4,15 @@ import Utility
 
 /// Command that opens the issue creation website on GitHub.
 public class CreateIssueCommand: NSObject, Command {
+    static let createIssueUrl: String = "https://github.com/xcbuddy/xcbuddy/issues/new"
 
-    static let issueURL: String = "https://github.com/xcbuddy/xcbuddy/issues/new"
-    
     // MARK: - Command
 
     /// Command name.
     public static let command = "create-issue"
 
     /// Command description.
-    public static let overview = "Opens the GitHub page to create a new issue"
+    public static let overview = "Opens the GitHub page to create a new issue."
 
     /// Context
     let context: CommandsContexting
@@ -38,6 +37,6 @@ public class CreateIssueCommand: NSObject, Command {
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
     public func run(with _: ArgumentParser.Result) throws {
-        _ = try context.shell.run("open", issueURL)
+        _ = try context.shell.run("open", CreateIssueCommand.createIssueUrl)
     }
 }
