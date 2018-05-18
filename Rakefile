@@ -31,7 +31,8 @@ end
 
 def test
   execute('swift package generate-xcodeproj')
-  execute("xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddykit clean test CODE_SIGN_IDENTITY=''")
+  execute("xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy-Package -config Debug test -enableCodeCoverage YES")
+  execute("xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddykit test CODE_SIGN_IDENTITY=''")
 end
 
 def decrypt_keys
