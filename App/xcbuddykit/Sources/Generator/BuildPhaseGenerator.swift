@@ -5,13 +5,22 @@ import xcodeproj
 /// Errors thrown during the build phases generation.
 ///
 /// - missingFileReference: error thrown when we try to generate a build file for a file whose reference is not in the project.
-enum BuildPhaseGenerationError: Error, ErrorStringConvertible {
+enum BuildPhaseGenerationError: Error, Equatable, ErrorStringConvertible {
     case missingFileReference(AbsolutePath)
 
     var errorDescription: String {
         switch self {
         case let .missingFileReference(path):
             return "Trying to add a file at path \(path) to a build phase that hasn't been added to the project."
+        }
+    }
+
+    static func == (lhs: BuildPhaseGenerationError, rhs: BuildPhaseGenerationError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.missingFileReference(lhsPath), .missingFileReference(rhsPath)):
+            return lhsPath == rhsPath
+        default:
+            return false
         }
     }
 }

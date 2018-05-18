@@ -15,6 +15,7 @@
 		3D4C0BA220A6ED37003D09B0 /* CommandCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4C0BA120A6ED37003D09B0 /* CommandCheck.swift */; };
 		3D7E6C6220AC79DD00360C02 /* ProjectFileElementsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7E6C6120AC79DD00360C02 /* ProjectFileElementsTests.swift */; };
 		3D7E6CDF20AEC69F00360C02 /* BuildPhaseGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7E6CDE20AEC69F00360C02 /* BuildPhaseGenerator.swift */; };
+		3D7E6CE120AECC9B00360C02 /* BuildPhaseGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7E6CE020AECC9B00360C02 /* BuildPhaseGeneratorTests.swift */; };
 		3D92B77B20A818CD006711E5 /* CommandCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4C0BA320A81828003D09B0 /* CommandCheckTests.swift */; };
 		3D92B77D20A821A6006711E5 /* MockCommandCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B77C20A821A6006711E5 /* MockCommandCheck.swift */; };
 		3D92B78020A823FF006711E5 /* NSError+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92B77F20A823FF006711E5 /* NSError+TestData.swift */; };
@@ -242,6 +243,7 @@
 		3D4C0BA320A81828003D09B0 /* CommandCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandCheckTests.swift; sourceTree = "<group>"; };
 		3D7E6C6120AC79DD00360C02 /* ProjectFileElementsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFileElementsTests.swift; sourceTree = "<group>"; };
 		3D7E6CDE20AEC69F00360C02 /* BuildPhaseGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildPhaseGenerator.swift; sourceTree = "<group>"; };
+		3D7E6CE020AECC9B00360C02 /* BuildPhaseGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildPhaseGeneratorTests.swift; sourceTree = "<group>"; };
 		3D92B77C20A821A6006711E5 /* MockCommandCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCommandCheck.swift; sourceTree = "<group>"; };
 		3D92B77F20A823FF006711E5 /* NSError+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSError+TestData.swift"; sourceTree = "<group>"; };
 		3D92B78D20A8298F006711E5 /* ConfigGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigGeneratorTests.swift; sourceTree = "<group>"; };
@@ -690,6 +692,7 @@
 				3D92B78D20A8298F006711E5 /* ConfigGeneratorTests.swift */,
 				3D92B7E620A84888006711E5 /* ProjectGroupsTests.swift */,
 				3D7E6C6120AC79DD00360C02 /* ProjectFileElementsTests.swift */,
+				3D7E6CE020AECC9B00360C02 /* BuildPhaseGeneratorTests.swift */,
 			);
 			path = Generator;
 			sourceTree = "<group>";
@@ -1172,6 +1175,7 @@
 				B9F1EDCF208CD0B800477835 /* InitCommandTests.swift in Sources */,
 				B9F1EDF3208D200C00477835 /* Scheme+TestData.swift in Sources */,
 				B9553DEF2090F6EC00050311 /* MockShell.swift in Sources */,
+				3D7E6CE120AECC9B00360C02 /* BuildPhaseGeneratorTests.swift in Sources */,
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
