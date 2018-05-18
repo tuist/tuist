@@ -92,13 +92,13 @@ final class ProjectGenerator: ProjectGenerating {
                                                     context: context,
                                                     options: options)
         try project.targets.forEach { target in
-            targetGenerator.generateTarget(target: target,
-                                           objects: pbxproj.objects,
-                                           pbxProject: pbxProject,
-                                           groups: groups,
-                                           fileElements: fileElements,
-                                           sourceRootPath: sourceRootPath,
-                                           context: context)
+            try targetGenerator.generateTarget(target: target,
+                                               objects: pbxproj.objects,
+                                               pbxProject: pbxProject,
+                                               groups: groups,
+                                               fileElements: fileElements,
+                                               sourceRootPath: sourceRootPath,
+                                               context: context)
         }
 
         /// Write.

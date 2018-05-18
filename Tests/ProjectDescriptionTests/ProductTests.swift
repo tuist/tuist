@@ -5,7 +5,9 @@ import XCTest
 final class ProductTests: XCTestCase {
     func test_toJSON_returns_the_right_value() {
         XCTAssertEqual(Product.app.toJSON().toString(), "\"app\"")
-        XCTAssertEqual(Product.module.toJSON().toString(), "\"module\"")
+        XCTAssertEqual(Product.staticLibrary.toJSON().toString(), "\"staticLibrary\"")
+        XCTAssertEqual(Product.dynamicLibrary.toJSON().toString(), "\"dynamicLibrary\"")
+        XCTAssertEqual(Product.framework.toJSON().toString(), "\"framework\"")
         XCTAssertEqual(Product.unitTests.toJSON().toString(), "\"unitTests\"")
         XCTAssertEqual(Product.uiTests.toJSON().toString(), "\"uiTests\"")
         XCTAssertEqual(Product.appExtension.toJSON().toString(), "\"appExtension\"")

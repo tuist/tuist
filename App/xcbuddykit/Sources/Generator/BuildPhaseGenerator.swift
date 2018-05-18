@@ -5,16 +5,31 @@ import xcodeproj
 /// Errors thrown during the build phases generation.
 ///
 /// - missingFileReference: error thrown when we try to generate a build file for a file whose reference is not in the project.
-enum BuildPhaseGenerationError: Error, Equatable, ErrorStringConvertible {
+enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)
 
-    var errorDescription: String {
+    /// Error description.
+    var description: String {
         switch self {
         case let .missingFileReference(path):
             return "Trying to add a file at path \(path) to a build phase that hasn't been added to the project."
         }
     }
 
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .missingFileReference:
+            return .bugSilent
+        }
+    }
+
+    /// Compares two BuildPhaseGenerationError instances.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
     static func == (lhs: BuildPhaseGenerationError, rhs: BuildPhaseGenerationError) -> Bool {
         switch (lhs, rhs) {
         case let (.missingFileReference(lhsPath), .missingFileReference(rhsPath)):
@@ -31,7 +46,7 @@ protocol BuildPhaseGenerating: AnyObject {
                              target: PBXTarget,
                              fileElements: ProjectFileElements,
                              objects: PBXObjects,
-                             context: GeneratorContexting)
+                             context: GeneratorContexting) throws
 
     /// Generates the sources build phase.
     ///
@@ -45,7 +60,7 @@ protocol BuildPhaseGenerating: AnyObject {
                                    target: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    objects: PBXObjects,
-                                   context: GeneratorContexting)
+                                   context: GeneratorContexting) throws
 }
 
 /// Build phase generator.
@@ -54,14 +69,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                              target: PBXTarget,
                              fileElements: ProjectFileElements,
                              objects: PBXObjects,
-                             context: GeneratorContexting) {
-        targetSpec.buildPhases.forEach { buildPhase in
+                             context: GeneratorContexting) throws {
+        try targetSpec.buildPhases.forEach { buildPhase in
             if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
-                generateSourcesBuildPhase(sourcesBuildPhase,
-                                          target: target,
-                                          fileElements: fileElements,
-                                          objects: objects,
-                                          context: context)
+                try generateSourcesBuildPhase(sourcesBuildPhase,
+                                              target: target,
+                                              fileElements: fileElements,
+                                              objects: objects,
+                                              context: context)
             }
         }
     }
@@ -78,14 +93,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                    target: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    objects: PBXObjects,
-                                   context: GeneratorContexting) {
+                                   context _: GeneratorContexting) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         let sourcesBuildPhaseReference = objects.addObject(sourcesBuildPhase)
         target.buildPhases.append(sourcesBuildPhaseReference)
-        buildPhase.buildFiles.files.forEach { path in
+        try buildPhase.buildFiles.files.forEach { path in
             guard let fileReference = fileElements.file(path: path) else {
-                context.errorHandler.fatal(error: FatalError.bugSilent(BuildPhaseGenerationError.missingFileReference(path)))
-                return
+                throw BuildPhaseGenerationError.missingFileReference(path)
             }
             let buildFile = PBXBuildFile(fileRef: fileReference.reference)
             let buildFileReference = objects.addObject(buildFile)

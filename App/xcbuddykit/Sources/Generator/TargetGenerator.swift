@@ -40,7 +40,7 @@ protocol TargetGenerating: AnyObject {
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
                         sourceRootPath _: AbsolutePath,
-                        context: GeneratorContexting)
+                        context: GeneratorContexting) throws
 }
 
 /// Target generator.
@@ -142,7 +142,7 @@ final class TargetGenerator: TargetGenerating {
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
                         sourceRootPath _: AbsolutePath,
-                        context: GeneratorContexting) {
+                        context: GeneratorContexting) throws {
         /// Names
         let name = targetSpec.name
         let productName = "\(targetSpec.name).\(targetSpec.product.xcodeValue.fileExtension!)"
@@ -165,10 +165,10 @@ final class TargetGenerator: TargetGenerating {
         pbxProject.targets.append(targetReference)
 
         /// Build phases
-        buildPhaseGenerator.generateBuildPhases(targetSpec: targetSpec,
-                                                target: target,
-                                                fileElements: fileElements,
-                                                objects: objects,
-                                                context: context)
+        try buildPhaseGenerator.generateBuildPhases(targetSpec: targetSpec,
+                                                    target: target,
+                                                    fileElements: fileElements,
+                                                    objects: objects,
+                                                    context: context)
     }
 }
