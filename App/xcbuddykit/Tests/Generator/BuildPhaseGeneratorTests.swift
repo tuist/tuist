@@ -30,8 +30,8 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
     func test_generateSourcesBuildPhase() throws {
         let path = AbsolutePath("/test/file.swift")
-        let buildFiles = BuildFiles(files: Set([path]))
-        let buildPhaseSpec = SourcesBuildPhase(buildFiles: buildFiles)
+        let buildFile = SourcesBuildFile([path])
+        let buildPhaseSpec = SourcesBuildPhase(buildFiles: [buildFile])
         let target = PBXNativeTarget(name: "Test")
         let objects = PBXObjects(objects: [:])
         objects.addObject(target)
@@ -46,15 +46,15 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                               context: context)
         let buildPhase: PBXSourcesBuildPhase? = try target.buildPhases.first?.object()
         XCTAssertNotNil(buildPhase)
-        let buildFile: PBXBuildFile? = try buildPhase?.files.first?.object()
-        XCTAssertNotNil(buildFile)
-        XCTAssertEqual(buildFile?.fileRef, fileReferenceReference)
+        let pbxBuildFile: PBXBuildFile? = try buildPhase?.files.first?.object()
+        XCTAssertNotNil(pbxBuildFile)
+        XCTAssertEqual(pbxBuildFile?.fileRef, fileReferenceReference)
     }
 
     func test_generateSourcesBuildPhase_fatals_when_theFileReferenceIsMissing() {
         let path = AbsolutePath("/test/file.swift")
-        let buildFiles = BuildFiles(files: Set([path]))
-        let buildPhase = SourcesBuildPhase(buildFiles: buildFiles)
+        let buildFile = SourcesBuildFile([path])
+        let buildPhase = SourcesBuildPhase(buildFiles: [buildFile])
         let target = PBXNativeTarget(name: "Test")
         let objects = PBXObjects(objects: [:])
         objects.addObject(target)

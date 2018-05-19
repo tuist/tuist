@@ -3,13 +3,13 @@ import Foundation
 @testable import xcbuddykit
 
 extension SourcesBuildPhase {
-    static func test(buildfiles: BuildFiles = BuildFiles(files: Set([AbsolutePath("/Sources/Test.swift")]))) -> SourcesBuildPhase {
+    static func test(buildfiles: [SourcesBuildFile] = [SourcesBuildFile([AbsolutePath("/Sources/Test.swift")])]) -> SourcesBuildPhase {
         return SourcesBuildPhase(buildFiles: buildfiles)
     }
 }
 
 extension ResourcesBuildPhase {
-    static func test(buildfiles: BuildFiles = BuildFiles(files: Set([AbsolutePath("/Sources/Test.swift")]))) -> ResourcesBuildPhase {
+    static func test(buildfiles: [ResourcesBuildFile] = [ResourcesBuildFile([AbsolutePath("/Sources/Test.swift")])]) -> ResourcesBuildPhase {
         return ResourcesBuildPhase(buildFiles: buildfiles)
     }
 }
@@ -41,11 +41,11 @@ extension ScriptBuildPhase {
 }
 
 extension HeadersBuildPhase {
-    static func test(public: BuildFiles = BuildFiles(files: Set([AbsolutePath("/Headers/public.h")])),
-                     project: BuildFiles = BuildFiles(files: Set([AbsolutePath("/Headers/project.h")])),
-                     private: BuildFiles = BuildFiles(files: Set([AbsolutePath("/Headers/private.h")]))) -> HeadersBuildPhase {
-        return HeadersBuildPhase(public: `public`,
-                                 project: project,
-                                 private: `private`)
+    static func test(buildFiles: [HeadersBuildFile] = [
+        HeadersBuildFile([AbsolutePath("/Headers/public.h")], accessLevel: .public),
+        HeadersBuildFile([AbsolutePath("/Headers/project.h")], accessLevel: .project),
+        HeadersBuildFile([AbsolutePath("/Headers/private.h")], accessLevel: .private),
+    ]) -> HeadersBuildPhase {
+        return HeadersBuildPhase(buildFiles: buildFiles)
     }
 }

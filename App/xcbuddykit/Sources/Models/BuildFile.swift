@@ -45,6 +45,16 @@ class SourcesBuildFile: GraphJSONInitiatable, Equatable {
     /// Compiler flags.
     let compilerFlags: String?
 
+    /// Initializes the sources build file with its attributes.
+    ///
+    /// - Parameters:
+    ///   - paths: sources build file paths.
+    ///   - compilerFlags: compiler flags.
+    init(_ paths: [AbsolutePath] = [], compilerFlags: String? = nil) {
+        self.paths = paths
+        self.compilerFlags = compilerFlags
+    }
+
     required init(json: JSON,
                   projectPath: AbsolutePath,
                   context _: GraphLoaderContexting) throws {
@@ -94,6 +104,13 @@ class ResourcesBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
     /// Paths.
     let paths: [AbsolutePath]
 
+    /// Initializes the resources build file with its attributes.
+    ///
+    /// - Parameter paths: paths.
+    init(_ paths: [AbsolutePath] = []) {
+        self.paths = paths
+    }
+
     required init(json: JSON,
                   projectPath: AbsolutePath,
                   context _: GraphLoaderContexting) throws {
@@ -117,8 +134,19 @@ class CoreDataModelBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
     /// Relative path to the model.
     let path: AbsolutePath
 
-    /// Current version (with or without extension)
+    /// Current version (without extension)
     let currentVersion: String
+
+    /// Initializes the core data model build file with its attributes.
+    ///
+    /// - Parameters:
+    ///   - path: path.
+    ///   - currentVersion: current version (without extension).
+    init(_ path: AbsolutePath,
+         currentVersion: String) {
+        self.path = path
+        self.currentVersion = currentVersion
+    }
 
     required init(json: JSON,
                   projectPath: AbsolutePath,
@@ -156,6 +184,17 @@ class HeadersBuildFile: GraphJSONInitiatable, Equatable {
 
     /// Access level.
     let accessLevel: AccessLevel
+
+    /// Initializes the headers build file with its attributes.
+    ///
+    /// - Parameters:
+    ///   - paths: paths.
+    ///   - accessLevel: access level.
+    init(_ paths: [AbsolutePath],
+         accessLevel: AccessLevel) {
+        self.paths = paths
+        self.accessLevel = accessLevel
+    }
 
     required init(json: JSON,
                   projectPath: AbsolutePath,

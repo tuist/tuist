@@ -32,11 +32,13 @@ final class ProjectFileElementsTests: XCTestCase {
                                 release: Configuration(settings: [:],
                                                        xcconfig: AbsolutePath("/project/release.xcconfig")))
         var buildPhases: [xcbuddykit.BuildPhase] = []
-        let sourcesPhase = SourcesBuildPhase(buildFiles: BuildFiles(files: Set([AbsolutePath("/project/file.swift")])))
-        let resourcesPhase = ResourcesBuildPhase(buildFiles: BuildFiles(files: Set([AbsolutePath("/project/image.png")])))
-        let headersPhase = HeadersBuildPhase(public: BuildFiles(files: Set([AbsolutePath("/project/public.h")])),
-                                             project: BuildFiles(files: Set([AbsolutePath("/project/project.h")])),
-                                             private: BuildFiles(files: Set([AbsolutePath("/project/private.h")])))
+        let sourcesPhase = SourcesBuildPhase(buildFiles: [SourcesBuildFile([AbsolutePath("/project/file.swift")])])
+        let resourcesPhase = ResourcesBuildPhase(buildFiles: [ResourcesBuildFile([AbsolutePath("/project/image.png")])])
+        let headersPhase = HeadersBuildPhase(buildFiles: [
+            HeadersBuildFile([AbsolutePath("/project/public.h")], accessLevel: .public),
+            HeadersBuildFile([AbsolutePath("/project/project.h")], accessLevel: .project),
+            HeadersBuildFile([AbsolutePath("/project/private.h")], accessLevel: .private),
+        ])
         buildPhases.append(sourcesPhase)
         buildPhases.append(resourcesPhase)
         buildPhases.append(headersPhase)
