@@ -92,6 +92,7 @@ class BaseResourcesBuildFile: ResourcesBuildFile {
     /// - Returns: JSON representation.
     override func toJSON() -> JSON {
         return JSON.dictionary([
+            "type": "default".toJSON(),
             "pattern": self.pattern.toJSON(),
         ])
     }
@@ -121,6 +122,7 @@ class CoreDataModelBuildFile: ResourcesBuildFile {
     /// - Returns: JSON representation.
     override func toJSON() -> JSON {
         return JSON.dictionary([
+            "type": "core_data".toJSON(),
             "path": self.path.toJSON(),
             "current_version": self.currentVersion.toJSON(),
         ])
@@ -184,7 +186,7 @@ public class HeadersBuildFile: JSONConvertible {
     func toJSON() -> JSON {
         return JSON.dictionary([
             "pattern": pattern.toJSON(),
-            "access_leven": accessLevel.rawValue.toJSON(),
+            "access_level": accessLevel.rawValue.toJSON(),
         ])
     }
 }
