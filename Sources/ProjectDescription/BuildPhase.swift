@@ -1,11 +1,11 @@
 import Foundation
 
 public class BuildPhase {
-    public static func sources(_ files: [BuildFiles] = []) -> BuildPhase {
+    public static func sources(_ files: [SourcesBuildFile] = []) -> BuildPhase {
         return SourcesBuildPhase(files: files)
     }
 
-    public static func resources(_ files: [BuildFiles] = []) -> BuildPhase {
+    public static func resources(_ files: [ResourcesBuildFile] = []) -> BuildPhase {
         return ResourcesBuildPhase(files: files)
     }
 
@@ -28,18 +28,16 @@ public class BuildPhase {
                                 outputFiles: outputFiles)
     }
 
-    public static func headers(public: [BuildFiles] = [],
-                               project: [BuildFiles] = [],
-                               private: [BuildFiles] = []) -> HeadersBuildPhase {
-        return HeadersBuildPhase(public: `public`, project: project, private: `private`)
+    public static func headers(_ files: [HeadersBuildFile]) -> HeadersBuildPhase {
+        return HeadersBuildPhase(files: files)
     }
 }
 
 // MARK: - SourcesBuildPhase
 
 public class SourcesBuildPhase: BuildPhase {
-    public let files: [BuildFiles]
-    public init(files: [BuildFiles] = []) {
+    public let files: [SourcesBuildFile]
+    public init(files: [SourcesBuildFile] = []) {
         self.files = files
     }
 }
@@ -58,8 +56,8 @@ extension SourcesBuildPhase: JSONConvertible {
 // MARK: - ResourcesBuildPhase
 
 public class ResourcesBuildPhase: BuildPhase {
-    public let files: [BuildFiles]
-    public init(files: [BuildFiles] = []) {
+    public let files: [ResourcesBuildFile]
+    public init(files: [ResourcesBuildFile] = []) {
         self.files = files
     }
 }
@@ -167,16 +165,10 @@ extension ScriptBuildPhase: JSONConvertible {
 // MARK: - HeadersBuildPhase
 
 public class HeadersBuildPhase: BuildPhase {
-    public let `public`: [BuildFiles]
-    public let project: [BuildFiles]
-    public let `private`: [BuildFiles]
+    public let files: [HeadersBuildFile]
 
-    public init(public: [BuildFiles] = [],
-                project: [BuildFiles] = [],
-                private: [BuildFiles] = []) {
-        self.public = `public`
-        self.project = project
-        self.private = `private`
+    public init(files: [HeadersBuildFile] = []) {
+        self.files = files
     }
 }
 
@@ -186,9 +178,7 @@ extension HeadersBuildPhase: JSONConvertible {
     func toJSON() -> JSON {
         var dictionary: [String: JSON] = [:]
         dictionary["type"] = "headers".toJSON()
-        dictionary["public"] = `public`.toJSON()
-        dictionary["project"] = project.toJSON()
-        dictionary["private"] = `private`.toJSON()
+        dictionary["files"] = files.toJSON()
         return .dictionary(dictionary)
     }
 }
