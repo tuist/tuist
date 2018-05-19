@@ -35,12 +35,12 @@ class BuildPhase: Equatable {
 /// Sources build phase
 class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
     /// Build files.
-    let buildFiles: BuildFiles
+    let buildFiles: [SourcesBuildFile]
 
     /// Initializes the sources build phase with its build files.
     ///
     /// - Parameter buildFiles: build files.
-    init(buildFiles: BuildFiles = BuildFiles()) {
+    init(buildFiles: [SourcesBuildFile] = []) {
         self.buildFiles = buildFiles
     }
 
@@ -52,7 +52,8 @@ class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
     ///   - context: graph loader  context.
     /// - Throws: an error if build files cannot be parsed.
     required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
-        buildFiles = try BuildFiles(json: json.get("files"), projectPath: projectPath, context: context)
+        let files: [JSON] = try json.get("files")
+        buildFiles = try files.map({ try SourcesBuildFile(json: $0, projectPath: projectPath, context: context) })
     }
 
     /// Compares two sources build phases.
@@ -69,12 +70,12 @@ class SourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
 /// Resources build phase.
 class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
     /// Build files.
-    let buildFiles: BuildFiles
+    let buildFiles: [BaseResourcesBuildFile]
 
     /// Initializes the resources build phase with its build files.
     ///
     /// - Parameter buildFiles: build files.
-    init(buildFiles: BuildFiles = BuildFiles()) {
+    init(buildFiles: [BaseResourcesBuildFile] = []) {
         self.buildFiles = buildFiles
     }
 
@@ -86,7 +87,10 @@ class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
     ///   - context: graph loader  context.
     /// - Throws: an error if build files cannot be parsed.
     required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
-        buildFiles = try BuildFiles(json: json.get("files"), projectPath: projectPath, context: context)
+        let files: [JSON] = try json.get("files")
+        buildFiles = try files.map({ try ResourcesBuildFile.from(json: $0,
+                                                                 projectPath: projectPath,
+                                                                 context: context) })
     }
 
     /// Compares two resources build phases.
@@ -248,27 +252,14 @@ class ScriptBuildPhase: BuildPhase {
 
 /// Headers build phase.
 class HeadersBuildPhase: BuildPhase, GraphJSONInitiatable {
-    /// Public headers.
-    let `public`: BuildFiles
+    /// Build files.
+    let buildFiles: [HeadersBuildFile]
 
-    /// Project headers.
-    let project: BuildFiles
-
-    /// Private headers.
-    let `private`: BuildFiles
-
-    /// Initializes the headers build phase with its attributes.
+    /// Initializes the build phase with its attributes.
     ///
-    /// - Parameters:
-    ///   - public: public headers.
-    ///   - project: project headers.
-    ///   - private: private headers.
-    init(public: BuildFiles = BuildFiles(),
-         project: BuildFiles = BuildFiles(),
-         private: BuildFiles = BuildFiles()) {
-        self.public = `public`
-        self.project = project
-        self.private = `private`
+    /// - Parameter buildFiles: build files.
+    init(buildFiles: [HeadersBuildFile] = []) {
+        self.buildFiles = buildFiles
     }
 
     /// Initializes the build phase from its JSON representation.
@@ -279,9 +270,8 @@ class HeadersBuildPhase: BuildPhase, GraphJSONInitiatable {
     ///   - context: graph loader  context.
     /// - Throws: an error if build files cannot be parsed.
     required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
-        `public` = try BuildFiles(json: json.get("public"), projectPath: projectPath, context: context)
-        project = try BuildFiles(json: json.get("project"), projectPath: projectPath, context: context)
-        `private` = try BuildFiles(json: json.get("private"), projectPath: projectPath, context: context)
+        let files: [JSON] = try json.get("files")
+        buildFiles = try files.map({ try HeadersBuildFile(json: $0, projectPath: projectPath, context: context) })
     }
 
     /// Compares two headers build phases.
@@ -291,8 +281,6 @@ class HeadersBuildPhase: BuildPhase, GraphJSONInitiatable {
     ///   - rhs: second build  phase to be compared.
     /// - Returns: true if the two build phases are the same.
     static func == (lhs: HeadersBuildPhase, rhs: HeadersBuildPhase) -> Bool {
-        return lhs.public == rhs.public &&
-            lhs.project == rhs.project &&
-            lhs.private == rhs.private
+        return lhs.buildFiles == rhs.buildFiles
     }
 }

@@ -43,13 +43,12 @@ extension Project: JSONConvertible {
 //                                 shared: true,
 //                                 buildAction: BuildAction(targets: ["{{NAME}}"])),
 //                      ],
-//                      settings: Settings(base: [:],
-//                                         debug: Configuration(settings: [:],
-//                                                              xcconfig: "Configs/Debug.xcconfig")),
+//                      settings: Settings(base: [:]),
 //                      targets: [
 //                          Target(name: "{{NAME}}",
 //                                 platform: .ios,
 //                                 product: .app,
+//                                 bundleId: "io.xcbuddy.{{NAME}}",
 //                                 infoPlist: "Info.plist",
 //                                 dependencies: [
 //                                     /* Target dependencies can be defined here */
@@ -57,9 +56,10 @@ extension Project: JSONConvertible {
 //                                 ],
 //                                 settings: nil,
 //                                 buildPhases: [
-//                                     .sources([.include(["./Sources/**/*.swift"])]),
+//
+//                                     .sources([.sources("./Sources/**/*.swift")]),
 //                                     /* Other build phases can be added here */
 //                                     /* .resources([.include(["./Resousrces /**/ *"])]) */
-//                          ]),
-// ])
+//                                ]),
+//                    ])
 // }

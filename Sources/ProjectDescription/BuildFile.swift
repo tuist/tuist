@@ -1,7 +1,7 @@
 import Foundation
 
 /// Sources build phase files.
-public class SourcesBuildFile: ExpressibleByStringLiteral, JSONConvertible {
+public class SourcesBuildFile: JSONConvertible {
     /// Pattern
     let pattern: String
 
@@ -27,17 +27,6 @@ public class SourcesBuildFile: ExpressibleByStringLiteral, JSONConvertible {
     public static func sources(_ pattern: String, compilerFlags: String? = nil) -> SourcesBuildFile {
         return SourcesBuildFile(pattern,
                                 compilerFlags: compilerFlags)
-    }
-
-    // MARK: - ExpressibleByStringLiteral
-
-    public required init(stringLiteral value: String) {
-        pattern = value
-        compilerFlags = nil
-    }
-
-    public required convenience init(extendedGraphemeClusterLiteral value: String) {
-        self.init(stringLiteral: value)
     }
 
     /// Returns a JSON representation of the object.

@@ -59,13 +59,17 @@ class ProjectFileElements {
         var files = Set<AbsolutePath>()
         target.buildPhases.forEach { buildPhase in
             if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
-                files.formUnion(sourcesBuildPhase.buildFiles.files)
+                files.formUnion(sourcesBuildPhase.buildFiles.flatMap({ $0.paths }))
             } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
-                files.formUnion(resourcesBuildPhase.buildFiles.files)
+                resourcesBuildPhase.buildFiles.forEach { buildFile in
+                    if let resourceBuildFile = buildFile as? ResourcesBuildFile {
+                        files.formUnion(resourceBuildFile.paths)
+                    } else if let coreDataModelBuildFile = buildFile as? CoreDataModelBuildFile {
+                        // TODO:
+                    }
+                }
             } else if let headersBuildPhase = buildPhase as? HeadersBuildPhase {
-                files.formUnion(headersBuildPhase.public.files)
-                files.formUnion(headersBuildPhase.project.files)
-                files.formUnion(headersBuildPhase.private.files)
+                files.formUnion(headersBuildPhase.buildFiles.flatMap({ $0.paths }))
             }
         }
         // Support files
