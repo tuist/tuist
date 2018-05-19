@@ -77,6 +77,14 @@ class SourcesBuildFile: GraphJSONInitiatable, Equatable {
 
 /// Base resources build file.
 class BaseResourcesBuildFile: Equatable {
+    /// Initializes a resources build file from its JSON representation.
+    ///
+    /// - Parameters:
+    ///   - json: resources build file JSON.
+    ///   - projectPath: path to the folder that contains the project manifest.
+    ///   - context: graph loading context.
+    /// - Returns: the initialized resources build phase.
+    /// - Throws: an error if build file cannot be parsed.
     static func from(json: JSON,
                      projectPath: AbsolutePath,
                      context: GraphLoaderContexting) throws -> BaseResourcesBuildFile {
@@ -94,6 +102,12 @@ class BaseResourcesBuildFile: Equatable {
         }
     }
 
+    /// Returns true if the two instances of BaseResourcesBuildFile are equal.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
     static func == (_: BaseResourcesBuildFile, _: BaseResourcesBuildFile) -> Bool {
         return true
     }

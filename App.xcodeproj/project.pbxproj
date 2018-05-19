@@ -44,6 +44,7 @@
 		B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */ = {isa = PBXBuildFile; fileRef = B915ECF6206395DA004B6630 /* xcbuddy */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B92122BD20AF372F009C4691 /* CreateIssueCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */; };
 		B92122D820AF3951009C4691 /* CreateIssueCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */; };
+		B92A13FA20B03CB2007C9D88 /* BuildFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */; };
 		B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */; };
 		B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB72062B8A7009BF596 /* Assets.xcassets */; };
 		B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB82062B8A7009BF596 /* MainMenu.xib */; };
@@ -271,6 +272,7 @@
 		B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommand.swift; sourceTree = "<group>"; };
 		B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommandTests.swift; sourceTree = "<group>"; };
 		B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfigurationTests.swift; sourceTree = "<group>"; };
+		B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildFileTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
 		B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphLoaderCache.swift; sourceTree = "<group>"; };
 		B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Project+TestData.swift"; sourceTree = "<group>"; };
@@ -609,6 +611,7 @@
 				B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */,
 				B9589601208A3CBA00F00ACF /* PlatformTests.swift */,
 				B9589603208A405D00F00ACF /* ProductTests .swift */,
+				B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1151,6 +1154,7 @@
 			files = (
 				B9E2DC9620872B3A0061DF86 /* MockGraphLoaderCache.swift in Sources */,
 				B9E2DC9520872B300061DF86 /* MockUpdateController.swift in Sources */,
+				B92A13FA20B03CB2007C9D88 /* BuildFileTests.swift in Sources */,
 				B9E2DC9D20872D3B0061DF86 /* MockPrinter.swift in Sources */,
 				3D92B80720AABE55006711E5 /* MockGraphLoader.swift in Sources */,
 				B9B5943B209C176C00C59DA2 /* ErrorHandlerTests.swift in Sources */,
