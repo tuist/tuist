@@ -33,7 +33,12 @@ final class ProjectFileElementsTests: XCTestCase {
                                                        xcconfig: AbsolutePath("/project/release.xcconfig")))
         var buildPhases: [xcbuddykit.BuildPhase] = []
         let sourcesPhase = SourcesBuildPhase(buildFiles: [SourcesBuildFile([AbsolutePath("/project/file.swift")])])
-        let resourcesPhase = ResourcesBuildPhase(buildFiles: [ResourcesBuildFile([AbsolutePath("/project/image.png")])])
+        let resourcesPhase = ResourcesBuildPhase(buildFiles: [
+            ResourcesBuildFile([AbsolutePath("/project/image.png")]),
+            CoreDataModelBuildFile(AbsolutePath("/project/model.xcdatamodeld"),
+                                   currentVersion: "1",
+                                   versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")]),
+        ])
         let headersPhase = HeadersBuildPhase(buildFiles: [
             HeadersBuildFile([AbsolutePath("/project/public.h")], accessLevel: .public),
             HeadersBuildFile([AbsolutePath("/project/project.h")], accessLevel: .project),
@@ -59,6 +64,8 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertTrue(files.contains(AbsolutePath("/project/public.h")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/project.h")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/private.h")))
+        XCTAssertTrue(files.contains(AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")))
+        XCTAssertTrue(files.contains(AbsolutePath("/project/model.xcdatamodeld")))
     }
 
     func test_generatePath() throws {
@@ -92,6 +99,65 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(file.sourceTree, .group)
     }
 
+    func test_addVariantGroupElement() throws {
+        let from = AbsolutePath("/project/")
+        let folderAbsolutePath = AbsolutePath("/project/en.lproj")
+        let folderRelativePath = RelativePath("./en.lproj")
+        let group = PBXGroup()
+        let objects = PBXObjects(objects: [:])
+        objects.addObject(group)
+        _ = subject.addVariantGroupElement(from: from,
+                                           folderAbsolutePath: folderAbsolutePath,
+                                           folderRelativePath: folderRelativePath,
+                                           name: nil,
+                                           toGroup: group,
+                                           objects: objects)
+        let variantGroup: PBXVariantGroup? = try group.children.first?.object()
+        XCTAssertEqual(variantGroup?.path, "en.lproj")
+        XCTAssertEqual(variantGroup?.sourceTree, .group)
+        XCTAssertNil(variantGroup?.name)
+    }
+
+    func test_addVersionGroupElement() throws {
+        let from = AbsolutePath("/project/")
+        let folderAbsolutePath = AbsolutePath("/project/model.xcdatamodel")
+        let folderRelativePath = RelativePath("./model.xcdatamodel")
+        let group = PBXGroup()
+        let objects = PBXObjects(objects: [:])
+        objects.addObject(group)
+        _ = subject.addVersionGroupElement(from: from,
+                                           folderAbsolutePath: folderAbsolutePath,
+                                           folderRelativePath: folderRelativePath,
+                                           name: nil,
+                                           toGroup: group,
+                                           objects: objects)
+        let versionGroup: XCVersionGroup? = try group.children.first?.object()
+        XCTAssertEqual(versionGroup?.path, "model.xcdatamodel")
+        XCTAssertEqual(versionGroup?.sourceTree, .group)
+        XCTAssertNil(versionGroup?.name)
+        XCTAssertEqual(versionGroup?.versionGroupType, Xcode.filetype(extension: "xcdatamodel"))
+    }
+
+    func test_addFileElement() throws {
+        let from = AbsolutePath("/project/")
+        let fileAbsolutePath = AbsolutePath("/project/file.swift")
+        let fileRelativePath = RelativePath("./file.swift")
+        let group = PBXGroup()
+        let objects = PBXObjects(objects: [:])
+        objects.addObject(group)
+        _ = subject.addFileElement(from: from,
+                                   fileAbsolutePath: fileAbsolutePath,
+                                   fileRelativePath: fileRelativePath,
+                                   name: nil,
+                                   toGroup: group,
+                                   objects: objects)
+        let file: PBXFileReference? = try group.children.first?.object()
+        XCTAssertEqual(file?.path, "file.swift")
+        XCTAssertEqual(file?.sourceTree, .group)
+        XCTAssertNil(file?.name)
+        XCTAssertEqual(file?.lastKnownFileType, Xcode.filetype(extension: "swift"))
+    }
+
     func test_group() {
         let group = PBXGroup()
         let path = AbsolutePath("/path/to/folder")
@@ -104,6 +170,21 @@ final class ProjectFileElementsTests: XCTestCase {
         let path = AbsolutePath("/path/to/folder")
         subject.elements[path] = file
         XCTAssertEqual(subject.file(path: path), file)
+    }
+
+    func test_isVersionGroup() {
+        let path = AbsolutePath("/path/to/model.xcdatamodeld")
+        XCTAssertTrue(subject.isVersionGroup(path: path))
+    }
+
+    func test_isVariantGroup() {
+        let path = AbsolutePath("/path/to/en.lproj")
+        XCTAssertTrue(subject.isVariantGroup(path: path))
+    }
+
+    func test_isGroup() {
+        let path = AbsolutePath("/path/to/folder")
+        XCTAssertTrue(subject.isGroup(path: path))
     }
 
     func test_closestRelativeElementPath() {

@@ -148,6 +148,9 @@ class CoreDataModelBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
     /// Relative path to the model.
     let path: AbsolutePath
 
+    /// Core data versions paths.
+    let versions: [AbsolutePath]
+
     /// Current version (without extension)
     let currentVersion: String
 
@@ -156,10 +159,13 @@ class CoreDataModelBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
     /// - Parameters:
     ///   - path: path.
     ///   - currentVersion: current version (without extension).
+    ///   - versions: paths to the versions models.
     init(_ path: AbsolutePath,
-         currentVersion: String) {
+         currentVersion: String,
+         versions: [AbsolutePath]) {
         self.path = path
         self.currentVersion = currentVersion
+        self.versions = versions
     }
 
     required init(json: JSON,
@@ -168,6 +174,7 @@ class CoreDataModelBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
         let pathString: String = try json.get("path")
         path = projectPath.appending(RelativePath(pathString))
         currentVersion = try json.get("current_version")
+        versions = path.glob("*.xcdatamodel")
     }
 
     /// Returns true if the two instances of CoreDataModelBuildFile are equal.

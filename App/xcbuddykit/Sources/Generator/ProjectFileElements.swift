@@ -5,12 +5,12 @@ import xcodeproj
 class ProjectFileElements {
     /// Elements
     var elements: [AbsolutePath: PBXFileElement] = [:]
-    
+
     /// Default constructor.
     init(_ elements: [AbsolutePath: PBXFileElement] = [:]) {
         self.elements = elements
     }
-    
+
     /// Generates all the project files.
     ///
     /// - Parameters:
@@ -32,7 +32,7 @@ class ProjectFileElements {
                  objects: objects,
                  sourceRootPath: sourceRootPath)
     }
-    
+
     /// Returns the project files.
     ///
     /// - Parameter project: project.
@@ -47,7 +47,7 @@ class ProjectFileElements {
         }
         return files
     }
-    
+
     /// Generates the target files.
     ///
     /// - Parameters:
@@ -58,16 +58,26 @@ class ProjectFileElements {
     func targetFiles(target: Target) -> Set<AbsolutePath> {
         var files = Set<AbsolutePath>()
         target.buildPhases.forEach { buildPhase in
+            // Sources
             if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
                 files.formUnion(sourcesBuildPhase.buildFiles.flatMap({ $0.paths }))
+
+                // Resources
             } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
                 resourcesBuildPhase.buildFiles.forEach { buildFile in
+
+                    // Normal resources
                     if let resourceBuildFile = buildFile as? ResourcesBuildFile {
                         files.formUnion(resourceBuildFile.paths)
+
+                        // Core Data model resoureces
                     } else if let coreDataModelBuildFile = buildFile as? CoreDataModelBuildFile {
-                        // TODO:
+                        files.insert(coreDataModelBuildFile.path)
+                        files.formUnion(coreDataModelBuildFile.versions)
                     }
                 }
+
+                // Headers
             } else if let headersBuildPhase = buildPhase as? HeadersBuildPhase {
                 files.formUnion(headersBuildPhase.buildFiles.flatMap({ $0.paths }))
             }
@@ -77,7 +87,7 @@ class ProjectFileElements {
         if let entitlements = target.entitlements {
             files.insert(entitlements)
         }
-        
+
         // Config files
         if let debugConfigFile = target.settings?.debug?.xcconfig {
             files.insert(debugConfigFile)
@@ -87,7 +97,7 @@ class ProjectFileElements {
         }
         return files
     }
-    
+
     /// Generates files in the project.
     ///
     /// - Parameters:
@@ -101,7 +111,7 @@ class ProjectFileElements {
                   sourceRootPath: AbsolutePath) {
         files.forEach({ generate(path: $0, groups: groups, objects: objects, sourceRootPath: sourceRootPath) })
     }
-    
+
     /// Generates a folder or file in the project. The folder or file gets added to the Files root group.
     ///
     /// - Parameters:
@@ -115,51 +125,35 @@ class ProjectFileElements {
                   sourceRootPath: AbsolutePath) {
         // The file already exists
         if elements[path] != nil { return }
-        
+
         let closestRelativeRelativePath = closestRelativeElementPath(path: path, sourceRootPath: sourceRootPath)
         let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
-        
+
         // Add the first relative element.
-        let firstElement = addComponent(relativePath: closestRelativeRelativePath, from: sourceRootPath, toGroup: groups.project, objects: objects)
-        
+        let firstElement = addElement(relativePath: closestRelativeRelativePath, from: sourceRootPath, toGroup: groups.project, objects: objects)
+
         // If it matches the file that we are adding or it's not a group we can exit.
         if (closestRelativeAbsolutePath == path) || !(firstElement.element is PBXGroup) {
             return
         }
-        
+
         // swiftlint:disable:next force_cast
         var lastGroup: PBXGroup! = firstElement.element as! PBXGroup
         var lastPath: AbsolutePath = firstElement.path
-        
+
         path.relative(to: lastPath).components.forEach { component in
             if lastGroup == nil { return }
-            let element = addComponent(relativePath: RelativePath(component),
-                                       from: lastPath,
-                                       toGroup: lastGroup!,
-                                       objects: objects)
+            let element = addElement(relativePath: RelativePath(component),
+                                     from: lastPath,
+                                     toGroup: lastGroup!,
+                                     objects: objects)
             lastGroup = element.element as? PBXGroup
             lastPath = element.path
         }
     }
-    
-    /// Returns the group at the given path if it's been added to the file elements object.
-    ///
-    /// - Parameter path: absolute path.
-    /// - Returns: the group if it exists.
-    func group(path: AbsolutePath) -> PBXGroup? {
-        return elements[path] as? PBXGroup
-    }
-    
-    /// Returns the file at the given path if it's been added to the file elements object.
-    ///
-    /// - Parameter path: absolute path.
-    /// - Returns: the file if it exists.
-    func file(path: AbsolutePath) -> PBXFileReference? {
-        return elements[path] as? PBXFileReference
-    }
-    
+
     // MARK: - Fileprivate
-    
+
     /// Adds a new file or group to an existing group.
     ///
     /// - Parameters:
@@ -167,15 +161,15 @@ class ProjectFileElements {
     ///   - from: absolute path of the group that is passed.
     ///   - toGroup: group where the file/group should be added.
     ///   - objects: project objects.
-    @discardableResult func addComponent(relativePath: RelativePath,
-                                         from: AbsolutePath,
-                                         toGroup: PBXGroup,
-                                         objects: PBXObjects) -> (element: PBXFileElement, path: AbsolutePath) {
+    @discardableResult func addElement(relativePath: RelativePath,
+                                       from: AbsolutePath,
+                                       toGroup: PBXGroup,
+                                       objects: PBXObjects) -> (element: PBXFileElement, path: AbsolutePath) {
         let absolutePath = from.appending(relativePath)
         if elements[absolutePath] != nil {
             return (element: elements[absolutePath]!, path: from.appending(relativePath))
         }
-        
+
         // If the path is ../../xx we specify the name
         // to prevent Xcode from using that as a name.
         var name: String?
@@ -183,7 +177,7 @@ class ProjectFileElements {
         if components.count != 1 {
             name = components.last!
         }
-        
+
         // Add the file element
         if isVariantGroup(path: absolutePath) {
             return addVariantGroupElement(from: from,
@@ -215,7 +209,7 @@ class ProjectFileElements {
                                   objects: objects)
         }
     }
-    
+
     /// Adds a variant group element.
     ///
     /// - Parameters:
@@ -238,7 +232,7 @@ class ProjectFileElements {
         elements[folderAbsolutePath] = group
         return (element: group, path: from.appending(folderRelativePath))
     }
-    
+
     /// Adds a version group element.
     ///
     /// - Parameters:
@@ -266,7 +260,7 @@ class ProjectFileElements {
         elements[folderAbsolutePath] = group
         return (element: group, path: from.appending(folderRelativePath))
     }
-    
+
     /// Adds a normal group element.
     ///
     /// - Parameters:
@@ -289,7 +283,7 @@ class ProjectFileElements {
         elements[folderAbsolutePath] = group
         return (element: group, path: from.appending(folderRelativePath))
     }
-    
+
     /// Adds a file element.
     ///
     /// - Parameters:
@@ -313,15 +307,31 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
         return (element: file, path: from.appending(fileRelativePath))
     }
-    
+
+    /// Returns the group at the given path if it's been added to the file elements object.
+    ///
+    /// - Parameter path: absolute path.
+    /// - Returns: the group if it exists.
+    func group(path: AbsolutePath) -> PBXGroup? {
+        return elements[path] as? PBXGroup
+    }
+
+    /// Returns the file at the given path if it's been added to the file elements object.
+    ///
+    /// - Parameter path: absolute path.
+    /// - Returns: the file if it exists.
+    func file(path: AbsolutePath) -> PBXFileReference? {
+        return elements[path] as? PBXFileReference
+    }
+
     /// Returns true if the path is a version group.
     ///
     /// - Parameter path: path.
     /// - Returns: true if the path is a version group.
     func isVersionGroup(path: AbsolutePath) -> Bool {
-        return path.extension == "xcdatamodel"
+        return path.extension == "xcdatamodeld"
     }
-    
+
     /// Returns true if the group is a variant group.
     ///
     /// - Parameter path: path.
@@ -329,7 +339,7 @@ class ProjectFileElements {
     func isVariantGroup(path: AbsolutePath) -> Bool {
         return path.extension == "lproj"
     }
-    
+
     /// Returns true if the path should be a group.
     ///
     /// - Parameter path: path.
@@ -337,7 +347,7 @@ class ProjectFileElements {
     func isGroup(path: AbsolutePath) -> Bool {
         return !isVariantGroup(path: path) && !isVersionGroup(path: path) && path.extension == nil
     }
-    
+
     /// Returns the relative path of the closest relative element to the source root path.
     /// If source root path is /a/b/c/project/ and file path is /a/d/myfile.swift
     /// this method will return ../../../d/
