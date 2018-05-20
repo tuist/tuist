@@ -147,6 +147,7 @@
 		B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF422064DCB70010BC33 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF412064DCB70010BC33 /* Foundation.framework */; };
+		F5F439DA20B228D300AFBB90 /* InputRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F439D920B228D300AFBB90 /* InputRequester.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -364,6 +365,7 @@
 		B9FB9D242066D56D00F13FFA /* MockLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLogger.swift; sourceTree = "<group>"; };
 		B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = AEXML.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9FDBF412064DCB70010BC33 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		F5F439D920B228D300AFBB90 /* InputRequester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputRequester.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -723,6 +725,7 @@
 				B9553DF02092181500050311 /* Context.swift */,
 				B9553DF220921AF300050311 /* ResourceLocator.swift */,
 				3D4C0BA120A6ED37003D09B0 /* CommandCheck.swift */,
+				F5F439D920B228D300AFBB90 /* InputRequester.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1079,6 +1082,7 @@
 				B9B629AC20864E3A00EE9E07 /* FileHandler.swift in Sources */,
 				B9553DEA2090690000050311 /* Shell.swift in Sources */,
 				B9F1EE00208E2D7F00477835 /* FatalError.swift in Sources */,
+				F5F439DA20B228D300AFBB90 /* InputRequester.swift in Sources */,
 				B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */,
 				B9FB2DE52086544900BC2FB3 /* Workspace.swift in Sources */,
 				3D92B80B20AAFC2D006711E5 /* ProjectFileElements.swift in Sources */,
@@ -1484,7 +1488,7 @@
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = U6LC622NKF;
+				DEVELOPMENT_TEAM = PTS5FAP7XL;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
@@ -1514,7 +1518,7 @@
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = U6LC622NKF;
+				DEVELOPMENT_TEAM = PTS5FAP7XL;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
