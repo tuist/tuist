@@ -18,9 +18,9 @@ enum InitCommandError: FatalError {
     var description: String {
         switch self {
         case let .alreadyExists(path):
-            return "\(path.asString) already exists"
+            return "⚠️  \(path.asString) already exists"
         case let .ungettableProjectName(path):
-            return "Couldn't infer the project name from path \(path.asString)"
+            return "❌  Couldn't infer the project name from path \(path.asString)"
         }
     }
 }
@@ -57,13 +57,7 @@ public class InitCommand: NSObject, Command {
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
     public func run(with arguments: ArgumentParser.Result) throws {
-        var path: AbsolutePath! = arguments
-            .get(pathArgument)
-            .map({ AbsolutePath($0) })
-            .map({ $0.appending(component: Constants.Manifest.project) })
-        if path == nil {
-            path = AbsolutePath.current.appending(component: Constants.Manifest.project)
-        }
+        let path = parsePath(with: arguments)
         if context.fileHandler.exists(path) {
             throw InitCommandError.alreadyExists(path)
         }
@@ -74,7 +68,22 @@ public class InitCommand: NSObject, Command {
         try projectSwift.write(toFile: path.asString,
                                atomically: true,
                                encoding: .utf8)
-        context.printer.print(section: "Project.swift generated at path \(path.asString)")
+        context.printer.print(section: "🎉 Project.swift generated at path \(path.asString)")
+    }
+    
+    /// Parses the arguments and returns the path to the folder where the manifest file is.
+    ///
+    /// - Parameter arguments: argument parser result.
+    /// - Returns: the path to the folder where the manifest is.
+    private func parsePath(with arguments: ArgumentParser.Result) -> AbsolutePath {
+        var path: AbsolutePath! = arguments
+            .get(pathArgument)
+            .map({ AbsolutePath($0) })
+            .map({ $0.appending(component: Constants.Manifest.project) })
+        if path == nil {
+            path = AbsolutePath.current.appending(component: Constants.Manifest.project)
+        }
+        return path
     }
 
     fileprivate func projectSwift(name: String) -> String {
