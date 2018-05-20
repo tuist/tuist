@@ -7,12 +7,15 @@ import xcodeproj
 /// - missingFileReference: error thrown when we try to generate a build file for a file whose reference is not in the project.
 enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)
+    case duplicatedFile(AbsolutePath, targetName: String)
 
     /// Error description.
     var description: String {
         switch self {
         case let .missingFileReference(path):
             return "Trying to add a file at path \(path) to a build phase that hasn't been added to the project."
+        case let .duplicatedFile(path, targetName):
+            return "The build file at path \(path) is duplicated in the target '\(targetName)'"
         }
     }
 
@@ -21,6 +24,8 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
         switch self {
         case .missingFileReference:
             return .bugSilent
+        case .duplicatedFile:
+            return .abort
         }
     }
 
@@ -97,13 +102,24 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         let sourcesBuildPhaseReference = objects.addObject(sourcesBuildPhase)
         target.buildPhases.append(sourcesBuildPhaseReference)
-        try buildPhase.buildFiles.files.forEach { path in
-            guard let fileReference = fileElements.file(path: path) else {
-                throw BuildPhaseGenerationError.missingFileReference(path)
+        var buildFiles: [AbsolutePath: PBXBuildFile] = [:]
+        try buildPhase.buildFiles.forEach { buildFile in
+            try buildFile.paths.forEach { buildFilePath in
+                if buildFiles[buildFilePath] != nil {
+                    throw BuildPhaseGenerationError.duplicatedFile(buildFilePath, targetName: target.name)
+                }
+                guard let fileReference = fileElements.file(path: buildFilePath) else {
+                    throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
+                }
+                var settings: [String: Any] = [:]
+                if let compilerFlags = buildFile.compilerFlags {
+                    settings["COMPILER_FLAGS"] = compilerFlags
+                }
+                let pbxBuildFile = PBXBuildFile(fileRef: fileReference.reference, settings: settings)
+                buildFiles[buildFilePath] = pbxBuildFile
+                let buildFileRerence = objects.addObject(pbxBuildFile)
+                sourcesBuildPhase.files.append(buildFileRerence)
             }
-            let buildFile = PBXBuildFile(fileRef: fileReference.reference)
-            let buildFileReference = objects.addObject(buildFile)
-            sourcesBuildPhase.files.append(buildFileReference)
         }
     }
 }

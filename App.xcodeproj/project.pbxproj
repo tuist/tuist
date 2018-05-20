@@ -42,6 +42,9 @@
 		B91834C0207CBCFE008935B4 /* ProjectDescription.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B91834BE207CBCE6008935B4 /* ProjectDescription.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B918A2312093680600E64FBE /* MockErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B918A2302093680600E64FBE /* MockErrorHandler.swift */; };
 		B91FF331206AB4E6005EA520 /* xcbuddy in Copy CLI */ = {isa = PBXBuildFile; fileRef = B915ECF6206395DA004B6630 /* xcbuddy */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		B92122BD20AF372F009C4691 /* CreateIssueCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */; };
+		B92122D820AF3951009C4691 /* CreateIssueCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */; };
+		B92A13FA20B03CB2007C9D88 /* BuildFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */; };
 		B92BF9FE2075608B00EE4EBD /* Data+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */; };
 		B94C7FC12062B8A8009BF596 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB72062B8A7009BF596 /* Assets.xcassets */; };
 		B94C7FC22062B8A8009BF596 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = B94C7FB82062B8A7009BF596 /* MainMenu.xib */; };
@@ -126,7 +129,7 @@
 		B9FB2DC72086516500BC2FB3 /* POSIX.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DC02086507200BC2FB3 /* POSIX.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB2DC82086516A00BC2FB3 /* clibc.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DC22086507700BC2FB3 /* clibc.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FB2DC92086516A00BC2FB3 /* SPMLibc.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FB2DC42086507700BC2FB3 /* SPMLibc.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FB2DCA2086527B00BC2FB3 /* BuildFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C420864E9800EE9E07 /* BuildFiles.swift */; };
+		B9FB2DCA2086527B00BC2FB3 /* BuildFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C420864E9800EE9E07 /* BuildFile.swift */; };
 		B9FB2DDC2086539A00BC2FB3 /* GraphLoadingError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DCF2086538E00BC2FB3 /* GraphLoadingError.swift */; };
 		B9FB2DDD208653DA00BC2FB3 /* GraphLoaderContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DD32086538E00BC2FB3 /* GraphLoaderContext.swift */; };
 		B9FB2DDE208653DD00BC2FB3 /* GraphLoaderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FB2DD42086538E00BC2FB3 /* GraphLoaderCache.swift */; };
@@ -267,7 +270,10 @@
 		B915ED4D2063B04C004B6630 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B91834BE207CBCE6008935B4 /* ProjectDescription.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = ProjectDescription.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B918A2302093680600E64FBE /* MockErrorHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockErrorHandler.swift; sourceTree = "<group>"; };
+		B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommand.swift; sourceTree = "<group>"; };
+		B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssueCommandTests.swift; sourceTree = "<group>"; };
 		B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfigurationTests.swift; sourceTree = "<group>"; };
+		B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildFileTests.swift; sourceTree = "<group>"; };
 		B92BF8152073E66200EE4EBD /* MockUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUpdateController.swift; sourceTree = "<group>"; };
 		B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphLoaderCache.swift; sourceTree = "<group>"; };
 		B92BF9F420755A5B00EE4EBD /* Project+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Project+TestData.swift"; sourceTree = "<group>"; };
@@ -316,7 +322,7 @@
 		B9B629BE20864E7D00EE9E07 /* UpdateCommand.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UpdateCommand.swift; sourceTree = "<group>"; };
 		B9B629BF20864E7D00EE9E07 /* DumpCommand.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DumpCommand.swift; sourceTree = "<group>"; };
 		B9B629C320864E9800EE9E07 /* BuildConfiguration.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildConfiguration.swift; sourceTree = "<group>"; };
-		B9B629C420864E9800EE9E07 /* BuildFiles.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildFiles.swift; sourceTree = "<group>"; };
+		B9B629C420864E9800EE9E07 /* BuildFile.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildFile.swift; sourceTree = "<group>"; };
 		B9B629C520864E9800EE9E07 /* Target.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Target.swift; sourceTree = "<group>"; };
 		B9B629C720864E9800EE9E07 /* Workspace.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Workspace.swift; sourceTree = "<group>"; };
 		B9B629C820864E9800EE9E07 /* Scheme.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Scheme.swift; sourceTree = "<group>"; };
@@ -607,6 +613,7 @@
 				B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */,
 				B9589601208A3CBA00F00ACF /* PlatformTests.swift */,
 				B9589603208A405D00F00ACF /* ProductTests .swift */,
+				B92A13F920B03CB2007C9D88 /* BuildFileTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -769,6 +776,7 @@
 				B9F1EDCC208CBE1800477835 /* InitCommand.swift */,
 				B9E65C98208F8B2200A9D7AC /* GenerateCommand.swift */,
 				B9B59442209F5E2100C59DA2 /* VersionCommand.swift */,
+				B92122BC20AF372F009C4691 /* CreateIssueCommand.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -777,7 +785,7 @@
 			isa = PBXGroup;
 			children = (
 				B9B629C320864E9800EE9E07 /* BuildConfiguration.swift */,
-				B9B629C420864E9800EE9E07 /* BuildFiles.swift */,
+				B9B629C420864E9800EE9E07 /* BuildFile.swift */,
 				B9B629C520864E9800EE9E07 /* Target.swift */,
 				B9B629C720864E9800EE9E07 /* Workspace.swift */,
 				B9B629C820864E9800EE9E07 /* Scheme.swift */,
@@ -860,6 +868,7 @@
 				B9F1EDCE208CD0B800477835 /* InitCommandTests.swift */,
 				B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */,
 				3D92B80320AABC3A006711E5 /* GenerateCommandTests.swift */,
+				B92122D720AF3951009C4691 /* CreateIssueCommandTests.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -1121,6 +1130,7 @@
 				B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */,
 				B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */,
 				B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */,
+				B92122BD20AF372F009C4691 /* CreateIssueCommand.swift in Sources */,
 				B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */,
 				B9F1EDCD208CBE1800477835 /* InitCommand.swift in Sources */,
 				B9FB2DEA2086544900BC2FB3 /* BuildPhase.swift in Sources */,
@@ -1137,7 +1147,7 @@
 				B9F1EDF8208D22D900477835 /* TargetValidator.swift in Sources */,
 				B9B6299F20864E2300EE9E07 /* Constants.swift in Sources */,
 				B9F1EDF6208D228600477835 /* ProjectValidator.swift in Sources */,
-				B9FB2DCA2086527B00BC2FB3 /* BuildFiles.swift in Sources */,
+				B9FB2DCA2086527B00BC2FB3 /* BuildFile.swift in Sources */,
 				B9FB2DE1208653F500BC2FB3 /* Graph.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1148,6 +1158,7 @@
 			files = (
 				B9E2DC9620872B3A0061DF86 /* MockGraphLoaderCache.swift in Sources */,
 				B9E2DC9520872B300061DF86 /* MockUpdateController.swift in Sources */,
+				B92A13FA20B03CB2007C9D88 /* BuildFileTests.swift in Sources */,
 				B9E2DC9D20872D3B0061DF86 /* MockPrinter.swift in Sources */,
 				3D92B80720AABE55006711E5 /* MockGraphLoader.swift in Sources */,
 				B9B5943B209C176C00C59DA2 /* ErrorHandlerTests.swift in Sources */,
@@ -1187,6 +1198,7 @@
 				B9553DEC2090F62C00050311 /* GraphNodeTests.swift in Sources */,
 				66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */,
 				B9589607208B4E4700F00ACF /* WorkspaceGeneratorTests.swift in Sources */,
+				B92122D820AF3951009C4691 /* CreateIssueCommandTests.swift in Sources */,
 				B9589602208A3CBA00F00ACF /* PlatformTests.swift in Sources */,
 				B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */,
 				3D92B80520AABC3A006711E5 /* GenerateCommandTests.swift in Sources */,

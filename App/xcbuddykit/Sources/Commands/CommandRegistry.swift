@@ -33,6 +33,7 @@ public final class CommandRegistry {
         register(command: UpdateCommand.self)
         register(command: DumpCommand.self)
         register(command: VersionCommand.self)
+        register(command: CreateIssueCommand.self)
     }
 
     /// Initializes the command registry

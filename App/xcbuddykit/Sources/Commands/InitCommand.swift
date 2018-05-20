@@ -81,33 +81,32 @@ public class InitCommand: NSObject, Command {
         return """
         import ProjectDescription
         
-        let project = Project(name: "{{NAME}}",
+         let project = Project(name: "{{NAME}}",
                       schemes: [
                           /* Project schemes are defined here */
                           Scheme(name: "{{NAME}}",
                                  shared: true,
                                  buildAction: BuildAction(targets: ["{{NAME}}"])),
                       ],
-                      settings: Settings(base: [:],
-                                         debug: Configuration(settings: [:],
-                                                              xcconfig: "Debug.xcconfig")),
+                      settings: Settings(base: [:]),
                       targets: [
                           Target(name: "{{NAME}}",
                                  platform: .ios,
                                  product: .app,
-                                 bundleId: "com.xcbuddy.{{NAME}}",
+                                 bundleId: "io.xcbuddy.{{NAME}}",
                                  infoPlist: "Info.plist",
                                  dependencies: [
                                      /* Target dependencies can be defined here */
-                                     /* .framework(path: "/path/framework.framework") */
+                                     /* .framework(path: "framework") */
                                  ],
                                  settings: nil,
                                  buildPhases: [
-                                     .sources([.include(["./Sources/**/*.swift"])]),
+                                    
+                                     .sources([.sources("./Sources/**/*.swift")]),
                                      /* Other build phases can be added here */
                                      /* .resources([.include(["./Resousrces /**/ *"])]) */
-                          ]),
-                      ])
+                                ]),
+                    ])
         """.replacingOccurrences(of: "{{NAME}}", with: name)
     }
 }
