@@ -82,6 +82,7 @@ public class InitCommand: NSObject, Command {
                                atomically: true,
                                encoding: .utf8)
         context.printer.print(section: "🎉 Project.swift generated at path \(path.asString)")
+//        _ = context.inputRequerer.requestBoolUserInput(message: "Do you want to generate xcodeproj?")
     }
     
     /// Parses the arguments and returns the path to the folder where the manifest file is.
@@ -102,10 +103,10 @@ public class InitCommand: NSObject, Command {
         return path
     }
     
-    /// Parses the arguments and returns the path to the folder where the manifest file is.
+    /// Parses the arguments and returns the project name.
     ///
     /// - Parameter arguments: argument parser result.
-    /// - Returns: the path to th efolder where the manifest is.
+    /// - Returns: the path to the folder where the manifest is.
     private func parseProjectName(with arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
         var name = arguments.get(nameArgument)
         if name == nil {

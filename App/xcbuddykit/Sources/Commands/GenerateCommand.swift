@@ -83,7 +83,7 @@ public class GenerateCommand: NSObject, Command {
     /// Parses the arguments and returns the path to the folder where the manifest file is.
     ///
     /// - Parameter arguments: argument parser result.
-    /// - Returns: the path to th efolder where the manifest is.
+    /// - Returns: the path to the folder where the manifest is.
     private func parsePath(arguments: ArgumentParser.Result) -> AbsolutePath {
         var path: AbsolutePath! = arguments.get(pathArgument).map({ AbsolutePath($0) })
         if path == nil {
