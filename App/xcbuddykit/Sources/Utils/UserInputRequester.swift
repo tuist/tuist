@@ -1,32 +1,29 @@
 import Foundation
 
 /// Protocol that represents an object that can ask the user
-protocol InputRequering: AnyObject {
-
-    /// Printer.
-    var printer: Printing { get }
+protocol UserInputRequesting: AnyObject {
     
     /// Request to user a boolean question. User must to respond
     ///
     /// - Parameters:
     ///   - message: question text.
-    func requestBoolUserInput(message: String) -> Bool
+    func bool(message: String) -> Bool
     
     /// Request to user a required question.
     ///
     /// - Parameters:
     ///   - message: question text.
     ///   - errorMessage: message to be showed when user doesn't respond.
-    func requestRequiredUserInput(message: String, errorMessage: String) -> String
+    func required(message: String, errorMessage: String) -> String
     
     /// Request to user a optional question. User can respond or not
     ///
     /// - Parameters:
     ///   - message: question text.
-    func requestOptionalUserInput(message: String) -> String?
+    func optional(message: String) -> String?
 }
 
-class InputRequerer: InputRequering {
+class UserInputRequester: UserInputRequesting {
     
     enum DefaultResponse {
         static let isRequired = "Please we need to know it. Try again."
@@ -48,8 +45,8 @@ class InputRequerer: InputRequering {
     ///
     /// - Parameters:
     ///   - message: question text.
-    func requestBoolUserInput(message: String) -> Bool {
-        let answer = requestRequiredUserInput(message: "\(message) (Y/N)")
+    func bool(message: String) -> Bool {
+        let answer = required(message: "\(message) (Y/N)")
         
         switch answer.lowercased() {
         case "y":
@@ -58,7 +55,7 @@ class InputRequerer: InputRequering {
             return false
         default:
             printer.print(warning: DefaultResponse.shouldBeBoolean)
-            return requestBoolUserInput(message: message)
+            return bool(message: message)
         }
     }
     
@@ -67,11 +64,11 @@ class InputRequerer: InputRequering {
     /// - Parameters:
     ///   - message: question text.
     ///   - errorMessage: message to be showed when user doesn't respond.
-    func requestRequiredUserInput(message: String, errorMessage: String = DefaultResponse.isRequired) -> String {
+    func required(message: String, errorMessage: String = DefaultResponse.isRequired) -> String {
         printer.print(message)
         guard let response = readLine(), response.count > 0 else {
             printer.print(errorMessage: errorMessage)
-            return requestRequiredUserInput(message: message)
+            return required(message: message)
         }
         return response
     }
@@ -80,7 +77,7 @@ class InputRequerer: InputRequering {
     ///
     /// - Parameters:
     ///   - message: question text.
-    func requestOptionalUserInput(message: String) -> String? {
+    func optional(message: String) -> String? {
         printer.print(message)
         return readLine()
     }

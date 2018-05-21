@@ -18,9 +18,9 @@ enum InitCommandError: FatalError {
     var description: String {
         switch self {
         case let .alreadyExists(path):
-            return "⚠️  \(path.asString) already exists"
+            return "\(path.asString) already exists"
         case let .ungettableProjectName(path):
-            return "❌  Couldn't infer the project name from path \(path.asString)"
+            return "Couldn't infer the project name from path \(path.asString)"
         }
     }
 }
