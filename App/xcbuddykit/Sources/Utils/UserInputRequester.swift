@@ -33,12 +33,16 @@ class UserInputRequester: UserInputRequesting {
     /// Printer.
     let printer: Printing
     
+    /// Read block.
+    var readBlock: () -> String?
+    
     /// Initializes the input requerer with its attributess.
     ///
     /// - Parameters:
     ///   - printer: printer.
-    init(printer: Printing = Printer()) {
+    init(printer: Printing = Printer(), readBlock: @escaping () -> String? = { return readLine() }) {
         self.printer = printer
+        self.readBlock = readBlock
     }
     
     /// Request to user a boolean question.
@@ -66,7 +70,7 @@ class UserInputRequester: UserInputRequesting {
     ///   - errorMessage: message to be showed when user doesn't respond.
     func required(message: String, errorMessage: String = DefaultResponse.isRequired) -> String {
         printer.print(message)
-        guard let response = readLine(), response.count > 0 else {
+        guard let response = readBlock(), response.count > 0 else {
             printer.print(errorMessage: errorMessage)
             return required(message: message)
         }
@@ -79,6 +83,6 @@ class UserInputRequester: UserInputRequesting {
     ///   - message: question text.
     func optional(message: String) -> String? {
         printer.print(message)
-        return readLine()
+        return readBlock()
     }
 }

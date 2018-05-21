@@ -9,8 +9,6 @@ class MockUserInputRequester: UserInputRequesting {
     var optionalUserInputStub: ((String) -> String)?
     var optionalUserInputCount: UInt = 0
     
-    let printer: Printing = MockPrinter()
-    
     func bool(message: String) -> Bool {
         boolUserInputCount += 1
         return boolUserInputStub?(message) ?? false

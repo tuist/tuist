@@ -82,7 +82,7 @@ public class InitCommand: NSObject, Command {
                                atomically: true,
                                encoding: .utf8)
         context.printer.print(section: "🎉 Project.swift generated at path \(path.asString)")
-//        _ = context.inputRequerer.requestBoolUserInput(message: "Do you want to generate xcodeproj?")
+//        _ = context.userInputRequester.bool(message: "Do you want to generate xcodeproj?")
     }
     
     /// Parses the arguments and returns the path to the folder where the manifest file is.
