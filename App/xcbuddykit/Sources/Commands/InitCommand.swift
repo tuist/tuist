@@ -63,9 +63,9 @@ public class InitCommand: NSObject, Command {
                                      completion: .none)
         
         generateArgument = subParser.add(option: "--generate",
-                                     shortName: "-f",
+                                     shortName: "-g",
                                      kind: Bool.self,
-                                     usage: "Force generation of xcodeproj",
+                                     usage: "Generate xcodeproj after create Project.swift file",
                                      completion: .none)
         context = CommandsContext()
     }
@@ -108,12 +108,8 @@ public class InitCommand: NSObject, Command {
     /// - Parameter arguments: argument parser result.
     /// - Returns: the path to the folder where the manifest is.
     private func parseProjectName(with arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
-        var name = arguments.get(nameArgument)
-        if name == nil {
-            name = path.parentDirectory.components.last
-        }
-        if let finalName = name {
-            return finalName
+        if let name = arguments.get(nameArgument) ?? path.parentDirectory.components.last {
+            return name
         } else {
             throw InitCommandError.ungettableProjectName(path)
         }
