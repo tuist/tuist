@@ -60,6 +60,7 @@ protocol Graphing: AnyObject {
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeaders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, shell: Shelling) throws -> [DependencyReference]
+    func targetDependencies(path: AbsolutePath, name: String) -> [String]
 }
 
 /// Graph representation.
@@ -96,6 +97,22 @@ class Graph: Graphing {
         self.entryPath = entryPath
         self.cache = cache
         self.entryNodes = entryNodes
+    }
+
+    /// Returns the dependencies of a given target that are in the same project.
+    /// This is useful to generate the target dependencies in the Xcode project.
+    ///
+    /// - Parameters:
+    ///   - path: path to the folder that contains the manifest where the target is defined.
+    ///   - name: target name.
+    /// - Returns: name of the targets.
+    func targetDependencies(path: AbsolutePath, name: String) -> [String] {
+        guard let targetNodes = cache.targetNodes[path] else { return [] }
+        guard let targetNode = targetNodes[name] else { return [] }
+        return targetNode.dependencies
+            .compactMap({ $0 as? TargetNode })
+            .filter({ $0.path == path })
+            .map({ $0.target.name })
     }
 
     /// Given a target, it returns the list of dependencies that should be linked from it.
