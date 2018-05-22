@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Sources build phase generation https://github.com/xcbuddy/xcbuddy/pull/30 by @pepibumur.
 * Add `create-issue` command https://github.com/xcbuddy/xcbuddy/pull/32 by @pepibumur.
 * Add support for variant groups https://github.com/xcbuddy/xcbuddy/pull/34 by @pepibumur.
+* Convenience API to `Graph` https://github.com/xcbuddy/xcbuddy/pull/35 by @pepibumur.
 
 ### Changed
 
