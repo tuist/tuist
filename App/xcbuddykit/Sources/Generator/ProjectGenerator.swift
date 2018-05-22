@@ -109,7 +109,6 @@ final class ProjectGenerator: ProjectGenerating {
         try targetGenerator.generateTargetDependencies(path: project.path,
                                                        targets: project.targets,
                                                        nativeTargets: nativeTargets,
-                                                       objects: pbxproj.objects,
                                                        graph: context.graph)
 
         /// Write.

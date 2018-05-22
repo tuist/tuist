@@ -54,7 +54,6 @@ protocol TargetGenerating: AnyObject {
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    objects: PBXObjects,
                                     graph: Graphing) throws
 }
 
@@ -200,7 +199,6 @@ final class TargetGenerator: TargetGenerating {
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    objects _: PBXObjects,
                                     graph: Graphing) throws {
         try targets.forEach { targetSpec in
             let dependencies = graph.targetDependencies(path: path, name: targetSpec.name)
