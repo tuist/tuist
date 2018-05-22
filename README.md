@@ -16,7 +16,6 @@
 * ↗️ Local dependencies support.
 * ⚠️ Misconfiguration catching.
 * 📦 Precompiled binaries _(Frameworks & Libraries support)_.
-* 🎉 CocoaPods support.
 * 💻 CLI and macOS application.
 * 🔄 Circular dependency detection.
 
