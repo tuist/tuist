@@ -67,6 +67,7 @@
 		B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */; };
 		B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960A208B578700F00ACF /* GraphCircularDetector.swift */; };
 		B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */; };
+		B97DDE9C20B448250052EB48 /* GraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97DDE9B20B448250052EB48 /* GraphTests.swift */; };
 		B9B593C5209C121000C59DA2 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; };
 		B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */; };
 		B9B593C8209C13CB00C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -304,6 +305,7 @@
 		B9589608208B4E8E00F00ACF /* MockProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockProjectGenerator.swift; sourceTree = "<group>"; };
 		B958960A208B578700F00ACF /* GraphCircularDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetector.swift; sourceTree = "<group>"; };
 		B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetectorTests.swift; sourceTree = "<group>"; };
+		B97DDE9B20B448250052EB48 /* GraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphTests.swift; sourceTree = "<group>"; };
 		B9B593C4209C121000C59DA2 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandlerTests.swift; sourceTree = "<group>"; };
@@ -592,6 +594,7 @@
 				B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */,
 				B9F1EDD4208D080C00477835 /* GraphManifestLoaderTests.swift */,
 				B9553DEB2090F62C00050311 /* GraphNodeTests.swift */,
+				B97DDE9B20B448250052EB48 /* GraphTests.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -1168,6 +1171,7 @@
 				B9F1EDD5208D080C00477835 /* GraphManifestLoaderTests.swift in Sources */,
 				B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */,
 				3D92B79120A82A82006711E5 /* Graph+TestData.swift in Sources */,
+				B97DDE9C20B448250052EB48 /* GraphTests.swift in Sources */,
 				B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */,
 				B9F1EDED208D1CFE00477835 /* Target+TestData.swift in Sources */,
 				3D92B77B20A818CD006711E5 /* CommandCheckTests.swift in Sources */,
