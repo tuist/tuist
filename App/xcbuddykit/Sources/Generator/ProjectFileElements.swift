@@ -68,7 +68,7 @@ class ProjectFileElements {
 
                     // Normal resources
                     if let resourceBuildFile = buildFile as? ResourcesBuildFile {
-                        files.formUnion(resourceBuildFile.paths)
+                        files.formUnion(resourceBuildFile.paths.map(normalize))
 
                         // Core Data model resoureces
                     } else if let coreDataModelBuildFile = buildFile as? CoreDataModelBuildFile {
@@ -130,7 +130,9 @@ class ProjectFileElements {
         let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
 
         // Add the first relative element.
-        let firstElement = addElement(relativePath: closestRelativeRelativePath, from: sourceRootPath, toGroup: groups.project, objects: objects)
+        guard let firstElement = addElement(relativePath: closestRelativeRelativePath, from: sourceRootPath, toGroup: groups.project, objects: objects) else {
+            return
+        }
 
         // If it matches the file that we are adding or it's not a group we can exit.
         if (closestRelativeAbsolutePath == path) || !(firstElement.element is PBXGroup) {
@@ -141,12 +143,14 @@ class ProjectFileElements {
         var lastGroup: PBXGroup! = firstElement.element as! PBXGroup
         var lastPath: AbsolutePath = firstElement.path
 
-        path.relative(to: lastPath).components.forEach { component in
+        for component in path.relative(to: lastPath).components {
             if lastGroup == nil { return }
-            let element = addElement(relativePath: RelativePath(component),
-                                     from: lastPath,
-                                     toGroup: lastGroup!,
-                                     objects: objects)
+            guard let element = addElement(relativePath: RelativePath(component),
+                                           from: lastPath,
+                                           toGroup: lastGroup!,
+                                           objects: objects) else {
+                return
+            }
             lastGroup = element.element as? PBXGroup
             lastPath = element.path
         }
@@ -164,7 +168,7 @@ class ProjectFileElements {
     @discardableResult func addElement(relativePath: RelativePath,
                                        from: AbsolutePath,
                                        toGroup: PBXGroup,
-                                       objects: PBXObjects) -> (element: PBXFileElement, path: AbsolutePath) {
+                                       objects: PBXObjects) -> (element: PBXFileElement, path: AbsolutePath)? {
         let absolutePath = from.appending(relativePath)
         if elements[absolutePath] != nil {
             return (element: elements[absolutePath]!, path: from.appending(relativePath))
@@ -179,13 +183,13 @@ class ProjectFileElements {
         }
 
         // Add the file element
-        if isVariantGroup(path: absolutePath) {
-            return addVariantGroupElement(from: from,
-                                          folderAbsolutePath: absolutePath,
-                                          folderRelativePath: relativePath,
-                                          name: name,
-                                          toGroup: toGroup,
-                                          objects: objects)
+        if isLocalized(path: absolutePath) {
+            addVariantGroup(from: from,
+                            absolutePath: absolutePath,
+                            relativePath: relativePath,
+                            toGroup: toGroup,
+                            objects: objects)
+            return nil
         } else if isVersionGroup(path: absolutePath) {
             return addVersionGroupElement(from: from,
                                           folderAbsolutePath: absolutePath,
@@ -201,36 +205,54 @@ class ProjectFileElements {
                                    toGroup: toGroup,
                                    objects: objects)
         } else {
-            return addFileElement(from: from,
-                                  fileAbsolutePath: absolutePath,
-                                  fileRelativePath: relativePath,
-                                  name: name,
-                                  toGroup: toGroup,
-                                  objects: objects)
+            addFileElement(from: from,
+                           fileAbsolutePath: absolutePath,
+                           fileRelativePath: relativePath,
+                           name: name,
+                           toGroup: toGroup,
+                           objects: objects)
+            return nil
         }
     }
 
-    /// Adds a variant group element.
+    /// Adds a localized element/s
     ///
     /// - Parameters:
     ///   - from: absolute path of the group the group is being added to.
-    ///   - folderAbsolutePath: folder absolute path.
-    ///   - folderRelativePath: folder path relative to the group absolute path.
-    ///   - name: element name.
+    ///   - absolutePath: localized file absolute path.
+    ///   - relativePath: localized path relative to the group absolute path.
     ///   - toGroup: group where the new group will be added.
     ///   - objects: Xcode project objects.
-    /// - Returns: added group.
-    func addVariantGroupElement(from: AbsolutePath,
-                                folderAbsolutePath: AbsolutePath,
-                                folderRelativePath: RelativePath,
-                                name: String?,
-                                toGroup: PBXGroup,
-                                objects: PBXObjects) -> (element: PBXFileElement, path: AbsolutePath) {
-        let group = PBXVariantGroup(children: [], sourceTree: .group, name: name, path: folderRelativePath.asString)
-        let reference = objects.addObject(group)
-        toGroup.children.append(reference)
-        elements[folderAbsolutePath] = group
-        return (element: group, path: from.appending(folderRelativePath))
+    func addVariantGroup(from: AbsolutePath,
+                         absolutePath: AbsolutePath,
+                         relativePath _: RelativePath,
+                         toGroup: PBXGroup,
+                         objects: PBXObjects) {
+        // /path/to/*.lproj/*
+        absolutePath.glob("*").forEach { localizedFile in
+            let localizedName = localizedFile.components.last!
+
+            // Variant group
+            let variantGroupPath = absolutePath.parentDirectory.appending(component: localizedName)
+            var variantGroup: PBXVariantGroup! = elements[variantGroupPath] as? PBXVariantGroup
+            if variantGroup == nil {
+                variantGroup = PBXVariantGroup(sourceTree: .group, name: localizedName)
+                let variantGroupReference = objects.addObject(variantGroup)
+                toGroup.children.append(variantGroupReference)
+                elements[variantGroupPath] = variantGroup
+            }
+
+            // Localized element
+            let localizedFilePath = "\(absolutePath.components.last!)/\(localizedName)" // e.g: en.lproj/Main.storyboard
+            let lastKnownFileType = Xcode.filetype(extension: localizedName) // e.g. Main.storyboard
+            let name = absolutePath.components.last!.split(separator: ".").first! // e.g. en
+            let localizedFileReference = PBXFileReference(sourceTree: .group,
+                                                          name: String(name),
+                                                          lastKnownFileType: lastKnownFileType,
+                                                          path: localizedFilePath)
+            let localizedFileReferenceReference = objects.addObject(localizedFileReference)
+            variantGroup.children.append(localizedFileReferenceReference)
+        }
     }
 
     /// Adds a version group element.
@@ -293,19 +315,17 @@ class ProjectFileElements {
     ///   - name: element name.
     ///   - toGroup: group where the file will be added.
     ///   - objects: Xcode project objects.
-    /// - Returns: added file.
-    func addFileElement(from: AbsolutePath,
+    func addFileElement(from _: AbsolutePath,
                         fileAbsolutePath: AbsolutePath,
                         fileRelativePath: RelativePath,
                         name: String?,
                         toGroup: PBXGroup,
-                        objects: PBXObjects) -> (element: PBXFileElement, path: AbsolutePath) {
+                        objects: PBXObjects) {
         let lastKnownFileType = Xcode.filetype(extension: fileAbsolutePath.extension!)
         let file = PBXFileReference(sourceTree: .group, name: name, lastKnownFileType: lastKnownFileType, path: fileRelativePath.asString)
         let reference = objects.addObject(file)
         toGroup.children.append(reference)
         elements[fileAbsolutePath] = file
-        return (element: file, path: from.appending(fileRelativePath))
     }
 
     /// Returns the group at the given path if it's been added to the file elements object.
@@ -324,6 +344,19 @@ class ProjectFileElements {
         return elements[path] as? PBXFileReference
     }
 
+    /// Returns true if a path represents a localized resource *.lproj.
+    ///
+    /// - Parameter path: path to be checked.
+    /// - Returns: true if the file is a localized file.
+    func isLocalized(path: AbsolutePath) -> Bool {
+        // swiftlint:disable:next force_try
+        let regex = try! NSRegularExpression(pattern: ".lproj$", options: [])
+        let pathString = path.asString
+        return regex.firstMatch(in: pathString,
+                                options: [],
+                                range: NSRange(location: 0, length: pathString.count)) != nil
+    }
+
     /// Returns true if the path is a version group.
     ///
     /// - Parameter path: path.
@@ -332,20 +365,37 @@ class ProjectFileElements {
         return path.extension == "xcdatamodeld"
     }
 
-    /// Returns true if the group is a variant group.
-    ///
-    /// - Parameter path: path.
-    /// - Returns: true if the group is a variant group.
-    func isVariantGroup(path: AbsolutePath) -> Bool {
-        return path.extension == "lproj"
-    }
-
     /// Returns true if the path should be a group.
     ///
     /// - Parameter path: path.
     /// - Returns: true if the path should be represented as a group.
     func isGroup(path: AbsolutePath) -> Bool {
-        return !isVariantGroup(path: path) && !isVersionGroup(path: path) && path.extension == nil
+        return !isVersionGroup(path: path) && path.extension == nil
+    }
+
+    /// Normalizes a path. Some paths have no direct representation in Xcode,
+    /// like localizable files. This method normalizes those and returns a project
+    /// representable path.
+    ///
+    /// - Example:
+    ///   /test/es.lproj/Main.storyboard ~> /test/es.lproj
+    ///
+    /// - Parameter path: path to be normalized.
+    /// - Returns: normalized path.
+    func normalize(_ path: AbsolutePath) -> AbsolutePath {
+        // swiftlint:disable:next force_try
+        let localizedregex = try! NSRegularExpression(pattern: "(.+\\.lproj)/.+",
+                                                      options: [])
+        let pathString = path.asString
+        let range = NSRange(location: 0, length: pathString.count)
+        if let localizedMatch = localizedregex.firstMatch(in: pathString,
+                                                          options: [],
+                                                          range: range) {
+            let lprojPath = (pathString as NSString).substring(with: localizedMatch.range(at: 1))
+            return AbsolutePath(lprojPath)
+        } else {
+            return path
+        }
     }
 
     /// Returns the relative path of the closest relative element to the source root path.

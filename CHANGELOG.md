@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Files and groups generation https://github.com/xcbuddy/xcbuddy/pull/28 by @pepibumur.
 * Sources build phase generation https://github.com/xcbuddy/xcbuddy/pull/30 by @pepibumur.
 * Add `create-issue` command https://github.com/xcbuddy/xcbuddy/pull/32 by @pepibumur.
+* Add support for variant groups https://github.com/xcbuddy/xcbuddy/pull/34 by @pepibumur.
 
 ### Changed
 

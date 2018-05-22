@@ -99,23 +99,32 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(file.sourceTree, .group)
     }
 
-    func test_addVariantGroupElement() throws {
-        let from = AbsolutePath("/project/")
-        let folderAbsolutePath = AbsolutePath("/project/en.lproj")
-        let folderRelativePath = RelativePath("./en.lproj")
+    func test_addVariantGroup() throws {
+        let fileName = "localizable.strings"
+        let dir = try TemporaryDirectory()
+        let localizedDir = dir.path.appending(component: "en.lproj")
+        try localizedDir.mkpath()
+        try localizedDir.appending(component: fileName).write("test")
+        let from = dir.path.parentDirectory
+        let absolutePath = localizedDir
+        let relativePath = RelativePath("en.lproj")
         let group = PBXGroup()
         let objects = PBXObjects(objects: [:])
         objects.addObject(group)
-        _ = subject.addVariantGroupElement(from: from,
-                                           folderAbsolutePath: folderAbsolutePath,
-                                           folderRelativePath: folderRelativePath,
-                                           name: nil,
-                                           toGroup: group,
-                                           objects: objects)
-        let variantGroup: PBXVariantGroup? = try group.children.first?.object()
-        XCTAssertEqual(variantGroup?.path, "en.lproj")
-        XCTAssertEqual(variantGroup?.sourceTree, .group)
-        XCTAssertNil(variantGroup?.name)
+        subject.addVariantGroup(from: from,
+                                absolutePath: absolutePath,
+                                relativePath: relativePath,
+                                toGroup: group,
+                                objects: objects)
+        let variantGroupPath = dir.path.appending(component: fileName)
+        let variantGroup: PBXVariantGroup = subject.group(path: variantGroupPath) as! PBXVariantGroup
+        XCTAssertEqual(variantGroup.name, fileName)
+        XCTAssertEqual(variantGroup.sourceTree, .group)
+
+        let fileReference: PBXFileReference? = try variantGroup.children.first?.object()
+        XCTAssertEqual(fileReference?.name, "en")
+        XCTAssertEqual(fileReference?.sourceTree, .group)
+        XCTAssertEqual(fileReference?.path, "en.lproj/\(fileName)")
     }
 
     func test_addVersionGroupElement() throws {
@@ -172,19 +181,31 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(subject.file(path: path), file)
     }
 
+    func test_isLocalized() {
+        let path = AbsolutePath("/path/to/es.lproj")
+        XCTAssertTrue(subject.isLocalized(path: path))
+    }
+
     func test_isVersionGroup() {
         let path = AbsolutePath("/path/to/model.xcdatamodeld")
         XCTAssertTrue(subject.isVersionGroup(path: path))
     }
 
-    func test_isVariantGroup() {
-        let path = AbsolutePath("/path/to/en.lproj")
-        XCTAssertTrue(subject.isVariantGroup(path: path))
-    }
-
     func test_isGroup() {
         let path = AbsolutePath("/path/to/folder")
         XCTAssertTrue(subject.isGroup(path: path))
+    }
+
+    func test_normalize_whenLocalized() {
+        let path = AbsolutePath("/test/es.lproj/Main.storyboard")
+        let normalized = subject.normalize(path)
+        XCTAssertEqual(normalized, AbsolutePath("/test/es.lproj"))
+    }
+
+    func test_normalize() {
+        let path = AbsolutePath("/test/file.swift")
+        let normalized = subject.normalize(path)
+        XCTAssertEqual(normalized, path)
     }
 
     func test_closestRelativeElementPath() {
