@@ -3,6 +3,19 @@ import Foundation
 @testable import xcbuddykit
 import XCTest
 
+final class GraphErrorTests: XCTestCase {
+    func test_description_when_unsupportedFileExtension() {
+        let error = GraphError.unsupportedFileExtension("type")
+        let description = "Could't obtain product file extension for product type: type"
+        XCTAssertEqual(error.description, description)
+    }
+    
+    func test_type_when_unsupportedFileExtension() {
+        let error = GraphError.unsupportedFileExtension("type")
+        XCTAssertEqual(error.type, .bugSilent)
+    }
+}
+
 final class GraphTests: XCTestCase {
     func test_linkableDependencies_whenPrecompiled() throws {
         let target = Target.test(name: "Main")
