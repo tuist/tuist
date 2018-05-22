@@ -33,14 +33,29 @@ protocol TargetGenerating: AnyObject {
     ///   - fileElements: Project file elements.
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
+    /// - Returns: native target.
     /// - Throws: an error if the generation fails.
     func generateTarget(target targetSpec: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        sourceRootPath _: AbsolutePath,
-                        context: GeneratorContexting) throws
+                        context: GeneratorContexting) throws -> PBXNativeTarget
+
+    /// Generates the targets dependencies.
+    ///
+    /// - Parameters:
+    ///   - path: path to the folder where the project manifest is.
+    ///   - targets: project targets specs.
+    ///   - nativeTargets: generated native targes in the Xcode project.
+    ///   - objects: Xcode project objects.
+    ///   - graph: dependencies graph.
+    /// - Throws: an error if it fails generating the target dependencies.
+    func generateTargetDependencies(path: AbsolutePath,
+                                    targets: [Target],
+                                    nativeTargets: [String: PBXNativeTarget],
+                                    objects: PBXObjects,
+                                    graph: Graphing) throws
 }
 
 /// Target generator.
@@ -135,16 +150,15 @@ final class TargetGenerator: TargetGenerating {
     ///   - fileElements: Project file elements.
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
+    /// - Returns: native target.
     /// - Throws: an error if the generation fails.
     func generateTarget(target targetSpec: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        sourceRootPath _: AbsolutePath,
-                        context: GeneratorContexting) throws {
+                        context: GeneratorContexting) throws -> PBXNativeTarget {
         /// Names
-        let name = targetSpec.name
         let productName = "\(targetSpec.name).\(targetSpec.product.xcodeValue.fileExtension!)"
 
         /// Products reference.
@@ -170,5 +184,31 @@ final class TargetGenerator: TargetGenerating {
                                                     fileElements: fileElements,
                                                     objects: objects,
                                                     context: context)
+
+        return target
+    }
+
+    /// Generates the targets dependencies.
+    ///
+    /// - Parameters:
+    ///   - path: path to the folder where the project manifest is.
+    ///   - targets: project targets specs.
+    ///   - nativeTargets: generated native targes in the Xcode project.
+    ///   - objects: Xcode project objects.
+    ///   - graph: dependencies graph.
+    /// - Throws: an error if it fails generating the target dependencies
+    func generateTargetDependencies(path: AbsolutePath,
+                                    targets: [Target],
+                                    nativeTargets: [String: PBXNativeTarget],
+                                    objects _: PBXObjects,
+                                    graph: Graphing) throws {
+        try targets.forEach { targetSpec in
+            let dependencies = graph.targetDependencies(path: path, name: targetSpec.name)
+            try dependencies.forEach { dependencyName in
+                let target = nativeTargets[targetSpec.name]!
+                let dependency = nativeTargets[dependencyName]!
+                _ = try target.addDependency(target: dependency)
+            }
+        }
     }
 }

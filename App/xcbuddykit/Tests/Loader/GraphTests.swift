@@ -9,7 +9,7 @@ final class GraphErrorTests: XCTestCase {
         let description = "Could't obtain product file extension for product type: type"
         XCTAssertEqual(error.description, description)
     }
-    
+
     func test_type_when_unsupportedFileExtension() {
         let error = GraphError.unsupportedFileExtension("type")
         XCTAssertEqual(error.type, .bugSilent)
@@ -17,6 +17,24 @@ final class GraphErrorTests: XCTestCase {
 }
 
 final class GraphTests: XCTestCase {
+    func test_targetDependencies() throws {
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "Dependency", product: .staticLibrary)
+        let project = Project.test(targets: [target, dependency])
+        let dependencyNode = TargetNode(project: project,
+                                        target: dependency,
+                                        dependencies: [])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [dependencyNode])
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+        let dependencies = graph.targetDependencies(path: project.path,
+                                                    name: target.name)
+        XCTAssertEqual(dependencies.first, "Dependency")
+    }
+
     func test_linkableDependencies_whenPrecompiled() throws {
         let target = Target.test(name: "Main")
         let precompiledNode = FrameworkNode(path: AbsolutePath("/test/test.framework"))
@@ -84,7 +102,7 @@ final class GraphTests: XCTestCase {
                                                name: target.name)
         XCTAssertEqual(got.first, publicHeadersPath)
     }
-    
+
     func test_embeddableFrameworks_when_targetIsNotApp() throws {
         let target = Target.test(name: "Main", product: .framework)
         let dependency = Target.test(name: "Dependency", product: .framework)
