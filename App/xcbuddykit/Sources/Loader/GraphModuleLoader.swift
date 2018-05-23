@@ -41,6 +41,11 @@ protocol GraphModuleLoading: AnyObject {
 }
 
 final class GraphModuleLoader: GraphModuleLoading {
+    
+    /// Regular expression used to identify include lines.
+    // swiftlint:disable:next force_try
+    static let regex = try! NSRegularExpression(pattern: "//\\s*include:\\s+\"?(.+)\"?", options: [])
+    
     /// Given a path, it loads all the paths that should be part of the module.
     /// Any file can include other files in the same module by adding a comment line at
     /// the top:
@@ -64,10 +69,8 @@ final class GraphModuleLoader: GraphModuleLoading {
         } catch {
             throw GraphModuleLoaderError.fileLoadError(path, error)
         }
-        // swiftlint:disable:next force_try
-        let regex = try! NSRegularExpression(pattern: "//include:\\s+\"?(.+)\"?", options: [])
         let range = NSRange(location: 0, length: content.count)
-        let matches = regex.matches(in: content, options: [], range: range)
+        let matches = GraphModuleLoader.regex.matches(in: content, options: [], range: range)
         try matches.forEach { match in
             let matchRange = match.range(at: 1)
             let relativePath = RelativePath((content as NSString).substring(with: matchRange))
