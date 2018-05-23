@@ -69,6 +69,7 @@
 		B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960A208B578700F00ACF /* GraphCircularDetector.swift */; };
 		B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */; };
 		B97DDE9C20B448250052EB48 /* GraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97DDE9B20B448250052EB48 /* GraphTests.swift */; };
+		B99D5D4420B5C8A400249856 /* GraphModuleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */; };
 		B9B593C5209C121000C59DA2 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; };
 		B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */; };
 		B9B593C8209C13CB00C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -308,6 +309,7 @@
 		B958960A208B578700F00ACF /* GraphCircularDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetector.swift; sourceTree = "<group>"; };
 		B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetectorTests.swift; sourceTree = "<group>"; };
 		B97DDE9B20B448250052EB48 /* GraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphTests.swift; sourceTree = "<group>"; };
+		B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoader.swift; sourceTree = "<group>"; };
 		B9B593C4209C121000C59DA2 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandlerTests.swift; sourceTree = "<group>"; };
@@ -840,6 +842,7 @@
 				B9FB2DD42086538E00BC2FB3 /* GraphLoaderCache.swift */,
 				B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */,
 				B958960A208B578700F00ACF /* GraphCircularDetector.swift */,
+				B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -1131,6 +1134,7 @@
 				B9E2DCAA208774550061DF86 /* CommandRegistry.swift in Sources */,
 				B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */,
 				B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */,
+				B99D5D4420B5C8A400249856 /* GraphModuleLoader.swift in Sources */,
 				B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */,
 				B92122BD20AF372F009C4691 /* CreateIssueCommand.swift in Sources */,
 				B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */,
