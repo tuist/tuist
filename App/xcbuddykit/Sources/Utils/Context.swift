@@ -11,7 +11,7 @@ protocol Contexting: AnyObject {
     /// Printer.
     var printer: Printing { get }
     
-    // InputRequerer.
+    // UserInputRequester.
     var userInputRequester: UserInputRequesting { get }
 
     /// Resource locator.
@@ -30,7 +30,7 @@ class Context: Contexting {
     /// Printer.
     let printer: Printing
     
-    /// InputRequerer.
+    /// UserInputRequester.
     let userInputRequester: UserInputRequesting
 
     /// Resource locator.
