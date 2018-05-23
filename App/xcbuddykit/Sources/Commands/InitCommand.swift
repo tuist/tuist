@@ -36,6 +36,7 @@ public class InitCommand: NSObject, Command {
     enum WizardQuestion {
         static let name = "1. What's the name of your project? (Leave empty to use the name of the project folder: %@)"
         static let path = "2. Where would you like to generate the Project.swift file? (Leave empty to use current directory)"
+        static let generate = "Would you want generate xcodeproj now?"
     }
 
     // MARK: - Command
@@ -57,6 +58,12 @@ public class InitCommand: NSObject, Command {
     
     /// Interactive argument.
     let interactiveArgument: OptionArgument<Bool>
+    
+    /// Platform argument.
+    let platformArgument: OptionArgument<String>
+    
+    /// Type argument.
+    let typeArgument: OptionArgument<String>
 
     /// Context
     let context: CommandsContexting
@@ -86,6 +93,22 @@ public class InitCommand: NSObject, Command {
                                          kind: Bool.self,
                                          usage: "Launch wizard to request project details",
                                          completion: .none)
+        
+        platformArgument = subParser.add(option: "--platform",
+                                     shortName: "-pf",
+                                     kind: String.self,
+                                     usage: "The platform of the Project will be generated",
+                                     completion: ShellCompletion.values([(value: "ios", description: ""),
+                                                                         (value: "macos", description: ""),
+                                                                         (value: "watchos", description: ""),
+                                                                         (value: "tvos", description: "")]))
+        
+        typeArgument = subParser.add(option: "--type",
+                                     shortName: "-t",
+                                     kind: String.self,
+                                     usage: "The type of the Project will be generated",
+                                     completion: .none)
+
         context = CommandsContext()
     }
 
@@ -107,7 +130,7 @@ public class InitCommand: NSObject, Command {
                                encoding: .utf8)
         context.printer.print(section: "🎉 Project.swift generated at path \(projectSwiftData.path.asString)")
 
-        if checkIfNeedGenerateProject(with: arguments) {
+        if checkIfNeedGenerateProject(with: arguments, interactive: isInteractiveModeActive) {
             // TODO: Generate xcodeproj
         }
     }
@@ -124,9 +147,9 @@ public class InitCommand: NSObject, Command {
     /// the Projet.swift file
     ///
     /// - Parameter arguments: argument parser result.
-    /// - Returns: need generate xcodeproj or nil
-    private func parseGenerate(with arguments: ArgumentParser.Result) -> Bool? {
-        return arguments.get(generateArgument)
+    /// - Returns: need generate xcodeproj
+    private func parseGenerate(with arguments: ArgumentParser.Result) -> Bool {
+        return arguments.get(generateArgument) != nil ? true : false
     }
     
     /// Parses the arguments and returns the path to the folder where the manifest file is.
@@ -174,12 +197,13 @@ public class InitCommand: NSObject, Command {
     /// Check if user wants generate xcodeproj after create Project.swift file.
     ///
     /// - Parameter arguments: argument parser result.
+    /// - Parameter interactive: flag to active interactive mode
     /// - Returns: need generate xcodeproj or not
-    private func checkIfNeedGenerateProject(with arguments: ArgumentParser.Result) -> Bool {
-        if parseGenerate(with: arguments) != nil {
-            return true
+    private func checkIfNeedGenerateProject(with arguments: ArgumentParser.Result, interactive: Bool = false) -> Bool {
+        if !interactive {
+            return parseGenerate(with: arguments)
         }
-        return context.userInputRequester.bool(message: "Would you want generate xcodeproj now?")
+        return context.userInputRequester.bool(message: WizardQuestion.generate)
     }
     
     /// Start wizard to retrive info needed to create the Project.swift file

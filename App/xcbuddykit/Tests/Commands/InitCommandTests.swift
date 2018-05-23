@@ -42,7 +42,7 @@ final class InitCommandTests: XCTestCase {
         let tmpDir = try TemporaryDirectory()
         try "".write(toFile: tmpDir.path.appending(component: "Info.plist").asString, atomically: true, encoding: .utf8)
         try "".write(toFile: tmpDir.path.appending(component: "Debug.xcconfig").asString, atomically: true, encoding: .utf8)
-        let result = try parser.parse([InitCommand.command, "-p", tmpDir.path.asString, "-g"])
+        let result = try parser.parse([InitCommand.command, "-p", tmpDir.path.asString])
         try subject.run(with: result)
         let project = try Project.at(tmpDir.path, context: graphLoaderContext)
         XCTAssertEqual(project.name, tmpDir.path.components.last)
