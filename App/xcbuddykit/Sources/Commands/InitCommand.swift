@@ -2,6 +2,12 @@ import Basic
 import Foundation
 import Utility
 
+struct ProjectSwiftModel {
+    var path: AbsolutePath
+    var name: String
+    var generateXcodeProj: Bool
+}
+
 /// Init command error
 ///
 /// - alreadyExists: when a file already exists.
@@ -27,6 +33,11 @@ enum InitCommandError: FatalError {
 
 /// Command that initializes a Project.swift in the current folder.
 public class InitCommand: NSObject, Command {
+    
+    enum WizardQuestion {
+        static let name = "1. What's the name of your project? (Leave empty to use the name of the project folder: %@)"
+        static let path = "2. Where would you like to generate the Project.swift file? (Leave empty to use current directory)"
+    }
 
     // MARK: - Command
 
@@ -44,6 +55,9 @@ public class InitCommand: NSObject, Command {
     
     /// Generate argument.
     let generateArgument: OptionArgument<Bool>
+    
+    /// Interactive argument.
+    let interactiveArgument: OptionArgument<Bool>
 
     /// Context
     let context: CommandsContexting
@@ -67,6 +81,12 @@ public class InitCommand: NSObject, Command {
                                      kind: Bool.self,
                                      usage: "Generate xcodeproj after create Project.swift file",
                                      completion: .none)
+        
+        interactiveArgument = subParser.add(option: "--interactive",
+                                         shortName: "-i",
+                                         kind: Bool.self,
+                                         usage: "Launch wizard to request project details",
+                                         completion: .none)
         context = CommandsContext()
     }
 
@@ -75,30 +95,39 @@ public class InitCommand: NSObject, Command {
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
     public func run(with arguments: ArgumentParser.Result) throws {
-        let path = try parsePath(with: arguments)
-        let projectName = try parseProjectName(with: arguments, path: path)
-        let projectSwift = self.projectSwift(name: projectName)
-        try projectSwift.write(toFile: path.asString,
+        let isInteractiveModeActive = parseInteractive(with: arguments)
+        let projectSwiftData = try parseProjectFileData(with: arguments, interactive: isInteractiveModeActive)
+        
+        if context.fileHandler.exists(projectSwiftData.path) {
+            throw InitCommandError.alreadyExists(projectSwiftData.path)
+        }
+        
+        let projectSwift = self.projectSwift(name: projectSwiftData.name)
+        try projectSwift.write(toFile: projectSwiftData.path.asString,
                                atomically: true,
                                encoding: .utf8)
-        context.printer.print(section: "🎉 Project.swift generated at path \(path.asString)")
-//        _ = context.userInputRequester.bool(message: "Do you want to generate xcodeproj?")
+        context.printer.print(section: "🎉 Project.swift generated at path \(projectSwiftData.path.asString)")
+    }
+    
+    /// Parses the arguments and check if user wants to use the interactive mode.
+    ///
+    /// - Parameter arguments: argument parser result.
+    /// - Returns: is interactive mode is active or not
+    private func parseInteractive(with arguments: ArgumentParser.Result) -> Bool {
+        return arguments.get(interactiveArgument) != nil ? true : false
     }
     
     /// Parses the arguments and returns the path to the folder where the manifest file is.
     ///
     /// - Parameter arguments: argument parser result.
     /// - Returns: the path to the folder where the manifest is.
-    private func parsePath(with arguments: ArgumentParser.Result) throws -> AbsolutePath {
+    private func parsePath(with arguments: ArgumentParser.Result) -> AbsolutePath {
         var path: AbsolutePath! = arguments
             .get(pathArgument)
             .map({ AbsolutePath($0) })
             .map({ $0.appending(component: Constants.Manifest.project) })
         if path == nil {
             path = AbsolutePath.current.appending(component: Constants.Manifest.project)
-        }
-        if context.fileHandler.exists(path) {
-            throw InitCommandError.alreadyExists(path)
         }
         return path
     }
@@ -113,6 +142,40 @@ public class InitCommand: NSObject, Command {
         } else {
             throw InitCommandError.ungettableProjectName(path)
         }
+    }
+    
+    /// Parses the arguments and returns a ProjectSwiftModel with project data.
+    ///
+    /// - Parameter arguments: argument parser result.
+    /// - Parameter interactive: flag to active interactive mode
+    /// - Returns: model with all project data.
+    private func parseProjectFileData(with arguments: ArgumentParser.Result, interactive: Bool = false) throws -> ProjectSwiftModel {
+        if interactive {
+            return try startWizard()
+        }
+        
+        let path = parsePath(with: arguments)
+        let projectName = try parseProjectName(with: arguments, path: path)
+        return ProjectSwiftModel(path: path, name: projectName, generateXcodeProj: false)
+    }
+    
+    /// Start wizard to retrive info needed to create the Project.swift file
+    ///
+    /// - Returns: model with all project data.
+    private func startWizard() throws -> ProjectSwiftModel {
+        
+        let folderName = AbsolutePath.current.components.last!
+        let projectName = context.userInputRequester.optional(message: String(format: WizardQuestion.name, folderName))
+        
+        var path = AbsolutePath.current
+        if let userInputPath = context.userInputRequester.optional(message: WizardQuestion.path) {
+            path = AbsolutePath(userInputPath)
+        }
+        path = path.appending(component: Constants.Manifest.project)
+        
+        return ProjectSwiftModel(path: path,
+                                name: projectName ?? folderName,
+                                generateXcodeProj: false)
     }
 
     fileprivate func projectSwift(name: String) -> String {

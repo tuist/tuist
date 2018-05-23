@@ -83,6 +83,9 @@ class UserInputRequester: UserInputRequesting {
     ///   - message: question text.
     func optional(message: String) -> String? {
         printer.print(message)
-        return readBlock()
+        guard let response = readBlock(), response.count > 0 else {
+            return nil
+        }
+        return response
     }
 }
