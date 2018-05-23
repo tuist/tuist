@@ -95,6 +95,13 @@ class Target: GraphJSONInitiatable, Equatable {
         dependencies = try json.get("dependencies")
     }
 
+    /// Returns true if the target can be linked.
+    ///
+    /// - Returns: true if the target can be linked.
+    func isLinkable() -> Bool {
+        return product == .dynamicLibrary || product == .staticLibrary || product == .framework
+    }
+
     /// Compares two targets.
     ///
     /// - Parameters:

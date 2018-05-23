@@ -84,6 +84,7 @@ final class ProjectGenerator: ProjectGenerating {
         let projectReference = pbxproj.objects.addObject(pbxProject)
         pbxproj.rootObject = projectReference
 
+        /// Manifests target
         try targetGenerator.generateManifestsTarget(project: project,
                                                     pbxproj: pbxproj,
                                                     pbxProject: pbxProject,
@@ -91,15 +92,24 @@ final class ProjectGenerator: ProjectGenerating {
                                                     sourceRootPath: sourceRootPath,
                                                     context: context,
                                                     options: options)
+
+        /// Native targets
+        var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
-            try targetGenerator.generateTarget(target: target,
-                                               objects: pbxproj.objects,
-                                               pbxProject: pbxProject,
-                                               groups: groups,
-                                               fileElements: fileElements,
-                                               sourceRootPath: sourceRootPath,
-                                               context: context)
+            let nativeTarget = try targetGenerator.generateTarget(target: target,
+                                                                  objects: pbxproj.objects,
+                                                                  pbxProject: pbxProject,
+                                                                  groups: groups,
+                                                                  fileElements: fileElements,
+                                                                  context: context)
+            nativeTargets[target.name] = nativeTarget
         }
+
+        /// Target dependencies
+        try targetGenerator.generateTargetDependencies(path: project.path,
+                                                       targets: project.targets,
+                                                       nativeTargets: nativeTargets,
+                                                       graph: context.graph)
 
         /// Write.
         let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
