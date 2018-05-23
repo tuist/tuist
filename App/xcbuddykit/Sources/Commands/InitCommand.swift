@@ -5,6 +5,7 @@ import Utility
 struct ProjectSwiftModel {
     var path: AbsolutePath
     var name: String
+    var platform: Platform
 }
 
 /// Init command error
@@ -13,6 +14,7 @@ struct ProjectSwiftModel {
 enum InitCommandError: FatalError {
     case alreadyExists(AbsolutePath)
     case ungettableProjectName(AbsolutePath)
+    case invalidPlatform(String)
 
     /// Error type.
     var type: ErrorType {
@@ -26,6 +28,8 @@ enum InitCommandError: FatalError {
             return "\(path.asString) already exists"
         case let .ungettableProjectName(path):
             return "Couldn't infer the project name from path \(path.asString)"
+        case let .invalidPlatform(platform):
+            return "\(platform) is not a valid platform. Available platforms: ios|macos|watchos|tvos"
         }
     }
 }
@@ -36,6 +40,7 @@ public class InitCommand: NSObject, Command {
     enum WizardQuestion {
         static let name = "1. What's the name of your project? (Leave empty to use the name of the project folder: %@)"
         static let path = "2. Where would you like to generate the Project.swift file? (Leave empty to use current directory)"
+        static let platform = "3. Which platform is your project (ios|macos|watchos|tvos)? (Leave empty to use ios plaftform)"
         static let generate = "Would you want generate xcodeproj now?"
     }
 
@@ -124,7 +129,7 @@ public class InitCommand: NSObject, Command {
             throw InitCommandError.alreadyExists(projectSwiftData.path)
         }
         
-        let projectSwift = self.projectSwift(name: projectSwiftData.name)
+        let projectSwift = self.projectSwift(name: projectSwiftData.name, platform: projectSwiftData.platform)
         try projectSwift.write(toFile: projectSwiftData.path.asString,
                                atomically: true,
                                encoding: .utf8)
@@ -179,6 +184,19 @@ public class InitCommand: NSObject, Command {
         }
     }
     
+    /// Parses the arguments and returns the project platform.
+    ///
+    /// - Parameter arguments: argument parser result.
+    /// - Returns: the project platform.
+    private func parsePlatform(with arguments: ArgumentParser.Result) throws -> Platform {
+        guard let platform = arguments.get(platformArgument) else { return .ios }
+        if let platformType = Platform(rawValue: platform) {
+            return platformType
+        } else {
+            throw InitCommandError.invalidPlatform(platform)
+        }
+    }
+    
     /// Parses the arguments and returns a ProjectSwiftModel with project data.
     ///
     /// - Parameter arguments: argument parser result.
@@ -188,10 +206,12 @@ public class InitCommand: NSObject, Command {
         if interactive {
             return try startWizard()
         }
-        
         let path = parsePath(with: arguments)
         let projectName = try parseProjectName(with: arguments, path: path)
-        return ProjectSwiftModel(path: path, name: projectName)
+        let platform = try parsePlatform(with: arguments)
+        return ProjectSwiftModel(path: path,
+                                 name: projectName,
+                                 platform: platform)
     }
     
     /// Check if user wants generate xcodeproj after create Project.swift file.
@@ -210,21 +230,47 @@ public class InitCommand: NSObject, Command {
     ///
     /// - Returns: model with all project data.
     private func startWizard() throws -> ProjectSwiftModel {
-        
+        let path = askForPath()
+        let projectName = askForProjectName()
+        let platform = try askForPlatform()
+        return ProjectSwiftModel(path: path,
+                                name: projectName,
+                                platform: platform)
+    }
+    
+    /// Ask user what is the project name
+    ///
+    /// - Returns: project name
+    private func askForProjectName() -> String {
         let folderName = AbsolutePath.current.components.last!
         let projectName = context.userInputRequester.optional(message: String(format: WizardQuestion.name, folderName))
-        
+        return projectName ?? folderName
+    }
+    
+    /// Ask user the path to the folder where the manifest file is
+    ///
+    /// - Returns: manifest file path
+    private func askForPath() -> AbsolutePath {
         var path = AbsolutePath.current
         if let userInputPath = context.userInputRequester.optional(message: WizardQuestion.path) {
             path = AbsolutePath(userInputPath)
         }
-        path = path.appending(component: Constants.Manifest.project)
-        
-        return ProjectSwiftModel(path: path,
-                                name: projectName ?? folderName)
+        return path.appending(component: Constants.Manifest.project)
+    }
+    
+    /// Ask user which platform the project is
+    ///
+    /// - Returns: project platform
+    private func askForPlatform() throws -> Platform {
+        guard let platform = context.userInputRequester.optional(message: WizardQuestion.platform) else { return .ios }
+        if let platformType = Platform(rawValue: platform) {
+            return platformType
+        } else {
+            throw InitCommandError.invalidPlatform(platform)
+        }
     }
 
-    fileprivate func projectSwift(name: String) -> String {
+    fileprivate func projectSwift(name: String, platform: Platform) -> String {
         return """
         import ProjectDescription
         
@@ -238,7 +284,7 @@ public class InitCommand: NSObject, Command {
                       settings: Settings(base: [:]),
                       targets: [
                           Target(name: "{{NAME}}",
-                                 platform: .ios,
+                                 platform: .{{PLATFORM}},
                                  product: .app,
                                  bundleId: "io.xcbuddy.{{NAME}}",
                                  infoPlist: "Info.plist",
@@ -255,5 +301,6 @@ public class InitCommand: NSObject, Command {
                                 ]),
                     ])
         """.replacingOccurrences(of: "{{NAME}}", with: name)
+           .replacingOccurrences(of: "{{PLATFORM}}", with: platform.rawValue)
     }
 }
