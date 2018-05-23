@@ -5,7 +5,6 @@ import Utility
 struct ProjectSwiftModel {
     var path: AbsolutePath
     var name: String
-    var generateXcodeProj: Bool
 }
 
 /// Init command error
@@ -107,6 +106,10 @@ public class InitCommand: NSObject, Command {
                                atomically: true,
                                encoding: .utf8)
         context.printer.print(section: "🎉 Project.swift generated at path \(projectSwiftData.path.asString)")
+
+        if checkIfNeedGenerateProject(with: arguments) {
+            // TODO: Generate xcodeproj
+        }
     }
     
     /// Parses the arguments and check if user wants to use the interactive mode.
@@ -115,6 +118,15 @@ public class InitCommand: NSObject, Command {
     /// - Returns: is interactive mode is active or not
     private func parseInteractive(with arguments: ArgumentParser.Result) -> Bool {
         return arguments.get(interactiveArgument) != nil ? true : false
+    }
+    
+    /// Parses the arguments and check if user wants to generate the xcodeproj after create
+    /// the Projet.swift file
+    ///
+    /// - Parameter arguments: argument parser result.
+    /// - Returns: need generate xcodeproj or nil
+    private func parseGenerate(with arguments: ArgumentParser.Result) -> Bool? {
+        return arguments.get(generateArgument)
     }
     
     /// Parses the arguments and returns the path to the folder where the manifest file is.
@@ -156,7 +168,18 @@ public class InitCommand: NSObject, Command {
         
         let path = parsePath(with: arguments)
         let projectName = try parseProjectName(with: arguments, path: path)
-        return ProjectSwiftModel(path: path, name: projectName, generateXcodeProj: false)
+        return ProjectSwiftModel(path: path, name: projectName)
+    }
+    
+    /// Check if user wants generate xcodeproj after create Project.swift file.
+    ///
+    /// - Parameter arguments: argument parser result.
+    /// - Returns: need generate xcodeproj or not
+    private func checkIfNeedGenerateProject(with arguments: ArgumentParser.Result) -> Bool {
+        if parseGenerate(with: arguments) != nil {
+            return true
+        }
+        return context.userInputRequester.bool(message: "Would you want generate xcodeproj now?")
     }
     
     /// Start wizard to retrive info needed to create the Project.swift file
@@ -174,8 +197,7 @@ public class InitCommand: NSObject, Command {
         path = path.appending(component: Constants.Manifest.project)
         
         return ProjectSwiftModel(path: path,
-                                name: projectName ?? folderName,
-                                generateXcodeProj: false)
+                                name: projectName ?? folderName)
     }
 
     fileprivate func projectSwift(name: String) -> String {
