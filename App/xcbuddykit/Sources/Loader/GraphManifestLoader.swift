@@ -64,11 +64,16 @@ class GraphManifestLoader: GraphManifestLoading {
     /// Module loader.
     let moduleLoader: GraphModuleLoading
 
+    /// File aggregator.
+    let fileAggregator: FileAggregating
+
     /// Initializes the loader with its attributes.
     ///
     /// - Parameter moduleLoader: module loader.
-    init(moduleLoader: GraphModuleLoading = GraphModuleLoader()) {
+    init(moduleLoader: GraphModuleLoading = GraphModuleLoader(),
+         fileAggregator: FileAggregating = FileAggregator()) {
         self.moduleLoader = moduleLoader
+        self.fileAggregator = fileAggregator
     }
 
     /// Loads the manifest at the given path.
@@ -82,13 +87,14 @@ class GraphManifestLoader: GraphManifestLoading {
         let manifestFrameworkPath = try context.resourceLocator.projectDescription()
         var arguments: [String] = [
             "xcrun", "swift",
-            "-module-name", "Manifest",
             "-F", manifestFrameworkPath.parentDirectory.asString,
             "-framework", "ProjectDescription",
         ]
-        arguments.append(contentsOf: try moduleLoader.load(path, context: context).map({ $0.asString }))
+        let file = try TemporaryFile()
+        try fileAggregator.aggregate(moduleLoader.load(path, context: context).reversed(), into: file.path)
+        arguments.append(file.path.asString)
         arguments.append("--dump")
-        let jsonString: String! = try context.shell.run(arguments, environment: ["DUMP": "1"]).chuzzle()
+        let jsonString: String! = try context.shell.run(arguments, environment: [:]).chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
