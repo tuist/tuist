@@ -36,7 +36,7 @@ final class FrameworkNodeTests: XCTestCase {
     }
 
     func test_architectures() throws {
-        shell.runStub = { command in
+        shell.runStub = { command, _ in
             if command.joined(separator: " ") == "lipo -info /test.framework/test" {
                 return "Non-fat file: path is architecture: x86_64"
             }
@@ -46,7 +46,7 @@ final class FrameworkNodeTests: XCTestCase {
     }
 
     func test_linking() {
-        shell.runStub = { command in
+        shell.runStub = { command, _ in
             if command.joined(separator: " ") == "file /test.framework/test" {
                 return "whatever dynamically linked"
             }
@@ -73,7 +73,7 @@ final class LibraryNodeTests: XCTestCase {
     }
 
     func test_architectures() throws {
-        shell.runStub = { command in
+        shell.runStub = { command, _ in
             if command.joined(separator: " ") == "lipo -info /test.a" {
                 return "Non-fat file: path is architecture: x86_64"
             }
@@ -83,7 +83,7 @@ final class LibraryNodeTests: XCTestCase {
     }
 
     func test_linking() {
-        shell.runStub = { command in
+        shell.runStub = { command, _ in
             if command.joined(separator: " ") == "file /test.a" {
                 return "whatever dynamically linked"
             }

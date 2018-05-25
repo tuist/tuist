@@ -69,6 +69,11 @@
 		B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960A208B578700F00ACF /* GraphCircularDetector.swift */; };
 		B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */; };
 		B97DDE9C20B448250052EB48 /* GraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97DDE9B20B448250052EB48 /* GraphTests.swift */; };
+		B99D5D4420B5C8A400249856 /* GraphModuleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */; };
+		B99D5D4620B6878400249856 /* MockGraphModuleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4520B6878400249856 /* MockGraphModuleLoader.swift */; };
+		B99D5D4820B6C87B00249856 /* GraphModuleLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */; };
+		B99D5D4A20B847FC00249856 /* FileAggregator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4920B847FC00249856 /* FileAggregator.swift */; };
+		B99D5D4C20B85A1400249856 /* FileAggregatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4B20B85A1400249856 /* FileAggregatorTests.swift */; };
 		B9B593C5209C121000C59DA2 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; };
 		B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */; };
 		B9B593C8209C13CB00C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -308,6 +313,11 @@
 		B958960A208B578700F00ACF /* GraphCircularDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetector.swift; sourceTree = "<group>"; };
 		B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetectorTests.swift; sourceTree = "<group>"; };
 		B97DDE9B20B448250052EB48 /* GraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphTests.swift; sourceTree = "<group>"; };
+		B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoader.swift; sourceTree = "<group>"; };
+		B99D5D4520B6878400249856 /* MockGraphModuleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphModuleLoader.swift; sourceTree = "<group>"; };
+		B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoaderTests.swift; sourceTree = "<group>"; };
+		B99D5D4920B847FC00249856 /* FileAggregator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAggregator.swift; sourceTree = "<group>"; };
+		B99D5D4B20B85A1400249856 /* FileAggregatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAggregatorTests.swift; sourceTree = "<group>"; };
 		B9B593C4209C121000C59DA2 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandlerTests.swift; sourceTree = "<group>"; };
@@ -452,6 +462,7 @@
 				B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */,
 				B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */,
 				3D92B80620AABE55006711E5 /* MockGraphLoader.swift */,
+				B99D5D4520B6878400249856 /* MockGraphModuleLoader.swift */,
 			);
 			path = Mocks;
 			sourceTree = "<group>";
@@ -597,6 +608,7 @@
 				B9F1EDD4208D080C00477835 /* GraphManifestLoaderTests.swift */,
 				B9553DEB2090F62C00050311 /* GraphNodeTests.swift */,
 				B97DDE9B20B448250052EB48 /* GraphTests.swift */,
+				B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -736,6 +748,7 @@
 				B9553DF02092181500050311 /* Context.swift */,
 				B9553DF220921AF300050311 /* ResourceLocator.swift */,
 				3D4C0BA120A6ED37003D09B0 /* CommandCheck.swift */,
+				B99D5D4920B847FC00249856 /* FileAggregator.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -840,6 +853,7 @@
 				B9FB2DD42086538E00BC2FB3 /* GraphLoaderCache.swift */,
 				B95895FE208A37B300F00ACF /* GraphJSONInitiatable.swift */,
 				B958960A208B578700F00ACF /* GraphCircularDetector.swift */,
+				B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -857,6 +871,7 @@
 			children = (
 				3D92B77E20A821AA006711E5 /* Mocks */,
 				3D4C0BA320A81828003D09B0 /* CommandCheckTests.swift */,
+				B99D5D4B20B85A1400249856 /* FileAggregatorTests.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1093,6 +1108,7 @@
 			files = (
 				B9B629AC20864E3A00EE9E07 /* FileHandler.swift in Sources */,
 				B9553DEA2090690000050311 /* Shell.swift in Sources */,
+				B99D5D4A20B847FC00249856 /* FileAggregator.swift in Sources */,
 				B9F1EE00208E2D7F00477835 /* FatalError.swift in Sources */,
 				B95895F3208A2ACF00F00ACF /* ProjectGenerator.swift in Sources */,
 				B9FB2DE52086544900BC2FB3 /* Workspace.swift in Sources */,
@@ -1131,6 +1147,7 @@
 				B9E2DCAA208774550061DF86 /* CommandRegistry.swift in Sources */,
 				B95895F9208A2B7C00F00ACF /* TargetGenerator.swift in Sources */,
 				B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */,
+				B99D5D4420B5C8A400249856 /* GraphModuleLoader.swift in Sources */,
 				B9B629AB20864E3A00EE9E07 /* Printer.swift in Sources */,
 				B92122BD20AF372F009C4691 /* CreateIssueCommand.swift in Sources */,
 				B95895F5208A2ADB00F00ACF /* GeneratorContext.swift in Sources */,
@@ -1193,11 +1210,14 @@
 				3D7E6CE120AECC9B00360C02 /* BuildPhaseGeneratorTests.swift in Sources */,
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
+				B99D5D4620B6878400249856 /* MockGraphModuleLoader.swift in Sources */,
+				B99D5D4820B6C87B00249856 /* GraphModuleLoaderTests.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				3D92B7E720A84888006711E5 /* ProjectGroupsTests.swift in Sources */,
 				3D92B78020A823FF006711E5 /* NSError+TestData.swift in Sources */,
 				B9157D5320A24B4300C2EEBA /* VersionCommandTests.swift in Sources */,
 				B9F1EDD1208CD18100477835 /* AargumentParser+TestData.swift in Sources */,
+				B99D5D4C20B85A1400249856 /* FileAggregatorTests.swift in Sources */,
 				B9E2DCBB2088E0B50061DF86 /* UpdateCommandTests.swift in Sources */,
 				B9553DEC2090F62C00050311 /* GraphNodeTests.swift in Sources */,
 				66F6DC2FC19AB1F6D332D8E8 /* ArgumentParserResult+TestData.swift in Sources */,

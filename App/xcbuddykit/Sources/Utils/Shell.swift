@@ -15,21 +15,45 @@ struct ShellError: FatalError, Equatable {
 protocol Shelling: AnyObject {
     /// Runs a shell command synchronously and returns the output.
     ///
+    /// - Parameters:
     /// - Parameter args: shell command to be run.
+    ///   - environment: environment.
     /// - Returns: the command output.
     /// - Throws: an error if the execution fails.
-    func run(_ args: String...) throws -> String
+    func run(_ args: String..., environment: [String: String]) throws -> String
+
+    /// Runs a shell command synchronously and returns the output.
+    ///
+    /// - Parameters:
+    /// - Parameter args: shell command to be run.
+    ///   - environment: environment.
+    /// - Returns: the command output.
+    /// - Throws: an error if the execution fails.
+    func run(_ args: [String], environment: [String: String]) throws -> String
 }
 
 /// Default implementation of Shelling.
 class Shell: Shelling {
     /// Runs a shell command synchronously and returns the output.
     ///
+    /// - Parameters:
     /// - Parameter args: shell command to be run.
+    ///   - environment: environment.
     /// - Returns: the command output.
     /// - Throws: an error if the execution fails.
-    func run(_ args: String...) throws -> String {
-        let result = try Process.popen(arguments: args)
+    func run(_ args: String..., environment: [String: String] = [:]) throws -> String {
+        return try run(args, environment: environment)
+    }
+
+    /// Runs a shell command synchronously and returns the output.
+    ///
+    /// - Parameters:
+    /// - Parameter args: shell command to be run.
+    ///   - environment: environment.
+    /// - Returns: the command output.
+    /// - Throws: an error if the execution fails.
+    func run(_ args: [String], environment: [String: String] = [:]) throws -> String {
+        let result = try Process.popen(arguments: args, environment: environment)
         if result.exitStatus == .terminated(code: 0) {
             return try result.utf8Output()
         } else {

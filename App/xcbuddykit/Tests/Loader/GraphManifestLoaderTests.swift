@@ -14,11 +14,6 @@ final class GraphManifestLoaderErrorTests: XCTestCase {
         XCTAssertEqual(error.description, "Couldn't find the Frameworks folder in the bundle that contains the ProjectDescription.framework.")
     }
 
-    func test_description_when_swiftNotFound() {
-        let error = GraphManifestLoaderError.swiftNotFound
-        XCTAssertEqual(error.description, "Couldn't find Swift on your environment. Run 'xcode-select -p' to see if the Xcode path is properly setup.")
-    }
-
     func test_description_when_unexpectedOutput() {
         let error = GraphManifestLoaderError.unexpectedOutput(AbsolutePath("/test/"))
         XCTAssertEqual(error.description, "Unexpected output trying to parse the manifest at path /test.")

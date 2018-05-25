@@ -117,7 +117,7 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
         let shell = MockShell()
-        shell.runStub = { _ in "dynamically linked" }
+        shell.runStub = { _, _ in "dynamically linked" }
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  shell: shell)
@@ -138,7 +138,7 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
         let shell = MockShell()
-        shell.runStub = { _ in "dynamically linked" }
+        shell.runStub = { _, _ in "dynamically linked" }
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  shell: shell)
@@ -157,7 +157,7 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
         let shell = MockShell()
-        shell.runStub = { _ in "dynamically linked" }
+        shell.runStub = { _, _ in "dynamically linked" }
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  shell: shell)

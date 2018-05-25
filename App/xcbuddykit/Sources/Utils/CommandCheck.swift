@@ -24,8 +24,7 @@ enum CommandCheckError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .incompatibleSwiftVersion: fallthrough
-        case .swiftVersionNotFound:
+        case .incompatibleSwiftVersion, .swiftVersionNotFound:
             return .abort
         }
     }
@@ -81,7 +80,7 @@ final class CommandCheck: CommandChecking {
     ///
     /// - Throws: an error if the versions don't match.
     func swiftVersionCompatibility() throws {
-        let output = try context.shell.run("swift", "--version").chomp()
+        let output = try context.shell.run("xcrun", "swift", "--version", environment: [:]).chomp()
         let regex = try NSRegularExpression(pattern: "Apple\\sSwift\\sversion\\s(\\d+\\.\\d+(\\.\\d+)?)", options: [])
         guard let versionMatch = regex.firstMatch(in: output, options: [], range: NSRange(location: 0, length: output.count)) else {
             throw CommandCheckError.swiftVersionNotFound

@@ -12,12 +12,10 @@ protocol GraphManifestLoading {
 ///
 /// - projectDescriptionNotFound: error thrown when the ProjectDescription.framework cannot be cound.
 /// - frameworksFolderNotFound: error thrown when the frameworks fodler that contains the ProjectDescription.framework cannot be found.
-/// - swiftNotFound: error thrown when Swift is not found in the system.
 /// - unexpectedOutput: error throw when we get an unexpected output trying to compile the manifest.
 enum GraphManifestLoaderError: FatalError {
     case projectDescriptionNotFound(AbsolutePath)
     case frameworksFolderNotFound
-    case swiftNotFound
     case unexpectedOutput(AbsolutePath)
 
     /// Error description.
@@ -27,8 +25,6 @@ enum GraphManifestLoaderError: FatalError {
             return "Couldn't find ProjectDescription.framework at path \(path.asString)."
         case .frameworksFolderNotFound:
             return "Couldn't find the Frameworks folder in the bundle that contains the ProjectDescription.framework."
-        case .swiftNotFound:
-            return "Couldn't find Swift on your environment. Run 'xcode-select -p' to see if the Xcode path is properly setup."
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.asString)."
         }
@@ -55,7 +51,6 @@ enum GraphManifestLoaderError: FatalError {
         case let (.projectDescriptionNotFound(lhsPath), .projectDescriptionNotFound(rhsPath)):
             return lhsPath == rhsPath
         case (.frameworksFolderNotFound, .frameworksFolderNotFound): return true
-        case (.swiftNotFound, .swiftNotFound): return true
         case let (.unexpectedOutput(lhsPath), .unexpectedOutput(rhsPath)):
             return lhsPath == rhsPath
         default:
@@ -66,6 +61,21 @@ enum GraphManifestLoaderError: FatalError {
 
 /// Graph manifest loader.
 class GraphManifestLoader: GraphManifestLoading {
+    /// Module loader.
+    let moduleLoader: GraphModuleLoading
+
+    /// File aggregator.
+    let fileAggregator: FileAggregating
+
+    /// Initializes the loader with its attributes.
+    ///
+    /// - Parameter moduleLoader: module loader.
+    init(moduleLoader: GraphModuleLoading = GraphModuleLoader(),
+         fileAggregator: FileAggregating = FileAggregator()) {
+        self.moduleLoader = moduleLoader
+        self.fileAggregator = fileAggregator
+    }
+
     /// Loads the manifest at the given path.
     ///
     /// - Parameters:
@@ -74,15 +84,17 @@ class GraphManifestLoader: GraphManifestLoading {
     /// - Returns: jSON representation of the manifest.
     /// - Throws: an error if the manifest cannot be loaded.
     func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {
-        guard let swiftOutput = try context.shell.run("xcrun", "-f", "swift").chuzzle() else {
-            throw GraphManifestLoaderError.swiftNotFound
-        }
-        let swiftPath = AbsolutePath(swiftOutput)
         let manifestFrameworkPath = try context.resourceLocator.projectDescription()
-        let jsonString: String! = try context.shell.run(swiftPath.asString, "-F",
-                                                        manifestFrameworkPath.parentDirectory.asString,
-                                                        "-framework", "ProjectDescription",
-                                                        path.asString, "--dump").chuzzle()
+        var arguments: [String] = [
+            "xcrun", "swift",
+            "-F", manifestFrameworkPath.parentDirectory.asString,
+            "-framework", "ProjectDescription",
+        ]
+        let file = try TemporaryFile()
+        try fileAggregator.aggregate(moduleLoader.load(path, context: context).reversed(), into: file.path)
+        arguments.append(file.path.asString)
+        arguments.append("--dump")
+        let jsonString: String! = try context.shell.run(arguments, environment: [:]).chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
