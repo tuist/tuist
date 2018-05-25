@@ -68,6 +68,9 @@ final class TargetGenerator: TargetGenerating {
     /// File generator.
     let fileGenerator: FileGenerating
 
+    /// Module loader.
+    let moduleLoader: GraphModuleLoading
+
     /// Initializes the target generator with its attributes.
     ///
     /// - Parameters:
@@ -76,10 +79,12 @@ final class TargetGenerator: TargetGenerating {
     ///   - buildPhaseGenerator: build phase generator.
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
-         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator()) {
+         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
+         moduleLoader: GraphModuleLoading = GraphModuleLoader()) {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
+        self.moduleLoader = moduleLoader
     }
 
     /// Generates the manifests target.
@@ -112,11 +117,14 @@ final class TargetGenerator: TargetGenerating {
         /// Files
         var files: [PBXObjectReference] = []
         let projectManifestPath = project.path.appending(component: Constants.Manifest.project)
-        let projectManifest = try fileGenerator.generateFile(path: projectManifestPath,
-                                                             in: groups.projectDescription,
-                                                             sourceRootPath: sourceRootPath,
-                                                             context: context)
-        files.append(projectManifest.reference)
+        let modulePaths = try moduleLoader.load(projectManifestPath, context: context)
+        try modulePaths.forEach { filePath in
+            let fileReference = try fileGenerator.generateFile(path: filePath,
+                                                               in: groups.projectDescription,
+                                                               sourceRootPath: sourceRootPath,
+                                                               context: context)
+            files.append(fileReference.reference)
+        }
 
         // Configuration
         let configurationListReference = try configGenerator.generateManifestsConfig(pbxproj: pbxproj,

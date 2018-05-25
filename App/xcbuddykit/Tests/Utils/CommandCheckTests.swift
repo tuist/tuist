@@ -31,7 +31,7 @@ final class CommandCheckTests: XCTestCase {
     }
 
     func test_swiftVersionCompatibility_throws_whenSwiftVersionNotFound() {
-        shell.runStub = { _ in
+        shell.runStub = { _, _ in
             "this is an invalid output"
         }
         XCTAssertThrowsError(try subject.swiftVersionCompatibility()) { error in
@@ -40,8 +40,8 @@ final class CommandCheckTests: XCTestCase {
     }
 
     func test_swiftVeresionCompatibility_throws_whenSwiftVersionsAreNotEqual() {
-        shell.runStub = { command in
-            if command == ["swift", "--version"] {
+        shell.runStub = { command, _ in
+            if command == ["xcrun", "swift", "--version"] {
                 return "Apple Swift version 3.0 (swiftlang-902.0.48 clang-902.0.37.1)"
             }
             return ""

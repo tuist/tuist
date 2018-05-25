@@ -71,6 +71,7 @@
 		B97DDE9C20B448250052EB48 /* GraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97DDE9B20B448250052EB48 /* GraphTests.swift */; };
 		B99D5D4420B5C8A400249856 /* GraphModuleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */; };
 		B99D5D4620B6878400249856 /* MockGraphModuleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4520B6878400249856 /* MockGraphModuleLoader.swift */; };
+		B99D5D4820B6C87B00249856 /* GraphModuleLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */; };
 		B9B593C5209C121000C59DA2 /* Sentry.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; };
 		B9B593C7209C13BE00C59DA2 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */; };
 		B9B593C8209C13CB00C59DA2 /* Sentry.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9B593C4209C121000C59DA2 /* Sentry.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -312,6 +313,7 @@
 		B97DDE9B20B448250052EB48 /* GraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphTests.swift; sourceTree = "<group>"; };
 		B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoader.swift; sourceTree = "<group>"; };
 		B99D5D4520B6878400249856 /* MockGraphModuleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphModuleLoader.swift; sourceTree = "<group>"; };
+		B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoaderTests.swift; sourceTree = "<group>"; };
 		B9B593C4209C121000C59DA2 /* Sentry.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sentry.framework; sourceTree = "<group>"; };
 		B9B593C6209C13BE00C59DA2 /* ErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		B9B59439209C176600C59DA2 /* ErrorHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandlerTests.swift; sourceTree = "<group>"; };
@@ -602,6 +604,7 @@
 				B9F1EDD4208D080C00477835 /* GraphManifestLoaderTests.swift */,
 				B9553DEB2090F62C00050311 /* GraphNodeTests.swift */,
 				B97DDE9B20B448250052EB48 /* GraphTests.swift */,
+				B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */,
 			);
 			path = Loader;
 			sourceTree = "<group>";
@@ -1201,6 +1204,7 @@
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B99D5D4620B6878400249856 /* MockGraphModuleLoader.swift in Sources */,
+				B99D5D4820B6C87B00249856 /* GraphModuleLoaderTests.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				3D92B7E720A84888006711E5 /* ProjectGroupsTests.swift in Sources */,
 				3D92B78020A823FF006711E5 /* NSError+TestData.swift in Sources */,

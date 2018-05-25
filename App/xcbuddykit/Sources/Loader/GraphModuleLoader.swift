@@ -1,7 +1,11 @@
 import Basic
 import Foundation
 
-enum GraphModuleLoaderError: FatalError {
+/// Graph module loader error.
+///
+/// - fileNotFound: thrown when a file included by another Swift file doesn't exist.
+/// - fileLoadError: thrown when a file cannot be loaded from disk.
+enum GraphModuleLoaderError: FatalError, Equatable {
     case fileNotFound(AbsolutePath)
     case fileLoadError(AbsolutePath, Error)
 
@@ -19,9 +23,26 @@ enum GraphModuleLoaderError: FatalError {
     var description: String {
         switch self {
         case let .fileNotFound(path):
-            return "Couldn't file file at path \(path)"
-        case let .fileLoadError(path):
-            return "Error loading file at path \(path)"
+            return "File not found at path \(path.asString)"
+        case let .fileLoadError(path, _):
+            return "Error loading file at path \(path.asString)"
+        }
+    }
+
+    /// Returns true if two instances of GraphModuleLoaderError are the same.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
+    static func == (lhs: GraphModuleLoaderError, rhs: GraphModuleLoaderError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.fileNotFound(lhsPath), .fileNotFound(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.fileLoadError(lhsPath, _), .fileLoadError(rhsPath, _)):
+            return lhsPath == rhsPath
+        default:
+            return false
         }
     }
 }
@@ -37,7 +58,7 @@ protocol GraphModuleLoading: AnyObject {
     /// - Parameter path: path whose module will be loaded.
     /// - Parameter context: context.
     /// - Returns: list of files that should be part of the module.
-    func load(_ path: AbsolutePath, context: Contexting) throws -> Set<AbsolutePath>
+    func load(_ path: AbsolutePath, context: Contexting) throws -> [AbsolutePath]
 }
 
 final class GraphModuleLoader: GraphModuleLoading {
@@ -54,8 +75,8 @@ final class GraphModuleLoader: GraphModuleLoading {
     /// - Parameter path: path whose module will be loaded.
     /// - Parameter context: context.
     /// - Returns: list of files that should be part of the module.
-    func load(_ path: AbsolutePath, context: Contexting) throws -> Set<AbsolutePath> {
-        var paths = Set<AbsolutePath>()
+    func load(_ path: AbsolutePath, context: Contexting) throws -> [AbsolutePath] {
+        var paths: [AbsolutePath] = []
         try load(path, paths: &paths, context: context)
         return paths
     }
@@ -66,12 +87,12 @@ final class GraphModuleLoader: GraphModuleLoading {
     ///   - path: path to be inspected.
     ///   - paths: set that contains the module paths.
     ///   - context: context.
-    fileprivate func load(_ path: AbsolutePath, paths: inout Set<AbsolutePath>, context: Contexting) throws {
-        var paths = Set<AbsolutePath>()
+    fileprivate func load(_ path: AbsolutePath, paths: inout [AbsolutePath], context: Contexting) throws {
         if !context.fileHandler.exists(path) {
             throw GraphModuleLoaderError.fileNotFound(path)
         }
         if paths.contains(path) { return }
+        paths.append(path)
         var content: String!
         do {
             content = try String(contentsOf: URL(fileURLWithPath: path.asString))

@@ -37,6 +37,6 @@ public class CreateIssueCommand: NSObject, Command {
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
     public func run(with _: ArgumentParser.Result) throws {
-        _ = try context.shell.run("open", CreateIssueCommand.createIssueUrl)
+        _ = try context.shell.run("open", CreateIssueCommand.createIssueUrl, environment: [:])
     }
 }
