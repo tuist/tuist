@@ -7,15 +7,12 @@ import xcodeproj
 /// - missingFileReference: error thrown when we try to generate a build file for a file whose reference is not in the project.
 enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)
-    case duplicatedFile(AbsolutePath, targetName: String)
 
     /// Error description.
     var description: String {
         switch self {
         case let .missingFileReference(path):
             return "Trying to add a file at path \(path) to a build phase that hasn't been added to the project."
-        case let .duplicatedFile(path, targetName):
-            return "The build file at path \(path) is duplicated in the target '\(targetName)'"
         }
     }
 
@@ -24,8 +21,6 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
         switch self {
         case .missingFileReference:
             return .bugSilent
-        case .duplicatedFile:
-            return .abort
         }
     }
 
@@ -39,8 +34,6 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
         switch (lhs, rhs) {
         case let (.missingFileReference(lhsPath), .missingFileReference(rhsPath)):
             return lhsPath == rhsPath
-        default:
-            return false
         }
     }
 }
@@ -50,8 +43,7 @@ protocol BuildPhaseGenerating: AnyObject {
     func generateBuildPhases(targetSpec: Target,
                              target: PBXTarget,
                              fileElements: ProjectFileElements,
-                             objects: PBXObjects,
-                             context: GeneratorContexting) throws
+                             objects: PBXObjects) throws
 
     /// Generates the sources build phase.
     ///
@@ -60,12 +52,22 @@ protocol BuildPhaseGenerating: AnyObject {
     ///   - target: target whose build phase is being generated.
     ///   - fileElements: file elements instance.
     ///   - objects: project objects.
-    ///   - context: generation context.
     func generateSourcesBuildPhase(_ buildPhase: SourcesBuildPhase,
                                    target: PBXTarget,
                                    fileElements: ProjectFileElements,
-                                   objects: PBXObjects,
-                                   context: GeneratorContexting) throws
+                                   objects: PBXObjects) throws
+
+    /// Generates the resources build phase.
+    ///
+    /// - Parameters:
+    ///   - buildPhase: build phase specification.
+    ///   - target: target whose build phase is being generated.
+    ///   - fileElements: file elements instance.
+    ///   - objects: project objects.
+    func generateResourcesBuildPhase(_ buildPhase: ResourcesBuildPhase,
+                                     target: PBXTarget,
+                                     fileElements: ProjectFileElements,
+                                     objects: PBXObjects) throws
 }
 
 /// Build phase generator.
@@ -73,15 +75,19 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     func generateBuildPhases(targetSpec: Target,
                              target: PBXTarget,
                              fileElements: ProjectFileElements,
-                             objects: PBXObjects,
-                             context: GeneratorContexting) throws {
+                             objects: PBXObjects) throws {
         try targetSpec.buildPhases.forEach { buildPhase in
             if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
                 try generateSourcesBuildPhase(sourcesBuildPhase,
                                               target: target,
                                               fileElements: fileElements,
-                                              objects: objects,
-                                              context: context)
+                                              objects: objects)
+            }
+            if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
+                try generateResourcesBuildPhase(resourcesBuildPhase,
+                                                target: target,
+                                                fileElements: fileElements,
+                                                objects: objects)
             }
         }
     }
@@ -93,21 +99,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     ///   - target: target whose build phase is being generated.
     ///   - fileElements: file elements instance.
     ///   - objects: project objects.
-    ///   - context: generation context.
     func generateSourcesBuildPhase(_ buildPhase: SourcesBuildPhase,
                                    target: PBXTarget,
                                    fileElements: ProjectFileElements,
-                                   objects: PBXObjects,
-                                   context _: GeneratorContexting) throws {
+                                   objects: PBXObjects) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         let sourcesBuildPhaseReference = objects.addObject(sourcesBuildPhase)
         target.buildPhases.append(sourcesBuildPhaseReference)
-        var buildFiles: [AbsolutePath: PBXBuildFile] = [:]
         try buildPhase.buildFiles.forEach { buildFile in
             try buildFile.paths.forEach { buildFilePath in
-                if buildFiles[buildFilePath] != nil {
-                    throw BuildPhaseGenerationError.duplicatedFile(buildFilePath, targetName: target.name)
-                }
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
@@ -116,10 +116,104 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     settings["COMPILER_FLAGS"] = compilerFlags
                 }
                 let pbxBuildFile = PBXBuildFile(fileRef: fileReference.reference, settings: settings)
-                buildFiles[buildFilePath] = pbxBuildFile
                 let buildFileRerence = objects.addObject(pbxBuildFile)
                 sourcesBuildPhase.files.append(buildFileRerence)
             }
         }
+    }
+
+    /// Generates a resources build phase.
+    ///
+    /// - Parameters:
+    ///   - buildPhase: Resources build phase specification.
+    ///   - target: Xcode project target whose build phase will be generated.
+    ///   - fileElements: Project file elements.
+    ///   - objects: Xcode project objects.
+    func generateResourcesBuildPhase(_ buildPhase: ResourcesBuildPhase,
+                                     target: PBXTarget,
+                                     fileElements: ProjectFileElements,
+                                     objects: PBXObjects) throws {
+        let resourcesBuildPhase = PBXResourcesBuildPhase()
+        let resourcesBuildPhaseReference = objects.addObject(resourcesBuildPhase)
+        target.buildPhases.append(resourcesBuildPhaseReference)
+        try buildPhase.buildFiles.forEach { buildFile in
+            // Normal resource build file.
+            if let resourcesBuildFile = buildFile as? ResourcesBuildFile {
+                try generateResourcesBuildFile(resourcesBuildFile: resourcesBuildFile,
+                                               fileElements: fileElements,
+                                               objects: objects,
+                                               resourcesBuildPhase: resourcesBuildPhase)
+                // Core Data model build file.
+            } else if let coreDataModelBuildFile = buildFile as? CoreDataModelBuildFile {
+                generateCoreDataModel(coreDataModelBuildFile: coreDataModelBuildFile,
+                                      fileElements: fileElements,
+                                      objects: objects,
+                                      resourcesBuildPhase: resourcesBuildPhase)
+            }
+        }
+    }
+
+    /// Generates a resources build file.
+    ///
+    /// - Parameters:
+    ///   - resourcesBuildFile: Build file.
+    ///   - fileElements: Project file elements.
+    ///   - objects: Xcode project objects.
+    ///   - resourcesBuildPhase: Resources build phase.
+    private func generateResourcesBuildFile(resourcesBuildFile: ResourcesBuildFile,
+                                            fileElements: ProjectFileElements,
+                                            objects: PBXObjects,
+                                            resourcesBuildPhase: PBXResourcesBuildPhase) throws {
+        try resourcesBuildFile.paths.forEach { buildFilePath in
+            let pathString = buildFilePath.asString
+            let pathRange = NSRange(location: 0, length: pathString.count)
+            let isLocalized = ProjectFileElements.localizedRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
+            let isLproj = buildFilePath.extension == "lproj"
+            var reference: PBXObjectReference?
+
+            if isLocalized {
+                let name = buildFilePath.components.last!
+                let path = buildFilePath.parentDirectory.parentDirectory.appending(component: name)
+                guard let group = fileElements.group(path: path) else {
+                    throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
+                }
+                reference = group.reference
+
+            } else if !isLproj {
+                guard let fileReference = fileElements.file(path: buildFilePath) else {
+                    throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
+                }
+                reference = fileReference.reference
+            }
+            if let reference = reference {
+                let pbxBuildFile = PBXBuildFile(fileRef: reference)
+                let buildFileRerence = objects.addObject(pbxBuildFile)
+                resourcesBuildPhase.files.append(buildFileRerence)
+            }
+        }
+    }
+
+    /// It generates a Core Data model build file.
+    ///
+    /// - Parameters:
+    ///   - coreDataModelBuildFile: Core Data model build file.
+    ///   - fileElements: Project file elements.
+    ///   - objects: Xcode Project objects.
+    ///   - resourcesBuildPhase: resources build phase.
+    private func generateCoreDataModel(coreDataModelBuildFile: CoreDataModelBuildFile,
+                                       fileElements: ProjectFileElements,
+                                       objects: PBXObjects,
+                                       resourcesBuildPhase: PBXResourcesBuildPhase) {
+        let currentVersion = coreDataModelBuildFile.currentVersion
+        let path = coreDataModelBuildFile.path
+        let currentVersionPath = path.appending(component: "\(currentVersion).xcdatamodel")
+        // swiftlint:disable:next force_cast
+        let modelReference = fileElements.group(path: path)! as! XCVersionGroup
+        let currentVersionReference = fileElements.file(path: currentVersionPath)!
+        modelReference.currentVersion = currentVersionReference.reference
+
+        let pbxBuildFile = PBXBuildFile(fileRef: modelReference.reference)
+        let buildFileRerence = objects.addObject(pbxBuildFile)
+        resourcesBuildPhase.files.append(buildFileRerence)
     }
 }

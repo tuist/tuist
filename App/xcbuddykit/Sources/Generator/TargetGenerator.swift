@@ -164,7 +164,7 @@ final class TargetGenerator: TargetGenerating {
                         pbxProject: PBXProject,
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        context: GeneratorContexting) throws -> PBXNativeTarget {
+                        context _: GeneratorContexting) throws -> PBXNativeTarget {
         /// Names
         let productName = "\(targetSpec.name).\(targetSpec.product.xcodeValue.fileExtension!)"
 
@@ -189,8 +189,7 @@ final class TargetGenerator: TargetGenerating {
         try buildPhaseGenerator.generateBuildPhases(targetSpec: targetSpec,
                                                     target: target,
                                                     fileElements: fileElements,
-                                                    objects: objects,
-                                                    context: context)
+                                                    objects: objects)
 
         return target
     }
