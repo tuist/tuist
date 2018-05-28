@@ -170,6 +170,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let isLocalized = ProjectFileElements.localizedRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
             let isLproj = buildFilePath.extension == "lproj"
             var reference: PBXObjectReference?
+
             if isLocalized {
                 let name = buildFilePath.components.last!
                 let path = buildFilePath.parentDirectory.parentDirectory.appending(component: name)
@@ -177,6 +178,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
                 reference = group.reference
+
             } else if !isLproj {
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
