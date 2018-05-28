@@ -3,6 +3,11 @@ import Foundation
 import xcodeproj
 
 class ProjectFileElements {
+    /// Regex used to match localized files (inside .lproj folders)
+    // swiftlint:disable:next force_try
+    static let localizedRegex = try! NSRegularExpression(pattern: "(.+\\.lproj)/.+",
+                                                         options: [])
+
     /// Elements
     var elements: [AbsolutePath: PBXFileElement] = [:]
 
@@ -349,12 +354,7 @@ class ProjectFileElements {
     /// - Parameter path: path to be checked.
     /// - Returns: true if the file is a localized file.
     func isLocalized(path: AbsolutePath) -> Bool {
-        // swiftlint:disable:next force_try
-        let regex = try! NSRegularExpression(pattern: ".lproj$", options: [])
-        let pathString = path.asString
-        return regex.firstMatch(in: pathString,
-                                options: [],
-                                range: NSRange(location: 0, length: pathString.count)) != nil
+        return path.extension == "lproj"
     }
 
     /// Returns true if the path is a version group.
@@ -383,14 +383,11 @@ class ProjectFileElements {
     /// - Parameter path: path to be normalized.
     /// - Returns: normalized path.
     func normalize(_ path: AbsolutePath) -> AbsolutePath {
-        // swiftlint:disable:next force_try
-        let localizedregex = try! NSRegularExpression(pattern: "(.+\\.lproj)/.+",
-                                                      options: [])
         let pathString = path.asString
         let range = NSRange(location: 0, length: pathString.count)
-        if let localizedMatch = localizedregex.firstMatch(in: pathString,
-                                                          options: [],
-                                                          range: range) {
+        if let localizedMatch = ProjectFileElements.localizedRegex.firstMatch(in: pathString,
+                                                                              options: [],
+                                                                              range: range) {
             let lprojPath = (pathString as NSString).substring(with: localizedMatch.range(at: 1))
             return AbsolutePath(lprojPath)
         } else {

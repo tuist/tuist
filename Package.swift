@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "xcbuddy",
     dependencies: [
-        .package(url: "git@github.com:xcbuddy/xcodeproj.git", .revision("ccc66ec0fff1c85300f5724a81de27295d044ae9")),
+        .package(url: "git@github.com:xcbuddy/xcodeproj.git", .revision("0c2d7389cf2d0b5a89cce492e501623dfe0c71ae")),
         .package(url: "https://github.com/apple/swift-package-manager", from: "0.2.0"),
     ],
     targets: [

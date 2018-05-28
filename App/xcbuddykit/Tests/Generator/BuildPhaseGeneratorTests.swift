@@ -42,8 +42,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         try subject.generateSourcesBuildPhase(buildPhaseSpec,
                                               target: target,
                                               fileElements: fileElements,
-                                              objects: objects,
-                                              context: context)
+                                              objects: objects)
         let buildPhase: PBXSourcesBuildPhase? = try target.buildPhases.first?.object()
         XCTAssertNotNil(buildPhase)
         let pbxBuildFile: PBXBuildFile? = try buildPhase?.files.first?.object()
@@ -62,8 +61,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         XCTAssertThrowsError(try subject.generateSourcesBuildPhase(buildPhase,
                                                                    target: target,
                                                                    fileElements: fileElements,
-                                                                   objects: objects,
-                                                                   context: context)) {
+                                                                   objects: objects)) {
             XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
         }
     }
