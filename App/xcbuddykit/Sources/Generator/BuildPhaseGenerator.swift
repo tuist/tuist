@@ -137,7 +137,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                    target: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    objects: PBXObjects) throws {
-        let headersBuildPhase = PBXResourcesBuildPhase()
+        let headersBuildPhase = PBXHeadersBuildPhase()
         let headersBuildPhaseReference = objects.addObject(headersBuildPhase)
         target.buildPhases.append(headersBuildPhaseReference)
         try buildPhase.buildFiles.forEach { headerBuildFile in
@@ -146,7 +146,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     throw BuildPhaseGenerationError.missingFileReference(path)
                 }
                 let pbxBuildFile = PBXBuildFile(fileRef: fileReference.reference, settings: [
-                    "ATTRIBUTES": [headerBuildFile.accessLevel.rawValue.uppercased()],
+                    "ATTRIBUTES": [headerBuildFile.accessLevel.rawValue.capitalized],
                 ])
                 let buildFileRerence = objects.addObject(pbxBuildFile)
                 headersBuildPhase.files.append(buildFileRerence)
