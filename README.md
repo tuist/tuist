@@ -36,9 +36,9 @@ Just run this command on your terminal:
 
 ## Guides
 
-[Install](https://github.com/xcbuddy/xcbuddy/blob/master/guides/Install.md)
-[Getting Started](https://github.com/xcbuddy/xcbuddy/blob/master/guides/Getting%20%20Started.md)
-[Error Handling](https://github.com/xcbuddy/xcbuddy/blob/master/guides/Error%20%20Handling.md)
+[Install](https://xcbuddy.github.io/xcbuddy/install.html)
+[Getting Started](https://xcbuddy.github.io/xcbuddy/getting--started.html)
+[Error Handling](https://xcbuddy.github.io/xcbuddy/error--handling.html)
 
 ## Documentation
 
