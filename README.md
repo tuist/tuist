@@ -34,6 +34,12 @@ Just run this command on your terminal:
 3.  Open `xcbuddy.xcworkspace`.
 4.  Have fun 🤖
 
+## Guides
+
+[Install](https://xcbuddy.github.io/xcbuddy/install.html)
+[Getting Started](https://xcbuddy.github.io/xcbuddy/getting--started.html)
+[Error Handling](https://xcbuddy.github.io/xcbuddy/error--handling.html)
+
 ## Documentation
 
 If you would like to contribute to the project, we recommend you to check out the [project documentation](https://xcbuddy.github.io/xcbuddy/) generated using [Jazzy](https://github.com/realm/jazzy).
