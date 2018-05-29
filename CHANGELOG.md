@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Convenience API to `Graph` https://github.com/xcbuddy/xcbuddy/pull/35 by @pepibumur.
 * Target dependencies generation https://github.com/xcbuddy/xcbuddy/pull/36 by @pepibumur.
 * Resources build phase generation https://github.com/xcbuddy/xcbuddy/pull/38 by @pepibumur.
+* Headers build phase generation https://github.com/xcbuddy/xcbuddy/pull/41 by @pepibumur.
 
 ### Changed
 
