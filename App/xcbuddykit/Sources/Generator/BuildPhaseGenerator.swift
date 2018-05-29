@@ -82,12 +82,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                               target: target,
                                               fileElements: fileElements,
                                               objects: objects)
-            }
-            if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
+            } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
                 try generateResourcesBuildPhase(resourcesBuildPhase,
                                                 target: target,
                                                 fileElements: fileElements,
                                                 objects: objects)
+            } else if let headersBuildPhase = buildPhase as? HeadersBuildPhase {
+                try generateHeadersBuildPhase(headersBuildPhase,
+                                              target: target,
+                                              fileElements: fileElements,
+                                              objects: objects)
             }
         }
     }
@@ -118,6 +122,34 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 let pbxBuildFile = PBXBuildFile(fileRef: fileReference.reference, settings: settings)
                 let buildFileRerence = objects.addObject(pbxBuildFile)
                 sourcesBuildPhase.files.append(buildFileRerence)
+            }
+        }
+    }
+
+    /// Generates a headers build phase.
+    ///
+    /// - Parameters:
+    ///   - buildPhase: headers build phase specification.
+    ///   - target: Xcode target where the build phase will be added to.
+    ///   - fileElements: project file elements.
+    ///   - objects: Xcode project objects.
+    func generateHeadersBuildPhase(_ buildPhase: HeadersBuildPhase,
+                                   target: PBXTarget,
+                                   fileElements: ProjectFileElements,
+                                   objects: PBXObjects) throws {
+        let headersBuildPhase = PBXHeadersBuildPhase()
+        let headersBuildPhaseReference = objects.addObject(headersBuildPhase)
+        target.buildPhases.append(headersBuildPhaseReference)
+        try buildPhase.buildFiles.forEach { headerBuildFile in
+            try headerBuildFile.paths.forEach { path in
+                guard let fileReference = fileElements.file(path: path) else {
+                    throw BuildPhaseGenerationError.missingFileReference(path)
+                }
+                let pbxBuildFile = PBXBuildFile(fileRef: fileReference.reference, settings: [
+                    "ATTRIBUTES": [headerBuildFile.accessLevel.rawValue.capitalized],
+                ])
+                let buildFileRerence = objects.addObject(pbxBuildFile)
+                headersBuildPhase.files.append(buildFileRerence)
             }
         }
     }

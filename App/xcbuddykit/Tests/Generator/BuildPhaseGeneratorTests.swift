@@ -66,6 +66,27 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         }
     }
 
+    func test_generateHeadersBuildPhase() throws {
+        let buildFile = HeadersBuildFile([AbsolutePath("/test.h")], accessLevel: .public)
+        let buildPhase = HeadersBuildPhase(buildFiles: [buildFile])
+        let objects = PBXObjects(objects: [:])
+        let fileElements = ProjectFileElements()
+        let header = PBXFileReference()
+        let headerReference = objects.addObject(header)
+        fileElements.elements[AbsolutePath("/test.h")] = header
+        let target = PBXNativeTarget(name: "Test")
+        try subject.generateHeadersBuildPhase(buildPhase,
+                                              target: target,
+                                              fileElements: fileElements,
+                                              objects: objects)
+        let pbxBuildPhase: PBXHeadersBuildPhase? = try target.buildPhases.first?.object()
+        XCTAssertNotNil(pbxBuildPhase)
+        let pbxBuildFile: PBXBuildFile? = try pbxBuildPhase?.files.first?.object()
+        XCTAssertNotNil(pbxBuildFile)
+        XCTAssertEqual(pbxBuildFile?.settings?["ATTRIBUTES"] as? [String], ["Public"])
+        XCTAssertEqual(pbxBuildFile?.fileRef, headerReference)
+    }
+
     func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
         let buildFile = ResourcesBuildFile([AbsolutePath("/en.lproj/Main.storyboard")])
         let buildPhase = ResourcesBuildPhase(buildFiles: [buildFile])
