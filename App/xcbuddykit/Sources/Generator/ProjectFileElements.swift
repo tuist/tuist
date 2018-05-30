@@ -8,8 +8,11 @@ class ProjectFileElements {
     static let localizedRegex = try! NSRegularExpression(pattern: "(.+\\.lproj)/.+",
                                                          options: [])
 
-    /// Elements
+    /// Elements.
     var elements: [AbsolutePath: PBXFileElement] = [:]
+
+    /// Products.
+    var products: [String: PBXFileReference] = [:]
 
     /// Default constructor.
     init(_ elements: [AbsolutePath: PBXFileElement] = [:]) {
@@ -28,14 +31,23 @@ class ProjectFileElements {
                               objects: PBXObjects,
                               sourceRootPath: AbsolutePath) {
         var files = Set<AbsolutePath>()
+        var products = Set<String>()
         project.targets.forEach { target in
             files.formUnion(targetFiles(target: target))
+            products.formUnion(targetProducts(target: target))
         }
         files.formUnion(projectFiles(project: project))
+
+        // Files
         generate(files: files.sorted(),
                  groups: groups,
                  objects: objects,
                  sourceRootPath: sourceRootPath)
+
+        // Products
+        generate(products: products.sorted(),
+                 groups: groups,
+                 objects: objects)
     }
 
     /// Returns the project files.
@@ -51,6 +63,25 @@ class ProjectFileElements {
             files.insert(releaseConfigFile)
         }
         return files
+    }
+
+    /// Returns the list of the target associated product, including the target product
+    /// and any product that should be copied from a build phase.
+    ///
+    /// - Parameter target: target specification.
+    /// - Returns: product names.
+    func targetProducts(target: Target) -> Set<String> {
+        var products: Set<String> = Set()
+        products.insert(target.productName)
+        target.buildPhases
+            .compactMap({ $0 as? CopyBuildPhase })
+            .flatMap({ $0.files })
+            .forEach { buildFile in
+                if case let CopyBuildFile.product(product) = buildFile {
+                    products.insert(product)
+                }
+            }
+        return products
     }
 
     /// Generates the target files.
@@ -85,6 +116,13 @@ class ProjectFileElements {
                 // Headers
             } else if let headersBuildPhase = buildPhase as? HeadersBuildPhase {
                 files.formUnion(headersBuildPhase.buildFiles.flatMap({ $0.paths }))
+                // Copy
+            } else if let copyFilesBuildPhase = buildPhase as? CopyBuildPhase {
+                copyFilesBuildPhase.files.forEach { buildFile in
+                    if case let CopyBuildFile.path(path) = buildFile {
+                        files.insert(path)
+                    }
+                }
             }
         }
         // Support files
@@ -115,6 +153,28 @@ class ProjectFileElements {
                   objects: PBXObjects,
                   sourceRootPath: AbsolutePath) {
         files.forEach({ generate(path: $0, groups: groups, objects: objects, sourceRootPath: sourceRootPath) })
+    }
+
+    /// Generates file references for products.
+    ///
+    /// - Parameters:
+    ///   - products: products whose references will be generated.
+    ///   - groups: Xcode project groups.
+    ///   - objects: Xcode project objects.
+    func generate(products: [String],
+                  groups: ProjectGroups,
+                  objects: PBXObjects) {
+        products.forEach { productName in
+            if self.products[productName] != nil { return }
+            let fileType = Xcode.filetype(extension: String(productName.split(separator: ".").last!))
+            let fileReference = PBXFileReference(sourceTree: .buildProductsDir,
+                                                 explicitFileType: fileType,
+                                                 path: productName,
+                                                 includeInIndex: false)
+            let objectFileReference = objects.addObject(fileReference)
+            groups.products.children.append(objectFileReference)
+            self.products[productName] = fileReference
+        }
     }
 
     /// Generates a folder or file in the project. The folder or file gets added to the Files root group.
@@ -339,6 +399,14 @@ class ProjectFileElements {
     /// - Returns: the group if it exists.
     func group(path: AbsolutePath) -> PBXGroup? {
         return elements[path] as? PBXGroup
+    }
+
+    /// Returns the file reference of the product with the given name.
+    ///
+    /// - Parameter name: Product name.
+    /// - Returns: product file reference.
+    func product(name: String) -> PBXFileReference? {
+        return products[name]
     }
 
     /// Returns the file at the given path if it's been added to the file elements object.

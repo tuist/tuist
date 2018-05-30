@@ -17,10 +17,12 @@ extension ResourcesBuildPhase {
 extension CopyBuildPhase {
     static func test(name: String = "Copy",
                      destination: Destination = .frameworks,
+                     files: [CopyBuildFile] = [],
                      subpath: String? = nil,
                      copyWhenInstalling: Bool = true) -> CopyBuildPhase {
         return CopyBuildPhase(name: name,
                               destination: destination,
+                              files: files,
                               subpath: subpath,
                               copyWhenInstalling: copyWhenInstalling)
     }

@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xcodeproj
 
 class BuildPhase: Equatable {
     /// Static build phase initializer that returns the right BuildPhase based on the build phase type.
@@ -17,7 +18,7 @@ class BuildPhase: Equatable {
         } else if type == "resources" {
             return try ResourcesBuildPhase(json: json, projectPath: projectPath, context: context)
         } else if type == "copy" {
-            return try CopyBuildPhase(json: json)
+            return try CopyBuildPhase(json: json, projectPath: projectPath, context: context)
         } else if type == "script" {
             return try ScriptBuildPhase(json: json)
         } else if type == "headers" {
@@ -105,7 +106,7 @@ class ResourcesBuildPhase: BuildPhase, GraphJSONInitiatable {
 }
 
 /// Copy files build phase.
-class CopyBuildPhase: BuildPhase {
+class CopyBuildPhase: BuildPhase, GraphJSONInitiatable {
     /// Destination where the files from the build phase get copied.
     ///
     /// - absolutePath: absolute path  to the dest
@@ -119,16 +120,32 @@ class CopyBuildPhase: BuildPhase {
     /// - sharedSupport: shared support directory.
     /// - plugins: plugins directory.
     enum Destination: String {
-        case absolutePath = "absolute_path"
-        case productsDirectory = "products_directory"
+        case absolutePath
+        case productsDirectory
         case wrapper
         case resources
         case executables
-        case javaResources = "java_resources"
+        case javaResources
         case frameworks
-        case sharedFrameworks = "shared_frameworks"
-        case sharedSupport = "shared_support"
-        case plugins = "plug_ins"
+        case sharedFrameworks
+        case sharedSupport
+        case plugins
+
+        /// Xcode value
+        var xcodeValue: PBXCopyFilesBuildPhase.SubFolder {
+            switch self {
+            case .absolutePath: return .absolutePath
+            case .productsDirectory: return .productsDirectory
+            case .wrapper: return .wrapper
+            case .resources: return .resources
+            case .executables: return .executables
+            case .javaResources: return .javaResources
+            case .frameworks: return .frameworks
+            case .sharedFrameworks: return .sharedFrameworks
+            case .sharedSupport: return .sharedSupport
+            case .plugins: return .plugins
+            }
+        }
     }
 
     /// Build phase name.
@@ -143,33 +160,44 @@ class CopyBuildPhase: BuildPhase {
     /// True if resources should be copied only when installing.
     let copyWhenInstalling: Bool
 
+    /// The files to be copied.
+    let files: [CopyBuildFile]
+
     /// Initializes the build phase with its attributes.
     ///
     /// - Parameters:
     ///   - name: build phase name.
     ///   - destination: build phase destination.
+    ///   - files: the files to be copied.
     ///   - subpath: sub-path inside destination.
     ///   - copyWhenInstalling: true if resources should be copied only when installing.
     init(name: String,
          destination: Destination,
+         files: [CopyBuildFile],
          subpath: String? = nil,
          copyWhenInstalling: Bool = true) {
         self.name = name
         self.destination = destination
+        self.files = files
         self.subpath = subpath
         self.copyWhenInstalling = copyWhenInstalling
     }
 
     /// Initializes the build phase from its JSON representation.
     ///
-    /// - Parameter json: JSON representation.
-    /// - Throws: an error if the build phase cannot be parsed from the JSON.
-    init(json: JSON) throws {
+    /// - Parameters:
+    ///   - json: target JSON representation.
+    ///   - projectPath: path to the folder that contains the project's manifest.
+    ///   - context: graph loader  context.
+    /// - Throws: an error if build files cannot be parsed.
+    required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
         name = try json.get("name")
         let destinationString: String = try json.get("destination")
         destination = Destination(rawValue: destinationString)!
         subpath = try? json.get("subpath")
         copyWhenInstalling = try json.get("copy_when_installing")
+        let filesJSONS: [JSON] = try json.get("files")
+        files = try filesJSONS.map({ try CopyBuildFile(json: $0, projectPath: projectPath, context: context) })
     }
 
     /// Compares copy files build phases.

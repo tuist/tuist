@@ -50,6 +50,36 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxBuildFile?.fileRef, fileReferenceReference)
     }
 
+    func test_generateCopyBuildPhase() throws {
+        let buildPhase = CopyBuildPhase(name: "Copy",
+                                        destination: .frameworks,
+                                        files: [
+                                            .path(AbsolutePath("/test.framework")),
+                                            .product("Shakira.framework"),
+                                        ],
+                                        subpath: "subpath",
+                                        copyWhenInstalling: true)
+        let target = PBXNativeTarget(name: "Test")
+        let objects = PBXObjects(objects: [:])
+        let fileElements = ProjectFileElements()
+        let testFramework = PBXFileReference()
+        let testReference = objects.addObject(testFramework)
+        let shakiraFramework = PBXFileReference()
+        let shakiraReference = objects.addObject(shakiraFramework)
+        fileElements.products["Shakira.framework"] = shakiraFramework
+        fileElements.elements[AbsolutePath("/test.framework")] = testFramework
+        subject.generateCopyBuildPhase(buildPhase,
+                                       target: target,
+                                       fileElements: fileElements,
+                                       objects: objects)
+        let pbxBuildPhase: PBXCopyFilesBuildPhase? = try target.buildPhases.first?.object()
+        XCTAssertEqual(pbxBuildPhase?.name, "Copy")
+        XCTAssertEqual(pbxBuildPhase?.dstPath, "subpath")
+        XCTAssertEqual(pbxBuildPhase?.dstSubfolderSpec, .frameworks)
+        XCTAssertEqual(pbxBuildPhase?.files.contains(testReference), true)
+        XCTAssertEqual(pbxBuildPhase?.files.contains(shakiraReference), true)
+    }
+
     func test_generateSourcesBuildPhase_fatals_when_theFileReferenceIsMissing() {
         let path = AbsolutePath("/test/file.swift")
         let buildFile = SourcesBuildFile([path])
