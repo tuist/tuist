@@ -40,6 +40,13 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
 
 /// Build phase generator interface.
 protocol BuildPhaseGenerating: AnyObject {
+    /// Generates the build phases for a given target.
+    ///
+    /// - Parameters:
+    ///   - targetSpec: Target specification.
+    ///   - target: Xcode project target.
+    ///   - fileElements: Project file elements.
+    ///   - objects: Xcode project objects.
     func generateBuildPhases(targetSpec: Target,
                              target: PBXTarget,
                              fileElements: ProjectFileElements,
@@ -72,6 +79,13 @@ protocol BuildPhaseGenerating: AnyObject {
 
 /// Build phase generator.
 final class BuildPhaseGenerator: BuildPhaseGenerating {
+    /// Generates the build phases for a given target.
+    ///
+    /// - Parameters:
+    ///   - targetSpec: Target specification.
+    ///   - target: Xcode project target.
+    ///   - fileElements: Project file elements.
+    ///   - objects: Xcode project objects.
     func generateBuildPhases(targetSpec: Target,
                              target: PBXTarget,
                              fileElements: ProjectFileElements,
@@ -92,6 +106,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                               target: target,
                                               fileElements: fileElements,
                                               objects: objects)
+            } else if let scriptBuildPhase = buildPhase as? ScriptBuildPhase {
+                generateScriptBuildPhase(scriptBuildPhase,
+                                         target: target,
+                                         objects: objects)
             }
         }
     }
@@ -124,6 +142,25 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 sourcesBuildPhase.files.append(buildFileRerence)
             }
         }
+    }
+
+    /// Generates a shell script build phase.
+    ///
+    /// - Parameters:
+    ///   - buildPhase: build phase specification.
+    ///   - target: Xcode project target.
+    ///   - objects: Xcode project objects.
+    func generateScriptBuildPhase(_ buildPhase: ScriptBuildPhase,
+                                  target: PBXTarget,
+                                  objects: PBXObjects) {
+        let pbxBuildPhase = PBXShellScriptBuildPhase(name: buildPhase.name,
+                                                     inputPaths: buildPhase.inputFiles,
+                                                     outputPaths: buildPhase.outputFiles,
+                                                     shellPath: buildPhase.shell,
+                                                     shellScript: buildPhase.script,
+                                                     showEnvVarsInLog: true)
+        let pbxBuildPhaseReference = objects.addObject(pbxBuildPhase)
+        target.buildPhases.append(pbxBuildPhaseReference)
     }
 
     /// Generates a headers build phase.

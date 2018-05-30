@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Target dependencies generation https://github.com/xcbuddy/xcbuddy/pull/36 by @pepibumur.
 * Resources build phase generation https://github.com/xcbuddy/xcbuddy/pull/38 by @pepibumur.
 * Headers build phase generation https://github.com/xcbuddy/xcbuddy/pull/41 by @pepibumur.
+* Shell script build phase generation https://github.com/xcbuddy/xcbuddy/pull/43 by @pepibumur.
 
 ### Changed
 

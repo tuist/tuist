@@ -66,6 +66,25 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         }
     }
 
+    func test_generateScriptBuildPhase() throws {
+        let buildPhase = ScriptBuildPhase(name: "Test",
+                                          shell: "shell",
+                                          script: "script",
+                                          inputFiles: ["input"],
+                                          outputFiles: ["output"])
+        let target = PBXNativeTarget(name: "Test")
+        let objects = PBXObjects(objects: [:])
+        subject.generateScriptBuildPhase(buildPhase,
+                                         target: target,
+                                         objects: objects)
+        let pbxBuildPhase: PBXShellScriptBuildPhase? = try target.buildPhases.first?.object()
+        XCTAssertEqual(pbxBuildPhase?.name, "Test")
+        XCTAssertEqual(pbxBuildPhase?.shellPath, "shell")
+        XCTAssertEqual(pbxBuildPhase?.shellScript, "script")
+        XCTAssertEqual(pbxBuildPhase?.inputPaths, ["input"])
+        XCTAssertEqual(pbxBuildPhase?.outputPaths, ["output"])
+    }
+
     func test_generateHeadersBuildPhase() throws {
         let buildFile = HeadersBuildFile([AbsolutePath("/test.h")], accessLevel: .public)
         let buildPhase = HeadersBuildPhase(buildFiles: [buildFile])
