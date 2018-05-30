@@ -165,13 +165,8 @@ final class TargetGenerator: TargetGenerating {
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
                         context _: GeneratorContexting) throws -> PBXNativeTarget {
-        /// Names
-        let productName = "\(targetSpec.name).\(targetSpec.product.xcodeValue.fileExtension!)"
-
         /// Products reference.
-        let productFileReference = PBXFileReference(sourceTree: .buildProductsDir, name: productName)
-        let productFileReferenceRef = objects.addObject(productFileReference)
-        groups.products.children.append(productFileReferenceRef)
+        let productFileReference = fileElements.products[targetSpec.productName]!
 
         /// Target
         let target = PBXNativeTarget(name: targetSpec.name,
@@ -179,8 +174,8 @@ final class TargetGenerator: TargetGenerating {
                                      buildPhases: [],
                                      buildRules: [],
                                      dependencies: [],
-                                     productName: productName,
-                                     productReference: productFileReferenceRef,
+                                     productName: targetSpec.productName,
+                                     productReference: productFileReference.reference,
                                      productType: targetSpec.product.xcodeValue)
         let targetReference = objects.addObject(target)
         pbxProject.targets.append(targetReference)

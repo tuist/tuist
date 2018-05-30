@@ -102,6 +102,11 @@ class Target: GraphJSONInitiatable, Equatable {
         return product == .dynamicLibrary || product == .staticLibrary || product == .framework
     }
 
+    /// Returns the product name including the extension.
+    var productName: String {
+        return "\(name).\(product.xcodeValue.fileExtension!)"
+    }
+
     /// Compares two targets.
     ///
     /// - Parameters:

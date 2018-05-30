@@ -72,8 +72,7 @@ class ProjectFileElements {
     /// - Returns: product names.
     func targetProducts(target: Target) -> Set<String> {
         var products: Set<String> = Set()
-        let targetProduct = "\(target.name).\(target.product.xcodeValue.fileExtension!)"
-        products.insert(targetProduct)
+        products.insert(target.productName)
         target.buildPhases
             .compactMap({ $0 as? CopyBuildPhase })
             .flatMap({ $0.files })
