@@ -162,7 +162,7 @@ class ProjectFileElements {
     ///   - groups: Xcode project groups.
     ///   - objects: Xcode project objects.
     func generate(products: [String],
-                  groups _: ProjectGroups,
+                  groups: ProjectGroups,
                   objects: PBXObjects) {
         products.forEach { productName in
             if self.products[productName] != nil { return }
@@ -171,7 +171,8 @@ class ProjectFileElements {
                                                  explicitFileType: fileType,
                                                  path: productName,
                                                  includeInIndex: false)
-            objects.addObject(fileReference)
+            let objectFileReference = objects.addObject(fileReference)
+            groups.products.children.append(objectFileReference)
             self.products[productName] = fileReference
         }
     }
@@ -398,6 +399,14 @@ class ProjectFileElements {
     /// - Returns: the group if it exists.
     func group(path: AbsolutePath) -> PBXGroup? {
         return elements[path] as? PBXGroup
+    }
+
+    /// Returns the file reference of the product with the given name.
+    ///
+    /// - Parameter name: Product name.
+    /// - Returns: product file reference.
+    func product(name: String) -> PBXFileReference? {
+        return products[name]
     }
 
     /// Returns the file at the given path if it's been added to the file elements object.

@@ -25,6 +25,17 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertTrue(files.contains(AbsolutePath("/project/release.xcconfig")))
     }
 
+    func test_targetProducts() {
+        let target = Target.test(buildPhases: [
+            CopyBuildPhase(name: "Copy",
+                           destination: .frameworks,
+                           files: [.product("Test.framework")]),
+        ])
+        let products = subject.targetProducts(target: target).sorted()
+        XCTAssertEqual(products.first, "Target.app")
+        XCTAssertEqual(products.last, "Test.framework")
+    }
+
     func test_targetFiles() {
         let settings = Settings(base: [:],
                                 debug: Configuration(settings: [:],
@@ -66,6 +77,27 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertTrue(files.contains(AbsolutePath("/project/private.h")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/model.xcdatamodeld")))
+    }
+
+    func test_generateProduct() {
+        let pbxproj = PBXProj()
+        let project = Project.test()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let groups = ProjectGroups.generate(project: project,
+                                            objects: pbxproj.objects,
+                                            sourceRootPath: sourceRootPath)
+        let products = ["Test.framework"]
+        let objects = PBXObjects(objects: [:])
+        subject.generate(products: products,
+                         groups: groups,
+                         objects: objects)
+        XCTAssertEqual(groups.products.children.count, 1)
+        let fileReference = subject.product(name: "Test.framework")
+        XCTAssertNotNil(fileReference)
+        XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
+        XCTAssertEqual(fileReference?.path, "Test.framework")
+        XCTAssertNil(fileReference?.name)
+        XCTAssertEqual(fileReference?.includeInIndex, false)
     }
 
     func test_generatePath() throws {
