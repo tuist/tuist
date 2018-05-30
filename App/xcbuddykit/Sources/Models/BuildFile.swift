@@ -189,6 +189,49 @@ class CoreDataModelBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
     }
 }
 
+/// File that can be copied.
+///
+/// - product: file in the products directory.
+/// - path: file
+enum CopyBuildFile: GraphJSONInitiatable, Equatable {
+    case product(String)
+    case path(AbsolutePath)
+
+    init(json: JSON,
+         projectPath: AbsolutePath,
+         context _: GraphLoaderContexting) throws {
+        let type: String = try json.get("type")
+        switch type {
+        case "product":
+            let name: String = try json.get("name")
+            self = .product(name)
+        case "path":
+            let pathString: String = try json.get("path")
+            let path = RelativePath(pathString)
+            self = .path(projectPath.appending(path))
+        default:
+            fatalError("Invalid copiable file type")
+        }
+    }
+
+    /// Returns true if the two instances of CopyBuildFile are equal.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
+    static func == (lhs: CopyBuildFile, rhs: CopyBuildFile) -> Bool {
+        switch (lhs, rhs) {
+        case let (.product(lhsName), .product(rhsName)):
+            return lhsName == rhsName
+        case let (.path(lhsPath), .path(rhsPath)):
+            return lhsPath == rhsPath
+        default:
+            return false
+        }
+    }
+}
+
 /// Headers build file.
 class HeadersBuildFile: GraphJSONInitiatable, Equatable {
     /// Header access level.

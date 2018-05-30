@@ -118,6 +118,30 @@ class CoreDataModelBuildFile: ResourcesBuildFile {
     }
 }
 
+/// Build file to be used from a copy files build phase.
+///
+/// - product: build file in the products directory.
+/// - path: build file in a given relative path.
+public enum CopyBuildFile {
+    case product(String)
+    case path(String)
+
+    func toJSON() -> JSON {
+        switch self {
+        case let .product(name):
+            return JSON.dictionary([
+                "type": "product".toJSON(),
+                "name": name.toJSON(),
+            ])
+        case let .path(path):
+            return JSON.dictionary([
+                "type": "path".toJSON(),
+                "path": path.toJSON(),
+            ])
+        }
+    }
+}
+
 /// Headers build file.
 public class HeadersBuildFile: JSONConvertible {
     /// Header access level.

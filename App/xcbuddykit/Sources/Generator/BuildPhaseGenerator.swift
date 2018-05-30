@@ -144,6 +144,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
+    func generateCopyBuildPhase(_: CopyBuildPhase,
+                                target _: PBXTarget,
+                                objects _: PBXObjects) {
+//        let buildPhase = PBXCopyFilesBuildPhase(dstPath: buildPhase.subpath,
+//                                                dstSubfolderSpec: buildPhase.destination.xcodeValue,
+//                                                name: buildPhase.name,
+//                                                files: <#T##[PBXObjectReference]#>)
+    }
+
     /// Generates a shell script build phase.
     ///
     /// - Parameters:
