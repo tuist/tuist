@@ -110,6 +110,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 generateScriptBuildPhase(scriptBuildPhase,
                                          target: target,
                                          objects: objects)
+            } else if let copyBuildPhase = buildPhase as? CopyBuildPhase {
+                generateCopyBuildPhase(copyBuildPhase,
+                                       target: target,
+                                       fileElements: fileElements,
+                                       objects: objects)
             }
         }
     }
@@ -144,13 +149,31 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateCopyBuildPhase(_: CopyBuildPhase,
-                                target _: PBXTarget,
-                                objects _: PBXObjects) {
-//        let buildPhase = PBXCopyFilesBuildPhase(dstPath: buildPhase.subpath,
-//                                                dstSubfolderSpec: buildPhase.destination.xcodeValue,
-//                                                name: buildPhase.name,
-//                                                files: <#T##[PBXObjectReference]#>)
+    /// Generates a copy files build phase.
+    ///
+    /// - Parameters:
+    ///   - buildPhase: Build phase specification.
+    ///   - target: Xcode target.
+    ///   - fileElements: Project file elements.
+    ///   - objects: Xcode project objects.
+    func generateCopyBuildPhase(_ buildPhase: CopyBuildPhase,
+                                target: PBXTarget,
+                                fileElements: ProjectFileElements,
+                                objects: PBXObjects) {
+        let fileReferences = buildPhase.files.compactMap { (file) -> PBXObjectReference? in
+            switch file {
+            case let .path(path):
+                return fileElements.file(path: path)?.reference
+            case let .product(name):
+                return fileElements.product(name: name)?.reference
+            }
+        }
+        let pbxBuildPhase = PBXCopyFilesBuildPhase(dstPath: buildPhase.subpath,
+                                                   dstSubfolderSpec: buildPhase.destination.xcodeValue,
+                                                   name: buildPhase.name,
+                                                   files: fileReferences)
+        let pbxBuildPhaseReference = objects.addObject(pbxBuildPhase)
+        target.buildPhases.append(pbxBuildPhaseReference)
     }
 
     /// Generates a shell script build phase.
