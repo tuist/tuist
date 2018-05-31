@@ -2,8 +2,16 @@ import Basic
 // Reference: https://github.com/CocoaPods/CocoaPods/blob/master/lib/cocoapods/generator/embed_frameworks_script.rb
 import Foundation
 
-enum FrameworkEmbedderError: Error, CustomStringConvertible {
+enum FrameworkEmbedderError: FatalError {
     case missingFramework
+    
+    var type: ErrorType {
+        switch self {
+        case .missingFramework:
+            return .bug
+        }
+    }
+    
     var description: String {
         switch self {
         case .missingFramework:

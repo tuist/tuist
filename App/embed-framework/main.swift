@@ -1,3 +1,0 @@
-import xcbuddykit
-
-FrameworkEmbedder().embed()

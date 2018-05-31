@@ -6,7 +6,7 @@ import Basic
 import Foundation
 
 /// Xcode utils.
-struct Xcode {
+class XcodeBuildEnvironment {
     /// Xcode action.
     ///
     /// - archive: archive.
