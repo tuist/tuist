@@ -85,10 +85,10 @@ class Version
 end
 
 ohai 'This script will uninstall:'
-puts '/Applications/xcbuddy.app'
-puts '/usr/local/bin/xcbuddy'
+puts '/Applications/xpm.app'
+puts '/usr/local/bin/xpm'
 wait_for_user
 ohai 'Uninstalling'
-system('rm -rf /Applications/xcbuddy.app 2> /dev/null')
-system('rm -f /usr/local/bin/xcbuddy 2> /dev/null')
+system('rm -rf /Applications/xpm.app 2> /dev/null')
+system('rm -f /usr/local/bin/xpm 2> /dev/null')
 ohai 'Uninstalled'

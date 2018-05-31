@@ -6,8 +6,8 @@
 	<string>developer-id</string>
 	<key>provisioningProfiles</key>
 	<dict>
-		<key>es.ppinera.xcbuddy</key>
-		<string>xcbuddy dist</string>
+		<key>es.ppinera.xpm</key>
+		<string>xpm dist</string>
 	</dict>
 	<key>signingCertificate</key>
 	<string>Developer ID Application</string>
