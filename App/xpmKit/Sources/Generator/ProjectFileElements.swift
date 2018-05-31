@@ -209,9 +209,7 @@ class ProjectFileElements {
         dependencies.forEach { node in
             if let targetNode = node as? TargetNode {
                 // Product name
-                let name = targetNode.target.name
-                let `extension` = targetNode.target.product.xcodeValue.fileExtension!
-                let productName = "\(name).\(`extension`)"
+                let productName = targetNode.target.productName
                 if self.products[productName] != nil { return }
                 
                 /// The dependency belongs to the same project and its product
@@ -219,7 +217,7 @@ class ProjectFileElements {
                 if targetNode.path == path { return }
                 
                 // Add it
-                let fileType = Xcode.filetype(extension: `extension`)
+                let fileType = Xcode.filetype(extension: targetNode.target.product.xcodeValue.fileExtension!)
                 let fileReference = PBXFileReference(sourceTree: .buildProductsDir,
                                                      explicitFileType: fileType,
                                                      path: productName,
