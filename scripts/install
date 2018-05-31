@@ -85,14 +85,14 @@ class Version
 end
 
 ohai 'This script will install:'
-puts '/Applications/xcbuddy.app'
-puts '/usr/local/bin/xcbuddy'
+puts '/Applications/xpm.app'
+puts '/usr/local/bin/xpm'
 wait_for_user
 ohai 'Installing'
-download_url = `curl -s https://api.github.com/repos/xcbuddy/xcbuddy/releases/latest | grep browser_download_url | cut -d '"' -f 4`.chomp
+download_url = `curl -s https://api.github.com/repos/xcode-project-manager/xpm/releases/latest | grep browser_download_url | cut -d '"' -f 4`.chomp
 tmp_dir = Dir.mktmpdir
 download_path = File.join(tmp_dir, File.basename(download_url))
 system("curl -L #{download_url} --output #{download_path}")
 system("tar -xz -f #{download_path} -C /Applications")
-system('ln -f -s /Applications/xcbuddy.app/Contents/SharedSupport/xcbuddy /usr/local/bin/xcbuddy')
-ohai "Installed: Try running 'xcbuddy'"
+system('ln -f -s /Applications/xpm.app/Contents/SharedSupport/xpm /usr/local/bin/xpm')
+ohai "Installed: Try running 'xpm'"

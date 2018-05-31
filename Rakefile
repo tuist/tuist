@@ -6,9 +6,9 @@ require 'sparklecast'
 require 'date'
 require 'dotenv/load'
 
-REPOSITORY = 'xcbuddy/xcbuddy'
+REPOSITORY = 'xcode-project-manager/xpm'
 BUILD_PATH = 'build'
-APP_NAME = 'xcbuddy'
+APP_NAME = 'xpm'
 GITHUB_TOKEN = ENV['GH_TOKEN']
 APPCAST_PATH = 'appcast.xml'
 CHANGELOG_PATH = 'CHANGELOG.md'
@@ -26,17 +26,17 @@ def build(config = 'Debug')
   abort('SENTRY_AUTH_TOKEN variable missing') unless ENV['SENTRY_AUTH_TOKEN']
   execute('swift package generate-xcodeproj')
   env_vars = "SENTR_DSN=#{ENV['SENTR_DSN']} SENTRY_AUTH_TOKEN=#{ENV['SENTRY_AUTH_TOKEN']}"
-  execute("#{env_vars} xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy -configuration #{config} build")
+  execute("#{env_vars} xcodebuild -workspace xpm.xcworkspace -scheme xpm -configuration #{config} build")
 end
 
 def test
   execute('swift package generate-xcodeproj')
-  execute('xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy-Package -config Debug test -enableCodeCoverage YES')
-  execute("xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddykit test CODE_SIGN_IDENTITY=''")
+  execute('xcodebuild -workspace xpm.xcworkspace -scheme xpm-Package -config Debug test -enableCodeCoverage YES')
+  execute("xcodebuild -workspace xpm.xcworkspace -scheme xpmKit test CODE_SIGN_IDENTITY=''")
 end
 
 def decrypt_keys
-  execute('openssl aes-256-cbc -k "$ENCRYPTION_SECRET" -in certs/xcbuddy_Dist.provisionprofile.enc -d -a -out certs/xcbuddy_Dist.provisionprofile')
+  execute('openssl aes-256-cbc -k "$ENCRYPTION_SECRET" -in certs/xpm_Dist.provisionprofile.enc -d -a -out certs/xpm_Dist.provisionprofile')
   execute('openssl aes-256-cbc -k "$ENCRYPTION_SECRET" -in certs/dist.cer.enc -d -a -out certs/dist.cer')
   execute('openssl aes-256-cbc -k "$ENCRYPTION_SECRET" -in certs/dist.p12.enc -d -a -out certs/dist.p12')
   execute('openssl aes-256-cbc -k "$ENCRYPTION_SECRET" -in keys/dsa_priv.pem.enc -d -a -out keys/dsa_priv.pem')
@@ -47,7 +47,7 @@ def install_keys
 end
 
 def archive_and_export
-  execute("xcodebuild -workspace xcbuddy.xcworkspace -scheme xcbuddy -config Release -archivePath ./#{BUILD_PATH}/archive clean archive")
+  execute("xcodebuild -workspace xpm.xcworkspace -scheme xpm -config Release -archivePath ./#{BUILD_PATH}/archive clean archive")
   execute("xcodebuild -archivePath ./#{BUILD_PATH}/archive.xcarchive -exportArchive -exportPath #{BUILD_PATH} -exportOptionsPlist exportOptions.plist")
 end
 
@@ -67,7 +67,7 @@ def add_appcast_entry(version, new_bundle_version, length, signature)
   appcast_string = File.open(APPCAST_PATH, 'rb', &:read)
   item = Sparklecast::Appcast::Item.new
   item.title = "Version #{version}"
-  item.url = "https://github.com/#{REPOSITORY}/releases/download/#{version}/xcbuddy.zip"
+  item.url = "https://github.com/#{REPOSITORY}/releases/download/#{version}/xpm.zip"
   item.length = length
   item.dsa_signature = signature
   item.pub_date = Time.now
@@ -177,7 +177,7 @@ task :bump_version do
   bump_version
 end
 
-desc 'Generates the Xcode project for xcbuddy'
+desc 'Generates the Xcode project for xpm'
 task :project do
   make_project
 end

@@ -153,8 +153,8 @@
 		B9FB2DEA2086544900BC2FB3 /* BuildPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629CC20864E9800EE9E07 /* BuildPhase.swift */; };
 		B9FB2DEB2086544900BC2FB3 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629CD20864E9800EE9E07 /* Product.swift */; };
 		B9FB9D0C2066D1B800F13FFA /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B9FDBF3920642D980010BC33 /* xcbuddykit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
-		B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B9FDBF3920642D980010BC33 /* xpmKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; };
+		B9FDBF3A2064DAEB0010BC33 /* xpmKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF3C2064DB1F0010BC33 /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B9FDBF422064DCB70010BC33 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FDBF412064DCB70010BC33 /* Foundation.framework */; };
 /* End PBXBuildFile section */
@@ -165,28 +165,28 @@
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ED192063AFBC004B6630;
-			remoteInfo = xcbuddykit;
+			remoteInfo = xpmKit;
 		};
 		B915ED2D2063AFBD004B6630 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ED192063AFBC004B6630;
-			remoteInfo = xcbuddykit;
+			remoteInfo = xpmKit;
 		};
 		B9B80AB2206AB4630057482B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ECF5206395DA004B6630;
-			remoteInfo = xcbuddy;
+			remoteInfo = xpm;
 		};
 		B9E65C9C208F919800A9D7AC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B94C7F8F2062B829009BF596 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B915ED192063AFBC004B6630;
-			remoteInfo = xcbuddykit;
+			remoteInfo = xpmKit;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -237,7 +237,7 @@
 				B9E2DCA620876F710061DF86 /* Utility.framework in Embed Frameworks */,
 				B9013DD7206FEEEF007B1A34 /* Sparkle.framework in Embed Frameworks */,
 				B9FDBF3D2064DB240010BC33 /* AEXML.framework in Embed Frameworks */,
-				B9FDBF3A2064DAEB0010BC33 /* xcbuddykit.framework in Embed Frameworks */,
+				B9FDBF3A2064DAEB0010BC33 /* xpmKit.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -268,9 +268,9 @@
 		66F6D37333CBFF51EA0098DD /* ArgumentParserResult+TestData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "ArgumentParserResult+TestData.swift"; sourceTree = "<group>"; };
 		B9013DD4206FEEDF007B1A34 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
 		B9157D5220A24B4300C2EEBA /* VersionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionCommandTests.swift; sourceTree = "<group>"; };
-		B915ECF6206395DA004B6630 /* xcbuddy */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xcbuddy; sourceTree = BUILT_PRODUCTS_DIR; };
-		B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xcbuddykit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xcbuddykitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B915ECF6206395DA004B6630 /* xpm */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xpm; sourceTree = BUILT_PRODUCTS_DIR; };
+		B915ED1A2063AFBC004B6630 /* xpmKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xpmKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B915ED222063AFBC004B6630 /* xpmKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xpmKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B915ED382063B03C004B6630 /* main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		B915ED3D2063B04C004B6630 /* Tests.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Tests.plist; sourceTree = "<group>"; };
 		B915ED4D2063B04C004B6630 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -287,10 +287,10 @@
 		B92BF9F620755B8500EE4EBD /* MockManifestLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockManifestLoader.swift; sourceTree = "<group>"; };
 		B92BF9FA20755D5300EE4EBD /* MockFileHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFileHandler.swift; sourceTree = "<group>"; };
 		B92BF9FD2075608B00EE4EBD /* Data+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+TestData.swift"; sourceTree = "<group>"; };
-		B94C7F972062B829009BF596 /* xcbuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xcbuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B94C7F972062B829009BF596 /* xpm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xpm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B94C7FB72062B8A7009BF596 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B94C7FB92062B8A7009BF596 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
-		B94C7FBD2062B8A8009BF596 /* xcbuddy.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = xcbuddy.entitlements; path = App/xcbuddy.entitlements; sourceTree = "<group>"; };
+		B94C7FBD2062B8A8009BF596 /* xpm.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = xpm.entitlements; path = App/xpm.entitlements; sourceTree = "<group>"; };
 		B94C7FBE2062B8A8009BF596 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = App/Info.plist; sourceTree = "<group>"; };
 		B94C7FC02062B8A8009BF596 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B94C7FC82062B8C6009BF596 /* Tests.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Tests.plist; path = App/Tests.plist; sourceTree = "<group>"; };
@@ -560,8 +560,8 @@
 				B915ED3B2063B04C004B6630 /* Tests */,
 				B915ED3D2063B04C004B6630 /* Tests.plist */,
 			);
-			name = xcbuddykit;
-			path = App/xcbuddykit;
+			name = xpmKit;
+			path = App/xpmKit;
 			sourceTree = "<group>";
 		};
 		B915ED3B2063B04C004B6630 /* Tests */ = {
@@ -906,8 +906,8 @@
 			dependencies = (
 				B9E65C9D208F919800A9D7AC /* PBXTargetDependency */,
 			);
-			name = xcbuddy;
-			productName = xcbuddy;
+			name = xpm;
+			productName = xpm;
 			productReference = B915ECF6206395DA004B6630 /* xcbuddy */;
 			productType = "com.apple.product-type.tool";
 		};
@@ -923,8 +923,8 @@
 			);
 			dependencies = (
 			);
-			name = xcbuddykit;
-			productName = xcbuddykit;
+			name = xpmKit;
+			productName = xpmKit;
 			productReference = B915ED1A2063AFBC004B6630 /* xcbuddykit.framework */;
 			productType = "com.apple.product-type.framework";
 		};
@@ -942,8 +942,8 @@
 			dependencies = (
 				B915ED252063AFBC004B6630 /* PBXTargetDependency */,
 			);
-			name = xcbuddykitTests;
-			productName = xcbuddykitTests;
+			name = xpmKitTests;
+			productName = xpmKitTests;
 			productReference = B915ED222063AFBC004B6630 /* xcbuddykitTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -965,8 +965,8 @@
 				B9B80AB3206AB4630057482B /* PBXTargetDependency */,
 				B915ED2E2063AFBD004B6630 /* PBXTargetDependency */,
 			);
-			name = xcbuddy;
-			productName = xcbuddy;
+			name = xpm;
+			productName = xpm;
 			productReference = B94C7F972062B829009BF596 /* xcbuddy.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -1075,7 +1075,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if which sentry-cli >/dev/null; then\nexport SENTRY_ORG=xcbuddy\nexport SENTRY_PROJECT=app\nERROR=$(bin/sentry-cli upload-dsym 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi";
+			shellScript = "if which sentry-cli >/dev/null; then\nexport SENTRY_ORG=xpm\nexport SENTRY_PROJECT=app\nERROR=$(bin/sentry-cli upload-dsym 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi";
 		};
 		B918A2322093756700E64FBE /* Swift lint */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1326,10 +1326,10 @@
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
 				FRAMEWORK_VERSION = A;
-				INFOPLIST_FILE = App/xcbuddykit/Info.plist;
+				INFOPLIST_FILE = App/xpmKit/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykit;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1354,10 +1354,10 @@
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
 				FRAMEWORK_VERSION = A;
-				INFOPLIST_FILE = App/xcbuddykit/Info.plist;
+				INFOPLIST_FILE = App/xpmKit/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykit;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 4.0;
@@ -1375,9 +1375,9 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
-				INFOPLIST_FILE = App/xcbuddykit/Tests.plist;
+				INFOPLIST_FILE = App/xpmKit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.0;
 			};
@@ -1392,9 +1392,9 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/App/Frameworks",
 				);
-				INFOPLIST_FILE = App/xcbuddykit/Tests.plist;
+				INFOPLIST_FILE = App/xpmKit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddykitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.0;
 			};
@@ -1520,7 +1520,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BUGSNAG_API_KEY = "$(BUGSNAG_API_KEY)";
-				CODE_SIGN_ENTITLEMENTS = App/xcbuddy.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/xpm.entitlements;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1535,7 +1535,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/.build/x86_64-apple-macosx10.10/debug",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddy;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpm;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1550,7 +1550,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BUGSNAG_API_KEY = "$(BUGSNAG_API_KEY)";
-				CODE_SIGN_ENTITLEMENTS = App/xcbuddy.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/xpm.entitlements;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1565,7 +1565,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/.build/x86_64-apple-macosx10.10/debug",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xcbuddy;
+				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpm;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				PROVISIONING_PROFILE_SPECIFIER = "";

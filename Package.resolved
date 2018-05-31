@@ -21,7 +21,7 @@
       },
       {
         "package": "xcodeproj",
-        "repositoryURL": "git@github.com:xcbuddy/xcodeproj.git",
+        "repositoryURL": "git@github.com:xcode-project-manager/xcodeproj.git",
         "state": {
           "branch": null,
           "revision": "0c2d7389cf2d0b5a89cce492e501623dfe0c71ae",

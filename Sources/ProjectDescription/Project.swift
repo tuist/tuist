@@ -48,7 +48,7 @@ extension Project: JSONConvertible {
 //                          Target(name: "{{NAME}}",
 //                                 platform: .ios,
 //                                 product: .app,
-//                                 bundleId: "io.xcbuddy.{{NAME}}",
+//                                 bundleId: "com.xcodepm.{{NAME}}",
 //                                 infoPlist: "Info.plist",
 //                                 dependencies: [
 //                                     /* Target dependencies can be defined here */

@@ -1,6 +1,6 @@
 # Error handling
 
-xcbuddy has a cli-oriented custom error handlingm echanism. It's been designed with the following two requirements in mind:
+xpm has a cli-oriented custom error handlingm echanism. It's been designed with the following two requirements in mind:
 
 * Output should clearly describe why the execution failed.
 * Errors should be reported before the execution finishes.
@@ -39,7 +39,7 @@ Notice that `abort` and `bug` require the error to conform `CustomStringConverti
 let error = SystemError.tools("Something went wrong")
 
 //  Example of a good description
-let error =  SystemError.tools("Yor version of Swift, 4.1 is  not compatible with xcbuddy. Update xcbuddy to use it with your current version of Swift")
+let error =  SystemError.tools("Yor version of Swift, 4.1 is  not compatible with xpm. Update xpm to use it with your current version of Swift")
 ```
 
 Whenever it's possible, try to give the user details about what can be done to solve the issue.
