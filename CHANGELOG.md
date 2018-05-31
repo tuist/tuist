@@ -32,6 +32,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 * Error handling https://github.com/xcode-project-manager/xpm/pull/14 by @pepibumur.
+* **Breaking** Rename to xpm https://github.com/xcode-project-manager/xpm/pull/46 by @pepibumur.
 
 ### Fixed
 
