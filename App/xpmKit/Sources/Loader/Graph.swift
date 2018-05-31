@@ -60,6 +60,8 @@ protocol Graphing: AnyObject {
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeaders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, shell: Shelling) throws -> [DependencyReference]
+    func dependencies(path: AbsolutePath, name: String) -> Set<GraphNode>
+    func dependencies(path: AbsolutePath) -> Set<GraphNode>
     func targetDependencies(path: AbsolutePath, name: String) -> [String]
 }
 
@@ -97,6 +99,39 @@ class Graph: Graphing {
         self.entryPath = entryPath
         self.cache = cache
         self.entryNodes = entryNodes
+    }
+    
+    /// Returns all the dependencies of a project.
+    ///
+    /// - Parameter path: path to the folder where the project is defined.
+    /// - Returns: list of dependencies.
+    func dependencies(path: AbsolutePath) -> Set<GraphNode> {
+        var dependencies: Set<GraphNode> = Set()
+        cache.targetNodes[path]?.forEach {
+            dependencies.formUnion(self.dependencies(path: path, name: $0.key))
+        }
+        return dependencies
+    }
+
+    /// Returns the list of dependencies that a given target is dependent on.
+    /// Thes list includes the direct dependencies and the dependencyes of those at any level.
+    ///
+    /// - Parameters:
+    ///   - path: path to the folder that contains the project definition.
+    ///   - name: target name.
+    /// - Returns: list of dependencies.
+    func dependencies(path: AbsolutePath, name: String) -> Set<GraphNode> {
+        var dependencies: Set<GraphNode> = Set()
+        var add: ((GraphNode) -> Void)!
+        add = { node in
+            guard let targetNode = node as? TargetNode else { return }
+            targetNode.dependencies.forEach({ dependencies.insert($0) })
+            targetNode.dependencies.compactMap({ $0 as? TargetNode }).forEach(add)
+        }
+        if let target = cache.targetNodes[path]?[name] {
+            add(target)
+        }
+        return dependencies
     }
 
     /// Returns the dependencies of a given target that are in the same project.
@@ -184,17 +219,16 @@ class Graph: Graphing {
         if targetNode.target.product != .app { return [] }
 
         var references: [DependencyReference] = []
+        let dependencies = self.dependencies(path: path, name: name)
 
         /// Precompiled frameworks
-        references.append(contentsOf: try targetNode
-            .dependencies
+        references.append(contentsOf: try dependencies
             .compactMap({ $0 as? FrameworkNode })
             .filter({ try $0.linking(shell: shell) == .dynamic })
             .map({ DependencyReference.absolute($0.path) }))
 
         /// Other targets' frameworks.
-        try references.append(contentsOf: targetNode
-            .dependencies
+        try references.append(contentsOf: dependencies
             .compactMap({ $0 as? TargetNode })
             .filter({ $0.target.product == .framework })
             .map({ targetNode in

@@ -33,14 +33,15 @@ protocol TargetGenerating: AnyObject {
     ///   - fileElements: Project file elements.
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
+    ///   - path: Path to the folder that contains the project manifest.
     /// - Returns: native target.
-    /// - Throws: an error if the generation fails.
     func generateTarget(target targetSpec: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        context: GeneratorContexting) throws -> PBXNativeTarget
+                        context: GeneratorContexting,
+                        path: AbsolutePath) throws -> PBXNativeTarget
 
     /// Generates the targets dependencies.
     ///
@@ -64,6 +65,9 @@ final class TargetGenerator: TargetGenerating {
 
     /// Build phase generator.
     let buildPhaseGenerator: BuildPhaseGenerating
+    
+    /// Link generator.
+    let linkGenerator: LinkGenerating
 
     /// File generator.
     let fileGenerator: FileGenerating
@@ -77,14 +81,17 @@ final class TargetGenerator: TargetGenerating {
     ///   - configGenerator: config generator.
     ///   - fileGenerator: file generator.
     ///   - buildPhaseGenerator: build phase generator.
+    ///   - linkGenerator: link generator.
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-         moduleLoader: GraphModuleLoading = GraphModuleLoader()) {
+         moduleLoader: GraphModuleLoading = GraphModuleLoader(),
+         linkGenerator: LinkGenerating = LinkGenerator()) {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.moduleLoader = moduleLoader
+        self.linkGenerator = linkGenerator
     }
 
     /// Generates the manifests target.
@@ -157,36 +164,45 @@ final class TargetGenerator: TargetGenerating {
     ///   - fileElements: Project file elements.
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
+    ///   - path: Path to the folder that contains the project manifest.
     /// - Returns: native target.
-    /// - Throws: an error if the generation fails.
-    func generateTarget(target targetSpec: Target,
+    func generateTarget(target: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        context _: GeneratorContexting) throws -> PBXNativeTarget {
+                        context: GeneratorContexting,
+                        path: AbsolutePath) throws -> PBXNativeTarget {
         /// Products reference.
-        let productFileReference = fileElements.products[targetSpec.productName]!
+        let productFileReference = fileElements.products[target.productName]!
 
         /// Target
-        let target = PBXNativeTarget(name: targetSpec.name,
+        let pbxTarget = PBXNativeTarget(name: target.name,
                                      buildConfigurationList: nil,
                                      buildPhases: [],
                                      buildRules: [],
                                      dependencies: [],
-                                     productName: targetSpec.productName,
+                                     productName: target.productName,
                                      productReference: productFileReference.reference,
-                                     productType: targetSpec.product.xcodeValue)
-        let targetReference = objects.addObject(target)
+                                     productType: target.product.xcodeValue)
+        let targetReference = objects.addObject(pbxTarget)
         pbxProject.targets.append(targetReference)
 
         /// Build phases
-        try buildPhaseGenerator.generateBuildPhases(targetSpec: targetSpec,
-                                                    target: target,
+        try buildPhaseGenerator.generateBuildPhases(target: target,
+                                                    pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
                                                     objects: objects)
-
-        return target
+        
+        /// Links
+        try linkGenerator.generateLinks(target: target,
+                                        pbxTarget: pbxTarget,
+                                        context: context,
+                                        objects: objects,
+                                        pbxProject: pbxProject,
+                                        fileElements: fileElements,
+                                        path: path)
+        return pbxTarget
     }
 
     /// Generates the targets dependencies.

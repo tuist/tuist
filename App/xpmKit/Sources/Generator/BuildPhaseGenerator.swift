@@ -44,11 +44,11 @@ protocol BuildPhaseGenerating: AnyObject {
     ///
     /// - Parameters:
     ///   - targetSpec: Target specification.
-    ///   - target: Xcode project target.
+    ///   - pbxTarget: Xcode project target.
     ///   - fileElements: Project file elements.
     ///   - objects: Xcode project objects.
-    func generateBuildPhases(targetSpec: Target,
-                             target: PBXTarget,
+    func generateBuildPhases(target: Target,
+                             pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              objects: PBXObjects) throws
 
@@ -56,11 +56,11 @@ protocol BuildPhaseGenerating: AnyObject {
     ///
     /// - Parameters:
     ///   - buildPhase: build phase specification.
-    ///   - target: target whose build phase is being generated.
+    ///   - pbxTarget: target whose build phase is being generated.
     ///   - fileElements: file elements instance.
     ///   - objects: project objects.
     func generateSourcesBuildPhase(_ buildPhase: SourcesBuildPhase,
-                                   target: PBXTarget,
+                                   pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    objects: PBXObjects) throws
 
@@ -68,11 +68,11 @@ protocol BuildPhaseGenerating: AnyObject {
     ///
     /// - Parameters:
     ///   - buildPhase: build phase specification.
-    ///   - target: target whose build phase is being generated.
+    ///   - pbxTarget: target whose build phase is being generated.
     ///   - fileElements: file elements instance.
     ///   - objects: project objects.
     func generateResourcesBuildPhase(_ buildPhase: ResourcesBuildPhase,
-                                     target: PBXTarget,
+                                     pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
                                      objects: PBXObjects) throws
 }
@@ -82,37 +82,37 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     /// Generates the build phases for a given target.
     ///
     /// - Parameters:
-    ///   - targetSpec: Target specification.
-    ///   - target: Xcode project target.
+    ///   - target: Target specification.
+    ///   - pbxTarget: Xcode project target.
     ///   - fileElements: Project file elements.
     ///   - objects: Xcode project objects.
-    func generateBuildPhases(targetSpec: Target,
-                             target: PBXTarget,
+    func generateBuildPhases(target: Target,
+                             pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              objects: PBXObjects) throws {
-        try targetSpec.buildPhases.forEach { buildPhase in
+        try target.buildPhases.forEach { buildPhase in
             if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
                 try generateSourcesBuildPhase(sourcesBuildPhase,
-                                              target: target,
+                                              pbxTarget: pbxTarget,
                                               fileElements: fileElements,
                                               objects: objects)
             } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
                 try generateResourcesBuildPhase(resourcesBuildPhase,
-                                                target: target,
+                                                pbxTarget: pbxTarget,
                                                 fileElements: fileElements,
                                                 objects: objects)
             } else if let headersBuildPhase = buildPhase as? HeadersBuildPhase {
                 try generateHeadersBuildPhase(headersBuildPhase,
-                                              target: target,
+                                              pbxTarget: pbxTarget,
                                               fileElements: fileElements,
                                               objects: objects)
             } else if let scriptBuildPhase = buildPhase as? ScriptBuildPhase {
                 generateScriptBuildPhase(scriptBuildPhase,
-                                         target: target,
+                                         pbxTarget: pbxTarget,
                                          objects: objects)
             } else if let copyBuildPhase = buildPhase as? CopyBuildPhase {
                 generateCopyBuildPhase(copyBuildPhase,
-                                       target: target,
+                                       pbxTarget: pbxTarget,
                                        fileElements: fileElements,
                                        objects: objects)
             }
@@ -123,16 +123,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     ///
     /// - Parameters:
     ///   - buildPhase: build phase specification.
-    ///   - target: target whose build phase is being generated.
+    ///   - pbxTarget: target whose build phase is being generated.
     ///   - fileElements: file elements instance.
     ///   - objects: project objects.
     func generateSourcesBuildPhase(_ buildPhase: SourcesBuildPhase,
-                                   target: PBXTarget,
+                                   pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    objects: PBXObjects) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         let sourcesBuildPhaseReference = objects.addObject(sourcesBuildPhase)
-        target.buildPhases.append(sourcesBuildPhaseReference)
+        pbxTarget.buildPhases.append(sourcesBuildPhaseReference)
         try buildPhase.buildFiles.forEach { buildFile in
             try buildFile.paths.forEach { buildFilePath in
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
@@ -153,11 +153,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     ///
     /// - Parameters:
     ///   - buildPhase: Build phase specification.
-    ///   - target: Xcode target.
+    ///   - pbxTarget: Xcode target.
     ///   - fileElements: Project file elements.
     ///   - objects: Xcode project objects.
     func generateCopyBuildPhase(_ buildPhase: CopyBuildPhase,
-                                target: PBXTarget,
+                                pbxTarget: PBXTarget,
                                 fileElements: ProjectFileElements,
                                 objects: PBXObjects) {
         let fileReferences = buildPhase.files.compactMap { (file) -> PBXObjectReference? in
@@ -173,17 +173,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                    name: buildPhase.name,
                                                    files: fileReferences)
         let pbxBuildPhaseReference = objects.addObject(pbxBuildPhase)
-        target.buildPhases.append(pbxBuildPhaseReference)
+        pbxTarget.buildPhases.append(pbxBuildPhaseReference)
     }
 
     /// Generates a shell script build phase.
     ///
     /// - Parameters:
     ///   - buildPhase: build phase specification.
-    ///   - target: Xcode project target.
+    ///   - pbxTarget: Xcode project target.
     ///   - objects: Xcode project objects.
     func generateScriptBuildPhase(_ buildPhase: ScriptBuildPhase,
-                                  target: PBXTarget,
+                                  pbxTarget: PBXTarget,
                                   objects: PBXObjects) {
         let pbxBuildPhase = PBXShellScriptBuildPhase(name: buildPhase.name,
                                                      inputPaths: buildPhase.inputFiles,
@@ -192,23 +192,23 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                      shellScript: buildPhase.script,
                                                      showEnvVarsInLog: true)
         let pbxBuildPhaseReference = objects.addObject(pbxBuildPhase)
-        target.buildPhases.append(pbxBuildPhaseReference)
+        pbxTarget.buildPhases.append(pbxBuildPhaseReference)
     }
 
     /// Generates a headers build phase.
     ///
     /// - Parameters:
     ///   - buildPhase: headers build phase specification.
-    ///   - target: Xcode target where the build phase will be added to.
+    ///   - pbxTarget: Xcode target where the build phase will be added to.
     ///   - fileElements: project file elements.
     ///   - objects: Xcode project objects.
     func generateHeadersBuildPhase(_ buildPhase: HeadersBuildPhase,
-                                   target: PBXTarget,
+                                   pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    objects: PBXObjects) throws {
         let headersBuildPhase = PBXHeadersBuildPhase()
         let headersBuildPhaseReference = objects.addObject(headersBuildPhase)
-        target.buildPhases.append(headersBuildPhaseReference)
+        pbxTarget.buildPhases.append(headersBuildPhaseReference)
         try buildPhase.buildFiles.forEach { headerBuildFile in
             try headerBuildFile.paths.forEach { path in
                 guard let fileReference = fileElements.file(path: path) else {
@@ -227,16 +227,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     ///
     /// - Parameters:
     ///   - buildPhase: Resources build phase specification.
-    ///   - target: Xcode project target whose build phase will be generated.
+    ///   - pbxTarget: Xcode project target whose build phase will be generated.
     ///   - fileElements: Project file elements.
     ///   - objects: Xcode project objects.
     func generateResourcesBuildPhase(_ buildPhase: ResourcesBuildPhase,
-                                     target: PBXTarget,
+                                     pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
                                      objects: PBXObjects) throws {
         let resourcesBuildPhase = PBXResourcesBuildPhase()
         let resourcesBuildPhaseReference = objects.addObject(resourcesBuildPhase)
-        target.buildPhases.append(resourcesBuildPhaseReference)
+        pbxTarget.buildPhases.append(resourcesBuildPhaseReference)
         try buildPhase.buildFiles.forEach { buildFile in
             // Normal resource build file.
             if let resourcesBuildFile = buildFile as? ResourcesBuildFile {

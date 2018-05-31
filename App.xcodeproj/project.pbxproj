@@ -69,6 +69,7 @@
 		B958960B208B578700F00ACF /* GraphCircularDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960A208B578700F00ACF /* GraphCircularDetector.swift */; };
 		B958960D208B607400F00ACF /* GraphCircularDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */; };
 		B97DDE9C20B448250052EB48 /* GraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97DDE9B20B448250052EB48 /* GraphTests.swift */; };
+		B986BFED20BFD6910083BAB4 /* LinkGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B986BFEC20BFD6910083BAB4 /* LinkGenerator.swift */; };
 		B99D5D4420B5C8A400249856 /* GraphModuleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */; };
 		B99D5D4620B6878400249856 /* MockGraphModuleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4520B6878400249856 /* MockGraphModuleLoader.swift */; };
 		B99D5D4820B6C87B00249856 /* GraphModuleLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */; };
@@ -338,6 +339,7 @@
 		B958960A208B578700F00ACF /* GraphCircularDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetector.swift; sourceTree = "<group>"; };
 		B958960C208B607400F00ACF /* GraphCircularDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCircularDetectorTests.swift; sourceTree = "<group>"; };
 		B97DDE9B20B448250052EB48 /* GraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphTests.swift; sourceTree = "<group>"; };
+		B986BFEC20BFD6910083BAB4 /* LinkGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkGenerator.swift; sourceTree = "<group>"; };
 		B99D5D4320B5C8A400249856 /* GraphModuleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoader.swift; sourceTree = "<group>"; };
 		B99D5D4520B6878400249856 /* MockGraphModuleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGraphModuleLoader.swift; sourceTree = "<group>"; };
 		B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoaderTests.swift; sourceTree = "<group>"; };
@@ -744,6 +746,7 @@
 				3D92B7E820A857D9006711E5 /* GenerationOptions.swift */,
 				3D92B80A20AAFC2D006711E5 /* ProjectFileElements.swift */,
 				3D7E6CDE20AEC69F00360C02 /* BuildPhaseGenerator.swift */,
+				B986BFEC20BFD6910083BAB4 /* LinkGenerator.swift */,
 			);
 			path = Generator;
 			sourceTree = "<group>";
@@ -1253,6 +1256,7 @@
 				B9E2DCCD2089BF3B0061DF86 /* CommandsContext.swift in Sources */,
 				B9553DF320921AF300050311 /* ResourceLocator.swift in Sources */,
 				B9B629A920864E3A00EE9E07 /* Logger.swift in Sources */,
+				B986BFED20BFD6910083BAB4 /* LinkGenerator.swift in Sources */,
 				B9FB2DE72086544900BC2FB3 /* Project.swift in Sources */,
 				B9FB2DE62086544900BC2FB3 /* Scheme.swift in Sources */,
 				B9F1EDFD208D26B200477835 /* GraphValidator.swift in Sources */,
