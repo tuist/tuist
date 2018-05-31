@@ -1,9 +1,9 @@
 import Basic
 import Foundation
 import Utility
-@testable import xpmKit
 @testable import xcodeproj
 import XCTest
+@testable import xpmKit
 
 final class GenerateCommandTests: XCTestCase {
     var subject: GenerateCommand!

@@ -1,6 +1,6 @@
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class BuildConfigurationTests: XCTestCase {
     func test_rawValue_returnsTheRightValue_whenDebug() {

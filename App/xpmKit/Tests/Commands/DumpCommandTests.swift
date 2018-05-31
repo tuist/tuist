@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import Utility
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class DumpCommandTests: XCTestCase {
     var printer: MockPrinter!

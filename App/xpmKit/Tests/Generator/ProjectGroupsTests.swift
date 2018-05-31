@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-@testable import xpmKit
 @testable import xcodeproj
 import XCTest
+@testable import xpmKit
 
 final class ProjectGroupsTests: XCTestCase {
     var subject: ProjectGroups!

@@ -6,7 +6,7 @@ import Basic
 import Foundation
 
 /// Xcode utils.
-class XcodeBuildEnvironment {
+class XcodeBuild {
     /// Xcode action.
     ///
     /// - archive: archive.
@@ -25,7 +25,7 @@ class XcodeBuildEnvironment {
     }
 
     /// Xcode Build Environment.
-    public struct BuildEnvironment {
+    class Environment {
         public let configuration: String
         public let configurationBuildDir: String
         public let frameworksFolderPath: String
@@ -38,6 +38,7 @@ class XcodeBuildEnvironment {
         public let expandedCodeSignIdentityName: String
         public let otherCodeSignFlags: String
         public let validArchs: [String]
+        public let srcRoot: String
         public let action: Action
 
         // Initializes the Xcode Environment with its attributes.
@@ -53,6 +54,7 @@ class XcodeBuildEnvironment {
                     expandedCodeSignIdentityName: String,
                     otherCodeSignFlags: String,
                     validArchs: [String],
+                    srcRoot: String,
                     action: Action) {
             self.configuration = configuration
             self.configurationBuildDir = configurationBuildDir
@@ -66,6 +68,7 @@ class XcodeBuildEnvironment {
             self.expandedCodeSignIdentityName = expandedCodeSignIdentityName
             self.otherCodeSignFlags = otherCodeSignFlags
             self.validArchs = validArchs
+            self.srcRoot = srcRoot
             self.action = action
         }
 
@@ -85,6 +88,7 @@ class XcodeBuildEnvironment {
             guard let expandedCodeSignIdentityName = environment["EXPANDED_CODE_SIGN_IDENTITY_NAME"] else { return nil }
             guard let otherCodeSignFlags = environment["OTHER_CODE_SIGN_FLAGS"] else { return nil }
             guard let validArchs = environment["VALID_ARCHS"] else { return nil }
+            guard let srcRoot = environment["SRCROOT"] else { return nil }
             guard let action = environment["ACTION"] else { return nil }
             self.configuration = configuration
             self.configurationBuildDir = configurationBuildDir
@@ -98,6 +102,7 @@ class XcodeBuildEnvironment {
             self.expandedCodeSignIdentityName = expandedCodeSignIdentityName
             self.otherCodeSignFlags = otherCodeSignFlags
             self.validArchs = validArchs.components(separatedBy: " ")
+            self.srcRoot = srcRoot
             self.action = Action(rawValue: action) ?? .install
         }
 

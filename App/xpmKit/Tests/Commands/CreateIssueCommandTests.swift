@@ -1,7 +1,7 @@
 import Foundation
 import Utility
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class CreateIssueCommandTests: XCTestCase {
     var shell: MockShell!

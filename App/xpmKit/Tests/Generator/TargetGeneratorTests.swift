@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-@testable import xpmKit
 import xcodeproj
 import XCTest
+@testable import xpmKit
 
 final class TargetGeneratorTests: XCTestCase {
     var subject: TargetGenerator!

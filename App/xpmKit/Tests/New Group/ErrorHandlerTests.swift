@@ -1,7 +1,7 @@
 import Foundation
 import Sentry
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 fileprivate struct TestError: FatalError {
     var description: String { return "Error" }

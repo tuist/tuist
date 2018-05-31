@@ -1,6 +1,6 @@
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class MockErrorHandler: ErrorHandling {
     var fatalErrorArgs: [FatalError] = []

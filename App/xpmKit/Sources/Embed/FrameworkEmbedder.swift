@@ -4,60 +4,71 @@ import Foundation
 
 enum FrameworkEmbedderError: FatalError {
     case missingFramework
-    
+    case missingEnvironment
+
     var type: ErrorType {
         switch self {
         case .missingFramework:
-            return .bug
+            return .abort
+        case .missingEnvironment:
+            return .abort
         }
     }
-    
+
     var description: String {
         switch self {
         case .missingFramework:
-            return "A framework needs to be specified"
+            return "A framework needs to be specified."
+        case .missingEnvironment:
+            return "Running xpm-embed outside Xcode build phases is not allowed."
         }
     }
 }
 
 /// Embeds the input framework into the built product.
 public class FrameworkEmbedder {
-    private let fileHandler: FileHandling
+    /// Context.
+    private let context: CommandsContexting
 
     /// Constructor
     public convenience init() {
-        self.init(fileHandler: FileHandler())
+        self.init(context: CommandsContext())
     }
 
-    init(fileHandler: FileHandling) {
-        self.fileHandler = fileHandler
+    init(context: CommandsContexting) {
+        self.context = context
     }
 
-    public func embed(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
-        if CommandLine.arguments.count < 2 {
-            throw FrameworkEmbedderError.missingFramework
+    /// Embeds the given framework into the built product.
+    ///
+    /// - Parameters:
+    ///   - frameworkPath: relative path to the framework.
+    ///   - environment: XcodeBuild environment.
+    func embed(frameworkPath: RelativePath,
+               environment: XcodeBuild.Environment) throws {
+        let configDir = AbsolutePath(environment.configurationBuildDir)
+        let frameworksPath = RelativePath(environment.frameworksFolderPath)
+        let builtProductsDir = AbsolutePath(environment.builtProductsDir)
+        let srcRoot = AbsolutePath(environment.srcRoot)
+        try context.fileHandler.createFolder(configDir.appending(frameworksPath))
+        let frameworkPath = srcRoot.appending(frameworkPath)
+    }
+
+    /// Embeds the passed framewok into the built product.
+    public func embed() {
+        do {
+            if CommandLine.arguments.count < 2 {
+                throw FrameworkEmbedderError.missingFramework
+            }
+            guard let environment = XcodeBuild.Environment() else {
+                throw FrameworkEmbedderError.missingEnvironment
+            }
+            try embed(frameworkPath: RelativePath(CommandLine.arguments[1]),
+                      environment: environment)
+        } catch let error as FatalError {
+            context.errorHandler.fatal(error: error)
+        } catch {
+            context.errorHandler.fatal(error: UnhandledError(error: error))
         }
-        let frameworkRelativePath = RelativePath(CommandLine.arguments[1])
-        if environment["FRAMEWORKS_FOLDER_PATH"] == nil {
-            return
-        }
-        guard let configDirString = environment["CONFIGURATION_BUILD_DIR"] else {
-            return
-        }
-        guard let frameworksPathString = environment["FRAMEWORKS_FOLDER_PATH"] else {
-            return
-        }
-        guard let builtProductsDirString = environment["BUILT_PRODUCTS_DIR"] else {
-            return
-        }
-        guard let srcRootString = environment["SRCROOT"] else {
-            return
-        }
-        let configDir = AbsolutePath(configDirString)
-        let frameworksPath = RelativePath(frameworksPathString)
-        let builtProductsDir = AbsolutePath(builtProductsDirString)
-        let srcRoot = AbsolutePath(srcRootString)
-        try fileHandler.createFolder(configDir.appending(frameworksPath))
-        let frameworkPath = srcRoot.appending(frameworkRelativePath)
     }
 }

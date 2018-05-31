@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 @testable import Utility
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class InitCommandTests: XCTestCase {
     var subject: InitCommand!
