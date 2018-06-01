@@ -1,719 +1,957 @@
 {
   "warnings": [
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/App/Constants.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/App/Constants.swift",
       "line": 7,
       "symbol": "Constants.Manifest.project",
       "symbol_kind": "source.lang.swift.decl.var.static",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/App/Constants.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/App/Constants.swift",
       "line": 8,
       "symbol": "Constants.Manifest.config",
       "symbol_kind": "source.lang.swift.decl.var.static",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/App/Constants.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/App/Constants.swift",
       "line": 9,
       "symbol": "Constants.Manifest.workspace",
       "symbol_kind": "source.lang.swift.decl.var.static",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/CommandRegistry.swift",
-      "line": 17,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/CommandRegistry.swift",
+      "line": 8,
+      "symbol": "CommandRegistry.parser",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/CommandRegistry.swift",
+      "line": 20,
       "symbol": "CommandRegistry.commands",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/DumpCommand.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/CreateIssueCommand.swift",
+      "line": 7,
+      "symbol": "CreateIssueCommand.createIssueUrl",
+      "symbol_kind": "source.lang.swift.decl.var.static",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/DumpCommand.swift",
       "line": 9,
       "symbol": "DumpCommandError.manifestNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/GenerateCommand.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/GenerateCommand.swift",
       "line": 5,
-      "symbol": "GenerateCommandError",
-      "symbol_kind": "source.lang.swift.decl.enum",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/GenerateCommand.swift",
-      "line": 15,
       "symbol": "GenerateCommand",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/InitCommand.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/InitCommand.swift",
       "line": 9,
       "symbol": "InitCommandError.alreadyExists",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/InitCommand.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/InitCommand.swift",
       "line": 10,
       "symbol": "InitCommandError.ungettableProjectName",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Commands/UpdateCommand.swift",
-      "line": 36,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Commands/UpdateCommand.swift",
+      "line": 34,
       "symbol": "UpdateCommand.init(controller:context:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Errors/ErrorHandler.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Errors/ErrorHandler.swift",
       "line": 6,
       "symbol": "SentryClienting.startCrashHandler()",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Errors/ErrorHandler.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Errors/ErrorHandler.swift",
       "line": 7,
       "symbol": "SentryClienting.send(event:completion:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Errors/FatalError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Errors/FatalError.swift",
       "line": 10,
-      "symbol": "FatalError.abort",
+      "symbol": "ErrorType.abort",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Errors/FatalError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Errors/FatalError.swift",
       "line": 11,
-      "symbol": "FatalError.bug",
+      "symbol": "ErrorType.bug",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Errors/FatalError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Errors/FatalError.swift",
       "line": 12,
-      "symbol": "FatalError.abortSilent",
+      "symbol": "ErrorType.abortSilent",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Errors/FatalError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Errors/FatalError.swift",
       "line": 13,
-      "symbol": "FatalError.bugSilent",
+      "symbol": "ErrorType.bugSilent",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Extensions/AbsolutePath+Extras.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Errors/FatalError.swift",
+      "line": 18,
+      "symbol": "UnhandledError.error",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Extensions/AbsolutePath+Extras.swift",
       "line": 5,
       "symbol": "systemGlob",
       "symbol_kind": "source.lang.swift.decl.var.global",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Extensions/AbsolutePath+Extras.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Extensions/AbsolutePath+Extras.swift",
       "line": 8,
       "symbol": "AbsolutePath.current",
       "symbol_kind": "source.lang.swift.decl.var.static",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Extensions/AbsolutePath+Extras.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Extensions/AbsolutePath+Extras.swift",
       "line": 12,
       "symbol": "AbsolutePath.glob(_:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/GeneratorError.swift",
-      "line": 3,
-      "symbol": "GeneratorError",
-      "symbol_kind": "source.lang.swift.decl.enum",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Generator/BuildPhaseGenerator.swift",
+      "line": 9,
+      "symbol": "BuildPhaseGenerationError.missingFileReference",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/ProjectGenerator.swift",
-      "line": 6,
-      "symbol": "ProjectGenerating",
-      "symbol_kind": "source.lang.swift.decl.protocol",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/ProjectGenerator.swift",
-      "line": 10,
-      "symbol": "ProjectGenerator",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Generator/FileGenerator.swift",
+      "line": 21,
+      "symbol": "FileGenerator",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/TargetGenerator.swift",
-      "line": 3,
-      "symbol": "TargetGenerating",
-      "symbol_kind": "source.lang.swift.decl.protocol",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Generator/TargetGenerator.swift",
-      "line": 6,
-      "symbol": "TargetGenerator",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Generator/ProjectFileElements.swift",
+      "line": 5,
+      "symbol": "ProjectFileElements",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
-      "line": 6,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 8,
+      "symbol": "GraphError.unsupportedFileExtension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 32,
+      "symbol": "DependencyReference.absolute",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 33,
+      "symbol": "DependencyReference.product",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 55,
       "symbol": "Graphing.name",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
-      "line": 7,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 56,
       "symbol": "Graphing.entryPath",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
-      "line": 8,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 57,
       "symbol": "Graphing.cache",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
-      "line": 9,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 58,
       "symbol": "Graphing.entryNodes",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
-      "line": 10,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 59,
       "symbol": "Graphing.projects",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/Graph.swift",
-      "line": 32,
-      "symbol": "Graph.init(name:entryPath:cache:entryNodes:)",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 60,
+      "symbol": "Graphing.linkableDependencies(path:name:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphCircularDetector.swift",
-      "line": 31,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 61,
+      "symbol": "Graphing.librariesPublicHeaders(path:name:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 62,
+      "symbol": "Graphing.embeddableFrameworks(path:name:shell:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/Graph.swift",
+      "line": 63,
+      "symbol": "Graphing.targetDependencies(path:name:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphCircularDetector.swift",
+      "line": 22,
+      "symbol": "GraphCircularDetecting.start(from:to:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphCircularDetector.swift",
+      "line": 32,
       "symbol": "GraphCircularDetector.edges",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphLoader.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphCircularDetector.swift",
+      "line": 41,
+      "symbol": "GraphCircularDetector.start(from:to:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphLoader.swift",
       "line": 6,
       "symbol": "GraphLoading.load(path:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphLoadingError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphLoadingError.swift",
       "line": 11,
       "symbol": "GraphLoadingError.missingFile",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphLoadingError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphLoadingError.swift",
       "line": 12,
       "symbol": "GraphLoadingError.targetNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphLoadingError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphLoadingError.swift",
       "line": 13,
       "symbol": "GraphLoadingError.manifestNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphLoadingError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphLoadingError.swift",
       "line": 14,
       "symbol": "GraphLoadingError.circularDependency",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphLoadingError.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphLoadingError.swift",
       "line": 15,
       "symbol": "GraphLoadingError.unexpected",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphManifestLoader.swift",
       "line": 8,
       "symbol": "GraphManifestLoading.load(path:context:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 18,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphManifestLoader.swift",
+      "line": 17,
       "symbol": "GraphManifestLoaderError.projectDescriptionNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 19,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphManifestLoader.swift",
+      "line": 18,
       "symbol": "GraphManifestLoaderError.frameworksFolderNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 20,
-      "symbol": "GraphManifestLoaderError.swiftNotFound",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphManifestLoader.swift",
-      "line": 21,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphManifestLoader.swift",
+      "line": 19,
       "symbol": "GraphManifestLoaderError.unexpectedOutput",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphModuleLoader.swift",
+      "line": 9,
+      "symbol": "GraphModuleLoaderError.fileNotFound",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphModuleLoader.swift",
+      "line": 10,
+      "symbol": "GraphModuleLoaderError.fileLoadError",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphModuleLoader.swift",
+      "line": 64,
+      "symbol": "GraphModuleLoader",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
       "line": 47,
       "symbol": "TargetNode.read(name:path:context:)",
       "symbol_kind": "source.lang.swift.decl.function.method.static",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
       "line": 61,
       "symbol": "TargetNode.readDependency(path:name:context:)",
       "symbol_kind": "source.lang.swift.decl.function.method.static",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
       "line": 100,
       "symbol": "PrecompiledNodeError.architecturesNotFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 131,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
+      "line": 139,
       "symbol": "PrecompiledNode.Linking.dynamic",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 131,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
+      "line": 139,
       "symbol": "PrecompiledNode.Linking.static",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 141,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
+      "line": 149,
       "symbol": "PrecompiledNode.Architecture.x8664",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 142,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
+      "line": 150,
       "symbol": "PrecompiledNode.Architecture.i386",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 143,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
+      "line": 151,
       "symbol": "PrecompiledNode.Architecture.armv7",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Loader/GraphNode.swift",
-      "line": 144,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Loader/GraphNode.swift",
+      "line": 152,
       "symbol": "PrecompiledNode.Architecture.armv7s",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildConfiguration.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildConfiguration.swift",
       "line": 8,
       "symbol": "BuildConfiguration.debug",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildConfiguration.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildConfiguration.swift",
       "line": 9,
       "symbol": "BuildConfiguration.release",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildFiles.swift",
-      "line": null,
-      "symbol": "BuildFiles",
-      "symbol_kind": "source.lang.swift.decl.extension",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildFile.swift",
+      "line": 8,
+      "symbol": "BuildFileError.invalidBuildFileType",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildFiles.swift",
-      "line": 6,
-      "symbol": "BuildFiles",
-      "symbol_kind": "source.lang.swift.decl.class",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildFile.swift",
+      "line": 197,
+      "symbol": "CopyBuildFile.product",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 4,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildFile.swift",
+      "line": 198,
+      "symbol": "CopyBuildFile.path",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildFile.swift",
+      "line": 243,
+      "symbol": "HeadersBuildFile.AccessLevel.private",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildFile.swift",
+      "line": 243,
+      "symbol": "HeadersBuildFile.AccessLevel.project",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildFile.swift",
+      "line": 243,
+      "symbol": "HeadersBuildFile.AccessLevel.public",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 5,
       "symbol": "BuildPhase",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 118,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 123,
       "symbol": "CopyBuildPhase.Destination.absolutePath",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 119,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 124,
       "symbol": "CopyBuildPhase.Destination.productsDirectory",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 120,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 125,
       "symbol": "CopyBuildPhase.Destination.wrapper",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 121,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 126,
       "symbol": "CopyBuildPhase.Destination.resources",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 122,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 127,
       "symbol": "CopyBuildPhase.Destination.executables",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 123,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 128,
       "symbol": "CopyBuildPhase.Destination.javaResources",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 124,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 129,
       "symbol": "CopyBuildPhase.Destination.frameworks",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 125,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 130,
       "symbol": "CopyBuildPhase.Destination.sharedFrameworks",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 126,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 131,
       "symbol": "CopyBuildPhase.Destination.sharedSupport",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/BuildPhase.swift",
-      "line": 127,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/BuildPhase.swift",
+      "line": 132,
       "symbol": "CopyBuildPhase.Destination.plugins",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Platform.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Platform.swift",
       "line": 10,
       "symbol": "Platform.ios",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Platform.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Platform.swift",
       "line": 11,
       "symbol": "Platform.macos",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Platform.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Platform.swift",
       "line": 12,
       "symbol": "Platform.watchos",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Platform.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Platform.swift",
       "line": 13,
       "symbol": "Platform.tvos",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 21,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 22,
       "symbol": "Product.app",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 22,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 23,
       "symbol": "Product.staticLibrary",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 23,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 24,
       "symbol": "Product.dynamicLibrary",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 24,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 25,
       "symbol": "Product.framework",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 25,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 26,
       "symbol": "Product.unitTests",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 26,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 27,
       "symbol": "Product.uiTests",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 27,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 28,
       "symbol": "Product.appExtension",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 28,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 29,
       "symbol": "Product.watchApp",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 29,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 30,
       "symbol": "Product.watch2App",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 30,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 31,
       "symbol": "Product.watchExtension",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 31,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 32,
       "symbol": "Product.watch2Extension",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 32,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 33,
       "symbol": "Product.tvExtension",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 33,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 34,
       "symbol": "Product.messagesApplication",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 34,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 35,
       "symbol": "Product.messagesExtension",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Models/Product.swift",
-      "line": 35,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Models/Product.swift",
+      "line": 36,
       "symbol": "Product.stickerPack",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Protocols/XcodeRepresentable.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Protocols/XcodeRepresentable.swift",
       "line": 5,
       "symbol": "XcodeRepresentable.Value",
       "symbol_kind": "source.lang.swift.decl.associatedtype",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Updater/SPUUpdater+CommandLine.swift",
-      "line": 4,
-      "symbol": "SPUCommandLineUserDriver",
-      "symbol_kind": "source.lang.swift.decl.class",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 24,
+      "symbol": "SPUCommandLineUserDriver.showCanCheck(forUpdates:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Updater/SPUUpdater+CommandLine.swift",
-      "line": 184,
-      "symbol": "SPUUpdater.commandLine()",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 30,
+      "symbol": "SPUCommandLineUserDriver.show(_:reply:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 37,
+      "symbol": "SPUCommandLineUserDriver.showUserInitiatedUpdateCheck(completion:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 44,
+      "symbol": "SPUCommandLineUserDriver.dismissUserInitiatedUpdateCheck()",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 50,
+      "symbol": "SPUCommandLineUserDriver.showUpdateFound(with:userInitiated:reply:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 57,
+      "symbol": "SPUCommandLineUserDriver.showDownloadedUpdateFound(with:userInitiated:reply:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 64,
+      "symbol": "SPUCommandLineUserDriver.showResumableUpdateFound(with:userInitiated:reply:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 72,
+      "symbol": "SPUCommandLineUserDriver.showInformationalUpdateFound(with:userInitiated:reply:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 81,
+      "symbol": "SPUCommandLineUserDriver.showUpdateReleaseNotes(with:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 93,
+      "symbol": "SPUCommandLineUserDriver.showUpdateReleaseNotesFailedToDownloadWithError(_:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 99,
+      "symbol": "SPUCommandLineUserDriver.showUpdateNotFound(acknowledgement:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 106,
+      "symbol": "SPUCommandLineUserDriver.showUpdaterError(_:acknowledgement:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 113,
+      "symbol": "SPUCommandLineUserDriver.showDownloadInitiated(completion:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 120,
+      "symbol": "SPUCommandLineUserDriver.showDownloadDidReceiveExpectedContentLength(_:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 124,
+      "symbol": "SPUCommandLineUserDriver.showDownloadDidReceiveData(ofLength:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 128,
+      "symbol": "SPUCommandLineUserDriver.showDownloadDidStartExtractingUpdate()",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 135,
+      "symbol": "SPUCommandLineUserDriver.showExtractionReceivedProgress(_:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 141,
+      "symbol": "SPUCommandLineUserDriver.showReady(toInstallAndRelaunch:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 148,
+      "symbol": "SPUCommandLineUserDriver.showInstallingUpdate()",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 154,
+      "symbol": "SPUCommandLineUserDriver.showSendingTerminationSignal()",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 158,
+      "symbol": "SPUCommandLineUserDriver.showUpdateInstallationDidFinish(acknowledgement:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 166,
+      "symbol": "SPUCommandLineUserDriver.dismissUpdateInstallation()",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Updater/SPUUpdater+CommandLine.swift",
+      "line": 199,
+      "symbol": "SPUUpdater.commandLine(context:resourceLocator:)",
       "symbol_kind": "source.lang.swift.decl.function.method.static",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Updater/UpdateController.swift",
-      "line": 4,
-      "symbol": "UpdateControlling",
-      "symbol_kind": "source.lang.swift.decl.protocol",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Updater/UpdateController.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Utils/CommandCheck.swift",
       "line": 9,
-      "symbol": "UpdateController",
-      "symbol_kind": "source.lang.swift.decl.class",
+      "symbol": "CommandCheckError.swiftVersionNotFound",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Bundles.swift",
-      "line": 6,
-      "symbol": "BundleError",
-      "symbol_kind": "source.lang.swift.decl.enum",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Utils/CommandCheck.swift",
+      "line": 10,
+      "symbol": "CommandCheckError.incompatibleSwiftVersion",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Logger.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Utils/Logger.swift",
       "line": 11,
       "symbol": "Logger",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Printer.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Utils/Printer.swift",
       "line": 30,
       "symbol": "Printer.terminalController",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Printer.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Utils/Printer.swift",
       "line": 72,
       "symbol": "InteractiveWriter",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/ResourceLocator.swift",
-      "line": 25,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Utils/ResourceLocator.swift",
+      "line": 31,
       "symbol": "ResourceLocatingError.notFound",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Utils/Signals.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Utils/Signals.swift",
       "line": 31,
       "symbol": "Signals",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Validator/GraphValidator.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Validator/GraphValidator.swift",
       "line": 3,
       "symbol": "GraphValidator",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Validator/ProjectValidator.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Validator/ProjectValidator.swift",
       "line": 4,
       "symbol": "ProjectValidationError",
       "symbol_kind": "source.lang.swift.decl.enum",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Validator/ProjectValidator.swift",
-      "line": 23,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Validator/ProjectValidator.swift",
+      "line": 33,
       "symbol": "ProjectValidator.targetValidator",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Validator/ProjectValidator.swift",
-      "line": 25,
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Validator/ProjectValidator.swift",
+      "line": 35,
       "symbol": "ProjectValidator.validate(_:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Sources/Validator/TargetValidator.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Sources/Validator/TargetValidator.swift",
       "line": 3,
       "symbol": "TargetValidator",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/code/xcbuddy/xcbuddy/App/xcbuddykit/Tests/Utils/MockRersourceLocator.swift",
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/App/xpmKit/Tests/Utils/Mocks/MockRersourceLocator.swift",
       "line": 4,
       "symbol": "MockResourceLocator",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     }
   ],
-  "source_directory": "/Users/pedropinera/code/xcbuddy/xcbuddy"
+  "source_directory": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm"
 }
