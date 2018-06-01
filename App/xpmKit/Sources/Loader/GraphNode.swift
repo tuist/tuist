@@ -16,7 +16,7 @@ class GraphNode: Equatable, Hashable {
     static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
         return lhs.path == rhs.path
     }
-    
+
     var hashValue: Int {
         return path.hashValue
     }
@@ -47,9 +47,9 @@ class TargetNode: GraphNode {
         self.dependencies = dependencies
         super.init(path: project.path)
     }
-    
+
     override var hashValue: Int {
-        return self.path.hashValue ^ self.target.name.hashValue
+        return path.hashValue ^ target.name.hashValue
     }
 
     static func read(name: String, path: AbsolutePath, context: GraphLoaderContexting) throws -> TargetNode {

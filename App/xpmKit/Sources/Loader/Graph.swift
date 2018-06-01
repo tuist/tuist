@@ -100,7 +100,7 @@ class Graph: Graphing {
         self.cache = cache
         self.entryNodes = entryNodes
     }
-    
+
     /// Returns all the dependencies of a project.
     ///
     /// - Parameter path: path to the folder where the project is defined.

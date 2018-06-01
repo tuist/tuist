@@ -65,7 +65,7 @@ final class TargetGenerator: TargetGenerating {
 
     /// Build phase generator.
     let buildPhaseGenerator: BuildPhaseGenerating
-    
+
     /// Link generator.
     let linkGenerator: LinkGenerating
 
@@ -169,7 +169,7 @@ final class TargetGenerator: TargetGenerating {
     func generateTarget(target: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
-                        groups: ProjectGroups,
+                        groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
                         context: GeneratorContexting,
                         path: AbsolutePath) throws -> PBXNativeTarget {
@@ -178,13 +178,13 @@ final class TargetGenerator: TargetGenerating {
 
         /// Target
         let pbxTarget = PBXNativeTarget(name: target.name,
-                                     buildConfigurationList: nil,
-                                     buildPhases: [],
-                                     buildRules: [],
-                                     dependencies: [],
-                                     productName: target.productName,
-                                     productReference: productFileReference.reference,
-                                     productType: target.product.xcodeValue)
+                                        buildConfigurationList: nil,
+                                        buildPhases: [],
+                                        buildRules: [],
+                                        dependencies: [],
+                                        productName: target.productName,
+                                        productReference: productFileReference.reference,
+                                        productType: target.product.xcodeValue)
         let targetReference = objects.addObject(pbxTarget)
         pbxProject.targets.append(targetReference)
 
@@ -193,7 +193,7 @@ final class TargetGenerator: TargetGenerating {
                                                     pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
                                                     objects: objects)
-        
+
         /// Links
         try linkGenerator.generateLinks(target: target,
                                         pbxTarget: pbxTarget,
