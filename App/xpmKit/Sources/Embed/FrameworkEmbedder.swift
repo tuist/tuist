@@ -60,15 +60,25 @@ public class FrameworkEmbedder {
     ///   - environment: XcodeBuild environment.
     func embed(frameworkPath: RelativePath,
                environment: XcodeBuild.Environment) throws {
+        // Frameworks are copied into: /{built_products/target_build_dir}/{frameworks_folder}/
+        // DSyms are copied into: /{built_products/target_build_dir}
+        // BCSymbols are copied into : /{built_products}
+
         // xcodebuild environment variables
         let frameworksPath = RelativePath(environment.frameworksFolderPath)
-        let builtProductsDir = AbsolutePath(environment.builtProductsDir)
         let validArchs = environment.validArchs
         let srcRoot = AbsolutePath(environment.srcRoot)
+        let action = environment.action
+        var destinationPath: AbsolutePath!
+        if action == .install {
+            destinationPath = AbsolutePath(environment.builtProductsDir)
+        } else {
+            destinationPath = AbsolutePath(environment.targetBuildDir)
+        }
+        let builtProductsDir = AbsolutePath(environment.builtProductsDir)
         let frameworkAbsolutePath = srcRoot.appending(frameworkPath)
         let frameworkDsymPath = AbsolutePath("\(frameworkPath.asString).dSYM")
-        let productFrameworksPath = builtProductsDir.appending(frameworksPath)
-        let action = environment.action
+        let productFrameworksPath = destinationPath.appending(frameworksPath)
 
         // Conditions
         if frameworkAbsolutePath.extension != "framework" {
@@ -93,7 +103,7 @@ public class FrameworkEmbedder {
 
         // Symbols
         if context.fileHandler.exists(frameworkDsymPath) {
-            let frameworkDsymOutputPath = productFrameworksPath.appending(component: frameworkDsymPath.components.last!)
+            let frameworkDsymOutputPath = destinationPath.appending(component: frameworkDsymPath.components.last!)
             try context.fileHandler.copy(from: frameworkDsymPath,
                                          to: frameworkDsymOutputPath)
             try Embeddable(path: frameworkDsymOutputPath).strip(keepingArchitectures: validArchs)
