@@ -6,6 +6,7 @@ import Foundation
 
 enum FrameworkEmbedderError: FatalError {
     case missingFramework
+    case invalidFramework(AbsolutePath)
     case frameworkNotFound(AbsolutePath)
     case missingEnvironment
 
@@ -13,6 +14,8 @@ enum FrameworkEmbedderError: FatalError {
     var type: ErrorType {
         switch self {
         case .missingFramework:
+            return .abort
+        case .invalidFramework:
             return .abort
         case .frameworkNotFound:
             return .abort
@@ -26,6 +29,8 @@ enum FrameworkEmbedderError: FatalError {
         switch self {
         case .missingFramework:
             return "A framework needs to be specified."
+        case let .invalidFramework(path):
+            return "The file \(path.asString) is not a valid framework."
         case let .frameworkNotFound(path):
             return "Framework not found at path \(path.asString)."
         case .missingEnvironment:
@@ -55,6 +60,7 @@ public class FrameworkEmbedder {
     ///   - environment: XcodeBuild environment.
     func embed(frameworkPath: RelativePath,
                environment: XcodeBuild.Environment) throws {
+        // xcodebuild environment variables
         let frameworksPath = RelativePath(environment.frameworksFolderPath)
         let builtProductsDir = AbsolutePath(environment.builtProductsDir)
         let validArchs = environment.validArchs
@@ -65,6 +71,9 @@ public class FrameworkEmbedder {
         let action = environment.action
 
         // Conditions
+        if frameworkAbsolutePath.extension != "framework" {
+            throw FrameworkEmbedderError.invalidFramework(frameworkAbsolutePath)
+        }
         if !context.fileHandler.exists(frameworkAbsolutePath) {
             throw FrameworkEmbedderError.frameworkNotFound(frameworkAbsolutePath)
         }
