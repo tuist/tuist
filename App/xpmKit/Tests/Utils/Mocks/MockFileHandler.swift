@@ -8,6 +8,7 @@ final class MockFileHandler: FileHandling {
     var globStub: ((AbsolutePath, String) -> [AbsolutePath])?
     var createFolderStub: ((AbsolutePath) throws -> Void)?
     var deleteStub: ((AbsolutePath) throws -> Void)?
+    var copyStub: ((AbsolutePath, AbsolutePath) -> Void)?
 
     var currentPath: AbsolutePath {
         return currentPathStub ?? AbsolutePath.current
@@ -23,6 +24,10 @@ final class MockFileHandler: FileHandling {
 
     func createFolder(_ path: AbsolutePath) throws {
         try createFolderStub?(path)
+    }
+
+    func copy(from: AbsolutePath, to: AbsolutePath) throws {
+        copyStub?(from, to)
     }
 
     func delete(_ path: AbsolutePath) throws {

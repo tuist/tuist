@@ -22,7 +22,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxproj.objects.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.objects.configurationLists.first!.value
 
-        let debugConfig: XCBuildConfiguration = try configurationList.buildConfigurations.first!.object()
+        let debugConfig: XCBuildConfiguration = try configurationList.buildConfigurationsReferences.first!.object()
         XCTAssertEqual(debugConfig.name, "Debug")
         XCTAssertEqual(debugConfig.buildSettings["Debug"] as? String, "Debug")
         XCTAssertEqual(debugConfig.buildSettings["Base"] as? String, "Base")
@@ -34,7 +34,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxproj.objects.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.objects.configurationLists.first!.value
 
-        let releaseConfig: XCBuildConfiguration = try configurationList.buildConfigurations.last!.object()
+        let releaseConfig: XCBuildConfiguration = try configurationList.buildConfigurationsReferences.last!.object()
         XCTAssertEqual(releaseConfig.name, "Release")
         XCTAssertEqual(releaseConfig.buildSettings["Release"] as? String, "Release")
         XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")

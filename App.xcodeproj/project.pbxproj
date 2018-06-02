@@ -99,6 +99,8 @@
 		B9B629C020864E7D00EE9E07 /* UpdateCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629BE20864E7D00EE9E07 /* UpdateCommand.swift */; };
 		B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629BF20864E7D00EE9E07 /* DumpCommand.swift */; };
 		B9B629CE20864E9800EE9E07 /* BuildConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C320864E9800EE9E07 /* BuildConfiguration.swift */; };
+		B9C1B10720C1A66900E897FB /* EmbeddableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C1B10620C1A66900E897FB /* EmbeddableTests.swift */; };
+		B9C1B10920C28A9E00E897FB /* FrameworkEmbedderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C1B10820C28A9E00E897FB /* FrameworkEmbedderTests.swift */; };
 		B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */; };
 		B9E2DC9520872B300061DF86 /* MockUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF8152073E66200EE4EBD /* MockUpdateController.swift */; };
 		B9E2DC9620872B3A0061DF86 /* MockGraphLoaderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92BF9F0207559E600EE4EBD /* MockGraphLoaderCache.swift */; };
@@ -373,6 +375,8 @@
 		B9B629CC20864E9800EE9E07 /* BuildPhase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildPhase.swift; sourceTree = "<group>"; };
 		B9B629CD20864E9800EE9E07 /* Product.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Product.swift; sourceTree = "<group>"; };
 		B9BFCF70207B48D500ACC59D /* MockPrinter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPrinter.swift; sourceTree = "<group>"; };
+		B9C1B10620C1A66900E897FB /* EmbeddableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddableTests.swift; sourceTree = "<group>"; };
+		B9C1B10820C28A9E00E897FB /* FrameworkEmbedderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameworkEmbedderTests.swift; sourceTree = "<group>"; };
 		B9E2DC9A20872C650061DF86 /* AbsolutePath+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AbsolutePath+Extras.swift"; sourceTree = "<group>"; };
 		B9E2DCA720876F8A0061DF86 /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
 		B9E2DCA9208774550061DF86 /* CommandRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandRegistry.swift; sourceTree = "<group>"; };
@@ -603,6 +607,7 @@
 		B915ED3B2063B04C004B6630 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				B9C1B10520C1A65A00E897FB /* Embed */,
 				B9B59438209C174A00C59DA2 /* Errors */,
 				B9F1EDF9208D24EA00477835 /* Validator */,
 				B9589605208B4E3500F00ACF /* Generator */,
@@ -869,6 +874,15 @@
 				B9B629CD20864E9800EE9E07 /* Product.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		B9C1B10520C1A65A00E897FB /* Embed */ = {
+			isa = PBXGroup;
+			children = (
+				B9C1B10620C1A66900E897FB /* EmbeddableTests.swift */,
+				B9C1B10820C28A9E00E897FB /* FrameworkEmbedderTests.swift */,
+			);
+			path = Embed;
 			sourceTree = "<group>";
 		};
 		B9F1EDF4208D215600477835 /* Validator */ = {
@@ -1273,6 +1287,7 @@
 				3D92B77D20A821A6006711E5 /* MockCommandCheck.swift in Sources */,
 				B9F1EDD5208D080C00477835 /* GraphManifestLoaderTests.swift in Sources */,
 				B9E2DCC62088F0970061DF86 /* MockCommand.swift in Sources */,
+				B9C1B10720C1A66900E897FB /* EmbeddableTests.swift in Sources */,
 				3D92B79120A82A82006711E5 /* Graph+TestData.swift in Sources */,
 				B97DDE9C20B448250052EB48 /* GraphTests.swift in Sources */,
 				B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */,
@@ -1287,6 +1302,7 @@
 				B9E2DCC82089B78D0061DF86 /* DumpCommandTests.swift in Sources */,
 				3D92B78E20A8298F006711E5 /* ConfigGeneratorTests.swift in Sources */,
 				B9E2DCA32087651D0061DF86 /* Project+TestData.swift in Sources */,
+				B9C1B10920C28A9E00E897FB /* FrameworkEmbedderTests.swift in Sources */,
 				B9F1EDCF208CD0B800477835 /* InitCommandTests.swift in Sources */,
 				B9F1EDF3208D200C00477835 /* Scheme+TestData.swift in Sources */,
 				B9553DEF2090F6EC00050311 /* MockShell.swift in Sources */,

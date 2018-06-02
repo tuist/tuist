@@ -12,6 +12,13 @@ protocol FileHandling: AnyObject {
     /// - Returns: true if there's a file at the given path.
     func exists(_ path: AbsolutePath) -> Bool
 
+    /// Copies a file from one location to another.
+    ///
+    /// - Parameters:
+    ///   - from: the location the file is being copied from.
+    ///   - to: the location the file is being copied to.
+    func copy(from: AbsolutePath, to: AbsolutePath) throws
+
     /// Returns all the files using the glob pattern.
     ///
     /// - Parameters:
@@ -45,6 +52,15 @@ final class FileHandler: FileHandling {
     /// - Returns: true if there's a file at the given path.
     func exists(_ path: AbsolutePath) -> Bool {
         return FileManager.default.fileExists(atPath: path.asString)
+    }
+
+    /// Copies a file from one location to another.
+    ///
+    /// - Parameters:
+    ///   - from: the location the file is being copied from.
+    ///   - to: the location the file is being copied to.
+    func copy(from: AbsolutePath, to: AbsolutePath) throws {
+        try FileManager.default.copyItem(atPath: from.asString, toPath: to.asString)
     }
 
     /// Returns all the files using the glob pattern.

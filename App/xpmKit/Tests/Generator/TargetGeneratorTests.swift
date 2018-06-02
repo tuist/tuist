@@ -21,7 +21,7 @@ final class TargetGeneratorTests: XCTestCase {
         let nativeTargetB = PBXNativeTarget(name: "TargetB")
         objects.addObject(nativeTargetA)
         objects.addObject(nativeTargetB)
-        let configList = XCConfigurationList(buildConfigurations: [])
+        let configList = XCConfigurationList(buildConfigurationsReferences: [])
         let configListRef = objects.addObject(configList)
         let mainGroup = PBXGroup()
         let mainGroupRef = objects.addObject(mainGroup)

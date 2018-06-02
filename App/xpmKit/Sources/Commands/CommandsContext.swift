@@ -13,9 +13,21 @@ final class CommandsContext: Context, CommandsContexting {
 
     /// Initializes the context with its attributes.
     ///
-    /// - Parameter errorHandler: error handler.
-    init(errorHandler: ErrorHandling = ErrorHandler()) {
+    /// - Parameters:
+    ///   - errorHandler: error handler.
+    ///   - fileHandler: file handler.
+    ///   - shell: shell.
+    ///   - printer: printer.
+    ///   - resourceLocator: resource locator.
+    init(errorHandler: ErrorHandling = ErrorHandler(),
+         fileHandler: FileHandling = FileHandler(),
+         shell: Shelling = Shell(),
+         printer: Printing = Printer(),
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         self.errorHandler = errorHandler
-        super.init()
+        super.init(fileHandler: fileHandler,
+                   shell: shell,
+                   printer: printer,
+                   resourceLocator: resourceLocator)
     }
 }

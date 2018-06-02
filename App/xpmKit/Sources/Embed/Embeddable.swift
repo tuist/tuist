@@ -1,7 +1,7 @@
 import Basic
-// Reference: https://github.com/Carthage/Carthage/blob/53da2e143306ba502e468842667ee8cd763d5a5b/Source/CarthageKit/Xcode.swift
-// Reference: https://pspdfkit.com/guides/ios/current/faq/framework-size/#toc_dsym-and-bcsymbolmaps
 import Foundation
+
+// MARK: - Type
 
 /// Embeddable type.
 ///
@@ -12,6 +12,30 @@ enum EmbeddableType: String {
     case framework = "FMWK"
     case bundle = "BNDL"
     case dSYM
+}
+
+// MARK: - Errors
+
+/// Embeddable errors.
+///
+/// - missingBundleExecutable: the bundle misses an executable.
+enum EmbeddableError: FatalError {
+    case missingBundleExecutable(AbsolutePath)
+
+    /// Error type
+    var type: ErrorType {
+        switch self {
+        case .missingBundleExecutable: return .abort
+        }
+    }
+
+    /// Error description.
+    var description: String {
+        switch self {
+        case let .missingBundleExecutable(path):
+            return "Couldn't find executable in bundle \(path)"
+        }
+    }
 }
 
 /// It represents an element that can be embedded into an Xcode product (e.g. a dynamic framework).
@@ -45,19 +69,26 @@ final class Embeddable {
         self.fileHandler = fileHandler
     }
 
-    // MARK: - Public
+    // MARK: - Package Information
 
-    /// Returns the path of the binary inside the package.
+    /// Returns the path of the binary inside the embeddable.
+    /// If the bundle doesn't contain binary it returns nil.
     ///
     /// - Returns: path of the binary (if it exists).
-    func binaryPath() -> AbsolutePath? {
+    func binaryPath() throws -> AbsolutePath? {
         guard let bundle = Bundle(path: path.asString) else { return nil }
         guard let packageType = packageType() else { return nil }
         switch packageType {
         case .framework, .bundle:
-            return path.appending((bundle.object(forInfoDictionaryKey: "CFBundleExecutable") as? String).map({ RelativePath($0) })!)
+            guard let bundleExecutable = bundle.object(forInfoDictionaryKey: "CFBundleExecutable") as? String else {
+                throw EmbeddableError.missingBundleExecutable(path)
+            }
+            return path.appending(RelativePath(bundleExecutable))
         case .dSYM:
-            let binaryName = URL(fileURLWithPath: path.asString).deletingPathExtension().deletingPathExtension().lastPathComponent
+            let binaryName = URL(fileURLWithPath: path.asString)
+                .deletingPathExtension()
+                .deletingPathExtension()
+                .lastPathComponent
             if !binaryName.isEmpty {
                 return path.appending(RelativePath("Contents/Resources/DWARF/\(binaryName)"))
             }
@@ -70,7 +101,9 @@ final class Embeddable {
     /// - Returns: package type.
     func packageType() -> EmbeddableType? {
         guard let bundle = Bundle(path: path.asString) else { return nil }
-        guard let bundlePackageType = bundle.object(forInfoDictionaryKey: "CFBundlePackageType") as? String else { return nil }
+        guard let bundlePackageType = bundle.object(forInfoDictionaryKey: "CFBundlePackageType") as? String else {
+            return nil
+        }
         return EmbeddableType(rawValue: bundlePackageType)
     }
 
@@ -79,7 +112,7 @@ final class Embeddable {
     /// - Returns: all the supported architectures.
     func architectures() throws -> [String] {
         let shell = Shell()
-        guard let binPath = binaryPath() else { return [] }
+        guard let binPath = try binaryPath() else { return [] }
         let lipoResult = try shell.run("lipo -info \(binPath.asString)")
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
@@ -163,7 +196,7 @@ final class Embeddable {
         let architecturesInPackage = try architectures()
         let architecturesToStrip = architecturesInPackage.filter({ !keepingArchitectures.contains($0) })
         try architecturesToStrip.forEach({
-            if let binaryPath = binaryPath() {
+            if let binaryPath = try binaryPath() {
                 try stripArchitecture(packagePath: binaryPath, architecture: $0)
             }
         })
@@ -236,7 +269,7 @@ final class Embeddable {
     /// - Returns: set of UUIDs.
     /// - Throws: an error if the UUIDs cannot be obtained.
     func uuidsForFramework() throws -> Set<UUID> {
-        guard let binaryPath = binaryPath() else { return Set() }
+        guard let binaryPath = try binaryPath() else { return Set() }
         return try uuidsFromDwarfdump(path: binaryPath)
     }
 
