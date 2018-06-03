@@ -41,7 +41,7 @@ final class ConfigGeneratorTests: XCTestCase {
     }
 
     private func generateProjectConfig(config: BuildConfiguration) throws -> ProjectGroups {
-        let dir = try TemporaryDirectory(dir: AbsolutePath("/tmp"),removeTreeOnDeinit: true)
+        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try xcconfigsDir.mkpath()
         try xcconfigsDir.appending(component: "debug.xcconfig").write("")

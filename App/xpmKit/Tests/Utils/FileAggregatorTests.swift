@@ -12,7 +12,7 @@ final class FileAggregatorTests: XCTestCase {
     }
 
     func test_aggregate() throws {
-        let dir = try TemporaryDirectory(dir: AbsolutePath("/tmp"),removeTreeOnDeinit: true)
+        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let aPath = dir.path.appending(component: "a.swift")
         let bPath = dir.path.appending(component: "b.swift")
         try "a".write(toFile: aPath.asString,
