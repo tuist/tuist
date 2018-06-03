@@ -1,0 +1,6 @@
+framework module xpm {
+  umbrella header "xpm.h"
+
+  export *
+  module * { export * }
+}

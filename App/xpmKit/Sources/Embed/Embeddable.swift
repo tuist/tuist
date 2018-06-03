@@ -19,13 +19,16 @@ enum EmbeddableType: String {
 /// Embeddable errors.
 ///
 /// - missingBundleExecutable: the bundle misses an executable.
-enum EmbeddableError: FatalError {
+/// - unstrippableNonFatEmbeddable: thrown when architectures cannot be stripped from a framework because it's not a fat framework.
+enum EmbeddableError: FatalError, Equatable {
     case missingBundleExecutable(AbsolutePath)
+    case unstrippableNonFatEmbeddable(AbsolutePath)
 
     /// Error type
     var type: ErrorType {
         switch self {
         case .missingBundleExecutable: return .abort
+        case .unstrippableNonFatEmbeddable: return .abort
         }
     }
 
@@ -33,7 +36,26 @@ enum EmbeddableError: FatalError {
     var description: String {
         switch self {
         case let .missingBundleExecutable(path):
-            return "Couldn't find executable in bundle \(path)"
+            return "Couldn't find executable in bundle at path \(path.asString)"
+        case let .unstrippableNonFatEmbeddable(path):
+            return "Can't strip architectures from the non-fat package at path \(path.asString)"
+        }
+    }
+
+    /// Returns true if two instances of EmbeddableError are the same.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
+    static func == (lhs: EmbeddableError, rhs: EmbeddableError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.missingBundleExecutable(lhsPath), .missingBundleExecutable(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.unstrippableNonFatEmbeddable(lhsPath), .unstrippableNonFatEmbeddable(rhsPath)):
+            return lhsPath == rhsPath
+        default:
+            return false
         }
     }
 }
@@ -47,7 +69,7 @@ final class Embeddable {
     }
 
     /// Embeddable path.
-    private let path: AbsolutePath
+    let path: AbsolutePath
 
     /// Shell.
     let shell: Shelling
@@ -113,7 +135,7 @@ final class Embeddable {
     func architectures() throws -> [String] {
         let shell = Shell()
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try shell.run("lipo -info \(binPath.asString)")
+        let lipoResult = try shell.run("lipo", "-info", binPath.asString)
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)
@@ -159,6 +181,9 @@ final class Embeddable {
     /// - Parameter keepingArchitectures: architectures to keep in the package.
     /// - Throws: throws an error if the stripping fails.
     func strip(keepingArchitectures: [String]) throws {
+        if try architectures().count == 1 {
+            throw EmbeddableError.unstrippableNonFatEmbeddable(path)
+        }
         switch packageType() {
         case .framework?, .bundle?:
             try stripFramework(keepingArchitectures: keepingArchitectures)
@@ -173,7 +198,7 @@ final class Embeddable {
     ///
     /// - Parameter keepingArchitectures: architectures to be kept.
     /// - Throws: throws an error if the stripping fails.
-    func stripFramework(keepingArchitectures: [String]) throws {
+    fileprivate func stripFramework(keepingArchitectures: [String]) throws {
         try stripArchitectures(keepingArchitectures: keepingArchitectures)
         try stripHeaders(frameworkPath: path)
         try stripPrivateHeaders(frameworkPath: path)
@@ -184,7 +209,7 @@ final class Embeddable {
     ///
     /// - Parameter keepingArchitectures: architectures to be kept.
     /// - Throws: throws an error if the stripping fails.
-    func stripDSYM(keepingArchitectures: [String]) throws {
+    fileprivate func stripDSYM(keepingArchitectures: [String]) throws {
         try stripArchitectures(keepingArchitectures: keepingArchitectures)
     }
 
@@ -192,7 +217,7 @@ final class Embeddable {
     ///
     /// - Parameter keepingArchitectures: architectures to be kept.
     /// - Throws: an error if the stripping fails.
-    func stripArchitectures(keepingArchitectures: [String]) throws {
+    fileprivate func stripArchitectures(keepingArchitectures: [String]) throws {
         let architecturesInPackage = try architectures()
         let architecturesToStrip = architecturesInPackage.filter({ !keepingArchitectures.contains($0) })
         try architecturesToStrip.forEach({
@@ -208,7 +233,7 @@ final class Embeddable {
     ///   - packagePath: package path.
     ///   - architecture: architecture to be stripped.
     /// - Throws: throws an error if the stripping fails.
-    func stripArchitecture(packagePath: AbsolutePath, architecture: String) throws {
+    fileprivate func stripArchitecture(packagePath: AbsolutePath, architecture: String) throws {
         let shell = Shell()
         _ = try shell.run("lipo", "-remove", architecture, "-output", packagePath.asString, packagePath.asString)
     }
@@ -216,21 +241,21 @@ final class Embeddable {
     /// Strips the headers from a given framework.
     ///
     /// - Parameter frameworkPath: path to the framework whose headers will be stripped.
-    func stripHeaders(frameworkPath: AbsolutePath) throws {
+    fileprivate func stripHeaders(frameworkPath: AbsolutePath) throws {
         try stripDirectory(name: "Headers", from: frameworkPath)
     }
 
     /// Strips the private headers from a given framework.
     ///
     /// - Parameter frameworkPath: path to the framework whose private headers will be stripped.
-    func stripPrivateHeaders(frameworkPath: AbsolutePath) throws {
+    fileprivate func stripPrivateHeaders(frameworkPath: AbsolutePath) throws {
         try stripDirectory(name: "PrivateHeaders", from: frameworkPath)
     }
 
     /// Strips the modules directory from a given framework.
     ///
     /// - Parameter frameworkPath: path to the framework whose modules directory will be stripped.
-    func stripModulesDirectory(frameworkPath: AbsolutePath) throws {
+    fileprivate func stripModulesDirectory(frameworkPath: AbsolutePath) throws {
         try stripDirectory(name: "Modules", from: frameworkPath)
     }
 
@@ -239,7 +264,7 @@ final class Embeddable {
     /// - Parameters:
     ///   - name: name of the folder that will be stripped from the framework.
     ///   - frameworkPath: path to the framework whose directory will be stripped.
-    func stripDirectory(name: String, from frameworkPath: AbsolutePath) throws {
+    fileprivate func stripDirectory(name: String, from frameworkPath: AbsolutePath) throws {
         let fileHandler = FileHandler()
         let path = frameworkPath.appending(RelativePath(name))
         if fileHandler.exists(path) {
@@ -253,7 +278,7 @@ final class Embeddable {
     ///
     /// - Returns: set of UUIDs.
     /// - Throws: an error if the UUIDs cannot be obtained.
-    public func uuids() throws -> Set<UUID> {
+    func uuids() throws -> Set<UUID> {
         switch packageType() {
         case .framework?, .bundle?:
             return try uuidsForFramework()
@@ -268,7 +293,7 @@ final class Embeddable {
     ///
     /// - Returns: set of UUIDs.
     /// - Throws: an error if the UUIDs cannot be obtained.
-    func uuidsForFramework() throws -> Set<UUID> {
+    fileprivate func uuidsForFramework() throws -> Set<UUID> {
         guard let binaryPath = try binaryPath() else { return Set() }
         return try uuidsFromDwarfdump(path: binaryPath)
     }
@@ -277,7 +302,7 @@ final class Embeddable {
     ///
     /// - Returns: set of UUIDs.
     /// - Throws: an error if the UUIDs cannot be obtained.
-    func uuidsForDSYM() throws -> Set<UUID> {
+    fileprivate func uuidsForDSYM() throws -> Set<UUID> {
         return try uuidsFromDwarfdump(path: path)
     }
 
@@ -286,7 +311,7 @@ final class Embeddable {
     /// - Parameter path: url of the file whose architectures UUIDs will be returned.
     /// - Returns: set of UUIDs.
     /// - Throws: an error if the UUIDs cannot be obtained.
-    func uuidsFromDwarfdump(path: AbsolutePath) throws -> Set<UUID> {
+    fileprivate func uuidsFromDwarfdump(path: AbsolutePath) throws -> Set<UUID> {
         let shell = Shell()
         let result = try shell.run("dwarfdump", "--uuid", path.asString)
         var uuidCharacterSet = CharacterSet()
@@ -320,8 +345,7 @@ final class Embeddable {
     /// - Returns: bcsymbolmaps paths.
     /// - Throws: an error if the bcsymbolmaps cannot be obtained.
     public func bcSymbolMapsForFramework() throws -> [AbsolutePath] {
-        let parentPath = path.parentDirectory
         let frameworkUUIDs = try uuids()
-        return frameworkUUIDs.map({ parentPath.appending(RelativePath("\($0.uuidString).bcsymbolmap")) })
+        return frameworkUUIDs.map({ path.parentDirectory.appending(RelativePath("\($0.uuidString).bcsymbolmap")) })
     }
 }
