@@ -48,7 +48,7 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
 
     fileprivate func withEnvironment(action: XcodeBuild.Action = .install,
                                      assert: (AbsolutePath, XcodeBuild.Environment) throws -> Void) throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let tmpDir = try TemporaryDirectory(dir: AbsolutePath("/tmp"),removeTreeOnDeinit: true)
         let frameworksPath = "frameworks"
         let srcRootPath = tmpDir.path
         let builtProductsDir = tmpDir.path.appending(component: "built_products_dir")

@@ -36,7 +36,7 @@ final class GraphModuleLoaderTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+        tmpDir = try! TemporaryDirectory(dir: AbsolutePath("/tmp"),removeTreeOnDeinit: true)
         subject = GraphModuleLoader()
         context = Context()
     }
