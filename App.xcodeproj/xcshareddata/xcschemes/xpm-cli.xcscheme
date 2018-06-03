@@ -55,8 +55,8 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B915ECF5206395DA004B6630"
-            BuildableName = "xpm"
+            BlueprintIdentifier = "B94C7F962062B829009BF596"
+            BuildableName = "xpm.app"
             BlueprintName = "xpm"
             ReferencedContainer = "container:App.xcodeproj">
          </BuildableReference>

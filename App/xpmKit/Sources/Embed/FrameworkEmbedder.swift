@@ -89,26 +89,40 @@ public class FrameworkEmbedder {
         }
         if try Embeddable(path: frameworkAbsolutePath).architectures().filter({ validArchs.contains($0) }).count == 0 {
             context.printer.print("Ignoring framework \(frameworkPath.asString). It does not support the current architecture")
+            return
         }
 
         if !context.fileHandler.exists(productFrameworksPath) {
             try context.fileHandler.createFolder(productFrameworksPath)
         }
 
-        // Framework
+        try copyFramework(productFrameworksPath: productFrameworksPath, frameworkAbsolutePath: frameworkAbsolutePath, validArchs: validArchs)
+        try copySymbols(frameworkDsymPath: frameworkDsymPath, destinationPath: destinationPath, validArchs: validArchs)
+        try copyBCSymbolMaps(action: action, frameworkAbsolutePath: frameworkAbsolutePath, builtProductsDir: builtProductsDir)
+    }
+
+    /// Copies a framework into the product frameworks directory.
+    ///
+    /// Parameters:
+    ///     - productFrameworksPath: Path to the product's frameworks directory.
+    ///     - frameworkAbsolutePath: Absolute path to the framework that will get copied.
+    ///     - validArchs: Valid architectures of the target that is getting compiled.
+    private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
         try context.fileHandler.copy(from: frameworkAbsolutePath,
                                      to: frameworkOutputPath)
         try Embeddable(path: frameworkOutputPath).strip(keepingArchitectures: validArchs)
+    }
 
-        // Symbols
-        if context.fileHandler.exists(frameworkDsymPath) {
-            let frameworkDsymOutputPath = destinationPath.appending(component: frameworkDsymPath.components.last!)
-            try context.fileHandler.copy(from: frameworkDsymPath,
-                                         to: frameworkDsymOutputPath)
-            try Embeddable(path: frameworkDsymOutputPath).strip(keepingArchitectures: validArchs)
-        }
-
+    /// It copies the framework BCSymbolMap files.
+    ///
+    /// Parameters:
+    ///     - action: build action that Xcode is performing.
+    ///     - frameworkAbsolutePath: the absolute path to the framework that is being copied.
+    ///     - buildProductsDir: The path to the built products directory.
+    private func copyBCSymbolMaps(action: XcodeBuild.Action,
+                                  frameworkAbsolutePath: AbsolutePath,
+                                  builtProductsDir: AbsolutePath) throws {
         // A BCSymbolMap is a lot like a dSYM for bitcode.
         // Xcode builds it as part of creating the app binary, and also for every dynamic framework.
         // It's required for re-symbolicating function/method names to understand crashers.
@@ -126,6 +140,23 @@ public class FrameworkEmbedder {
                 }
                 try context.fileHandler.copy(from: bcInputPath, to: bcOutputPath)
             }
+        }
+    }
+
+    /// Copies the symbols into the destination path.
+    ///
+    /// Parameters:
+    ///     - frameworkDsymPath: Path to the .dsym file that will be copied.
+    ///     - destinationPath: Path to the folder where the dsym files will be copied.
+    ///     - validArchs: The valid architectures of the target that is being compiled.
+    private func copySymbols(frameworkDsymPath: AbsolutePath,
+                             destinationPath: AbsolutePath!,
+                             validArchs: [String]) throws {
+        if context.fileHandler.exists(frameworkDsymPath) {
+            let frameworkDsymOutputPath = destinationPath.appending(component: frameworkDsymPath.components.last!)
+            try context.fileHandler.copy(from: frameworkDsymPath,
+                                         to: frameworkDsymOutputPath)
+            try Embeddable(path: frameworkDsymOutputPath).strip(keepingArchitectures: validArchs)
         }
     }
 
