@@ -4,6 +4,13 @@ import XCTest
 @testable import xpmKit
 
 final class EmbeddableTests: XCTestCase {
+    var fm: FileManager!
+
+    override func setUp() {
+        super.setUp()
+        fm = FileManager.default
+    }
+
     func test_embeddableError_type() {
         XCTAssertEqual(EmbeddableError.missingBundleExecutable(AbsolutePath("/path")).type, .abort)
         XCTAssertEqual(EmbeddableError.unstrippableNonFatEmbeddable(AbsolutePath("/path")).type, .abort)
@@ -68,8 +75,17 @@ final class EmbeddableTests: XCTestCase {
 
     func test_strip_whenFramework() throws {
         try withUniversalFramework {
+            XCTAssertTrue(fm.fileExists(atPath: $0.path.appending(component: "Headers").asString))
+            XCTAssertTrue(fm.fileExists(atPath: $0.path.appending(component: "PrivateHeaders").asString))
+            XCTAssertTrue(fm.fileExists(atPath: $0.path.appending(component: "Modules").asString))
+            try XCTAssertEqual($0.architectures(), ["x86_64", "arm64"])
+
             try $0.strip(keepingArchitectures: ["x86_64"])
+
             try XCTAssertEqual($0.architectures(), ["x86_64"])
+            XCTAssertFalse(fm.fileExists(atPath: $0.path.appending(component: "Headers").asString))
+            XCTAssertFalse(fm.fileExists(atPath: $0.path.appending(component: "PrivateHeaders").asString))
+            XCTAssertFalse(fm.fileExists(atPath: $0.path.appending(component: "Modules").asString))
         }
     }
 
@@ -104,9 +120,9 @@ final class EmbeddableTests: XCTestCase {
             try $0.uuids().forEach {
                 let symbolMapPath = path.parentDirectory.appending(component: "\($0.uuidString).bcsymbolmap")
                 symbolMapsPaths.append(symbolMapPath)
-                FileManager.default.createFile(atPath: symbolMapPath.asString,
-                                               contents: nil,
-                                               attributes: [:])
+                fm.createFile(atPath: symbolMapPath.asString,
+                              contents: nil,
+                              attributes: [:])
             }
             try XCTAssertEqual($0.bcSymbolMapsForFramework(), symbolMapsPaths)
         }
@@ -117,8 +133,8 @@ final class EmbeddableTests: XCTestCase {
         let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory
         let frameworkPath = testsPath.appending(RelativePath("fixtures/xpm.framework"))
         let frameworkTmpPath = tmpDir.path.appending(component: "xpm.framework")
-        try FileManager.default.copyItem(atPath: frameworkPath.asString,
-                                         toPath: frameworkTmpPath.asString)
+        try fm.copyItem(atPath: frameworkPath.asString,
+                        toPath: frameworkTmpPath.asString)
         let embeddable = Embeddable(path: frameworkTmpPath)
         try action(embeddable)
     }
@@ -128,8 +144,8 @@ final class EmbeddableTests: XCTestCase {
         let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory
         let frameworkPath = testsPath.appending(RelativePath("fixtures/xpm.framework.dSYM"))
         let frameworkTmpPath = tmpDir.path.appending(component: "xpm.framework.dSYM")
-        try FileManager.default.copyItem(atPath: frameworkPath.asString,
-                                         toPath: frameworkTmpPath.asString)
+        try fm.copyItem(atPath: frameworkPath.asString,
+                        toPath: frameworkTmpPath.asString)
         let embeddable = Embeddable(path: frameworkTmpPath)
         try action(embeddable)
     }
