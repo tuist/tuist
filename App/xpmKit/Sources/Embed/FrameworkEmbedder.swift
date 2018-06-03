@@ -4,41 +4,6 @@
 import Basic
 import Foundation
 
-enum FrameworkEmbedderError: FatalError {
-    case missingFramework
-    case invalidFramework(AbsolutePath)
-    case frameworkNotFound(AbsolutePath)
-    case missingEnvironment
-
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .missingFramework:
-            return .abort
-        case .invalidFramework:
-            return .abort
-        case .frameworkNotFound:
-            return .abort
-        case .missingEnvironment:
-            return .abort
-        }
-    }
-
-    /// Error description.
-    var description: String {
-        switch self {
-        case .missingFramework:
-            return "A framework needs to be specified."
-        case let .invalidFramework(path):
-            return "The file \(path.asString) is not a valid framework."
-        case let .frameworkNotFound(path):
-            return "Framework not found at path \(path.asString)."
-        case .missingEnvironment:
-            return "Running xpm-embed outside Xcode build phases is not allowed."
-        }
-    }
-}
-
 /// Embeds the input framework into the built product.
 public class FrameworkEmbedder {
     /// Context.
@@ -77,18 +42,11 @@ public class FrameworkEmbedder {
         }
         let builtProductsDir = AbsolutePath(environment.builtProductsDir)
         let frameworkAbsolutePath = srcRoot.appending(frameworkPath)
-        let frameworkDsymPath = AbsolutePath("\(frameworkPath.asString).dSYM")
+        let frameworkDsymPath = AbsolutePath("\(frameworkAbsolutePath.asString).dSYM")
         let productFrameworksPath = destinationPath.appending(frameworksPath)
+        let embeddable = Embeddable(path: frameworkAbsolutePath)
 
-        // Conditions
-        if frameworkAbsolutePath.extension != "framework" {
-            throw FrameworkEmbedderError.invalidFramework(frameworkAbsolutePath)
-        }
-        if !context.fileHandler.exists(frameworkAbsolutePath) {
-            throw FrameworkEmbedderError.frameworkNotFound(frameworkAbsolutePath)
-        }
-        if try Embeddable(path: frameworkAbsolutePath).architectures().filter({ validArchs.contains($0) }).count == 0 {
-            context.printer.print("Ignoring framework \(frameworkPath.asString). It does not support the current architecture")
+        if try embeddable.architectures().filter({ validArchs.contains($0) }).count == 0 {
             return
         }
 
@@ -111,7 +69,10 @@ public class FrameworkEmbedder {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
         try context.fileHandler.copy(from: frameworkAbsolutePath,
                                      to: frameworkOutputPath)
-        try Embeddable(path: frameworkOutputPath).strip(keepingArchitectures: validArchs)
+        let embeddable = Embeddable(path: frameworkOutputPath)
+        if try embeddable.architectures().count > 1 {
+            try embeddable.strip(keepingArchitectures: validArchs)
+        }
     }
 
     /// It copies the framework BCSymbolMap files.
@@ -130,7 +91,12 @@ public class FrameworkEmbedder {
 
         // Install is also used when the app is being archived.
         if action == .install {
-            try Embeddable(path: frameworkAbsolutePath).bcSymbolMapsForFramework().forEach { bcInputPath in
+            let embeddable = Embeddable(path: frameworkAbsolutePath)
+            try embeddable.bcSymbolMapsForFramework().forEach { bcInputPath in
+                if !context.fileHandler.exists(bcInputPath) {
+                    return
+                }
+
                 let bcOutputPath = builtProductsDir.appending(component: bcInputPath.components.last!)
                 if !context.fileHandler.exists(bcOutputPath.parentDirectory) {
                     try context.fileHandler.createFolder(bcOutputPath.parentDirectory)
@@ -138,6 +104,7 @@ public class FrameworkEmbedder {
                 if context.fileHandler.exists(bcOutputPath) {
                     try context.fileHandler.delete(bcOutputPath)
                 }
+
                 try context.fileHandler.copy(from: bcInputPath, to: bcOutputPath)
             }
         }
@@ -156,19 +123,17 @@ public class FrameworkEmbedder {
             let frameworkDsymOutputPath = destinationPath.appending(component: frameworkDsymPath.components.last!)
             try context.fileHandler.copy(from: frameworkDsymPath,
                                          to: frameworkDsymOutputPath)
-            try Embeddable(path: frameworkDsymOutputPath).strip(keepingArchitectures: validArchs)
+            let embeddable = Embeddable(path: frameworkDsymOutputPath)
+            if try embeddable.architectures().count > 1 {
+                try embeddable.strip(keepingArchitectures: validArchs)
+            }
         }
     }
 
     /// Embeds the passed framewok into the built product.
     public func embed() {
         do {
-            if CommandLine.arguments.count < 2 {
-                throw FrameworkEmbedderError.missingFramework
-            }
-            guard let environment = XcodeBuild.Environment() else {
-                throw FrameworkEmbedderError.missingEnvironment
-            }
+            let environment = XcodeBuild.Environment()!
             try embed(frameworkPath: RelativePath(CommandLine.arguments[1]),
                       environment: environment)
         } catch let error as FatalError {
