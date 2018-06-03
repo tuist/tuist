@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class BuildFileErrorTests: XCTestCase {
     func test_description_when_invalidBuildFileType() {

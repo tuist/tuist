@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-@testable import xpmKit
 @testable import xcodeproj
 import XCTest
+@testable import xpmKit
 
 final class ConfigGeneratorTests: XCTestCase {
     var pbxproj: PBXProj!
@@ -22,7 +22,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxproj.objects.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.objects.configurationLists.first!.value
 
-        let debugConfig: XCBuildConfiguration = try configurationList.buildConfigurations.first!.object()
+        let debugConfig: XCBuildConfiguration = try configurationList.buildConfigurationsReferences.first!.object()
         XCTAssertEqual(debugConfig.name, "Debug")
         XCTAssertEqual(debugConfig.buildSettings["Debug"] as? String, "Debug")
         XCTAssertEqual(debugConfig.buildSettings["Base"] as? String, "Base")
@@ -34,14 +34,14 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxproj.objects.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.objects.configurationLists.first!.value
 
-        let releaseConfig: XCBuildConfiguration = try configurationList.buildConfigurations.last!.object()
+        let releaseConfig: XCBuildConfiguration = try configurationList.buildConfigurationsReferences.last!.object()
         XCTAssertEqual(releaseConfig.name, "Release")
         XCTAssertEqual(releaseConfig.buildSettings["Release"] as? String, "Release")
         XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")
     }
 
     private func generateProjectConfig(config: BuildConfiguration) throws -> ProjectGroups {
-        let dir = try TemporaryDirectory()
+        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try xcconfigsDir.mkpath()
         try xcconfigsDir.appending(component: "debug.xcconfig").write("")

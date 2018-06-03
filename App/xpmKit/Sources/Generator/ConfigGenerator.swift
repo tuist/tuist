@@ -85,7 +85,7 @@ final class ConfigGenerator: ConfigGenerating {
                                context: GeneratorContexting,
                                options _: GenerationOptions) throws -> PBXObjectReference {
         /// Configuration list
-        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = pbxproj.objects.addObject(configurationList)
 
         try generateProjectSettingsFor(buildConfiguration: .debug,
@@ -150,7 +150,7 @@ final class ConfigGenerator: ConfigGenerating {
         }
         variantBuildConfiguration.buildSettings = settings
         let debugConfigurationReference = pbxproj.objects.addObject(variantBuildConfiguration)
-        configurationList.buildConfigurations.append(debugConfigurationReference)
+        configurationList.buildConfigurationsReferences.append(debugConfigurationReference)
     }
 
     /// Generates the configuration for the manifests target.
@@ -162,7 +162,7 @@ final class ConfigGenerator: ConfigGenerating {
     /// - Returns: the configuration list object reference.
     /// - Throws: an error if the genreation fails.
     func generateManifestsConfig(pbxproj: PBXProj, context: GeneratorContexting, options: GenerationOptions) throws -> PBXObjectReference {
-        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = pbxproj.objects.addObject(configurationList)
 
         let addSettings: (XCBuildConfiguration) throws -> Void = { configuration in
@@ -174,14 +174,14 @@ final class ConfigGenerator: ConfigGenerating {
             let debugConfig = XCBuildConfiguration(name: "Debug")
             let debugConfigReference = pbxproj.objects.addObject(debugConfig)
             debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .debug, platform: .macOS, product: .framework, swift: true)
-            configurationList.buildConfigurations.append(debugConfigReference)
+            configurationList.buildConfigurationsReferences.append(debugConfigReference)
             try addSettings(debugConfig)
         }
         if options.buildConfiguration == .release {
             let releaseConfig = XCBuildConfiguration(name: "Release")
             let releaseConfigReference = pbxproj.objects.addObject(releaseConfig)
             releaseConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .release, platform: .macOS, product: .framework, swift: true)
-            configurationList.buildConfigurations.append(releaseConfigReference)
+            configurationList.buildConfigurationsReferences.append(releaseConfigReference)
             try addSettings(releaseConfig)
         }
         return configurationListReference
@@ -204,7 +204,7 @@ final class ConfigGenerator: ConfigGenerating {
                               sourceRootPath _: AbsolutePath,
                               context _: GeneratorContexting,
                               options: GenerationOptions) throws -> PBXObjectReference {
-        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = pbxproj.objects.addObject(configurationList)
         // TODO:
         return configurationListReference

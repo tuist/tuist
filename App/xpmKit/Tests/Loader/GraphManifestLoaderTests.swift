@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class GraphManifestLoaderErrorTests: XCTestCase {
     func test_description_when_projectDescriptionNotFound() {

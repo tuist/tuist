@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-@testable import xpmKit
 @testable import xcodeproj
 import XCTest
+@testable import xpmKit
 
 final class ProjectFileElementsTests: XCTestCase {
     var subject: ProjectFileElements!
@@ -133,7 +133,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
     func test_addVariantGroup() throws {
         let fileName = "localizable.strings"
-        let dir = try TemporaryDirectory()
+        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let localizedDir = dir.path.appending(component: "en.lproj")
         try localizedDir.mkpath()
         try localizedDir.appending(component: fileName).write("test")

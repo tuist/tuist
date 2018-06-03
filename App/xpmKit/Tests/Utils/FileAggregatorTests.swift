@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class FileAggregatorTests: XCTestCase {
     var subject: FileAggregator!
@@ -12,7 +12,7 @@ final class FileAggregatorTests: XCTestCase {
     }
 
     func test_aggregate() throws {
-        let dir = try TemporaryDirectory()
+        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let aPath = dir.path.appending(component: "a.swift")
         let bPath = dir.path.appending(component: "b.swift")
         try "a".write(toFile: aPath.asString,

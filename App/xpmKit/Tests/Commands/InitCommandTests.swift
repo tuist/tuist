@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 @testable import Utility
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class InitCommandTests: XCTestCase {
     var subject: InitCommand!
@@ -39,7 +39,7 @@ final class InitCommandTests: XCTestCase {
     }
 
     func test_command() throws {
-        let tmpDir = try TemporaryDirectory()
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         try "".write(toFile: tmpDir.path.appending(component: "Info.plist").asString, atomically: true, encoding: .utf8)
         try "".write(toFile: tmpDir.path.appending(component: "Debug.xcconfig").asString, atomically: true, encoding: .utf8)
         let result = try parser.parse([InitCommand.command, "-p", tmpDir.path.asString])

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class WorkspaceGeneratorTests: XCTestCase {
     var projectGenerator: MockProjectGenerator!

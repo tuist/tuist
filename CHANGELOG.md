@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Headers build phase generation https://github.com/xcode-project-manager/xpm/pull/41 by @pepibumur.
 * Shell script build phase generation https://github.com/xcode-project-manager/xpm/pull/43 by @pepibumur.
 * Copy files build phase generation https://github.com/xcode-project-manager/xpm/pull/44 by @pepibumur.
+* Add `embed-framework` cli https://github.com/xcbuddy/xcbuddy/pull/22 by @pepibumur.
 
 ### Changed
 

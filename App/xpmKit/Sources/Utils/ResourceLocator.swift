@@ -17,6 +17,12 @@ protocol ResourceLocating: AnyObject {
     /// - Throws: an error if the CLI cannot be found.
     func cliPath() throws -> AbsolutePath
 
+    /// Returns the embed util path.
+    ///
+    /// - Returns: path to the embed util.
+    /// - Throws: an error if embed cannot be found.
+    func embedPath() throws -> AbsolutePath
+
     /// Returns the app bundle.
     ///
     /// - Returns: app bundle
@@ -105,10 +111,28 @@ final class ResourceLocator: ResourceLocating {
     /// - Returns: path to the xpm CLI.
     /// - Throws: an error if the CLI cannot be found.
     func cliPath() throws -> AbsolutePath {
-        let toolName = "xpm"
+        return try toolPath("xpm")
+    }
+
+    /// Returns the embed util path.
+    ///
+    /// - Returns: path to the embed util.
+    /// - Throws: an error if embed cannot be found.
+    func embedPath() throws -> AbsolutePath {
+        return try toolPath("xpm-embed")
+    }
+
+    /// Returns the path to the tool with the given name.
+    /// Command line tools are bundled in the shared support directory of the application bundle.
+    /// If the project is executed from Xcode, the tool will be in the built products directory instead.
+    ///
+    /// - Parameter name: name of the tool.
+    /// - Returns: the path to the tool if it could be found.
+    /// - Throws: an error if the tool couldn't be found.
+    fileprivate func toolPath(_ name: String) throws -> AbsolutePath {
         let xpmKitPath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
         let parentPath = xpmKitPath.parentDirectory
-        let pathInProducts = parentPath.appending(component: toolName)
+        let pathInProducts = parentPath.appending(component: name)
         // Built products directory
         if fileHandler.exists(pathInProducts) {
             return pathInProducts
@@ -116,14 +140,14 @@ final class ResourceLocator: ResourceLocating {
         // Frameworks directory inside the app bundle.
         let appBundlePath = parentPath.parentDirectory.parentDirectory
         if appBundlePath.extension != ".app" {
-            throw ResourceLocatingError.notFound(toolName)
+            throw ResourceLocatingError.notFound(name)
         }
         guard let frameworksPath = Bundle(path: appBundlePath.asString)?.sharedSupportPath else {
-            throw ResourceLocatingError.notFound(toolName)
+            throw ResourceLocatingError.notFound(name)
         }
-        let toolPath = AbsolutePath(frameworksPath).appending(component: toolName)
+        let toolPath = AbsolutePath(frameworksPath).appending(component: name)
         if !fileHandler.exists(toolPath) {
-            throw ResourceLocatingError.notFound(toolName)
+            throw ResourceLocatingError.notFound(name)
         }
         return toolPath
     }

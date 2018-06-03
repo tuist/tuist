@@ -1,7 +1,7 @@
 import Foundation
-@testable import xpmKit
 @testable import xcodeproj
 import XCTest
+@testable import xpmKit
 
 final class ProductTests: XCTestCase {
     func test_xcodeValue() {

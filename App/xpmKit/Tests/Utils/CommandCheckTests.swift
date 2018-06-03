@@ -1,7 +1,7 @@
 import Foundation
 import Utility
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class CommandCheckErrorTests: XCTestCase {
     func test_errorDescription_when_swiftVersionNotFound() {

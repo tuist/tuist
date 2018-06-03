@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import Utility
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class DumpCommandTests: XCTestCase {
     var printer: MockPrinter!
@@ -35,7 +35,7 @@ final class DumpCommandTests: XCTestCase {
     }
 
     func test_run_throws_when_file_doesnt_exist() throws {
-        let tmpDir = try TemporaryDirectory()
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
         XCTAssertThrowsError(try subject.run(with: result)) {
             XCTAssertEqual($0 as? DumpCommandError, DumpCommandError.manifestNotFound(tmpDir.path))
@@ -43,7 +43,7 @@ final class DumpCommandTests: XCTestCase {
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
-        let tmpDir = try TemporaryDirectory()
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         try "invalid config".write(toFile: tmpDir.path.appending(component: "Project.swift").asString,
                                    atomically: true,
                                    encoding: .utf8)
@@ -52,7 +52,7 @@ final class DumpCommandTests: XCTestCase {
     }
 
     func test_prints_the_manifest() throws {
-        let tmpDir = try TemporaryDirectory()
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let config = """
         import ProjectDescription
 

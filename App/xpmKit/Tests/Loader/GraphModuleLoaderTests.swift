@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class GraphModuleLoaderErrorTests: XCTestCase {
     func test_type_when_fileNotFound() {
@@ -36,7 +36,7 @@ final class GraphModuleLoaderTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        tmpDir = try! TemporaryDirectory()
+        tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         subject = GraphModuleLoader()
         context = Context()
     }

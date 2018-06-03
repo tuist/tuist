@@ -1,6 +1,6 @@
 import Foundation
-@testable import xpmKit
 import XCTest
+@testable import xpmKit
 
 final class PlatformTests: XCTestCase {
     func test_xcodeSdkRoot_returns_the_right_value() {
