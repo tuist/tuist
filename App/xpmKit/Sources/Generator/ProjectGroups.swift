@@ -91,7 +91,7 @@ class ProjectGroups {
         mainGroup.children.append(frameworksGroupReference)
 
         /// Products
-        let productsGroup = PBXGroup(children: [], sourceTree: .buildProductsDir, name: "Products")
+        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
         let productsGroupReference = objects.addObject(productsGroup)
         mainGroup.children.append(productsGroupReference)
 

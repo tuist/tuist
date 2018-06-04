@@ -35,6 +35,7 @@ protocol TargetGenerating: AnyObject {
     ///   - context: generation context.
     ///   - path: Path to the folder that contains the project manifest.
     ///   - sourceRootPath: Path to the folder that contains the Xcode project that is generated.
+    ///   - options: Generation options.
     /// - Returns: native target.
     func generateTarget(target targetSpec: Target,
                         objects: PBXObjects,
@@ -43,7 +44,8 @@ protocol TargetGenerating: AnyObject {
                         fileElements: ProjectFileElements,
                         context: GeneratorContexting,
                         path: AbsolutePath,
-                        sourceRootPath: AbsolutePath) throws -> PBXNativeTarget
+                        sourceRootPath: AbsolutePath,
+                        options: GenerationOptions) throws -> PBXNativeTarget
 
     /// Generates the targets dependencies.
     ///
@@ -167,15 +169,17 @@ final class TargetGenerator: TargetGenerating {
     ///   - context: generation context.
     ///   - path: Path to the folder that contains the project manifest.
     ///   - sourceRootPath: path to the folder where the Xcode project is generated.
+    ///   - options: Generation options.
     /// - Returns: native target.
     func generateTarget(target: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
-                        groups _: ProjectGroups,
+                        groups: ProjectGroups,
                         fileElements: ProjectFileElements,
                         context: GeneratorContexting,
                         path: AbsolutePath,
-                        sourceRootPath: AbsolutePath) throws -> PBXNativeTarget {
+                        sourceRootPath: AbsolutePath,
+                        options: GenerationOptions) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.productName]!
 
@@ -190,6 +194,15 @@ final class TargetGenerator: TargetGenerating {
                                         productType: target.product.xcodeValue)
         let targetReference = objects.addObject(pbxTarget)
         pbxProject.targets.append(targetReference)
+
+        /// Build configuration
+        try configGenerator.generateTargetConfig(target: target,
+                                                 pbxTarget: pbxTarget,
+                                                 objects: objects,
+                                                 groups: groups,
+                                                 sourceRootPath: sourceRootPath,
+                                                 context: context,
+                                                 options: options)
 
         /// Build phases
         try buildPhaseGenerator.generateBuildPhases(target: target,

@@ -13,7 +13,6 @@ protocol ConfigGenerating: AnyObject {
     ///   - fileElements: Project file elements.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
-    ///   - options: generation options.
     /// - Returns: the configuration list reference.
     /// - Throws: an error if the generation fails.
     func generateProjectConfig(project: Project,
@@ -21,8 +20,7 @@ protocol ConfigGenerating: AnyObject {
                                groups: ProjectGroups,
                                fileElements: ProjectFileElements,
                                sourceRootPath: AbsolutePath,
-                               context: GeneratorContexting,
-                               options: GenerationOptions) throws -> PBXObjectReference
+                               context: GeneratorContexting) throws -> PBXObjectReference
 
     /// Generates the manifests target configuration.
     ///
@@ -38,19 +36,19 @@ protocol ConfigGenerating: AnyObject {
     ///
     /// - Parameters:
     ///   - target: target spec.
-    ///   - pbxproj: Xcode project PBXProj object.
+    ///   - pbxTarget: Xcode project target.
+    ///   - objects: Xcode project objects.
     ///   - groups: Project groups.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
     ///   - options: generation options.
-    /// - Returns: the configuration list reference.
-    /// - Throws: an error if the generation fails.
     func generateTargetConfig(target: Target,
-                              pbxproj: PBXProj,
+                              pbxTarget: PBXTarget,
+                              objects: PBXObjects,
                               groups: ProjectGroups,
                               sourceRootPath: AbsolutePath,
                               context: GeneratorContexting,
-                              options: GenerationOptions) throws -> PBXObjectReference
+                              options: GenerationOptions) throws
 }
 
 /// Config generator.
@@ -74,16 +72,14 @@ final class ConfigGenerator: ConfigGenerating {
     ///   - fileElements: Project file elements.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
-    ///   - options: generation options.
     /// - Returns: the confniguration list reference.
     /// - Throws: an error if the generation fails.
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               groups: ProjectGroups,
+                               groups _: ProjectGroups,
                                fileElements: ProjectFileElements,
-                               sourceRootPath: AbsolutePath,
-                               context: GeneratorContexting,
-                               options _: GenerationOptions) throws -> PBXObjectReference {
+                               sourceRootPath _: AbsolutePath,
+                               context _: GeneratorContexting) throws -> PBXObjectReference {
         /// Configuration list
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = pbxproj.objects.addObject(configurationList)
@@ -91,19 +87,13 @@ final class ConfigGenerator: ConfigGenerating {
         try generateProjectSettingsFor(buildConfiguration: .debug,
                                        configuration: project.settings?.debug,
                                        project: project,
-                                       groups: groups,
                                        fileElements: fileElements,
-                                       sourceRootPath: sourceRootPath,
-                                       context: context,
                                        pbxproj: pbxproj,
                                        configurationList: configurationList)
         try generateProjectSettingsFor(buildConfiguration: .release,
                                        configuration: project.settings?.release,
                                        project: project,
-                                       groups: groups,
                                        fileElements: fileElements,
-                                       sourceRootPath: sourceRootPath,
-                                       context: context,
                                        pbxproj: pbxproj,
                                        configurationList: configurationList)
         return configurationListReference
@@ -116,19 +106,13 @@ final class ConfigGenerator: ConfigGenerating {
     ///   - configuration: configuration from the project specification.
     ///   - project: project specification.
     ///   - fileElements: project file elements.
-    ///   - groups: project groups.
-    ///   - sourceRootPath: path that points to the folder where the project is being created.
-    ///   - context: generation context.
     ///   - pbxproj: PBXProj object.
     ///   - configurationList: configurations list.
     /// - Throws: an error if the generation fails.
     private func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
                                             configuration: Configuration?,
                                             project: Project,
-                                            groups _: ProjectGroups,
                                             fileElements: ProjectFileElements,
-                                            sourceRootPath _: AbsolutePath,
-                                            context _: GeneratorContexting,
                                             pbxproj: PBXProj,
                                             configurationList: XCConfigurationList) throws {
         let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
@@ -191,7 +175,8 @@ final class ConfigGenerator: ConfigGenerating {
     ///
     /// - Parameters:
     ///   - target: target spec.
-    ///   - pbxproj: Xcode project PBXProj object.
+    ///   - pbxTarget: Xcode project target.
+    ///   - objects: Xcode project objects.
     ///   - groups: Project groups.
     ///   - sourceRootPath: path to the folder that contains the generated project.
     ///   - context: generation context.
@@ -199,15 +184,16 @@ final class ConfigGenerator: ConfigGenerating {
     /// - Returns: the configuration list reference.
     /// - Throws: an error if the generation fails.
     func generateTargetConfig(target _: Target,
-                              pbxproj: PBXProj,
+                              pbxTarget: PBXTarget,
+                              objects: PBXObjects,
                               groups _: ProjectGroups,
                               sourceRootPath _: AbsolutePath,
                               context _: GeneratorContexting,
-                              options: GenerationOptions) throws -> PBXObjectReference {
+                              options _: GenerationOptions) throws {
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
-        let configurationListReference = pbxproj.objects.addObject(configurationList)
+        let configurationListReference = objects.addObject(configurationList)
         // TODO:
-        return configurationListReference
+        pbxTarget.buildConfigurationListRef = configurationListReference
     }
 
     // MARK: - Private

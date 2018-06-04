@@ -40,7 +40,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")
     }
 
-    private func generateProjectConfig(config: BuildConfiguration) throws -> ProjectGroups {
+    private func generateProjectConfig(config _: BuildConfiguration) throws -> ProjectGroups {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try xcconfigsDir.mkpath()
@@ -62,8 +62,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                               groups: groups,
                                               fileElements: fileElements,
                                               sourceRootPath: dir.path,
-                                              context: context,
-                                              options: GenerationOptions(buildConfiguration: config))
+                                              context: context)
         return groups
     }
 }

@@ -10,5 +10,5 @@ struct Constants {
     }
 
     /// Targetted Swift version.
-    static let swiftVersion = "4.1"
+    static let swiftVersion = "4.1.2"
 }

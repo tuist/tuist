@@ -69,8 +69,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                                                    groups: groups,
                                                                                    fileElements: fileElements,
                                                                                    sourceRootPath: sourceRootPath,
-                                                                                   context: context,
-                                                                                   options: options)
+                                                                                   context: context)
 
         /// Generate project object.
         let pbxProject = PBXProject(name: project.name,
@@ -108,7 +107,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   fileElements: fileElements,
                                                                   context: context,
                                                                   path: project.path,
-                                                                  sourceRootPath: sourceRootPath)
+                                                                  sourceRootPath: sourceRootPath,
+                                                                  options: options)
             nativeTargets[target.name] = nativeTarget
         }
 

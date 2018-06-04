@@ -43,7 +43,7 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertTrue(main.children.contains(subject.products.reference))
         XCTAssertEqual(subject.products.name, "Products")
         XCTAssertNil(subject.products.path)
-        XCTAssertEqual(subject.products.sourceTree, .buildProductsDir)
+        XCTAssertEqual(subject.products.sourceTree, .group)
     }
 
     func test_targetFrameworks() throws {

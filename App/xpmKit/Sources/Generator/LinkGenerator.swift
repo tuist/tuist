@@ -161,8 +161,11 @@ final class LinkGenerator: LinkGenerating {
                 embedPhase.files.append(buildFileReference)
             }
         }
-
-        precompiledEmbedPhase.shellScript = script.joined(separator: "\n")
+        if script.count == 0 {
+            precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
+        } else {
+            precompiledEmbedPhase.shellScript = script.joined(separator: "\n")
+        }
     }
 
     /// Setup the headers search paths.
