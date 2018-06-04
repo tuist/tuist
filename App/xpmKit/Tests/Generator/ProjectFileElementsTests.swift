@@ -100,6 +100,85 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(fileReference?.includeInIndex, false)
     }
 
+    func test_generateDependencies_whenTargetNode_thatHasAlreadyBeenAdded() throws {
+        let pbxproj = PBXProj()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let path = AbsolutePath("/test")
+        let target = Target.test()
+        let project = Project.test(path: path, targets: [target])
+        let groups = ProjectGroups.generate(project: project,
+                                            objects: pbxproj.objects,
+                                            sourceRootPath: sourceRootPath)
+        let objects = PBXObjects(objects: [:])
+        var dependencies: Set<GraphNode> = Set()
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [])
+        dependencies.insert(targetNode)
+
+        subject.generate(dependencies: dependencies,
+                         path: path,
+                         groups: groups,
+                         objects: objects,
+                         sourceRootPath: sourceRootPath)
+
+        XCTAssertEqual(groups.products.children.count, 0)
+    }
+
+    func test_generateDependencies_whenTargetNode() throws {
+        let pbxproj = PBXProj()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let path = AbsolutePath("/test")
+        let target = Target.test()
+        let project = Project.test(path: AbsolutePath("/waka"), targets: [target])
+        let groups = ProjectGroups.generate(project: project,
+                                            objects: pbxproj.objects,
+                                            sourceRootPath: sourceRootPath)
+        let objects = PBXObjects(objects: [:])
+        var dependencies: Set<GraphNode> = Set()
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [])
+        dependencies.insert(targetNode)
+
+        subject.generate(dependencies: dependencies,
+                         path: path,
+                         groups: groups,
+                         objects: objects,
+                         sourceRootPath: sourceRootPath)
+
+        let fileReference: PBXFileReference? = try groups.products.children.first?.object()
+        XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
+        XCTAssertEqual(fileReference?.includeInIndex, false)
+        XCTAssertEqual(fileReference?.path, "Target.app")
+        XCTAssertEqual(fileReference?.explicitFileType, "wrapper.application")
+    }
+
+    func test_generateDependencies_whenPrecompiledNode() throws {
+        let pbxproj = PBXProj()
+        let sourceRootPath = AbsolutePath("/")
+        let target = Target.test()
+        let project = Project.test(path: AbsolutePath("/"), targets: [target])
+        let groups = ProjectGroups.generate(project: project,
+                                            objects: pbxproj.objects,
+                                            sourceRootPath: sourceRootPath)
+        let objects = PBXObjects(objects: [:])
+        var dependencies: Set<GraphNode> = Set()
+        let precompiledNode = FrameworkNode(path: project.path.appending(component: "waka.framework"))
+        dependencies.insert(precompiledNode)
+
+        subject.generate(dependencies: dependencies,
+                         path: project.path,
+                         groups: groups,
+                         objects: objects,
+                         sourceRootPath: sourceRootPath)
+
+        let fileReference: PBXFileReference? = try groups.project.children.first?.object()
+        XCTAssertEqual(fileReference?.path, "waka.framework")
+        XCTAssertEqual(fileReference?.path, "waka.framework")
+        XCTAssertNil(fileReference?.name)
+    }
+
     func test_generatePath() throws {
         let pbxproj = PBXProj()
         let path = AbsolutePath("/a/b/c/file.swift")

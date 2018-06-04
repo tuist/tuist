@@ -17,10 +17,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 * Shell script build phase generation https://github.com/xcode-project-manager/xpm/pull/43 by @pepibumur.
 * Copy files build phase generation https://github.com/xcode-project-manager/xpm/pull/44 by @pepibumur.
 * Add `embed-framework` cli https://github.com/xcbuddy/xcbuddy/pull/22 by @pepibumur.
+* Link and embed phase generation https://github.com/xcode-project-manager/xpm/pull/45 by @pepibumur.
 
 ### Changed
 
 * Error handling to use a protocol oriented approach https://github.com/xcode-project-manager/xpm/pull/31 by @pepibumur.
+* **Breaking** Rename to xpm https://github.com/xcode-project-manager/xpm/pull/46 by @pepibumur.
 
 ## 0.34.0
 
@@ -33,7 +35,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 * Error handling https://github.com/xcode-project-manager/xpm/pull/14 by @pepibumur.
-* **Breaking** Rename to xpm https://github.com/xcode-project-manager/xpm/pull/46 by @pepibumur.
 
 ### Fixed
 

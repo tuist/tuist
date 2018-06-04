@@ -57,8 +57,13 @@ final class ProjectGenerator: ProjectGenerating {
                               classes: [:])
         let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
-        fileElements.generateProjectFiles(project: project, groups: groups, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
+        fileElements.generateProjectFiles(project: project,
+                                          graph: context.graph,
+                                          groups: groups,
+                                          objects: pbxproj.objects,
+                                          sourceRootPath: sourceRootPath)
 
+        // Configuration list.
         let configurationListReference = try configGenerator.generateProjectConfig(project: project,
                                                                                    pbxproj: pbxproj,
                                                                                    groups: groups,
@@ -101,7 +106,9 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   pbxProject: pbxProject,
                                                                   groups: groups,
                                                                   fileElements: fileElements,
-                                                                  context: context)
+                                                                  context: context,
+                                                                  path: project.path,
+                                                                  sourceRootPath: sourceRootPath)
             nativeTargets[target.name] = nativeTarget
         }
 
