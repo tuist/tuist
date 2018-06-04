@@ -7,7 +7,7 @@ import xcodeproj
 /// - missingProduct: thrown when a product reference is missing. Product references should be generated before the linking is.
 /// - missingReference: thrown when there s a file reference missing. File references should be generated before the linking is.
 /// - missingConfigurationList: thrown when a target doesn't have a configuration list.
-enum LinkGeneratorError: FatalError {
+enum LinkGeneratorError: FatalError, Equatable {
     case missingProduct(name: String)
     case missingReference(path: AbsolutePath)
     case missingConfigurationList(targetName: String)
@@ -29,6 +29,25 @@ enum LinkGeneratorError: FatalError {
         switch self {
         case .missingProduct, .missingConfigurationList, .missingReference:
             return .bugSilent
+        }
+    }
+
+    /// Returns true if two instances of LinkGeneratorError are the same.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same
+    static func == (lhs: LinkGeneratorError, rhs: LinkGeneratorError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.missingProduct(lhsName), .missingProduct(rhsName)):
+            return lhsName == rhsName
+        case let (.missingReference(lhsPath), .missingReference(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.missingConfigurationList(lhsName), .missingConfigurationList(rhsName)):
+            return lhsName == rhsName
+        default:
+            return false
         }
     }
 }

@@ -100,6 +100,7 @@
 		B9B629C020864E7D00EE9E07 /* UpdateCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629BE20864E7D00EE9E07 /* UpdateCommand.swift */; };
 		B9B629C120864E7D00EE9E07 /* DumpCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629BF20864E7D00EE9E07 /* DumpCommand.swift */; };
 		B9B629CE20864E9800EE9E07 /* BuildConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B629C320864E9800EE9E07 /* BuildConfiguration.swift */; };
+		B9BF673420C58B5500B0E7A1 /* LinkGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BF673320C58B5500B0E7A1 /* LinkGeneratorTests.swift */; };
 		B9C1B10720C1A66900E897FB /* EmbeddableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C1B10620C1A66900E897FB /* EmbeddableTests.swift */; };
 		B9C1B10920C28A9E00E897FB /* FrameworkEmbedderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C1B10820C28A9E00E897FB /* FrameworkEmbedderTests.swift */; };
 		B9E2DC9420872B190061DF86 /* BuildConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9287D0520808FFF002DEFEE /* BuildConfigurationTests.swift */; };
@@ -376,6 +377,7 @@
 		B9B629CB20864E9800EE9E07 /* Platform.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Platform.swift; sourceTree = "<group>"; };
 		B9B629CC20864E9800EE9E07 /* BuildPhase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildPhase.swift; sourceTree = "<group>"; };
 		B9B629CD20864E9800EE9E07 /* Product.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Product.swift; sourceTree = "<group>"; };
+		B9BF673320C58B5500B0E7A1 /* LinkGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkGeneratorTests.swift; sourceTree = "<group>"; };
 		B9BFCF70207B48D500ACC59D /* MockPrinter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPrinter.swift; sourceTree = "<group>"; };
 		B9C1B10620C1A66900E897FB /* EmbeddableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddableTests.swift; sourceTree = "<group>"; };
 		B9C1B10820C28A9E00E897FB /* FrameworkEmbedderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameworkEmbedderTests.swift; sourceTree = "<group>"; };
@@ -762,6 +764,7 @@
 				3D7E6C6120AC79DD00360C02 /* ProjectFileElementsTests.swift */,
 				3D7E6CE020AECC9B00360C02 /* BuildPhaseGeneratorTests.swift */,
 				B919C5C320B46D010041162E /* TargetGeneratorTests.swift */,
+				B9BF673320C58B5500B0E7A1 /* LinkGeneratorTests.swift */,
 			);
 			path = Generator;
 			sourceTree = "<group>";
@@ -1314,6 +1317,7 @@
 				B9E2DC9920872C0F0061DF86 /* MockFileHandler.swift in Sources */,
 				B9589609208B4E8E00F00ACF /* MockProjectGenerator.swift in Sources */,
 				B99D5D4620B6878400249856 /* MockGraphModuleLoader.swift in Sources */,
+				B9BF673420C58B5500B0E7A1 /* LinkGeneratorTests.swift in Sources */,
 				B99D5D4820B6C87B00249856 /* GraphModuleLoaderTests.swift in Sources */,
 				B9E2DC9F20872D450061DF86 /* MockLogger.swift in Sources */,
 				3D92B7E720A84888006711E5 /* ProjectGroupsTests.swift in Sources */,
