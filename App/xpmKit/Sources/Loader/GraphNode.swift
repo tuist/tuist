@@ -77,7 +77,7 @@ class TargetNode: GraphNode {
                 return try TargetNode.read(name: name, path: path, context: context)
             } else if type == "project" {
                 let circularFrom = GraphCircularDetectorNode(path: path, name: name)
-                let name: String = try json.get("name")
+                let name: String = try json.get("target")
                 let projectRelativePath: RelativePath = try RelativePath(json.get("path"))
                 let projectPath = path.appending(projectRelativePath)
                 let circularTo = GraphCircularDetectorNode(path: projectPath, name: name)
