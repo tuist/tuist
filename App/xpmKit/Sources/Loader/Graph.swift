@@ -58,7 +58,7 @@ protocol Graphing: AnyObject {
     var entryNodes: [GraphNode] { get }
     var projects: [Project] { get }
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
-    func librariesPublicHeaders(path: AbsolutePath, name: String) -> [AbsolutePath]
+    func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, shell: Shelling) throws -> [DependencyReference]
     func dependencies(path: AbsolutePath, name: String) -> Set<GraphNode>
     func dependencies(path: AbsolutePath) -> Set<GraphNode>
@@ -191,7 +191,7 @@ class Graph: Graphing {
     ///   - path: path to the folder that contains the manifest where the target is defined.
     ///   - name: target name.
     /// - Returns: paths to the public headers folders.
-    func librariesPublicHeaders(path: AbsolutePath, name: String) -> [AbsolutePath] {
+    func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath] {
         guard let targetNodes = cache.targetNodes[path] else { return [] }
         guard let targetNode = targetNodes[name] else { return [] }
         return targetNode

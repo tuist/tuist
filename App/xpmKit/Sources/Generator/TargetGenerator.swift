@@ -34,6 +34,7 @@ protocol TargetGenerating: AnyObject {
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
     ///   - path: Path to the folder that contains the project manifest.
+    ///   - sourceRootPath: Path to the folder that contains the Xcode project that is generated.
     /// - Returns: native target.
     func generateTarget(target targetSpec: Target,
                         objects: PBXObjects,
@@ -41,7 +42,8 @@ protocol TargetGenerating: AnyObject {
                         groups: ProjectGroups,
                         fileElements: ProjectFileElements,
                         context: GeneratorContexting,
-                        path: AbsolutePath) throws -> PBXNativeTarget
+                        path: AbsolutePath,
+                        sourceRootPath: AbsolutePath) throws -> PBXNativeTarget
 
     /// Generates the targets dependencies.
     ///
@@ -104,7 +106,6 @@ final class TargetGenerator: TargetGenerating {
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
     ///   - options: generation options.
-    /// - Throws: an error if the generation fails.
     func generateManifestsTarget(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
@@ -145,7 +146,7 @@ final class TargetGenerator: TargetGenerating {
 
         // Target
         let target = PBXNativeTarget(name: name,
-                                     buildConfigurationList: configurationListReference,
+                                     buildConfigurationListRef: configurationListReference,
                                      buildPhases: [sourcesPhaseReference],
                                      productName: frameworkName,
                                      productReference: productFileReferenceRef,
@@ -165,6 +166,7 @@ final class TargetGenerator: TargetGenerating {
     ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
     ///   - context: generation context.
     ///   - path: Path to the folder that contains the project manifest.
+    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     /// - Returns: native target.
     func generateTarget(target: Target,
                         objects: PBXObjects,
@@ -172,13 +174,14 @@ final class TargetGenerator: TargetGenerating {
                         groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
                         context: GeneratorContexting,
-                        path: AbsolutePath) throws -> PBXNativeTarget {
+                        path: AbsolutePath,
+                        sourceRootPath: AbsolutePath) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.productName]!
 
         /// Target
         let pbxTarget = PBXNativeTarget(name: target.name,
-                                        buildConfigurationList: nil,
+                                        buildConfigurationListRef: nil,
                                         buildPhases: [],
                                         buildRules: [],
                                         dependencies: [],
@@ -201,7 +204,8 @@ final class TargetGenerator: TargetGenerating {
                                         objects: objects,
                                         pbxProject: pbxProject,
                                         fileElements: fileElements,
-                                        path: path)
+                                        path: path,
+                                        sourceRootPath: sourceRootPath)
         return pbxTarget
     }
 

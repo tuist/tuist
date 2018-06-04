@@ -107,7 +107,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   groups: groups,
                                                                   fileElements: fileElements,
                                                                   context: context,
-                                                                  path: project.path)
+                                                                  path: project.path,
+                                                                  sourceRootPath: sourceRootPath)
             nativeTargets[target.name] = nativeTarget
         }
 

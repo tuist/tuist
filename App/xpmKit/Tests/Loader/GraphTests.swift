@@ -98,8 +98,8 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        let got = graph.librariesPublicHeaders(path: project.path,
-                                               name: target.name)
+        let got = graph.librariesPublicHeadersFolders(path: project.path,
+                                                      name: target.name)
         XCTAssertEqual(got.first, publicHeadersPath)
     }
 
