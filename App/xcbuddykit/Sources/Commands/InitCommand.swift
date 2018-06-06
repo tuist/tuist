@@ -93,8 +93,8 @@ public class InitCommand: NSObject, Command {
                                      usage: "Generate xcodeproj after create Project.swift file",
                                      completion: .none)
         
-        interactiveArgument = subParser.add(option: "--interactive",
-                                         shortName: "-i",
+        interactiveArgument = subParser.add(option: "--scaffolding",
+                                         shortName: "-s",
                                          kind: Bool.self,
                                          usage: "Launch wizard to request project details",
                                          completion: .none)
