@@ -182,7 +182,7 @@ final class ConfigGenerator: ConfigGenerating {
                                           objects: objects,
                                           configurationList: configurationList)
         }
-        if let releaseConfig = target.settings?.release, options.buildConfiguration == .debug {
+        if let releaseConfig = target.settings?.release, options.buildConfiguration == .release {
             try generateTargetSettingsFor(target: target,
                                           buildConfiguration: .release,
                                           configuration: releaseConfig,
@@ -207,7 +207,6 @@ final class ConfigGenerator: ConfigGenerating {
                                            fileElements: ProjectFileElements,
                                            objects: PBXObjects,
                                            configurationList: XCConfigurationList) throws {
-        let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
         let product = settingsProviderProduct(target)
         let platform = settingsProviderPlatform(target)
 
@@ -220,7 +219,6 @@ final class ConfigGenerator: ConfigGenerating {
 
         let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized)
         if let variantConfig = configuration {
-            extend(buildSettings: &settings, with: variantConfig.settings)
             if let xcconfig = variantConfig.xcconfig {
                 let fileReference = fileElements.file(path: xcconfig)
                 variantBuildConfiguration.baseConfigurationReference = fileReference?.reference
