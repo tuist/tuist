@@ -7,10 +7,10 @@ import Foundation
 /// - watchos: watchOS.
 /// - tvos: tvOS.
 enum Platform: String {
-    case ios
-    case macos
-    case watchos
-    case tvos
+    case iOS
+    case macOS
+    case watchOS
+    case tvOS
 }
 
 // MARK: - Platform extension.
@@ -19,13 +19,13 @@ extension Platform {
     /// Returns Xcode SDKROOT value.
     var xcodeSdkRoot: String {
         switch self {
-        case .macos:
+        case .macOS:
             return "macosx"
-        case .ios:
+        case .iOS:
             return "iphoneos"
-        case .tvos:
+        case .tvOS:
             return "appletvos"
-        case .watchos:
+        case .watchOS:
             return "watchos"
         }
     }
@@ -33,13 +33,13 @@ extension Platform {
     /// Returns Xcode SUPPORTED_PLATFORMS value.
     var xcodeSupportedPlatforms: String {
         switch self {
-        case .tvos:
+        case .tvOS:
             return "appletvsimulator appletvos"
-        case .watchos:
+        case .watchOS:
             return "watchsimulator watchos"
-        case .ios:
+        case .iOS:
             return "iphonesimulator iphoneos"
-        case .macos:
+        case .macOS:
             return "macosx"
         }
     }

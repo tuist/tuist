@@ -91,7 +91,7 @@ public class InitCommand: NSObject, Command {
                       settings: Settings(base: [:]),
                       targets: [
                           Target(name: "{{NAME}}",
-                                 platform: .ios,
+                                 platform: .iOS,
                                  product: .app,
                                  bundleId: "com.xcodepm.{{NAME}}",
                                  infoPlist: "Info.plist",

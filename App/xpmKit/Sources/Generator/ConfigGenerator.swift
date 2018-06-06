@@ -7,20 +7,15 @@ protocol ConfigGenerating: AnyObject {
     /// Generates the project configuration list and configurations.
     ///
     /// - Parameters:
-    ///   - project: project spec.
-    ///   - pbxproj: Xcode project PBXProj object.
-    ///   - groups: Project groups.
-    ///   - fileElements: Project file elements.
-    ///   - sourceRootPath: path to the folder that contains the generated project.
-    ///   - context: generation context.
-    /// - Returns: the configuration list reference.
-    /// - Throws: an error if the generation fails.
+    ///   - project: Project specification.
+    ///   - objects: Xcode project objects.
+    ///   - fileElements: Xcode project file elements.
+    ///   - options: Generation objects.
+    /// - Returns: configuration list object reference.
     func generateProjectConfig(project: Project,
-                               pbxproj: PBXProj,
-                               groups: ProjectGroups,
+                               objects: PBXObjects,
                                fileElements: ProjectFileElements,
-                               sourceRootPath: AbsolutePath,
-                               context: GeneratorContexting) throws -> PBXObjectReference
+                               options: GenerationOptions) throws -> PBXObjectReference
 
     /// Generates the manifests target configuration.
     ///
@@ -32,22 +27,18 @@ protocol ConfigGenerating: AnyObject {
     /// - Throws: an error if the generation fails.
     func generateManifestsConfig(pbxproj: PBXProj, context: GeneratorContexting, options: GenerationOptions) throws -> PBXObjectReference
 
-    /// Generates the target configuration list and configurations.
+    /// Generates the target configuration.
     ///
     /// - Parameters:
-    ///   - target: target spec.
+    ///   - target: target specification.
     ///   - pbxTarget: Xcode project target.
     ///   - objects: Xcode project objects.
-    ///   - groups: Project groups.
-    ///   - sourceRootPath: path to the folder that contains the generated project.
-    ///   - context: generation context.
+    ///   - fileElements: Xcode project file elements.
     ///   - options: generation options.
-    func generateTargetConfig(target: Target,
+    func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               objects: PBXObjects,
-                              groups: ProjectGroups,
-                              sourceRootPath: AbsolutePath,
-                              context: GeneratorContexting,
+                              fileElements: ProjectFileElements,
                               options: GenerationOptions) throws
 }
 
@@ -66,35 +57,30 @@ final class ConfigGenerator: ConfigGenerating {
     /// Generates the project configuration list and configurations.
     ///
     /// - Parameters:
-    ///   - project: project spec.
-    ///   - pbxproj: Xcode project PBXProj object.
-    ///   - groups: Project groups.
-    ///   - fileElements: Project file elements.
-    ///   - sourceRootPath: path to the folder that contains the generated project.
-    ///   - context: generation context.
-    /// - Returns: the confniguration list reference.
-    /// - Throws: an error if the generation fails.
+    ///   - project: Project specification.
+    ///   - objects: Xcode project objects.
+    ///   - fileElements: Xcode project file elements.
+    ///   - options: Generation objects.
+    /// - Returns: configuration list object reference.
     func generateProjectConfig(project: Project,
-                               pbxproj: PBXProj,
-                               groups _: ProjectGroups,
+                               objects: PBXObjects,
                                fileElements: ProjectFileElements,
-                               sourceRootPath _: AbsolutePath,
-                               context _: GeneratorContexting) throws -> PBXObjectReference {
+                               options _: GenerationOptions) throws -> PBXObjectReference {
         /// Configuration list
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
-        let configurationListReference = pbxproj.objects.addObject(configurationList)
+        let configurationListReference = objects.addObject(configurationList)
 
         try generateProjectSettingsFor(buildConfiguration: .debug,
                                        configuration: project.settings?.debug,
                                        project: project,
                                        fileElements: fileElements,
-                                       pbxproj: pbxproj,
+                                       objects: objects,
                                        configurationList: configurationList)
         try generateProjectSettingsFor(buildConfiguration: .release,
                                        configuration: project.settings?.release,
                                        project: project,
                                        fileElements: fileElements,
-                                       pbxproj: pbxproj,
+                                       objects: objects,
                                        configurationList: configurationList)
         return configurationListReference
     }
@@ -106,14 +92,14 @@ final class ConfigGenerator: ConfigGenerating {
     ///   - configuration: configuration from the project specification.
     ///   - project: project specification.
     ///   - fileElements: project file elements.
-    ///   - pbxproj: PBXProj object.
+    ///   - objects: Xcode project objects.
     ///   - configurationList: configurations list.
     /// - Throws: an error if the generation fails.
     private func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
                                             configuration: Configuration?,
                                             project: Project,
                                             fileElements: ProjectFileElements,
-                                            pbxproj: PBXProj,
+                                            objects: PBXObjects,
                                             configurationList: XCConfigurationList) throws {
         let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
         let defaultConfigSettings = BuildSettingsProvider.projectDefault(variant: variant)
@@ -133,7 +119,7 @@ final class ConfigGenerator: ConfigGenerating {
             }
         }
         variantBuildConfiguration.buildSettings = settings
-        let debugConfigurationReference = pbxproj.objects.addObject(variantBuildConfiguration)
+        let debugConfigurationReference = objects.addObject(variantBuildConfiguration)
         configurationList.buildConfigurationsReferences.append(debugConfigurationReference)
     }
 
@@ -171,29 +157,112 @@ final class ConfigGenerator: ConfigGenerating {
         return configurationListReference
     }
 
-    /// Generates the target configuration list and configurations.
+    /// Generates the target configuration.
     ///
     /// - Parameters:
-    ///   - target: target spec.
+    ///   - target: target specification.
     ///   - pbxTarget: Xcode project target.
     ///   - objects: Xcode project objects.
-    ///   - groups: Project groups.
-    ///   - sourceRootPath: path to the folder that contains the generated project.
-    ///   - context: generation context.
+    ///   - fileElements: Xcode project file elements.
     ///   - options: generation options.
-    /// - Returns: the configuration list reference.
-    /// - Throws: an error if the generation fails.
-    func generateTargetConfig(target _: Target,
+    func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               objects: PBXObjects,
-                              groups _: ProjectGroups,
-                              sourceRootPath _: AbsolutePath,
-                              context _: GeneratorContexting,
-                              options _: GenerationOptions) throws {
+                              fileElements: ProjectFileElements,
+                              options: GenerationOptions) throws {
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = objects.addObject(configurationList)
-        // TODO:
         pbxTarget.buildConfigurationListRef = configurationListReference
+
+        if let debugConfig = target.settings?.debug, options.buildConfiguration == .debug {
+            try generateTargetSettingsFor(target: target,
+                                          buildConfiguration: .debug,
+                                          configuration: debugConfig,
+                                          fileElements: fileElements,
+                                          objects: objects,
+                                          configurationList: configurationList)
+        }
+        if let releaseConfig = target.settings?.release, options.buildConfiguration == .debug {
+            try generateTargetSettingsFor(target: target,
+                                          buildConfiguration: .release,
+                                          configuration: releaseConfig,
+                                          fileElements: fileElements,
+                                          objects: objects,
+                                          configurationList: configurationList)
+        }
+    }
+
+    /// Generates the target settings.
+    ///
+    /// - Parameters:
+    ///   - target: target specification.
+    ///   - buildConfiguration: build configuration to be generated.
+    ///   - configuration: target configuration.
+    ///   - fileElements: Xcode project file elements.
+    ///   - objects: Xcode project objects.
+    ///   - configurationList: target configuration list.
+    private func generateTargetSettingsFor(target: Target,
+                                           buildConfiguration: BuildConfiguration,
+                                           configuration: Configuration?,
+                                           fileElements: ProjectFileElements,
+                                           objects: PBXObjects,
+                                           configurationList: XCConfigurationList) throws {
+        let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
+        let product = settingsProviderProduct(target)
+        let platform = settingsProviderPlatform(target)
+
+        let defaultConfigSettings = BuildSettingsProvider.targetDefault(platform: platform, product: product)
+
+        var settings: [String: Any] = [:]
+        extend(buildSettings: &settings, with: defaultConfigSettings)
+        extend(buildSettings: &settings, with: target.settings?.base ?? [:])
+        extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized)
+        if let variantConfig = configuration {
+            extend(buildSettings: &settings, with: variantConfig.settings)
+            if let xcconfig = variantConfig.xcconfig {
+                let fileReference = fileElements.file(path: xcconfig)
+                variantBuildConfiguration.baseConfigurationReference = fileReference?.reference
+            }
+        }
+        variantBuildConfiguration.buildSettings = settings
+        let debugConfigurationReference = objects.addObject(variantBuildConfiguration)
+        configurationList.buildConfigurationsReferences.append(debugConfigurationReference)
+    }
+
+    /// It returns the build settings provider platform from a given target.
+    ///
+    /// - Parameter target: target specification.
+    /// - Returns: platform.
+    fileprivate func settingsProviderPlatform(_ target: Target) -> BuildSettingsProvider.Platform? {
+        var platform: BuildSettingsProvider.Platform?
+        switch target.platform {
+        case .iOS: platform = .iOS
+        case .macOS: platform = .macOS
+        case .tvOS: platform = .tvOS
+        case .watchOS: platform = .watchOS
+        }
+        return platform
+    }
+
+    /// It returns the build settings provider product from a given target.
+    ///
+    /// - Parameter target: target specification.
+    /// - Returns: product type.
+    fileprivate func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
+        switch target.product {
+        case .app:
+            return .application
+        case .dynamicLibrary:
+            return .dynamicLibrary
+        case .staticLibrary:
+            return .staticLibrary
+        case .framework:
+            return .framework
+        default:
+            return nil
+        }
     }
 
     // MARK: - Private

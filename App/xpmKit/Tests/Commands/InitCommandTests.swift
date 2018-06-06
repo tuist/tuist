@@ -48,7 +48,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(project.name, tmpDir.path.components.last)
         XCTAssertEqual(project.schemes.count, 1)
         XCTAssertEqual(project.targets.first?.name, tmpDir.path.components.last)
-        XCTAssertEqual(project.targets.first?.platform, .ios)
+        XCTAssertEqual(project.targets.first?.platform, .iOS)
         XCTAssertEqual(project.targets.first?.product, .app)
         XCTAssertEqual(project.targets.first?.bundleId, "com.xcodepm.\(tmpDir.path.components.last!)")
         XCTAssertEqual(project.targets.first?.dependencies.count, 0)

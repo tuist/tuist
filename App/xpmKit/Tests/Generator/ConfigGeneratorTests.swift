@@ -57,12 +57,11 @@ final class ConfigGeneratorTests: XCTestCase {
                               targets: [])
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: dir.path)
+        let options = GenerationOptions(buildConfiguration: .debug)
         _ = try subject.generateProjectConfig(project: project,
-                                              pbxproj: pbxproj,
-                                              groups: groups,
+                                              objects: pbxproj.objects,
                                               fileElements: fileElements,
-                                              sourceRootPath: dir.path,
-                                              context: context)
+                                              options: options)
         return groups
     }
 }
