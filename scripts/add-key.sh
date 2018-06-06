@@ -20,4 +20,4 @@ security import ./certs/dist.p12 -k ~/Library/Keychains/ios-build.keychain -P $C
 
 # Put the provisioning profile in place
 mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-cp "./certs/xcbuddy_dist.provisionprofile" ~/Library/MobileDevice/Provisioning\ Profiles/
+cp "./certs/xpm_dist.provisionprofile" ~/Library/MobileDevice/Provisioning\ Profiles/

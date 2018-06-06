@@ -3,9 +3,9 @@
 import PackageDescription
 
 let package = Package(
-    name: "xcbuddy",
+    name: "xpm",
     dependencies: [
-        .package(url: "git@github.com:xcbuddy/xcodeproj.git", .revision("ccc66ec0fff1c85300f5724a81de27295d044ae9")),
+        .package(url: "git@github.com:xcode-project-manager/xcodeproj.git", .revision("089d26ec37d741593512c6876062b726d3923229")),
         .package(url: "https://github.com/apple/swift-package-manager", from: "0.2.0"),
     ],
     targets: [

@@ -1,5 +1,5 @@
 included:
-  - App/xcbuddykit/Sources
+  - App/xpmKit/Sources
   - App/Sources
 excluded:
   - Sources

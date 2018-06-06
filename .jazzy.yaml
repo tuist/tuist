@@ -1,12 +1,12 @@
-author: xcbuddy
-module: xcbuddykit
-github_url: https://github.com/xcbuddy/xcbuddy
+author: xpm
+module: xpmKit
+github_url: https://github.com/xcode-project-manager/xpm
 copyright: 'Copyright © 2018 Pedro Piñera. All rights reserved.'
 readme: README.md
-documentation: guides/*.md
+documentation: Guides/*.md
 skip_undocumented: true
 theme: fullwidth
-xcodebuild_arguments: [-workspace, 'xcbuddy.xcworkspace', -scheme, 'xcbuddykit']
+xcodebuild_arguments: [-workspace, 'xpm.xcworkspace', -scheme, 'xpmKit']
 sdk: macosx
 clean: true
 min_acl: internal
@@ -18,39 +18,117 @@ custom_categories:
     children:
       - Command
       - CommandRegistry
-      - DumpCommand
-      - UpdateCommand
       - CommandsContext
-      - InitCommand
+      - CreateIssueCommand
+      - DumpCommand
       - GenerateCommand
+      - InitCommand
+      - UpdateCommand
+      - VersionCommand
+      - DumpCommandError
+      - InitCommandError
+      - CommandCheckError
+      - ArgumentParserError
+  - name: Errors
+    children:
+      - ErrorHandler
+      - FatalError
+      - ErrorType
+  - name: Extensions
+    children:
+      - AbsolutePath+Extras
+      - ArgumentParserError+FatalError
+      - String+Error
+  - name: Generator
+    children:
+      - BuildPhaseGenerator
+      - BuildPhaseGenerationError
+      - ConfigGenerator
+      - FileGenerator
+      - GenerationOptions
+      - GeneratorContext
+      - ProjectFileElements
+      - ProjectGenerator
+      - ProjectGroups
+      - TargetGenerator
+      - WorkspaceGenerator
+  - name: Graph Loader
+    children:
+      - Graph
+      - GraphCircularDetector
+      - GraphJSONInitiatable
+      - GraphLoader
+      - GraphLoaderCache
+      - GraphLoaderContext
+      - GraphLoadingError
+      - GraphManifestLoader
+      - GraphModuleLoader
+      - GraphNode
+      - TargetNode
+      - PrecompiledNode
+      - LibraryNode
+      - FrameworkNode
+      - GraphManifestLoaderError
+      - GraphError
+      - GraphModuleLoaderError
+      - PrecompiledNodeError
+      - GraphCircularDetectorNode
+      - DependencyReference
   - name: Models
     children:
       - BuildConfiguration
       - BuildFiles
       - Target
-      - Config
       - Workspace
       - Scheme
+      - Arguments
       - Project
       - Settings
       - Platform
       - BuildPhase
       - Product
-  - name: Errors
-    children:
-      - ErrorHandler
-      - FatalError
-  - name: Utils
-    children:
-      - Logger
-      - Printer
-      - FileHandler
-      - Bundles
-      - App
-      - Signals
-      - Shell
-      - Context
-      - ResourceLocator
+      - BaseResourcesBuildFile
+      - Configuration
+      - BuildAction
+      - CopyBuildPhase
+      - CoreDataModelBuildFile
+      - HeadersBuildFile
+      - HeadersBuildPhase
+      - ResourcesBuildFile
+      - ResourcesBuildPhase
+      - RunAction
+      - ScriptBuildPhase
+      - SourcesBuildFile
+      - SourcesBuildPhase
+      - TestAction
+      - BuildFileError
+      - CopyBuildFile
   - name: Protocols
     children:
       - XcodeRepresentable
+  - name: Updater
+    children:
+      - SPUStandardUpdaterController
+      - SPUStandardUpdateController+App
+      - SPUUpdater+CommandLine
+      - UpdateController
+      - SPUCommandLineUserDriver
+  - name: Utils
+    children:
+      - CommandCheck
+      - Context
+      - FileAggregator
+      - FileHandler
+      - Logger
+      - Printer
+      - ResourceLocator
+      - ResourceLocatingError
+      - Shell
+      - Signals
+      - ShellError
+      - UnhandledError
+  - name: Validator
+    children:
+      - GraphValidator
+      - ProjectValidator
+      - TargetValidator

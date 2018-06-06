@@ -1,5 +1,5 @@
-@testable import xcbuddy
 import XCTest
+@testable import xpm
 
-class xcbuddyTests: XCTestCase {
+class xpmTests: XCTestCase {
 }

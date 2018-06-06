@@ -9,9 +9,14 @@ public class BuildPhase {
         return ResourcesBuildPhase(files: files)
     }
 
-    public static func copy(name: String, destination: CopyBuildPhase.Destination, subpath: String? = nil, copyWhenInstalling: Bool = true) -> CopyBuildPhase {
+    public static func copy(name: String,
+                            destination: CopyBuildPhase.Destination,
+                            files: [CopyBuildFile],
+                            subpath: String? = nil,
+                            copyWhenInstalling: Bool = true) -> CopyBuildPhase {
         return CopyBuildPhase(name: name,
                               destination: destination,
+                              files: files,
                               subpath: subpath,
                               copyWhenInstalling: copyWhenInstalling)
     }
@@ -77,16 +82,16 @@ extension ResourcesBuildPhase: JSONConvertible {
 
 public class CopyBuildPhase: BuildPhase {
     public enum Destination: String {
-        case absolutePath = "absolute_path"
-        case productsDirectory = "products_directory"
+        case absolutePath
+        case productsDirectory
         case wrapper
         case resources
         case executables
-        case javaResources = "java_resources"
+        case javaResources
         case frameworks
-        case sharedFrameworks = "shared_frameworks"
-        case sharedSupport = "shared_support"
-        case plugins = "plug_ins"
+        case sharedFrameworks
+        case sharedSupport
+        case plugins
 
         func toJSON() -> JSON {
             return .string(rawValue)
@@ -95,15 +100,18 @@ public class CopyBuildPhase: BuildPhase {
 
     public let name: String
     public let destination: Destination
+    public let files: [CopyBuildFile]
     public let subpath: String?
     public let copyWhenInstalling: Bool
 
     public init(name: String,
                 destination: Destination,
+                files: [CopyBuildFile],
                 subpath: String? = nil,
                 copyWhenInstalling: Bool = true) {
         self.name = name
         self.destination = destination
+        self.files = files
         self.subpath = subpath
         self.copyWhenInstalling = copyWhenInstalling
     }
@@ -121,6 +129,7 @@ extension CopyBuildPhase: JSONConvertible {
             dictionary["subpath"] = subpath.toJSON()
         }
         dictionary["copy_when_installing"] = copyWhenInstalling.toJSON()
+        dictionary["files"] = JSON.array(files.map({ $0.toJSON() }))
         return .dictionary(dictionary)
     }
 }

@@ -1,6 +1,6 @@
 import Cocoa
 import Sparkle
-import xcbuddykit
+import xpmKit
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {

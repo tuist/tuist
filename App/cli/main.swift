@@ -1,5 +1,5 @@
 import Foundation
-import xcbuddykit
+import xpmKit
 
 var registry = CommandRegistry()
-try registry.run()
+registry.run()
