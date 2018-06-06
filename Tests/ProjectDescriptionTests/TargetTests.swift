@@ -5,7 +5,7 @@ import XCTest
 final class TargetTests: XCTestCase {
     func test_toJSON_returns_the_right_value() {
         let subject = Target(name: "name",
-                             platform: .ios,
+                             platform: .iOS,
                              product: .app,
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
