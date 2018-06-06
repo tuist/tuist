@@ -15,7 +15,7 @@ final class TargetTests: XCTestCase {
                                                 release: .settings([:], xcconfig: "release.xcconfig")),
                              buildPhases: [.headers([])])
         let json = subject.toJSON()
-        let expected = "{\"build_phases\": [{\"files\": [], \"type\": \"headers\"}], \"bundle_id\": \"bundle_id\", \"dependencies\": [{\"path\": \"path\", \"type\": \"framework\"}], \"entitlements\": \"entitlements\", \"info_plist\": \"info.plist\", \"name\": \"name\", \"platform\": \"ios\", \"product\": \"app\", \"settings\": {\"base\": {}, \"debug\": {\"settings\": {}, \"xcconfig\": \"debug.xcconfig\"}, \"release\": {\"settings\": {}, \"xcconfig\": \"release.xcconfig\"}}}"
+        let expected = "{\"build_phases\": [{\"files\": [], \"type\": \"headers\"}], \"bundle_id\": \"bundle_id\", \"dependencies\": [{\"path\": \"path\", \"type\": \"framework\"}], \"entitlements\": \"entitlements\", \"info_plist\": \"info.plist\", \"name\": \"name\", \"platform\": \"iOS\", \"product\": \"app\", \"settings\": {\"base\": {}, \"debug\": {\"settings\": {}, \"xcconfig\": \"debug.xcconfig\"}, \"release\": {\"settings\": {}, \"xcconfig\": \"release.xcconfig\"}}}"
         XCTAssertEqual(json.toString(), expected)
     }
 }
