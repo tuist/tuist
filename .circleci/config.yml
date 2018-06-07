@@ -10,9 +10,6 @@ jobs:
             - gem-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
             - gem-cache-{{ arch }}-{{ .Branch }}
             - gem-cache
-      - restore_cache:
-          keys:
-            - xcode-cache-{{ arch }}-{{ .Branch }}
       - run:
           name: Install Dependencies
           command: |
@@ -32,10 +29,6 @@ jobs:
           key: gem-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
           paths:
             - vendor/bundle
-      - save_cache:
-          key: xcode-cache-{{ arch }}-{{ .Branch }}
-          paths:
-            - ~/Library/Developer/Xcode/DerivedData
 
 
                 
