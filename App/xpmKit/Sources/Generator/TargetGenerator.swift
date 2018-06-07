@@ -200,7 +200,8 @@ final class TargetGenerator: TargetGenerating {
                                                  pbxTarget: pbxTarget,
                                                  objects: objects,
                                                  fileElements: fileElements,
-                                                 options: options)
+                                                 options: options,
+                                                 sourceRootPath: sourceRootPath)
 
         /// Build phases
         try buildPhaseGenerator.generateBuildPhases(target: target,

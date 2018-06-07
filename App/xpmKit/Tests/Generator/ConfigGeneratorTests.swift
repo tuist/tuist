@@ -50,6 +50,9 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(config?.name, "Debug")
         XCTAssertEqual(config?.buildSettings["Base"] as? String, "Base")
         XCTAssertEqual(config?.buildSettings["Debug"] as? String, "Debug")
+        XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
+        XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
+        XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
         let xcconfig: PBXFileReference? = try config?.baseConfigurationReference?.object()
         XCTAssertEqual(xcconfig?.path, "debug.xcconfig")
     }
@@ -61,6 +64,9 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(config?.name, "Release")
         XCTAssertEqual(config?.buildSettings["Base"] as? String, "Base")
         XCTAssertEqual(config?.buildSettings["Release"] as? String, "Release")
+        XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
+        XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
+        XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
         let xcconfig: PBXFileReference? = try config?.baseConfigurationReference?.object()
         XCTAssertEqual(xcconfig?.path, "release.xcconfig")
     }
@@ -95,7 +101,7 @@ final class ConfigGeneratorTests: XCTestCase {
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try xcconfigsDir.mkpath()
         try xcconfigsDir.appending(component: "debug.xcconfig").write("")
-        try xcconfigsDir.appending(component: "release.xcconfig").write("")
+        try dir.path.appending(component: "release.xcconfig").write("")
         let target = Target.test(name: "Test",
                                  settings: Settings(base: ["Base": "Base"],
                                                     debug: Configuration(settings: ["Debug": "Debug"],
@@ -120,7 +126,8 @@ final class ConfigGeneratorTests: XCTestCase {
                                              pbxTarget: pbxTarget,
                                              objects: pbxproj.objects,
                                              fileElements: fileElements,
-                                             options: options)
+                                             options: options,
+                                             sourceRootPath: AbsolutePath("/"))
         return groups
     }
 }

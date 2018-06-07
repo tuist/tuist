@@ -1573,7 +1573,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_SWIFT_FLAGS = "-Xcc -fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-package-manager.git--5789260357088934756/Sources/clibc/include/module.modulemap";
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xcc -fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-package-manager-7563514128626468262/Sources/clibc/include/module.modulemap";
 				SDKROOT = macosx;
 				SENTRY_DSN = "$(SENTRY_DSN)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -1627,7 +1627,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_SWIFT_FLAGS = "-Xcc -fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-package-manager.git--5789260357088934756/Sources/clibc/include/module.modulemap";
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xcc -fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-package-manager-7563514128626468262/Sources/clibc/include/module.modulemap";
 				SDKROOT = macosx;
 				SENTRY_DSN = "$(SENTRY_DSN)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
