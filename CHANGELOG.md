@@ -18,7 +18,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Copy files build phase generation https://github.com/xcode-project-manager/xpm/pull/44 by @pepibumur.
 - Add `embed-framework` cli https://github.com/xcbuddy/xcbuddy/pull/22 by @pepibumur.
 - Link and embed phase generation https://github.com/xcode-project-manager/xpm/pull/45 by @pepibumur.
-- Targets build settings generation https://github.com/xcode-project-manager/xpm/pull/47 by @pepibumur
+- Targets build settings generation https://github.com/xcode-project-manager/xpm/pull/47 by @pepibumur.
+- Generate build settings from target attributes https://github.com/xcode-project-manager/xpm/pull/48 by @pepibumur.
 
 ### Changed
 
