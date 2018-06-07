@@ -59,7 +59,7 @@ final class ProjectFileElementsTests: XCTestCase {
         buildPhases.append(resourcesPhase)
         buildPhases.append(headersPhase)
         let target = Target(name: "target",
-                            platform: .ios,
+                            platform: .iOS,
                             product: .app,
                             bundleId: "com.bundle.id",
                             infoPlist: AbsolutePath("/project/info.plist"),
