@@ -12,7 +12,7 @@ final class GraphErrorTests: XCTestCase {
 
     func test_type_when_unsupportedFileExtension() {
         let error = GraphError.unsupportedFileExtension("type")
-        XCTAssertEqual(error.type, .bugSilent)
+        XCTAssertEqual(error.type, .bug)
     }
 }
 

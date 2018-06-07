@@ -11,7 +11,7 @@ enum BuildFileError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .invalidBuildFileType:
-            return .bugSilent
+            return .bug
         }
     }
 

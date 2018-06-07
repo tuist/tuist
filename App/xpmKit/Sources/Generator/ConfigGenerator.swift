@@ -67,23 +67,28 @@ final class ConfigGenerator: ConfigGenerating {
     func generateProjectConfig(project: Project,
                                objects: PBXObjects,
                                fileElements: ProjectFileElements,
-                               options _: GenerationOptions) throws -> PBXObjectReference {
+                               options: GenerationOptions) throws -> PBXObjectReference {
         /// Configuration list
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = objects.addObject(configurationList)
 
-        try generateProjectSettingsFor(buildConfiguration: .debug,
-                                       configuration: project.settings?.debug,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       objects: objects,
-                                       configurationList: configurationList)
-        try generateProjectSettingsFor(buildConfiguration: .release,
-                                       configuration: project.settings?.release,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       objects: objects,
-                                       configurationList: configurationList)
+        if options.buildConfiguration == .debug {
+            try generateProjectSettingsFor(buildConfiguration: .debug,
+                                           configuration: project.settings?.debug,
+                                           project: project,
+                                           fileElements: fileElements,
+                                           objects: objects,
+                                           configurationList: configurationList)
+        }
+
+        if options.buildConfiguration == .release {
+            try generateProjectSettingsFor(buildConfiguration: .release,
+                                           configuration: project.settings?.release,
+                                           project: project,
+                                           fileElements: fileElements,
+                                           objects: objects,
+                                           configurationList: configurationList)
+        }
         return configurationListReference
     }
 
@@ -178,19 +183,20 @@ final class ConfigGenerator: ConfigGenerating {
         let configurationListReference = objects.addObject(configurationList)
         pbxTarget.buildConfigurationListRef = configurationListReference
 
-        if let debugConfig = target.settings?.debug, options.buildConfiguration == .debug {
+        if options.buildConfiguration == .debug {
             try generateTargetSettingsFor(target: target,
                                           buildConfiguration: .debug,
-                                          configuration: debugConfig,
+                                          configuration: target.settings?.debug,
                                           fileElements: fileElements,
                                           objects: objects,
                                           configurationList: configurationList,
                                           sourceRootPath: sourceRootPath)
         }
-        if let releaseConfig = target.settings?.release, options.buildConfiguration == .release {
+
+        if options.buildConfiguration == .release {
             try generateTargetSettingsFor(target: target,
                                           buildConfiguration: .release,
-                                          configuration: releaseConfig,
+                                          configuration: target.settings?.release,
                                           fileElements: fileElements,
                                           objects: objects,
                                           configurationList: configurationList,
@@ -238,6 +244,12 @@ final class ConfigGenerator: ConfigGenerating {
         settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(target.infoPlist.relative(to: sourceRootPath).asString)"
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).asString)"
+        }
+        settings["SDKROOT"] = target.platform.xcodeSdkRoot
+        settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms
+        // TODO: We should show a warning here
+        if settings["SWIFT_VERSION"] == nil {
+            settings["SWIFT_VERSION"] = Constants.swiftVersion
         }
 
         variantBuildConfiguration.buildSettings = settings

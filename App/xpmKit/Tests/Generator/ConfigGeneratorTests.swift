@@ -53,6 +53,8 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
         XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
         XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
+        XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
+
         let xcconfig: PBXFileReference? = try config?.baseConfigurationReference?.object()
         XCTAssertEqual(xcconfig?.path, "debug.xcconfig")
     }
@@ -67,11 +69,13 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
         XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
         XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
+        XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
+
         let xcconfig: PBXFileReference? = try config?.baseConfigurationReference?.object()
         XCTAssertEqual(xcconfig?.path, "release.xcconfig")
     }
 
-    private func generateProjectConfig(config _: BuildConfiguration) throws -> ProjectGroups {
+    private func generateProjectConfig(config: BuildConfiguration) throws -> ProjectGroups {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try xcconfigsDir.mkpath()
@@ -88,7 +92,7 @@ final class ConfigGeneratorTests: XCTestCase {
                               targets: [])
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: dir.path)
-        let options = GenerationOptions(buildConfiguration: .debug)
+        let options = GenerationOptions(buildConfiguration: config)
         _ = try subject.generateProjectConfig(project: project,
                                               objects: pbxproj.objects,
                                               fileElements: fileElements,

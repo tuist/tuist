@@ -28,7 +28,7 @@ enum LinkGeneratorError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .missingProduct, .missingConfigurationList, .missingReference:
-            return .bugSilent
+            return .bug
         }
     }
 

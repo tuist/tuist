@@ -11,7 +11,7 @@ final class BuildFileErrorTests: XCTestCase {
 
     func test_type_when_invalidBuildFileType() {
         let error = BuildFileError.invalidBuildFileType("invalid_type")
-        XCTAssertEqual(error.type, .bugSilent)
+        XCTAssertEqual(error.type, .bug)
     }
 }
 

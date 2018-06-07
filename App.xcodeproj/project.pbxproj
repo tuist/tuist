@@ -75,6 +75,7 @@
 		B99D5D4820B6C87B00249856 /* GraphModuleLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */; };
 		B99D5D4A20B847FC00249856 /* FileAggregator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4920B847FC00249856 /* FileAggregator.swift */; };
 		B99D5D4C20B85A1400249856 /* FileAggregatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99D5D4B20B85A1400249856 /* FileAggregatorTests.swift */; };
+		B9A2E86620C928CC00828B37 /* AbsolutePath+CustomStringConvertible.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A2E86520C928CC00828B37 /* AbsolutePath+CustomStringConvertible.swift */; };
 		B9A9EDE820C062CD00648396 /* XcodeBuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A9EDE520C062CD00648396 /* XcodeBuild.swift */; };
 		B9A9EDE920C062CD00648396 /* Embeddable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A9EDE620C062CD00648396 /* Embeddable.swift */; };
 		B9A9EDEA20C062CD00648396 /* FrameworkEmbedder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A9EDE720C062CD00648396 /* FrameworkEmbedder.swift */; };
@@ -346,6 +347,7 @@
 		B99D5D4720B6C87B00249856 /* GraphModuleLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphModuleLoaderTests.swift; sourceTree = "<group>"; };
 		B99D5D4920B847FC00249856 /* FileAggregator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAggregator.swift; sourceTree = "<group>"; };
 		B99D5D4B20B85A1400249856 /* FileAggregatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAggregatorTests.swift; sourceTree = "<group>"; };
+		B9A2E86520C928CC00828B37 /* AbsolutePath+CustomStringConvertible.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AbsolutePath+CustomStringConvertible.swift"; sourceTree = "<group>"; };
 		B9A9EDE520C062CD00648396 /* XcodeBuild.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = XcodeBuild.swift; sourceTree = "<group>"; };
 		B9A9EDE620C062CD00648396 /* Embeddable.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Embeddable.swift; sourceTree = "<group>"; };
 		B9A9EDE720C062CD00648396 /* FrameworkEmbedder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FrameworkEmbedder.swift; sourceTree = "<group>"; };
@@ -845,6 +847,7 @@
 				B9B629BB20864E7000EE9E07 /* String+Error.swift */,
 				B9E2DC9A20872C650061DF86 /* AbsolutePath+Extras.swift */,
 				3D7E6CE220AED84600360C02 /* ArgumentParserError+FatalError.swift */,
+				B9A2E86520C928CC00828B37 /* AbsolutePath+CustomStringConvertible.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -1223,6 +1226,7 @@
 				B9FB2DEB2086544900BC2FB3 /* Product.swift in Sources */,
 				B9B629C020864E7D00EE9E07 /* UpdateCommand.swift in Sources */,
 				B9B629BC20864E7000EE9E07 /* String+Error.swift in Sources */,
+				B9A2E86620C928CC00828B37 /* AbsolutePath+CustomStringConvertible.swift in Sources */,
 				3D4C0B8820A6507B003D09B0 /* ConfigGenerator.swift in Sources */,
 				B9B629B920864E5400EE9E07 /* XcodeRepresentable.swift in Sources */,
 				B9B629B420864E4700EE9E07 /* SPUUpdater+CommandLine.swift in Sources */,

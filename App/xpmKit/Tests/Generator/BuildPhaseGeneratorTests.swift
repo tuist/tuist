@@ -7,13 +7,13 @@ import XCTest
 final class BuildPhaseGenerationErrorTests: XCTestCase {
     func test_description_when_missingFileReference() {
         let path = AbsolutePath("/test")
-        let expected = "Trying to add a file at path \(path) to a build phase that hasn't been added to the project."
+        let expected = "Trying to add a file at path \(path.asString) to a build phase that hasn't been added to the project."
         XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).description, expected)
     }
 
     func test_type_when_missingFileReference() {
         let path = AbsolutePath("/test")
-        XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).type, .bugSilent)
+        XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).type, .bug)
     }
 }
 

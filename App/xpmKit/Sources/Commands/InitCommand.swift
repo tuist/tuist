@@ -102,9 +102,9 @@ public class InitCommand: NSObject, Command {
                                  settings: nil,
                                  buildPhases: [
                                     
-                                     .sources([.sources("./Sources/**/*.swift")]),
+                                     .sources([.sources("./Sources/*")]),
                                      /* Other build phases can be added here */
-                                     /* .resources([.include(["./Resousrces /**/ *"])]) */
+                                     /* .resources([.include(["./Resources/**/*"])]) */
                                 ]),
                     ])
         """.replacingOccurrences(of: "{{NAME}}", with: name)

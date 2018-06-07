@@ -70,8 +70,8 @@ class TargetNode: GraphNode {
         return { json in
             let type: String = try json.get("type")
             if type == "target" {
-                let name: String = try json.get("name")
                 let circularFrom = GraphCircularDetectorNode(path: path, name: name)
+                let name: String = try json.get("name")
                 let circularTo = GraphCircularDetectorNode(path: path, name: name)
                 try context.circularDetector.start(from: circularFrom, to: circularTo)
                 return try TargetNode.read(name: name, path: path, context: context)

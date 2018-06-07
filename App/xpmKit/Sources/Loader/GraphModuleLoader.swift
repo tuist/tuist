@@ -15,7 +15,7 @@ enum GraphModuleLoaderError: FatalError, Equatable {
         case .fileNotFound:
             return .abort
         case .fileLoadError:
-            return .bugSilent
+            return .bug
         }
     }
 
