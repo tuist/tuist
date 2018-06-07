@@ -35,11 +35,13 @@ protocol ConfigGenerating: AnyObject {
     ///   - objects: Xcode project objects.
     ///   - fileElements: Xcode project file elements.
     ///   - options: generation options.
+    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               objects: PBXObjects,
                               fileElements: ProjectFileElements,
-                              options: GenerationOptions) throws
+                              options: GenerationOptions,
+                              sourceRootPath: AbsolutePath) throws
 }
 
 /// Config generator.
@@ -165,11 +167,13 @@ final class ConfigGenerator: ConfigGenerating {
     ///   - objects: Xcode project objects.
     ///   - fileElements: Xcode project file elements.
     ///   - options: generation options.
+    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               objects: PBXObjects,
                               fileElements: ProjectFileElements,
-                              options: GenerationOptions) throws {
+                              options: GenerationOptions,
+                              sourceRootPath: AbsolutePath) throws {
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = objects.addObject(configurationList)
         pbxTarget.buildConfigurationListRef = configurationListReference
@@ -180,7 +184,8 @@ final class ConfigGenerator: ConfigGenerating {
                                           configuration: debugConfig,
                                           fileElements: fileElements,
                                           objects: objects,
-                                          configurationList: configurationList)
+                                          configurationList: configurationList,
+                                          sourceRootPath: sourceRootPath)
         }
         if let releaseConfig = target.settings?.release, options.buildConfiguration == .release {
             try generateTargetSettingsFor(target: target,
@@ -188,7 +193,8 @@ final class ConfigGenerator: ConfigGenerating {
                                           configuration: releaseConfig,
                                           fileElements: fileElements,
                                           objects: objects,
-                                          configurationList: configurationList)
+                                          configurationList: configurationList,
+                                          sourceRootPath: sourceRootPath)
         }
     }
 
@@ -201,12 +207,14 @@ final class ConfigGenerator: ConfigGenerating {
     ///   - fileElements: Xcode project file elements.
     ///   - objects: Xcode project objects.
     ///   - configurationList: target configuration list.
+    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     private func generateTargetSettingsFor(target: Target,
                                            buildConfiguration: BuildConfiguration,
                                            configuration: Configuration?,
                                            fileElements: ProjectFileElements,
                                            objects: PBXObjects,
-                                           configurationList: XCConfigurationList) throws {
+                                           configurationList: XCConfigurationList,
+                                           sourceRootPath: AbsolutePath) throws {
         let product = settingsProviderProduct(target)
         let platform = settingsProviderPlatform(target)
 
@@ -224,6 +232,14 @@ final class ConfigGenerator: ConfigGenerating {
                 variantBuildConfiguration.baseConfigurationReference = fileReference?.reference
             }
         }
+
+        /// Target attributes
+        settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
+        settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(target.infoPlist.relative(to: sourceRootPath).asString)"
+        if let entitlements = target.entitlements {
+            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).asString)"
+        }
+
         variantBuildConfiguration.buildSettings = settings
         let debugConfigurationReference = objects.addObject(variantBuildConfiguration)
         configurationList.buildConfigurationsReferences.append(debugConfigurationReference)
