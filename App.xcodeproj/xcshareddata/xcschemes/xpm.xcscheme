@@ -29,16 +29,6 @@
       codeCoverageEnabled = "YES"
       shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B94C7FA62062B82A009BF596"
-               BuildableName = "xpmTests.xctest"
-               BlueprintName = "xpmTests"
-               ReferencedContainer = "container:App.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
       <MacroExpansion>
          <BuildableReference
