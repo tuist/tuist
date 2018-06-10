@@ -1466,7 +1466,7 @@
 				INFOPLIST_FILE = App/xpmKit/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKit;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xcodepm.xpmKit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1494,7 +1494,7 @@
 				INFOPLIST_FILE = App/xpmKit/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKit;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xcodepm.xpmKit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 4.0;
@@ -1514,7 +1514,7 @@
 				);
 				INFOPLIST_FILE = App/xpmKit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xcodepm.xpmKitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.0;
 			};
@@ -1531,7 +1531,7 @@
 				);
 				INFOPLIST_FILE = App/xpmKit/Tests.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = es.ppinera.xpmKitTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xcodepm.xpmKitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.0;
 			};
