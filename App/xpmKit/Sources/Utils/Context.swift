@@ -10,6 +10,9 @@ protocol Contexting: AnyObject {
 
     /// Printer.
     var printer: Printing { get }
+    
+    // UserInputRequester.
+    var userInputRequester: UserInputRequesting { get }
 
     /// Resource locator.
     var resourceLocator: ResourceLocating { get }
@@ -26,6 +29,9 @@ class Context: Contexting {
 
     /// Printer.
     let printer: Printing
+    
+    /// UserInputRequester.
+    let userInputRequester: UserInputRequesting
 
     /// Resource locator.
     let resourceLocator: ResourceLocating
@@ -40,10 +46,12 @@ class Context: Contexting {
     init(fileHandler: FileHandling = FileHandler(),
          shell: Shelling = Shell(),
          printer: Printing = Printer(),
+         userInputRequester: UserInputRequesting = UserInputRequester(),
          resourceLocator: ResourceLocating = ResourceLocator()) {
         self.fileHandler = fileHandler
         self.shell = shell
         self.printer = printer
+        self.userInputRequester = userInputRequester
         self.resourceLocator = resourceLocator
     }
 }

@@ -22,6 +22,11 @@ protocol Printing: AnyObject {
     ///
     /// - Parameter errorMessage: error message to be printed.
     func print(errorMessage: String)
+    
+    /// Prints a warning message.
+    ///
+    /// - Parameter warning: warning message to be printed.
+    func print(warning: String)
 }
 
 /// Default printer that conforms the printing protocol.
@@ -65,6 +70,15 @@ class Printer: Printing {
     func print(section: String) {
         let writer = InteractiveWriter.stdout
         writer.write("\(section)", inColor: .green, bold: true)
+        writer.write("\n")
+    }
+    
+    /// Prints a warning message.
+    ///
+    /// - Parameter warning: warning message to be printed.
+    func print(warning: String) {
+        let writer = InteractiveWriter.stdout
+        writer.write("⚠️  \(warning)", inColor: .yellow, bold: true)
         writer.write("\n")
     }
 }

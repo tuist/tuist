@@ -5,6 +5,7 @@ final class MockPrinter: Printing {
     var printArgs: [String] = []
     var printErrorArgs: [Error] = []
     var printSectionArgs: [String] = []
+    var printWarningArgs: [String] = []
     var printErrorMessageArgs: [String] = []
 
     func print(_ text: String) {
@@ -21,5 +22,9 @@ final class MockPrinter: Printing {
 
     func print(error: Error) {
         printErrorArgs.append(error)
+    }
+    
+    func print(warning: String) {
+        printWarningArgs.append(warning)
     }
 }
