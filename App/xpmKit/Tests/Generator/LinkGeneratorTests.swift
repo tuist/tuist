@@ -19,9 +19,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func test_linkGeneratorError_type() {
-        XCTAssertEqual(LinkGeneratorError.missingProduct(name: "name").type, .bugSilent)
-        XCTAssertEqual(LinkGeneratorError.missingReference(path: AbsolutePath("/")).type, .bugSilent)
-        XCTAssertEqual(LinkGeneratorError.missingConfigurationList(targetName: "target").type, .bugSilent)
+        XCTAssertEqual(LinkGeneratorError.missingProduct(name: "name").type, .bug)
+        XCTAssertEqual(LinkGeneratorError.missingReference(path: AbsolutePath("/")).type, .bug)
+        XCTAssertEqual(LinkGeneratorError.missingConfigurationList(targetName: "target").type, .bug)
     }
 
     func test_generateEmbedPhase() throws {

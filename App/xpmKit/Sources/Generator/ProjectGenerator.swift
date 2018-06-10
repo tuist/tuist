@@ -63,13 +63,11 @@ final class ProjectGenerator: ProjectGenerating {
                                           objects: pbxproj.objects,
                                           sourceRootPath: sourceRootPath)
 
-        // Configuration list.
+        // Configuration list
         let configurationListReference = try configGenerator.generateProjectConfig(project: project,
-                                                                                   pbxproj: pbxproj,
-                                                                                   groups: groups,
+                                                                                   objects: pbxproj.objects,
                                                                                    fileElements: fileElements,
-                                                                                   sourceRootPath: sourceRootPath,
-                                                                                   context: context)
+                                                                                   options: options)
 
         /// Generate project object.
         let pbxProject = PBXProject(name: project.name,

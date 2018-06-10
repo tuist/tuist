@@ -7,6 +7,10 @@ class ProjectFileElements {
     // swiftlint:disable:next force_try
     static let localizedRegex = try! NSRegularExpression(pattern: "(.+\\.lproj)/.+",
                                                          options: [])
+    /// Regex used to match files that are part of xcassets
+    // swiftlint:disable:next force_try
+    static let assetRegex = try! NSRegularExpression(pattern: ".+/.+\\.xcassets/.+",
+                                                     options: [])
 
     /// Elements.
     var elements: [AbsolutePath: PBXFileElement] = [:]

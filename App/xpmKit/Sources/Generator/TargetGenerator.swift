@@ -174,7 +174,7 @@ final class TargetGenerator: TargetGenerating {
     func generateTarget(target: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
-                        groups: ProjectGroups,
+                        groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
                         context: GeneratorContexting,
                         path: AbsolutePath,
@@ -196,13 +196,12 @@ final class TargetGenerator: TargetGenerating {
         pbxProject.targets.append(targetReference)
 
         /// Build configuration
-        try configGenerator.generateTargetConfig(target: target,
+        try configGenerator.generateTargetConfig(target,
                                                  pbxTarget: pbxTarget,
                                                  objects: objects,
-                                                 groups: groups,
-                                                 sourceRootPath: sourceRootPath,
-                                                 context: context,
-                                                 options: options)
+                                                 fileElements: fileElements,
+                                                 options: options,
+                                                 sourceRootPath: sourceRootPath)
 
         /// Build phases
         try buildPhaseGenerator.generateBuildPhases(target: target,

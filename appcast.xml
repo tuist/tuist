@@ -17,5 +17,11 @@
       <pubDate>Wed, 09 May 2018 00:05:43 +0200</pubDate>
       <enclosure url="https://github.com/xcode-project-manager/xpm/releases/download/0.34.0/xcbuddy.zip" length="7304051" sparkle:version="35" sparkle:dsaSignature="MEQCIB/WvO/33Yck4zmDgkmoBhk7AUYAGhlbWx1NPYQq4QVYAiBqmssmGefB1yHz5KHOXiWLxW6p37L26aAoSxBY95LWCA=="/>
     </item>
+    <item>
+      <title>Version 0.35.0</title>
+      <description><![CDATA[]]></description>
+      <pubDate>Sun, 10 Jun 2018 15:14:33 +0200</pubDate>
+      <enclosure url="https://github.com/xcode-project-manager/xpm/releases/download/0.35.0/xpm.zip" length="7407895" sparkle:version="38" sparkle:dsaSignature=""/>
+    </item>
   </channel>
 </rss>

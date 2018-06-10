@@ -4,7 +4,7 @@ import Foundation
 
 extension Target {
     static func test(name: String = "Target",
-                     platform: Platform = .ios,
+                     platform: Platform = .iOS,
                      product: Product = .app,
                      bundleId: String = "com.test.bundle_id",
                      infoPlist: AbsolutePath = AbsolutePath("/Info.plist"),

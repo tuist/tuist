@@ -6,8 +6,8 @@
 	<string>developer-id</string>
 	<key>provisioningProfiles</key>
 	<dict>
-		<key>es.ppinera.xpm</key>
-		<string>xpm dist</string>
+		<key>com.xcodepm.xpm</key>
+		<string>xpm distribution</string>
 	</dict>
 	<key>signingCertificate</key>
 	<string>Developer ID Application</string>

@@ -12,7 +12,7 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingFileReference(path):
-            return "Trying to add a file at path \(path) to a build phase that hasn't been added to the project."
+            return "Trying to add a file at path \(path.asString) to a build phase that hasn't been added to the project."
         }
     }
 
@@ -20,7 +20,7 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .missingFileReference:
-            return .bugSilent
+            return .bug
         }
     }
 
@@ -270,6 +270,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let pathRange = NSRange(location: 0, length: pathString.count)
             let isLocalized = ProjectFileElements.localizedRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
             let isLproj = buildFilePath.extension == "lproj"
+            let isAsset = ProjectFileElements.assetRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
+
+            /// Assets that are part of a .xcassets folder
+            /// are not added individually. The whole folder is added
+            /// instead as a group.
+            if isAsset {
+                return
+            }
+
             var reference: PBXObjectReference?
 
             if isLocalized {

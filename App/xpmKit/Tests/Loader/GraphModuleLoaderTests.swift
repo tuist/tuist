@@ -13,7 +13,7 @@ final class GraphModuleLoaderErrorTests: XCTestCase {
     func test_type_when_fileLoadError() {
         let path = AbsolutePath("/test")
         let error = GraphModuleLoaderError.fileLoadError(path, NSError(domain: "", code: -1, userInfo: nil))
-        XCTAssertEqual(error.type, .bugSilent)
+        XCTAssertEqual(error.type, .bug)
     }
 
     func test_description_when_fileNotFound() {

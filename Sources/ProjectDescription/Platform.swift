@@ -3,10 +3,10 @@ import Foundation
 // MARK: - Platform
 
 public enum Platform: String {
-    case ios
-    case macos
-    case watchos
-    case tvos
+    case iOS
+    case macOS
+    case watchOS
+    case tvOS
 }
 
 // MARK: - Platform (JSONConvertible)

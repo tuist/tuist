@@ -19,7 +19,7 @@ enum GraphError: FatalError {
     var type: ErrorType {
         switch self {
         case .unsupportedFileExtension:
-            return .bugSilent
+            return .bug
         }
     }
 }
