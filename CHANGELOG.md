@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.35.0
+
 ### Added
 
 - Files and groups generation https://github.com/xcode-project-manager/xpm/pull/28 by @pepibumur.
