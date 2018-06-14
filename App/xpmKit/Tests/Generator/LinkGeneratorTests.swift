@@ -45,16 +45,16 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                        resourceLocator: resourceLocator,
                                        sourceRootPath: sourceRootPath)
 
-        let scriptBuildPhase: PBXShellScriptBuildPhase? = try pbxTarget.buildPhases.first?.object()
+        let scriptBuildPhase: PBXShellScriptBuildPhase? = try pbxTarget.buildPhasesReferences.first?.object()
         XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
         XCTAssertEqual(scriptBuildPhase?.shellScript, "/embed test.framework")
         XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/test.framework"])
         XCTAssertEqual(scriptBuildPhase?.outputPaths, ["$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/test.framework"])
 
-        let copyBuildPhase: PBXCopyFilesBuildPhase? = try pbxTarget.buildPhases.last?.object()
+        let copyBuildPhase: PBXCopyFilesBuildPhase? = try pbxTarget.buildPhasesReferences.last?.object()
         XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")
-        let wakaBuildFile: PBXBuildFile? = try copyBuildPhase?.files.first?.object()
-        XCTAssertEqual(wakaBuildFile?.fileRef, wakaFileReference)
+        let wakaBuildFile: PBXBuildFile? = try copyBuildPhase?.filesReferences.first?.object()
+        XCTAssertEqual(wakaBuildFile?.fileReference, wakaFileReference)
     }
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
@@ -86,7 +86,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = objects.addObject(configurationList)
-        pbxTarget.buildConfigurationListRef = configurationListReference
+        pbxTarget.buildConfigurationListReference = configurationListReference
 
         let config = XCBuildConfiguration(name: "Debug")
         let configReference = objects.addObject(config)
@@ -135,13 +135,13 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                          objects: objects,
                                          fileElements: fileElements)
 
-        let buildPhase: PBXFrameworksBuildPhase? = try pbxTarget.buildPhases.last?.object()
+        let buildPhase: PBXFrameworksBuildPhase? = try pbxTarget.buildPhasesReferences.last?.object()
 
-        let testBuildFile: PBXBuildFile? = try buildPhase?.files.first?.object()
-        let wakaBuildFile: PBXBuildFile? = try buildPhase?.files.last?.object()
+        let testBuildFile: PBXBuildFile? = try buildPhase?.filesReferences.first?.object()
+        let wakaBuildFile: PBXBuildFile? = try buildPhase?.filesReferences.last?.object()
 
-        XCTAssertEqual(testBuildFile?.fileRef, testFileReference)
-        XCTAssertEqual(wakaBuildFile?.fileRef, wakaFileReference)
+        XCTAssertEqual(testBuildFile?.fileReference, testFileReference)
+        XCTAssertEqual(wakaBuildFile?.fileReference, wakaFileReference)
     }
 
     func test_generateLinkingPhase_throws_whenFileReferenceIsMissing() throws {

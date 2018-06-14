@@ -91,7 +91,7 @@ final class ProjectFileElementsTests: XCTestCase {
         subject.generate(products: products,
                          groups: groups,
                          objects: objects)
-        XCTAssertEqual(groups.products.children.count, 1)
+        XCTAssertEqual(groups.products.childrenReferences.count, 1)
         let fileReference = subject.product(name: "Test.framework")
         XCTAssertNotNil(fileReference)
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
@@ -122,7 +122,7 @@ final class ProjectFileElementsTests: XCTestCase {
                          objects: objects,
                          sourceRootPath: sourceRootPath)
 
-        XCTAssertEqual(groups.products.children.count, 0)
+        XCTAssertEqual(groups.products.childrenReferences.count, 0)
     }
 
     func test_generateDependencies_whenTargetNode() throws {
@@ -147,7 +147,7 @@ final class ProjectFileElementsTests: XCTestCase {
                          objects: objects,
                          sourceRootPath: sourceRootPath)
 
-        let fileReference: PBXFileReference? = try groups.products.children.first?.object()
+        let fileReference: PBXFileReference? = try groups.products.childrenReferences.first?.object()
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
         XCTAssertEqual(fileReference?.includeInIndex, false)
         XCTAssertEqual(fileReference?.path, "Target.app")
@@ -173,7 +173,7 @@ final class ProjectFileElementsTests: XCTestCase {
                          objects: objects,
                          sourceRootPath: sourceRootPath)
 
-        let fileReference: PBXFileReference? = try groups.project.children.first?.object()
+        let fileReference: PBXFileReference? = try groups.project.childrenReferences.first?.object()
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertNil(fileReference?.name)
@@ -194,17 +194,17 @@ final class ProjectFileElementsTests: XCTestCase {
 
         let projectGroup = groups.project
 
-        let bGroup: PBXGroup = try projectGroup.children.first!.object()
+        let bGroup: PBXGroup = try projectGroup.childrenReferences.first!.object()
         XCTAssertEqual(bGroup.name, "b")
         XCTAssertEqual(bGroup.path, "../b")
         XCTAssertEqual(bGroup.sourceTree, .group)
 
-        let cGroup: PBXGroup = try bGroup.children.first!.object()
+        let cGroup: PBXGroup = try bGroup.childrenReferences.first!.object()
         XCTAssertEqual(cGroup.path, "c")
         XCTAssertNil(cGroup.name)
         XCTAssertEqual(cGroup.sourceTree, .group)
 
-        let file: PBXFileReference = try cGroup.children.first!.object()
+        let file: PBXFileReference = try cGroup.childrenReferences.first!.object()
         XCTAssertEqual(file.path, "file.swift")
         XCTAssertNil(file.name)
         XCTAssertEqual(file.sourceTree, .group)
@@ -232,7 +232,7 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(variantGroup.name, fileName)
         XCTAssertEqual(variantGroup.sourceTree, .group)
 
-        let fileReference: PBXFileReference? = try variantGroup.children.first?.object()
+        let fileReference: PBXFileReference? = try variantGroup.childrenReferences.first?.object()
         XCTAssertEqual(fileReference?.name, "en")
         XCTAssertEqual(fileReference?.sourceTree, .group)
         XCTAssertEqual(fileReference?.path, "en.lproj/\(fileName)")
@@ -251,7 +251,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                            name: nil,
                                            toGroup: group,
                                            objects: objects)
-        let versionGroup: XCVersionGroup? = try group.children.first?.object()
+        let versionGroup: XCVersionGroup? = try group.childrenReferences.first?.object()
         XCTAssertEqual(versionGroup?.path, "model.xcdatamodel")
         XCTAssertEqual(versionGroup?.sourceTree, .group)
         XCTAssertNil(versionGroup?.name)
@@ -271,7 +271,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                    name: nil,
                                    toGroup: group,
                                    objects: objects)
-        let file: PBXFileReference? = try group.children.first?.object()
+        let file: PBXFileReference? = try group.childrenReferences.first?.object()
         XCTAssertEqual(file?.path, "file.swift")
         XCTAssertEqual(file?.sourceTree, .group)
         XCTAssertNil(file?.name)

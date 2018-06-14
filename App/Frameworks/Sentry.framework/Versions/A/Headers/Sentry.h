@@ -25,6 +25,7 @@ FOUNDATION_EXPORT const unsigned char SentryVersionString[];
 
 #import <Sentry/SentryEvent.h>
 #import <Sentry/SentryThread.h>
+#import <Sentry/SentryMechanism.h>
 #import <Sentry/SentryException.h>
 #import <Sentry/SentryStacktrace.h>
 #import <Sentry/SentryFrame.h>
@@ -47,6 +48,7 @@ FOUNDATION_EXPORT const unsigned char SentryVersionString[];
 
 #import "SentryEvent.h"
 #import "SentryThread.h"
+#import "SentryMechanism.h"
 #import "SentryException.h"
 #import "SentryStacktrace.h"
 #import "SentryFrame.h"

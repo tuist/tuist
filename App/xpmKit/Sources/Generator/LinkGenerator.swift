@@ -139,8 +139,8 @@ final class LinkGenerator: LinkGenerating {
         let precompiledEmbedPhaseReference = objects.addObject(precompiledEmbedPhase)
         let embedPhaseReference = objects.addObject(embedPhase)
 
-        pbxTarget.buildPhases.append(precompiledEmbedPhaseReference)
-        pbxTarget.buildPhases.append(embedPhaseReference)
+        pbxTarget.buildPhasesReferences.append(precompiledEmbedPhaseReference)
+        pbxTarget.buildPhasesReferences.append(embedPhaseReference)
 
         var script: [String] = []
         let embedPath = try resourceLocator.embedPath()
@@ -156,9 +156,9 @@ final class LinkGenerator: LinkGenerating {
                 guard let fileRef = fileElements.product(name: name) else {
                     throw LinkGeneratorError.missingProduct(name: name)
                 }
-                let buildFile = PBXBuildFile(fileRef: fileRef.reference)
+                let buildFile = PBXBuildFile(fileReference: fileRef.reference)
                 let buildFileReference = objects.addObject(buildFile)
-                embedPhase.files.append(buildFileReference)
+                embedPhase.filesReferences.append(buildFileReference)
             }
         }
         if script.count == 0 {
@@ -207,23 +207,23 @@ final class LinkGenerator: LinkGenerating {
                               fileElements: ProjectFileElements) throws {
         let buildPhase = PBXFrameworksBuildPhase()
         let buildPhaseReference = objects.addObject(buildPhase)
-        pbxTarget.buildPhases.append(buildPhaseReference)
+        pbxTarget.buildPhasesReferences.append(buildPhaseReference)
         try dependencies.forEach { dependency in
             if case let DependencyReference.absolute(path) = dependency {
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
-                let buildFile = PBXBuildFile(fileRef: fileRef.reference)
+                let buildFile = PBXBuildFile(fileReference: fileRef.reference)
                 let buildFileReference = objects.addObject(buildFile)
-                buildPhase.files.append(buildFileReference)
+                buildPhase.filesReferences.append(buildFileReference)
 
             } else if case let DependencyReference.product(name) = dependency {
                 guard let fileRef = fileElements.product(name: name) else {
                     throw LinkGeneratorError.missingProduct(name: name)
                 }
-                let buildFile = PBXBuildFile(fileRef: fileRef.reference)
+                let buildFile = PBXBuildFile(fileReference: fileRef.reference)
                 let buildFileReference = objects.addObject(buildFile)
-                buildPhase.files.append(buildFileReference)
+                buildPhase.filesReferences.append(buildFileReference)
             }
         }
     }
