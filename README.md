@@ -34,12 +34,6 @@ Just run this command on your terminal:
 3.  Open `xpm.xcworkspace`.
 4.  Have fun 🤖
 
-## Guides
-
-[Install](https://xcode-project-manager.github.io/xpm/install.html)
-[Getting Started](https://xcode-project-manager.github.io/xpm/getting--started.html)
-[Error Handling](https://xcode-project-manager.github.io/xpm/error--handling.html)
-
 ## Documentation
 
 If you would like to contribute to the project, we recommend you to check out the [project documentation](https://xcode-project-manager.github.io/xpm/) generated using [Jazzy](https://github.com/realm/jazzy).
