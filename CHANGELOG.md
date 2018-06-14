@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Changed
+
+- Sentry version bumped to 3.13.0 https://github.com/xcode-project-manager/xpm/pull/49 by @pepibumur.
+
 ## 0.35.0
 
 ### Added
