@@ -4,6 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.38.0
+
+### Fixed
+
+- Sentry logs not being hidden at all by @pepibumur.
+
 ## 0.37.0
 
 ### Changed
