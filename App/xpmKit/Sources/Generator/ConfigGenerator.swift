@@ -181,7 +181,7 @@ final class ConfigGenerator: ConfigGenerating {
                               sourceRootPath: AbsolutePath) throws {
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = objects.addObject(configurationList)
-        pbxTarget.buildConfigurationListRef = configurationListReference
+        pbxTarget.buildConfigurationListReference = configurationListReference
 
         if options.buildConfiguration == .debug {
             try generateTargetSettingsFor(target: target,

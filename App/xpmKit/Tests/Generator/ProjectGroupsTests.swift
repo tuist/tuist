@@ -25,22 +25,22 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(main.path, ".")
         XCTAssertEqual(main.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.project.reference))
+        XCTAssertTrue(main.childrenReferences.contains(subject.project.reference))
         XCTAssertEqual(subject.project.name, "Project")
         XCTAssertNil(subject.project.path)
         XCTAssertEqual(subject.project.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.projectDescription.reference))
+        XCTAssertTrue(main.childrenReferences.contains(subject.projectDescription.reference))
         XCTAssertEqual(subject.projectDescription.name, "ProjectDescription")
         XCTAssertNil(subject.projectDescription.path)
         XCTAssertEqual(subject.projectDescription.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.frameworks.reference))
+        XCTAssertTrue(main.childrenReferences.contains(subject.frameworks.reference))
         XCTAssertEqual(subject.frameworks.name, "Frameworks")
         XCTAssertNil(subject.frameworks.path)
         XCTAssertEqual(subject.frameworks.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.products.reference))
+        XCTAssertTrue(main.childrenReferences.contains(subject.products.reference))
         XCTAssertEqual(subject.products.name, "Products")
         XCTAssertNil(subject.products.path)
         XCTAssertEqual(subject.products.sourceTree, .group)
@@ -50,6 +50,6 @@ final class ProjectGroupsTests: XCTestCase {
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
         XCTAssertEqual(got.sourceTree, .group)
-        XCTAssertTrue(subject.frameworks.children.contains(got.reference))
+        XCTAssertTrue(subject.frameworks.childrenReferences.contains(got.reference))
     }
 }

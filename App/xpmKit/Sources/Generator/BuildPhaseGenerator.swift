@@ -132,7 +132,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                    objects: PBXObjects) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         let sourcesBuildPhaseReference = objects.addObject(sourcesBuildPhase)
-        pbxTarget.buildPhases.append(sourcesBuildPhaseReference)
+        pbxTarget.buildPhasesReferences.append(sourcesBuildPhaseReference)
         try buildPhase.buildFiles.forEach { buildFile in
             try buildFile.paths.forEach { buildFilePath in
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
@@ -142,9 +142,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 if let compilerFlags = buildFile.compilerFlags {
                     settings["COMPILER_FLAGS"] = compilerFlags
                 }
-                let pbxBuildFile = PBXBuildFile(fileRef: fileReference.reference, settings: settings)
+                let pbxBuildFile = PBXBuildFile(fileReference: fileReference.reference, settings: settings)
                 let buildFileRerence = objects.addObject(pbxBuildFile)
-                sourcesBuildPhase.files.append(buildFileRerence)
+                sourcesBuildPhase.filesReferences.append(buildFileRerence)
             }
         }
     }
@@ -171,9 +171,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let pbxBuildPhase = PBXCopyFilesBuildPhase(dstPath: buildPhase.subpath,
                                                    dstSubfolderSpec: buildPhase.destination.xcodeValue,
                                                    name: buildPhase.name,
-                                                   files: fileReferences)
+                                                   filesReferences: fileReferences)
         let pbxBuildPhaseReference = objects.addObject(pbxBuildPhase)
-        pbxTarget.buildPhases.append(pbxBuildPhaseReference)
+        pbxTarget.buildPhasesReferences.append(pbxBuildPhaseReference)
     }
 
     /// Generates a shell script build phase.
@@ -192,7 +192,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                      shellScript: buildPhase.script,
                                                      showEnvVarsInLog: true)
         let pbxBuildPhaseReference = objects.addObject(pbxBuildPhase)
-        pbxTarget.buildPhases.append(pbxBuildPhaseReference)
+        pbxTarget.buildPhasesReferences.append(pbxBuildPhaseReference)
     }
 
     /// Generates a headers build phase.
@@ -208,17 +208,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                    objects: PBXObjects) throws {
         let headersBuildPhase = PBXHeadersBuildPhase()
         let headersBuildPhaseReference = objects.addObject(headersBuildPhase)
-        pbxTarget.buildPhases.append(headersBuildPhaseReference)
+        pbxTarget.buildPhasesReferences.append(headersBuildPhaseReference)
         try buildPhase.buildFiles.forEach { headerBuildFile in
             try headerBuildFile.paths.forEach { path in
                 guard let fileReference = fileElements.file(path: path) else {
                     throw BuildPhaseGenerationError.missingFileReference(path)
                 }
-                let pbxBuildFile = PBXBuildFile(fileRef: fileReference.reference, settings: [
+                let pbxBuildFile = PBXBuildFile(fileReference: fileReference.reference, settings: [
                     "ATTRIBUTES": [headerBuildFile.accessLevel.rawValue.capitalized],
                 ])
                 let buildFileRerence = objects.addObject(pbxBuildFile)
-                headersBuildPhase.files.append(buildFileRerence)
+                headersBuildPhase.filesReferences.append(buildFileRerence)
             }
         }
     }
@@ -236,7 +236,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                      objects: PBXObjects) throws {
         let resourcesBuildPhase = PBXResourcesBuildPhase()
         let resourcesBuildPhaseReference = objects.addObject(resourcesBuildPhase)
-        pbxTarget.buildPhases.append(resourcesBuildPhaseReference)
+        pbxTarget.buildPhasesReferences.append(resourcesBuildPhaseReference)
         try buildPhase.buildFiles.forEach { buildFile in
             // Normal resource build file.
             if let resourcesBuildFile = buildFile as? ResourcesBuildFile {
@@ -296,9 +296,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 reference = fileReference.reference
             }
             if let reference = reference {
-                let pbxBuildFile = PBXBuildFile(fileRef: reference)
+                let pbxBuildFile = PBXBuildFile(fileReference: reference)
                 let buildFileRerence = objects.addObject(pbxBuildFile)
-                resourcesBuildPhase.files.append(buildFileRerence)
+                resourcesBuildPhase.filesReferences.append(buildFileRerence)
             }
         }
     }
@@ -322,8 +322,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let currentVersionReference = fileElements.file(path: currentVersionPath)!
         modelReference.currentVersion = currentVersionReference.reference
 
-        let pbxBuildFile = PBXBuildFile(fileRef: modelReference.reference)
+        let pbxBuildFile = PBXBuildFile(fileReference: modelReference.reference)
         let buildFileRerence = objects.addObject(pbxBuildFile)
-        resourcesBuildPhase.files.append(buildFileRerence)
+        resourcesBuildPhase.filesReferences.append(buildFileRerence)
     }
 }

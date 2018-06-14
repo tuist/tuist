@@ -70,30 +70,30 @@ class ProjectGroups {
                          objects: PBXObjects,
                          sourceRootPath: AbsolutePath) -> ProjectGroups {
         /// Main
-        let mainGroup = PBXGroup(children: [],
+        let mainGroup = PBXGroup(childrenReferences: [],
                                  sourceTree: .group,
                                  path: project.path.relative(to: sourceRootPath).asString)
         objects.addObject(mainGroup)
 
         /// Project
-        let projectGroup = PBXGroup(children: [], sourceTree: .group, name: "Project")
+        let projectGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "Project")
         let projectGroupReference = objects.addObject(projectGroup)
-        mainGroup.children.append(projectGroupReference)
+        mainGroup.childrenReferences.append(projectGroupReference)
 
         /// ProjectDescription
-        let projectDescriptionGroup = PBXGroup(children: [], sourceTree: .group, name: "ProjectDescription")
+        let projectDescriptionGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "ProjectDescription")
         let projectDescriptionGroupReference = objects.addObject(projectDescriptionGroup)
-        mainGroup.children.append(projectDescriptionGroupReference)
+        mainGroup.childrenReferences.append(projectDescriptionGroupReference)
 
         /// Frameworks
-        let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
+        let frameworksGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "Frameworks")
         let frameworksGroupReference = objects.addObject(frameworksGroup)
-        mainGroup.children.append(frameworksGroupReference)
+        mainGroup.childrenReferences.append(frameworksGroupReference)
 
         /// Products
-        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
+        let productsGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "Products")
         let productsGroupReference = objects.addObject(productsGroup)
-        mainGroup.children.append(productsGroupReference)
+        mainGroup.childrenReferences.append(productsGroupReference)
 
         return ProjectGroups(main: mainGroup,
                              products: productsGroup,

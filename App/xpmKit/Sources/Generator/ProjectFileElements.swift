@@ -189,7 +189,7 @@ class ProjectFileElements {
                                                  path: productName,
                                                  includeInIndex: false)
             let objectFileReference = objects.addObject(fileReference)
-            groups.products.children.append(objectFileReference)
+            groups.products.childrenReferences.append(objectFileReference)
             self.products[productName] = fileReference
         }
     }
@@ -227,7 +227,7 @@ class ProjectFileElements {
                                                      path: productName,
                                                      includeInIndex: false)
                 let objectFileReference = objects.addObject(fileReference)
-                groups.products.children.append(objectFileReference)
+                groups.products.childrenReferences.append(objectFileReference)
                 self.products[productName] = fileReference
 
             } else if let precompiledNode = node as? PrecompiledNode {
@@ -365,7 +365,7 @@ class ProjectFileElements {
             if variantGroup == nil {
                 variantGroup = PBXVariantGroup(sourceTree: .group, name: localizedName)
                 let variantGroupReference = objects.addObject(variantGroup)
-                toGroup.children.append(variantGroupReference)
+                toGroup.childrenReferences.append(variantGroupReference)
                 elements[variantGroupPath] = variantGroup
             }
 
@@ -378,7 +378,7 @@ class ProjectFileElements {
                                                           lastKnownFileType: lastKnownFileType,
                                                           path: localizedFilePath)
             let localizedFileReferenceReference = objects.addObject(localizedFileReference)
-            variantGroup.children.append(localizedFileReferenceReference)
+            variantGroup.childrenReferences.append(localizedFileReferenceReference)
         }
     }
 
@@ -405,7 +405,7 @@ class ProjectFileElements {
                                    sourceTree: .group,
                                    versionGroupType: versionGroupType)
         let reference = objects.addObject(group)
-        toGroup.children.append(reference)
+        toGroup.childrenReferences.append(reference)
         elements[folderAbsolutePath] = group
         return (element: group, path: from.appending(folderRelativePath))
     }
@@ -426,9 +426,9 @@ class ProjectFileElements {
                          name: String?,
                          toGroup: PBXGroup,
                          objects: PBXObjects) -> (element: PBXFileElement, path: AbsolutePath) {
-        let group = PBXGroup(children: [], sourceTree: .group, name: name, path: folderRelativePath.asString)
+        let group = PBXGroup(childrenReferences: [], sourceTree: .group, name: name, path: folderRelativePath.asString)
         let reference = objects.addObject(group)
-        toGroup.children.append(reference)
+        toGroup.childrenReferences.append(reference)
         elements[folderAbsolutePath] = group
         return (element: group, path: from.appending(folderRelativePath))
     }
@@ -451,7 +451,7 @@ class ProjectFileElements {
         let lastKnownFileType = Xcode.filetype(extension: fileAbsolutePath.extension!)
         let file = PBXFileReference(sourceTree: .group, name: name, lastKnownFileType: lastKnownFileType, path: fileRelativePath.asString)
         let reference = objects.addObject(file)
-        toGroup.children.append(reference)
+        toGroup.childrenReferences.append(reference)
         elements[fileAbsolutePath] = file
     }
 

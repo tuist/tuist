@@ -29,7 +29,7 @@ final class TargetGeneratorTests: XCTestCase {
                                    name: "Project",
                                    targets: [targetA, targetB])
         let pbxProject = PBXProject(name: "Project",
-                                    buildConfigurationList: configListRef,
+                                    buildConfigurationListReference: configListRef,
                                     compatibilityVersion: "0",
                                     mainGroup: mainGroupRef)
         objects.addObject(pbxProject)
@@ -52,6 +52,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                    "TargetB": nativeTargetB,
                                                ],
                                                graph: graph)
-        XCTAssertNotNil(nativeTargetA.dependencies.first)
+        XCTAssertNotNil(nativeTargetA.dependenciesReferences.first)
     }
 }
