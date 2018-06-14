@@ -29,5 +29,11 @@
       <pubDate>Thu, 14 Jun 2018 19:21:11 +0200</pubDate>
       <enclosure url="https://github.com/xcode-project-manager/xpm/releases/download/0.36.0/xpm.zip" length="7420306" sparkle:version="39" sparkle:dsaSignature=""/>
     </item>
+    <item>
+      <title>Version 0.37.0</title>
+      <description><![CDATA[]]></description>
+      <pubDate>Thu, 14 Jun 2018 19:29:05 +0200</pubDate>
+      <enclosure url="https://github.com/xcode-project-manager/xpm/releases/download/0.37.0/xpm.zip" length="7420433" sparkle:version="40" sparkle:dsaSignature=""/>
+    </item>
   </channel>
 </rss>
