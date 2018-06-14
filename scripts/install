@@ -93,6 +93,6 @@ download_url = `curl -s https://api.github.com/repos/xcode-project-manager/xpm/r
 tmp_dir = Dir.mktmpdir
 download_path = File.join(tmp_dir, File.basename(download_url))
 system("curl -L #{download_url} --output #{download_path}")
-system("tar -xz -f #{download_path} -C /Applications")
+system("ditto -x -k xpm #{download_path} /Applications")
 system('ln -f -s /Applications/xpm.app/Contents/SharedSupport/xpm /usr/local/bin/xpm')
 ohai "Installed: Try running 'xpm'"
