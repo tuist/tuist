@@ -75,6 +75,11 @@ SENTRY_NO_INIT
 @property(nonatomic, copy) NSString *_Nullable environment;
 
 /**
+ * The current transaction (state) on the crash
+ */
+@property(nonatomic, copy) NSString *_Nullable transaction;
+
+/**
  * Arbitrary key:value (string:string ) data that will be shown with the event
  */
 @property(nonatomic, strong) NSDictionary<NSString *, NSString *> *_Nullable tags;
