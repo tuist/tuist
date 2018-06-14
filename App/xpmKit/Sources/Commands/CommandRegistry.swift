@@ -45,7 +45,7 @@ public final class CommandRegistry {
         self.context = context
         self.errorHandler = errorHandler
         parser = ArgumentParser(usage: "<command> <options>",
-                                overview: "Your Xcode buddy")
+                                overview: "Generate, build and test your Xcode projects.")
         self.processArguments = processArguments
     }
 
