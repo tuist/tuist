@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Deleted
+
+- Sentry https://github.com/xcode-project-manager/xpm/pull/50 by @pepibumur.
+
 ## 0.38.0
 
 ### Fixed
