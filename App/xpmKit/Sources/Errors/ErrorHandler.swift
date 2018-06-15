@@ -41,7 +41,6 @@ final class ErrorHandler: ErrorHandling {
     /// - Parameter error: error.
     func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
-        let isBug = error.type == .bug || error.type == .bugSilent
         if !error.description.isEmpty && !isSilent {
             printer.print(errorMessage: error.description)
         } else if isSilent {
@@ -51,5 +50,6 @@ final class ErrorHandler: ErrorHandling {
             """
             printer.print(errorMessage: message)
         }
+        exiter(1)
     }
 }

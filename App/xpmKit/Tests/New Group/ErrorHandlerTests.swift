@@ -19,7 +19,7 @@ final class ErrorHandlerTests: XCTestCase {
             self.exited = $0
         }
     }
-    
+
     func test_fatalError_printsTheDescription_whenPrintableError() {
         let error = TestError(type: .abort)
         subject.fatal(error: error)
