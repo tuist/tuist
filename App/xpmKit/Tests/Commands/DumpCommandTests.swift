@@ -61,7 +61,7 @@ final class DumpCommandTests: XCTestCase {
               settings: nil,
               targets: [])
         """
-        try config.write(toFile: tmpDir.path.appending(component: "Config.swift").asString,
+        try config.write(toFile: tmpDir.path.appending(component: "Project.swift").asString,
                          atomically: true,
                          encoding: .utf8)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
