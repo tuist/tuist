@@ -3,7 +3,7 @@ import Foundation
 /// Error handling protocol.
 protocol ErrorHandling: AnyObject {
     /// It should be called when a fatal error happens. Depending on the error it
-    /// prints, and reports the error to Sentry.
+    /// prints, and reports the error.
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError)
@@ -36,7 +36,7 @@ final class ErrorHandler: ErrorHandling {
     }
 
     /// It should be called when a fatal error happens. Depending on the error it
-    /// prints, and reports the error to Sentry.
+    /// prints, and reports the error.
     ///
     /// - Parameter error: error.
     func fatal(error: FatalError) {

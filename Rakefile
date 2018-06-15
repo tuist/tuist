@@ -2,7 +2,6 @@
 
 require 'semantic'
 require 'octokit'
-require 'sparklecast'
 require 'date'
 require 'dotenv/load'
 
@@ -63,19 +62,6 @@ def bump_version
   [new_bundle_version, new_version]
 end
 
-def add_appcast_entry(version, new_bundle_version, length, signature)
-  appcast_string = File.open(APPCAST_PATH, 'rb', &:read)
-  item = Sparklecast::Appcast::Item.new
-  item.title = "Version #{version}"
-  item.url = "https://github.com/#{REPOSITORY}/releases/download/#{version}/xpm.zip"
-  item.length = length
-  item.dsa_signature = signature
-  item.pub_date = Time.now
-  item.sparkle_version = new_bundle_version
-  appcast_string = Sparklecast::Appcast.add_item(appcast_string, item)
-  File.open(APPCAST_PATH, 'w') { |file| file.write(appcast_string) }
-end
-
 def decrypt_and_install_keys
   puts 'Decrypting and installing keys'
   decrypt_keys
@@ -118,11 +104,6 @@ def release
   # Archiving
   archive_and_export
   execute("cd #{BUILD_PATH} && ditto -c -k --sequesterRsrc --keepParent #{APP_NAME}.app #{APP_NAME}.zip")
-
-  # Updating appcast.xml
-  signature = `./bin/sign_update #{BUILD_PATH}/#{APP_NAME}.zip keys/dsa_priv.pem`.delete("\n")
-  length = `stat -f%z #{BUILD_PATH}/#{APP_NAME}.zip`.strip
-  add_appcast_entry(new_version, new_bundle_version, length, signature)
 
   # Commiting changes
   execute('git add .')
