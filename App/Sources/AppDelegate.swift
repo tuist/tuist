@@ -1,5 +1,4 @@
 import Cocoa
-import Sparkle
 import xpmKit
 
 @NSApplicationMain
