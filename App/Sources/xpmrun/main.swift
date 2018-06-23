@@ -27,3 +27,13 @@ func lookupVersion(path: URL) throws -> String? {
 }
 let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath)
 let version = try lookupVersion(path: currentDirectory)
+
+
+// TODO
+// - If xpm-version is defined
+//      - Run it if it exists locally
+//      - Download it and run it if it doesn't exist.
+// - If xpm-version is not defined
+//      - Get the laste version available locally.
+//      - Compare it with the latest remote version.
+//      - If there's a new remote version download it and run it using that one.
