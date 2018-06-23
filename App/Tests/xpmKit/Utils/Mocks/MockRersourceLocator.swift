@@ -1,6 +1,8 @@
 import Basic
 import Foundation
 
+@testable import xpmKit
+
 final class MockResourceLocator: ResourceLocating {
     var projectDescriptionCount: UInt = 0
     var projectDescriptionStub: (() throws -> AbsolutePath)?

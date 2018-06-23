@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "B9A9EDEE20C0638A00648396"
-               BuildableName = "xpm-embed"
-               BlueprintName = "xpm-embed"
+               BuildableName = "xpmembed"
+               BlueprintName = "xpmembed"
                ReferencedContainer = "container:App.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -33,8 +33,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B9A9EDEE20C0638A00648396"
-            BuildableName = "xpm-embed"
-            BlueprintName = "xpm-embed"
+            BuildableName = "xpmembed"
+            BlueprintName = "xpmembed"
             ReferencedContainer = "container:App.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
@@ -56,8 +56,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B9A9EDEE20C0638A00648396"
-            BuildableName = "xpm-embed"
-            BlueprintName = "xpm-embed"
+            BuildableName = "xpmembed"
+            BlueprintName = "xpmembed"
             ReferencedContainer = "container:App.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -75,8 +75,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B9A9EDEE20C0638A00648396"
-            BuildableName = "xpm-embed"
-            BlueprintName = "xpm-embed"
+            BuildableName = "xpmembed"
+            BlueprintName = "xpmembed"
             ReferencedContainer = "container:App.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

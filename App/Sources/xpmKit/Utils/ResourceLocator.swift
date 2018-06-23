@@ -119,7 +119,7 @@ final class ResourceLocator: ResourceLocating {
     /// - Returns: path to the embed util.
     /// - Throws: an error if embed cannot be found.
     func embedPath() throws -> AbsolutePath {
-        return try toolPath("xpm-embed")
+        return try toolPath("xpmembed")
     }
 
     /// Returns the path to the tool with the given name.

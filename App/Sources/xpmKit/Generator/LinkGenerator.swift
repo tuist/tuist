@@ -125,7 +125,7 @@ final class LinkGenerator: LinkGenerating {
     ///   - pbxTarget: Xcode target.
     ///   - objects: Xcode project objects.
     ///   - fileElements: project file elements.
-    ///   - resourceLocator: resource locator used to get the path to the "xpm-embed" util.
+    ///   - resourceLocator: resource locator used to get the path to the "xpmembed" util.
     ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     func generateEmbedPhase(dependencies: [DependencyReference],
                             pbxTarget: PBXTarget,
