@@ -1,16 +1,14 @@
 import Foundation
 
 /// xpm is a thin binary that should be included in the projects, and is responsible
-/// for running your commands using the version of the project is pinned to.
+/// for running your commands using the version of the project is pinned to. By using it:
 ///
-/// Thanks to xpmrun, developers and continuous integration pipelines don't rely on
-/// the environment having the right version of xpm installed via Homebrew.
-/// Moreover, it makes building old versions of your project possible, because it'll use
-/// the version of xpm the project was built with.
+/// - Projects don't need to include the xpm tool in the repository.
+/// - They run the version of xpm the project is pinned to, ensuring reproducibility.
+/// - Abstract developers from having to setup the environment properly to work with the project.
 ///
 /// The version of xpm is specified using a .xpm-version file in your project's directory.
 /// If your project has subfolders, xpmrun will lookup the version file in the ancestors.
-
 let fileManager = FileManager.default
 let session = URLSession.shared
 
