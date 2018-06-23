@@ -473,11 +473,11 @@
 		B94C7F8E2062B829009BF596 = {
 			isa = PBXGroup;
 			children = (
-				B9A6C0C920DEAAFC00892E48 /* Tests */,
-				B9A6BE0420DEAA3C00892E48 /* Sources */,
 				B915EC392062EC97004B6630 /* Frameworks */,
-				B94C7FB62062B8A7009BF596 /* Resources */,
 				B94C7F982062B829009BF596 /* Products */,
+				B94C7FB62062B8A7009BF596 /* Resources */,
+				B9A6BE0420DEAA3C00892E48 /* Sources */,
+				B9A6C0C920DEAAFC00892E48 /* Tests */,
 			);
 			sourceTree = "<group>";
 		};
