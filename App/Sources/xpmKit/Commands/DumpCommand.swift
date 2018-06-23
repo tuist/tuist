@@ -86,14 +86,11 @@ public class DumpCommand: NSObject, Command {
         }
         let projectPath = path.appending(component: Constants.Manifest.project)
         let workspacePath = path.appending(component: Constants.Manifest.workspace)
-        let configPath = path.appending(component: Constants.Manifest.config)
         var json: JSON!
         if graphLoaderContext.fileHandler.exists(projectPath) {
             json = try graphLoaderContext.manifestLoader.load(path: projectPath, context: graphLoaderContext)
         } else if graphLoaderContext.fileHandler.exists(workspacePath) {
             json = try graphLoaderContext.manifestLoader.load(path: workspacePath, context: graphLoaderContext)
-        } else if graphLoaderContext.fileHandler.exists(configPath) {
-            json = try graphLoaderContext.manifestLoader.load(path: configPath, context: graphLoaderContext)
         } else {
             throw DumpCommandError.manifestNotFound(path)
         }
