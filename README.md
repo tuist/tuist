@@ -11,13 +11,13 @@
 
 ## Features
 
-* 🥘 100% open source and written in Swift.
-* 🐦 Type-safe Swift manifests editable with Xcode.
-* ↗️ Local dependencies support.
-* ⚠️ Misconfiguration catching.
-* 📦 Precompiled binaries _(Frameworks & Libraries support)_.
-* 💻 CLI and macOS application.
-* 🔄 Circular dependency detection.
+- 🥘 100% open source and written in Swift.
+- 🐦 Type-safe Swift manifests editable with Xcode.
+- ↗️ Local dependencies support.
+- ⚠️ Misconfiguration catching.
+- 📦 Precompiled binaries _(Frameworks & Libraries support)_.
+- 💻 CLI and macOS application.
+- 🔄 Circular dependency detection.
 
 ## Install
 
@@ -30,9 +30,8 @@ Just run this command on your terminal:
 ## Setup for development
 
 1.  Git clone: `git@github.com:xcode-project-manager/xpm.git`
-2.  Generate SPM project `swift package generate-xcodeproj` or run `bundle exec rake project`
-3.  Open `xpm.xcworkspace`.
-4.  Have fun 🤖
+2.  Run `bundle exec rake bootstrap`.
+3.  Have fun 🤖
 
 ## Documentation
 
@@ -40,4 +39,4 @@ If you would like to contribute to the project, we recommend you to check out th
 
 ## References
 
-* [SwiftGraph](https://github.com/davecom/SwiftGraph)
+- [SwiftGraph](https://github.com/davecom/SwiftGraph)

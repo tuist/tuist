@@ -11,6 +11,7 @@ APP_NAME = 'xpm'
 GITHUB_TOKEN = ENV['GH_TOKEN']
 APPCAST_PATH = 'appcast.xml'
 CHANGELOG_PATH = 'CHANGELOG.md'
+WORKSPACE_PATH = "App.xcworkspace"
 
 def execute(command)
   sh(command)
@@ -25,13 +26,13 @@ def build(config = 'Debug')
   abort('SENTRY_AUTH_TOKEN variable missing') unless ENV['SENTRY_AUTH_TOKEN']
   execute('swift package generate-xcodeproj')
   env_vars = "SENTR_DSN=#{ENV['SENTR_DSN']} SENTRY_AUTH_TOKEN=#{ENV['SENTRY_AUTH_TOKEN']}"
-  execute("#{env_vars} xcodebuild -workspace xpm.xcworkspace -scheme xpm -configuration #{config} build")
+  execute("#{env_vars} xcodebuild -workspace #{WORKSPACE_PATH} -scheme xpm -configuration #{config} build")
 end
 
 def test
   execute('swift package generate-xcodeproj')
-  execute('xcodebuild -workspace xpm.xcworkspace -scheme xpm-Package -config Debug test -enableCodeCoverage YES')
-  execute("xcodebuild -workspace xpm.xcworkspace -scheme xpmKit test CODE_SIGN_IDENTITY=''")
+  execute("xcodebuild -workspace #{WORKSPACE_PATH} -scheme xpm-Package -config Debug test -enableCodeCoverage YES")
+  execute("xcodebuild -workspace #{WORKSPACE_PATH} -scheme xpmKit test CODE_SIGN_IDENTITY=''")
 end
 
 def decrypt_keys
@@ -46,7 +47,7 @@ def install_keys
 end
 
 def archive_and_export
-  execute("xcodebuild -workspace xpm.xcworkspace -scheme xpm -config Release -archivePath ./#{BUILD_PATH}/archive clean archive")
+  execute("xcodebuild -workspace #{WORKSPACE_PATH} -scheme xpm -config Release -archivePath ./#{BUILD_PATH}/archive clean archive")
   execute("xcodebuild -archivePath ./#{BUILD_PATH}/archive.xcarchive -exportArchive -exportPath #{BUILD_PATH} -exportOptionsPlist exportOptions.plist")
 end
 
@@ -119,7 +120,7 @@ def release
                       content_type: 'application/zip')
 end
 
-def make_project
+def generate_project
   execute('swift package generate-xcodeproj')
 end
 
@@ -158,7 +159,8 @@ task :bump_version do
   bump_version
 end
 
-desc 'Generates the Xcode project for xpm'
-task :project do
-  make_project
+desc "Bootstraps the project"
+task :bootstrap do
+  generate_project
+  execute('open App.xcworkspace')
 end
