@@ -40,6 +40,9 @@ let package = Package(
             dependencies: ["ProjectDescription"]),
         .target(
             name: "xpmtools",
-            dependencies: ["Utility"]),
+            dependencies: ["Utility", "Basic"]),
+        .testTarget(
+            name: "xpmtoolsTests",
+            dependencies: ["xpmtools"]),
         ]
 )
