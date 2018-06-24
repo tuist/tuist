@@ -1,5 +1,5 @@
 import Foundation
-import xpmKit
+import xpmkit
 
 var registry = CommandRegistry()
 registry.run()

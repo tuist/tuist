@@ -1,4 +1,4 @@
 import Foundation
-import xpmKit
+import xpmkit
 
 FrameworkEmbedder().embed()
