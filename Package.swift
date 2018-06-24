@@ -10,6 +10,18 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "xpm",
+            dependencies: ["xmpkit"]),
+        .target(
+            name: "xpmembed",
+            dependencies: ["xpmkit"]),
+        .target(
+            name: "xpmenv",
+            dependencies: ["xpmkit"]),
+        .target(
+            name: "ProjectDescription",
+            dependencies: []),
+        .target(
             name: "ProjectDescription",
             dependencies: []),
         .testTarget(
@@ -17,8 +29,11 @@ let package = Package(
             dependencies: ["ProjectDescription"]
         ),
         .target(
-            name: "Dependencies",
-            dependencies: ["xcodeproj", "Utility"]
+            name: "xpmkit",
+            dependencies: ["xcodeproj", "Utility"]),
+        .testTarget(
+            name: "xpmkitTests",
+            dependencies: ["xpmkit"]),
         ),
     ]
 )

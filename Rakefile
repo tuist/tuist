@@ -89,10 +89,6 @@ def changelog(version)
   output
 end
 
-def docs
-  execute('bundle exec jazzy')
-end
-
 def release
   branch = `git rev-parse --abbrev-ref HEAD`.strip
   unless branch.include?('version/')
@@ -147,11 +143,6 @@ end
 desc 'Runs all the continuous integration tasks'
 task :ci do
   test
-end
-
-desc 'Generates the documentation'
-task :docs do
-  docs
 end
 
 desc 'Bumps the project minor version'
