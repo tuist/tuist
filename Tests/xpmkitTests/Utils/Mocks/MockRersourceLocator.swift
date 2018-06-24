@@ -1,6 +1,5 @@
 import Basic
 import Foundation
-
 @testable import xpmkit
 
 final class MockResourceLocator: ResourceLocating {

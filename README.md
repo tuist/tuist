@@ -19,8 +19,9 @@
 ## Setup for development
 
 1.  Git clone: `git@github.com:xcode-project-manager/xpm.git`
-2.  Run `bundle exec rake bootstrap`.
-3.  Have fun 🤖
+2.  Generate Xcode project with `swift package generate-xcodeproj`.
+3.  Open `xpm.xcodeproj`.
+4.  Have fun 🤖
 
 ## References
 
