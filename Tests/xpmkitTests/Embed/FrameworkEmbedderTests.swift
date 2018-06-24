@@ -42,8 +42,8 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
     }
 
     fileprivate func universalFrameworkPath() -> AbsolutePath {
-        let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory
-        return testsPath.appending(RelativePath("fixtures/xpm.framework"))
+        let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory.parentDirectory
+        return testsPath.appending(RelativePath("Fixtures/xpm.framework"))
     }
 
     fileprivate func withEnvironment(action: XcodeBuild.Action = .install,

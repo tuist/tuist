@@ -130,8 +130,8 @@ final class EmbeddableTests: XCTestCase {
 
     fileprivate func withUniversalFramework(action: (Embeddable) throws -> Void) throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory
-        let frameworkPath = testsPath.appending(RelativePath("fixtures/xpm.framework"))
+        let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory.parentDirectory
+        let frameworkPath = testsPath.appending(RelativePath("Fixtures/xpm.framework"))
         let frameworkTmpPath = tmpDir.path.appending(component: "xpm.framework")
         try fm.copyItem(atPath: frameworkPath.asString,
                         toPath: frameworkTmpPath.asString)
@@ -141,8 +141,8 @@ final class EmbeddableTests: XCTestCase {
 
     fileprivate func withDSYM(action: (Embeddable) throws -> Void) throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory
-        let frameworkPath = testsPath.appending(RelativePath("fixtures/xpm.framework.dSYM"))
+        let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory.parentDirectory
+        let frameworkPath = testsPath.appending(RelativePath("Fixtures/xpm.framework.dSYM"))
         let frameworkTmpPath = tmpDir.path.appending(component: "xpm.framework.dSYM")
         try fm.copyItem(atPath: frameworkPath.asString,
                         toPath: frameworkTmpPath.asString)

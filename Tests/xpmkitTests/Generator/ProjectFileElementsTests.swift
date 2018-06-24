@@ -42,7 +42,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                                      xcconfig: AbsolutePath("/project/debug.xcconfig")),
                                 release: Configuration(settings: [:],
                                                        xcconfig: AbsolutePath("/project/release.xcconfig")))
-        var buildPhases: [xpmKit.BuildPhase] = []
+        var buildPhases: [xpmkit.BuildPhase] = []
         let sourcesPhase = SourcesBuildPhase(buildFiles: [SourcesBuildFile([AbsolutePath("/project/file.swift")])])
         let resourcesPhase = ResourcesBuildPhase(buildFiles: [
             ResourcesBuildFile([AbsolutePath("/project/image.png")]),
