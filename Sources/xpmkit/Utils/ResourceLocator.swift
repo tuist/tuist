@@ -123,7 +123,7 @@ final class ResourceLocator: ResourceLocating {
     fileprivate func toolPath(_ name: String) throws -> AbsolutePath {
         let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
         let paths = [bundlePath, bundlePath.parentDirectory]
-        let candidates = paths.flatMap { $0.appending(component: name) }
+        let candidates = paths.map { $0.appending(component: name) }
         guard let path = candidates.first(where: { fileHandler.exists($0) }) else {
             throw ResourceLocatingError.notFound(name)
         }

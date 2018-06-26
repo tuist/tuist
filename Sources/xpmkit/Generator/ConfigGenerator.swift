@@ -145,7 +145,14 @@ final class ConfigGenerator: ConfigGenerating {
         let addSettings: (XCBuildConfiguration) throws -> Void = { configuration in
             let frameworkParentDirectory = try context.resourceLocator.projectDescription().parentDirectory
             configuration.buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkParentDirectory.asString
+            configuration.buildSettings["LIBRARY_SEARCH_PATHS"] = frameworkParentDirectory.asString
+            configuration.buildSettings["SWIFT_FORCE_DYNAMIC_LINK_STDLIB"] = true
+            configuration.buildSettings["SWIFT_FORCE_STATIC_LINK_STDLIB"] = false
+            configuration.buildSettings["SWIFT_INCLUDE_PATHS"] = frameworkParentDirectory.asString
             configuration.buildSettings["SWIFT_VERSION"] = Constants.swiftVersion
+            configuration.buildSettings["LD"] = "/usr/bin/true"
+            configuration.buildSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "SWIFT_PACKAGE"
+            configuration.buildSettings["OTHER_SWIFT_FLAGS"] = "-swift-version 4 -I \(frameworkParentDirectory.asString)"
         }
         if options.buildConfiguration == .debug {
             let debugConfig = XCBuildConfiguration(name: "Debug")
