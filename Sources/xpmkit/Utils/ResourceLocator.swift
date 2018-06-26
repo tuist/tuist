@@ -22,12 +22,6 @@ protocol ResourceLocating: AnyObject {
     /// - Returns: path to the embed util.
     /// - Throws: an error if embed cannot be found.
     func embedPath() throws -> AbsolutePath
-
-    /// Returns the app bundle.
-    ///
-    /// - Returns: app bundle
-    /// - Throws: an error if the bundle cannot be found.
-    func appPath() throws -> AbsolutePath
 }
 
 /// Resource locating error.
@@ -83,25 +77,22 @@ final class ResourceLocator: ResourceLocating {
     /// - Returns: ProjectDescription.framework path.
     /// - Throws: an error if the framework cannot be found.
     func projectDescription() throws -> AbsolutePath {
-        let frameworkName = "ProjectDescription.framework"
-        let xpmKitPath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
-        let parentPath = xpmKitPath.parentDirectory
-        let pathInProducts = parentPath.appending(component: frameworkName)
-        // Built products directory
-        if fileHandler.exists(pathInProducts) {
-            return pathInProducts
+        return try frameworkPath("ProjectDescription")
+    }
+
+    /// Returns the path of the framework/module with the given name.
+    ///
+    /// - Parameter name: name of the framework
+    /// - Returns: path if the framework exists.
+    fileprivate func frameworkPath(_ name: String) throws -> AbsolutePath {
+        let frameworkNames = ["\(name).framework", "lib\(name).dylib"]
+        let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
+        let paths = [bundlePath, bundlePath.parentDirectory]
+        let candidates = paths.flatMap { path in
+            frameworkNames.map({ path.appending(component: $0) })
         }
-        // Frameworks directory inside the app bundle.
-        let appBundlePath = parentPath.parentDirectory.parentDirectory
-        if appBundlePath.extension != ".app" {
-            throw ResourceLocatingError.notFound(frameworkName)
-        }
-        guard let frameworksPath = Bundle(path: appBundlePath.asString)?.privateFrameworksPath else {
-            throw ResourceLocatingError.notFound(frameworkName)
-        }
-        let frameworkPath = AbsolutePath(frameworksPath).appending(component: frameworkName)
-        if !fileHandler.exists(frameworkPath) {
-            throw ResourceLocatingError.notFound(frameworkName)
+        guard let frameworkPath = candidates.first(where: { fileHandler.exists($0) }) else {
+            throw ResourceLocatingError.notFound(name)
         }
         return frameworkPath
     }
@@ -130,39 +121,12 @@ final class ResourceLocator: ResourceLocating {
     /// - Returns: the path to the tool if it could be found.
     /// - Throws: an error if the tool couldn't be found.
     fileprivate func toolPath(_ name: String) throws -> AbsolutePath {
-        let xpmKitPath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
-        let parentPath = xpmKitPath.parentDirectory
-        let pathInProducts = parentPath.appending(component: name)
-        // Built products directory
-        if fileHandler.exists(pathInProducts) {
-            return pathInProducts
-        }
-        // Frameworks directory inside the app bundle.
-        let appBundlePath = parentPath.parentDirectory.parentDirectory
-        if appBundlePath.extension != ".app" {
+        let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
+        let paths = [bundlePath, bundlePath.parentDirectory]
+        let candidates = paths.flatMap { $0.appending(component: name) }
+        guard let path = candidates.first(where: { fileHandler.exists($0) }) else {
             throw ResourceLocatingError.notFound(name)
         }
-        guard let frameworksPath = Bundle(path: appBundlePath.asString)?.sharedSupportPath else {
-            throw ResourceLocatingError.notFound(name)
-        }
-        let toolPath = AbsolutePath(frameworksPath).appending(component: name)
-        if !fileHandler.exists(toolPath) {
-            throw ResourceLocatingError.notFound(name)
-        }
-        return toolPath
-    }
-
-    /// Returns the app bundle.
-    ///
-    /// - Returns: app bundle
-    /// - Throws: an error if the bundle cannot be found.
-    func appPath() throws -> AbsolutePath {
-        let path = AbsolutePath(Bundle(for: ResourceLocator.self).bundleURL.path)
-        let appPath = path.parentDirectory.parentDirectory.parentDirectory
-        if appPath.extension == "app" {
-            return appPath
-        } else {
-            throw ResourceLocatingError.notFound("xpm.app")
-        }
+        return path
     }
 }

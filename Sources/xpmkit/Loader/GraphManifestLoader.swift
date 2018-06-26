@@ -84,11 +84,15 @@ class GraphManifestLoader: GraphManifestLoading {
     /// - Returns: jSON representation of the manifest.
     /// - Throws: an error if the manifest cannot be loaded.
     func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {
-        let manifestFrameworkPath = try context.resourceLocator.projectDescription()
+        let projectDescriptionPath = try context.resourceLocator.projectDescription()
         var arguments: [String] = [
-            "xcrun", "swift",
-            "-F", manifestFrameworkPath.parentDirectory.asString,
-            "-framework", "ProjectDescription",
+            "xcrun", "swiftc",
+            "--driver-mode=swift",
+            "-suppress-warnings",
+            "-I", projectDescriptionPath.parentDirectory.asString,
+            "-L", projectDescriptionPath.parentDirectory.asString,
+            "-F", projectDescriptionPath.parentDirectory.asString,
+            "-lProjectDescription",
         ]
         let file = try TemporaryFile()
         try fileAggregator.aggregate(moduleLoader.load(path, context: context).reversed(), into: file.path)

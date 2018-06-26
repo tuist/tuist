@@ -9,8 +9,6 @@ final class MockResourceLocator: ResourceLocating {
     var cliPathStub: (() throws -> AbsolutePath)?
     var embedPathCount: UInt = 0
     var embedPathStub: (() throws -> AbsolutePath)?
-    var appPathCount: UInt = 0
-    var appPathStub: (() throws -> AbsolutePath)?
 
     func projectDescription() throws -> AbsolutePath {
         projectDescriptionCount += 1
@@ -25,10 +23,5 @@ final class MockResourceLocator: ResourceLocating {
     func embedPath() throws -> AbsolutePath {
         embedPathCount += 1
         return try embedPathStub?() ?? AbsolutePath("/")
-    }
-
-    func appPath() throws -> AbsolutePath {
-        appPathCount += 1
-        return try appPathStub?() ?? AbsolutePath("/")
     }
 }
