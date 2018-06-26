@@ -18,13 +18,16 @@ class GeneratorContext: Context, GeneratorContexting {
     ///   - printer: printer.
     ///   - fileHandler: file handler.
     ///   - shell: shell.
+    ///   - resourceLocator: resource locator.
     init(graph: Graphing,
          printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
-         shell: Shelling = Shell()) {
+         shell: Shelling = Shell(),
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         self.graph = graph
         super.init(fileHandler: fileHandler,
                    shell: shell,
-                   printer: printer)
+                   printer: printer,
+                   resourceLocator: resourceLocator)
     }
 }
