@@ -9,6 +9,7 @@ final class MockFileHandler: FileHandling {
     var createFolderStub: ((AbsolutePath) throws -> Void)?
     var deleteStub: ((AbsolutePath) throws -> Void)?
     var copyStub: ((AbsolutePath, AbsolutePath) -> Void)?
+    var isFolderStub: ((AbsolutePath) -> Bool)?
 
     var currentPath: AbsolutePath {
         return currentPathStub ?? AbsolutePath.current
@@ -32,5 +33,9 @@ final class MockFileHandler: FileHandling {
 
     func delete(_ path: AbsolutePath) throws {
         try deleteStub?(path)
+    }
+
+    func isFolder(_ path: AbsolutePath) -> Bool {
+        return isFolderStub?(path) ?? false
     }
 }

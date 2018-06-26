@@ -60,7 +60,7 @@ class SourcesBuildFile: GraphJSONInitiatable, Equatable {
                   context _: GraphLoaderContexting) throws {
         compilerFlags = try? json.get("compiler_flags")
         let pattern: String = try json.get("pattern")
-        paths = projectPath.glob(pattern)
+        paths = projectPath.glob(pattern).filter({ ($0.extension != nil) && SourcesBuildFile.validExtensions.contains($0.extension!) })
     }
 
     /// Returns true if the two instances of SourcesBuildFile are equal.
@@ -73,6 +73,10 @@ class SourcesBuildFile: GraphJSONInitiatable, Equatable {
         return lhs.paths == rhs.paths &&
             lhs.compilerFlags == rhs.compilerFlags
     }
+
+    /// List of valid extensions for source files.
+    /// If the glob pattern matches files with other extensions, those will be discarded.
+    static let validExtensions: [String] = ["m", "swift", "mm"]
 }
 
 /// Base resources build file.
@@ -127,9 +131,18 @@ class ResourcesBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
 
     required init(json: JSON,
                   projectPath: AbsolutePath,
-                  context _: GraphLoaderContexting) throws {
+                  context: GraphLoaderContexting) throws {
         let pattern: String = try json.get("pattern")
-        paths = projectPath.glob(pattern)
+        paths = projectPath.glob(pattern).filter { path in
+            if !context.fileHandler.isFolder(path) {
+                return true
+                // We filter out folders that are not Xcode supported bundles such as .app or .framework.
+            } else if let `extension` = path.extension, ResourcesBuildFile.validFolderExtensions.contains(`extension`) {
+                return true
+            } else {
+                return false
+            }
+        }
     }
 
     /// Returns true if the two instances of ResourcesBuildFile are equal.
@@ -141,6 +154,9 @@ class ResourcesBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
     static func == (lhs: ResourcesBuildFile, rhs: ResourcesBuildFile) -> Bool {
         return lhs.paths == rhs.paths
     }
+
+    /// List of extensions which folders should have to be considered valid.
+    static let validFolderExtensions: [String] = ["framework", "bundle", "app"]
 }
 
 /// Core data model build file.
@@ -264,7 +280,7 @@ class HeadersBuildFile: GraphJSONInitiatable, Equatable {
                   projectPath: AbsolutePath,
                   context _: GraphLoaderContexting) throws {
         let pattern: String = try json.get("pattern")
-        paths = projectPath.glob(pattern)
+        paths = projectPath.glob(pattern).filter({ ($0.extension != nil) && HeadersBuildFile.validExtensions.contains($0.extension!) })
         let accessLevelString: String = try json.get("access_level")
         accessLevel = AccessLevel(rawValue: accessLevelString)!
     }
@@ -279,4 +295,8 @@ class HeadersBuildFile: GraphJSONInitiatable, Equatable {
         return lhs.paths == rhs.paths &&
             lhs.accessLevel == rhs.accessLevel
     }
+
+    /// List of valid extensions for headers.
+    /// If the glob pattern matches files with other extensions, those will be discarded.
+    static let validExtensions: [String] = ["h", "hh", "pch"]
 }

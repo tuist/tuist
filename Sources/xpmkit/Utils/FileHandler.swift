@@ -37,6 +37,12 @@ protocol FileHandling: AnyObject {
     /// - Parameter path: path where the file is.
     /// - Throws: an error if the deletion fails.
     func delete(_ path: AbsolutePath) throws
+
+    /// Returns true if the file at the given path is a folder.
+    ///
+    /// - Parameter path: path to the file/folder.
+    /// - Returns: true if the path points to a folder.
+    func isFolder(_ path: AbsolutePath) -> Bool
 }
 
 /// Default file handler implementing FileHandling.
@@ -88,5 +94,15 @@ final class FileHandler: FileHandling {
     /// - Throws: an error if the deletion fails.
     func delete(_ path: AbsolutePath) throws {
         try FileManager.default.removeItem(atPath: path.asString)
+    }
+
+    /// Returns true if the file at the given path is a folder.
+    ///
+    /// - Parameter path: path to the file/folder.
+    /// - Returns: true if the path points to a folder.
+    func isFolder(_ path: AbsolutePath) -> Bool {
+        var isDirectory = ObjCBool(true)
+        let exists = FileManager.default.fileExists(atPath: path.asString, isDirectory: &isDirectory)
+        return exists && isDirectory.boolValue
     }
 }
