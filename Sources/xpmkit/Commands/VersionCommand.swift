@@ -36,6 +36,6 @@ public class VersionCommand: NSObject, Command {
     /// - Parameter arguments: input arguments.
     /// - Throws: throws an error if the execution fails.
     public func run(with _: ArgumentParser.Result) {
-        context.printer.print(xpmkit.version)
+        context.printer.print(Constants.version)
     }
 }
