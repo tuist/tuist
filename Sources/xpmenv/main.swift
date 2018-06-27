@@ -7,9 +7,9 @@ enum XpmEnvError: FatalError {
     var errorDescription: String {
         switch self {
         case .noVersionAvailable:
-            return "Couldn't find any local xpm version available. Try running again."
+            return "Couldn't find any local xpm version available."
         case let .pathNotFound(version):
-            return "Couldn't get the local path for version \(version.description)"
+            return "Couldn't get the local path for version \(version.description)."
         }
     }
 }
