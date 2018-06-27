@@ -50,12 +50,12 @@ struct Release {
 /// - sessionError: when URLSession throws an error.
 /// - missingData: when the request doesn't return any data.
 /// - decodingError: when there's an error decoding the API response.
-enum GitHubClientError: Error, CustomStringConvertible {
+enum GitHubClientError: FatalError {
     case sessionError(Error)
     case missingData
     case decodingError(Error)
 
-    var description: String {
+    var errorDescription: String {
         switch self {
         case let .sessionError(error):
             return "Session error: \(error.localizedDescription)."
@@ -110,6 +110,7 @@ class GitHubClient: GitHubClienting {
         session.dataTask(with: request) { _data, _, _error in
             data = _data
             error = _error
+            semaphore.signal()
         }.resume()
         _ = semaphore.wait(timeout: .now() + 3)
         if let error = error {

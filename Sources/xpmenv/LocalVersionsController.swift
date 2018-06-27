@@ -4,10 +4,10 @@ protocol LocalVersionsControlling: AnyObject {
     func versions() -> [Version]
 }
 
-enum LocalVersionsControllerError: Error, CustomStringConvertible {
+enum LocalVersionsControllerError: FatalError {
     case existingVersion(Version)
 
-    var description: String {
+    var errorDescription: String {
         switch self {
         case let .existingVersion(version):
             return "The version \(version.description) is already installed."

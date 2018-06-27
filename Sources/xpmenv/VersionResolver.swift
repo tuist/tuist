@@ -8,11 +8,11 @@ protocol VersionResolving: AnyObject {
 ///
 /// - readError: thrown when a version file cannot be read.
 /// - invalidFormat: thrown when the version file contains an invalid format.
-enum VersionResolverError: Error, CustomStringConvertible {
+enum VersionResolverError: FatalError {
     case readError(path: URL)
     case invalidFormat(String, path: URL)
 
-    var description: String {
+    var errorDescription: String {
         switch self {
         case let .readError(path):
             return "Cannot read the version file at path \(path.path)"

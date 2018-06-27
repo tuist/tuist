@@ -1,10 +1,10 @@
 import Foundation
 
-enum XpmEnvError: Error, CustomStringConvertible {
+enum XpmEnvError: FatalError {
     case noVersionAvailable
     case pathNotFound(Version)
 
-    var description: String {
+    var errorDescription: String {
         switch self {
         case .noVersionAvailable:
             return "Couldn't find any local xpm version available. Try running again."
@@ -55,13 +55,19 @@ do {
     /// We drop the first element, which is the path to this executable.
     let exitStatus = Process.run(path: cliPath.path, arguments: Array(CommandLine.arguments.dropFirst()))
     exit(exitStatus)
-
-} catch {
-    let stringConvertibleError = error as CustomStringConvertible
+} catch let error as FatalError {
     let message = """
-    An internal error happened: \(stringConvertibleError.description)
+    \("Error:".bold().red()) \(error.errorDescription)
+    
+    \("Try again and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new/choose".yellow())
+    """
+    print(message)
+    exit(1)
+} catch {
+    let message = """
+    \("Unexpected error".bold().red())
         
-    Try again and if the problem persists, create an issue on https://github.com/xcode-project-manager/support
+    \("Try again and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new/choose".yellow())
     """
     print(message)
     exit(1)

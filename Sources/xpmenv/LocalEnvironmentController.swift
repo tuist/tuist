@@ -7,7 +7,7 @@ protocol LocalEnvironmentControlling: AnyObject {
 
 class LocalEnvironmentController: LocalEnvironmentControlling {
     /// Returns the default local directory.
-    static let defaultDirectory: URL = URL(fileURLWithPath: "/usr/local/xpm")
+    static let defaultDirectory: URL = URL(fileURLWithPath: "~/.xpm")
 
     // MARK: - Attributes
 
