@@ -59,7 +59,7 @@ do {
     let message = """
     \("Error:".bold().red()) \(error.errorDescription)
     
-    \("Try again and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new/choose".yellow())
+    \("Try again, and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new".yellow())
     """
     print(message)
     exit(1)
@@ -67,7 +67,7 @@ do {
     let message = """
     \("Unexpected error".bold().red())
         
-    \("Try again and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new/choose".yellow())
+    \("Try again, and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new".yellow())
     """
     print(message)
     exit(1)
