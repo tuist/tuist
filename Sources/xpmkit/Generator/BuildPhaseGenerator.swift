@@ -144,7 +144,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 }
                 let pbxBuildFile = PBXBuildFile(fileReference: fileReference.reference, settings: settings)
                 let buildFileRerence = objects.addObject(pbxBuildFile)
-                sourcesBuildPhase.filesReferences.append(buildFileRerence)
+                sourcesBuildPhase.fileReferences.append(buildFileRerence)
             }
         }
     }
@@ -171,7 +171,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let pbxBuildPhase = PBXCopyFilesBuildPhase(dstPath: buildPhase.subpath,
                                                    dstSubfolderSpec: buildPhase.destination.xcodeValue,
                                                    name: buildPhase.name,
-                                                   filesReferences: fileReferences)
+                                                   fileReferences: fileReferences)
         let pbxBuildPhaseReference = objects.addObject(pbxBuildPhase)
         pbxTarget.buildPhasesReferences.append(pbxBuildPhaseReference)
     }
@@ -218,7 +218,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     "ATTRIBUTES": [headerBuildFile.accessLevel.rawValue.capitalized],
                 ])
                 let buildFileRerence = objects.addObject(pbxBuildFile)
-                headersBuildPhase.filesReferences.append(buildFileRerence)
+                headersBuildPhase.fileReferences.append(buildFileRerence)
             }
         }
     }
@@ -298,7 +298,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             if let reference = reference {
                 let pbxBuildFile = PBXBuildFile(fileReference: reference)
                 let buildFileRerence = objects.addObject(pbxBuildFile)
-                resourcesBuildPhase.filesReferences.append(buildFileRerence)
+                resourcesBuildPhase.fileReferences.append(buildFileRerence)
             }
         }
     }
@@ -324,6 +324,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         let pbxBuildFile = PBXBuildFile(fileReference: modelReference.reference)
         let buildFileRerence = objects.addObject(pbxBuildFile)
-        resourcesBuildPhase.filesReferences.append(buildFileRerence)
+        resourcesBuildPhase.fileReferences.append(buildFileRerence)
     }
 }

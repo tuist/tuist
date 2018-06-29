@@ -87,7 +87,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                             objects: pbxproj.objects,
                                             sourceRootPath: sourceRootPath)
         let products = ["Test.framework"]
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         subject.generate(products: products,
                          groups: groups,
                          objects: objects)
@@ -109,7 +109,7 @@ final class ProjectFileElementsTests: XCTestCase {
         let groups = ProjectGroups.generate(project: project,
                                             objects: pbxproj.objects,
                                             sourceRootPath: sourceRootPath)
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         var dependencies: Set<GraphNode> = Set()
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -134,7 +134,7 @@ final class ProjectFileElementsTests: XCTestCase {
         let groups = ProjectGroups.generate(project: project,
                                             objects: pbxproj.objects,
                                             sourceRootPath: sourceRootPath)
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         var dependencies: Set<GraphNode> = Set()
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -162,7 +162,7 @@ final class ProjectFileElementsTests: XCTestCase {
         let groups = ProjectGroups.generate(project: project,
                                             objects: pbxproj.objects,
                                             sourceRootPath: sourceRootPath)
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         var dependencies: Set<GraphNode> = Set()
         let precompiledNode = FrameworkNode(path: project.path.appending(component: "waka.framework"))
         dependencies.insert(precompiledNode)
@@ -220,7 +220,7 @@ final class ProjectFileElementsTests: XCTestCase {
         let absolutePath = localizedDir
         let relativePath = RelativePath("en.lproj")
         let group = PBXGroup()
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         objects.addObject(group)
         subject.addVariantGroup(from: from,
                                 absolutePath: absolutePath,
@@ -243,7 +243,7 @@ final class ProjectFileElementsTests: XCTestCase {
         let folderAbsolutePath = AbsolutePath("/project/model.xcdatamodel")
         let folderRelativePath = RelativePath("./model.xcdatamodel")
         let group = PBXGroup()
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         objects.addObject(group)
         _ = subject.addVersionGroupElement(from: from,
                                            folderAbsolutePath: folderAbsolutePath,
@@ -263,7 +263,7 @@ final class ProjectFileElementsTests: XCTestCase {
         let fileAbsolutePath = AbsolutePath("/project/file.swift")
         let fileRelativePath = RelativePath("./file.swift")
         let group = PBXGroup()
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         objects.addObject(group)
         _ = subject.addFileElement(from: from,
                                    fileAbsolutePath: fileAbsolutePath,

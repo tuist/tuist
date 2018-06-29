@@ -158,7 +158,7 @@ final class LinkGenerator: LinkGenerating {
                 }
                 let buildFile = PBXBuildFile(fileReference: fileRef.reference)
                 let buildFileReference = objects.addObject(buildFile)
-                embedPhase.filesReferences.append(buildFileReference)
+                embedPhase.fileReferences.append(buildFileReference)
             }
         }
         if script.count == 0 {
@@ -215,7 +215,7 @@ final class LinkGenerator: LinkGenerating {
                 }
                 let buildFile = PBXBuildFile(fileReference: fileRef.reference)
                 let buildFileReference = objects.addObject(buildFile)
-                buildPhase.filesReferences.append(buildFileReference)
+                buildPhase.fileReferences.append(buildFileReference)
 
             } else if case let DependencyReference.product(name) = dependency {
                 guard let fileRef = fileElements.product(name: name) else {
@@ -223,7 +223,7 @@ final class LinkGenerator: LinkGenerating {
                 }
                 let buildFile = PBXBuildFile(fileReference: fileRef.reference)
                 let buildFileReference = objects.addObject(buildFile)
-                buildPhase.filesReferences.append(buildFileReference)
+                buildPhase.fileReferences.append(buildFileReference)
             }
         }
     }

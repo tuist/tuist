@@ -13,7 +13,7 @@ final class TargetGeneratorTests: XCTestCase {
     }
 
     func test_generateTargetDependencies() throws {
-        let objects = PBXObjects(objects: [:])
+        let objects = PBXObjects()
         let path = AbsolutePath("/test")
         let targetA = Target.test(name: "TargetA")
         let targetB = Target.test(name: "TargetB")
@@ -31,7 +31,7 @@ final class TargetGeneratorTests: XCTestCase {
         let pbxProject = PBXProject(name: "Project",
                                     buildConfigurationListReference: configListRef,
                                     compatibilityVersion: "0",
-                                    mainGroup: mainGroupRef)
+                                    mainGroupReference: mainGroupRef)
         objects.addObject(pbxProject)
         let graphCache = GraphLoaderCache()
         let targetBNode = TargetNode(project: project,

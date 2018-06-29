@@ -142,7 +142,7 @@ final class TargetGenerator: TargetGenerating {
                                                                                      options: options)
 
         // Build phases
-        let sourcesPhase = PBXSourcesBuildPhase(filesReferences: [])
+        let sourcesPhase = PBXSourcesBuildPhase()
         let sourcesPhaseReference = pbxproj.objects.addObject(sourcesPhase)
         try files.forEach({ _ = try sourcesPhase.addFile($0) })
 
