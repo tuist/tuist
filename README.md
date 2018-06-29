@@ -5,6 +5,7 @@
 
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
 [![CircleCI](https://circleci.com/gh/xcode-project-manager/xpm.svg?style=svg)](https://circleci.com/gh/xcode-project-manager/xpm)
+[![codecov](https://codecov.io/gh/xcode-project-manager/xpm/branch/master/graph/badge.svg)](https://codecov.io/gh/xcode-project-manager/xpm)
 
 ## Features
 
