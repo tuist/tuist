@@ -1,0 +1,21 @@
+version: 2
+jobs:
+  build:
+    macos:
+      xcode: "9.3.0"
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: |
+            brew install swiftlint
+      - run:
+          name: Generate Xcode project
+          command: |
+            swift package generate-xcodeproj
+      - run:
+          name: Run tests
+          command: xcodebuild test -scheme xpm-Package -enableCodeCoverage YES
+      - run:
+          name: Send test coverage report
+          command: bash <(curl -s https://codecov.io/bash)
