@@ -22,7 +22,3 @@
 2.  Generate Xcode project with `swift package generate-xcodeproj`.
 3.  Open `xpm.xcodeproj`.
 4.  Have fun 🤖
-
-## References
-
-- [SwiftGraph](https://github.com/davecom/SwiftGraph)
