@@ -29,8 +29,6 @@ enum TargetValidatorError: FatalError, Equatable {
         switch (lhs, rhs) {
         case let (.missingSourceFiles(lhsTarget), .missingSourceFiles(rhsTarget)):
             return lhsTarget == rhsTarget
-        default:
-            return false
         }
     }
 }
@@ -53,6 +51,7 @@ class TargetValidator {
             .flatMap({ $0.buildFiles })
             .flatMap({ $0.paths })
         if files.count == 0 {
+            throw TargetValidatorError.missingSourceFiles(target: target.name)
         }
     }
 }

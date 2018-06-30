@@ -22,7 +22,7 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_generate() {
         let main = subject.main
-        XCTAssertEqual(main.path, ".")
+        XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
 
         XCTAssertTrue(main.childrenReferences.contains(subject.project.reference))

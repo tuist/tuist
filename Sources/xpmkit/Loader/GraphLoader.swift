@@ -8,6 +8,16 @@ protocol GraphLoading: AnyObject {
 
 /// Default graph loader.
 class GraphLoader: GraphLoading {
+    /// Graph validator
+    let validator: GraphValidating
+
+    /// Initializes the graph loader.
+    ///
+    /// - Parameter validator: graph validator.
+    init(validator: GraphValidating = GraphValidator()) {
+        self.validator = validator
+    }
+
     /// Loads the graph at the given path.
     ///
     /// - Parameter path: path where the graph starts from. It's the path where the Workspace.swift or the Project.swift file is.
@@ -15,13 +25,16 @@ class GraphLoader: GraphLoading {
     /// - Throws: an error if the graph cannot be loaded.
     func load(path: AbsolutePath) throws -> Graph {
         let context = GraphLoaderContext()
+        var graph: Graph!
         if context.fileHandler.exists(path.appending(component: Constants.Manifest.project)) {
-            return try loadProject(path: path, context: context)
+            graph = try loadProject(path: path, context: context)
         } else if context.fileHandler.exists(path.appending(component: Constants.Manifest.workspace)) {
-            return try loadWorkspace(path: path, context: context)
+            graph = try loadWorkspace(path: path, context: context)
         } else {
             throw GraphLoadingError.manifestNotFound(path)
         }
+        try validator.validate(graph: graph)
+        return graph
     }
 
     /// Loads a project graph.
