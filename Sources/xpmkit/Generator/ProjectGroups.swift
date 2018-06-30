@@ -70,9 +70,10 @@ class ProjectGroups {
                          objects: PBXObjects,
                          sourceRootPath: AbsolutePath) -> ProjectGroups {
         /// Main
+        let projectRelativePath = project.path.relative(to: sourceRootPath).asString
         let mainGroup = PBXGroup(childrenReferences: [],
                                  sourceTree: .group,
-                                 path: project.path.relative(to: sourceRootPath).asString)
+                                 path: (projectRelativePath != ".") ? projectRelativePath : nil)
         objects.addObject(mainGroup)
 
         /// Project

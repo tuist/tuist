@@ -60,7 +60,8 @@ class SourcesBuildFile: GraphJSONInitiatable, Equatable {
                   context _: GraphLoaderContexting) throws {
         compilerFlags = try? json.get("compiler_flags")
         let pattern: String = try json.get("pattern")
-        paths = projectPath.glob(pattern).filter({ ($0.extension != nil) && SourcesBuildFile.validExtensions.contains($0.extension!) })
+        let globPaths = projectPath.glob(pattern)
+        paths = globPaths.filter({ ($0.extension != nil) && SourcesBuildFile.validExtensions.contains($0.extension!) })
     }
 
     /// Returns true if the two instances of SourcesBuildFile are equal.
@@ -133,7 +134,8 @@ class ResourcesBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
                   projectPath: AbsolutePath,
                   context: GraphLoaderContexting) throws {
         let pattern: String = try json.get("pattern")
-        paths = projectPath.glob(pattern).filter { path in
+        let globPaths = projectPath.glob(pattern)
+        paths = globPaths.filter { path in
             if !context.fileHandler.isFolder(path) {
                 return true
                 // We filter out folders that are not Xcode supported bundles such as .app or .framework.
@@ -156,7 +158,7 @@ class ResourcesBuildFile: BaseResourcesBuildFile, GraphJSONInitiatable {
     }
 
     /// List of extensions which folders should have to be considered valid.
-    static let validFolderExtensions: [String] = ["framework", "bundle", "app"]
+    static let validFolderExtensions: [String] = ["framework", "bundle", "app", "appiconset"]
 }
 
 /// Core data model build file.

@@ -63,7 +63,7 @@ final class ResourcesBuildFileTests: XCTestCase {
     }
 
     func test_validFolderExtensions() {
-        XCTAssertEqual(ResourcesBuildFile.validFolderExtensions, ["framework", "bundle", "app"])
+        XCTAssertEqual(ResourcesBuildFile.validFolderExtensions, ["framework", "bundle", "app", "appiconset"])
     }
 }
 
