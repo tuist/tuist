@@ -1,7 +1,9 @@
+import Basic
 import Foundation
+import Utility
 
 protocol VersionResolving: AnyObject {
-    func resolve(path: URL) throws -> Version?
+    func resolve(path: AbsolutePath) throws -> Version?
 }
 
 /// Version resolver errors.
@@ -9,15 +11,15 @@ protocol VersionResolving: AnyObject {
 /// - readError: thrown when a version file cannot be read.
 /// - invalidFormat: thrown when the version file contains an invalid format.
 enum VersionResolverError: FatalError {
-    case readError(path: URL)
-    case invalidFormat(String, path: URL)
+    case readError(path: AbsolutePath)
+    case invalidFormat(String, path: AbsolutePath)
 
     var errorDescription: String {
         switch self {
         case let .readError(path):
-            return "Cannot read the version file at path \(path.path)"
+            return "Cannot read the version file at path \(path.asString)"
         case let .invalidFormat(value, path):
-            return "The version \(value) at path \(path.path) doesn't have a valid semver format (x.y.z)."
+            return "The version \(value) at path \(path.asString) doesn't have a valid semver format (x.y.z)."
         }
     }
 }
@@ -33,12 +35,12 @@ class VersionResolver: VersionResolving {
     ///
     /// - Parameter path: path for which the version will be resolved.
     /// - Returns: xpm version that should be used at the given path.
-    func resolve(path: URL) throws -> Version? {
-        let filePath = path.appendingPathComponent(VersionResolver.fileName)
-        if FileManager.default.fileExists(atPath: filePath.path) {
+    func resolve(path: AbsolutePath) throws -> Version? {
+        let filePath = path.appending(component: VersionResolver.fileName)
+        if FileManager.default.fileExists(atPath: filePath.asString) {
             var value: String!
             do {
-                value = try String(contentsOf: filePath)
+                value = try String(contentsOf: URL(fileURLWithPath: filePath.asString))
             } catch {
                 throw VersionResolverError.readError(path: filePath)
             }
@@ -46,8 +48,8 @@ class VersionResolver: VersionResolving {
                 throw VersionResolverError.invalidFormat(value, path: filePath)
             }
             return version
-        } else if path.pathComponents.count > 1 {
-            return try resolve(path: path.deletingLastPathComponent())
+        } else if path.components.count > 1 {
+            return try resolve(path: path.parentDirectory)
         }
         return nil
     }

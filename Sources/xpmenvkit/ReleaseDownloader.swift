@@ -4,7 +4,7 @@ protocol ReleaseDownloading: AnyObject {
     func download(release: Release) throws
 }
 
-class ReleseDownloader: ReleaseDownloading {
+class ReleaseDownloader: ReleaseDownloading {
     /// URL session.
     let session: URLSession
 

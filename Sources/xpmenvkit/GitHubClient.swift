@@ -1,4 +1,5 @@
 import Foundation
+import Utility
 
 protocol GitHubClienting: AnyObject {
     func releases() throws -> [Release]
@@ -8,7 +9,7 @@ protocol GitHubClienting: AnyObject {
 struct Release {
     /// Release asset.
     struct Asset {
-        let downloadURL: URL
+        let downloadURL: Foundation.URL
 
         init?(json: [String: Any]) {
             guard let downloadURLString = json["browser_download_url"] as? String else { return nil }
@@ -75,7 +76,7 @@ class GitHubClient: GitHubClienting {
     private let session: URLSession
 
     /// Base url.
-    private let baseURL: URL = URL(string: "https://api.github.com")!
+    private let baseURL: Foundation.URL = URL(string: "https://api.github.com")!
 
     /// Initializes the client with the session.
     ///

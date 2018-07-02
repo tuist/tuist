@@ -30,8 +30,14 @@ let package = Package(
             name: "xpmembed",
             dependencies: ["xpmkit"]),
         .target(
+            name: "xpmenvkit",
+            dependencies: ["Utility"]),
+        .testTarget(
+            name: "xpmenvkitTests",
+            dependencies: ["xpm"]),
+        .target(
             name: "xpmenv",
-            dependencies: ["xpmkit"]),
+            dependencies: ["xpmenvkit"]),
         .target(
             name: "ProjectDescription",
             dependencies: []),
