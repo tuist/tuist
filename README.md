@@ -14,7 +14,6 @@
 - ↗️ Local dependencies support.
 - ⚠️ Misconfiguration catching.
 - 📦 Precompiled binaries _(Frameworks & Libraries support)_.
-- 💻 CLI and macOS application.
 - 🔄 Circular dependency detection.
 
 ## Setup for development
