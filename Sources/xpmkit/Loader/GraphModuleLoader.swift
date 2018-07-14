@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 /// Graph module loader error.
 ///

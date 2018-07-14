@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 /// Util to locate resources such es the ProjectDescription.framework or the xpm cli binary.
 protocol ResourceLocating: AnyObject {

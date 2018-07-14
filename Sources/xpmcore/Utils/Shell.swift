@@ -12,7 +12,7 @@ struct ShellError: FatalError, Equatable {
 }
 
 /// Protocol that represents a shell interface.
-protocol Shelling: AnyObject {
+public protocol Shelling: AnyObject {
     /// Runs a shell command synchronously and returns the output.
     ///
     /// - Parameters:
@@ -33,7 +33,10 @@ protocol Shelling: AnyObject {
 }
 
 /// Default implementation of Shelling.
-class Shell: Shelling {
+public class Shell: Shelling {
+    /// Default constructor.
+    public init() {}
+
     /// Runs a shell command synchronously and returns the output.
     ///
     /// - Parameters:
@@ -41,7 +44,7 @@ class Shell: Shelling {
     ///   - environment: environment.
     /// - Returns: the command output.
     /// - Throws: an error if the execution fails.
-    func run(_ args: String..., environment: [String: String] = [:]) throws -> String {
+    public func run(_ args: String..., environment: [String: String] = [:]) throws -> String {
         return try run(args, environment: environment)
     }
 
@@ -52,7 +55,7 @@ class Shell: Shelling {
     ///   - environment: environment.
     /// - Returns: the command output.
     /// - Throws: an error if the execution fails.
-    func run(_ args: [String], environment: [String: String] = [:]) throws -> String {
+    public func run(_ args: [String], environment: [String: String] = [:]) throws -> String {
         let result = try Process.popen(arguments: args, environment: environment)
         if result.exitStatus == .terminated(code: 0) {
             return try result.utf8Output()

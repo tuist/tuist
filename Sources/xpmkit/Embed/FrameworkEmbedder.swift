@@ -3,6 +3,7 @@
 // Reference: https://github.com/xcodeswift/xctools/blob/master/Sources/Frameworks/EmbedCommand.swift
 import Basic
 import Foundation
+import xpmcore
 
 /// Embeds the input framework into the built product.
 public class FrameworkEmbedder {

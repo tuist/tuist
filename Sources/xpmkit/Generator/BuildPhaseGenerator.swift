@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import xcodeproj
+import xpmcore
 
 /// Errors thrown during the build phases generation.
 ///

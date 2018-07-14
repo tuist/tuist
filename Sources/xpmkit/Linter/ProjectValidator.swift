@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 enum ProjectValidationError: FatalError, Equatable {
     case duplicatedTargets([String], AbsolutePath)

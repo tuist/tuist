@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import xcodeproj
+import xpmcore
 
 /// Link generator error.
 ///

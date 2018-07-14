@@ -1,6 +1,7 @@
 import Foundation
 import Utility
 import XCTest
+@testable import xpmcoreTesting
 @testable import xpmkit
 
 final class CreateIssueCommandTests: XCTestCase {

@@ -6,7 +6,7 @@ import Foundation
 /// - bug: error thrown when a bug is found and the execution cannot continue.
 /// - abortSilent: like abort but without printing anything to the user.
 /// - bugSilent: like bug but without printing anything to the user.
-enum ErrorType {
+public enum ErrorType {
     case abort
     case bug
     case abortSilent
@@ -14,14 +14,18 @@ enum ErrorType {
 }
 
 /// Unhandled error.
-struct UnhandledError: FatalError {
-    let error: Error
-    var type: ErrorType { return .bugSilent }
-    var description: String { return error.localizedDescription }
+public struct UnhandledError: FatalError {
+    public init(error: Error) {
+        self.error = error
+    }
+
+    public let error: Error
+    public var type: ErrorType { return .bugSilent }
+    public var description: String { return error.localizedDescription }
 }
 
 /// Fatal error protocol.
-protocol FatalError: Error, CustomStringConvertible {
+public protocol FatalError: Error, CustomStringConvertible {
     /// Error type.
     var type: ErrorType { get }
 }

@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 /// Errors that can be thrown during the graph loading process.
 ///

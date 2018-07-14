@@ -5,7 +5,8 @@ import Foundation
 let systemGlob = Darwin.glob
 
 extension AbsolutePath {
-    static var current: AbsolutePath {
+    /// Returns the current path.
+    public static var current: AbsolutePath {
         return AbsolutePath(FileManager.default.currentDirectoryPath)
     }
 

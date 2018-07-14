@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 /// Protocol that defines the interface of an object that can read a manifest file from the disk.
 /// A manifest file is a Swift file that gets compiled and that outputs a JSON to the console.

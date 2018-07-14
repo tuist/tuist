@@ -2,7 +2,7 @@ import Basic
 import Foundation
 
 /// Protocol that represents an object that can handle files.
-protocol FileHandling: AnyObject {
+public protocol FileHandling: AnyObject {
     /// Returns the current path.
     var currentPath: AbsolutePath { get }
 
@@ -46,9 +46,11 @@ protocol FileHandling: AnyObject {
 }
 
 /// Default file handler implementing FileHandling.
-final class FileHandler: FileHandling {
+public final class FileHandler: FileHandling {
+    public init() {}
+
     /// Returns the current path.
-    var currentPath: AbsolutePath {
+    public var currentPath: AbsolutePath {
         return AbsolutePath(FileManager.default.currentDirectoryPath)
     }
 
@@ -56,7 +58,7 @@ final class FileHandler: FileHandling {
     ///
     /// - Parameter path: path to check.
     /// - Returns: true if there's a file at the given path.
-    func exists(_ path: AbsolutePath) -> Bool {
+    public func exists(_ path: AbsolutePath) -> Bool {
         return FileManager.default.fileExists(atPath: path.asString)
     }
 
@@ -65,7 +67,7 @@ final class FileHandler: FileHandling {
     /// - Parameters:
     ///   - from: the location the file is being copied from.
     ///   - to: the location the file is being copied to.
-    func copy(from: AbsolutePath, to: AbsolutePath) throws {
+    public func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try FileManager.default.copyItem(atPath: from.asString, toPath: to.asString)
     }
 
@@ -75,14 +77,14 @@ final class FileHandler: FileHandling {
     ///   - path: base path.
     ///   - glob: glob pattern.
     /// - Returns: list of paths that have been found matching the glob pattern.
-    func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
+    public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
         return path.glob(glob)
     }
 
     /// Creates a folder at the given path.
     ///
     /// - Parameter path: path.
-    func createFolder(_ path: AbsolutePath) throws {
+    public func createFolder(_ path: AbsolutePath) throws {
         try FileManager.default.createDirectory(atPath: path.asString,
                                                 withIntermediateDirectories: true,
                                                 attributes: nil)
@@ -92,7 +94,7 @@ final class FileHandler: FileHandling {
     ///
     /// - Parameter path: path where the file is.
     /// - Throws: an error if the deletion fails.
-    func delete(_ path: AbsolutePath) throws {
+    public func delete(_ path: AbsolutePath) throws {
         try FileManager.default.removeItem(atPath: path.asString)
     }
 
@@ -100,7 +102,7 @@ final class FileHandler: FileHandling {
     ///
     /// - Parameter path: path to the file/folder.
     /// - Returns: true if the path points to a folder.
-    func isFolder(_ path: AbsolutePath) -> Bool {
+    public func isFolder(_ path: AbsolutePath) -> Bool {
         var isDirectory = ObjCBool(true)
         let exists = FileManager.default.fileExists(atPath: path.asString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue

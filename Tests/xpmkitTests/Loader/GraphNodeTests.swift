@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import XCTest
+@testable import xpmcoreTesting
 @testable import xpmkit
 
 final class PrecompiledNodeTests: XCTestCase {

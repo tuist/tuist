@@ -1,4 +1,5 @@
 import Foundation
+import xpmcore
 
 /// Target validation errors.
 ///

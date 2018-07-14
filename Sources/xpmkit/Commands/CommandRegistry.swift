@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 /// Registry that contains all the commands.
 public final class CommandRegistry {

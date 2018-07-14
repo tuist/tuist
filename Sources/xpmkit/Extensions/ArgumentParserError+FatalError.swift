@@ -1,9 +1,10 @@
 import Foundation
 import Utility
+import xpmcore
 
 extension ArgumentParserError: FatalError {
     /// Error type
-    var type: ErrorType {
+    public var type: ErrorType {
         return .abort
     }
 }

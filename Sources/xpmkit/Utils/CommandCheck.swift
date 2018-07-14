@@ -1,5 +1,6 @@
 import Foundation
 import Utility
+import xpmcore
 
 /// Command check errors.
 ///

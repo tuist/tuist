@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 /// Dependency graph node.
 class GraphNode: Equatable, Hashable {
