@@ -8,13 +8,13 @@ import Utility
 /// - pinned: A pinned version.
 /// - unspecified: When no version has been specified.
 enum ResolvedVersion {
-    case local(AbsolutePath)
-    case pinned(Version)
-    case unspecified
+    case bin(AbsolutePath)
+    case reference(String)
+    case undefined
 }
 
 protocol VersionResolving: AnyObject {
-    func resolve(path: AbsolutePath) throws -> Version?
+    func resolve(path: AbsolutePath) throws -> ResolvedVersion
 }
 
 /// Version resolver errors.
@@ -42,26 +42,71 @@ class VersionResolver: VersionResolving {
     /// Version file name.
     static let fileName = ".xpm-version"
 
+    /// Directory that contains the binary.
+    static let binName = ".xpm-bin"
+
+    // MARK: - Attributes
+
+    /// Settings controller.
+    private let settingsController: SettingsControlling
+
+    /// File manager.
+    private let fileManager: FileManager = .default
+
+    /// Default verion resolver constructor.
+    ///
+    /// - Parameter settingsController: settings controller.
+    init(settingsController: SettingsControlling = SettingsController()) {
+        self.settingsController = settingsController
+    }
+
     /// Resolves the version for the given path.
     ///
     /// - Parameter path: path for which the version will be resolved.
-    /// - Returns: xpm version that should be used at the given path.
-    func resolve(path: AbsolutePath) throws -> Version? {
-        let filePath = path.appending(component: VersionResolver.fileName)
-        if FileManager.default.fileExists(atPath: filePath.asString) {
-            var value: String!
-            do {
-                value = try String(contentsOf: URL(fileURLWithPath: filePath.asString))
-            } catch {
-                throw VersionResolverError.readError(path: filePath)
-            }
-            guard let version = Version(string: value) else {
-                throw VersionResolverError.invalidFormat(value, path: filePath)
-            }
-            return version
-        } else if path.components.count > 1 {
-            return try resolve(path: path.parentDirectory)
+    /// - Returns: the resolved version that should be used at the given path.
+    func resolve(path: AbsolutePath) throws -> ResolvedVersion {
+        if let canaryRef = try settingsController.settings().canaryReference {
+            return .reference(canaryRef)
         }
-        return nil
+        return try resolveTraversing(from: path)
+    }
+
+    /// Resolves the version by traversing through the parents looking up for a .xpm-version
+    /// file or a .xpm-bin directory.
+    ///
+    /// - Parameter path: path to traverse from.
+    /// - Returns: resolved version.
+    /// - Throws: an error if the resolution fails. It can happen if the .xpm-version has an invalid format
+    ///   or cannot be read or the bundled binary is in a invalid state.
+    fileprivate func resolveTraversing(from path: AbsolutePath) throws -> ResolvedVersion {
+        let versionPath = path.appending(component: VersionResolver.fileName)
+        let binPath = path.appending(component: VersionResolver.binName)
+        if fileManager.fileExists(atPath: versionPath.asString) {
+            return try resolveVersionFile(path: versionPath)
+        } else if fileManager.fileExists(atPath: binPath.asString) {
+            return .bin(binPath)
+        }
+        if path.components.count > 1 {
+            return try resolveTraversing(from: path.parentDirectory)
+        }
+        return .undefined
+    }
+
+    /// Resolves a .xpm-version file.
+    ///
+    /// - Parameter path: path to the .xpm-version file.
+    /// - Returns: resolved version.
+    /// - Throws: an error if the file cannot be opened or it has an invalid format.
+    fileprivate func resolveVersionFile(path: AbsolutePath) throws -> ResolvedVersion {
+        var value: String!
+        do {
+            value = try String(contentsOf: URL(fileURLWithPath: path.asString))
+        } catch {
+            throw VersionResolverError.readError(path: path)
+        }
+        guard let version = Version(string: value) else {
+            throw VersionResolverError.invalidFormat(value, path: path)
+        }
+        return ResolvedVersion.reference(version.description)
     }
 }
