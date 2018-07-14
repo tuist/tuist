@@ -42,10 +42,12 @@ class UpdatesController: UpdatesControlling {
             userDefaults.synchronize()
         }
 
-        guard let highestRemoteRelease = try client.releases().sorted(by: { $0.version < $1.version }).last,
-            let highestLocalVersion = localVersions.last else {
-            return nil
-        }
-        return (highestRemoteRelease.version > highestLocalVersion) ? highestRemoteRelease : nil
+        // TODO:
+        return nil
+//        guard let highestRemoteRelease = try client.releases().sorted(by: { $0.version < $1.version }).last,
+//            let highestLocalVersion = localVersions.last else {
+//            return nil
+//        }
+//        return (highestRemoteRelease.version > highestLocalVersion) ? highestRemoteRelease : nil
     }
 }

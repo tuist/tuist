@@ -2,7 +2,7 @@ import Foundation
 import Utility
 
 protocol GitHubClienting: AnyObject {
-    func releases() throws -> [Release]
+    func execute(request: URLRequest) throws -> Any
 }
 
 /// GitHub client error.
@@ -29,28 +29,11 @@ enum GitHubClientError: FatalError {
 
 /// GitHub Client.
 class GitHubClient: GitHubClienting {
-    private static let releasesRepository: String = "xcode-project-manager/releases"
+    /// Session scheduler.
+    let sessionScheduler: URLSessionScheduling
 
-    /// Session.
-    private let session: URLSession
-
-    /// Base url.
-    private let baseURL: Foundation.URL = URL(string: "https://api.github.com")!
-
-    /// Initializes the client with the session.
-    ///
-    /// - Parameter session: url session.
-    init(session: URLSession = URLSession.shared) {
-        self.session = session
-    }
-
-    /// Returns the list of available releases.
-    ///
-    /// - Returns: xpm releases.
-    func releases() throws -> [Release] {
-        let response = try request(path: "/repos/\(GitHubClient.releasesRepository)/releases")
-        guard let releases = response as? [[String: Any]] else { return [] }
-        return releases.compactMap(Release.init)
+    init(sessionScheduler: URLSessionScheduling = URLSessionScheduler()) {
+        self.sessionScheduler = sessionScheduler
     }
 
     /// Executes a request against the GitHub API.
@@ -60,26 +43,15 @@ class GitHubClient: GitHubClienting {
     ///   - method: request HTTP method.
     /// - Returns: API json response.
     /// - Throws: if the request fails.
-    fileprivate func request(path: String, method _: String = "GET") throws -> Any {
-        let url = baseURL.appendingPathComponent(path)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        var data: Data?
-        var error: Error?
-        let semaphore = DispatchSemaphore(value: 0)
-        session.dataTask(with: request) { _data, _, _error in
-            data = _data
-            error = _error
-            semaphore.signal()
-        }.resume()
-        _ = semaphore.wait(timeout: .now() + 3)
-        if let error = error {
+    func execute(request: URLRequest) throws -> Any {
+        let response = sessionScheduler.schedule(request: request)
+        if let error = response.error {
             throw GitHubClientError.sessionError(error)
-        } else if data == nil {
+        } else if response.data == nil {
             throw GitHubClientError.missingData
         } else {
             do {
-                return try JSONSerialization.jsonObject(with: data!, options: [])
+                return try JSONSerialization.jsonObject(with: response.data!, options: [])
             } catch {
                 throw GitHubClientError.decodingError(error)
             }
