@@ -19,12 +19,12 @@ enum LocalVersionsControllerError: FatalError {
 
 class LocalVersionsController: LocalVersionsControlling {
     /// Environment controller.
-    let environmentController: LocalEnvironmentControlling
+    let environmentController: EnvironmentControlling
 
     /// File manager.
     let fileManager: FileManager = .default
 
-    init(environmentController: LocalEnvironmentControlling) {
+    init(environmentController: EnvironmentControlling) {
         self.environmentController = environmentController
     }
 

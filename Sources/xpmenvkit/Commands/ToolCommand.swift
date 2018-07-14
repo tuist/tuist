@@ -21,14 +21,14 @@ public class XPMEnvCommand {
 
     public func execute() {
         do {
-            let environmentController = LocalEnvironmentController()
+            let environmentController = EnvironmentController()
             try environmentController.setup()
             let githubClient = GitHubClient()
             let localVersionsController = LocalVersionsController(environmentController: environmentController)
             let versionResolver = VersionResolver()
             let updatesController = UpdatesController(client: githubClient,
                                                       localVersionsController: localVersionsController)
-            let releaseDownloader = ReleaseDownloader(localEnvironmentController: environmentController)
+//            let releaseDownloader = ReleaseDownloader(EnvironmentController: environmentController)
 
             let currentPath = AbsolutePath(FileManager.default.currentDirectoryPath)
             let currentDirectoryVersion = try versionResolver.resolve(path: currentPath)
@@ -37,7 +37,7 @@ public class XPMEnvCommand {
 
             /// Check and download new releases.
             if shouldCheckForUpdates, let release = try updatesController.check() {
-                try releaseDownloader.download(release: release)
+//                try releaseDownloader.download(release: release)
             }
 
             /// Determine the version that we should open

@@ -1,12 +1,23 @@
 import Basic
 import Foundation
 
-protocol LocalEnvironmentControlling: AnyObject {
+/// Protocol that defines the interface of a local environment controller.
+/// It manages the local directory where xpmenv stores the xpm versions and user settings.
+protocol EnvironmentControlling: AnyObject {
+    /// Returns the versions directory.
     var versionsDirectory: AbsolutePath { get }
+
+    /// Returns the path to the settings.
+    var settingsPath: AbsolutePath { get }
+
+    /// Sets up the local environment.
+    ///
+    /// - Throws: an error if something the directories creation fails.
     func setup() throws
 }
 
-class LocalEnvironmentController: LocalEnvironmentControlling {
+/// Local environment controller.
+class EnvironmentController: EnvironmentControlling {
     /// Returns the default local directory.
     static let defaultDirectory: AbsolutePath = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".xpm")
 
@@ -18,12 +29,15 @@ class LocalEnvironmentController: LocalEnvironmentControlling {
     /// Filemanager.
     private let fileManager: FileManager = .default
 
-    init(directory: AbsolutePath = LocalEnvironmentController.defaultDirectory) {
+    init(directory: AbsolutePath = EnvironmentController.defaultDirectory) {
         self.directory = directory
     }
 
-    // MARK: - LocalEnvironmentControlling
+    // MARK: - EnvironmentControlling
 
+    /// Sets up the local environment.
+    ///
+    /// - Throws: an error if something the directories creation fails.
     func setup() throws {
         if !fileManager.fileExists(atPath: directory.asString) {
             try fileManager.createDirectory(atPath: directory.asString, withIntermediateDirectories: true, attributes: nil)
@@ -36,5 +50,10 @@ class LocalEnvironmentController: LocalEnvironmentControlling {
     /// Returns the directory where all the versions are.
     var versionsDirectory: AbsolutePath {
         return directory.appending(component: "Versions")
+    }
+
+    /// Settings path.
+    var settingsPath: AbsolutePath {
+        return directory.appending(component: "settings.json")
     }
 }

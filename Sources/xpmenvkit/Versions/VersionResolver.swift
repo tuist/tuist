@@ -2,6 +2,17 @@ import Basic
 import Foundation
 import Utility
 
+/// Resolved version.
+///
+/// - local: An existing local version.
+/// - pinned: A pinned version.
+/// - unspecified: When no version has been specified.
+enum ResolvedVersion {
+    case local(AbsolutePath)
+    case pinned(Version)
+    case unspecified
+}
+
 protocol VersionResolving: AnyObject {
     func resolve(path: AbsolutePath) throws -> Version?
 }
