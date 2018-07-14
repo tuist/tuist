@@ -1,15 +1,32 @@
 import Foundation
 import Utility
 
+enum ReleaseDecodeError: FatalError, Equatable {
+    case invalidVersionFormat(String)
+
+    var errorDescription: String {
+        switch self {
+        case let .invalidVersionFormat(version):
+            return "Invalid release version format: \(version). It should have a valid semver format: x.y.z."
+        }
+    }
+
+    static func == (lhs: ReleaseDecodeError, rhs: ReleaseDecodeError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.invalidVersionFormat(lhsVersion), .invalidVersionFormat(rhsVersion)):
+            return lhsVersion == rhsVersion
+        }
+    }
+}
+
 /// GitHub release.
-struct Release {
+struct Release: Decodable {
     /// Release asset.
-    struct Asset {
+    struct Asset: Decodable {
         let downloadURL: Foundation.URL
 
-        init?(json: [String: Any]) {
-            guard let downloadURLString = json["browser_download_url"] as? String else { return nil }
-            downloadURL = URL(string: downloadURLString)!
+        enum CodingKeys: String, CodingKey {
+            case downloadURL = "browser_download_url"
         }
     }
 
@@ -22,24 +39,30 @@ struct Release {
     let version: Version
 
     /// Name
-    let name: String
+    let name: String?
 
     /// Body
-    let body: String
+    let body: String?
 
     /// Release assets
     let assets: [Asset]
 
-    init?(json: [String: Any]) {
-        guard let versionString = json["tag_name"] as? String, let version = Version(string: versionString) else { return nil }
-        guard let id = json["id"] as? Int else { return nil }
-        guard let body = json["body"] as? String else { return nil }
-        guard let name = json["name"] as? String else { return nil }
-        guard let assets = json["assets"] as? [[String: Any]] else { return nil }
-        self.id = id
+    enum CodingKeys: String, CodingKey {
+        case id
+        case version = "tag_name"
+        case name
+        case body
+        case assets
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        let versionString: String = try container.decode(String.self, forKey: .version)
+        guard let version = Version(string: versionString) else { throw ReleaseDecodeError.invalidVersionFormat(versionString) }
         self.version = version
-        self.body = body
-        self.name = name
-        self.assets = assets.compactMap(Asset.init)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        body = try container.decodeIfPresent(String.self, forKey: .body)
+        assets = try container.decode([Asset].self, forKey: .assets)
     }
 }
