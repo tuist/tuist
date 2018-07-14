@@ -1,4 +1,5 @@
 import Foundation
+import xpmcore
 
 /// Error handling protocol.
 protocol ErrorHandling: AnyObject {

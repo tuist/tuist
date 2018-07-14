@@ -1,4 +1,5 @@
 import Foundation
+import xpmcore
 
 /// Utils class that contains dependencies used by commands.
 protocol CommandsContexting: Contexting {

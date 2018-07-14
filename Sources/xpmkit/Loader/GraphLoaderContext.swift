@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 /// Protocol that defines the interface of the context that is used during the graph loading.
 protocol GraphLoaderContexting: Contexting {

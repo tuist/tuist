@@ -1,4 +1,5 @@
 import Foundation
+import xpmcore
 
 /// Context protocol.
 protocol Contexting: AnyObject {

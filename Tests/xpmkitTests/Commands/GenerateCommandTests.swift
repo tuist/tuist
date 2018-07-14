@@ -3,6 +3,7 @@ import Foundation
 import Utility
 @testable import xcodeproj
 import XCTest
+@testable import xpmcoreTesting
 @testable import xpmkit
 
 final class GenerateCommandTests: XCTestCase {

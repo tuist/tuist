@@ -58,9 +58,17 @@ public class XPMEnvCommand {
 
             let cliPath = path.appending(component: "xpm")
 
+            var arguments: [String] = [cliPath.asString]
             /// We drop the first element, which is the path to this executable.
-            let exitStatus = Process.run(path: cliPath.asString, arguments: Array(CommandLine.arguments.dropFirst()))
-            exit(exitStatus)
+            arguments.append(contentsOf: Array(CommandLine.arguments.dropFirst()))
+            let status: ProcessResult.ExitStatus = try Process.popen(arguments: arguments).exitStatus
+            if case let ProcessResult.ExitStatus.signalled(code) = status {
+                exit(code)
+            } else if case let ProcessResult.ExitStatus.terminated(code) = status {
+                exit(code)
+            } else {
+                exit(0)
+            }
         } catch let error as FatalError {
             let message = """
             \("Error:".bold().red()) \(error.errorDescription)

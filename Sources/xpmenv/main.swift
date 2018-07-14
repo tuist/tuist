@@ -1,4 +1,5 @@
 import Foundation
 import xpmenvkit
 
-XPMEnvCommand().execute()
+var registry = CommandRegistry()
+try registry.run()

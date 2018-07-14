@@ -1,4 +1,5 @@
 import Foundation
+import xpmcore
 
 /// Generator context protocol.
 protocol GeneratorContexting: Contexting {

@@ -2,7 +2,7 @@ import Basic
 import Foundation
 
 /// Protocol that represents an object that can print messages.
-protocol Printing: AnyObject {
+public protocol Printing: AnyObject {
     /// Prints a message on the console.
     ///
     /// - Parameter text: message to be printed.
@@ -25,15 +25,17 @@ protocol Printing: AnyObject {
 }
 
 /// Default printer that conforms the printing protocol.
-class Printer: Printing {
+public class Printer: Printing {
     // swiftlint:disable force_cast
     let terminalController: TerminalController = TerminalController(stream: stdoutStream as! LocalFileOutputByteStream)!
     // swiftlint:enable force_cast
 
+    public init() {}
+
     /// Prints a message on the console.
     ///
     /// - Parameter text: message to be printed.
-    func print(_ text: String) {
+    public func print(_ text: String) {
         let writer = InteractiveWriter.stdout
         writer.write(text)
         writer.write("\n")
@@ -42,7 +44,7 @@ class Printer: Printing {
     /// Prints an error.
     ///
     /// - Parameter error: error to be printed.
-    func print(error: Error) {
+    public func print(error: Error) {
         let writer = InteractiveWriter.stderr
         writer.write("Error: ", inColor: .red, bold: true)
         writer.write(error.localizedDescription)
@@ -52,7 +54,7 @@ class Printer: Printing {
     /// Prints an error message.
     ///
     /// - Parameter errorMessage: error message.
-    func print(errorMessage: String) {
+    public func print(errorMessage: String) {
         let writer = InteractiveWriter.stderr
         writer.write("Error: ", inColor: .red, bold: true)
         writer.write(errorMessage)
@@ -62,7 +64,7 @@ class Printer: Printing {
     /// Prints an error.
     ///
     /// - Parameter error: error to be printed.
-    func print(section: String) {
+    public func print(section: String) {
         let writer = InteractiveWriter.stdout
         writer.write("\(section)", inColor: .green, bold: true)
         writer.write("\n")

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import xpmcoreTesting
 @testable import xpmkit
 
 fileprivate struct TestError: FatalError {
