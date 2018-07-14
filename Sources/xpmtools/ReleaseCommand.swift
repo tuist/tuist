@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 public class ReleaseCommand: NSObject, Command {
     public static let command = "release"

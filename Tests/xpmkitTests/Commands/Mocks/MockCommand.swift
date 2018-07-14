@@ -1,5 +1,6 @@
 import Foundation
 import Utility
+import xpmcore
 @testable import xpmkit
 
 final class MockCommand: Command {

@@ -1,5 +1,6 @@
 import Foundation
 import Utility
+import xpmcore
 
 /// Command that updates the app.
 public class UpdateCommand: NSObject, Command {

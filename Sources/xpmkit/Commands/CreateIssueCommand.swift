@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 /// Command that opens the issue creation website on GitHub.
 public class CreateIssueCommand: NSObject, Command {

@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 /// Command that outputs the version of the tool.
 public class VersionCommand: NSObject, Command {

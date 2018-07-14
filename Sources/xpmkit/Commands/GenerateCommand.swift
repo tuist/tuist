@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 public class GenerateCommand: NSObject, Command {
     /// Command name (static).

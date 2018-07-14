@@ -55,7 +55,7 @@ let package = Package(
             dependencies: ["ProjectDescription"]),
         .target(
             name: "xpmtools",
-            dependencies: ["Utility"]),
+            dependencies: ["Utility", "xpmcore"]),
         .testTarget(
             name: "xpmtoolsTests",
             dependencies: ["xpmtools"]),

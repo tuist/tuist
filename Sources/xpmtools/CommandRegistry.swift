@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 public final class CommandRegistry {
     let parser: ArgumentParser
