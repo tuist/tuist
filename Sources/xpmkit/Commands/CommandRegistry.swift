@@ -47,7 +47,7 @@ public final class CommandRegistry {
         parser = ArgumentParser(commandName: "xpm",
                                 usage: "<command> <options>",
                                 overview: "Generate, build and test your Xcode projects.",
-                                seeAlso: "")
+                                seeAlso: "http://docs.xcodepm.com/")
         self.processArguments = processArguments
     }
 
