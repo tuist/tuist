@@ -24,7 +24,8 @@ public final class CommandRegistry {
 
     /// Default constructor.
     public convenience init() {
-        self.init(processArguments: CommandRegistry.processArguments)
+        self.init(processArguments: CommandRegistry.processArguments,
+                  commands: [LocalCommand.self])
     }
 
     /// Initializes the command registrry with its attributes.

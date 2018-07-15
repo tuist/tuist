@@ -71,11 +71,6 @@ enum VersionResolverError: FatalError, Equatable {
 /// The tool looks up recursively the directory and its ancestors until it finds a .xpm-version
 /// If a version is not defined it returns nil.
 class VersionResolver: VersionResolving {
-    /// Version file name.
-    static let fileName = ".xpm-version"
-
-    /// Directory that contains the binary.
-    static let binName = ".xpm-bin"
 
     // MARK: - Attributes
 
@@ -111,8 +106,8 @@ class VersionResolver: VersionResolving {
     /// - Throws: an error if the resolution fails. It can happen if the .xpm-version has an invalid format
     ///   or cannot be read or the bundled binary is in a invalid state.
     fileprivate func resolveTraversing(from path: AbsolutePath) throws -> ResolvedVersion {
-        let versionPath = path.appending(component: VersionResolver.fileName)
-        let binPath = path.appending(component: VersionResolver.binName)
+        let versionPath = path.appending(component: Constants.versionFileName)
+        let binPath = path.appending(component: Constants.binFolderName)
         if fileManager.fileExists(atPath: binPath.asString) {
             return .bin(binPath)
         } else if fileManager.fileExists(atPath: versionPath.asString) {

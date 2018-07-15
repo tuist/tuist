@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import XCTest
+import xpmcore
 @testable import xpmenvkit
 
 final class VersionResolverErrorTests: XCTestCase {
@@ -27,14 +28,6 @@ final class VersionResolverTests: XCTestCase {
         subject = VersionResolver(settingsController: settingsController)
     }
 
-    func test_fileName() {
-        XCTAssertEqual(VersionResolver.fileName, ".xpm-version")
-    }
-
-    func test_binName() {
-        XCTAssertEqual(VersionResolver.binName, ".xpm-bin")
-    }
-
     func test_resolve_when_canary_defined() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let reference = "reference"
@@ -48,8 +41,8 @@ final class VersionResolverTests: XCTestCase {
 
     func test_resolve_when_version_and_bin() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let versionPath = tmp_dir.path.appending(component: VersionResolver.fileName)
-        let binPath = tmp_dir.path.appending(component: VersionResolver.binName)
+        let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
+        let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
 
         // /tmp/dir/.xpm-version
         try "3.2.1".write(to: URL(fileURLWithPath: versionPath.asString),
@@ -66,7 +59,7 @@ final class VersionResolverTests: XCTestCase {
 
     func test_resolve_when_version() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let versionPath = tmp_dir.path.appending(component: VersionResolver.fileName)
+        let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
 
         // /tmp/dir/.xpm-version
         try "3.2.1".write(to: URL(fileURLWithPath: versionPath.asString),
@@ -79,7 +72,7 @@ final class VersionResolverTests: XCTestCase {
 
     func test_resolve_when_bin() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let binPath = tmp_dir.path.appending(component: VersionResolver.binName)
+        let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
 
         // /tmp/dir/.xpm-bin
         try FileManager.default.createDirectory(at: URL(fileURLWithPath: binPath.asString),
@@ -92,7 +85,7 @@ final class VersionResolverTests: XCTestCase {
 
     func test_resolve_when_version_in_parent_directory() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let versionPath = tmp_dir.path.appending(component: VersionResolver.fileName)
+        let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
         let childPath = tmp_dir.path.appending(component: "child")
 
         // /tmp/dir/.xpm-version
@@ -109,7 +102,7 @@ final class VersionResolverTests: XCTestCase {
 
     func test_resolve_when_bin_in_parent_directory() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let binPath = tmp_dir.path.appending(component: VersionResolver.binName)
+        let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
         let childPath = tmp_dir.path.appending(component: "child")
 
         // /tmp/dir/.xpm-bin
