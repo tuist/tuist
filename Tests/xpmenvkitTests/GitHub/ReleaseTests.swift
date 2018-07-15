@@ -6,7 +6,7 @@ import XCTest
 final class ReleaseDecodeErrorTests: XCTestCase {
     func test_errorDescription() {
         let expected = "Invalid release version format: 3.2. It should have a valid semver format: x.y.z."
-        XCTAssertEqual(ReleaseDecodeError.invalidVersionFormat("3.2").errorDescription, expected)
+        XCTAssertEqual(ReleaseDecodeError.invalidVersionFormat("3.2").description, expected)
     }
 
     func test_equatable_when_invalid_version() {

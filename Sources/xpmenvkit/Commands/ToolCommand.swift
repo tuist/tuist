@@ -1,12 +1,20 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 enum XpmEnvError: FatalError {
     case noVersionAvailable
     case pathNotFound(Version)
 
-    var errorDescription: String {
+    var type: ErrorType {
+        switch self {
+        case .noVersionAvailable: return .abort
+        case .pathNotFound: return .abort
+        }
+    }
+
+    var description: String {
         switch self {
         case .noVersionAvailable:
             return "Couldn't find any local xpm version available."

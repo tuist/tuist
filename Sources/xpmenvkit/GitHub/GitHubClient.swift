@@ -1,5 +1,6 @@
 import Foundation
 import Utility
+import xpmcore
 
 protocol GitHubClienting: AnyObject {
     func execute(request: URLRequest) throws -> Any
@@ -15,7 +16,15 @@ enum GitHubClientError: FatalError {
     case missingData
     case decodingError(Error)
 
-    var errorDescription: String {
+    var type: ErrorType {
+        switch self {
+        case .sessionError: return .abort
+        case .missingData: return .abort
+        case .decodingError: return .bug
+        }
+    }
+
+    var description: String {
         switch self {
         case let .sessionError(error):
             return "Session error: \(error.localizedDescription)."

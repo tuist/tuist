@@ -44,8 +44,10 @@ public final class CommandRegistry {
         self.commandCheck = commandCheck
         self.context = context
         self.errorHandler = errorHandler
-        parser = ArgumentParser(usage: "<command> <options>",
-                                overview: "Generate, build and test your Xcode projects.")
+        parser = ArgumentParser(commandName: "xpm",
+                                usage: "<command> <options>",
+                                overview: "Generate, build and test your Xcode projects.",
+                                seeAlso: "")
         self.processArguments = processArguments
     }
 

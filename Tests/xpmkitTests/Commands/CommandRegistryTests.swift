@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import xpmcoreTesting
 @testable import xpmkit
 
 final class CommandRegistryTests: XCTestCase {

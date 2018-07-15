@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 /// Resolved version.
 ///
@@ -38,7 +39,14 @@ enum VersionResolverError: FatalError, Equatable {
     case readError(path: AbsolutePath)
     case invalidFormat(String, path: AbsolutePath)
 
-    var errorDescription: String {
+    var type: ErrorType {
+        switch self {
+        case .readError: return .abort
+        case .invalidFormat: return .bug
+        }
+    }
+
+    var description: String {
         switch self {
         case let .readError(path):
             return "Cannot read the version file at path \(path.asString)."

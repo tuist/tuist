@@ -1,8 +1,7 @@
 import Foundation
-import xpmcore
 
 /// Error handling protocol.
-protocol ErrorHandling: AnyObject {
+public protocol ErrorHandling: AnyObject {
     /// It should be called when a fatal error happens. Depending on the error it
     /// prints, and reports the error.
     ///
@@ -11,7 +10,7 @@ protocol ErrorHandling: AnyObject {
 }
 
 /// Error handler.
-final class ErrorHandler: ErrorHandling {
+public final class ErrorHandler: ErrorHandling {
     /// Printer.
     let printer: Printing
 
@@ -21,7 +20,7 @@ final class ErrorHandler: ErrorHandling {
     /// Initializes the error handler with the printer.
     ///
     /// - Parameter printer: printer.
-    convenience init(printer: Printing = Printer()) {
+    public convenience init(printer: Printing = Printer()) {
         self.init(printer: printer, exiter: { exit($0) })
     }
 
@@ -40,7 +39,7 @@ final class ErrorHandler: ErrorHandling {
     /// prints, and reports the error.
     ///
     /// - Parameter error: error.
-    func fatal(error: FatalError) {
+    public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty && !isSilent {
             printer.print(errorMessage: error.description)

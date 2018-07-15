@@ -1,10 +1,18 @@
 import Foundation
 import Utility
+import xpmcore
 
 enum ReleaseDecodeError: FatalError, Equatable {
     case invalidVersionFormat(String)
 
-    var errorDescription: String {
+    var type: ErrorType {
+        switch self {
+        case .invalidVersionFormat:
+            return .bug
+        }
+    }
+
+    var description: String {
         switch self {
         case let .invalidVersionFormat(version):
             return "Invalid release version format: \(version). It should have a valid semver format: x.y.z."

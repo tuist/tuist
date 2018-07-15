@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import Utility
+import xpmcore
 
 protocol LocalVersionsControlling: AnyObject {
     func versions() -> [Version]
@@ -9,7 +10,13 @@ protocol LocalVersionsControlling: AnyObject {
 enum LocalVersionsControllerError: FatalError {
     case existingVersion(Version)
 
-    var errorDescription: String {
+    var type: ErrorType {
+        switch self {
+        case .existingVersion: return .abort
+        }
+    }
+
+    var description: String {
         switch self {
         case let .existingVersion(version):
             return "The version \(version.description) is already installed."
