@@ -25,10 +25,10 @@ class Settings: Codable, Equatable {
     /// - Parameters:
     ///   - lastTimeUpdatesChecked: Last time updates were checked.
     ///   - canaryReference: Environment canary reference.
-    init(lastTimeUpdatesChecked _: Date? = nil,
-         canaryReference _: String? = nil) {
-        lastTimeUpdatesChecked = nil
-        canaryReference = nil
+    init(lastTimeUpdatesChecked: Date? = nil,
+         canaryReference: String? = nil) {
+        self.lastTimeUpdatesChecked = lastTimeUpdatesChecked
+        self.canaryReference = canaryReference
     }
 
     // MARK: - Equatable

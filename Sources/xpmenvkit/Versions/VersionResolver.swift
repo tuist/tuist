@@ -7,10 +7,23 @@ import Utility
 /// - local: An existing local version.
 /// - pinned: A pinned version.
 /// - unspecified: When no version has been specified.
-enum ResolvedVersion {
+enum ResolvedVersion: Equatable {
     case bin(AbsolutePath)
     case reference(String)
     case undefined
+
+    static func == (lhs: ResolvedVersion, rhs: ResolvedVersion) -> Bool {
+        switch (lhs, rhs) {
+        case let (.bin(lhsPath), .bin(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.reference(lhsValue), .reference(rhsValue)):
+            return lhsValue == rhsValue
+        case (.undefined, .undefined):
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 protocol VersionResolving: AnyObject {
@@ -21,16 +34,27 @@ protocol VersionResolving: AnyObject {
 ///
 /// - readError: thrown when a version file cannot be read.
 /// - invalidFormat: thrown when the version file contains an invalid format.
-enum VersionResolverError: FatalError {
+enum VersionResolverError: FatalError, Equatable {
     case readError(path: AbsolutePath)
     case invalidFormat(String, path: AbsolutePath)
 
     var errorDescription: String {
         switch self {
         case let .readError(path):
-            return "Cannot read the version file at path \(path.asString)"
+            return "Cannot read the version file at path \(path.asString)."
         case let .invalidFormat(value, path):
-            return "The version \(value) at path \(path.asString) doesn't have a valid semver format (x.y.z)."
+            return "The version \(value) at path \(path.asString) doesn't have a valid semver format: x.y.z."
+        }
+    }
+
+    static func == (lhs: VersionResolverError, rhs: VersionResolverError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.readError(lhsPath), .readError(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.invalidFormat(lhsVersion, lhsPath), .invalidFormat(rhsVersion, rhsPath)):
+            return lhsVersion == rhsVersion && lhsPath == rhsPath
+        default:
+            return false
         }
     }
 }
@@ -81,10 +105,10 @@ class VersionResolver: VersionResolving {
     fileprivate func resolveTraversing(from path: AbsolutePath) throws -> ResolvedVersion {
         let versionPath = path.appending(component: VersionResolver.fileName)
         let binPath = path.appending(component: VersionResolver.binName)
-        if fileManager.fileExists(atPath: versionPath.asString) {
-            return try resolveVersionFile(path: versionPath)
-        } else if fileManager.fileExists(atPath: binPath.asString) {
+        if fileManager.fileExists(atPath: binPath.asString) {
             return .bin(binPath)
+        } else if fileManager.fileExists(atPath: versionPath.asString) {
+            return try resolveVersionFile(path: versionPath)
         }
         if path.components.count > 1 {
             return try resolveTraversing(from: path.parentDirectory)
