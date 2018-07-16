@@ -172,7 +172,7 @@ class PrecompiledNode: GraphNode {
     /// - Returns: list of architectures.
     /// - Throws: an error if architectures cannot be obtained for the framework/library.
     func architectures(shell: Shelling) throws -> [Architecture] {
-        let output = try shell.run("lipo -info \(binaryPath.asString)", environment: [:])
+        let output = try shell.runAndOutput("lipo -info \(binaryPath.asString)", environment: [:])
         let regex = try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: [])
         guard let match = regex.firstMatch(in: output, options: [], range: NSRange(location: 0, length: output.count)) else {
             throw PrecompiledNodeError.architecturesNotFound(binaryPath)
@@ -187,7 +187,7 @@ class PrecompiledNode: GraphNode {
     /// - Returns: linking type.
     /// - Throws: throws an error if the linking cannot be obtained for the framework/library.
     func linking(shell: Shelling) throws -> Linking {
-        let output = try shell.run("file \(binaryPath.asString)", environment: [:])
+        let output = try shell.runAndOutput("file \(binaryPath.asString)", environment: [:])
         return output.contains("dynamically linked") ? .dynamic : .static
     }
 }

@@ -136,7 +136,7 @@ final class Embeddable {
     func architectures() throws -> [String] {
         let shell = Shell()
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try shell.run("lipo", "-info", binPath.asString)
+        let lipoResult = try shell.runAndOutput("lipo", "-info", binPath.asString)
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)
@@ -314,7 +314,7 @@ final class Embeddable {
     /// - Throws: an error if the UUIDs cannot be obtained.
     fileprivate func uuidsFromDwarfdump(path: AbsolutePath) throws -> Set<UUID> {
         let shell = Shell()
-        let result = try shell.run("dwarfdump", "--uuid", path.asString)
+        let result = try shell.runAndOutput("dwarfdump", "--uuid", path.asString)
         var uuidCharacterSet = CharacterSet()
         uuidCharacterSet.formUnion(.letters)
         uuidCharacterSet.formUnion(.decimalDigits)

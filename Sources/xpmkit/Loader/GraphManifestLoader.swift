@@ -99,7 +99,7 @@ class GraphManifestLoader: GraphManifestLoading {
         try fileAggregator.aggregate(moduleLoader.load(path, context: context).reversed(), into: file.path)
         arguments.append(file.path.asString)
         arguments.append("--dump")
-        let jsonString: String! = try context.shell.run(arguments, environment: [:]).chuzzle()
+        let jsonString: String! = try context.shell.runAndOutput(arguments, environment: [:]).chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
