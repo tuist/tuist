@@ -10,15 +10,13 @@ final class LocalCommandTests: XCTestCase {
     var argumentParser: ArgumentParser!
     var subject: LocalCommand!
     var fileHandler: MockFileHandler!
-    var tmpDir: TemporaryDirectory!
     var printer: MockPrinter!
 
     override func setUp() {
         super.setUp()
         argumentParser = ArgumentParser(usage: "test", overview: "overview")
-        tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         printer = MockPrinter()
-        fileHandler = MockFileHandler()
+        fileHandler = try! MockFileHandler()
         subject = LocalCommand(parser: argumentParser,
                                fileHandler: fileHandler,
                                printer: printer)
@@ -39,23 +37,19 @@ final class LocalCommandTests: XCTestCase {
     }
 
     func test_run() throws {
-        fileHandler.currentPathStub = tmpDir.path
-
         let result = try argumentParser.parse(["local", "3.2.1"])
         try subject.run(with: result)
 
-        let versionPath = tmpDir.path.appending(component: Constants.versionFileName)
-        let got = try String(contentsOf: URL(fileURLWithPath: versionPath.asString))
-        XCTAssertEqual(got, "3.2.1")
+        let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+
+        XCTAssertEqual(try String(contentsOf: versionPath.url), "3.2.1")
     }
 
     func test_run_prints() throws {
-        fileHandler.currentPathStub = tmpDir.path
-
         let result = try argumentParser.parse(["local", "3.2.1"])
         try subject.run(with: result)
 
-        let versionPath = tmpDir.path.appending(component: Constants.versionFileName)
+        let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
 
         XCTAssertEqual(printer.printArgs.count, 2)
         XCTAssertEqual(printer.printArgs.first, "Generating \(Constants.versionFileName) file with version 3.2.1.")

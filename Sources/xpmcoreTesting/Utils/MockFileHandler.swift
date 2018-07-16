@@ -3,39 +3,39 @@ import Foundation
 import xpmcore
 
 public final class MockFileHandler: FileHandling {
-    public var existsStub: ((AbsolutePath) -> Bool)?
-    public var currentPathStub: AbsolutePath?
-    public var globStub: ((AbsolutePath, String) -> [AbsolutePath])?
-    public var createFolderStub: ((AbsolutePath) throws -> Void)?
-    public var deleteStub: ((AbsolutePath) throws -> Void)?
-    public var copyStub: ((AbsolutePath, AbsolutePath) -> Void)?
-    public var isFolderStub: ((AbsolutePath) -> Bool)?
+    private let fileHandler: FileHandling
+    private let currentDirectory: TemporaryDirectory
 
     public var currentPath: AbsolutePath {
-        return currentPathStub ?? AbsolutePath.current
+        return currentDirectory.path
+    }
+
+    init() throws {
+        currentDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        fileHandler = FileHandler()
     }
 
     public func exists(_ path: AbsolutePath) -> Bool {
-        return existsStub?(path) ?? false
+        return fileHandler.exists(path)
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
-        return globStub?(path, glob) ?? []
+        return fileHandler.glob(path, glob: glob)
     }
 
     public func createFolder(_ path: AbsolutePath) throws {
-        try createFolderStub?(path)
+        try fileHandler.createFolder(path)
     }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
-        copyStub?(from, to)
+        try fileHandler.copy(from: from, to: to)
     }
 
     public func delete(_ path: AbsolutePath) throws {
-        try deleteStub?(path)
+        try fileHandler.delete(path)
     }
 
     public func isFolder(_ path: AbsolutePath) -> Bool {
-        return isFolderStub?(path) ?? false
+        return fileHandler.isFolder(path)
     }
 }

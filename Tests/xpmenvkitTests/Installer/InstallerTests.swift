@@ -14,7 +14,6 @@ final class InstallerTests: XCTestCase {
     var environmentController: MockEnvironmentController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var versionsDir: AbsolutePath!
 
     override func setUp() {
         super.setUp()
@@ -22,14 +21,9 @@ final class InstallerTests: XCTestCase {
         printer = MockPrinter()
         fileHandler = FileHandler()
         buildCopier = MockBuildCopier()
+        environmentController = try! MockEnvironmentController()
+        try! fileHandler.createFolder(environmentController.versionsDirectory)
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        versionsDir = tmpDir.path.appending(component: "Versions")
-        try! fileHandler.createFolder(versionsDir)
-        environmentController = MockEnvironmentController(versionsDirectory: tmpDir.path,
-                                                          settingsPath: tmpDir.path)
-        environmentController.pathVersionStub = { version in
-            self.versionsDir.appending(component: version)
-        }
         subject = Installer(shell: shell,
                             printer: printer,
                             fileHandler: fileHandler,
@@ -69,7 +63,7 @@ final class InstallerTests: XCTestCase {
 
     func test_install_creates_a_version_file() throws {
         try subject.install(version: "3.2.1", temporaryDirectory: tmpDir)
-        let versionFilePath = versionsDir
+        let versionFilePath = environmentController.versionsDirectory
             .appending(component: "3.2.1")
             .appending(component: Constants.versionFileName)
 
@@ -79,10 +73,8 @@ final class InstallerTests: XCTestCase {
     func test_install_prints() throws {
         try subject.install(version: "3.2.1", temporaryDirectory: tmpDir)
 
-        XCTAssertEqual(printer.printSectionArgs.count, 1)
-        XCTAssertEqual(printer.printSectionArgs.first, "Installing 3.2.1 at path \(versionsDir.appending(component: "3.2.1").asString).")
-
-        XCTAssertEqual(printer.printArgs.count, 1)
-        XCTAssertEqual(printer.printArgs.first, "Version 3.2.1 installed.")
+        XCTAssertEqual(printer.printArgs.count, 2)
+        XCTAssertEqual(printer.printArgs.first, "Installing 3.2.1 at path \(environmentController.versionsDirectory.appending(component: "3.2.1").asString).")
+        XCTAssertEqual(printer.printArgs.last, "Version 3.2.1 installed.")
     }
 }

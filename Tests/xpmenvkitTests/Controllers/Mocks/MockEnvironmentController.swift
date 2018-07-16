@@ -3,17 +3,20 @@ import Foundation
 @testable import xpmenvkit
 
 class MockEnvironmentController: EnvironmentControlling {
-    var versionsDirectory: AbsolutePath
-    var settingsPath: AbsolutePath
+    let directory: TemporaryDirectory    
     var setupCallCount: UInt = 0
     var setupErrorStub: Error?
-    var pathVersionCallCount: UInt = 0
-    var pathVersionStub: ((String) -> AbsolutePath)?
 
-    init(versionsDirectory: AbsolutePath,
-         settingsPath: AbsolutePath) {
-        self.versionsDirectory = versionsDirectory
-        self.settingsPath = settingsPath
+    init() throws {
+       self.directory = try TemporaryDirectory(removeTreeOnDeinit: true)
+    }
+    
+    var versionsDirectory: AbsolutePath {
+        return self.directory.path.appending(component: "Versions")
+    }
+    
+    var settingsPath: AbsolutePath {
+        return self.directory.path.appending(component: "settings.json")
     }
 
     func setup() throws {
@@ -24,7 +27,6 @@ class MockEnvironmentController: EnvironmentControlling {
     }
 
     func path(version: String) -> AbsolutePath {
-        pathVersionCallCount += 1
-        return pathVersionStub?(version) ?? AbsolutePath("/test")
+        return versionsDirectory.appending(component: version)
     }
 }

@@ -6,17 +6,10 @@ import XCTest
 final class SettingsControllerTests: XCTestCase {
     var subject: SettingsController!
     var environmentController: MockEnvironmentController!
-    var versionsDirectory: AbsolutePath!
-    var settingsPath: AbsolutePath!
-    var tmpDir: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
-        tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        versionsDirectory = tmpDir.path.appending(component: "Versions")
-        settingsPath = tmpDir.path.appending(component: "settings.json")
-        environmentController = MockEnvironmentController(versionsDirectory: versionsDirectory,
-                                                          settingsPath: settingsPath)
+        environmentController = try! MockEnvironmentController()
         subject = SettingsController(environmentController: environmentController)
     }
 
@@ -36,6 +29,6 @@ final class SettingsControllerTests: XCTestCase {
         let settings = try subject.settings()
         settings.canaryReference = "reference"
         try subject.set(settings: settings)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: settingsPath.asString))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: environmentController.settingsPath.asString))
     }
 }

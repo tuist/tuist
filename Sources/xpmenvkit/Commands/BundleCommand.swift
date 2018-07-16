@@ -95,16 +95,21 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.asString)")
+        printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.asString).")
 
         let versionPath = environmentController.path(version: version)
 
+        // Installing
         if !fileHandler.exists(versionPath) {
             printer.print("Version \(version) not available locally. Installing...")
             try installer.install(version: version)
         }
 
+        // Copying
+        if fileHandler.exists(binFolderPath) {
+            try fileHandler.delete(binFolderPath)
+        }
         try fileHandler.copy(from: versionPath, to: binFolderPath)
-        printer.print("xpm bundle successfully at \(binFolderPath.asString)")
+        printer.print("xpm bundled successfully at \(binFolderPath.asString).")
     }
 }
