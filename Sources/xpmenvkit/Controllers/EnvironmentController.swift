@@ -10,9 +10,9 @@ protocol EnvironmentControlling: AnyObject {
     /// Returns the path of a given version.
     /// Note: The path is always returned regardless of the version existing or not.
     ///
-    /// - Parameter versionReference: version reference.
+    /// - Parameter version: version reference.
     /// - Returns: the path to the given version.
-    func path(versionReference: String) -> AbsolutePath
+    func path(version: String) -> AbsolutePath
 
     /// Returns the path to the settings.
     var settingsPath: AbsolutePath { get }
@@ -62,10 +62,10 @@ class EnvironmentController: EnvironmentControlling {
     /// Returns the path of a given version.
     /// Note: The path is always returned regardless of the version existing or not.
     ///
-    /// - Parameter versionReference: version reference.
+    /// - Parameter version: version reference.
     /// - Returns: the path to the given version.
-    func path(versionReference: String) -> AbsolutePath {
-        return versionsDirectory.appending(component: versionReference)
+    func path(version: String) -> AbsolutePath {
+        return versionsDirectory.appending(component: version)
     }
 
     /// Settings path.

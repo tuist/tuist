@@ -67,11 +67,11 @@ final class Installer: Installing {
     func install(version: String,
                  temporaryDirectory: TemporaryDirectory) throws {
         // Paths
-        let installationDirectory = environmentController.path(versionReference: version)
+        let installationDirectory = environmentController.path(version: version)
         let gitDirectory = temporaryDirectory.path.appending(component: ".git")
         let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
 
-        printer.print(section: "Installing \(version) at path \(installationDirectory.asString).")
+        printer.print("Installing \(version) at path \(installationDirectory.asString).")
 
         // Delete installation directory if it exists
         if fileHandler.exists(installationDirectory) {

@@ -27,7 +27,7 @@ final class InstallerTests: XCTestCase {
         try! fileHandler.createFolder(versionsDir)
         environmentController = MockEnvironmentController(versionsDirectory: tmpDir.path,
                                                           settingsPath: tmpDir.path)
-        environmentController.pathVersionReferenceStub = { version in
+        environmentController.pathVersionStub = { version in
             self.versionsDir.appending(component: version)
         }
         subject = Installer(shell: shell,
