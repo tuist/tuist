@@ -11,14 +11,17 @@ final class LocalCommandTests: XCTestCase {
     var subject: LocalCommand!
     var fileHandler: MockFileHandler!
     var tmpDir: TemporaryDirectory!
+    var printer: MockPrinter!
 
     override func setUp() {
         super.setUp()
         argumentParser = ArgumentParser(usage: "test", overview: "overview")
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+        printer = MockPrinter()
         fileHandler = MockFileHandler()
         subject = LocalCommand(parser: argumentParser,
-                               fileHandler: fileHandler)
+                               fileHandler: fileHandler,
+                               printer: printer)
     }
 
     func test_command() {
@@ -44,5 +47,18 @@ final class LocalCommandTests: XCTestCase {
         let versionPath = tmpDir.path.appending(component: Constants.versionFileName)
         let got = try String(contentsOf: URL(fileURLWithPath: versionPath.asString))
         XCTAssertEqual(got, "3.2.1")
+    }
+
+    func test_run_prints() throws {
+        fileHandler.currentPathStub = tmpDir.path
+
+        let result = try argumentParser.parse(["local", "3.2.1"])
+        try subject.run(with: result)
+
+        let versionPath = tmpDir.path.appending(component: Constants.versionFileName)
+
+        XCTAssertEqual(printer.printArgs.count, 2)
+        XCTAssertEqual(printer.printArgs.first, "Generating \(Constants.versionFileName) file with version 3.2.1.")
+        XCTAssertEqual(printer.printArgs.last, "File generated at path \(versionPath.asString).")
     }
 }
