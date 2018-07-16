@@ -46,7 +46,7 @@ public final class ErrorHandler: ErrorHandling {
         } else if isSilent {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
-            We are sorry for any inconviniences it might have caused.
+            We are sorry for any inconveniences it might have caused.
             """
             printer.print(errorMessage: message)
         }

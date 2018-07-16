@@ -110,6 +110,7 @@ final class BundleCommand: Command {
             try fileHandler.delete(binFolderPath)
         }
         try fileHandler.copy(from: versionPath, to: binFolderPath)
-        printer.print("xpm bundled successfully at \(binFolderPath.asString).")
+
+        printer.print(success: "xpm bundled successfully at \(binFolderPath.asString).")
     }
 }

@@ -78,7 +78,8 @@ public class Shell: Shelling {
         try process.launch()
         let result = try process.waitUntilExit()
         if result.exitStatus != .terminated(code: 0) {
-            throw ShellError(description: try result.utf8stderrOutput())
+            let arg = args.first ?? ""
+            throw ShellError(description: "There was an error running \"\(arg)\". The logs above include details about the error.")
         }
     }
 

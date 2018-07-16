@@ -6,6 +6,7 @@ public final class MockPrinter: Printing {
     public var printErrorArgs: [Error] = []
     public var printSectionArgs: [String] = []
     public var printErrorMessageArgs: [String] = []
+    public var printSuccessArgs: [String] = []
 
     public func print(_ text: String) {
         printArgs.append(text)
@@ -21,5 +22,9 @@ public final class MockPrinter: Printing {
 
     public func print(error: Error) {
         printErrorArgs.append(error)
+    }
+
+    public func print(success: String) {
+        printSuccessArgs.append(success)
     }
 }

@@ -53,11 +53,11 @@ class LocalCommand: Command {
     func run(with result: ArgumentParser.Result) throws {
         let version = result.get(versionArgument)!
         let currentPath = fileHandler.currentPath
-        printer.print("Generating \(Constants.versionFileName) file with version \(version).")
+        printer.print(section: "Generating \(Constants.versionFileName) file with version \(version).")
         let xpmVersionPath = currentPath.appending(component: Constants.versionFileName)
         try "\(version)".write(to: URL(fileURLWithPath: xpmVersionPath.asString),
                                atomically: true,
                                encoding: .utf8)
-        printer.print("File generated at path \(xpmVersionPath.asString).")
+        printer.print(success: "File generated at path \(xpmVersionPath.asString).")
     }
 }

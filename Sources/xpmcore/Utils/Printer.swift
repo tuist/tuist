@@ -18,6 +18,11 @@ public protocol Printing: AnyObject {
     /// - Parameter error: error to be printed.
     func print(error: Error)
 
+    /// Prints a success message.
+    ///
+    /// - Parameter success: message.
+    func print(success: String)
+
     /// Prints an error message.
     ///
     /// - Parameter errorMessage: error message to be printed.
@@ -46,8 +51,18 @@ public class Printer: Printing {
     /// - Parameter error: error to be printed.
     public func print(error: Error) {
         let writer = InteractiveWriter.stderr
-        writer.write("Error: ", inColor: .red, bold: true)
+        writer.write("❌ Error: ", inColor: .red, bold: true)
         writer.write(error.localizedDescription)
+        writer.write("\n")
+    }
+
+    /// Prints a success message.
+    ///
+    /// - Parameter success: message.
+    public func print(success: String) {
+        let writer = InteractiveWriter.stdout
+        writer.write("✅ Success: ", inColor: .green, bold: true)
+        writer.write(success)
         writer.write("\n")
     }
 
@@ -56,7 +71,7 @@ public class Printer: Printing {
     /// - Parameter errorMessage: error message.
     public func print(errorMessage: String) {
         let writer = InteractiveWriter.stderr
-        writer.write("Error: ", inColor: .red, bold: true)
+        writer.write("❌ Error: ", inColor: .red, bold: true)
         writer.write(errorMessage)
         writer.write("\n")
     }
@@ -66,7 +81,10 @@ public class Printer: Printing {
     /// - Parameter error: error to be printed.
     public func print(section: String) {
         let writer = InteractiveWriter.stdout
-        writer.write("\(section)", inColor: .green, bold: true)
+        writer.write("\(section)", inColor: .cyan, bold: true)
+        writer.write("\n")
+        let separatorWith = (section.count < terminalController.width) ? section.count : terminalController.width
+        writer.write(String(repeating: "=", count: separatorWith), inColor: .cyan, bold: true)
         writer.write("\n")
     }
 }

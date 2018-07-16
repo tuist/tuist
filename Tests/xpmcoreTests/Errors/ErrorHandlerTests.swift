@@ -39,7 +39,7 @@ final class ErrorHandlerTests: XCTestCase {
         subject.fatal(error: error)
         let expected = """
         An unexpected error happened. We've opened an issue to fix it as soon as possible.
-        We are sorry for any inconviniences it might have caused.
+        We are sorry for any inconveniences it might have caused.
         """
         XCTAssertEqual(printer.printErrorMessageArgs.first, expected)
     }

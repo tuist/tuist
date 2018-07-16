@@ -113,8 +113,10 @@ final class BundleCommandTests: XCTestCase {
         XCTAssertEqual(printer.printSectionArgs.count, 1)
         XCTAssertEqual(printer.printSectionArgs.first, "Bundling the version 3.2.1 in the directory \(binPath.asString).")
 
-        XCTAssertEqual(printer.printArgs.count, 2)
+        XCTAssertEqual(printer.printArgs.count, 1)
         XCTAssertEqual(printer.printArgs.first, "Version 3.2.1 not available locally. Installing...")
-        XCTAssertEqual(printer.printArgs.last, "xpm bundled successfully at \(binPath.asString).")
+
+        XCTAssertEqual(printer.printSuccessArgs.count, 1)
+        XCTAssertEqual(printer.printSuccessArgs.first, "xpm bundled successfully at \(binPath.asString).")
     }
 }

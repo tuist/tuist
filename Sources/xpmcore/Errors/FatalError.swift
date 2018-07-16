@@ -20,7 +20,7 @@ public struct UnhandledError: FatalError {
     }
 
     public let error: Error
-    public var type: ErrorType { return .bugSilent }
+    public var type: ErrorType { return .bug }
     public var description: String { return error.localizedDescription }
 }
 

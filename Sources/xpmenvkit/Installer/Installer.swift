@@ -86,7 +86,6 @@ final class Installer: Installing {
         if fileHandler.exists(installationDirectory) {
             try fileHandler.delete(installationDirectory)
         }
-        try fileHandler.createFolder(installationDirectory)
 
         // Cloning and building
         try shell.run(["git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString], environment: [:])
@@ -94,6 +93,7 @@ final class Installer: Installing {
         try shell.run("xcrun", "swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", environment: [:])
 
         // Copying built files
+        try fileHandler.createFolder(installationDirectory)
         try buildCopier.copy(from: buildDirectory,
                              to: installationDirectory)
 

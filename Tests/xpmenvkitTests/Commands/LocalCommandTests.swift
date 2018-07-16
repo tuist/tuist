@@ -51,8 +51,10 @@ final class LocalCommandTests: XCTestCase {
 
         let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
 
-        XCTAssertEqual(printer.printArgs.count, 2)
-        XCTAssertEqual(printer.printArgs.first, "Generating \(Constants.versionFileName) file with version 3.2.1.")
-        XCTAssertEqual(printer.printArgs.last, "File generated at path \(versionPath.asString).")
+        XCTAssertEqual(printer.printSectionArgs.count, 1)
+        XCTAssertEqual(printer.printSectionArgs.first, "Generating \(Constants.versionFileName) file with version 3.2.1.")
+
+        XCTAssertEqual(printer.printSuccessArgs.count, 1)
+        XCTAssertEqual(printer.printSuccessArgs.last, "File generated at path \(versionPath.asString).")
     }
 }
