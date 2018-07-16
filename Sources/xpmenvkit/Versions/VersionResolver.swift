@@ -92,9 +92,6 @@ class VersionResolver: VersionResolving {
     /// - Parameter path: path for which the version will be resolved.
     /// - Returns: the resolved version that should be used at the given path.
     func resolve(path: AbsolutePath) throws -> ResolvedVersion {
-        if let canaryRef = try settingsController.settings().canaryReference {
-            return .reference(canaryRef)
-        }
         return try resolveTraversing(from: path)
     }
 

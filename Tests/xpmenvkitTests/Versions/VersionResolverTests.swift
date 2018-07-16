@@ -28,17 +28,6 @@ final class VersionResolverTests: XCTestCase {
         subject = VersionResolver(settingsController: settingsController)
     }
 
-    func test_resolve_when_canary_defined() throws {
-        let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let reference = "reference"
-
-        settingsController.settingsStub = Settings(canaryReference: reference)
-
-        let got = try subject.resolve(path: tmp_dir.path)
-
-        XCTAssertEqual(got, ResolvedVersion.reference(reference))
-    }
-
     func test_resolve_when_version_and_bin() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
