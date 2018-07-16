@@ -7,6 +7,13 @@ protocol EnvironmentControlling: AnyObject {
     /// Returns the versions directory.
     var versionsDirectory: AbsolutePath { get }
 
+    /// Returns the path of a given version.
+    /// Note: The path is always returned regardless of the version existing or not.
+    ///
+    /// - Parameter versionReference: version reference.
+    /// - Returns: the path to the given version.
+    func path(versionReference: String) -> AbsolutePath
+
     /// Returns the path to the settings.
     var settingsPath: AbsolutePath { get }
 
@@ -50,6 +57,15 @@ class EnvironmentController: EnvironmentControlling {
     /// Returns the directory where all the versions are.
     var versionsDirectory: AbsolutePath {
         return directory.appending(component: "Versions")
+    }
+
+    /// Returns the path of a given version.
+    /// Note: The path is always returned regardless of the version existing or not.
+    ///
+    /// - Parameter versionReference: version reference.
+    /// - Returns: the path to the given version.
+    func path(versionReference: String) -> AbsolutePath {
+        return versionsDirectory.appending(component: versionReference)
     }
 
     /// Settings path.

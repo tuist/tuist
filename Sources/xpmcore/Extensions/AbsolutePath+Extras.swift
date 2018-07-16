@@ -10,6 +10,11 @@ extension AbsolutePath {
         return AbsolutePath(FileManager.default.currentDirectoryPath)
     }
 
+    /// Returns the URL that references the absolute path.
+    public var url: URL {
+        return URL(fileURLWithPath: asString)
+    }
+
     public func glob(_ pattern: String) -> [AbsolutePath] {
         var gt = glob_t()
         let cPattern = strdup(appending(RelativePath(pattern)).asString)

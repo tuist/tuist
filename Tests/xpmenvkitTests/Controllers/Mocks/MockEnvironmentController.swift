@@ -7,6 +7,8 @@ class MockEnvironmentController: EnvironmentControlling {
     var settingsPath: AbsolutePath
     var setupCallCount: UInt = 0
     var setupErrorStub: Error?
+    var pathVersionReferenceCallCount: UInt = 0
+    var pathVersionReferenceStub: ((String) -> AbsolutePath)?
 
     init(versionsDirectory: AbsolutePath,
          settingsPath: AbsolutePath) {
@@ -19,5 +21,10 @@ class MockEnvironmentController: EnvironmentControlling {
         if let setupErrorStub = setupErrorStub {
             throw setupErrorStub
         }
+    }
+
+    func path(versionReference: String) -> AbsolutePath {
+        pathVersionReferenceCallCount += 1
+        return pathVersionReferenceStub?(versionReference) ?? AbsolutePath("/test")
     }
 }

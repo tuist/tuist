@@ -1,5 +1,5 @@
 import Foundation
-@testable import xpmcore
+import xpmcore
 
 public final class MockPrinter: Printing {
     public var printArgs: [String] = []
