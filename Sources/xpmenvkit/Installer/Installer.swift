@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import xpmcore
 
+/// The class that conforms this protocol exposes an interface to install versions of xpm.
 protocol Installing: AnyObject {
     /// Installs the version with the given reference in the local environment.
     /// It checks out the git revision and builds it using the Swift compiler.
@@ -33,6 +34,14 @@ final class Installer: Installing {
 
     // MARK: - Init
 
+    /// Initializes the installer with its attributes.
+    ///
+    /// - Parameters:
+    ///   - shell: shell.
+    ///   - printer: printer.
+    ///   - fileHandler: file handler.
+    ///   - buildCopier: build copier.
+    ///   - environmentController: environment controller.
     init(shell: Shelling = Shell(),
          printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
@@ -82,11 +91,11 @@ final class Installer: Installing {
         // Cloning and building
         try shell.run(["git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString], environment: [:])
         try shell.run("git", "--git-dir", gitDirectory.asString, "checkout", version, environment: [:])
-        try shell.run("xcrun", "swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release",
-                      environment: [:])
+        try shell.run("xcrun", "swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", environment: [:])
 
         // Copying built files
-        try buildCopier.copy(from: buildDirectory, to: installationDirectory)
+        try buildCopier.copy(from: buildDirectory,
+                             to: installationDirectory)
 
         // Create .xpm-version file
         let xpmVersionPath = installationDirectory.appending(component: Constants.versionFileName)

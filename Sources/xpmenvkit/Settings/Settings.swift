@@ -33,6 +33,12 @@ class Settings: Codable, Equatable {
 
     // MARK: - Equatable
 
+    /// Compares two instances of Settings.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are equal.
     static func == (lhs: Settings, rhs: Settings) -> Bool {
         return lhs.lastTimeUpdatesChecked == rhs.lastTimeUpdatesChecked &&
             lhs.canaryReference == rhs.canaryReference

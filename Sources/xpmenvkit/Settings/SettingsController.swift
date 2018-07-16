@@ -1,7 +1,7 @@
 import Foundation
 import xpmcore
 
-/// Protocol that represents a controller for accessing the user settings.
+/// The class that conforms this protocol exposes an interface for interacting with the user settings.
 protocol SettingsControlling: AnyObject {
     /// It fetches the current settings.
     ///
@@ -16,6 +16,7 @@ protocol SettingsControlling: AnyObject {
     func set(settings: Settings) throws
 }
 
+/// Controller to manage user settings.
 class SettingsController: SettingsControlling {
 
     // MARK: - Attributes
