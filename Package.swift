@@ -25,7 +25,7 @@ let package = Package(
             dependencies: ["xpmcore"]),
         .testTarget(
             name: "xpmcoreTests",
-            dependencies: ["xpmcore"]),
+            dependencies: ["xpmcore", "xpmcoreTesting"]),
         .target(
             name: "xpmkit",
             dependencies: ["xcodeproj", "Utility", "xpmcore"]),
@@ -43,7 +43,7 @@ let package = Package(
             dependencies: ["Utility", "xpmcore"]),
         .testTarget(
             name: "xpmenvkitTests",
-            dependencies: ["xpm", "xpmcoreTesting"]),
+            dependencies: ["xpmenvkit", "xpmcoreTesting"]),
         .target(
             name: "xpmenv",
             dependencies: ["xpmenvkit"]),

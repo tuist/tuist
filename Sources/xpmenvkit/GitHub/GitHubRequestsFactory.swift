@@ -1,6 +1,6 @@
 import Foundation
 
-class GitHubRequestsProvider {
+class GitHubRequestsFactory {
     /// MARK: - Constants
 
     /// Releases repository.
@@ -21,7 +21,7 @@ class GitHubRequestsProvider {
     ///
     /// - Returns: URLRequest to fetch the project releases.
     func releases() -> URLRequest {
-        let path = "/repos/\(GitHubRequestsProvider.releasesRepository)/releases"
+        let path = "/repos/\(GitHubRequestsFactory.releasesRepository)/releases"
         let url = baseURL.appendingPathComponent(path)
         var request = URLRequest(url: url)
         request.httpMethod = "GET"

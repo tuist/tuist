@@ -2,7 +2,6 @@ import Foundation
 import XCTest
 @testable import xpmcore
 @testable import xpmcoreTesting
-@testable import xpmkit
 
 fileprivate struct TestError: FatalError {
     var description: String { return "Error" }
