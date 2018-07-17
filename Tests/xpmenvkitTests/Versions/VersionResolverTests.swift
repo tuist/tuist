@@ -56,7 +56,7 @@ final class VersionResolverTests: XCTestCase {
                           encoding: .utf8)
 
         let got = try subject.resolve(path: tmp_dir.path)
-        XCTAssertEqual(got, .reference("3.2.1"))
+        XCTAssertEqual(got, .versionFile(versionPath, "3.2.1"))
     }
 
     func test_resolve_when_bin() throws {
@@ -86,7 +86,7 @@ final class VersionResolverTests: XCTestCase {
                                                 attributes: nil)
 
         let got = try subject.resolve(path: childPath)
-        XCTAssertEqual(got, .reference("3.2.1"))
+        XCTAssertEqual(got, .versionFile(versionPath, "3.2.1"))
     }
 
     func test_resolve_when_bin_in_parent_directory() throws {

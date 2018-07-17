@@ -7,20 +7,8 @@ protocol EnvironmentControlling: AnyObject {
     /// Returns the versions directory.
     var versionsDirectory: AbsolutePath { get }
 
-    /// Returns the path of a given version.
-    /// Note: The path is always returned regardless of the version existing or not.
-    ///
-    /// - Parameter version: version reference.
-    /// - Returns: the path to the given version.
-    func path(version: String) -> AbsolutePath
-
     /// Returns the path to the settings.
     var settingsPath: AbsolutePath { get }
-
-    /// Sets up the local environment.
-    ///
-    /// - Throws: an error if something the directories creation fails.
-    func setup() throws
 }
 
 /// Local environment controller.
@@ -38,6 +26,7 @@ class EnvironmentController: EnvironmentControlling {
 
     init(directory: AbsolutePath = EnvironmentController.defaultDirectory) {
         self.directory = directory
+        setup()
     }
 
     // MARK: - EnvironmentControlling
@@ -45,27 +34,19 @@ class EnvironmentController: EnvironmentControlling {
     /// Sets up the local environment.
     ///
     /// - Throws: an error if something the directories creation fails.
-    func setup() throws {
+    private func setup() {
+        // Note: It should be safe to use try! here
         if !fileManager.fileExists(atPath: directory.asString) {
-            try fileManager.createDirectory(atPath: directory.asString, withIntermediateDirectories: true, attributes: nil)
+            try! fileManager.createDirectory(atPath: directory.asString, withIntermediateDirectories: true, attributes: nil)
         }
         if !fileManager.fileExists(atPath: versionsDirectory.asString) {
-            try fileManager.createDirectory(atPath: versionsDirectory.asString, withIntermediateDirectories: true, attributes: nil)
+            try! fileManager.createDirectory(atPath: versionsDirectory.asString, withIntermediateDirectories: true, attributes: nil)
         }
     }
 
     /// Returns the directory where all the versions are.
     var versionsDirectory: AbsolutePath {
         return directory.appending(component: "Versions")
-    }
-
-    /// Returns the path of a given version.
-    /// Note: The path is always returned regardless of the version existing or not.
-    ///
-    /// - Parameter version: version reference.
-    /// - Returns: the path to the given version.
-    func path(version: String) -> AbsolutePath {
-        return versionsDirectory.appending(component: version)
     }
 
     /// Settings path.

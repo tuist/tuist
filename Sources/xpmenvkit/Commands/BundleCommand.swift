@@ -39,8 +39,8 @@ final class BundleCommand: Command {
     /// Command overview.
     static var overview: String = "Bundles the version specified in the .xpm-version file into the .xpm-bin directory."
 
-    /// Environment controller.
-    private let environmentController: EnvironmentControlling
+    /// Versions controller.
+    private let versionsController: VersionsControlling
 
     /// File handler.
     private let fileHandler: FileHandling
@@ -56,7 +56,7 @@ final class BundleCommand: Command {
     /// - Parameter parser: argument parser.
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  environmentController: EnvironmentController(),
+                  versionsController: VersionsController(),
                   fileHandler: FileHandler(),
                   printer: Printer(),
                   installer: Installer())
@@ -66,17 +66,17 @@ final class BundleCommand: Command {
     ///
     /// - Parameters:
     ///   - parser: argument parser.
-    ///   - environmentController: environment controller.
+    ///   - versionsController: versions controller.
     ///   - fileHandler: file handler.
     ///   - printer: printer.
     ///   - installer: installer.
     init(parser: ArgumentParser,
-         environmentController: EnvironmentControlling,
+         versionsController: VersionsControlling,
          fileHandler: FileHandling,
          printer: Printing,
          installer: Installing) {
         _ = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
-        self.environmentController = environmentController
+        self.versionsController = versionsController
         self.fileHandler = fileHandler
         self.printer = printer
         self.installer = installer
@@ -97,7 +97,7 @@ final class BundleCommand: Command {
         let version = try String(contentsOf: versionFilePath.url)
         printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.asString).")
 
-        let versionPath = environmentController.path(version: version)
+        let versionPath = versionsController.path(version: version)
 
         // Installing
         if !fileHandler.exists(versionPath) {

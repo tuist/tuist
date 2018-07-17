@@ -20,7 +20,7 @@ final class BundleCommandErrorTests: XCTestCase {
 
 final class BundleCommandTests: XCTestCase {
     var parser: ArgumentParser!
-    var environmentController: MockEnvironmentController!
+    var versionsController: MockVersionsController!
     var fileHandler: MockFileHandler!
     var printer: MockPrinter!
     var installer: MockInstaller!
@@ -30,13 +30,13 @@ final class BundleCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         parser = ArgumentParser(usage: "test", overview: "overview")
-        environmentController = try! MockEnvironmentController()
+        versionsController = try! MockVersionsController()
         fileHandler = try! MockFileHandler()
         printer = MockPrinter()
         installer = MockInstaller()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         subject = BundleCommand(parser: parser,
-                                environmentController: environmentController,
+                                versionsController: versionsController,
                                 fileHandler: fileHandler,
                                 printer: printer,
                                 installer: installer)
@@ -69,7 +69,7 @@ final class BundleCommandTests: XCTestCase {
         try "3.2.1".write(to: xpmVersionPath.url, atomically: true, encoding: .utf8)
 
         installer.installStub = { versionToInstall in
-            let versionPath = self.environmentController.path(version: versionToInstall)
+            let versionPath = self.versionsController.path(version: versionToInstall)
             try self.fileHandler.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }
@@ -87,7 +87,7 @@ final class BundleCommandTests: XCTestCase {
         let result = try parser.parse([])
         let xpmVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: xpmVersionPath.url, atomically: true, encoding: .utf8)
-        let versionPath = environmentController.path(version: "3.2.1")
+        let versionPath = versionsController.path(version: "3.2.1")
         try fileHandler.createFolder(versionPath)
 
         try subject.run(with: result)
@@ -103,7 +103,7 @@ final class BundleCommandTests: XCTestCase {
         try "3.2.1".write(to: xpmVersionPath.url, atomically: true, encoding: .utf8)
 
         installer.installStub = { versionToInstall in
-            let versionPath = self.environmentController.path(version: versionToInstall)
+            let versionPath = self.versionsController.path(version: versionToInstall)
             try self.fileHandler.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }

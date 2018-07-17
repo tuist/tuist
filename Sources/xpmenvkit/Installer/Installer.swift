@@ -29,8 +29,8 @@ final class Installer: Installing {
     /// Build copier.
     let buildCopier: BuildCopying
 
-    /// Environment controller.
-    let environmentController: EnvironmentControlling
+    /// Versions controller.
+    let versionsController: VersionsControlling
 
     // MARK: - Init
 
@@ -41,17 +41,17 @@ final class Installer: Installing {
     ///   - printer: printer.
     ///   - fileHandler: file handler.
     ///   - buildCopier: build copier.
-    ///   - environmentController: environment controller.
+    ///   - versionsController: versions controller.
     init(shell: Shelling = Shell(),
          printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
          buildCopier: BuildCopying = BuildCopier(),
-         environmentController: EnvironmentControlling = EnvironmentController()) {
+         versionsController: VersionsControlling = VersionsController()) {
         self.shell = shell
         self.printer = printer
         self.fileHandler = fileHandler
         self.buildCopier = buildCopier
-        self.environmentController = environmentController
+        self.versionsController = versionsController
     }
 
     // MARK: - Installing
@@ -75,32 +75,33 @@ final class Installer: Installing {
     /// - Throws: an error if the installation fails. It can happen if the repository cannot be cloned, the reference doesn't exist, or the compilation fails.
     func install(version: String,
                  temporaryDirectory: TemporaryDirectory) throws {
-        // Paths
-        let installationDirectory = environmentController.path(version: version)
-        let gitDirectory = temporaryDirectory.path.appending(component: ".git")
-        let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
+        try versionsController.install(version: version) { installationDirectory in
+            // Paths
+            let gitDirectory = temporaryDirectory.path.appending(component: ".git")
+            let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
 
-        printer.print("Installing \(version) at path \(installationDirectory.asString).")
+            printer.print("Installing \(version) at path \(installationDirectory.asString).")
 
-        // Delete installation directory if it exists
-        if fileHandler.exists(installationDirectory) {
-            try fileHandler.delete(installationDirectory)
+            // Delete installation directory if it exists
+            if fileHandler.exists(installationDirectory) {
+                try fileHandler.delete(installationDirectory)
+            }
+
+            // Cloning and building
+            try shell.run(["git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString], environment: [:])
+            try shell.run("git", "--git-dir", gitDirectory.asString, "checkout", version, environment: [:])
+            try shell.run("xcrun", "swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", environment: [:])
+
+            // Copying built files
+            try fileHandler.createFolder(installationDirectory)
+            try buildCopier.copy(from: buildDirectory,
+                                 to: installationDirectory)
+
+            // Create .xpm-version file
+            let xpmVersionPath = installationDirectory.appending(component: Constants.versionFileName)
+            try "\(version)".write(to: xpmVersionPath.url, atomically: true, encoding: .utf8)
+
+            printer.print("Version \(version) installed.")
         }
-
-        // Cloning and building
-        try shell.run(["git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString], environment: [:])
-        try shell.run("git", "--git-dir", gitDirectory.asString, "checkout", version, environment: [:])
-        try shell.run("xcrun", "swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", environment: [:])
-
-        // Copying built files
-        try fileHandler.createFolder(installationDirectory)
-        try buildCopier.copy(from: buildDirectory,
-                             to: installationDirectory)
-
-        // Create .xpm-version file
-        let xpmVersionPath = installationDirectory.appending(component: Constants.versionFileName)
-        try "\(version)".write(to: xpmVersionPath.url, atomically: true, encoding: .utf8)
-
-        printer.print("Version \(version) installed.")
     }
 }

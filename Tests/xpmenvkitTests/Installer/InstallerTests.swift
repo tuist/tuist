@@ -11,7 +11,7 @@ final class InstallerTests: XCTestCase {
     var printer: MockPrinter!
     var fileHandler: FileHandler!
     var buildCopier: MockBuildCopier!
-    var environmentController: MockEnvironmentController!
+    var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
 
@@ -21,14 +21,13 @@ final class InstallerTests: XCTestCase {
         printer = MockPrinter()
         fileHandler = FileHandler()
         buildCopier = MockBuildCopier()
-        environmentController = try! MockEnvironmentController()
-        try! fileHandler.createFolder(environmentController.versionsDirectory)
+        versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         subject = Installer(shell: shell,
                             printer: printer,
                             fileHandler: fileHandler,
                             buildCopier: buildCopier,
-                            environmentController: environmentController)
+                            versionsController: versionsController)
     }
 
     func test_install_runs_the_right_commands() throws {
@@ -63,7 +62,7 @@ final class InstallerTests: XCTestCase {
 
     func test_install_creates_a_version_file() throws {
         try subject.install(version: "3.2.1", temporaryDirectory: tmpDir)
-        let versionFilePath = environmentController.versionsDirectory
+        let versionFilePath = versionsController.path
             .appending(component: "3.2.1")
             .appending(component: Constants.versionFileName)
 
@@ -74,7 +73,7 @@ final class InstallerTests: XCTestCase {
         try subject.install(version: "3.2.1", temporaryDirectory: tmpDir)
 
         XCTAssertEqual(printer.printArgs.count, 2)
-        XCTAssertEqual(printer.printArgs.first, "Installing 3.2.1 at path \(environmentController.versionsDirectory.appending(component: "3.2.1").asString).")
+        XCTAssertEqual(printer.printArgs.first, "Installing 3.2.1 at path \(versionsController.path.appending(component: "3.2.1").asString).")
         XCTAssertEqual(printer.printArgs.last, "Version 3.2.1 installed.")
     }
 }

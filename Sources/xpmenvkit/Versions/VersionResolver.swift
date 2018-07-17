@@ -10,15 +10,15 @@ import xpmcore
 /// - unspecified: When no version has been specified.
 enum ResolvedVersion: Equatable {
     case bin(AbsolutePath)
-    case reference(String)
+    case versionFile(AbsolutePath, String)
     case undefined
 
     static func == (lhs: ResolvedVersion, rhs: ResolvedVersion) -> Bool {
         switch (lhs, rhs) {
         case let (.bin(lhsPath), .bin(rhsPath)):
             return lhsPath == rhsPath
-        case let (.reference(lhsValue), .reference(rhsValue)):
-            return lhsValue == rhsValue
+        case let (.versionFile(lhsPath, lhsValue), .versionFile(rhsPath, rhsValue)):
+            return lhsValue == rhsValue && lhsPath == rhsPath
         case (.undefined, .undefined):
             return true
         default:
@@ -131,6 +131,6 @@ class VersionResolver: VersionResolving {
         guard let version = Version(string: value) else {
             throw VersionResolverError.invalidFormat(value, path: path)
         }
-        return ResolvedVersion.reference(version.description)
+        return ResolvedVersion.versionFile(path, version.description)
     }
 }

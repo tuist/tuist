@@ -85,7 +85,7 @@ public final class FileHandler: FileHandling {
     ///
     /// - Parameter path: path.
     public func createFolder(_ path: AbsolutePath) throws {
-        try FileManager.default.createDirectory(atPath: path.asString,
+        try FileManager.default.createDirectory(at: path.url,
                                                 withIntermediateDirectories: true,
                                                 attributes: nil)
     }
