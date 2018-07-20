@@ -17,7 +17,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
     /// Initializes the provisioner with its attributes.
     ///
     /// - Parameter fileHandler: file handler.
-    init(fileHandler: FileHandling) {
+    init(fileHandler: FileHandling = FileHandler()) {
         self.fileHandler = fileHandler
     }
 
