@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import xpmcore
 
 /// Loads the graph that starts at the given path.
 protocol GraphLoading: AnyObject {
@@ -11,11 +12,18 @@ class GraphLoader: GraphLoading {
     /// Graph linter
     let linter: GraphLinting
 
+    /// Printer.
+    let printer: Printing
+
     /// Initializes the graph loader.
     ///
-    /// - Parameter validator: graph validator.
-    init(linter: GraphLinting = GraphLinter()) {
+    /// - Parameters:
+    ///   - linter: graph linter.
+    ///   - printer: printer.
+    init(linter: GraphLinting = GraphLinter(),
+         printer: Printing = Printer()) {
         self.linter = linter
+        self.printer = printer
     }
 
     /// Loads the graph at the given path.
@@ -33,7 +41,7 @@ class GraphLoader: GraphLoading {
         } else {
             throw GraphLoadingError.manifestNotFound(path)
         }
-        try linter.lint(graph: graph).throwErrors()
+        try linter.lint(graph: graph).printAndThrowIfNeeded(printer: printer)
         return graph
     }
 

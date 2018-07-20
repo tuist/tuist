@@ -18,8 +18,7 @@ struct LintingError: FatalError, Equatable {
 
     /// Error description.
     var description: String {
-        let issuesDescription = issues.map({ "- \($0.description)" }).joined(separator: "\n")
-        return "The following errors have been found:\n\(issuesDescription)"
+        return issues.map({ "- \($0.description)" }).joined(separator: "\n")
     }
 
     /// Error type.
@@ -71,7 +70,7 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 
     /// Description.
     var description: String {
-        return "\(severity.rawValue.uppercased()): \(reason)"
+        return reason
     }
 
     // MARK: - Equatable
@@ -91,9 +90,28 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 // MARK: - Array Extension (Linting issues)
 
 extension Array where Element == LintingIssue {
-    func throwErrors() throws {
+    func printAndThrowIfNeeded(printer: Printing) throws {
+        if count == 0 { return }
+
         let errorIssues = filter({ $0.severity == .error })
-        if errorIssues.count == 0 { return }
-        throw LintingError(issues: errorIssues)
+        let warningIssues = filter({ $0.severity == .warning })
+
+        if warningIssues.count != 0 {
+            let message = "The following issues have been found:\n"
+            let warningsMessage = message.appending(warningIssues
+                .map({ "- \($0.description)" })
+                .joined(separator: "\n"))
+            printer.print(warning: warningsMessage)
+        }
+
+        if errorIssues.count != 0 {
+            let message = "The following critical issues have been found:\n"
+            let errorMessage = message.appending(errorIssues
+                .map({ "- \($0.description)" })
+                .joined(separator: "\n"))
+            printer.print(errorMessage: errorMessage)
+
+            throw LintingError(issues: errorIssues)
+        }
     }
 }
