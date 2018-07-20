@@ -47,7 +47,7 @@ class TargetLinter: TargetLinting {
         let sourcesPhases = target.buildPhases
             .filter({ $0 is SourcesBuildPhase })
             .count
-        if sourcesPhases == 0 { return [] }
+        if sourcesPhases <= 1 { return [] }
         return [LintingIssue(reason: "The target \(target.name) has more than one sources build phase.", severity: .error)]
     }
 
@@ -59,7 +59,7 @@ class TargetLinter: TargetLinting {
         let headerPhases = target.buildPhases
             .filter({ $0 is HeadersBuildPhase })
             .count
-        if headerPhases == 0 { return [] }
+        if headerPhases <= 1 { return [] }
         return [LintingIssue(reason: "The target \(target.name) has more than one headers build phase.", severity: .error)]
     }
 }
