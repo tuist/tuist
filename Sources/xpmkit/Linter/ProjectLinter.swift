@@ -22,12 +22,20 @@ class ProjectLinter: ProjectLinting {
         self.targetLinter = targetLinter
     }
 
+    /// Lints a project.
+    ///
+    /// - Parameter project: project to be linted.
+    /// - Returns: all the linting issues found.
     func lint(_ project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintTargets(project: project))
         return issues
     }
 
+    /// Lints the project targets.
+    ///
+    /// - Parameter project: project whose targets will be linted.
+    /// - Returns: all linting issues.
     fileprivate func lintTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: project.targets.flatMap(targetLinter.lint))
@@ -35,6 +43,10 @@ class ProjectLinter: ProjectLinting {
         return issues
     }
 
+    /// Verifies that there are no duplicated targets in the same project.
+    ///
+    /// - Parameter project: project to be linted.
+    /// - Returns: issues if there are targets duplicated.
     fileprivate func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let duplicatedTargets = project.targets.map({ $0.name })

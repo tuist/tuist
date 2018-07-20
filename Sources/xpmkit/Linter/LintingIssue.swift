@@ -90,6 +90,11 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 // MARK: - Array Extension (Linting issues)
 
 extension Array where Element == LintingIssue {
+    /// Prints all the issues using the given printer and throws
+    /// if any of the issues is an error issue.
+    ///
+    /// - Parameter printer: printer used to print the issues.
+    /// - Throws: an error if any of the issues is an error.
     func printAndThrowIfNeeded(printer: Printing) throws {
         if count == 0 { return }
 

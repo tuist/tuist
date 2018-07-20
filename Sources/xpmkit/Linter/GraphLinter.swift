@@ -1,7 +1,11 @@
 import Foundation
 
 protocol GraphLinting: AnyObject {
-    func lint(graph: Graph) -> [LintingIssue]
+    /// Lints a projects graph.
+    ///
+    /// - Parameter graph: projects graph to be linted.
+    /// - Returns: linting issues validating the graph.
+    func lint(graph: Graphing) -> [LintingIssue]
 }
 
 /// Lints the projects graph.
@@ -21,17 +25,13 @@ class GraphLinter: GraphLinting {
         self.projectLinter = projectLinter
     }
 
-    func lint(graph: Graph) -> [LintingIssue] {
+    /// Lints a projects graph.
+    ///
+    /// - Parameter graph: projects graph to be linted.
+    /// - Returns: linting issues validating the graph.
+    func lint(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: ensurePlatformsAreCompatible(graph: graph))
         issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
         return issues
     }
-
-    fileprivate func ensurePlatformsAreCompatible(graph _: Graph) -> [LintingIssue] {
-        return []
-    }
-
-    // TODO: Validate invalid platforms.
-    // TODO: Validate invalid dependencies test -> test
 }
