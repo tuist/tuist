@@ -8,14 +8,14 @@ protocol GraphLoading: AnyObject {
 
 /// Default graph loader.
 class GraphLoader: GraphLoading {
-    /// Graph validator
-    let validator: GraphValidating
+    /// Graph linter
+    let linter: GraphLinting
 
     /// Initializes the graph loader.
     ///
     /// - Parameter validator: graph validator.
-    init(validator: GraphValidating = GraphValidator()) {
-        self.validator = validator
+    init(linter: GraphLinting = GraphLinter()) {
+        self.linter = linter
     }
 
     /// Loads the graph at the given path.
@@ -33,7 +33,7 @@ class GraphLoader: GraphLoading {
         } else {
             throw GraphLoadingError.manifestNotFound(path)
         }
-        try validator.validate(graph: graph)
+        try linter.lint(graph: graph).throwErrors()
         return graph
     }
 

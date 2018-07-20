@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import Utility
 @testable import xpmenvkit
 
 final class MockVersionsController: VersionsControlling {
@@ -11,6 +12,8 @@ final class MockVersionsController: VersionsControlling {
     var installStub: ((String, Installation) throws -> Void)?
     var versionsCallCount: UInt = 0
     var versionsStub: [InstalledVersion] = []
+    var semverVersionsCount: UInt = 0
+    var semverVersionsStub: [Version] = []
 
     init() throws {
         tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -35,5 +38,10 @@ final class MockVersionsController: VersionsControlling {
     func versions() -> [InstalledVersion] {
         versionsCallCount += 1
         return versionsStub
+    }
+
+    func semverVersions() -> [Version] {
+        semverVersionsCount += 1
+        return semverVersionsStub
     }
 }

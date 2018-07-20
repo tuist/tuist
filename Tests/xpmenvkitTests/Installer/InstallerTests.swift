@@ -33,27 +33,26 @@ final class InstallerTests: XCTestCase {
     func test_install_runs_the_right_commands() throws {
         try subject.install(version: "3.2.1", temporaryDirectory: tmpDir)
 
-        XCTAssertEqual(shell.runCallCount, 3)
+        XCTAssertEqual(shell.runAndOutputArgs.count, 3)
 
         // Clone
-        let cloneCommand = shell.runArgs[0]
+        let cloneCommand = shell.runAndOutputArgs[0]
         XCTAssertEqual(cloneCommand, [
             "git", "clone", Constants.gitRepositorySSH,
             tmpDir.path.asString,
         ])
 
         // Checkout
-        let checkoutCommand = shell.runArgs[1]
+        let checkoutCommand = shell.runAndOutputArgs[1]
         XCTAssertEqual(checkoutCommand, [
             "git",
             "--git-dir", tmpDir.path.appending(component: ".git").asString,
-            "checkout", "3.2.1",
+            "checkout", "-b", "build", "3.2.1",
         ])
 
         // Build
-        let buildCommand = shell.runArgs[2]
+        let buildCommand = shell.runAndOutputArgs[2]
         XCTAssertEqual(buildCommand, [
-            "xcrun",
             "swift", "build",
             "--package-path", tmpDir.path.asString,
             "--configuration", "release",
@@ -73,7 +72,7 @@ final class InstallerTests: XCTestCase {
         try subject.install(version: "3.2.1", temporaryDirectory: tmpDir)
 
         XCTAssertEqual(printer.printArgs.count, 2)
-        XCTAssertEqual(printer.printArgs.first, "Installing 3.2.1 at path \(versionsController.path.appending(component: "3.2.1").asString).")
+        XCTAssertEqual(printer.printArgs.first, "Installing 3.2.1.")
         XCTAssertEqual(printer.printArgs.last, "Version 3.2.1 installed.")
     }
 }

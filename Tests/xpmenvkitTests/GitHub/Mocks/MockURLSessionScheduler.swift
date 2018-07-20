@@ -1,4 +1,5 @@
 import Foundation
+@testable import xpmenvkit
 
 final class MockURLSessionScheduler: URLSessionScheduling {
     var scheduleStub: ((URLRequest) -> (Error?, Data?))?
