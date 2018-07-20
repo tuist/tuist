@@ -13,6 +13,11 @@ public protocol Printing: AnyObject {
     /// - Parameter section: section title.
     func print(section: String)
 
+    /// Prints a warning message.
+    ///
+    /// - Parameter warning: message.
+    func print(warning: String)
+
     /// Prints an error.
     ///
     /// - Parameter error: error to be printed.
@@ -63,6 +68,16 @@ public class Printer: Printing {
         let writer = InteractiveWriter.stdout
         writer.write("✅ Success: ", inColor: .green, bold: true)
         writer.write(success)
+        writer.write("\n")
+    }
+
+    /// Prints a warning message.
+    ///
+    /// - Parameter warning: message.
+    public func print(warning: String) {
+        let writer = InteractiveWriter.stdout
+        writer.write("⚠️ Warning: ", inColor: .yellow, bold: true)
+        writer.write(warning)
         writer.write("\n")
     }
 

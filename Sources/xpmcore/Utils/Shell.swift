@@ -74,7 +74,8 @@ public class Shell: Shelling {
     /// - Returns: the command output.
     /// - Throws: an error if the execution fails.
     public func run(_ args: [String], environment: [String: String] = [:]) throws {
-        let process = Process(arguments: args, environment: environment, redirectOutput: false)
+        let command = ["/bin/bash", "-c", args.map({ $0.shellEscaped() }).joined(separator: " ")]
+        let process = Process(arguments: command, environment: environment, redirectOutput: false)
         try process.launch()
         let result = try process.waitUntilExit()
         if result.exitStatus != .terminated(code: 0) {
@@ -102,7 +103,8 @@ public class Shell: Shelling {
     /// - Returns: the command output.
     /// - Throws: an error if the execution fails.
     public func runAndOutput(_ args: [String], environment: [String: String] = [:]) throws -> String {
-        let process = Process(arguments: args, environment: environment, redirectOutput: true)
+        let command = ["/bin/bash", "-c", args.map({ $0.shellEscaped() }).joined(separator: " ")]
+        let process = Process(arguments: command, environment: environment, redirectOutput: true)
         try process.launch()
         let result = try process.waitUntilExit()
         if result.exitStatus == .terminated(code: 0) {

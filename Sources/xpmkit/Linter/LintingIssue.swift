@@ -1,5 +1,43 @@
 import Foundation
+import xpmcore
 
+/// Linting errors.
+struct LintingError: FatalError, Equatable {
+
+    // MARK: - Attributes
+
+    /// Linting issues.
+    private let issues: [LintingIssue]
+
+    /// Initializes the error with the linting issues.
+    ///
+    /// - Parameter issues: issues.
+    init(issues: [LintingIssue]) {
+        self.issues = issues
+    }
+
+    /// Error description.
+    var description: String {
+        return issues.map({ "- \($0.description)" }).joined(separator: "\n")
+    }
+
+    /// Error type.
+    var type: ErrorType {
+        return .abort
+    }
+
+    /// Compares two instances of LintingError.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are the same.
+    static func == (lhs: LintingError, rhs: LintingError) -> Bool {
+        return lhs.issues == rhs.issues
+    }
+}
+
+/// Linting issue.
 struct LintingIssue: CustomStringConvertible, Equatable {
     /// Issue severities.
     ///
@@ -13,10 +51,10 @@ struct LintingIssue: CustomStringConvertible, Equatable {
     // MARK: - Attributes
 
     /// Issue reason.
-    private let reason: String
+    fileprivate let reason: String
 
     /// Issue severity.
-    private let severity: Severity
+    fileprivate let severity: Severity
 
     /// Default LintingIssue constructor.
     ///
@@ -30,20 +68,55 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 
     // MARK: - CustomStringConvertible
 
+    /// Description.
     var description: String {
-        return "\(severity.rawValue.uppercased()): \(reason)"
+        return reason
     }
 
     // MARK: - Equatable
 
+    /// Compares two instances of LintingIssue.
+    ///
+    /// - Parameters:
+    ///   - lhs: first instance to be compared.
+    ///   - rhs: second instance to be compared.
+    /// - Returns: true if the two instances are equal.
     static func == (lhs: LintingIssue, rhs: LintingIssue) -> Bool {
         return lhs.severity == rhs.severity &&
             lhs.reason == rhs.reason
     }
 }
 
+// MARK: - Array Extension (Linting issues)
+
 extension Array where Element == LintingIssue {
-    func throwErrors() throws {
-        // TODO:
+    /// Prints all the issues using the given printer and throws
+    /// if any of the issues is an error issue.
+    ///
+    /// - Parameter printer: printer used to print the issues.
+    /// - Throws: an error if any of the issues is an error.
+    func printAndThrowIfNeeded(printer: Printing) throws {
+        if count == 0 { return }
+
+        let errorIssues = filter({ $0.severity == .error })
+        let warningIssues = filter({ $0.severity == .warning })
+
+        if warningIssues.count != 0 {
+            let message = "The following issues have been found:\n"
+            let warningsMessage = message.appending(warningIssues
+                .map({ "- \($0.description)" })
+                .joined(separator: "\n"))
+            printer.print(warning: warningsMessage)
+        }
+
+        if errorIssues.count != 0 {
+            let message = "The following critical issues have been found:\n"
+            let errorMessage = message.appending(errorIssues
+                .map({ "- \($0.description)" })
+                .joined(separator: "\n"))
+            printer.print(errorMessage: errorMessage)
+
+            throw LintingError(issues: errorIssues)
+        }
     }
 }

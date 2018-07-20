@@ -80,7 +80,7 @@ final class Installer: Installing {
             let gitDirectory = temporaryDirectory.path.appending(component: ".git")
             let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
 
-            printer.print("Installing \(version) at path \(installationDirectory.asString).")
+            printer.print("Installing \(version).")
 
             // Delete installation directory if it exists
             if fileHandler.exists(installationDirectory) {
@@ -88,9 +88,10 @@ final class Installer: Installing {
             }
 
             // Cloning and building
-            try shell.run(["git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString], environment: [:])
-            try shell.run("git", "--git-dir", gitDirectory.asString, "checkout", version, environment: [:])
-            try shell.run("xcrun", "swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", environment: [:])
+
+            _ = try shell.runAndOutput(["git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString], environment: [:])
+            _ = try shell.runAndOutput("git", "--git-dir", gitDirectory.asString, "checkout", "-b", "build", version, environment: [:])
+            _ = try shell.runAndOutput("swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", environment: [:])
 
             // Copying built files
             try fileHandler.createFolder(installationDirectory)

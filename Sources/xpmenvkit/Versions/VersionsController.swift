@@ -27,6 +27,11 @@ protocol VersionsControlling: AnyObject {
     ///
     /// - Returns: installed versions.
     func versions() -> [InstalledVersion]
+
+    /// Returns the list of the semver versions.
+    ///
+    /// - Returns: semver versions.
+    func semverVersions() -> [Version]
 }
 
 /// It represents an installed version that can be identified
@@ -124,6 +129,18 @@ class VersionsController: VersionsControlling {
             } else {
                 return InstalledVersion.reference(versionStringValue)
             }
+        }
+    }
+
+    /// Returns the list of the semver versions.
+    ///
+    /// - Returns: semver versions.
+    func semverVersions() -> [Version] {
+        return versions().compactMap { version in
+            if case let InstalledVersion.semver(semver) = version {
+                return semver
+            }
+            return nil
         }
     }
 }
