@@ -1,11 +1,5 @@
 import Foundation
 
-/// Target platform.
-///
-/// - ios: iOS.
-/// - macos: macOS.
-/// - watchos: watchOS.
-/// - tvos: tvOS.
 enum Platform: String {
     case iOS
     case macOS
@@ -13,10 +7,7 @@ enum Platform: String {
     case tvOS
 }
 
-// MARK: - Platform extension.
-
 extension Platform {
-    /// Returns Xcode SDKROOT value.
     var xcodeSdkRoot: String {
         switch self {
         case .macOS:
@@ -30,7 +21,6 @@ extension Platform {
         }
     }
 
-    /// Returns Xcode SUPPORTED_PLATFORMS value.
     var xcodeSupportedPlatforms: String {
         switch self {
         case .tvOS:

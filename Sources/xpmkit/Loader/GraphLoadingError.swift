@@ -2,12 +2,6 @@ import Basic
 import Foundation
 import xpmcore
 
-/// Errors that can be thrown during the graph loading process.
-///
-/// - missingFile: error thrown when a manifest is refering to a file that is missing.
-/// - targetNotFound: error thrown when a target has a dependency with another target that doesn't exist.
-/// - manifestNotFound: error thrown when a manifest cannot be found.
-/// - unexpected: unexpected error.
 enum GraphLoadingError: FatalError, Equatable {
     case missingFile(AbsolutePath)
     case targetNotFound(String, AbsolutePath)
@@ -15,12 +9,6 @@ enum GraphLoadingError: FatalError, Equatable {
     case circularDependency(GraphCircularDetectorNode, GraphCircularDetectorNode)
     case unexpected(String)
 
-    /// Compares two GraphLoadingError instances.
-    ///
-    /// - Parameters:
-    ///   - lhs: first instance to be compared.
-    ///   - rhs: second instance to be compared.
-    /// - Returns: true if the two instances are the same.
     static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
         switch (lhs, rhs) {
         case let (.missingFile(lhsPath), .missingFile(rhsPath)):
@@ -38,12 +26,10 @@ enum GraphLoadingError: FatalError, Equatable {
         }
     }
 
-    /// Error type.
     var type: ErrorType {
         return .abort
     }
 
-    /// Error description.
     var description: String {
         switch self {
         case let .manifestNotFound(path):

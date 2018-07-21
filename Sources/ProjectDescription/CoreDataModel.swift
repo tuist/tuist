@@ -1,7 +1,7 @@
 import Foundation
 
-/// CoreData model.
-public class CoreDataModel {
+/// Core Data model.
+public class CoreDataModel: JSONConvertible {
     /// Relative path to the model.
     let path: String
 

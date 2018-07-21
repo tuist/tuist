@@ -110,38 +110,15 @@ class ProjectFileElements {
     ///   - sourceRootPath: project source root path.
     func targetFiles(target: Target) -> Set<AbsolutePath> {
         var files = Set<AbsolutePath>()
-        target.buildPhases.forEach { buildPhase in
-            // Sources
-            if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
-                files.formUnion(sourcesBuildPhase.buildFiles.flatMap({ $0.paths }))
+        files.formUnion(target.sources)
+        files.formUnion(target.resources)
 
-                // Resources
-            } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
-                resourcesBuildPhase.buildFiles.forEach { buildFile in
-
-                    // Normal resources
-                    if let resourceBuildFile = buildFile as? ResourcesBuildFile {
-                        files.formUnion(resourceBuildFile.paths.map(normalize))
-
-                        // Core Data model resoureces
-                    } else if let coreDataModelBuildFile = buildFile as? CoreDataModelBuildFile {
-                        files.insert(coreDataModelBuildFile.path)
-                        files.formUnion(coreDataModelBuildFile.versions)
-                    }
-                }
-
-                // Headers
-            } else if let headersBuildPhase = buildPhase as? HeadersBuildPhase {
-                files.formUnion(headersBuildPhase.buildFiles.flatMap({ $0.paths }))
-                // Copy
-            } else if let copyFilesBuildPhase = buildPhase as? CopyBuildPhase {
-                copyFilesBuildPhase.files.forEach { buildFile in
-                    if case let CopyBuildFile.path(path) = buildFile {
-                        files.insert(path)
-                    }
-                }
-            }
+        if let headers = target.headers {
+            files.formUnion(headers.public)
+            files.formUnion(headers.private)
+            files.formUnion(headers.project)
         }
+
         // Support files
         files.insert(target.infoPlist)
         if let entitlements = target.entitlements {

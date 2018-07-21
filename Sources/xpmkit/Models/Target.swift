@@ -1,47 +1,26 @@
 import Basic
 import Foundation
+import xpmcore
 
-/// Project target.
 class Target: GraphJSONInitiatable, Equatable {
-    /// Target name.
+
+    // MARK: - Attributes
+
     let name: String
-
-    /// Platform
     let platform: Platform
-
-    /// Target product type.
     let product: Product
-
-    /// Product bundle id.
     let bundleId: String
-
-    /// Target info plist path.
     let infoPlist: AbsolutePath
-
-    /// Target entitlements path.
     let entitlements: AbsolutePath?
-
-    /// Target build settings.
     let settings: Settings?
-
-    /// Target build phases.
-    let buildPhases: [BuildPhase]
-
-    /// List of dependencies (JSON representations)
     let dependencies: [JSON]
+    let sources: [AbsolutePath]
+    let resources: [AbsolutePath]
+    let headers: Headers?
+    let coreDataModels: [CoreDataModel]
 
-    /// Initializes the target with its properties.
-    ///
-    /// - Parameters:
-    ///   - name: target name.
-    ///   - platform: target platform.
-    ///   - product: target product type.
-    ///   - bundleId: product bundle id.
-    ///   - infoPlist: info plist absolute path.
-    ///   - entitlements: entitlements absolute path.
-    ///   - settings: target settings.
-    ///   - buildPhases: target build phases.
-    ///   - dependencies: target dependencies.
+    // MARK: - Init
+
     init(name: String,
          platform: Platform,
          product: Product,
@@ -49,7 +28,10 @@ class Target: GraphJSONInitiatable, Equatable {
          infoPlist: AbsolutePath,
          entitlements: AbsolutePath? = nil,
          settings: Settings? = nil,
-         buildPhases: [BuildPhase] = [],
+         sources: [AbsolutePath] = [],
+         resources: [AbsolutePath] = [],
+         headers: Headers? = nil,
+         coreDataModels: [CoreDataModel] = [],
          dependencies: [JSON] = []) {
         self.name = name
         self.product = product
@@ -58,18 +40,14 @@ class Target: GraphJSONInitiatable, Equatable {
         self.infoPlist = infoPlist
         self.entitlements = entitlements
         self.settings = settings
-        self.buildPhases = buildPhases
+        self.sources = sources
+        self.resources = resources
+        self.headers = headers
+        self.coreDataModels = coreDataModels
         self.dependencies = dependencies
     }
 
-    /// Initializes the target from its JSON representation.
-    ///
-    /// - Parameters:
-    ///   - json: target JSON representation.
-    ///   - projectPath: path to the folder that contains the project's manifest.
-    ///   - context: graph loader  context.
-    /// - Throws: an error if build files cannot be parsed.
-    required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+    required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
         name = try json.get("name")
         let platformString: String = try json.get("platform")
         platform = Platform(rawValue: platformString)!
@@ -78,41 +56,59 @@ class Target: GraphJSONInitiatable, Equatable {
         bundleId = try json.get("bundle_id")
         let infoPlistPath: String = try json.get("info_plist")
         infoPlist = projectPath.appending(RelativePath(infoPlistPath))
-        if !context.fileHandler.exists(infoPlist) {
+        if !fileHandler.exists(infoPlist) {
             throw GraphLoadingError.missingFile(infoPlist)
         }
         let entitlementsPath: String? = try? json.get("entitlements")
         entitlements = entitlementsPath.map({ projectPath.appending(RelativePath($0)) })
-        if let entitlements = entitlements, !context.fileHandler.exists(entitlements) {
+        if let entitlements = entitlements, !fileHandler.exists(entitlements) {
             throw GraphLoadingError.missingFile(entitlements)
         }
         let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")
         settings = try settingsDictionary.map({ dictionary in
-            try Settings(json: JSON(dictionary), projectPath: projectPath, context: context)
+            try Settings(json: JSON(dictionary), projectPath: projectPath, fileHandler: fileHandler)
         })
-        let buildPhasesJSONs: [JSON] = try json.get("build_phases")
-        buildPhases = try buildPhasesJSONs.map({ try BuildPhase.parse(from: $0, projectPath: projectPath, context: context) })
+
+        let sources: String = try json.get("sources")
+        self.sources = try Target.sources(projectPath: projectPath, sources: sources, fileHandler: fileHandler)
+
+        if let resources: String = try? json.get("resources") {
+            self.resources = try Target.resources(projectPath: projectPath, sources: resources, fileHandler: fileHandler)
+        } else {
+            resources = []
+        }
+        if let headers: JSON = try? json.get("headers") {
+            self.headers = try Headers(json: headers, projectPath: projectPath, fileHandler: fileHandler)
+        } else {
+            headers = nil
+        }
+        // TODO: CoreDataModels
         dependencies = try json.get("dependencies")
     }
 
-    /// Returns true if the target can be linked.
-    ///
-    /// - Returns: true if the target can be linked.
     func isLinkable() -> Bool {
         return product == .dynamicLibrary || product == .staticLibrary || product == .framework
     }
 
-    /// Returns the product name including the extension.
     var productName: String {
         return "\(name).\(product.xcodeValue.fileExtension!)"
     }
 
-    /// Compares two targets.
-    ///
-    /// - Parameters:
-    ///   - lhs: first target to be compared.
-    ///   - rhs: second target to be compared.
-    /// - Returns: true if the two targets are the same.
+    // MARK: - Fileprivate
+
+    fileprivate static func sources(projectPath _: AbsolutePath, sources _: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
+        // static let validExtensions: [String] = ["m", "swift", "mm"]
+        // TODO:
+        return []
+    }
+
+    fileprivate static func resources(projectPath _: AbsolutePath, sources _: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
+        // TODO:
+        return []
+    }
+
+    // MARK: - Equatable
+
     static func == (lhs: Target, rhs: Target) -> Bool {
         return lhs.name == rhs.name &&
             lhs.platform == rhs.platform &&
@@ -121,7 +117,10 @@ class Target: GraphJSONInitiatable, Equatable {
             lhs.infoPlist == rhs.infoPlist &&
             lhs.entitlements == rhs.entitlements &&
             lhs.settings == rhs.settings &&
-            lhs.buildPhases == rhs.buildPhases &&
+            lhs.sources == rhs.sources &&
+            lhs.resources == rhs.resources &&
+            lhs.headers == rhs.headers &&
+            lhs.coreDataModels == rhs.coreDataModels &&
             lhs.dependencies == rhs.dependencies
     }
 }

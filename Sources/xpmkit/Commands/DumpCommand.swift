@@ -77,12 +77,10 @@ class DumpCommand: NSObject, Command {
         let projectPath = path.appending(component: Constants.Manifest.project)
         let workspacePath = path.appending(component: Constants.Manifest.workspace)
         var json: JSON!
-        // TODO: Delete
-        let context = GraphLoaderContext(context: Context())
         if fileHandler.exists(projectPath) {
-            json = try manifestLoader.load(path: projectPath, context: context)
+            json = try manifestLoader.load(path: projectPath)
         } else if fileHandler.exists(workspacePath) {
-            json = try manifestLoader.load(path: workspacePath, context: context)
+            json = try manifestLoader.load(path: workspacePath)
         } else {
             throw DumpCommandError.manifestNotFound(path)
         }
