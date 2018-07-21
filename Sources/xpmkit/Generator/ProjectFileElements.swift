@@ -3,34 +3,27 @@ import Foundation
 import xcodeproj
 
 class ProjectFileElements {
-    /// Regex used to match localized files (inside .lproj folders)
+
+    // MARK: - Static
+
     // swiftlint:disable:next force_try
     static let localizedRegex = try! NSRegularExpression(pattern: "(.+\\.lproj)/.+",
                                                          options: [])
-    /// Regex used to match files that are part of xcassets
     // swiftlint:disable:next force_try
     static let assetRegex = try! NSRegularExpression(pattern: ".+/.+\\.xcassets/.+",
                                                      options: [])
 
-    /// Elements.
-    var elements: [AbsolutePath: PBXFileElement] = [:]
+    // MARK: - Attributes
 
-    /// Products.
+    var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
 
-    /// Default constructor.
+    // MARK: - Init
+
     init(_ elements: [AbsolutePath: PBXFileElement] = [:]) {
         self.elements = elements
     }
 
-    /// Generates all the project files.
-    ///
-    /// - Parameters:
-    ///   - project: project spec.
-    ///   - graph: dependencies graph.
-    ///   - groups: project groups.
-    ///   - objects: project objects.
-    ///   - sourceRootPath: source root path.
     func generateProjectFiles(project: Project,
                               graph: Graphing,
                               groups: ProjectGroups,
@@ -63,12 +56,6 @@ class ProjectFileElements {
                  sourceRootPath: sourceRootPath)
     }
 
-    /// Returns the project file.
-    ///
-    /// - Parameters:
-    ///   - project: project specification.
-    ///   - graph: dependencies graph.
-    /// - Returns: project files that should be generated.
     func projectFiles(project: Project) -> Set<AbsolutePath> {
         var files = Set<AbsolutePath>()
 
@@ -82,32 +69,12 @@ class ProjectFileElements {
         return files
     }
 
-    /// Returns the list of the target associated product, including the target product
-    /// and any product that should be copied from a build phase.
-    ///
-    /// - Parameter target: target specification.
-    /// - Returns: product names.
     func targetProducts(target: Target) -> Set<String> {
         var products: Set<String> = Set()
         products.insert(target.productName)
-        target.buildPhases
-            .compactMap({ $0 as? CopyBuildPhase })
-            .flatMap({ $0.files })
-            .forEach { buildFile in
-                if case let CopyBuildFile.product(product) = buildFile {
-                    products.insert(product)
-                }
-            }
         return products
     }
 
-    /// Generates the target files.
-    ///
-    /// - Parameters:
-    ///   - target: target whose files will be generated.
-    ///   - groups: project groups.
-    ///   - objects: project objects.
-    ///   - sourceRootPath: project source root path.
     func targetFiles(target: Target) -> Set<AbsolutePath> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources)
@@ -135,13 +102,6 @@ class ProjectFileElements {
         return files
     }
 
-    /// Generates files in the project.
-    ///
-    /// - Parameters:
-    ///   - files: files absolute paths.
-    ///   - groups: project groups.
-    ///   - objects: project objects.
-    ///   - sourceRootPath: project source root path.
     func generate(files: [AbsolutePath],
                   groups: ProjectGroups,
                   objects: PBXObjects,
@@ -149,12 +109,6 @@ class ProjectFileElements {
         files.forEach({ generate(path: $0, groups: groups, objects: objects, sourceRootPath: sourceRootPath) })
     }
 
-    /// Generates file references for products.
-    ///
-    /// - Parameters:
-    ///   - products: products whose references will be generated.
-    ///   - groups: Xcode project groups.
-    ///   - objects: Xcode project objects.
     func generate(products: [String],
                   groups: ProjectGroups,
                   objects: PBXObjects) {
@@ -171,17 +125,6 @@ class ProjectFileElements {
         }
     }
 
-    /// Generates the references for the dependencies products. Those dependencies can be
-    /// targets in the same project, in other projects or precompiled. If dependencies are
-    /// other targets, the file references are generated in the products group, otherwise
-    /// they are generated matching their relative path to the project.
-    ///
-    /// - Parameters:
-    ///   - dependencies: dependencies whose products will be generated.
-    ///   - path: path to the folder that contains the project definition.
-    ///   - groups: project groups.
-    ///   - objects: Xcode project objects.
-    ///   - sourceRootPath: path to the folder that contains the Xcode project that is being generated.
     func generate(dependencies: Set<GraphNode>,
                   path: AbsolutePath,
                   groups: ProjectGroups,
@@ -216,13 +159,6 @@ class ProjectFileElements {
         }
     }
 
-    /// Generates a folder or file in the project. The folder or file gets added to the Files root group.
-    ///
-    /// - Parameters:
-    ///   - path: file or folder absolute path.
-    ///   - groups: project groups.
-    ///   - objects: project objects.
-    ///   - sourceRootPath: project source root path.
     func generate(path: AbsolutePath,
                   groups: ProjectGroups,
                   objects: PBXObjects,
@@ -260,15 +196,8 @@ class ProjectFileElements {
         }
     }
 
-    // MARK: - Fileprivate
+    // MARK: - Internal
 
-    /// Adds a new file or group to an existing group.
-    ///
-    /// - Parameters:
-    ///   - relative: relative path from the group that is passed.
-    ///   - from: absolute path of the group that is passed.
-    ///   - toGroup: group where the file/group should be added.
-    ///   - objects: project objects.
     @discardableResult func addElement(relativePath: RelativePath,
                                        from: AbsolutePath,
                                        toGroup: PBXGroup,
@@ -319,14 +248,6 @@ class ProjectFileElements {
         }
     }
 
-    /// Adds a localized element/s
-    ///
-    /// - Parameters:
-    ///   - from: absolute path of the group the group is being added to.
-    ///   - absolutePath: localized file absolute path.
-    ///   - relativePath: localized path relative to the group absolute path.
-    ///   - toGroup: group where the new group will be added.
-    ///   - objects: Xcode project objects.
     func addVariantGroup(from: AbsolutePath,
                          absolutePath: AbsolutePath,
                          relativePath _: RelativePath,
@@ -359,16 +280,6 @@ class ProjectFileElements {
         }
     }
 
-    /// Adds a version group element.
-    ///
-    /// - Parameters:
-    ///   - from: absolute path of the group the group is being added to.
-    ///   - folderAbsolutePath: folder absolute path.
-    ///   - folderRelativePath: folder path relative to the group absolute path.
-    ///   - name: element name.
-    ///   - toGroup: group where the new group will be added.
-    ///   - objects: Xcode project objects.
-    /// - Returns: added group.
     func addVersionGroupElement(from: AbsolutePath,
                                 folderAbsolutePath: AbsolutePath,
                                 folderRelativePath: RelativePath,
@@ -387,16 +298,6 @@ class ProjectFileElements {
         return (element: group, path: from.appending(folderRelativePath))
     }
 
-    /// Adds a normal group element.
-    ///
-    /// - Parameters:
-    ///   - from: absolute path of the group the group is being added to.
-    ///   - folderAbsolutePath: folder absolute path.
-    ///   - folderRelativePath: folder path relative to the group absolute path.
-    ///   - name: element name.
-    ///   - toGroup: group where the new group will be added.
-    ///   - objects: Xcode project objects.
-    /// - Returns: added group.
     func addGroupElement(from: AbsolutePath,
                          folderAbsolutePath: AbsolutePath,
                          folderRelativePath: RelativePath,
@@ -410,15 +311,6 @@ class ProjectFileElements {
         return (element: group, path: from.appending(folderRelativePath))
     }
 
-    /// Adds a file element.
-    ///
-    /// - Parameters:
-    ///   - from: absolute path of the group the file is being added to.
-    ///   - fileAbsolutePath: file absolute path.
-    ///   - fileRelativePath: file path relative to the group absolute path.
-    ///   - name: element name.
-    ///   - toGroup: group where the file will be added.
-    ///   - objects: Xcode project objects.
     func addFileElement(from _: AbsolutePath,
                         fileAbsolutePath: AbsolutePath,
                         fileRelativePath: RelativePath,
@@ -432,50 +324,26 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
     }
 
-    /// Returns the group at the given path if it's been added to the file elements object.
-    ///
-    /// - Parameter path: absolute path.
-    /// - Returns: the group if it exists.
     func group(path: AbsolutePath) -> PBXGroup? {
         return elements[path] as? PBXGroup
     }
 
-    /// Returns the file reference of the product with the given name.
-    ///
-    /// - Parameter name: Product name.
-    /// - Returns: product file reference.
     func product(name: String) -> PBXFileReference? {
         return products[name]
     }
 
-    /// Returns the file at the given path if it's been added to the file elements object.
-    ///
-    /// - Parameter path: absolute path.
-    /// - Returns: the file if it exists.
     func file(path: AbsolutePath) -> PBXFileReference? {
         return elements[path] as? PBXFileReference
     }
 
-    /// Returns true if a path represents a localized resource *.lproj.
-    ///
-    /// - Parameter path: path to be checked.
-    /// - Returns: true if the file is a localized file.
     func isLocalized(path: AbsolutePath) -> Bool {
         return path.extension == "lproj"
     }
 
-    /// Returns true if the path is a version group.
-    ///
-    /// - Parameter path: path.
-    /// - Returns: true if the path is a version group.
     func isVersionGroup(path: AbsolutePath) -> Bool {
         return path.extension == "xcdatamodeld"
     }
 
-    /// Returns true if the path should be a group.
-    ///
-    /// - Parameter path: path.
-    /// - Returns: true if the path should be represented as a group.
     func isGroup(path: AbsolutePath) -> Bool {
         return !isVersionGroup(path: path) && path.extension == nil
     }
@@ -486,9 +354,6 @@ class ProjectFileElements {
     ///
     /// - Example:
     ///   /test/es.lproj/Main.storyboard ~> /test/es.lproj
-    ///
-    /// - Parameter path: path to be normalized.
-    /// - Returns: normalized path.
     func normalize(_ path: AbsolutePath) -> AbsolutePath {
         let pathString = path.asString
         let range = NSRange(location: 0, length: pathString.count)
@@ -505,11 +370,6 @@ class ProjectFileElements {
     /// Returns the relative path of the closest relative element to the source root path.
     /// If source root path is /a/b/c/project/ and file path is /a/d/myfile.swift
     /// this method will return ../../../d/
-    ///
-    /// - Parameters:
-    ///   - filePath: absolute file path.
-    ///   - sourceRootPath: source root path.
-    /// - Returns: the relative path.
     func closestRelativeElementPath(path: AbsolutePath, sourceRootPath: AbsolutePath) -> RelativePath {
         let relativePathComponents = path.relative(to: sourceRootPath).components
         let firstElementComponents = relativePathComponents.reduce(into: [String]()) { components, component in

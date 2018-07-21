@@ -4,6 +4,11 @@ import xpmcore
 
 class Target: GraphJSONInitiatable, Equatable {
 
+    // MARK: - Static
+
+    static let validSourceExtensions: [String] = ["m", "swift", "mm"]
+    static let validFolderExtensions: [String] = ["framework", "bundle", "app", "appiconset"]
+
     // MARK: - Attributes
 
     let name: String
@@ -47,43 +52,59 @@ class Target: GraphJSONInitiatable, Equatable {
         self.dependencies = dependencies
     }
 
-    required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
+    required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling = FileHandler()) throws {
         name = try json.get("name")
-        let platformString: String = try json.get("platform")
-        platform = Platform(rawValue: platformString)!
-        let productString: String = try json.get("product")
-        product = Product(rawValue: productString)!
+        platform = Platform(rawValue: try json.get("platform"))!
+        product = Product(rawValue: try json.get("product"))!
         bundleId = try json.get("bundle_id")
+        dependencies = try json.get("dependencies")
+
+        // Info.plist
         let infoPlistPath: String = try json.get("info_plist")
         infoPlist = projectPath.appending(RelativePath(infoPlistPath))
         if !fileHandler.exists(infoPlist) {
             throw GraphLoadingError.missingFile(infoPlist)
         }
+
+        // Entitlements
         let entitlementsPath: String? = try? json.get("entitlements")
         entitlements = entitlementsPath.map({ projectPath.appending(RelativePath($0)) })
         if let entitlements = entitlements, !fileHandler.exists(entitlements) {
             throw GraphLoadingError.missingFile(entitlements)
         }
+
+        // Settings
         let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")
         settings = try settingsDictionary.map({ dictionary in
             try Settings(json: JSON(dictionary), projectPath: projectPath, fileHandler: fileHandler)
         })
 
+        // Sources
         let sources: String = try json.get("sources")
         self.sources = try Target.sources(projectPath: projectPath, sources: sources, fileHandler: fileHandler)
 
+        // Resources
         if let resources: String = try? json.get("resources") {
-            self.resources = try Target.resources(projectPath: projectPath, sources: resources, fileHandler: fileHandler)
+            self.resources = try Target.resources(projectPath: projectPath, resources: resources, fileHandler: fileHandler)
         } else {
             resources = []
         }
+
+        // Headers
         if let headers: JSON = try? json.get("headers") {
             self.headers = try Headers(json: headers, projectPath: projectPath, fileHandler: fileHandler)
         } else {
             headers = nil
         }
-        // TODO: CoreDataModels
-        dependencies = try json.get("dependencies")
+
+        // Core Data Models
+        if let coreDataModels: [JSON] = try? json.get("core_data_models") {
+            self.coreDataModels = try coreDataModels.map({
+                try CoreDataModel(json: $0, projectPath: projectPath, fileHandler: fileHandler)
+            })
+        } else {
+            coreDataModels = []
+        }
     }
 
     func isLinkable() -> Bool {
@@ -96,15 +117,26 @@ class Target: GraphJSONInitiatable, Equatable {
 
     // MARK: - Fileprivate
 
-    fileprivate static func sources(projectPath _: AbsolutePath, sources _: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
-        // static let validExtensions: [String] = ["m", "swift", "mm"]
-        // TODO:
-        return []
+    fileprivate static func sources(projectPath: AbsolutePath, sources: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
+        return projectPath.glob(sources).filter { path in
+            if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
+                return true
+            }
+            return false
+        }
     }
 
-    fileprivate static func resources(projectPath _: AbsolutePath, sources _: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
-        // TODO:
-        return []
+    fileprivate static func resources(projectPath: AbsolutePath, resources: String, fileHandler: FileHandling) throws -> [AbsolutePath] {
+        return projectPath.glob(resources).filter { path in
+            if !fileHandler.isFolder(path) {
+                return true
+                // We filter out folders that are not Xcode supported bundles such as .app or .framework.
+            } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
+                return true
+            } else {
+                return false
+            }
+        }
     }
 
     // MARK: - Equatable
