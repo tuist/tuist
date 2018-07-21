@@ -34,32 +34,3 @@ extension Project: JSONConvertible {
         return .dictionary(dictionary)
     }
 }
-
-// func initProject() {
-// let project = Project(name: "{{NAME}}",
-//                      schemes: [
-//                          /* Project schemes are defined here */
-//                          Scheme(name: "{{NAME}}",
-//                                 shared: true,
-//                                 buildAction: BuildAction(targets: ["{{NAME}}"])),
-//                      ],
-//                      settings: Settings(base: [:]),
-//                      targets: [
-//                          Target(name: "{{NAME}}",
-//                                 platform: .iOS,
-//                                 product: .app,
-//                                 bundleId: "com.xcodepm.{{NAME}}",
-//                                 infoPlist: "Info.plist",
-//                                 dependencies: [
-//                                     /* Target dependencies can be defined here */
-//                                     /* .framework(path: "framework") */
-//                                 ],
-//                                 settings: nil,
-//                                 buildPhases: [
-//
-//                                     .sources([.sources("./Sources/**/*.swift")]),
-//                                     /* Other build phases can be added here */
-//                                     /* .resources([.include(["./Resousrces /**/ *"])]) */
-//                                ]),
-//                    ])
-// }
