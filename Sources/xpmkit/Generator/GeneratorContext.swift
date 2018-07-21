@@ -2,6 +2,7 @@ import Foundation
 import xpmcore
 
 /// Generator context protocol.
+@available(*, deprecated, message: "The context approach for injecting dependencies is deprecated. Inject dependencies through the constructor instead.")
 protocol GeneratorContexting: Contexting {
     /// Graph that is beging generated.
     var graph: Graphing { get }

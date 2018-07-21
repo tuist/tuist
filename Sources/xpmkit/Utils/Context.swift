@@ -2,6 +2,7 @@ import Foundation
 import xpmcore
 
 /// Context protocol.
+@available(*, deprecated, message: "The context approach for injecting dependencies is deprecated. Inject dependencies through the constructor instead.")
 protocol Contexting: AnyObject {
     /// Shell.
     var shell: Shelling { get }
@@ -18,6 +19,7 @@ protocol Contexting: AnyObject {
 
 /// xpm uses contexts as a dependency injection mechanism.
 /// Contexts are initialized by the commands and passed to the different components that will use the dependencies defined in them.
+@available(*, deprecated, message: "The context approach for injecting dependencies is deprecated. Inject dependencies through the constructor instead.")
 class Context: Contexting {
     /// Util to handle files.
     let fileHandler: FileHandling

@@ -3,6 +3,7 @@ import Foundation
 import xpmcore
 
 /// Protocol that defines the interface of the context that is used during the graph loading.
+@available(*, deprecated, message: "The context approach for injecting dependencies is deprecated. Inject dependencies through the constructor instead.")
 protocol GraphLoaderContexting: Contexting {
     /// Manifest loader that is used to get a JSON representation of the manifests.
     var manifestLoader: GraphManifestLoading { get }
