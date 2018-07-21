@@ -2,42 +2,58 @@ import Basic
 import Foundation
 @testable import Utility
 import XCTest
+@testable import xpmcoreTesting
 @testable import xpmkit
+
+final class InitCommandErrorTests: XCTestCase {
+    func test_description() {
+        XCTAssertEqual(InitCommandError.alreadyExists(AbsolutePath("/path")).description, "/path already exists")
+        XCTAssertEqual(InitCommandError.ungettableProjectName(AbsolutePath("/path")).description, "Couldn't infer the project name from path /path")
+    }
+
+    func test_type() {
+        XCTAssertEqual(InitCommandError.alreadyExists(AbsolutePath("/path")).type, .abort)
+        XCTAssertEqual(InitCommandError.ungettableProjectName(AbsolutePath("/path")).type, .abort)
+    }
+}
 
 final class InitCommandTests: XCTestCase {
     var subject: InitCommand!
     var parser: ArgumentParser!
-    var manitestLoader: GraphManifestLoader!
-    var graphLoaderContext: GraphLoaderContext!
+    var fileHandler: MockFileHandler!
+    var printer: MockPrinter!
+    var infoplistProvisioner: InfoPlistProvisioning!
 
     override func setUp() {
         super.setUp()
         parser = ArgumentParser.test()
-        subject = InitCommand(parser: parser)
-        graphLoaderContext = GraphLoaderContext()
-        manitestLoader = GraphManifestLoader()
+        fileHandler = try! MockFileHandler()
+        printer = MockPrinter()
+        infoplistProvisioner = InfoPlistProvisioner()
+        subject = InitCommand(parser: parser,
+                              fileHandler: fileHandler,
+                              printer: printer,
+                              infoplistProvisioner: infoplistProvisioner)
     }
 
-    func test_initCommandError_has_the_right_description_when_alreadyExists() {
-        let error = InitCommandError.alreadyExists(AbsolutePath("/path"))
-        XCTAssertEqual(error.description, "/path already exists")
+    func test_command() {
+        XCTAssertEqual(InitCommand.command, "init")
     }
 
-    func test_initCommandError_has_the_right_description_when_ungettableProjectName() {
-        let error = InitCommandError.ungettableProjectName(AbsolutePath("/path"))
-        XCTAssertEqual(error.description, "Couldn't infer the project name from path /path")
+    func test_overview() {
+        XCTAssertEqual(InitCommand.overview, "Bootstraps a project in the current directory.")
     }
 
-    func test_init_registersTheSubparser() {
+    func test_init_registers_the_subparser() {
         XCTAssertTrue(parser.subparsers.keys.contains(InitCommand.command))
     }
 
     func test_productArgument() {
         XCTAssertEqual(subject.productArgument.name, "--product")
         XCTAssertTrue(subject.productArgument.isOptional)
-        XCTAssertEqual(subject.productArgument.usage, "The product (app or framework) the generated project will build.")
+        XCTAssertEqual(subject.productArgument.usage, "The product (application or framework) the generated project will build.")
         XCTAssertEqual(subject.productArgument.completion, ShellCompletion.values([
-            (value: "app", description: "Application"),
+            (value: "application", description: "Application"),
             (value: "framework", description: "Framework"),
         ]))
     }
@@ -52,7 +68,47 @@ final class InitCommandTests: XCTestCase {
         ]))
     }
 
-    func test_command() throws {
+    func test_run_when_ios_application() throws {
+        let result = try parser.parse(["init", "--product", "application", "--platform", "ios"])
+        try subject.run(with: result)
+        let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+    }
 
+    func test_run_when_macos_application() throws {
+        let result = try parser.parse(["init", "--product", "application", "--platform", "macos"])
+        try subject.run(with: result)
+        let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+    }
+
+    func test_run_when_ios_framework() throws {
+        let result = try parser.parse(["init", "--product", "framework", "--platform", "ios"])
+        try subject.run(with: result)
+        let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+    }
+
+    func test_run_when_macos_framework() throws {
+        let result = try parser.parse(["init", "--product", "framework", "--platform", "macos"])
+        try subject.run(with: result)
+        let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
     }
 }
