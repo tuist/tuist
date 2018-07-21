@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>1. Install  Reference</title>
+    <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="js/jquery.min.js" defer></script>
+    <script src="js/jazzy.js" defer></script>
+    
+  </head>
+  <body>
+    <a title="1. Install  Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="index.html">ProjectDescription Docs</a> (5% documented)</p>
+        <p class="header-right"><a href="https://github.com/xcode-project-manager/xpm"><img src="img/gh.png"/>View on GitHub</a></p>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="index.html">ProjectDescription Reference</a>
+        <img id="carat" src="img/carat.png" />
+        1. Install  Reference
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="Tutorial.html">Tutorial</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="1-install.html">1. Install</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="2-init-command.html">2. Init command</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="3-building-and-testing.html">3. Building and testing</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="4-target-dependencies.html">4. Target dependencies</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="5-continuous-integration.html">5. Continuous integration</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="6-modules.html">6. Modules</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Worksaces.html">Worksaces</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Workspace.html">Workspace</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Project.html">Project</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Targets.html">Targets</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Target.html">Target</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/TargetDependency.html">TargetDependency</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/CoreDataModel.html">CoreDataModel</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Headers.html">Headers</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/Platform.html">Platform</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/Product.html">Product</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Settings.html">Settings</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Settings.html">Settings</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/BuildConfiguration.html">BuildConfiguration</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Configuration.html">Configuration</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Schemes.html">Schemes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Scheme.html">Scheme</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/RunAction.html">RunAction</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/TestAction.html">TestAction</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/BuildAction.html">BuildAction</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Arguments.html">Arguments</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            
+            <h1 id='install' class='heading'>Install</h1>
+
+<p>First of all you need to install <em>xpm</em> in your computer. We made the the process very easy for you. Open a terminal, and execute the following command:</p>
+<pre class="highlight shell"><code>/usr/bin/ruby <span class="nt">-e</span> <span class="s2">"</span><span class="k">$(</span>curl <span class="nt">-fsSL</span> https://goo.gl/4cbZoL<span class="k">)</span><span class="s2">"</span>
+</code></pre>
+
+<p>It&rsquo;ll pull the latest version of <em>xpm</em>, install it, and add an alias to your shell path. Once the process is completed, you should be able to run <code>xpm</code> in your terminal. It&rsquo;ll print the list of commands that are available.</p>
+
+<blockquote>
+<p>If you are curious about how the install process works, you can check out this <a href="https://github.com/xcode-project-manager/xpm/blob/master/scripts/install">Ruby script</a> that gets executed when you run the command above.</p>
+</blockquote>
+<h3 id='updating-xpm' class='heading'>Updating xpm</h3>
+
+<p>Since we are continuously adding improvements and new features to <em>xpm</em> it&rsquo;s important that you can update the app easily as well. <em>xpm</em> comes with an <code>update</code> command that you can call at any time. It&rsquo;ll check if there&rsquo;s any update for the tool, and if there is, it&rsquo;ll update verything for you:</p>
+<pre class="highlight shell"><code>xpm update
+</code></pre>
+
+<blockquote>
+<p>The auto-update process is provided by the awesome framework <a href="https://sparkle-project.org/">Sparkle</a> which is extensively used in many macOS applications.</p>
+</blockquote>
+
+          </section>
+        </section>
+        <section id="footer">
+          <p>Copyright © from 2018 Pedro Piñera Buendía. All rights reserved.</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external">jazzy ♪♫ v0.9.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</div>
+</html>

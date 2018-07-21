@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import xcodeproj
+import xpmcore
 
 /// Interface for targets generation.
 protocol TargetGenerating: AnyObject {

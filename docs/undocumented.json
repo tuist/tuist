@@ -1,0 +1,530 @@
+{
+  "warnings": [
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/BuildConfiguration.swift",
+      "line": 5,
+      "symbol": "BuildConfiguration",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/BuildConfiguration.swift",
+      "line": 6,
+      "symbol": "BuildConfiguration.debug",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/BuildConfiguration.swift",
+      "line": 7,
+      "symbol": "BuildConfiguration.release",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Headers.swift",
+      "line": 14,
+      "symbol": "Headers.init(public:private:project:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Platform.swift",
+      "line": 5,
+      "symbol": "Platform",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Platform.swift",
+      "line": 6,
+      "symbol": "Platform.iOS",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Platform.swift",
+      "line": 7,
+      "symbol": "Platform.macOS",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Platform.swift",
+      "line": 8,
+      "symbol": "Platform.watchOS",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Platform.swift",
+      "line": 9,
+      "symbol": "Platform.tvOS",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 5,
+      "symbol": "Product",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 6,
+      "symbol": "Product.app",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 7,
+      "symbol": "Product.staticLibrary",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 8,
+      "symbol": "Product.dynamicLibrary",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 9,
+      "symbol": "Product.framework",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 10,
+      "symbol": "Product.unitTests",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 11,
+      "symbol": "Product.uiTests",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 12,
+      "symbol": "Product.appExtension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 13,
+      "symbol": "Product.watchApp",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 14,
+      "symbol": "Product.watch2App",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 15,
+      "symbol": "Product.watchExtension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 16,
+      "symbol": "Product.watch2Extension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 17,
+      "symbol": "Product.tvExtension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 18,
+      "symbol": "Product.messagesApplication",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 19,
+      "symbol": "Product.messagesExtension",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Product.swift",
+      "line": 20,
+      "symbol": "Product.stickerPack",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Project.swift",
+      "line": 5,
+      "symbol": "Project",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Project.swift",
+      "line": 6,
+      "symbol": "Project.name",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Project.swift",
+      "line": 7,
+      "symbol": "Project.targets",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Project.swift",
+      "line": 8,
+      "symbol": "Project.settings",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Project.swift",
+      "line": 10,
+      "symbol": "Project.init(name:settings:targets:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 5,
+      "symbol": "Scheme",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 6,
+      "symbol": "Scheme.name",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 7,
+      "symbol": "Scheme.shared",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 8,
+      "symbol": "Scheme.buildAction",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 9,
+      "symbol": "Scheme.testAction",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 10,
+      "symbol": "Scheme.runAction",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 11,
+      "symbol": "Scheme.init(name:shared:buildAction:testAction:runAction:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 46,
+      "symbol": "Arguments",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 47,
+      "symbol": "Arguments.environment",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 48,
+      "symbol": "Arguments.launch",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 49,
+      "symbol": "Arguments.init(environment:launch:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 69,
+      "symbol": "BuildAction",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 70,
+      "symbol": "BuildAction.targets",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 71,
+      "symbol": "BuildAction.init(targets:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 86,
+      "symbol": "TestAction",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 87,
+      "symbol": "TestAction.targets",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 88,
+      "symbol": "TestAction.arguments",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 89,
+      "symbol": "TestAction.config",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 90,
+      "symbol": "TestAction.coverage",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 91,
+      "symbol": "TestAction.init(targets:arguments:config:coverage:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 119,
+      "symbol": "RunAction",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 120,
+      "symbol": "RunAction.config",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 121,
+      "symbol": "RunAction.executable",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 122,
+      "symbol": "RunAction.arguments",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Scheme.swift",
+      "line": 123,
+      "symbol": "RunAction.init(config:executable:arguments:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 5,
+      "symbol": "Configuration",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 6,
+      "symbol": "Configuration.settings",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 7,
+      "symbol": "Configuration.xcconfig",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 8,
+      "symbol": "Configuration.init(settings:xcconfig:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 13,
+      "symbol": "Configuration.settings(_:xcconfig:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.static",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 20,
+      "symbol": "Settings",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 21,
+      "symbol": "Settings.base",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 22,
+      "symbol": "Settings.debug",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 23,
+      "symbol": "Settings.release",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Settings.swift",
+      "line": 25,
+      "symbol": "Settings.init(base:debug:release:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Target.swift",
+      "line": 5,
+      "symbol": "Target",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/TargetDependency.swift",
+      "line": 5,
+      "symbol": "TargetDependency",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/TargetDependency.swift",
+      "line": 6,
+      "symbol": "TargetDependency.target",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/TargetDependency.swift",
+      "line": 7,
+      "symbol": "TargetDependency.project",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/TargetDependency.swift",
+      "line": 8,
+      "symbol": "TargetDependency.framework",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/TargetDependency.swift",
+      "line": 9,
+      "symbol": "TargetDependency.library",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Workspace.swift",
+      "line": 5,
+      "symbol": "Workspace",
+      "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Workspace.swift",
+      "line": 6,
+      "symbol": "Workspace.name",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Workspace.swift",
+      "line": 7,
+      "symbol": "Workspace.projects",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm/Sources/ProjectDescription/Workspace.swift",
+      "line": 8,
+      "symbol": "Workspace.init(name:projects:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    }
+  ],
+  "source_directory": "/Users/pedropinera/src/github.com/xcode-project-manager/xpm"
+}

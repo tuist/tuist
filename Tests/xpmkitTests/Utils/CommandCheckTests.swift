@@ -1,6 +1,7 @@
 import Foundation
 import Utility
 import XCTest
+import xpmcore
 @testable import xpmcoreTesting
 @testable import xpmkit
 

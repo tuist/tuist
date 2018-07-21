@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>ProjectDescription  Reference</title>
+    <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="js/jquery.min.js" defer></script>
+    <script src="js/jazzy.js" defer></script>
+    
+  </head>
+  <body>
+    <a title="ProjectDescription  Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="index.html">ProjectDescription Docs</a> (5% documented)</p>
+        <p class="header-right"><a href="https://github.com/xcode-project-manager/xpm"><img src="img/gh.png"/>View on GitHub</a></p>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="index.html">ProjectDescription Reference</a>
+        <img id="carat" src="img/carat.png" />
+        ProjectDescription  Reference
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="Tutorial.html">Tutorial</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="1-install.html">1. Install</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="2-init-command.html">2. Init command</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="3-building-and-testing.html">3. Building and testing</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="4-target-dependencies.html">4. Target dependencies</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="5-continuous-integration.html">5. Continuous integration</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="6-modules.html">6. Modules</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Worksaces.html">Worksaces</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Workspace.html">Workspace</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Project.html">Project</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Targets.html">Targets</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Target.html">Target</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/TargetDependency.html">TargetDependency</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/CoreDataModel.html">CoreDataModel</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Headers.html">Headers</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/Platform.html">Platform</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/Product.html">Product</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Settings.html">Settings</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Settings.html">Settings</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/BuildConfiguration.html">BuildConfiguration</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Configuration.html">Configuration</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Schemes.html">Schemes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/Scheme.html">Scheme</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/RunAction.html">RunAction</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/TestAction.html">TestAction</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/BuildAction.html">BuildAction</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Arguments.html">Arguments</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            
+            <p align="center">
+  <img src="https://github.com/xcode-project-manager/xpm/raw/master/assets/logo.png" width="250" align="center"/>
+  <br/><br/>
+</p>
+
+<p><a href="https://github.com/prettier/prettier"><img src="https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square" alt="code style: prettier"></a>
+<a href="https://circleci.com/gh/xcode-project-manager/xpm"><img src="https://circleci.com/gh/xcode-project-manager/xpm.svg?style=svg" alt="CircleCI"></a>
+<a href="https://codecov.io/gh/xcode-project-manager/xpm"><img src="https://codecov.io/gh/xcode-project-manager/xpm/branch/master/graph/badge.svg" alt="codecov"></a></p>
+<h2 id='features' class='heading'>Features</h2>
+
+<ul>
+<li>🥘 100% written in Swift.</li>
+<li>🐦 Type-safe Swift manifests editable with Xcode.</li>
+<li>↗️ Local dependencies support.</li>
+<li>⚠️ Misconfiguration catching.</li>
+<li>📦 Precompiled binaries <em>(Frameworks &amp; Libraries support)</em>.</li>
+<li>🔄 Circular dependency detection.</li>
+</ul>
+<h2 id='setup-for-development' class='heading'>Setup for development</h2>
+
+<ol>
+<li>Git clone: <code>git@github.com:xcode-project-manager/xpm.git</code></li>
+<li>Generate Xcode project with <code>swift package generate-xcodeproj</code>.</li>
+<li>Open <code>xpm.xcodeproj</code>.</li>
+<li>Have fun 🤖</li>
+</ol>
+
+          </section>
+        </section>
+        <section id="footer">
+          <p>Copyright © from 2018 Pedro Piñera Buendía. All rights reserved.</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external">jazzy ♪♫ v0.9.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</div>
+</html>

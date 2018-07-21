@@ -2,6 +2,7 @@ import Basic
 import Foundation
 @testable import xcodeproj
 import XCTest
+import xpmcore
 @testable import xpmkit
 
 final class ConfigGeneratorTests: XCTestCase {
