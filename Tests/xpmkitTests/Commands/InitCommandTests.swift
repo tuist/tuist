@@ -51,7 +51,7 @@ final class InitCommandTests: XCTestCase {
     func test_productArgument() {
         XCTAssertEqual(subject.productArgument.name, "--product")
         XCTAssertTrue(subject.productArgument.isOptional)
-        XCTAssertEqual(subject.productArgument.usage, "The product (application or framework) the generated project will build.")
+        XCTAssertEqual(subject.productArgument.usage, "The product (application or framework) the generated project will build (Default: application).")
         XCTAssertEqual(subject.productArgument.completion, ShellCompletion.values([
             (value: "application", description: "Application"),
             (value: "framework", description: "Framework"),
@@ -61,7 +61,7 @@ final class InitCommandTests: XCTestCase {
     func test_platformArgument() {
         XCTAssertEqual(subject.platformArgument.name, "--platform")
         XCTAssertTrue(subject.platformArgument.isOptional)
-        XCTAssertEqual(subject.platformArgument.usage, "The platform (ios or macos) the product will be for.")
+        XCTAssertEqual(subject.platformArgument.usage, "The platform (ios or macos) the product will be for (Default: ios).")
         XCTAssertEqual(subject.platformArgument.completion, ShellCompletion.values([
             (value: "ios", description: "iOS platform"),
             (value: "macos", description: "macOS platform"),
@@ -73,14 +73,14 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(subject.nameArgument.shortName, "-n")
 
         XCTAssertTrue(subject.nameArgument.isOptional)
-        XCTAssertEqual(subject.nameArgument.usage, "The name of the project. If it's not passed, the name of the folder will be used.")
+        XCTAssertEqual(subject.nameArgument.usage, "The name of the project. If it's not passed, the name of the folder will be used (Default: Name of the directory).")
     }
 
     func test_pathArgument() {
         XCTAssertEqual(subject.pathArgument.name, "--path")
         XCTAssertEqual(subject.pathArgument.shortName, "-p")
         XCTAssertTrue(subject.pathArgument.isOptional)
-        XCTAssertEqual(subject.pathArgument.usage, "The path to the folder where the project will be generated.")
+        XCTAssertEqual(subject.pathArgument.usage, "The path to the folder where the project will be generated (Default: Current directory).")
         XCTAssertEqual(subject.pathArgument.completion, .filename)
     }
 
