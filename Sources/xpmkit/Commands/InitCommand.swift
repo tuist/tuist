@@ -35,7 +35,7 @@ public class InitCommand: NSObject, Command {
     public static let command = "init"
 
     /// Command description.
-    public static let overview = "Initializes a project in the current directory."
+    public static let overview = "Bootstraps a project in the current directory."
 
     /// Platform argument.
     let platformArgument: OptionArgument<String>
@@ -67,9 +67,9 @@ public class InitCommand: NSObject, Command {
         productArgument = subParser.add(option: "--product",
                                         shortName: nil,
                                         kind: String.self,
-                                        usage: "The product (app or framework) the generated project will build.",
+                                        usage: "The product (application or framework) the generated project will build.",
                                         completion: ShellCompletion.values([
-                                            (value: "app", description: "Application"),
+                                            (value: "application", description: "Application"),
                                             (value: "framework", description: "Framework"),
         ]))
         platformArgument = subParser.add(option: "--platform",
@@ -262,9 +262,9 @@ public class InitCommand: NSObject, Command {
     /// - Returns: the product that should be used for the project.
     fileprivate func product(arguments: ArgumentParser.Result) throws -> Product {
         if let productString = arguments.get(self.productArgument) {
-            let valid = ["app", "framework"]
-            if valid.contains(productString), let product = Product(rawValue: productString) {
-                return product
+            let valid = ["application", "framework"]
+            if valid.contains(productString) {
+                return (productString == "application") ? .app : .framework
             } else {
                 throw ArgumentParserError.invalidValue(argument: "product", error: .custom("Product should be either app or framework"))
             }
