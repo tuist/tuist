@@ -14,9 +14,9 @@ enum InitCommandError: FatalError {
     var description: String {
         switch self {
         case let .alreadyExists(path):
-            return "\(path.asString) already exists"
+            return "\(path.asString) already exists."
         case let .ungettableProjectName(path):
-            return "Couldn't infer the project name from path \(path.asString)"
+            return "Couldn't infer the project name from path \(path.asString)."
         }
     }
 }
@@ -30,6 +30,7 @@ class InitCommand: NSObject, Command {
     let platformArgument: OptionArgument<String>
     let productArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
+    let nameArgument: OptionArgument<String>
     let fileHandler: FileHandling
     let printer: Printing
     let infoplistProvisioner: InfoPlistProvisioning
@@ -69,6 +70,11 @@ class InitCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the folder where the project will be generated.",
                                      completion: .filename)
+        nameArgument = subParser.add(option: "--name",
+                                     shortName: "-n",
+                                     kind: String.self,
+                                     usage: "The name of the project.",
+                                     completion: .filename)
         self.fileHandler = fileHandler
         self.printer = printer
         self.infoplistProvisioner = infoplistProvisioner
@@ -78,7 +84,7 @@ class InitCommand: NSObject, Command {
         let product = try self.product(arguments: arguments)
         let platform = try self.platform(arguments: arguments)
         let path = try self.path(arguments: arguments)
-        let name = try self.name(path: path)
+        let name = try self.name(arguments: arguments, path: path)
         try generateProjectSwift(name: name, platform: platform, product: product, path: path)
         try generateSources(name: name, platform: platform, product: product, path: path)
         try generateTests(name: name, path: path)
@@ -228,8 +234,10 @@ class InitCommand: NSObject, Command {
         try content.write(to: path.appending(component: "\(name)Tests.swift").url, atomically: true, encoding: .utf8)
     }
 
-    fileprivate func name(path: AbsolutePath) throws -> String {
-        if let name = path.components.last {
+    fileprivate func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
+        if let name = arguments.get(nameArgument) {
+            return name
+        } else if let name = path.components.last {
             return name
         } else {
             throw InitCommandError.ungettableProjectName(AbsolutePath.current)

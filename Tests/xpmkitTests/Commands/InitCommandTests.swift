@@ -7,8 +7,8 @@ import XCTest
 
 final class InitCommandErrorTests: XCTestCase {
     func test_description() {
-        XCTAssertEqual(InitCommandError.alreadyExists(AbsolutePath("/path")).description, "/path already exists")
-        XCTAssertEqual(InitCommandError.ungettableProjectName(AbsolutePath("/path")).description, "Couldn't infer the project name from path /path")
+        XCTAssertEqual(InitCommandError.alreadyExists(AbsolutePath("/path")).description, "/path already exists.")
+        XCTAssertEqual(InitCommandError.ungettableProjectName(AbsolutePath("/path")).description, "Couldn't infer the project name from path /path.")
     }
 
     func test_type() {
