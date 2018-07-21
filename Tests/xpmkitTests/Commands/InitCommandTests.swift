@@ -68,8 +68,17 @@ final class InitCommandTests: XCTestCase {
         ]))
     }
 
+    func test_nameArgument() {
+        XCTAssertEqual(subject.nameArgument.name, "--name")
+        XCTAssertEqual(subject.nameArgument.shortName, "-n")
+
+        XCTAssertTrue(subject.nameArgument.isOptional)
+        XCTAssertEqual(subject.nameArgument.usage, "The name of the project. If it's not passed, the name of the folder will be used.")
+    }
+
     func test_pathArgument() {
         XCTAssertEqual(subject.pathArgument.name, "--path")
+        XCTAssertEqual(subject.pathArgument.shortName, "-p")
         XCTAssertTrue(subject.pathArgument.isOptional)
         XCTAssertEqual(subject.pathArgument.usage, "The path to the folder where the project will be generated.")
         XCTAssertEqual(subject.pathArgument.completion, .filename)
@@ -84,6 +93,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
     }
 
     func test_run_when_macos_application() throws {
@@ -95,6 +105,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
     }
 
     func test_run_when_ios_framework() throws {
@@ -106,6 +117,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
     }
 
     func test_run_when_macos_framework() throws {
@@ -117,5 +129,6 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
     }
 }

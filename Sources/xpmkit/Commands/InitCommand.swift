@@ -73,8 +73,8 @@ class InitCommand: NSObject, Command {
         nameArgument = subParser.add(option: "--name",
                                      shortName: "-n",
                                      kind: String.self,
-                                     usage: "The name of the project.",
-                                     completion: .filename)
+                                     usage: "The name of the project. If it's not passed, the name of the folder will be used.",
+                                     completion: nil)
         self.fileHandler = fileHandler
         self.printer = printer
         self.infoplistProvisioner = infoplistProvisioner
@@ -89,6 +89,7 @@ class InitCommand: NSObject, Command {
         try generateSources(name: name, platform: platform, product: product, path: path)
         try generateTests(name: name, path: path)
         try generatePlists(platform: platform, product: product, path: path)
+        printer.print(success: "Project generated at path \(path.asString).")
     }
 
     // MARK: - Fileprivate
