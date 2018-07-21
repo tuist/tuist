@@ -13,7 +13,6 @@ final class ProjectGroupsTests: XCTestCase {
         let sourceRootPath = AbsolutePath("/test/")
         let project = Project(path: path,
                               name: "Project",
-                              schemes: [],
                               settings: nil,
                               targets: [])
         let pbxproj = PBXProj()

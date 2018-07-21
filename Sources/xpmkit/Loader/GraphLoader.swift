@@ -2,42 +2,34 @@ import Basic
 import Foundation
 import xpmcore
 
-/// Loads the graph that starts at the given path.
 protocol GraphLoading: AnyObject {
     func load(path: AbsolutePath) throws -> Graph
 }
 
-/// Default graph loader.
 class GraphLoader: GraphLoading {
-    /// Graph linter
+
+    // MARK: - Attributes
+
     let linter: GraphLinting
-
-    /// Printer.
     let printer: Printing
+    let fileHandler: FileHandling
 
-    /// Initializes the graph loader.
-    ///
-    /// - Parameters:
-    ///   - linter: graph linter.
-    ///   - printer: printer.
+    // MARK: - Init
+
     init(linter: GraphLinting = GraphLinter(),
-         printer: Printing = Printer()) {
+         printer: Printing = Printer(),
+         fileHandler: FileHandling = FileHandler()) {
         self.linter = linter
         self.printer = printer
+        self.fileHandler = fileHandler
     }
 
-    /// Loads the graph at the given path.
-    ///
-    /// - Parameter path: path where the graph starts from. It's the path where the Workspace.swift or the Project.swift file is.
-    /// - Returns: a graph controller with that contains the graph representation.
-    /// - Throws: an error if the graph cannot be loaded.
     func load(path: AbsolutePath) throws -> Graph {
-        let context = GraphLoaderContext()
         var graph: Graph!
-        if context.fileHandler.exists(path.appending(component: Constants.Manifest.project)) {
-            graph = try loadProject(path: path, context: context)
-        } else if context.fileHandler.exists(path.appending(component: Constants.Manifest.workspace)) {
-            graph = try loadWorkspace(path: path, context: context)
+        if fileHandler.exists(path.appending(component: Constants.Manifest.project)) {
+            graph = try loadProject(path: path)
+        } else if fileHandler.exists(path.appending(component: Constants.Manifest.workspace)) {
+            graph = try loadWorkspace(path: path)
         } else {
             throw GraphLoadingError.manifestNotFound(path)
         }
@@ -45,44 +37,36 @@ class GraphLoader: GraphLoading {
         return graph
     }
 
-    /// Loads a project graph.
-    ///
-    /// - Parameters:
-    ///   - path: path to the Project.swift.
-    ///   - context: loader context.
-    /// - Returns: a graph controller with that contains the graph representation.
-    /// - Throws: an error if the graph cannot be loaded.
-    fileprivate func loadProject(path: AbsolutePath, context: GraphLoaderContext) throws -> Graph {
-        let project = try Project.at(path, context: context)
+    // MARK: - Fileprivate
+
+    fileprivate func loadProject(path: AbsolutePath) throws -> Graph {
+        let cache = GraphLoaderCache()
+        let graphCircularDetector = GraphCircularDetector()
+        let project = try Project.at(path, cache: cache)
         let entryNodes: [GraphNode] = try project.targets.map({ $0.name }).map { targetName in
-            return try TargetNode.read(name: targetName, path: path, context: context)
+            return try TargetNode.read(name: targetName, path: path, cache: cache, graphCircularDetector: graphCircularDetector)
         }
         return Graph(name: project.name,
                      entryPath: path,
-                     cache: context.cache,
+                     cache: cache,
                      entryNodes: entryNodes)
     }
 
-    /// Loads a workspace graph.
-    ///
-    /// - Parameters:
-    ///   - path: path to the Project.swift.
-    ///   - context: loader context.
-    /// - Returns: a graph controller with that contains the graph representation.
-    /// - Throws: an error if the graph cannot be loaded.
-    fileprivate func loadWorkspace(path: AbsolutePath, context: GraphLoaderContext) throws -> Graph {
-        let workspace = try Workspace.at(path, context: context)
+    fileprivate func loadWorkspace(path: AbsolutePath) throws -> Graph {
+        let cache = GraphLoaderCache()
+        let graphCircularDetector = GraphCircularDetector()
+        let workspace = try Workspace.at(path)
         let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
-            return try (projectPath, Project.at(projectPath, context: context))
+            return try (projectPath, Project.at(projectPath, cache: cache))
         }
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
             return try project.1.targets.map({ $0.name }).map { targetName in
-                try TargetNode.read(name: targetName, path: project.0, context: context)
+                try TargetNode.read(name: targetName, path: project.0, cache: cache, graphCircularDetector: graphCircularDetector)
             }
         }
         return Graph(name: workspace.name,
                      entryPath: path,
-                     cache: context.cache,
+                     cache: cache,
                      entryNodes: entryNodes)
     }
 }

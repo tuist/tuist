@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 final class SchemeTests: XCTestCase {
-    func test_toJSON_returns_the_right_value() {
+    func test_toJSON() {
         let subject = Scheme(name: "scheme",
                              shared: true,
                              buildAction: BuildAction(targets: ["target"]),

@@ -1,23 +1,6 @@
 import Foundation
 import xcodeproj
 
-/// Product type.
-///
-/// - app: application.
-/// - staticLibrary: static library.
-/// - dynamicLibrary: dynamic library.
-/// - framework: framework.
-/// - unitTests: unit tests.
-/// - uiTests: ui tests.
-/// - appExtension: application extension.
-/// - watchApp: watchOS 1 application.
-/// - watch2App: watchOS version >= 2 application.
-/// - watchExtension: watchOS 1 extension.
-/// - watch2Extension: watchOS version >=2 extension.
-/// - tvExtension: tvOS extension
-/// - messagesApplication: iMessage application.
-/// - messagesExtension: iMessage extension.
-/// - stickerPack: Stickers pack.
 public enum Product: String {
     case app
     case staticLibrary
@@ -37,7 +20,6 @@ public enum Product: String {
 }
 
 extension Product {
-    /// Returns the Xcode value.
     var xcodeValue: PBXProductType {
         switch self {
         case .app:

@@ -1,68 +1,47 @@
 import Basic
 import Foundation
+import xpmcore
 
-/// Settings configuration object that contains a reference to an .xcconfig file and a dictionary with the settings.
 class Configuration: Equatable {
-    /// Build settings.
-    let settings: [String: String]
 
-    /// Path to an .xcconfig file.
+    // MARK: - Attributes
+
+    let settings: [String: String]
     let xcconfig: AbsolutePath?
 
-    /// Initializes the Configuration  object with its properties.
-    ///
-    /// - Parameters:
-    ///   - settings: build settings.
-    ///   - xcconfig: path to an .xcconfig file that contains the build settings.
+    // MARK: - Init
+
     init(settings: [String: String] = [:], xcconfig: AbsolutePath? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
 
-    /// Initializes the Configuration from its JSON representation.
-    ///
-    /// - Parameters:
-    ///   - json: Configuration JSON representation.
-    ///   - projectPath: path to the folder that contains the project's manifest.
-    ///   - context: graph loader  context.
-    /// - Throws: an error if build files cannot be parsed.
-    init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+    init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
         settings = try json.get("settings")
         let xcconfigString: String? = json.get("xcconfig")
         xcconfig = xcconfigString.flatMap({ projectPath.appending(RelativePath($0)) })
-        if let xcconfig = xcconfig, !context.fileHandler.exists(xcconfig) {
+        if let xcconfig = xcconfig, !fileHandler.exists(xcconfig) {
             throw GraphLoadingError.missingFile(xcconfig)
         }
     }
 
-    /// Compares two configurations.
-    ///
-    /// - Parameters:
-    ///   - lhs: first configuration to be compared.
-    ///   - rhs: second configuration to be compared.
-    /// - Returns: true  if  the two configurations are the same.
+    // MARK: - Equatable
+
     static func == (lhs: Configuration, rhs: Configuration) -> Bool {
         return lhs.settings == rhs.settings && lhs.xcconfig == rhs.xcconfig
     }
 }
 
-/// Represents project or target build settings.
 class Settings: GraphJSONInitiatable, Equatable {
-    /// Base build settings.
+
+    // MARK: - Attributes
+
     let base: [String: String]
-
-    /// Debug build settings.
     let debug: Configuration?
-
-    /// Release build settings.
     let release: Configuration?
 
-    /// Initializes the settings with its properties.
-    ///
-    /// - Parameters:
-    ///   - base: base build settings.
-    ///   - debug: debug build settings.
-    ///   - release: relese build settings.
+    // MARK: - Init
+
     init(base: [String: String] = [:],
          debug: Configuration?,
          release: Configuration?) {
@@ -71,27 +50,16 @@ class Settings: GraphJSONInitiatable, Equatable {
         self.release = release
     }
 
-    /// Initializes the Settings from its JSON representation.
-    ///
-    /// - Parameters:
-    ///   - json: Configuration JSON representation.
-    ///   - projectPath: path to the folder that contains the project's manifest.
-    ///   - context: graph loader  context.
-    /// - Throws: an error if build files cannot be parsed.
-    required init(json: JSON, projectPath: AbsolutePath, context: GraphLoaderContexting) throws {
+    required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
         base = try json.get("base")
         let debugJSON: JSON? = try? json.get("debug")
-        debug = try debugJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, context: context) })
+        debug = try debugJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, fileHandler: fileHandler) })
         let releaseJSON: JSON? = try? json.get("release")
-        release = try releaseJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, context: context) })
+        release = try releaseJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, fileHandler: fileHandler) })
     }
 
-    /// Compares two Settings.
-    ///
-    /// - Parameters:
-    ///   - lhs: first Settings to be compared.
-    ///   - rhs: second Settings to be compared.
-    /// - Returns: true if the Settings are  the same.
+    // MARK: - Equatable
+
     static func == (lhs: Settings, rhs: Settings) -> Bool {
         return lhs.debug == rhs.debug &&
             lhs.release == rhs.release &&

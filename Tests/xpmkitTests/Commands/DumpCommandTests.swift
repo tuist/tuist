@@ -61,7 +61,6 @@ final class DumpCommandTests: XCTestCase {
         import ProjectDescription
 
         let project = Project(name: "xpm",
-              schemes: [],
               settings: nil,
               targets: [])
         """
@@ -73,9 +72,6 @@ final class DumpCommandTests: XCTestCase {
         let expected = """
         {
           "name": "xpm",
-          "schemes": [
-
-          ],
           "targets": [
 
           ]

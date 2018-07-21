@@ -5,11 +5,10 @@ import XCTest
 
 final class MockGraphModuleLoader: GraphModuleLoading {
     var loadCount: UInt = 0
-    var loadStub: ((AbsolutePath, Contexting) -> [AbsolutePath])?
+    var loadStub: ((AbsolutePath) -> [AbsolutePath])?
 
-    func load(_ path: AbsolutePath,
-              context: Contexting) throws -> [AbsolutePath] {
+    func load(_ path: AbsolutePath) throws -> [AbsolutePath] {
         loadCount += 1
-        return loadStub?(path, context) ?? []
+        return loadStub?(path) ?? []
     }
 }

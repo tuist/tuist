@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 final class TargetDependencyTests: XCTestCase {
-    func test_toJSON_returns_the_right_value_when_target() {
+    func test_toJSON_when_target() {
         let subject = TargetDependency.target(name: "Target")
         let json = subject.toJSON()
         let expected = """
@@ -12,14 +12,14 @@ final class TargetDependencyTests: XCTestCase {
         XCTAssertEqual(json.toString(), expected)
     }
 
-    func test_toJSON_returns_the_right_value_when_project() {
+    func test_toJSON_when_project() {
         let subject = TargetDependency.project(target: "target", path: "path")
         let json = subject.toJSON()
         let expected = "{\"path\": \"path\", \"target\": \"target\", \"type\": \"project\"}"
         XCTAssertEqual(json.toString(), expected)
     }
 
-    func test_toJSON_returns_the_right_value_when_framework() {
+    func test_toJSON_when_framework() {
         let subject = TargetDependency.framework(path: "/path/framework.framework")
         let json = subject.toJSON()
         let expected = """
@@ -28,7 +28,7 @@ final class TargetDependencyTests: XCTestCase {
         XCTAssertEqual(json.toString(), expected)
     }
 
-    func test_toJSON_returns_the_right_value_when_library() {
+    func test_toJSON_when_library() {
         let subject = TargetDependency.library(path: "/path/library.a", publicHeaders: "/path/headers", swiftModuleMap: "/path/modulemap")
         let json = subject.toJSON()
         let expected = """

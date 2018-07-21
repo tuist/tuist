@@ -127,7 +127,7 @@ final class TargetGenerator: TargetGenerating {
         /// Files
         var files: [PBXObjectReference] = []
         let projectManifestPath = project.path.appending(component: Constants.Manifest.project)
-        let modulePaths = try moduleLoader.load(projectManifestPath, context: context)
+        let modulePaths = try moduleLoader.load(projectManifestPath)
         try modulePaths.forEach { filePath in
             let fileReference = try fileGenerator.generateFile(path: filePath,
                                                                in: groups.projectDescription,

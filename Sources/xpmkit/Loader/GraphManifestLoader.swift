@@ -2,24 +2,11 @@ import Basic
 import Foundation
 import xpmcore
 
-/// Protocol that defines the interface of an object that can read a manifest file from the disk.
-/// A manifest file is a Swift file that gets compiled and that outputs a JSON to the console.
-/// Examples of manifests are Project.swift or Workspace.swift.
-protocol GraphManifestLoading {
-    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON
-}
-
-/// Errors thrown during the manifest loading.
-///
-/// - projectDescriptionNotFound: error thrown when the ProjectDescription.framework cannot be cound.
-/// - frameworksFolderNotFound: error thrown when the frameworks fodler that contains the ProjectDescription.framework cannot be found.
-/// - unexpectedOutput: error throw when we get an unexpected output trying to compile the manifest.
 enum GraphManifestLoaderError: FatalError {
     case projectDescriptionNotFound(AbsolutePath)
     case frameworksFolderNotFound
     case unexpectedOutput(AbsolutePath)
 
-    /// Error description.
     var description: String {
         switch self {
         case let .projectDescriptionNotFound(path):
@@ -31,7 +18,6 @@ enum GraphManifestLoaderError: FatalError {
         }
     }
 
-    /// Error type.
     var type: ErrorType {
         switch self {
         case .unexpectedOutput:
@@ -41,12 +27,8 @@ enum GraphManifestLoaderError: FatalError {
         }
     }
 
-    /// Compares two GraphManifestLoading instances.
-    ///
-    /// - Parameters:
-    ///   - lhs: first instance to be compared.
-    ///   - rhs: second instance to be compared.
-    /// - Returns: true if the two instances are the same.
+    // MARK: - Equatable
+
     static func == (lhs: GraphManifestLoaderError, rhs: GraphManifestLoaderError) -> Bool {
         switch (lhs, rhs) {
         case let (.projectDescriptionNotFound(lhsPath), .projectDescriptionNotFound(rhsPath)):
@@ -60,32 +42,36 @@ enum GraphManifestLoaderError: FatalError {
     }
 }
 
-/// Graph manifest loader.
+protocol GraphManifestLoading {
+    func load(path: AbsolutePath) throws -> JSON
+}
+
 class GraphManifestLoader: GraphManifestLoading {
-    /// Module loader.
+
+    // MARK: - Attributes
+
     let moduleLoader: GraphModuleLoading
-
-    /// File aggregator.
     let fileAggregator: FileAggregating
+    let fileHandler: FileHandling
+    let shell: Shelling
+    let resourceLocator: ResourceLocating
 
-    /// Initializes the loader with its attributes.
-    ///
-    /// - Parameter moduleLoader: module loader.
+    // MARK: - Init
+
     init(moduleLoader: GraphModuleLoading = GraphModuleLoader(),
-         fileAggregator: FileAggregating = FileAggregator()) {
+         fileAggregator: FileAggregating = FileAggregator(),
+         fileHandler: FileHandling = FileHandler(),
+         shell: Shelling = Shell(),
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         self.moduleLoader = moduleLoader
         self.fileAggregator = fileAggregator
+        self.fileHandler = fileHandler
+        self.shell = shell
+        self.resourceLocator = resourceLocator
     }
 
-    /// Loads the manifest at the given path.
-    ///
-    /// - Parameters:
-    ///   - path: path to the manifest file (it needs to be a .swift file)
-    ///   - context: graph loader context.
-    /// - Returns: jSON representation of the manifest.
-    /// - Throws: an error if the manifest cannot be loaded.
-    func load(path: AbsolutePath, context: GraphLoaderContexting) throws -> JSON {
-        let projectDescriptionPath = try context.resourceLocator.projectDescription()
+    func load(path: AbsolutePath) throws -> JSON {
+        let projectDescriptionPath = try resourceLocator.projectDescription()
         var arguments: [String] = [
             "xcrun", "swiftc",
             "--driver-mode=swift",
@@ -96,10 +82,10 @@ class GraphManifestLoader: GraphManifestLoading {
             "-lProjectDescription",
         ]
         let file = try TemporaryFile()
-        try fileAggregator.aggregate(moduleLoader.load(path, context: context).reversed(), into: file.path)
+        try fileAggregator.aggregate(moduleLoader.load(path).reversed(), into: file.path)
         arguments.append(file.path.asString)
         arguments.append("--dump")
-        let jsonString: String! = try context.shell.runAndOutput(arguments, environment: [:]).chuzzle()
+        let jsonString: String! = try shell.runAndOutput(arguments, environment: [:]).chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }

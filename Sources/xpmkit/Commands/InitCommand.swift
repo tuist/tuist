@@ -98,42 +98,28 @@ class InitCommand: NSObject, Command {
         let content = """
         import ProjectDescription
         
-         let project = Project(name: "\(name)",
-                      schemes: [
-                          /* Project schemes are defined here */
-                      ],
-                      settings: Settings(base: [:]),
-                      targets: [
-                          Target(name: "\(name)",
-                                 platform: .\(platform.rawValue),
-                                 product: .\(product.rawValue),
-                                 bundleId: "com.xcodepm.\(name)",
-                                 infoPlist: "Info.plist",
-                                 dependencies: [
-                                     /* Target dependencies can be defined here */
-                                     /* .framework(path: "framework") */
-                                 ],
-                                 settings: nil,
-                                 buildPhases: [
-                                     .sources([.sources("./Sources/**/*.swift")]),
-                                     /* Other build phases can be added here */
-                                     /* .resources([.include(["./Resources/**/*"])]) */
-                                ]),
-                          Target(name: "\(name)Tests",
-                                 platform: .\(platform.rawValue),
-                                 product: .unitTests,
-                                 bundleId: "com.xcodepm.\(name)Tests",
-                                 infoPlist: "Tests.plist",
-                                 dependencies: [
-                                   .target(name: "\(name)")
-                                 ],
-                                 settings: nil,
-                                 buildPhases: [
-                                     .sources([.sources("./Tests/**/*.swift")]),
-                                ]),
-        
-                        
-                    ])
+        let project = Project(name: "\(name)",
+                              targets: [
+                                Target(name: "\(name)",
+                                       platform: .\(platform.rawValue),
+                                       product: .\(product.rawValue),
+                                       bundleId: "com.xcodepm.\(name)",
+                                       infoPlist: "Info.plist",
+                                       sources: "Sources/**",
+                                       dependencies: [
+                                            /* Target dependencies can be defined here */
+                                            /* .framework(path: "framework") */
+                                        ]),
+                                Target(name: "\(name)Tests",
+                                       platform: .\(platform.rawValue),
+                                       product: .unitTests,
+                                       bundleId: "com.xcodepm.\(name)Tests",
+                                       infoPlist: "Info.plist",
+                                       sources: "Tests/**",
+                                       dependencies: [
+                                            .target(name: "\(name)")
+                                       ])
+                              ])
         """
         try content.write(to: path.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
     }
