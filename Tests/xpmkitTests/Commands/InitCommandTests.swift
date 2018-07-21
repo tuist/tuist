@@ -41,7 +41,7 @@ final class InitCommandTests: XCTestCase {
     }
 
     func test_overview() {
-        XCTAssertEqual(InitCommand.overview, "Bootstraps a project in the current directory.")
+        XCTAssertEqual(InitCommand.overview, "Bootstraps a project.")
     }
 
     func test_init_registers_the_subparser() {

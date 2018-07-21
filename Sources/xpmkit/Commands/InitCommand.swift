@@ -26,7 +26,7 @@ class InitCommand: NSObject, Command {
     // MARK: - Attributes
 
     static let command = "init"
-    static let overview = "Bootstraps a project in the current directory."
+    static let overview = "Bootstraps a project."
     let platformArgument: OptionArgument<String>
     let productArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
