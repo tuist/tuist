@@ -99,10 +99,6 @@ class InitCommand: NSObject, Command {
         import ProjectDescription
         
         let project = Project(name: "\(name)",
-                              schemes: [
-                                /* Project schemes are defined here */
-                              ],
-                              settings: Settings(base: [:]),
                               targets: [
                                 Target(name: "\(name)",
                                        platform: .\(platform.rawValue),
