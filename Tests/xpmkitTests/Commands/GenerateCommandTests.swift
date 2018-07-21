@@ -60,6 +60,6 @@ final class GenerateCommandTests: XCTestCase {
     func test_run_prints() throws {
         let result = try parser.parse([GenerateCommand.command, "-c", "Debug"])
         try subject.run(with: result)
-        XCTAssertEqual(printer.printSectionArgs.first, "Generate command succeeded 🎉")
+        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
     }
 }

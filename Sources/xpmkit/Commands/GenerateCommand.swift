@@ -3,35 +3,22 @@ import Foundation
 import Utility
 import xpmcore
 
-public class GenerateCommand: NSObject, Command {
-    /// Command name (static).
-    public static let command = "generate"
+class GenerateCommand: NSObject, Command {
 
-    /// Command description.
-    public static let overview = "Generates an Xcode workspace to start working on the project."
+    // MARK: - Attributes
 
-    /// Graph loader context.
+    static let command = "generate"
+    static let overview = "Generates an Xcode workspace to start working on the project."
     fileprivate let graphLoaderContext: GraphLoaderContexting
-
-    /// Graph loader.
     fileprivate let graphLoader: GraphLoading
-
-    /// Workspace generator.
     fileprivate let workspaceGenerator: WorkspaceGenerating
-
-    /// Context.
     fileprivate let context: CommandsContexting
-
-    /// Path argument.
     let pathArgument: OptionArgument<String>
-
-    /// Config argument.
     let configArgument: OptionArgument<String>
 
-    /// Initializes the generate command with the argument parser.
-    ///
-    /// - Parameter parser: argument parser.
-    public required convenience init(parser: ArgumentParser) {
+    // MARK: - Init
+
+    required convenience init(parser: ArgumentParser) {
         self.init(graphLoaderContext: GraphLoaderContext(),
                   graphLoader: GraphLoader(),
                   workspaceGenerator: WorkspaceGenerator(),
@@ -39,14 +26,6 @@ public class GenerateCommand: NSObject, Command {
                   context: CommandsContext())
     }
 
-    /// Initializes the command with the printer and the graph loading context.
-    ///
-    /// - Parameters:
-    ///   - graphLoaderContext: graph loading context.
-    ///   - graphLoader: graph loader.
-    ///   - workspaceGenerator: workspace generator,
-    ///   - parser: argument parser.
-    ///   - context: context.
     init(graphLoaderContext: GraphLoaderContexting,
          graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
@@ -69,35 +48,24 @@ public class GenerateCommand: NSObject, Command {
                                        completion: .filename)
     }
 
-    /// Runs the command.
-    ///
-    /// - Parameter _: argument parser arguments.
-    /// - Throws: an error if the command cannot be executed.
-    public func run(with arguments: ArgumentParser.Result) throws {
-        let path = parsePath(arguments: arguments)
+    func run(with arguments: ArgumentParser.Result) throws {
+        let path = self.path(arguments: arguments)
         let config = try parseConfig(arguments: arguments)
         let context = try GeneratorContext(graph: graphLoader.load(path: path))
         try workspaceGenerator.generate(path: path, context: context, options: GenerationOptions(buildConfiguration: config))
-        self.context.printer.print(section: "Generate command succeeded 🎉")
+        self.context.printer.print(success: "Project generated.")
     }
 
-    /// Parses the arguments and returns the path to the folder where the manifest file is.
-    ///
-    /// - Parameter arguments: argument parser result.
-    /// - Returns: the path to th efolder where the manifest is.
-    private func parsePath(arguments: ArgumentParser.Result) -> AbsolutePath {
-        var path: AbsolutePath! = arguments.get(pathArgument).map({ AbsolutePath($0) })
-        if path == nil {
-            path = AbsolutePath.current
+    // MARK: - Fileprivate
+
+    fileprivate func path(arguments: ArgumentParser.Result) -> AbsolutePath {
+        if let path = arguments.get(pathArgument) {
+            return AbsolutePath(path, relativeTo: AbsolutePath.current)
+        } else {
+            return AbsolutePath.current
         }
-        return path
     }
 
-    /// Parses the arguments and returns the build configuration that we should use for generating the projects.
-    ///
-    /// - Parameters:
-    ///     - arguments: argument parser result.
-    /// - Returns: The build configuration.
     private func parseConfig(arguments: ArgumentParser.Result) throws -> BuildConfiguration {
         var config: BuildConfiguration = .debug
         if let configString = arguments.get(configArgument) {
