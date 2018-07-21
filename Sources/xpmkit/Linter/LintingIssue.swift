@@ -1,37 +1,28 @@
 import Foundation
 import xpmcore
 
-/// Linting errors.
 struct LintingError: FatalError, Equatable {
 
     // MARK: - Attributes
 
-    /// Linting issues.
     private let issues: [LintingIssue]
 
-    /// Initializes the error with the linting issues.
-    ///
-    /// - Parameter issues: issues.
+    // MARK: - Init
+
     init(issues: [LintingIssue]) {
         self.issues = issues
     }
 
-    /// Error description.
+    // MARK: - FatalError
+
     var description: String {
         return issues.map({ "- \($0.description)" }).joined(separator: "\n")
     }
 
-    /// Error type.
     var type: ErrorType {
         return .abort
     }
 
-    /// Compares two instances of LintingError.
-    ///
-    /// - Parameters:
-    ///   - lhs: first instance to be compared.
-    ///   - rhs: second instance to be compared.
-    /// - Returns: true if the two instances are the same.
     static func == (lhs: LintingError, rhs: LintingError) -> Bool {
         return lhs.issues == rhs.issues
     }
@@ -39,10 +30,6 @@ struct LintingError: FatalError, Equatable {
 
 /// Linting issue.
 struct LintingIssue: CustomStringConvertible, Equatable {
-    /// Issue severities.
-    ///
-    /// - warning: used for issues that the developer should be alerted about but that shouldn't error the process.
-    /// - error: used for issues that should error the process.
     enum Severity: String {
         case warning
         case error
@@ -50,17 +37,11 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 
     // MARK: - Attributes
 
-    /// Issue reason.
     fileprivate let reason: String
-
-    /// Issue severity.
     fileprivate let severity: Severity
 
-    /// Default LintingIssue constructor.
-    ///
-    /// - Parameters:
-    ///   - reason: issue reason.
-    ///   - severity: issue severity
+    // MARK: - Init
+
     init(reason: String, severity: Severity) {
         self.reason = reason
         self.severity = severity
@@ -68,19 +49,12 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 
     // MARK: - CustomStringConvertible
 
-    /// Description.
     var description: String {
         return reason
     }
 
     // MARK: - Equatable
 
-    /// Compares two instances of LintingIssue.
-    ///
-    /// - Parameters:
-    ///   - lhs: first instance to be compared.
-    ///   - rhs: second instance to be compared.
-    /// - Returns: true if the two instances are equal.
     static func == (lhs: LintingIssue, rhs: LintingIssue) -> Bool {
         return lhs.severity == rhs.severity &&
             lhs.reason == rhs.reason
@@ -90,11 +64,6 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 // MARK: - Array Extension (Linting issues)
 
 extension Array where Element == LintingIssue {
-    /// Prints all the issues using the given printer and throws
-    /// if any of the issues is an error issue.
-    ///
-    /// - Parameter printer: printer used to print the issues.
-    /// - Throws: an error if any of the issues is an error.
     func printAndThrowIfNeeded(printer: Printing) throws {
         if count == 0 { return }
 
