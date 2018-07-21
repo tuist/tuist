@@ -14,6 +14,14 @@ class Headers: GraphJSONInitiatable, Equatable {
 
     // MARK: - Init
 
+    init(public: [AbsolutePath],
+         private: [AbsolutePath],
+         project: [AbsolutePath]) {
+        self.public = `public`
+        self.private = `private`
+        self.project = project
+    }
+
     required init(json: JSON, projectPath: AbsolutePath, fileHandler _: FileHandling) throws {
         if let `public`: String = try? json.get("public") {
             self.public = projectPath.glob(`public`)

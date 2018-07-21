@@ -32,13 +32,11 @@ final class GraphModuleLoaderErrorTests: XCTestCase {
 final class GraphModuleLoaderTests: XCTestCase {
     var tmpDir: TemporaryDirectory!
     var subject: GraphModuleLoader!
-    var context: Context!
 
     override func setUp() {
         super.setUp()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         subject = GraphModuleLoader()
-        context = Context()
     }
 
     override func tearDown() {
@@ -51,14 +49,14 @@ final class GraphModuleLoaderTests: XCTestCase {
         let sharedSwiftPath = tmpDir.path.appending(component: "shared.swift")
         try "//include: ./shared.swift".write(to: URL(fileURLWithPath: mainSwiftPath.asString), atomically: true, encoding: .utf8)
         try "".write(to: URL(fileURLWithPath: sharedSwiftPath.asString), atomically: true, encoding: .utf8)
-        let got = try subject.load(mainSwiftPath, context: context)
+        let got = try subject.load(mainSwiftPath)
         XCTAssertTrue(got.contains(mainSwiftPath))
         XCTAssertTrue(got.contains(sharedSwiftPath))
     }
 
     func test_load_throws_when_theFileDoesntExist() throws {
         let path = tmpDir.path.appending(component: "main.swift")
-        XCTAssertThrowsError(try subject.load(path, context: context)) {
+        XCTAssertThrowsError(try subject.load(path)) {
             XCTAssertEqual($0 as? GraphModuleLoaderError, GraphModuleLoaderError.fileNotFound(path))
         }
     }

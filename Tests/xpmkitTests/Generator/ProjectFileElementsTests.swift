@@ -26,14 +26,9 @@ final class ProjectFileElementsTests: XCTestCase {
     }
 
     func test_targetProducts() {
-        let target = Target.test(buildPhases: [
-            CopyBuildPhase(name: "Copy",
-                           destination: .frameworks,
-                           files: [.product("Test.framework")]),
-        ])
+        let target = Target.test()
         let products = subject.targetProducts(target: target).sorted()
         XCTAssertEqual(products.first, "Target.app")
-        XCTAssertEqual(products.last, "Test.framework")
     }
 
     func test_targetFiles() {
@@ -42,32 +37,25 @@ final class ProjectFileElementsTests: XCTestCase {
                                                      xcconfig: AbsolutePath("/project/debug.xcconfig")),
                                 release: Configuration(settings: [:],
                                                        xcconfig: AbsolutePath("/project/release.xcconfig")))
-        var buildPhases: [xpmkit.BuildPhase] = []
-        let sourcesPhase = SourcesBuildPhase(buildFiles: [SourcesBuildFile([AbsolutePath("/project/file.swift")])])
-        let resourcesPhase = ResourcesBuildPhase(buildFiles: [
-            ResourcesBuildFile([AbsolutePath("/project/image.png")]),
-            CoreDataModelBuildFile(AbsolutePath("/project/model.xcdatamodeld"),
-                                   currentVersion: "1",
-                                   versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")]),
-        ])
-        let headersPhase = HeadersBuildPhase(buildFiles: [
-            HeadersBuildFile([AbsolutePath("/project/public.h")], accessLevel: .public),
-            HeadersBuildFile([AbsolutePath("/project/project.h")], accessLevel: .project),
-            HeadersBuildFile([AbsolutePath("/project/private.h")], accessLevel: .private),
-        ])
-        buildPhases.append(sourcesPhase)
-        buildPhases.append(resourcesPhase)
-        buildPhases.append(headersPhase)
-        let target = Target(name: "target",
-                            platform: .iOS,
-                            product: .app,
-                            bundleId: "com.bundle.id",
-                            infoPlist: AbsolutePath("/project/info.plist"),
-                            entitlements: AbsolutePath("/project/app.entitlements"),
-                            settings: settings,
-                            buildPhases: buildPhases,
-                            dependencies: [])
+        let target = Target.test(name: "name",
+                                 platform: .iOS,
+                                 product: .app,
+                                 bundleId: "com.bundle.id",
+                                 infoPlist: AbsolutePath("/project/info.plist"),
+                                 entitlements: AbsolutePath("/project/app.entitlements"),
+                                 settings: settings,
+                                 sources: [AbsolutePath("/project/file.swift")],
+                                 resources: [AbsolutePath("/project/image.png")],
+                                 coreDataModels: [CoreDataModel(path: AbsolutePath("/project/model.xcdatamodeld"),
+                                                                versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],
+                                                                currentVersion: "1")],
+                                 headers: Headers(public: [AbsolutePath("/project/public.h")],
+                                                  private: [AbsolutePath("/project/private.h")],
+                                                  project: [AbsolutePath("/project/project.h")]),
+                                 dependencies: [])
+
         let files = subject.targetFiles(target: target)
+
         XCTAssertTrue(files.contains(AbsolutePath("/project/debug.xcconfig")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/release.xcconfig")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/file.swift")))

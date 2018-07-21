@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 final class SettingsTests: XCTestCase {
-    func test_toJSON_returns_the_right_value() {
+    func test_toJSON() {
         let subject = Settings(base: ["base": "base"],
                                debug: Configuration(settings: ["debug": "debug"],
                                                     xcconfig: "/path/debug.xcconfig"),

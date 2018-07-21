@@ -36,47 +36,37 @@ protocol BuildPhaseGenerating: AnyObject {
 }
 
 final class BuildPhaseGenerator: BuildPhaseGenerating {
-    func generateBuildPhases(target _: Target,
-                             pbxTarget _: PBXTarget,
-                             fileElements _: ProjectFileElements,
-                             objects _: PBXObjects) throws {
-        //        try target.buildPhases.forEach { buildPhase in
-        //            if let sourcesBuildPhase = buildPhase as? SourcesBuildPhase {
-        //                try generateSourcesBuildPhase(sourcesBuildPhase,
-        //                                              pbxTarget: pbxTarget,
-        //                                              fileElements: fileElements,
-        //                                              objects: objects)
-        //            } else if let resourcesBuildPhase = buildPhase as? ResourcesBuildPhase {
-        //                try generateResourcesBuildPhase(resourcesBuildPhase,
-        //                                                pbxTarget: pbxTarget,
-        //                                                fileElements: fileElements,
-        //                                                objects: objects)
-        //            } else if let headersBuildPhase = buildPhase as? HeadersBuildPhase {
-        //                try generateHeadersBuildPhase(headersBuildPhase,
-        //                                              pbxTarget: pbxTarget,
-        //                                              fileElements: fileElements,
-        //                                              objects: objects)
-        //            } else if let scriptBuildPhase = buildPhase as? ScriptBuildPhase {
-        //                generateScriptBuildPhase(scriptBuildPhase,
-        //                                         pbxTarget: pbxTarget,
-        //                                         objects: objects)
-        //            } else if let copyBuildPhase = buildPhase as? CopyBuildPhase {
-        //                generateCopyBuildPhase(copyBuildPhase,
-        //                                       pbxTarget: pbxTarget,
-        //                                       fileElements: fileElements,
-        //                                       objects: objects)
-        //            }
-        //        }
+    func generateBuildPhases(target: Target,
+                             pbxTarget: PBXTarget,
+                             fileElements: ProjectFileElements,
+                             objects: PBXObjects) throws {
+        try generateSourcesBuildPhase(files: target.sources,
+                                      pbxTarget: pbxTarget,
+                                      fileElements: fileElements,
+                                      objects: objects)
+
+        try generateResourcesBuildPhase(files: target.resources,
+                                        coreDataModels: target.coreDataModels,
+                                        pbxTarget: pbxTarget,
+                                        fileElements: fileElements,
+                                        objects: objects)
+
+        if let headers = target.headers {
+            try generateHeadersBuildPhase(headers: headers,
+                                          pbxTarget: pbxTarget,
+                                          fileElements: fileElements,
+                                          objects: objects)
+        }
     }
 
-    func generateSourcesBuildPhase(buildFiles: [AbsolutePath],
+    func generateSourcesBuildPhase(files: [AbsolutePath],
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    objects: PBXObjects) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         let sourcesBuildPhaseReference = objects.addObject(sourcesBuildPhase)
         pbxTarget.buildPhasesReferences.append(sourcesBuildPhaseReference)
-        try buildFiles.forEach { buildFilePath in
+        try files.forEach { buildFilePath in
             guard let fileReference = fileElements.file(path: buildFilePath) else {
                 throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
             }
@@ -110,8 +100,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         try headers.project.forEach({ try addHeader($0, "project") })
     }
 
-    func generateResourcesBuildPhase(files: [AbsolutePath],
-                                     coreDataModels: [CoreDataModel],
+    func generateResourcesBuildPhase(files: [AbsolutePath] = [],
+                                     coreDataModels: [CoreDataModel] = [],
                                      pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
                                      objects: PBXObjects) throws {
@@ -124,7 +114,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                        objects: objects,
                                        resourcesBuildPhase: resourcesBuildPhase)
 
-        try coreDataModels.forEach {
+        coreDataModels.forEach {
             self.generateCoreDataModel(coreDataModel: $0,
                                        fileElements: fileElements,
                                        objects: objects,

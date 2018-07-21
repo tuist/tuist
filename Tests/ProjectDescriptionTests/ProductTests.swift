@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 final class ProductTests: XCTestCase {
-    func test_toJSON_returns_the_right_value() {
+    func test_toJSON() {
         XCTAssertEqual(Product.app.toJSON().toString(), "\"app\"")
         XCTAssertEqual(Product.staticLibrary.toJSON().toString(), "\"staticLibrary\"")
         XCTAssertEqual(Product.dynamicLibrary.toJSON().toString(), "\"dynamicLibrary\"")

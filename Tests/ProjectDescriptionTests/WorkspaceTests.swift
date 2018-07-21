@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 final class WorkspaceTests: XCTestCase {
-    func test_toJSON_returns_the_right_value() {
+    func test_toJSON() {
         let subject = Workspace(name: "name", projects: ["/path/to/project"])
         let json = subject.toJSON()
         let expected = "{\"name\": \"name\", \"project\": [\"/path/to/project\"]}"

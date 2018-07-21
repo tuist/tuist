@@ -10,13 +10,10 @@ extension Target {
                      infoPlist: AbsolutePath = AbsolutePath("/Info.plist"),
                      entitlements: AbsolutePath? = AbsolutePath("/Test.entitlements"),
                      settings: Settings? = Settings.test(),
-                     buildPhases: [BuildPhase] = [
-                         SourcesBuildPhase.test(),
-                         ResourcesBuildPhase.test(),
-                         HeadersBuildPhase.test(),
-                         ScriptBuildPhase.test(),
-                         CopyBuildPhase.test(),
-                     ],
+                     sources: [AbsolutePath] = [AbsolutePath("/sources/*")],
+                     resources: [AbsolutePath] = [AbsolutePath("/resources/*")],
+                     coreDataModels: [CoreDataModel] = [],
+                     headers: Headers? = nil,
                      dependencies: [JSON] = []) -> Target {
         return Target(name: name,
                       platform: platform,
@@ -25,7 +22,10 @@ extension Target {
                       infoPlist: infoPlist,
                       entitlements: entitlements,
                       settings: settings,
-                      buildPhases: buildPhases,
+                      sources: sources,
+                      resources: resources,
+                      headers: headers,
+                      coreDataModels: coreDataModels,
                       dependencies: dependencies)
     }
 }

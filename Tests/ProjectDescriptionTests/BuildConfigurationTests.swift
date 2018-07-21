@@ -3,11 +3,11 @@ import Foundation
 import XCTest
 
 final class BuildConfigurationTests: XCTestCase {
-    func test_toJSON_returns_the_right_value_when_debug() {
+    func test_toJSON_when_debug() {
         XCTAssertEqual(BuildConfiguration.debug.toJSON().toString(), "\"debug\"")
     }
 
-    func test_toJSON_returns_the_right_value_when_release() {
+    func test_toJSON_when_release() {
         XCTAssertEqual(BuildConfiguration.release.toJSON().toString(), "\"release\"")
     }
 }

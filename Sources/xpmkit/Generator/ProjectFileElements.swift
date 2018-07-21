@@ -79,6 +79,8 @@ class ProjectFileElements {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources)
         files.formUnion(target.resources)
+        files.formUnion(target.coreDataModels.map({ $0.path }))
+        files.formUnion(target.coreDataModels.flatMap({ $0.versions }))
 
         if let headers = target.headers {
             files.formUnion(headers.public)

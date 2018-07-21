@@ -3,11 +3,22 @@ import Foundation
 import xpmcore
 
 class CoreDataModel: Equatable, GraphJSONInitiatable {
+
+    // MARK: - Attributes
+
     let path: AbsolutePath
     let versions: [AbsolutePath]
     let currentVersion: String
 
     // MARK: - Init
+
+    init(path: AbsolutePath,
+         versions: [AbsolutePath],
+         currentVersion: String) {
+        self.path = path
+        self.versions = versions
+        self.currentVersion = currentVersion
+    }
 
     required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
         let pathString: String = try json.get("path")
