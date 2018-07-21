@@ -2,14 +2,12 @@ import Basic
 import Foundation
 import xpmcore
 
-/// Class that represents an Xcode project.
 class Project: Equatable {
 
     // MARK: - Attributes
 
     let path: AbsolutePath
     let name: String
-    let schemes: [Scheme]
     let targets: [Target]
     let settings: Settings?
 
@@ -17,12 +15,10 @@ class Project: Equatable {
 
     init(path: AbsolutePath,
          name: String,
-         schemes: [Scheme],
          settings: Settings? = nil,
          targets: [Target]) {
         self.path = path
         self.name = name
-        self.schemes = schemes
         self.targets = targets
         self.settings = settings
     }
@@ -49,7 +45,6 @@ class Project: Equatable {
         name = try json.get("name")
         let targetsJSONs: [JSON] = try json.get("targets")
         targets = try targetsJSONs.map({ try Target(json: $0, projectPath: path, fileHandler: fileHandler) })
-        schemes = try json.get("schemes")
         let settingsJSON: JSON? = try? json.get("settings")
         settings = try settingsJSON.map({ try Settings(json: $0, projectPath: path, fileHandler: fileHandler) })
     }
@@ -59,7 +54,6 @@ class Project: Equatable {
     static func == (lhs: Project, rhs: Project) -> Bool {
         return lhs.path == rhs.path &&
             lhs.name == rhs.name &&
-            lhs.schemes == rhs.schemes &&
             lhs.targets == rhs.targets &&
             lhs.settings == rhs.settings
     }
