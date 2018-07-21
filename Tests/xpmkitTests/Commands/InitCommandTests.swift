@@ -68,6 +68,13 @@ final class InitCommandTests: XCTestCase {
         ]))
     }
 
+    func test_pathArgument() {
+        XCTAssertEqual(subject.pathArgument.name, "--path")
+        XCTAssertTrue(subject.pathArgument.isOptional)
+        XCTAssertEqual(subject.pathArgument.usage, "The path to the folder where the project will be generated.")
+        XCTAssertEqual(subject.pathArgument.completion, .filename)
+    }
+
     func test_run_when_ios_application() throws {
         let result = try parser.parse(["init", "--product", "application", "--platform", "ios"])
         try subject.run(with: result)
