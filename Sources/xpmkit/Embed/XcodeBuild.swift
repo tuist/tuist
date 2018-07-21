@@ -5,16 +5,7 @@
 import Basic
 import Foundation
 
-/// Xcode utils.
 class XcodeBuild {
-    /// Xcode action.
-    ///
-    /// - archive: archive.
-    /// - install: install
-    /// - build: build.
-    /// - clean: clean.
-    /// - installhdrs: install hdrs.
-    /// - installsrc: install src.
     public enum Action: String {
         case archive
         case install
@@ -24,7 +15,6 @@ class XcodeBuild {
         case installsrc
     }
 
-    /// Xcode Build Environment.
     class Environment {
         public let configuration: String
         public let configurationBuildDir: String
@@ -41,7 +31,6 @@ class XcodeBuild {
         public let srcRoot: String
         public let action: Action
 
-        // Initializes the Xcode Environment with its attributes.
         public init(configuration: String,
                     configurationBuildDir: String,
                     frameworksFolderPath: String,
@@ -72,9 +61,6 @@ class XcodeBuild {
             self.action = action
         }
 
-        /// Initializes the environment from the process environment.
-        ///
-        /// - Parameter environment: process environment.
         public init?(environment: [String: String] = ProcessInfo.processInfo.environment) {
             guard let configuration = environment["CONFIGURATION"] else { return nil }
             guard let configurationBuildDir = environment["CONFIGURATION_BUILD_DIR"] else { return nil }
@@ -108,9 +94,6 @@ class XcodeBuild {
 
         // MARK: - Public
 
-        /// Returns the destination path.
-        ///
-        /// - Returns: destination path.
         public func destinationPath() -> AbsolutePath {
             if action == .install {
                 return AbsolutePath(builtProductsDir)
@@ -119,9 +102,6 @@ class XcodeBuild {
             }
         }
 
-        /// Returns the frameworks path.
-        ///
-        /// - Returns: frameworks path.
         private func frameworksPath() -> AbsolutePath {
             return destinationPath().appending(RelativePath(frameworksFolderPath))
         }
