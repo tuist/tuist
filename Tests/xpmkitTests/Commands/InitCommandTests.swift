@@ -32,27 +32,27 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(parser.subparsers.keys.contains(InitCommand.command))
     }
 
-    func test_pathArgument() {
-        XCTAssertEqual(subject.pathArgument.shortName, "-p")
-        XCTAssertEqual(subject.pathArgument.usage, "The path where the Project.swift file will be generated")
-        XCTAssertEqual(subject.pathArgument.completion, ShellCompletion.filename)
+    func test_productArgument() {
+        XCTAssertEqual(subject.productArgument.name, "--product")
+        XCTAssertTrue(subject.productArgument.isOptional)
+        XCTAssertEqual(subject.productArgument.usage, "The product (app or framework) the generated project will build.")
+        XCTAssertEqual(subject.productArgument.completion, ShellCompletion.values([
+            (value: "app", description: "Application"),
+            (value: "framework", description: "Framework"),
+        ]))
+    }
+
+    func test_platformArgument() {
+        XCTAssertEqual(subject.platformArgument.name, "--platform")
+        XCTAssertTrue(subject.platformArgument.isOptional)
+        XCTAssertEqual(subject.platformArgument.usage, "The platform (ios or macos) the product will be for.")
+        XCTAssertEqual(subject.platformArgument.completion, ShellCompletion.values([
+            (value: "ios", description: "iOS platform"),
+            (value: "macos", description: "macOS platform"),
+        ]))
     }
 
     func test_command() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try "".write(toFile: tmpDir.path.appending(component: "Info.plist").asString, atomically: true, encoding: .utf8)
-        try "".write(toFile: tmpDir.path.appending(component: "Debug.xcconfig").asString, atomically: true, encoding: .utf8)
-        let result = try parser.parse([InitCommand.command, "-p", tmpDir.path.asString])
-        try subject.run(with: result)
-        let project = try Project.at(tmpDir.path, context: graphLoaderContext)
-        XCTAssertEqual(project.name, tmpDir.path.components.last)
-        XCTAssertEqual(project.schemes.count, 1)
-        XCTAssertEqual(project.targets.first?.name, tmpDir.path.components.last)
-        XCTAssertEqual(project.targets.first?.platform, .iOS)
-        XCTAssertEqual(project.targets.first?.product, .app)
-        XCTAssertEqual(project.targets.first?.bundleId, "com.xcodepm.\(tmpDir.path.components.last!)")
-        XCTAssertEqual(project.targets.first?.dependencies.count, 0)
-        XCTAssertNil(project.targets.first?.settings)
-        XCTAssertEqual(project.targets.first?.buildPhases.count, 1)
+
     }
 }

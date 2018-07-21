@@ -56,10 +56,15 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
             base["CFBundlePackageType"] = "APPL"
 
             // Framework
-        } else {
+        } else if product == .framework {
             base["CFBundleVersion"] = "$(CURRENT_PROJECT_VERSION)"
             base["CFBundlePackageType"] = "FMWK"
             base["NSPrincipalClass"] = ""
+
+            // Tests bundle
+        } else if product == .unitTests || product == .uiTests {
+            base["CFBundleVersion"] = "1"
+            base["CFBundlePackageType"] = "BNDL"
         }
 
         // macOS application
