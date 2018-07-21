@@ -9,7 +9,6 @@ public final class CommandRegistry {
 
     let parser: ArgumentParser
     var commands: [Command] = []
-    private let context: Contexting
     private let commandCheck: CommandChecking
     private let errorHandler: ErrorHandling
     private let processArguments: () -> [String]
@@ -17,8 +16,7 @@ public final class CommandRegistry {
     // MARK: - Init
 
     public convenience init() {
-        self.init(context: Context(),
-                  commandCheck: CommandCheck(),
+        self.init(commandCheck: CommandCheck(),
                   errorHandler: ErrorHandler(),
                   processArguments: CommandRegistry.processArguments)
         register(command: InitCommand.self)
@@ -28,12 +26,10 @@ public final class CommandRegistry {
         register(command: CreateIssueCommand.self)
     }
 
-    init(context: Contexting,
-         commandCheck: CommandChecking,
+    init(commandCheck: CommandChecking,
          errorHandler: ErrorHandling,
          processArguments: @escaping () -> [String]) {
         self.commandCheck = commandCheck
-        self.context = context
         self.errorHandler = errorHandler
         parser = ArgumentParser(commandName: "xpm",
                                 usage: "<command> <options>",

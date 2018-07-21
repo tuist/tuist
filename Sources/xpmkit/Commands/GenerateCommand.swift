@@ -5,37 +5,36 @@ import xpmcore
 
 class GenerateCommand: NSObject, Command {
 
-    // MARK: - Attributes
+    // MARK: - Static
 
     static let command = "generate"
     static let overview = "Generates an Xcode workspace to start working on the project."
-    fileprivate let graphLoaderContext: GraphLoaderContexting
+
+    // MARK: - Attributes
+
     fileprivate let graphLoader: GraphLoading
     fileprivate let workspaceGenerator: WorkspaceGenerating
-    fileprivate let context: CommandsContexting
+    fileprivate let printer: Printing
     let pathArgument: OptionArgument<String>
     let configArgument: OptionArgument<String>
 
     // MARK: - Init
 
     required convenience init(parser: ArgumentParser) {
-        self.init(graphLoaderContext: GraphLoaderContext(),
-                  graphLoader: GraphLoader(),
+        self.init(graphLoader: GraphLoader(),
                   workspaceGenerator: WorkspaceGenerator(),
                   parser: parser,
-                  context: CommandsContext())
+                  printer: Printer())
     }
 
-    init(graphLoaderContext: GraphLoaderContexting,
-         graphLoader: GraphLoading,
+    init(graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
          parser: ArgumentParser,
-         context: CommandsContexting) {
+         printer: Printing) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
-        self.graphLoaderContext = graphLoaderContext
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
-        self.context = context
+        self.printer = printer
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -53,7 +52,7 @@ class GenerateCommand: NSObject, Command {
         let config = try parseConfig(arguments: arguments)
         let context = try GeneratorContext(graph: graphLoader.load(path: path))
         try workspaceGenerator.generate(path: path, context: context, options: GenerationOptions(buildConfiguration: config))
-        self.context.printer.print(success: "Project generated.")
+        printer.print(success: "Project generated.")
     }
 
     // MARK: - Fileprivate

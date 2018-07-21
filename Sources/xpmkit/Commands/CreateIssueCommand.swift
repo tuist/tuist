@@ -10,22 +10,25 @@ class CreateIssueCommand: NSObject, Command {
 
     static let command = "create-issue"
     static let overview = "Opens the GitHub page to create a new issue."
-    let context: CommandsContexting
-
+    
+    // MARK: - Attributes
+    
+    private let shell: Shelling
+    
     // MARK: - Init
 
     required init(parser: ArgumentParser) {
         parser.add(subparser: CreateIssueCommand.command, overview: CreateIssueCommand.overview)
-        context = CommandsContext()
+        shell = Shell()
     }
 
-    init(context: CommandsContexting) {
-        self.context = context
+    init(shell: Shelling) {
+        self.shell = shell
     }
 
     // MARK: - Command
 
     func run(with _: ArgumentParser.Result) throws {
-        _ = try context.shell.run("open", CreateIssueCommand.createIssueUrl, environment: [:])
+        _ = try shell.run("open", CreateIssueCommand.createIssueUrl, environment: [:])
     }
 }

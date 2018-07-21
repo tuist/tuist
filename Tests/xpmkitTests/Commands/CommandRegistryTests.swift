@@ -13,10 +13,9 @@ final class CommandRegistryTests: XCTestCase {
         super.setUp()
         commandCheck = MockCommandCheck()
         errorHandler = MockErrorHandler()
-        let context = Context()
-        subject = CommandRegistry(context: context,
-                                  commandCheck: commandCheck,
-                                  errorHandler: errorHandler) { return ["xpm", type(of: self.command).command] }
+        subject = CommandRegistry(commandCheck: commandCheck,
+                                  errorHandler: errorHandler,
+                                  processArguments: { ["xpm", type(of: self.command).command] })
         command = MockCommand(parser: subject.parser)
         subject.register(command: MockCommand.self)
     }

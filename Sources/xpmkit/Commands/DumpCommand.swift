@@ -29,28 +29,35 @@ enum DumpCommandError: FatalError, Equatable {
 
 class DumpCommand: NSObject, Command {
 
-    // MARK: - Attributes
+    // MARK: - Command
 
     static let command = "dump"
     static let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
-    fileprivate let graphLoaderContext: GraphLoaderContexting
-    fileprivate let context: CommandsContexting
+
+    // MARK: - Attributes
+
+    fileprivate let fileHandler: FileHandling
+    fileprivate let manifestLoader: GraphManifestLoading
+    fileprivate let printer: Printing
     let pathArgument: OptionArgument<String>
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
-        self.init(graphLoaderContext: GraphLoaderContext(),
-                  context: CommandsContext(),
+        self.init(fileHandler: FileHandler(),
+                  manifestLoader: GraphManifestLoader(),
+                  printer: Printer(),
                   parser: parser)
     }
 
-    init(graphLoaderContext: GraphLoaderContexting,
-         context: CommandsContexting,
+    init(fileHandler: FileHandling,
+         manifestLoader: GraphManifestLoading,
+         printer: Printing,
          parser: ArgumentParser) {
         let subParser = parser.add(subparser: DumpCommand.command, overview: DumpCommand.overview)
-        self.graphLoaderContext = graphLoaderContext
-        self.context = context
+        self.fileHandler = fileHandler
+        self.manifestLoader = manifestLoader
+        self.printer = printer
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -70,13 +77,15 @@ class DumpCommand: NSObject, Command {
         let projectPath = path.appending(component: Constants.Manifest.project)
         let workspacePath = path.appending(component: Constants.Manifest.workspace)
         var json: JSON!
-        if graphLoaderContext.fileHandler.exists(projectPath) {
-            json = try graphLoaderContext.manifestLoader.load(path: projectPath, context: graphLoaderContext)
-        } else if graphLoaderContext.fileHandler.exists(workspacePath) {
-            json = try graphLoaderContext.manifestLoader.load(path: workspacePath, context: graphLoaderContext)
+        // TODO: Delete
+        let context = GraphLoaderContext(context: Context())
+        if fileHandler.exists(projectPath) {
+            json = try manifestLoader.load(path: projectPath, context: context)
+        } else if fileHandler.exists(workspacePath) {
+            json = try manifestLoader.load(path: workspacePath, context: context)
         } else {
             throw DumpCommandError.manifestNotFound(path)
         }
-        context.printer.print(json.toString(prettyPrint: true))
+        printer.print(json.toString(prettyPrint: true))
     }
 }

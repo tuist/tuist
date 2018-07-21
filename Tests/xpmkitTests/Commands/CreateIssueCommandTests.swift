@@ -11,8 +11,7 @@ final class CreateIssueCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         shell = MockShell()
-        let context = CommandsContext(shell: shell)
-        subject = CreateIssueCommand(context: context)
+        subject = CreateIssueCommand(shell: shell)
     }
 
     func test_command() {

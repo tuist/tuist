@@ -18,16 +18,13 @@ final class GenerateCommandTests: XCTestCase {
         super.setUp()
         printer = MockPrinter()
         errorHandler = MockErrorHandler()
-        let graphLoaderContext = GraphLoaderContext()
-        let commandsContext = CommandsContext(printer: printer)
         graphLoader = MockGraphLoader()
         workspaceGenerator = MockWorkspaceGenerator()
         parser = ArgumentParser.test()
-        subject = GenerateCommand(graphLoaderContext: graphLoaderContext,
-                                  graphLoader: graphLoader,
+        subject = GenerateCommand(graphLoader: graphLoader,
                                   workspaceGenerator: workspaceGenerator,
                                   parser: parser,
-                                  context: commandsContext)
+                                  printer: printer)
     }
 
     func test_command() {

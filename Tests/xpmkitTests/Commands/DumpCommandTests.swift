@@ -8,17 +8,20 @@ import XCTest
 final class DumpCommandTests: XCTestCase {
     var printer: MockPrinter!
     var errorHandler: MockErrorHandler!
+    var fileHandler: MockFileHandler!
     var subject: DumpCommand!
     var parser: ArgumentParser!
+    var manifestLoading: GraphManifestLoading!
 
     override func setUp() {
-        let graphLoaderContext = GraphLoaderContext()
         printer = MockPrinter()
         errorHandler = MockErrorHandler()
-        let commandsContext = CommandsContext(printer: printer)
         parser = ArgumentParser.test()
-        subject = DumpCommand(graphLoaderContext: graphLoaderContext,
-                              context: commandsContext,
+        fileHandler = try! MockFileHandler()
+        manifestLoading = GraphManifestLoader()
+        subject = DumpCommand(fileHandler: fileHandler,
+                              manifestLoader: manifestLoading,
+                              printer: printer,
                               parser: parser)
     }
 

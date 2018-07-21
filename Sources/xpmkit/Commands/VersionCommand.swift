@@ -9,22 +9,25 @@ class VersionCommand: NSObject, Command {
 
     static let command = "version"
     static let overview = "Outputs the current version of xpm."
-    let context: CommandsContexting
+    
+    // MARK: - Attributes
+    
+    let printer: Printing
 
     // MARK: - Init
 
     required init(parser: ArgumentParser) {
         parser.add(subparser: VersionCommand.command, overview: VersionCommand.overview)
-        context = CommandsContext()
+        printer = Printer()
     }
 
-    init(context: CommandsContexting) {
-        self.context = context
+    init(printer: Printing) {
+        self.printer = printer
     }
 
     // MARK: - Command
 
     func run(with _: ArgumentParser.Result) {
-        context.printer.print(Constants.version)
+        printer.print(Constants.version)
     }
 }
