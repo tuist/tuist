@@ -119,7 +119,6 @@ final class ConfigGeneratorTests: XCTestCase {
         try xcconfigsDir.appending(component: "release.xcconfig").write("")
         let project = Project(path: dir.path,
                               name: "Test",
-                              schemes: [],
                               settings: Settings(base: ["Base": "Base"],
                                                  debug: Configuration(settings: ["Debug": "Debug"],
                                                                       xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
@@ -155,7 +154,6 @@ final class ConfigGeneratorTests: XCTestCase {
                                                                            xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))))
         let project = Project(path: dir.path,
                               name: "Test",
-                              schemes: [],
                               settings: nil,
                               targets: [target])
         let fileElements = ProjectFileElements()
