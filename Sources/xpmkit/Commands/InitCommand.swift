@@ -106,9 +106,6 @@ public class InitCommand: NSObject, Command {
          let project = Project(name: "\(name)",
                       schemes: [
                           /* Project schemes are defined here */
-                          Scheme(name: "\(name)",
-                                 shared: true,
-                                 buildAction: BuildAction(targets: ["\(name)"])),
                       ],
                       settings: Settings(base: [:]),
                       targets: [
