@@ -12,6 +12,6 @@ This document describes the process of releasing new versions of xpm.
 
 4.  Update the version in the `Constants.swift` file.
 5.  Update the `CHANGELOG.md` to include the version section.
-6.  Generate the documentation with `swift run xpmtools documentation`.
+6.  Generate the documentation with `jazzy`.
 7.  Commit the changes and tag the commit with the version `git tag x.y.z`.
 8.  Push the changes to remote and create a new release on GitHub including the changelog.
