@@ -2,40 +2,32 @@ import Basic
 import Foundation
 import xpmcore
 
-/// Project linting protocol.
 protocol ProjectLinting: AnyObject {
     func lint(_ project: Project) -> [LintingIssue]
 }
 
-/// Lints the format of the project.
 class ProjectLinter: ProjectLinting {
 
     // MARK: - Attributes
 
-    /// Target linter.
     let targetLinter: TargetLinting
 
-    /// Initialize the linter with its attributes.
-    ///
-    /// - Parameter targetLinter: target linter.
+    // MARK: - Init
+
     init(targetLinter: TargetLinting = TargetLinter()) {
         self.targetLinter = targetLinter
     }
 
-    /// Lints a project.
-    ///
-    /// - Parameter project: project to be linted.
-    /// - Returns: all the linting issues found.
+    // MARK: - ProjectLinting
+
     func lint(_ project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintTargets(project: project))
         return issues
     }
 
-    /// Lints the project targets.
-    ///
-    /// - Parameter project: project whose targets will be linted.
-    /// - Returns: all linting issues.
+    // MARK: - Fileprivate
+
     fileprivate func lintTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: project.targets.flatMap(targetLinter.lint))
@@ -43,10 +35,6 @@ class ProjectLinter: ProjectLinting {
         return issues
     }
 
-    /// Verifies that there are no duplicated targets in the same project.
-    ///
-    /// - Parameter project: project to be linted.
-    /// - Returns: issues if there are targets duplicated.
     fileprivate func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let duplicatedTargets = project.targets.map({ $0.name })
