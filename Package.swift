@@ -62,6 +62,6 @@ let package = Package(
         .testTarget(
             name: "IntegrationTests",
             dependencies: ["xpmkit", "Utility"]
-        )
+        ),
     ]
 )

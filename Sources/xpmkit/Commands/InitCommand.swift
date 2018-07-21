@@ -3,19 +3,14 @@ import Foundation
 import Utility
 import xpmcore
 
-/// Init command error
-///
-/// - alreadyExists: when a file already exists.
 enum InitCommandError: FatalError {
     case alreadyExists(AbsolutePath)
     case ungettableProjectName(AbsolutePath)
 
-    /// Error type.
     var type: ErrorType {
         return .abort
     }
 
-    /// Error description.
     var description: String {
         switch self {
         case let .alreadyExists(path):
@@ -26,31 +21,20 @@ enum InitCommandError: FatalError {
     }
 }
 
-/// Command that initializes a Project.swift in the current folder.
-public class InitCommand: NSObject, Command {
+class InitCommand: NSObject, Command {
 
-    // MARK: - Command
+    // MARK: - Attributes
 
-    /// Command name.
-    public static let command = "init"
-
-    /// Command description.
-    public static let overview = "Bootstraps a project in the current directory."
-
-    /// Platform argument.
+    static let command = "init"
+    static let overview = "Bootstraps a project in the current directory."
     let platformArgument: OptionArgument<String>
-
-    /// Product argument.
     let productArgument: OptionArgument<String>
-
-    /// File handler.
+    let pathArgument: OptionArgument<String>
     let fileHandler: FileHandling
-
-    /// Printer.
     let printer: Printing
-
-    /// Info.plist provisioner
     let infoplistProvisioner: InfoPlistProvisioning
+
+    // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
@@ -80,26 +64,30 @@ public class InitCommand: NSObject, Command {
                                              (value: "ios", description: "iOS platform"),
                                              (value: "macos", description: "macOS platform"),
         ]))
+        pathArgument = subParser.add(option: "--path",
+                                     shortName: "-p",
+                                     kind: String.self,
+                                     usage: "The path to the folder where the project will be generated.",
+                                     completion: .filename)
         self.fileHandler = fileHandler
         self.printer = printer
         self.infoplistProvisioner = infoplistProvisioner
     }
 
-    /// Runs the command.
-    ///
-    /// - Parameter arguments: input arguments.
-    /// - Throws: throws an error if the execution fails.
-    public func run(with arguments: ArgumentParser.Result) throws {
+    func run(with arguments: ArgumentParser.Result) throws {
         let product = try self.product(arguments: arguments)
         let platform = try self.platform(arguments: arguments)
-        let name = try self.name()
-        try generateProjectSwift(name: name, platform: platform, product: product)
-        try generateSources(name: name, platform: platform, product: product)
-        try generateTests(name: name)
-        try generatePlists(platform: platform, product: product)
+        let path = try self.path(arguments: arguments)
+        let name = try self.name(path: path)
+        try generateProjectSwift(name: name, platform: platform, product: product, path: path)
+        try generateSources(name: name, platform: platform, product: product, path: path)
+        try generateTests(name: name, path: path)
+        try generatePlists(platform: platform, product: product, path: path)
     }
 
-    fileprivate func generateProjectSwift(name: String, platform: Platform, product: Product) throws {
+    // MARK: - Fileprivate
+
+    fileprivate func generateProjectSwift(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
         let content = """
         import ProjectDescription
         
@@ -140,20 +128,20 @@ public class InitCommand: NSObject, Command {
                         
                     ])
         """
-        try content.write(to: fileHandler.currentPath.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
+        try content.write(to: path.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
     }
 
-    fileprivate func generatePlists(platform: Platform, product: Product) throws {
-        try infoplistProvisioner.generate(path: fileHandler.currentPath.appending(component: "Info.plist"),
+    fileprivate func generatePlists(platform: Platform, product: Product, path: AbsolutePath) throws {
+        try infoplistProvisioner.generate(path: path.appending(component: "Info.plist"),
                                           platform: platform,
                                           product: product)
-        try infoplistProvisioner.generate(path: fileHandler.currentPath.appending(component: "Tests.plist"),
+        try infoplistProvisioner.generate(path: path.appending(component: "Tests.plist"),
                                           platform: platform,
                                           product: .unitTests)
     }
 
-    fileprivate func generateSources(name: String, platform: Platform, product: Product) throws {
-        let path = fileHandler.currentPath.appending(component: "Sources")
+    fileprivate func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
+        let path = path.appending(component: "Sources")
 
         if fileHandler.exists(path) {
             throw InitCommandError.alreadyExists(path)
@@ -219,12 +207,8 @@ public class InitCommand: NSObject, Command {
         try content.write(to: path.appending(component: filename).url, atomically: true, encoding: .utf8)
     }
 
-    /// Generates the tests folder with a base tests file.
-    ///
-    /// - Parameter name: project name.
-    /// - Throws: an error if the tests folder cannot be created.
-    fileprivate func generateTests(name: String) throws {
-        let path = fileHandler.currentPath.appending(component: "Tests")
+    fileprivate func generateTests(name: String, path: AbsolutePath) throws {
+        let path = path.appending(component: "Tests")
 
         if fileHandler.exists(path) {
             throw InitCommandError.alreadyExists(path)
@@ -244,22 +228,22 @@ public class InitCommand: NSObject, Command {
         try content.write(to: path.appending(component: "\(name)Tests.swift").url, atomically: true, encoding: .utf8)
     }
 
-    /// Returns the name that should be used for the project.
-    ///
-    /// - Returns: project name.
-    /// - Throws: an error if the name cannot be obtained.
-    fileprivate func name() throws -> String {
-        if let name = fileHandler.currentPath.components.last {
+    fileprivate func name(path: AbsolutePath) throws -> String {
+        if let name = path.components.last {
             return name
         } else {
             throw InitCommandError.ungettableProjectName(AbsolutePath.current)
         }
     }
 
-    /// Returns the product by parsing the arguments.
-    ///
-    /// - Parameter arguments: argument parser result.
-    /// - Returns: the product that should be used for the project.
+    fileprivate func path(arguments: ArgumentParser.Result) throws -> AbsolutePath {
+        if let path = arguments.get(pathArgument) {
+            return AbsolutePath(path, relativeTo: fileHandler.currentPath)
+        } else {
+            return fileHandler.currentPath
+        }
+    }
+
     fileprivate func product(arguments: ArgumentParser.Result) throws -> Product {
         if let productString = arguments.get(self.productArgument) {
             let valid = ["application", "framework"]
@@ -273,10 +257,6 @@ public class InitCommand: NSObject, Command {
         }
     }
 
-    /// Returns the platform by parsing the arguments.
-    ///
-    /// - Parameter arguments: argument parser result.
-    /// - Returns: the platform that should be used for the project.
     fileprivate func platform(arguments: ArgumentParser.Result) throws -> Platform {
         if let platformString = arguments.get(self.platformArgument) {
             let valid = ["ios", "macos"]
