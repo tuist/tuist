@@ -3,27 +3,19 @@ import Foundation
 import Utility
 import xpmcore
 
-/// Registry that contains all the commands.
 public final class CommandRegistry {
-    // Argument parser.
+
+    // MARK: - Attributes
+
     let parser: ArgumentParser
-
-    /// Context.
-    private let context: Contexting
-
-    /// Command check.
-    private let commandCheck: CommandChecking
-
-    /// Error handler.
-    private let errorHandler: ErrorHandling
-
-    // Registered commands.
     var commands: [Command] = []
-
-    /// Returns the process arguments.
+    private let context: Contexting
+    private let commandCheck: CommandChecking
+    private let errorHandler: ErrorHandling
     private let processArguments: () -> [String]
 
-    /// Public ocnstructor that takes no arguments.
+    // MARK: - Init
+
     public convenience init() {
         self.init(context: Context(),
                   commandCheck: CommandCheck(),
@@ -36,7 +28,6 @@ public final class CommandRegistry {
         register(command: CreateIssueCommand.self)
     }
 
-    /// Initializes the command registry
     init(context: Contexting,
          commandCheck: CommandChecking,
          errorHandler: ErrorHandling,
@@ -51,21 +42,18 @@ public final class CommandRegistry {
         self.processArguments = processArguments
     }
 
-    /// Returns the process arguments
-    ///
-    /// - Returns: process arguments.
     public static func processArguments() -> [String] {
         return Array(ProcessInfo.processInfo.arguments)
     }
 
-    /// Register a new command.
-    ///
-    /// - Parameter command: command type.
+    // MARK: - Internal
+
     func register(command: Command.Type) {
         commands.append(command.init(parser: parser))
     }
 
-    /// Runs the command line interface.
+    // MARK: - Public
+
     public func run() {
         do {
             let parsedArguments = try parse()
@@ -77,20 +65,14 @@ public final class CommandRegistry {
         }
     }
 
-    /// Parses the CLI arguments that have been passed using the parser.
-    ///
-    /// - Returns: parsing result.
-    /// - Throws: an error if the parsing fails.
-    private func parse() throws -> ArgumentParser.Result {
+    // MARK: - Fileprivate
+
+    fileprivate func parse() throws -> ArgumentParser.Result {
         let arguments = Array(processArguments().dropFirst())
         return try parser.parse(arguments)
     }
 
-    /// Process the parsing result.
-    ///
-    /// - Parameter arguments: parsing result.
-    /// - Throws: an error if the output cannot be processed
-    private func process(arguments: ArgumentParser.Result) throws {
+    fileprivate func process(arguments: ArgumentParser.Result) throws {
         guard let subparser = arguments.subparser(parser),
             let command = commands.first(where: { type(of: $0).command == subparser }) else {
             parser.printUsage(on: stdoutStream)

@@ -3,9 +3,6 @@ import Foundation
 import Utility
 import xpmcore
 
-/// Dump command error.
-///
-/// - manifestNotFound: thrown when the manifest cannot be found at the given path.
 enum DumpCommandError: FatalError, Equatable {
     case manifestNotFound(AbsolutePath)
     var description: String {
@@ -15,7 +12,6 @@ enum DumpCommandError: FatalError, Equatable {
         }
     }
 
-    /// Error type.
     var type: ErrorType {
         switch self {
         case .manifestNotFound:
@@ -31,38 +27,24 @@ enum DumpCommandError: FatalError, Equatable {
     }
 }
 
-/// Command that dumps the manifest into the console.
-public class DumpCommand: NSObject, Command {
-    /// Command name (static)
-    public static let command = "dump"
+class DumpCommand: NSObject, Command {
 
-    // Command overview.
-    public static let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
+    // MARK: - Attributes
 
-    /// Graph loading context.
+    static let command = "dump"
+    static let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
     fileprivate let graphLoaderContext: GraphLoaderContexting
-
-    /// Commands context.
     fileprivate let context: CommandsContexting
-
-    /// Path argument.
     let pathArgument: OptionArgument<String>
 
-    /// Initializes the dump command with the argument parser.
-    ///
-    /// - Parameter parser: argument parser.
+    // MARK: - Init
+
     public required convenience init(parser: ArgumentParser) {
         self.init(graphLoaderContext: GraphLoaderContext(),
                   context: CommandsContext(),
                   parser: parser)
     }
 
-    /// Initializes the command with the printer and the graph loading context.
-    ///
-    /// - Parameters:
-    ///   - graphLoaderContext: graph loading context.
-    ///   - context: commands context.
-    ///   - parser: argument parser.
     init(graphLoaderContext: GraphLoaderContexting,
          context: CommandsContexting,
          parser: ArgumentParser) {
@@ -76,13 +58,13 @@ public class DumpCommand: NSObject, Command {
                                      completion: .filename)
     }
 
-    /// Runs the command.
-    ///
-    /// - Parameter _: argument parser arguments.
-    /// - Throws: an error if the command cannot be executed.
-    public func run(with arguments: ArgumentParser.Result) throws {
-        var path: AbsolutePath! = arguments.get(pathArgument).map({ AbsolutePath($0) })
-        if path == nil {
+    // MARK: - Command
+
+    func run(with arguments: ArgumentParser.Result) throws {
+        var path: AbsolutePath!
+        if let argumentPath = arguments.get(pathArgument) {
+            path = AbsolutePath(argumentPath, relativeTo: AbsolutePath.current)
+        } else {
             path = AbsolutePath.current
         }
         let projectPath = path.appending(component: Constants.Manifest.project)

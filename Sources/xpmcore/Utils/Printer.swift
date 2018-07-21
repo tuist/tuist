@@ -98,9 +98,6 @@ public class Printer: Printing {
         let writer = InteractiveWriter.stdout
         writer.write("\(section)", inColor: .cyan, bold: true)
         writer.write("\n")
-        let separatorWith = (section.count < terminalController.width) ? section.count : terminalController.width
-        writer.write(String(repeating: "=", count: separatorWith), inColor: .cyan, bold: true)
-        writer.write("\n")
     }
 }
 
