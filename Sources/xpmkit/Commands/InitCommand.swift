@@ -52,7 +52,7 @@ class InitCommand: NSObject, Command {
         productArgument = subParser.add(option: "--product",
                                         shortName: nil,
                                         kind: String.self,
-                                        usage: "The product (application or framework) the generated project will build.",
+                                        usage: "The product (application or framework) the generated project will build (Default: application).",
                                         completion: ShellCompletion.values([
                                             (value: "application", description: "Application"),
                                             (value: "framework", description: "Framework"),
@@ -60,7 +60,7 @@ class InitCommand: NSObject, Command {
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
                                          kind: String.self,
-                                         usage: "The platform (ios or macos) the product will be for.",
+                                         usage: "The platform (ios or macos) the product will be for (Default: ios).",
                                          completion: ShellCompletion.values([
                                              (value: "ios", description: "iOS platform"),
                                              (value: "macos", description: "macOS platform"),
@@ -68,12 +68,12 @@ class InitCommand: NSObject, Command {
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
-                                     usage: "The path to the folder where the project will be generated.",
+                                     usage: "The path to the folder where the project will be generated (Default: Current directory).",
                                      completion: .filename)
         nameArgument = subParser.add(option: "--name",
                                      shortName: "-n",
                                      kind: String.self,
-                                     usage: "The name of the project. If it's not passed, the name of the folder will be used.",
+                                     usage: "The name of the project. If it's not passed, the name of the folder will be used (Default: Name of the directory).",
                                      completion: nil)
         self.fileHandler = fileHandler
         self.printer = printer
