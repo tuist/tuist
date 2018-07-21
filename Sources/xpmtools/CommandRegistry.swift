@@ -10,7 +10,7 @@ public final class CommandRegistry {
 
     public convenience init() {
         self.init(processArguments: CommandRegistry.processArguments)
-        register(command: ReleaseCommand.self)
+        register(command: ReferenceCommand.self)
     }
 
     init(processArguments: @escaping () -> [String]) {

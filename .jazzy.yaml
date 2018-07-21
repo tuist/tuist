@@ -1,0 +1,50 @@
+author: xcode-project-manager
+github_url: https://github.com/xcode-project-manager/xpm
+copyright: 'Copyright © from 2018 Pedro Piñera Buendía. All rights reserved.'
+output: docs
+module: ProjectDescription
+clean: true
+documentation: guides/**/*
+xcodebuild_arguments:
+  - -project
+  - xpm.xcodeproj
+  - -scheme
+  - xpm-Package
+swift_version: "4.1.2"
+min_acl: public
+readme: README.md
+custom_categories:
+  - name: Tutorial
+    children:
+      - 1. Install
+      - 2. Init command
+      - 3. Building and testing
+      - 4. Target dependencies
+      - 5. Continuous integration
+      - 6. Modules
+  - name: Worksaces
+    children:
+      - Workspace
+      - Project
+  - name: Targets
+    children:
+      - Target
+      - TargetDependency
+      - CoreDataModel
+      - Headers
+      - Platform
+      - Product
+  - name: Settings
+    children:
+      - Settings
+      - BuildConfiguration
+      - Configuration
+  - name: Schemes
+    children:
+      - Scheme
+      - RunAction
+      - TestAction
+      - BuildAction
+      - Arguments
+      
+      
