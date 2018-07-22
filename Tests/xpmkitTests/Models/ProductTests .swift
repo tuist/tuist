@@ -21,4 +21,81 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(Product.messagesExtension.xcodeValue, PBXProductType.messagesExtension)
         XCTAssertEqual(Product.stickerPack.xcodeValue, PBXProductType.stickerPack)
     }
+
+    func test_description() {
+        XCTAssertEqual(Product.app.description, "application")
+        XCTAssertEqual(Product.staticLibrary.description, "static library")
+        XCTAssertEqual(Product.dynamicLibrary.description, "dynamic library")
+        XCTAssertEqual(Product.framework.description, "framework")
+        XCTAssertEqual(Product.unitTests.description, "unit tests")
+        XCTAssertEqual(Product.uiTests.description, "ui tests")
+        XCTAssertEqual(Product.appExtension.description, "app extension")
+        XCTAssertEqual(Product.watchExtension.description, "watch extension")
+        XCTAssertEqual(Product.watch2Extension.description, "watch 2 extension")
+        XCTAssertEqual(Product.watchApp.description, "watch application")
+        XCTAssertEqual(Product.watch2App.description, "watch 2 application")
+        XCTAssertEqual(Product.tvExtension.description, "tv extension")
+        XCTAssertEqual(Product.messagesApplication.description, "iMessage application")
+        XCTAssertEqual(Product.messagesExtension.description, "iMessage extension")
+        XCTAssertEqual(Product.stickerPack.description, "stickers pack")
+    }
+
+    func test_forPlatform_when_ios() {
+        let got = Product.forPlatform(.iOS)
+        let expected: [Product] = [
+            .app,
+            .staticLibrary,
+            .dynamicLibrary,
+            .framework,
+            .appExtension,
+            .stickerPack,
+            .messagesApplication,
+            .messagesExtension,
+            .unitTests,
+            .uiTests,
+        ]
+        XCTAssertEqual(got, Set(expected))
+    }
+
+    func test_forPlatform_when_macOS() {
+        let got = Product.forPlatform(.macOS)
+        let expected: [Product] = [
+            .app,
+            .staticLibrary,
+            .dynamicLibrary,
+            .framework,
+            .unitTests,
+            .uiTests,
+        ]
+        XCTAssertEqual(got, Set(expected))
+    }
+
+    func test_forPlatform_when_tvOS() {
+        let got = Product.forPlatform(.tvOS)
+        let expected: [Product] = [
+            .app,
+            .staticLibrary,
+            .dynamicLibrary,
+            .framework,
+            .tvExtension,
+            .unitTests,
+            .uiTests,
+        ]
+        XCTAssertEqual(got, Set(expected))
+    }
+
+    func test_forPlatform_when_watchOS() {
+        let got = Product.forPlatform(.watchOS)
+        let expected: [Product] = [
+            .app,
+            .staticLibrary,
+            .dynamicLibrary,
+            .framework,
+            .watchApp,
+            .watch2App,
+            .watchExtension,
+            .watch2Extension,
+        ]
+        XCTAssertEqual(got, Set(expected))
+    }
 }
