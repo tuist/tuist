@@ -1,6 +1,6 @@
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 enum ReleaseDecodeError: FatalError, Equatable {
     case invalidVersionFormat(String)

@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 @testable import TuistEnvKit
+import XCTest
 
 final class GitHubRequestsFactoryTests: XCTestCase {
     var subject: GitHubRequestsFactory!

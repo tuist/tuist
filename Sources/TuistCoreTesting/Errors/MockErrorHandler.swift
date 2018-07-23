@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 import TuistCore
+import XCTest
 
 public final class MockErrorHandler: ErrorHandling {
     public var fatalErrorArgs: [FatalError] = []

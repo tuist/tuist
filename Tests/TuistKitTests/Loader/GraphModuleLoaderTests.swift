@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import XCTest
 @testable import TuistKit
+import XCTest
 
 final class GraphModuleLoaderErrorTests: XCTestCase {
     func test_type_when_fileNotFound() {

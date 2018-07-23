@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+@testable import TuistKit
 import Utility
 import XCTest
-@testable import TuistKit
 
 final class InitTests: XCTestCase {
     var initCommand: InitCommand!

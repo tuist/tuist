@@ -1,6 +1,6 @@
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 final class UpdateCommand: Command {
     /// Command name.

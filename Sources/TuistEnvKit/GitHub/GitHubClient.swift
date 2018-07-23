@@ -1,6 +1,6 @@
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 protocol GitHubClienting: AnyObject {
     func execute(request: URLRequest) throws -> Any

@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-import Utility
-import XCTest
 import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
+import Utility
+import XCTest
 
 final class InstallerTests: XCTestCase {
     var shell: MockShell!

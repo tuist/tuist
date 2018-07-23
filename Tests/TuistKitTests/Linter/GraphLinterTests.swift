@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import XCTest
 @testable import TuistKit
+import XCTest
 
 final class GraphLinterTests: XCTestCase {
     var subject: GraphLinter!

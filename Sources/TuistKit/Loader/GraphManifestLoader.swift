@@ -53,7 +53,7 @@ class GraphManifestLoader: GraphManifestLoading {
     let moduleLoader: GraphModuleLoading
     let fileAggregator: FileAggregating
     let fileHandler: FileHandling
-    let shell: Shelling
+    let system: Systeming
     let resourceLocator: ResourceLocating
 
     // MARK: - Init
@@ -61,12 +61,12 @@ class GraphManifestLoader: GraphManifestLoading {
     init(moduleLoader: GraphModuleLoading = GraphModuleLoader(),
          fileAggregator: FileAggregating = FileAggregator(),
          fileHandler: FileHandling = FileHandler(),
-         shell: Shelling = Shell(),
+         system: Systeming = System(),
          resourceLocator: ResourceLocating = ResourceLocator()) {
         self.moduleLoader = moduleLoader
         self.fileAggregator = fileAggregator
         self.fileHandler = fileHandler
-        self.shell = shell
+        self.system = system
         self.resourceLocator = resourceLocator
     }
 
@@ -85,7 +85,9 @@ class GraphManifestLoader: GraphManifestLoading {
         try fileAggregator.aggregate(moduleLoader.load(path).reversed(), into: file.path)
         arguments.append(file.path.asString)
         arguments.append("--dump")
-        let jsonString: String! = try shell.runAndOutput(arguments, environment: [:]).chuzzle()
+        let result = system.capture3(args: arguments)
+        try result.throwIfError()
+        let jsonString: String! = result.stdout.chuzzle()
         if jsonString == nil {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }

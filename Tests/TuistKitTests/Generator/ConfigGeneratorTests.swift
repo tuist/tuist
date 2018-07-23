@@ -1,9 +1,9 @@
 import Basic
 import Foundation
-@testable import xcodeproj
-import XCTest
 import TuistCore
 @testable import TuistKit
+@testable import xcodeproj
+import XCTest
 
 final class ConfigGeneratorTests: XCTestCase {
     var pbxproj: PBXProj!

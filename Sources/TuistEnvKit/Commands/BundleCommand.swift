@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 /// Error thrown by the BundleCommand
 ///

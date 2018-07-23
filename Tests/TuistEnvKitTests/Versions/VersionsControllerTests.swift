@@ -1,9 +1,9 @@
 import Basic
 import Foundation
-import Utility
-import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
+import Utility
+import XCTest
 
 final class InstalledVersionTests: XCTestCase {
     func test_description() {

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import xcodeproj
 import TuistCore
+import xcodeproj
 
 enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)

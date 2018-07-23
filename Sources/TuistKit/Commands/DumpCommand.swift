@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 enum DumpCommandError: FatalError, Equatable {
     case manifestNotFound(AbsolutePath)

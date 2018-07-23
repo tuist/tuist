@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 class CreateIssueCommand: NSObject, Command {
     static let createIssueUrl: String = "https://github.com/tuist/tuist/issues/new"
@@ -10,11 +10,11 @@ class CreateIssueCommand: NSObject, Command {
 
     static let command = "create-issue"
     static let overview = "Opens the GitHub page to create a new issue."
-    
+
     // MARK: - Attributes
-    
+
     private let shell: Shelling
-    
+
     // MARK: - Init
 
     required init(parser: ArgumentParser) {

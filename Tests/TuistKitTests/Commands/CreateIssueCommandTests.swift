@@ -1,8 +1,8 @@
 import Foundation
-import Utility
-import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
+import Utility
+import XCTest
 
 final class CreateIssueCommandTests: XCTestCase {
     var shell: MockShell!

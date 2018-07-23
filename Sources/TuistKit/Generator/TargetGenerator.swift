@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import xcodeproj
 import TuistCore
+import xcodeproj
 
 /// Interface for targets generation.
 protocol TargetGenerating: AnyObject {

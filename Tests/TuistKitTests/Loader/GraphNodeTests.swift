@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
+import XCTest
 
 final class PrecompiledNodeTests: XCTestCase {
     var shell: MockShell!

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 class VersionCommand: NSObject, Command {
 
@@ -9,9 +9,9 @@ class VersionCommand: NSObject, Command {
 
     static let command = "version"
     static let overview = "Outputs the current version of tuist."
-    
+
     // MARK: - Attributes
-    
+
     let printer: Printing
 
     // MARK: - Init

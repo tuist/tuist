@@ -1,9 +1,9 @@
 import Foundation
-import Utility
-import XCTest
 import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistKit
+import Utility
+import XCTest
 
 final class CommandCheckErrorTests: XCTestCase {
     func test_errorDescription_when_swiftVersionNotFound() {

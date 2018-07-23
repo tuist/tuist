@@ -1,7 +1,7 @@
 import Foundation
-import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
+import XCTest
 
 final class LintingErrorTests: XCTestCase {
     var subject: LintingError!

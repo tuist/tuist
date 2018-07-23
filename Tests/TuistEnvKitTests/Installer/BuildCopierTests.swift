@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-import XCTest
 import TuistCore
 @testable import TuistEnvKit
+import XCTest
 
 final class BuildCopierTests: XCTestCase {
     var subject: BuildCopier!

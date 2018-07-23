@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import xcodeproj
 import TuistCore
+import xcodeproj
 
 /// Link generator error.
 ///

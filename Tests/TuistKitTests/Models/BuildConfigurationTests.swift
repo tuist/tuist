@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 @testable import TuistKit
+import XCTest
 
 final class BuildConfigurationTests: XCTestCase {
     func test_rawValue_returnsTheRightValue_whenDebug() {

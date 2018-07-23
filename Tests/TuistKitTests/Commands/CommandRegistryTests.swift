@@ -1,7 +1,7 @@
 import Foundation
-import XCTest
 import TuistCoreTesting
 @testable import TuistKit
+import XCTest
 
 final class CommandRegistryTests: XCTestCase {
     var subject: CommandRegistry!

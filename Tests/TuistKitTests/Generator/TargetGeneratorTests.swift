@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+@testable import TuistKit
 import xcodeproj
 import XCTest
-@testable import TuistKit
 
 final class TargetGeneratorTests: XCTestCase {
     var subject: TargetGenerator!

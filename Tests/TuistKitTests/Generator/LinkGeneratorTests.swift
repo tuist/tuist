@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+@testable import TuistKit
 @testable import xcodeproj
 import XCTest
-@testable import TuistKit
 
 final class LinkGeneratorErrorTests: XCTestCase {
     var subject: LinkGenerator!

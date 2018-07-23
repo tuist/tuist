@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import XCTest
 @testable import TuistEnvKit
+import XCTest
 
 final class SettingsControllerTests: XCTestCase {
     var subject: SettingsController!

@@ -1,6 +1,6 @@
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 extension ArgumentParserError: FatalError {
     public var type: ErrorType {

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import Utility
 import TuistCore
+import Utility
 
 protocol VersionsControlling: AnyObject {
     /// Installation

@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-import Utility
-import XCTest
 import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistKit
+import Utility
+import XCTest
 
 final class CoreDataModelTests: XCTestCase {
     var fileHandler: MockFileHandler!

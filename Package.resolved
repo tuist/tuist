@@ -20,6 +20,15 @@
         }
       },
       {
+        "package": "SwiftShell",
+        "repositoryURL": "git@github.com:kareman/SwiftShell.git",
+        "state": {
+          "branch": null,
+          "revision": "3f335df4d43e6794dfa1d9ee91294b02f1d94d01",
+          "version": null
+        }
+      },
+      {
         "package": "xcodeproj",
         "repositoryURL": "git@github.com:tuist/xcodeproj.git",
         "state": {

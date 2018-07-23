@@ -1,7 +1,7 @@
 import Foundation
+@testable import TuistEnvKit
 import Utility
 import XCTest
-@testable import TuistEnvKit
 
 final class UpdateCommandTests: XCTestCase {
     func test_command() {
