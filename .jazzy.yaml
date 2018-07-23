@@ -1,5 +1,5 @@
 author: Tuist
-github_url: https://github.com/tuist/xpm
+github_url: https://github.com/tuist/tuist
 copyright: 'Copyright © from 2018 Pedro Piñera Buendía. All rights reserved.'
 output: docs
 module: ProjectDescription
@@ -7,9 +7,9 @@ clean: true
 documentation: guides/**/*
 xcodebuild_arguments:
   - -project
-  - xpm.xcodeproj
+  - tuist.xcodeproj
   - -scheme
-  - xpm-Package
+  - tuist-Package
 swift_version: "4.1.2"
 min_acl: public
 readme: README.md

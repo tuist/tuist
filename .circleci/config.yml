@@ -15,7 +15,7 @@ jobs:
             swift package generate-xcodeproj
       - run:
           name: Run tests
-          command: xcodebuild test -scheme xpm-Package -enableCodeCoverage YES
+          command: xcodebuild test -scheme tuist-Package -enableCodeCoverage YES
       - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)

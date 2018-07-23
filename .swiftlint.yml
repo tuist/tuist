@@ -1,8 +1,6 @@
 included:
-  - App/xpmKit/Sources
-  - App/Sources
-excluded:
   - Sources
+excluded:
   - Tests
   - .build
 disabled_rules:

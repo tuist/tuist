@@ -1,6 +1,6 @@
 # Release
 
-This document describes the process of releasing new versions of xpm.
+This document describes the process of releasing new versions of tuist.
 
 1.  First make sure you are in master and the latest changes are pulled: `git pull origin master`
 2.  Ensure that the project is in a releaseable state by running the tests: `swift test`.

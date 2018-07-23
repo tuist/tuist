@@ -1,4 +1,4 @@
-Resolves https://github.com/tuist/xpm/issues/YYY
+Resolves https://github.com/tuist/tuist/issues/YYY
 
 ### Short description 📝
 

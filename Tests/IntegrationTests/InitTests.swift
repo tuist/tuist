@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import Utility
 import XCTest
-@testable import xpmkit
+@testable import TuistKit
 
 final class InitTests: XCTestCase {
     var initCommand: InitCommand!

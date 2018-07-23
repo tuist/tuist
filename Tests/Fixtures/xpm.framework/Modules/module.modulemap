@@ -1,5 +1,5 @@
-framework module xpm {
-  umbrella header "xpm.h"
+framework module tuist {
+  umbrella header "tuist.h"
 
   export *
   module * { export * }

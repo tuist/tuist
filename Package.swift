@@ -3,11 +3,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "xpm",
+    name: "tuist",
     products: [
-        .executable(name: "xpm", targets: ["xpm"]),
-        .executable(name: "xpmembed", targets: ["xpmembed"]),
-        .executable(name: "xpmenv", targets: ["xpmenv"]),
+        .executable(name: "tuist", targets: ["tuist"]),
+        .executable(name: "tuist-embed", targets: ["tuist-embed"]),
+        .executable(name: "tuistenv", targets: ["tuistenv"]),
         .library(name: "ProjectDescription",
                  type: .dynamic,
                  targets: ["ProjectDescription"]),
@@ -18,35 +18,35 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "xpmcore",
+            name: "TuistCore",
             dependencies: ["Utility"]),
         .target(
-            name: "xpmcoreTesting",
-            dependencies: ["xpmcore"]),
+            name: "TuistCoreTesting",
+            dependencies: ["TuistCore"]),
         .testTarget(
-            name: "xpmcoreTests",
-            dependencies: ["xpmcore", "xpmcoreTesting"]),
+            name: "TuistCoreTests",
+            dependencies: ["TuistCore", "TuistCoreTesting"]),
         .target(
-            name: "xpmkit",
-            dependencies: ["xcodeproj", "Utility", "xpmcore"]),
+            name: "TuistKit",
+            dependencies: ["xcodeproj", "Utility", "TuistCore"]),
         .testTarget(
-            name: "xpmkitTests",
-            dependencies: ["xpmkit", "xpmcoreTesting"]),
+            name: "TuistKitTests",
+            dependencies: ["TuistKit", "TuistCoreTesting"]),
         .target(
-            name: "xpm",
-            dependencies: ["xpmkit"]),
+            name: "tuist",
+            dependencies: ["TuistKit"]),
         .target(
-            name: "xpmembed",
-            dependencies: ["xpmkit"]),
+            name: "tuist-embed",
+            dependencies: ["TuistKit"]),
         .target(
-            name: "xpmenvkit",
-            dependencies: ["Utility", "xpmcore"]),
+            name: "TuistEnvKit",
+            dependencies: ["Utility", "TuistCore"]),
         .testTarget(
-            name: "xpmenvkitTests",
-            dependencies: ["xpmenvkit", "xpmcoreTesting"]),
+            name: "TuistEnvKitTests",
+            dependencies: ["TuistEnvKit", "TuistCoreTesting"]),
         .target(
-            name: "xpmenv",
-            dependencies: ["xpmenvkit"]),
+            name: "tuistenv",
+            dependencies: ["TuistEnvKit"]),
         .target(
             name: "ProjectDescription",
             dependencies: []),
@@ -55,7 +55,7 @@ let package = Package(
             dependencies: ["ProjectDescription"]),
         .testTarget(
             name: "IntegrationTests",
-            dependencies: ["xpmkit", "Utility"]
+            dependencies: ["TuistKit", "Utility"]
         ),
     ]
 )

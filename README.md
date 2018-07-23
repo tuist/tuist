@@ -20,5 +20,5 @@
 
 1.  Git clone: `git@github.com:tuist/tuist.git`
 2.  Generate Xcode project with `swift package generate-xcodeproj`.
-3.  Open `xpm.xcodeproj`.
+3.  Open `tuist.xcodeproj`.
 4.  Have fun 🤖
