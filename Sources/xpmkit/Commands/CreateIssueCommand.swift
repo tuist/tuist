@@ -4,7 +4,7 @@ import Utility
 import xpmcore
 
 class CreateIssueCommand: NSObject, Command {
-    static let createIssueUrl: String = "https://github.com/xcode-project-manager/xpm/issues/new"
+    static let createIssueUrl: String = "https://github.com/tuist/tuist/issues/new"
 
     // MARK: - Command
 

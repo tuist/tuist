@@ -13,7 +13,7 @@ let package = Package(
                  targets: ["ProjectDescription"]),
     ],
     dependencies: [
-        .package(url: "git@github.com:xcode-project-manager/xcodeproj.git", .revision("9e07138d737e88b940fbba8c503667339fe95330")),
+        .package(url: "git@github.com:tuist/xcodeproj.git", .revision("9e07138d737e88b940fbba8c503667339fe95330")),
         .package(url: "https://github.com/apple/swift-package-manager", .revision("3e71e57db41ebb32ccec1841a7e26c428a9c08c5")),
     ],
     targets: [

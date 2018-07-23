@@ -1,4 +1,4 @@
-Resolves https://github.com/xcode-project-manager/xpm/issues/YYY
+Resolves https://github.com/tuist/xpm/issues/YYY
 
 ### Short description 📝
 
@@ -12,5 +12,5 @@ Resolves https://github.com/xcode-project-manager/xpm/issues/YYY
 
 > Detail in a checklist the steps that you took to implement the PR.
 
-* [ ] Step 1
-* [ ] Step 2
+- [ ] Step 1
+- [ ] Step 2

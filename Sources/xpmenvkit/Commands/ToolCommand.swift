@@ -81,7 +81,7 @@ public class XPMEnvCommand {
 //            let message = """
 //            \("Error:") \(error.errorDescription)
 //
-//            \("Try again, and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new")
+//            \("Try again, and if the problem persists, open an issue on https://github.com/tuist/support/issues/new")
 //            """
 //            print(message)
 //            exit(1)
@@ -89,7 +89,7 @@ public class XPMEnvCommand {
 //            let message = """
 //            \("Unexpected error")
 //
-//            \("Try again, and if the problem persists, open an issue on https://github.com/xcode-project-manager/support/issues/new")
+//            \("Try again, and if the problem persists, open an issue on https://github.com/tuist/support/issues/new")
 //            """
 //            print(message)
 //            exit(1)

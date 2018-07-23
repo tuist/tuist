@@ -13,7 +13,7 @@ final class GitHubRequestsFactoryTests: XCTestCase {
     }
 
     func test_releasesRepository() {
-        XCTAssertEqual(GitHubRequestsFactory.releasesRepository, "xcode-project-manager/releases")
+        XCTAssertEqual(GitHubRequestsFactory.releasesRepository, "tuist/tuitst")
     }
 
     func test_releases() {

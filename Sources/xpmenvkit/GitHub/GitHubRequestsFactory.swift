@@ -4,7 +4,7 @@ class GitHubRequestsFactory {
     /// MARK: - Constants
 
     /// Releases repository.
-    static let releasesRepository: String = "xcode-project-manager/releases"
+    static let releasesRepository: String = "tuist/releases"
 
     // MARK: - Attributes
 
