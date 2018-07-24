@@ -38,7 +38,8 @@ final class Installer: Installing {
     }
 
     func install(version: String,
-                 temporaryDirectory: TemporaryDirectory) throws {
+                 temporaryDirectory: TemporaryDirectory,
+                 verbose: Bool = false) throws {
         try versionsController.install(version: version) { installationDirectory in
             // Paths
             let gitDirectory = temporaryDirectory.path.appending(component: ".git")
@@ -51,11 +52,11 @@ final class Installer: Installing {
 
             // Cloning and building
             printer.print("Cloning repository")
-            try system.capture3(args: "git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString).throwIfError()
+            try system.capture3("git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
             printer.print("Checking out \(version) reference")
-            try system.capture3(args: "git", "--git-dir", gitDirectory.asString, "checkout", "-b", "build", version).throwIfError()
+            try system.capture3("git", "--git-dir", gitDirectory.asString, "checkout", "-b", "build", version, verbose: verbose).throwIfError()
             printer.print("Building using Swift")
-            try system.capture3(args: "swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release").throwIfError()
+            try system.capture3("swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", verbose: verbose).throwIfError()
 
             // Copying built files
             try fileHandler.createFolder(installationDirectory)

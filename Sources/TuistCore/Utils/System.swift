@@ -3,14 +3,14 @@ import Foundation
 import SwiftShell
 
 public protocol Systeming {
-    func capture2(args: [String]) -> System2Result
-    func capture2(args: String...) -> System2Result
-    func capture2e(args: [String]) -> System2eResult
-    func capture2e(args: String...) -> System2eResult
-    func capture3(args: [String]) -> System3Result
-    func capture3(args: String...) -> System3Result
-    func popen(args: String..., printing: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
-    func popen(args: [String], printing: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
+    func capture2(_ args: [String], verbose: Bool) -> System2Result
+    func capture2(_ args: String..., verbose: Bool) -> System2Result
+    func capture2e(_ args: [String], verbose: Bool) -> System2eResult
+    func capture2e(_ args: String..., verbose: Bool) -> System2eResult
+    func capture3(_ args: [String], verbose: Bool) -> System3Result
+    func capture3(_ args: String..., verbose: Bool) -> System3Result
+    func popen(_ args: String..., printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
+    func popen(_ args: [String], printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
 }
 
 struct SystemError: FatalError {
@@ -52,13 +52,19 @@ public struct System2Result {
 }
 
 public final class System: Systeming {
-    public init() {}
+    let printer: Printing
 
-    public func capture2(args: String...) -> System2Result {
-        return capture2(args: args)
+    public init(printer: Printing = Printer()) {
+        self.printer = printer
     }
 
-    public func capture2(args: [String]) -> System2Result {
+    // MARK: - Systeming
+
+    public func capture2(_ args: String..., verbose: Bool = false) -> System2Result {
+        return capture2(args, verbose: verbose)
+    }
+
+    public func capture2(_ args: [String], verbose _: Bool = false) -> System2Result {
         precondition(args.count >= 1, "Invalid number of argumentss")
         var args = args
 
@@ -74,11 +80,11 @@ public final class System: Systeming {
         return System2Result(stdout: result.stdout, exitcode: result.exitcode)
     }
 
-    public func capture2e(args: String...) -> System2eResult {
-        return capture2e(args: args)
+    public func capture2e(_ args: String..., verbose: Bool = false) -> System2eResult {
+        return capture2e(args, verbose: verbose)
     }
 
-    public func capture2e(args: [String]) -> System2eResult {
+    public func capture2e(_ args: [String], verbose _: Bool = false) -> System2eResult {
         precondition(args.count >= 1, "Invalid number of argumentss")
         var args = args
 
@@ -95,11 +101,11 @@ public final class System: Systeming {
         return System2eResult(std: result.stdout, exitcode: result.exitcode)
     }
 
-    public func capture3(args: String...) -> System3Result {
-        return capture3(args: args)
+    public func capture3(_ args: String..., verbose: Bool = false) -> System3Result {
+        return capture3(args, verbose: verbose)
     }
 
-    public func capture3(args: [String]) -> System3Result {
+    public func capture3(_ args: [String], verbose _: Bool = false) -> System3Result {
         precondition(args.count >= 1, "Invalid number of argumentss")
         var args = args
 
@@ -116,20 +122,23 @@ public final class System: Systeming {
         return System3Result(stdout: result.stdout, stderror: result.stderror, exitcode: result.exitcode)
     }
 
-    public func popen(args: String...,
+    public func popen(_ args: String...,
                       printing: Bool = false,
+                      verbose: Bool = false,
                       onOutput: ((String) -> Void)? = nil,
                       onError: ((String) -> Void)? = nil,
                       onCompletion: ((Int) -> Void)? = nil) {
-        popen(args: args,
+        popen(args,
               printing: printing,
+              verbose: verbose,
               onOutput: onOutput,
               onError: onError,
               onCompletion: onCompletion)
     }
 
-    public func popen(args _: [String],
+    public func popen(_: [String],
                       printing: Bool = false,
+                      verbose _: Bool = false,
                       onOutput: ((String) -> Void)? = nil,
                       onError: ((String) -> Void)? = nil,
                       onCompletion: ((Int) -> Void)? = nil) {
@@ -145,5 +154,11 @@ public final class System: Systeming {
             if printing { FileHandle.standardError.write($0) }
             onError?($0)
         }
+    }
+
+    // MARK: - Fileprivate
+
+    fileprivate func print(command: [String]) {
+        printer.print(command.joined(separator: " "))
     }
 }
