@@ -32,6 +32,12 @@ public struct System3Result {
     public let stdout: String
     public let stderror: String
     public let exitcode: Int
+    public init(stdout: String, stderror: String, exitcode: Int) {
+        self.stdout = stdout
+        self.stderror = stderror
+        self.exitcode = exitcode
+    }
+
     public func throwIfError() throws {
         if exitcode != 0 { throw SystemError(stderror: stderror, exitcode: exitcode) }
     }
@@ -40,6 +46,11 @@ public struct System3Result {
 public struct System2eResult {
     public let std: String
     public let exitcode: Int
+    public init(std: String, exitcode: Int) {
+        self.std = std
+        self.exitcode = exitcode
+    }
+
     public func throwIfError() throws {
         if exitcode != 0 { throw SystemError(stderror: nil, exitcode: exitcode) }
     }
@@ -48,6 +59,11 @@ public struct System2eResult {
 public struct System2Result {
     public let stdout: String
     public let exitcode: Int
+    public init(stdout: String, exitcode: Int) {
+        self.stdout = stdout
+        self.exitcode = exitcode
+    }
+
     public func throwIfError() throws {
         if exitcode != 0 { throw SystemError(stderror: nil, exitcode: exitcode) }
     }
