@@ -56,7 +56,15 @@ final class Installer: Installing {
             if printing { printer.print("Checking out \(version) reference") }
             try system.capture3("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
             if printing { printer.print("Building using Swift (it might take a while)") }
-            try system.capture3("swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", verbose: verbose).throwIfError()
+            let os = ProcessInfo.processInfo.operatingSystemVersion
+            let target = "x86_64-apple-macosx\(os.majorVersion).\(os.minorVersion)"
+            try system.capture3("swift", "build",
+                                "--package-path", temporaryDirectory.path.asString,
+                                "--configuration", "release",
+                                "-Xswiftc", "-static-stdlib",
+                                "-Xswiftc", "-target",
+                                "-Xswiftc", target,
+                                verbose: verbose).throwIfError()
 
             // Copying built files
             try fileHandler.createFolder(installationDirectory)
