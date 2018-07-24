@@ -16,6 +16,12 @@
 - 📦 Precompiled binaries _(Frameworks & Libraries support)_.
 - 🔄 Circular dependency detection.
 
+## Install
+
+```
+/bin/bash -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
+```
+
 ## Setup for development
 
 1.  Git clone: `git@github.com:tuist/tuist.git`

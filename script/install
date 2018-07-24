@@ -1,0 +1,4 @@
+#!/bin/bash
+
+curl https://raw.githubusercontent.com/tuist/tuist/master/bin/tuistenv > /usr/local/bin/tuist
+chmod +x /usr/local/bin/tuist
