@@ -9,6 +9,8 @@ public protocol Systeming {
     func capture2e(args: String...) -> System2eResult
     func capture3(args: [String]) -> System3Result
     func capture3(args: String...) -> System3Result
+    func popen(args: String..., printing: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
+    func popen(args: [String], printing: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
 }
 
 struct SystemError: FatalError {
@@ -112,5 +114,36 @@ public final class System: Systeming {
         }
 
         return System3Result(stdout: result.stdout, stderror: result.stderror, exitcode: result.exitcode)
+    }
+
+    public func popen(args: String...,
+                      printing: Bool = false,
+                      onOutput: ((String) -> Void)? = nil,
+                      onError: ((String) -> Void)? = nil,
+                      onCompletion: ((Int) -> Void)? = nil) {
+        popen(args: args,
+              printing: printing,
+              onOutput: onOutput,
+              onError: onError,
+              onCompletion: onCompletion)
+    }
+
+    public func popen(args _: [String],
+                      printing: Bool = false,
+                      onOutput: ((String) -> Void)? = nil,
+                      onError: ((String) -> Void)? = nil,
+                      onCompletion: ((Int) -> Void)? = nil) {
+        let command = runAsync("x", "x")
+        command.onCompletion {
+            onCompletion?($0.exitcode())
+        }
+        command.stdout.onStringOutput {
+            if printing { FileHandle.standardOutput.write($0) }
+            onOutput?($0)
+        }
+        command.stderror.onStringOutput {
+            if printing { FileHandle.standardError.write($0) }
+            onError?($0)
+        }
     }
 }
