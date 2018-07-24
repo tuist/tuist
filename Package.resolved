@@ -21,10 +21,10 @@
       },
       {
         "package": "SwiftShell",
-        "repositoryURL": "git@github.com:kareman/SwiftShell.git",
+        "repositoryURL": "git@github.com:tuist/SwiftShell.git",
         "state": {
           "branch": null,
-          "revision": "3f335df4d43e6794dfa1d9ee91294b02f1d94d01",
+          "revision": "12d47f0ed2f9a8dc11b4bb6a0d9ba3d0cb053a56",
           "version": null
         }
       },
@@ -33,7 +33,7 @@
         "repositoryURL": "git@github.com:tuist/xcodeproj.git",
         "state": {
           "branch": null,
-          "revision": "9e07138d737e88b940fbba8c503667339fe95330",
+          "revision": "549d67686d90ef8e45fccdca147682f185af2ad0",
           "version": null
         }
       }

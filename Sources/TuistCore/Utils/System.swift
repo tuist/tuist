@@ -2,6 +2,8 @@ import Basic
 import Foundation
 import SwiftShell
 
+var runningCommand: AsyncCommand?
+
 public protocol Systeming {
     func capture2(_ args: [String], verbose: Bool) -> System2Result
     func capture2(_ args: String..., verbose: Bool) -> System2Result
@@ -136,13 +138,25 @@ public final class System: Systeming {
               onCompletion: onCompletion)
     }
 
-    public func popen(_: [String],
+    public func popen(_ args: [String],
                       printing: Bool = false,
                       verbose _: Bool = false,
                       onOutput: ((String) -> Void)? = nil,
                       onError: ((String) -> Void)? = nil,
                       onCompletion: ((Int) -> Void)? = nil) {
-        let command = runAsync("x", "x")
+        precondition(args.count >= 1, "Invalid number of argumentss")
+        
+        var args = args
+        var command: AsyncCommand!
+        
+        if args.count == 1 {
+            command = runAsync(args.first!)
+        } else {
+            let executable = args.first!
+            args = args.dropFirst().map({ $0.shellEscaped() })
+            command = runAsync(executable, args)
+        }
+        
         command.onCompletion {
             onCompletion?($0.exitcode())
         }

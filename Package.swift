@@ -13,10 +13,9 @@ let package = Package(
                  targets: ["ProjectDescription"]),
     ],
     dependencies: [
-        .package(url: "git@github.com:tuist/xcodeproj.git", .revision("9e07138d737e88b940fbba8c503667339fe95330")),
+        .package(url: "git@github.com:tuist/xcodeproj.git", .revision("549d67686d90ef8e45fccdca147682f185af2ad0")),
         .package(url: "git@github.com:apple/swift-package-manager.git", .revision("3e71e57db41ebb32ccec1841a7e26c428a9c08c5")),
-        .package(url: "git@github.com:kareman/SwiftShell.git", .revision("3f335df4d43e6794dfa1d9ee91294b02f1d94d01")),
-
+        .package(url: "git@github.com:tuist/SwiftShell.git", .revision("12d47f0ed2f9a8dc11b4bb6a0d9ba3d0cb053a56")),
     ],
     targets: [
         .target(
