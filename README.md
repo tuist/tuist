@@ -19,7 +19,7 @@
 ## Install
 
 ```
-/bin/bash -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
+eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
 ```
 
 ## Setup for development
