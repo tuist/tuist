@@ -42,7 +42,6 @@ final class Installer: Installing {
                  verbose: Bool = false) throws {
         try versionsController.install(version: version) { installationDirectory in
             // Paths
-            let gitDirectory = temporaryDirectory.path.appending(component: ".git")
             let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
 
             // Delete installation directory if it exists
@@ -54,8 +53,8 @@ final class Installer: Installing {
             printer.print("Cloning repository")
             try system.capture3("git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
             printer.print("Checking out \(version) reference")
-            try system.capture3("git", "--git-dir", gitDirectory.asString, "checkout", "-b", "build", version, verbose: verbose).throwIfError()
-            printer.print("Building using Swift")
+            try system.capture3("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
+            printer.print("Building using Swift (it might take a while)")
             try system.capture3("swift", "build", "--package-path", temporaryDirectory.path.asString, "--configuration", "release", verbose: verbose).throwIfError()
 
             // Copying built files
@@ -67,7 +66,7 @@ final class Installer: Installing {
             let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
             try "\(version)".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
-            printer.print("Version \(version) installed.")
+            printer.print(success: "Version \(version) installed.")
         }
     }
 }

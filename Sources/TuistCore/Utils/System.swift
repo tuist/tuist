@@ -145,10 +145,10 @@ public final class System: Systeming {
                       onError: ((String) -> Void)? = nil,
                       onCompletion: ((Int) -> Void)? = nil) {
         precondition(args.count >= 1, "Invalid number of argumentss")
-        
+
         var args = args
         var command: AsyncCommand!
-        
+
         if args.count == 1 {
             command = runAsync(args.first!)
         } else {
@@ -156,7 +156,7 @@ public final class System: Systeming {
             args = args.dropFirst().map({ $0.shellEscaped() })
             command = runAsync(executable, args)
         }
-        
+
         command.onCompletion {
             onCompletion?($0.exitcode())
         }
