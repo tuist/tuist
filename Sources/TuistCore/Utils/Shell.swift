@@ -12,6 +12,7 @@ struct ShellError: FatalError, Equatable {
 }
 
 /// Protocol that represents a shell interface.
+@available(*, deprecated, message: "Shelling and Shell are deprecated. Use system instead")
 public protocol Shelling: AnyObject {
     /// Runs a shell command synchronously
     ///
@@ -51,6 +52,7 @@ public protocol Shelling: AnyObject {
 }
 
 /// Default implementation of Shelling.
+@available(*, deprecated, message: "Shelling and Shell are deprecated. Use system instead")
 public class Shell: Shelling {
     /// Default constructor.
     public init() {}
