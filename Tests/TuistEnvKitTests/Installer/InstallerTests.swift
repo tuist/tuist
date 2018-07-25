@@ -14,7 +14,7 @@ final class InstallerTests: XCTestCase {
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
     var system: MockSystem!
-    
+
     override func setUp() {
         super.setUp()
         system = MockSystem()
@@ -29,5 +29,4 @@ final class InstallerTests: XCTestCase {
                             buildCopier: buildCopier,
                             versionsController: versionsController)
     }
-
 }

@@ -8,7 +8,7 @@ protocol Updating: AnyObject {
 final class Updater: Updating {
 
     // MARK: - Attributes
-    
+
     let githubClient: GitHubClienting
     let githubRequestFactory: GitHubRequestsFactory = GitHubRequestsFactory()
     let versionsController: VersionsControlling
@@ -16,7 +16,7 @@ final class Updater: Updating {
     let printer: Printing
 
     // MARK: - Init
-    
+
     init(githubClient: GitHubClienting = GitHubClient(),
          versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
@@ -28,7 +28,7 @@ final class Updater: Updating {
     }
 
     // MARK: - Internal
-    
+
     func update() throws {
         let json = try githubClient.execute(request: githubRequestFactory.releases())
         let jsonDecoder = JSONDecoder()
@@ -40,7 +40,7 @@ final class Updater: Updating {
             print("No remote versions found")
             return
         }
-        
+
         if let highestLocalVersion = versionsController.semverVersions().sorted().last {
             if highestRemoteVersion <= highestLocalVersion {
                 printer.print("There are no updates available")

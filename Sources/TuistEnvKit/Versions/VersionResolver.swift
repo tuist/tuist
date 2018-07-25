@@ -3,11 +3,6 @@ import Foundation
 import TuistCore
 import Utility
 
-/// Resolved version.
-///
-/// - local: An existing local version.
-/// - pinned: A pinned version.
-/// - unspecified: When no version has been specified.
 enum ResolvedVersion: Equatable {
     case bin(AbsolutePath)
     case versionFile(AbsolutePath, String)
@@ -31,10 +26,6 @@ protocol VersionResolving: AnyObject {
     func resolve(path: AbsolutePath) throws -> ResolvedVersion
 }
 
-/// Version resolver errors.
-///
-/// - readError: thrown when a version file cannot be read.
-/// - invalidFormat: thrown when the version file contains an invalid format.
 enum VersionResolverError: FatalError, Equatable {
     case readError(path: AbsolutePath)
     case invalidFormat(String, path: AbsolutePath)
@@ -67,41 +58,27 @@ enum VersionResolverError: FatalError, Equatable {
     }
 }
 
-/// Resolves the version that should be used at the given path.
-/// The tool looks up recursively the directory and its ancestors until it finds a .tuist-version
-/// If a version is not defined it returns nil.
 class VersionResolver: VersionResolving {
 
     // MARK: - Attributes
 
-    /// Settings controller.
     private let settingsController: SettingsControlling
-
-    /// File manager.
     private let fileManager: FileManager = .default
 
-    /// Default verion resolver constructor.
-    ///
-    /// - Parameter settingsController: settings controller.
+    // MARK: - Init
+
     init(settingsController: SettingsControlling = SettingsController()) {
         self.settingsController = settingsController
     }
 
-    /// Resolves the version for the given path.
-    ///
-    /// - Parameter path: path for which the version will be resolved.
-    /// - Returns: the resolved version that should be used at the given path.
+    // MARK: - VersionResolving
+
     func resolve(path: AbsolutePath) throws -> ResolvedVersion {
         return try resolveTraversing(from: path)
     }
 
-    /// Resolves the version by traversing through the parents looking up for a .tuist-version
-    /// file or a .tuist-bin directory.
-    ///
-    /// - Parameter path: path to traverse from.
-    /// - Returns: resolved version.
-    /// - Throws: an error if the resolution fails. It can happen if the .tuist-version has an invalid format
-    ///   or cannot be read or the bundled binary is in a invalid state.
+    // MARK: - Fileprivate
+
     fileprivate func resolveTraversing(from path: AbsolutePath) throws -> ResolvedVersion {
         let versionPath = path.appending(component: Constants.versionFileName)
         let binPath = path.appending(component: Constants.binFolderName)
@@ -116,11 +93,6 @@ class VersionResolver: VersionResolving {
         return .undefined
     }
 
-    /// Resolves a .tuist-version file.
-    ///
-    /// - Parameter path: path to the .tuist-version file.
-    /// - Returns: resolved version.
-    /// - Throws: an error if the file cannot be opened or it has an invalid format.
     fileprivate func resolveVersionFile(path: AbsolutePath) throws -> ResolvedVersion {
         var value: String!
         do {
