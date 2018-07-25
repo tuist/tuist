@@ -126,7 +126,7 @@ final class LinkGenerator: LinkGenerating {
     ///   - pbxTarget: Xcode target.
     ///   - objects: Xcode project objects.
     ///   - fileElements: project file elements.
-    ///   - resourceLocator: resource locator used to get the path to the "tuist-embed" util.
+    ///   - resourceLocator: resource locator used to get the path to the "tuist" util.
     ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     func generateEmbedPhase(dependencies: [DependencyReference],
                             pbxTarget: PBXTarget,
@@ -144,12 +144,12 @@ final class LinkGenerator: LinkGenerating {
         pbxTarget.buildPhasesReferences.append(embedPhaseReference)
 
         var script: [String] = []
-        let embedPath = try resourceLocator.embedPath()
+        let cliPath = try resourceLocator.cliPath()
 
         try dependencies.forEach { dependency in
             if case let DependencyReference.absolute(path) = dependency {
                 let relativePath = "$(SRCROOT)/\(path.relative(to: sourceRootPath).asString)"
-                script.append("\(embedPath.asString) \(path.relative(to: sourceRootPath).asString)")
+                script.append("\(cliPath.asString) embed \(path.relative(to: sourceRootPath).asString)")
                 precompiledEmbedPhase.inputPaths.append(relativePath)
                 precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
 

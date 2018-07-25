@@ -18,6 +18,7 @@ final class CommandRegistryTests: XCTestCase {
                                   processArguments: { ["tuist", type(of: self.command).command] })
         command = MockCommand(parser: subject.parser)
         subject.register(command: MockCommand.self)
+        subject.register(hiddenCommand: MockHiddenCommand.self)
     }
 
     func test_run_reportsFatalErrors() throws {

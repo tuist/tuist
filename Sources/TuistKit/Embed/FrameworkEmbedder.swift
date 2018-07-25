@@ -5,24 +5,32 @@ import Basic
 import Foundation
 import TuistCore
 
-public class FrameworkEmbedder {
+protocol FrameworkEmbedding: AnyObject {
+    func embed(path: AbsolutePath) throws
+}
+
+final class FrameworkEmbedder: FrameworkEmbedding {
 
     // MARK: - Attributes
 
     private let fileHandler: FileHandling
-    private let errorHandler: ErrorHandling
 
     // MARK: - Init
 
     public convenience init() {
-        self.init(fileHandler: FileHandler(),
-                  errorHandler: ErrorHandler())
+        self.init(fileHandler: FileHandler())
     }
 
-    init(fileHandler: FileHandling,
-         errorHandler: ErrorHandling) {
+    init(fileHandler: FileHandling) {
         self.fileHandler = fileHandler
-        self.errorHandler = errorHandler
+    }
+
+    // MARK: - Internal
+
+    func embed(path _: AbsolutePath) throws {
+        let environment = XcodeBuild.Environment()!
+        try embed(frameworkPath: RelativePath(CommandLine.arguments[1]),
+                  environment: environment)
     }
 
     func embed(frameworkPath: RelativePath,
@@ -113,20 +121,6 @@ public class FrameworkEmbedder {
             if try embeddable.architectures().count > 1 {
                 try embeddable.strip(keepingArchitectures: validArchs)
             }
-        }
-    }
-
-    // MARK: - Public
-
-    public func embed() {
-        do {
-            let environment = XcodeBuild.Environment()!
-            try embed(frameworkPath: RelativePath(CommandLine.arguments[1]),
-                      environment: environment)
-        } catch let error as FatalError {
-            errorHandler.fatal(error: error)
-        } catch {
-            errorHandler.fatal(error: UnhandledError(error: error))
         }
     }
 }

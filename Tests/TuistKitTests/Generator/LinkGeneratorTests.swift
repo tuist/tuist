@@ -47,7 +47,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         let scriptBuildPhase: PBXShellScriptBuildPhase? = try pbxTarget.buildPhasesReferences.first?.object()
         XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
-        XCTAssertEqual(scriptBuildPhase?.shellScript, "/embed test.framework")
+        XCTAssertEqual(scriptBuildPhase?.shellScript, "/ embed test.framework")
         XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/test.framework"])
         XCTAssertEqual(scriptBuildPhase?.outputPaths, ["$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/test.framework"])
 
