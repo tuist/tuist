@@ -6,7 +6,6 @@ let package = Package(
     name: "tuist",
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
-        .executable(name: "tuist-embed", targets: ["tuist-embed"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
         .library(name: "ProjectDescription",
                  type: .dynamic,
@@ -35,9 +34,6 @@ let package = Package(
             dependencies: ["TuistKit", "TuistCoreTesting"]),
         .target(
             name: "tuist",
-            dependencies: ["TuistKit"]),
-        .target(
-            name: "tuist-embed",
             dependencies: ["TuistKit"]),
         .target(
             name: "TuistEnvKit",

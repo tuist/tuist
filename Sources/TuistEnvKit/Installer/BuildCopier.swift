@@ -21,7 +21,6 @@ class BuildCopier: BuildCopying {
     /// Files that should be copied (if they exist).
     static let files: [String] = [
         "tuist",
-        "tuist-embed",
         // Project description
         "ProjectDescription.swiftmodule",
         "ProjectDescription.swiftdoc",

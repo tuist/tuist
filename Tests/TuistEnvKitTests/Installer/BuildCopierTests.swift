@@ -17,7 +17,6 @@ final class BuildCopierTests: XCTestCase {
     func test_files() {
         XCTAssertEqual(BuildCopier.files, [
             "tuist",
-            "tuist-embed",
             "ProjectDescription.swiftmodule",
             "ProjectDescription.swiftdoc",
             "libProjectDescription.dylib",

@@ -9,6 +9,7 @@ public final class CommandRegistry {
 
     let parser: ArgumentParser
     var commands: [Command] = []
+    var hiddenCommands: [String: HiddenCommand] = [:]
     private let commandCheck: CommandChecking
     private let errorHandler: ErrorHandling
     private let processArguments: () -> [String]
@@ -24,6 +25,7 @@ public final class CommandRegistry {
         register(command: DumpCommand.self)
         register(command: VersionCommand.self)
         register(command: CreateIssueCommand.self)
+        register(hiddenCommand: EmbedCommand.self)
     }
 
     init(commandCheck: CommandChecking,
@@ -33,8 +35,7 @@ public final class CommandRegistry {
         self.errorHandler = errorHandler
         parser = ArgumentParser(commandName: "tuist",
                                 usage: "<command> <options>",
-                                overview: "Generate, build and test your Xcode projects.",
-                                seeAlso: "http://docs.xcodepm.com/")
+                                overview: "Generate, build and test your Xcode projects.")
         self.processArguments = processArguments
     }
 
@@ -48,12 +49,20 @@ public final class CommandRegistry {
         commands.append(command.init(parser: parser))
     }
 
+    func register(hiddenCommand command: HiddenCommand.Type) {
+        hiddenCommands[command.command] = command.init()
+    }
+
     // MARK: - Public
 
     public func run() {
         do {
-            let parsedArguments = try parse()
-            try process(arguments: parsedArguments)
+            if let hiddenCommand = hiddenCommand() {
+                try hiddenCommand.run(arguments: Array(processArguments().dropFirst(2)))
+            } else {
+                let parsedArguments = try parse()
+                try process(arguments: parsedArguments)
+            }
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
         } catch {
@@ -66,6 +75,12 @@ public final class CommandRegistry {
     fileprivate func parse() throws -> ArgumentParser.Result {
         let arguments = Array(processArguments().dropFirst())
         return try parser.parse(arguments)
+    }
+
+    fileprivate func hiddenCommand() -> HiddenCommand? {
+        let arguments = Array(processArguments().dropFirst())
+        guard let commandName = arguments.first else { return nil }
+        return hiddenCommands[commandName]
     }
 
     fileprivate func process(arguments: ArgumentParser.Result) throws {
