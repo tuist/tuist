@@ -14,6 +14,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Sources, resources, headers and coreDataModels property to the `Target` model https://github.com/tuist/tuist/pull/67 by @pepibumur.
 
+### Changed
+
+- `JSON` and `JSONConvertible` replaced with Swift's `Codable` conformance.
+
 ### Removed
 
 - The scheme attribute from the `Project` model https://github.com/tuist/tuist/pull/67 by @pepibumur.
