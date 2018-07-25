@@ -6,6 +6,6 @@ final class HeadersTests: XCTestCase {
     func test_toJSON() {
         let subject = Headers(public: "public", private: "private", project: "project")
 
-        XCTAssertEqual(subject.toJSON().toString(), "{\"private\": \"private\", \"project\": \"project\", \"public\": \"public\"}")
+        assertCodableEqualToJson(subject, "{\"private\": \"private\", \"project\": \"project\", \"public\": \"public\"}")
     }
 }
