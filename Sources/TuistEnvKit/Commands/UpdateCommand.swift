@@ -1,12 +1,11 @@
 import Foundation
 import TuistCore
 import Utility
-import TuistCore
 
 final class UpdateCommand: Command {
 
     // MARK: - Command
-    
+
     static var command: String = "update"
     static var overview: String = "Installs the latest version if it's not already installed."
 
@@ -17,7 +16,7 @@ final class UpdateCommand: Command {
     private let printer: Printing
 
     // MARK: - Init
-    
+
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   versionsController: VersionsController(),
@@ -35,7 +34,7 @@ final class UpdateCommand: Command {
         self.updater = updater
     }
 
-    func run(with: ArgumentParser.Result) throws {
+    func run(with _: ArgumentParser.Result) throws {
         printer.print(section: "Checking for updates...")
         try updater.update()
     }
