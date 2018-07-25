@@ -1,46 +1,34 @@
 import Foundation
+import TuistCore
 
-/// Objects that conform this interface expose an interface for checking
-/// updates of tuist and installing them.
 protocol Updating: AnyObject {
-    /// Checks if there's a new version available. If there is it installs it locally.
-    ///
-    /// - Throws: an error if the releases cannot be fetched from GitHub or the installation
-    /// process fails for any reason.
     func update() throws
 }
 
 final class Updater: Updating {
-    /// GitHub client.
+
+    // MARK: - Attributes
+    
     let githubClient: GitHubClienting
-
-    /// GitHub request factory.
     let githubRequestFactory: GitHubRequestsFactory = GitHubRequestsFactory()
-
-    /// Versions controller.
     let versionsController: VersionsControlling
-
-    /// Installer.
     let installer: Installing
+    let printer: Printing
 
-    /// Initializes the updater with its attributes.
-    ///
-    /// - Parameters:
-    ///   - githubClient: GitHub API client.
-    ///   - versionsController: versions controller.
-    ///   - installer: installer.
+    // MARK: - Init
+    
     init(githubClient: GitHubClienting = GitHubClient(),
          versionsController: VersionsControlling = VersionsController(),
-         installer: Installing = Installer()) {
+         installer: Installing = Installer(),
+         printer: Printing = Printer()) {
         self.githubClient = githubClient
         self.versionsController = versionsController
         self.installer = installer
+        self.printer = printer
     }
 
-    /// Checks if there's a new version available. If there is it installs it locally.
-    ///
-    /// - Throws: an error if the releases cannot be fetched from GitHub or the installation
-    /// process fails for any reason.
+    // MARK: - Internal
+    
     func update() throws {
         let json = try githubClient.execute(request: githubRequestFactory.releases())
         let jsonDecoder = JSONDecoder()
@@ -48,12 +36,21 @@ final class Updater: Updating {
 
         let releases: [Release] = try jsonDecoder.decode([Release].self, from: jsonData)
 
-        guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last,
-            let highestLocalVersion = versionsController.semverVersions().sorted().last else {
+        guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
+            print("No remote versions found")
             return
         }
-        if highestRemoteVersion <= highestLocalVersion { return }
-
-        try installer.install(version: highestRemoteVersion.description)
+        
+        if let highestLocalVersion = versionsController.semverVersions().sorted().last {
+            if highestRemoteVersion <= highestLocalVersion {
+                printer.print("There are no updates available")
+            } else {
+                printer.print("Installing new version available \(highestRemoteVersion)")
+                try installer.install(version: highestRemoteVersion.description)
+            }
+        } else {
+            printer.print("No local versions available. Installing the latest version \(highestRemoteVersion)")
+            try installer.install(version: highestRemoteVersion.description)
+        }
     }
 }

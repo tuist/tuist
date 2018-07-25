@@ -4,35 +4,27 @@ import TuistCore
 import Utility
 
 class LocalCommand: Command {
-    /// Command name.
+
+    // MARK: - Command
+    
     static var command: String = "local"
-
-    /// Command overview
-    static var overview: String = "Creates a .tuist-version file to pin the tuist version that should be used in the current directory."
-
-    /// Version argument.
+    static var overview: String = "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the current version."
+    
+    // MARK: - Attributes
+    
     let versionArgument: PositionalArgument<String>
-
-    /// File handler.
     let fileHandler: FileHandling
-
-    /// Printer.
     let printer: Printing
 
-    /// Default constructor.
-    ///
-    /// - Parameter parser: argument parser.
+
+    // MARK: - Init
+    
     required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   fileHandler: FileHandler(),
                   printer: Printer())
     }
 
-    /// Initializes the command with its attributes.
-    ///
-    /// - Parameters:
-    ///   - parser: The argument parser used to register arguments.
-    ///   - fileHandler: file handler.
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
          printer: Printing) {
@@ -46,10 +38,9 @@ class LocalCommand: Command {
         self.printer = printer
     }
 
-    /// Runs the command.
-    ///
-    /// - Parameter result: argument parser result.
-    /// - Throws: an error if the version file cannot be written.
+
+    // MARK: - Internal
+    
     func run(with result: ArgumentParser.Result) throws {
         let version = result.get(versionArgument)!
         let currentPath = fileHandler.currentPath

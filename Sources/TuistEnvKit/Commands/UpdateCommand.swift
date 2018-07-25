@@ -1,38 +1,42 @@
 import Foundation
 import TuistCore
 import Utility
+import TuistCore
 
 final class UpdateCommand: Command {
-    /// Command name.
-    static var command: String = "update"
 
-    /// Command overview.
+    // MARK: - Command
+    
+    static var command: String = "update"
     static var overview: String = "Installs the latest version if it's not already installed."
 
     // MARK: - Attributes
 
-    /// Versions controller.
     private let versionsController: VersionsControlling
+    private let updater: Updating
+    private let printer: Printing
 
-    /// Initializes the update command with the argument parser.
-    ///
-    /// - Parameter parser: argument parser.
+    // MARK: - Init
+    
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  versionsController: VersionsController())
+                  versionsController: VersionsController(),
+                  updater: Updater(),
+                  printer: Printer())
     }
 
-    /// Default update command constructor.
-    ///
-    /// - Parameters:
-    ///   - parser: argument parser.
-    ///   - versionsController: local versions controller.
     init(parser: ArgumentParser,
-         versionsController: VersionsControlling) {
+         versionsController: VersionsControlling,
+         updater: Updating,
+         printer: Printer) {
         parser.add(subparser: UpdateCommand.command, overview: UpdateCommand.overview)
         self.versionsController = versionsController
+        self.printer = printer
+        self.updater = updater
     }
 
-    func run(with _: ArgumentParser.Result) throws {
+    func run(with: ArgumentParser.Result) throws {
+        printer.print(section: "Checking for updates...")
+        try updater.update()
     }
 }
