@@ -2,15 +2,7 @@ import Foundation
 
 // MARK: - BuildConfiguration
 
-public enum BuildConfiguration: String {
+public enum BuildConfiguration: String, Codable {
     case debug
     case release
-}
-
-// MARK: - BuildConfiguration (JSONConvertible)
-
-extension BuildConfiguration: JSONConvertible {
-    func toJSON() -> JSON {
-        return rawValue.toJSON()
-    }
 }

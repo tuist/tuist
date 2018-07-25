@@ -2,43 +2,93 @@ import Foundation
 
 // MARK: - TargetDependency
 
-public enum TargetDependency {
+public enum TargetDependency: Codable {
+    
     case target(name: String)
     case project(target: String, path: String)
     case framework(path: String)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
-}
-
-// MARK: - TargetDependency (JSONConvertible)
-
-extension TargetDependency: JSONConvertible {
-    func toJSON() -> JSON {
+    
+    public var typeName: String {
         switch self {
-        case let .target(name):
-            return .dictionary([
-                "type": "target".toJSON(),
-                "name": name.toJSON(),
-            ])
-        case let .project(target, path):
-            return .dictionary([
-                "type": "project".toJSON(),
-                "target": target.toJSON(),
-                "path": path.toJSON(),
-            ])
-        case let .framework(path):
-            return .dictionary([
-                "type": "framework".toJSON(),
-                "path": path.toJSON(),
-            ])
-        case let .library(path, publicHeaders, swiftModuleMap):
-            var dictionary: [String: JSON] = [:]
-            dictionary["type"] = "library".toJSON()
-            dictionary["path"] = path.toJSON()
-            dictionary["public_headers"] = publicHeaders.toJSON()
-            if let swiftModuleMap = swiftModuleMap {
-                dictionary["swift_module_map"] = swiftModuleMap.toJSON()
-            }
-            return .dictionary(dictionary)
+        case .target:
+            return "target"
+        case .project:
+            return "project"
+        case .framework:
+            return "framework"
+        case .library:
+            return "library"
         }
     }
+    
+}
+
+// MARK: - TargetDependency (Coding)
+
+extension TargetDependency {
+    
+    public enum CodingError: Error {
+        case unknownType(String)
+    }
+    
+    public enum CodingKeys: String, CodingKey {
+        case type
+        case name
+        case target
+        case path
+        case publicHeaders
+        case swiftModuleMap
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        let type = try container.decode(String.self, forKey: .type)
+        
+        switch type {
+        case "target":
+            self = .target(name: try container.decode(String.self, forKey: .name))
+            
+        case "project":
+            self = .project(
+                target: try container.decode(String.self, forKey: .target),
+                path: try container.decode(String.self, forKey: .path)
+            )
+            
+        case "framework":
+            self = .framework(path: try container.decode(String.self, forKey: .path))
+            
+        case "library":
+            self = .library(
+                path: try container.decode(String.self, forKey: .path),
+                publicHeaders: try container.decode(String.self, forKey: .publicHeaders),
+                swiftModuleMap: try container.decodeIfPresent(String.self, forKey: .swiftModuleMap)
+            )
+            
+        default:
+            throw CodingError.unknownType(type)
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encode(self.typeName, forKey: .type)
+        
+        switch self {
+        case .target(name: let name):
+            try container.encode(name, forKey: .name)
+        case .project(target: let target, path: let path):
+            try container.encode(target, forKey: .target)
+            try container.encode(path, forKey: .path)
+        case .framework(path: let path):
+            try container.encode(path, forKey: .path)
+        case .library(path: let path, publicHeaders: let publicHeaders, swiftModuleMap: let swiftModuleMap):
+            try container.encode(path, forKey: .path)
+            try container.encode(publicHeaders, forKey: .publicHeaders)
+            try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
+        }
+    }
+    
 }

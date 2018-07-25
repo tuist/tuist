@@ -1,9 +1,11 @@
 import Foundation
 
-func dumpIfNeeded(_ entity: JSONConvertible) {
+func dumpIfNeeded<E: Encodable>(_ entity: E) {
     if CommandLine.argc > 0 {
         if CommandLine.arguments.contains("--dump") {
-            print(entity.toJSON().toString())
+            let data = try! JSONEncoder().encode(entity)
+            let string = String(data: data, encoding: .utf8)!
+            print(string)
         }
     }
 }

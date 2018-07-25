@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Target
 
-public class Target {
+public class Target: Codable {
     /// Target name.
     let name: String
 
@@ -78,34 +78,5 @@ public class Target {
         self.resources = resources
         self.headers = headers
         self.coreDataModels = coreDataModels
-    }
-}
-
-// MARK: - Target (JSONConvertible)
-
-extension Target: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        dictionary["name"] = name.toJSON()
-        dictionary["platform"] = platform.toJSON()
-        dictionary["product"] = product.toJSON()
-        dictionary["bundle_id"] = bundleId.toJSON()
-        dictionary["info_plist"] = infoPlist.toJSON()
-        if let entitlements = entitlements {
-            dictionary["entitlements"] = entitlements.toJSON()
-        }
-        dictionary["dependencies"] = dependencies.toJSON()
-        if let settings = settings {
-            dictionary["settings"] = settings.toJSON()
-        }
-        dictionary["sources"] = sources.toJSON()
-        if let resources = resources {
-            dictionary["resources"] = resources.toJSON()
-        }
-        if let headers = headers {
-            dictionary["headers"] = headers.toJSON()
-        }
-        dictionary["core_data_models"] = .array(coreDataModels.map({ $0.toJSON() }))
-        return .dictionary(dictionary)
     }
 }

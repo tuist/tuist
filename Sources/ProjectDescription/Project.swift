@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Project
 
-public class Project {
+public class Project: Codable {
     public let name: String
     public let targets: [Target]
     public let settings: Settings?
@@ -14,19 +14,5 @@ public class Project {
         self.targets = targets
         self.settings = settings
         dumpIfNeeded(self)
-    }
-}
-
-// MARK: - Project (JSONConvertible)
-
-extension Project: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        dictionary["name"] = name.toJSON()
-        dictionary["targets"] = targets.toJSON()
-        if let settings = settings {
-            dictionary["settings"] = settings.toJSON()
-        }
-        return .dictionary(dictionary)
     }
 }
