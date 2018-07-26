@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Product
 
-public enum Product: String {
+public enum Product: String, Codable {
     case app
     case staticLibrary
     case dynamicLibrary
@@ -18,12 +18,4 @@ public enum Product: String {
     case messagesApplication
     case messagesExtension
     case stickerPack
-}
-
-// MARK: - Product (JSONConvertible)
-
-extension Product: JSONConvertible {
-    func toJSON() -> JSON {
-        return .string(rawValue)
-    }
 }

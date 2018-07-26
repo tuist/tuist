@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Scheme
 
-public class Scheme {
+public class Scheme: Codable {
     public let name: String
     public let shared: Bool
     public let buildAction: BuildAction?
@@ -21,29 +21,9 @@ public class Scheme {
     }
 }
 
-// MARK: - Scheme (JSONConvertible)
-
-extension Scheme: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        dictionary["name"] = name.toJSON()
-        dictionary["shared"] = shared.toJSON()
-        if let buildAction = buildAction {
-            dictionary["build_action"] = buildAction.toJSON()
-        }
-        if let testAction = testAction {
-            dictionary["test_action"] = testAction.toJSON()
-        }
-        if let runAction = runAction {
-            dictionary["run_action"] = runAction.toJSON()
-        }
-        return .dictionary(dictionary)
-    }
-}
-
 // MARK: - Arguments
 
-public class Arguments {
+public class Arguments: Codable {
     public let environment: [String: String]
     public let launch: [String: Bool]
     public init(environment: [String: String],
@@ -53,37 +33,18 @@ public class Arguments {
     }
 }
 
-// MARK: - Arguments (JSONConvertible)
-
-extension Arguments: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        dictionary["environment"] = environment.toJSON()
-        dictionary["launch"] = launch.toJSON()
-        return .dictionary(dictionary)
-    }
-}
-
 // MARK: - BuildAction
 
-public class BuildAction {
+public class BuildAction: Codable {
     public let targets: [String]
     public init(targets: [String]) {
         self.targets = targets
     }
 }
 
-// MARK: - BuildAction (JSONConvertible)
-
-extension BuildAction: JSONConvertible {
-    func toJSON() -> JSON {
-        return .dictionary(["targets": targets.toJSON()])
-    }
-}
-
 // MARK: - TestAction
 
-public class TestAction {
+public class TestAction: Codable {
     public let targets: [String]
     public let arguments: Arguments?
     public let config: BuildConfiguration
@@ -99,24 +60,9 @@ public class TestAction {
     }
 }
 
-// MARK: - TestAction (JSONConvertible)
-
-extension TestAction: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        dictionary["targets"] = targets.toJSON()
-        if let arguments = arguments {
-            dictionary["arguments"] = arguments.toJSON()
-        }
-        dictionary["config"] = config.toJSON()
-        dictionary["coverage"] = coverage.toJSON()
-        return .dictionary(dictionary)
-    }
-}
-
 // MARK: - RunAction
 
-public class RunAction {
+public class RunAction: Codable {
     public let config: BuildConfiguration
     public let executable: String?
     public let arguments: Arguments?
@@ -126,21 +72,5 @@ public class RunAction {
         self.config = config
         self.executable = executable
         self.arguments = arguments
-    }
-}
-
-// MARK: - RunAction (JSONConvertible)
-
-extension RunAction: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        if let executable = executable {
-            dictionary["executable"] = executable.toJSON()
-        }
-        if let arguments = arguments {
-            dictionary["arguments"] = arguments.toJSON()
-        }
-        dictionary["config"] = config.toJSON()
-        return .dictionary(dictionary)
     }
 }

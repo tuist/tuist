@@ -2,7 +2,13 @@ import Foundation
 
 // MARK: - Workspace
 
-public class Workspace {
+public class Workspace: Codable {
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case projects = "project"
+    }
+    
     public let name: String
     public let projects: [String]
     public init(name: String,
@@ -10,13 +16,5 @@ public class Workspace {
         self.name = name
         self.projects = projects
         dumpIfNeeded(self)
-    }
-}
-
-// MARK: - Workspace (JSONConvertible)
-
-extension Workspace: JSONConvertible {
-    func toJSON() -> JSON {
-        return .dictionary(["name": name.toJSON(), "project": projects.toJSON()])
     }
 }

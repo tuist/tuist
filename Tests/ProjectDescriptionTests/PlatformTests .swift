@@ -4,9 +4,9 @@ import XCTest
 
 final class PlatformTests: XCTestCase {
     func test_toJSON() {
-        XCTAssertEqual(Platform.iOS.toJSON().toString(), "\"iOS\"")
-        XCTAssertEqual(Platform.macOS.toJSON().toString(), "\"macOS\"")
-        XCTAssertEqual(Platform.watchOS.toJSON().toString(), "\"watchOS\"")
-        XCTAssertEqual(Platform.tvOS.toJSON().toString(), "\"tvOS\"")
+        assertCodableEqualToJson([Platform.iOS], "[\"iOS\"]")
+        assertCodableEqualToJson([Platform.macOS], "[\"macOS\"]")
+        assertCodableEqualToJson([Platform.watchOS], "[\"watchOS\"]")
+        assertCodableEqualToJson([Platform.tvOS], "[\"tvOS\"]")
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Headers
-public class Headers: JSONConvertible {
+public class Headers: Codable {
     /// Relative path to public headers.
     let `public`: String?
 
@@ -19,20 +19,4 @@ public class Headers: JSONConvertible {
         self.project = project
     }
 
-    /// Returns a JSON representation of the object.
-    ///
-    /// - Returns: JSON representation.
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        if let `public` = `public` {
-            dictionary["public"] = `public`.toJSON()
-        }
-        if let `private` = `private` {
-            dictionary["private"] = `private`.toJSON()
-        }
-        if let project = project {
-            dictionary["project"] = project.toJSON()
-        }
-        return JSON.dictionary(dictionary)
-    }
 }

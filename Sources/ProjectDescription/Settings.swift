@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Configuration
 
-public class Configuration {
+public class Configuration: Codable {
     public let settings: [String: String]
     public let xcconfig: String?
     public init(settings: [String: String] = [:], xcconfig: String? = nil) {
@@ -17,7 +17,7 @@ public class Configuration {
 
 // MARK: - Settings
 
-public class Settings {
+public class Settings: Codable {
     public let base: [String: String]
     public let debug: Configuration?
     public let release: Configuration?
@@ -28,32 +28,5 @@ public class Settings {
         self.base = base
         self.debug = debug
         self.release = release
-    }
-}
-
-// MARK: - Settings (JSONConvertible)
-
-extension Settings: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        dictionary["base"] = base.toJSON()
-        if let debug = debug {
-            dictionary["debug"] = debug.toJSON()
-        }
-        if let release = release {
-            dictionary["release"] = release.toJSON()
-        }
-        return .dictionary(dictionary)
-    }
-}
-
-extension Configuration: JSONConvertible {
-    func toJSON() -> JSON {
-        var dictionary: [String: JSON] = [:]
-        if let xcconfig = xcconfig {
-            dictionary["xcconfig"] = xcconfig.toJSON()
-        }
-        dictionary["settings"] = settings.toJSON()
-        return .dictionary(dictionary)
     }
 }

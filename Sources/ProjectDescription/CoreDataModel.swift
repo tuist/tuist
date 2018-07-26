@@ -1,7 +1,7 @@
 import Foundation
 
 /// Core Data model.
-public class CoreDataModel: JSONConvertible {
+public class CoreDataModel: Codable {
     /// Relative path to the model.
     let path: String
 
@@ -17,15 +17,5 @@ public class CoreDataModel: JSONConvertible {
                 currentVersion: String) {
         self.path = path
         self.currentVersion = currentVersion
-    }
-
-    /// Returns a JSON representation of the object.
-    ///
-    /// - Returns: JSON representation.
-    func toJSON() -> JSON {
-        return JSON.dictionary([
-            "path": self.path.toJSON(),
-            "current_version": self.currentVersion.toJSON(),
-        ])
     }
 }

@@ -4,10 +4,10 @@ import XCTest
 
 final class BuildConfigurationTests: XCTestCase {
     func test_toJSON_when_debug() {
-        XCTAssertEqual(BuildConfiguration.debug.toJSON().toString(), "\"debug\"")
+        assertCodableEqualToJson([BuildConfiguration.debug], "[\"debug\"]")
     }
 
     func test_toJSON_when_release() {
-        XCTAssertEqual(BuildConfiguration.release.toJSON().toString(), "\"release\"")
+        assertCodableEqualToJson([BuildConfiguration.release], "[\"release\"]")
     }
 }
