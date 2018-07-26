@@ -1,10 +1,3 @@
-//
-//  assertCodableEqualToJson.swift
-//  ProjectDescriptionTests
-//
-//  Created by Topic, Zdenek on 25/07/2018.
-//
-
 import Foundation
 import XCTest
 
