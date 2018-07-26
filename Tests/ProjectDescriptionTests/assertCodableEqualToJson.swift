@@ -9,6 +9,6 @@ func assertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String) {
     encoder.keyEncodingStrategy = .convertToSnakeCase
     let jsonData = try! encoder.encode(decoded)
     let subjectData = try! encoder.encode(subject)
-    
+
     XCTAssert(jsonData == subjectData, "JSON does not match the encoded \(String(describing: subject))")
 }

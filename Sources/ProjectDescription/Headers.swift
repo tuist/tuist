@@ -18,5 +18,4 @@ public class Headers: Codable {
         self.private = `private`
         self.project = project
     }
-
 }
