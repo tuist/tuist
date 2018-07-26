@@ -19,7 +19,7 @@
 ## Install
 
 ```
-eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
+eval "$(curl -sL https://bit.ly/2JWMfx8)"
 ```
 
 ## Setup for development
