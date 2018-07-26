@@ -28,12 +28,10 @@ protocol VersionResolving: AnyObject {
 
 enum VersionResolverError: FatalError, Equatable {
     case readError(path: AbsolutePath)
-    case invalidFormat(String, path: AbsolutePath)
 
     var type: ErrorType {
         switch self {
         case .readError: return .abort
-        case .invalidFormat: return .bug
         }
     }
 
@@ -41,8 +39,6 @@ enum VersionResolverError: FatalError, Equatable {
         switch self {
         case let .readError(path):
             return "Cannot read the version file at path \(path.asString)."
-        case let .invalidFormat(value, path):
-            return "The version \(value) at path \(path.asString) doesn't have a valid semver format: x.y.z."
         }
     }
 
@@ -50,10 +46,6 @@ enum VersionResolverError: FatalError, Equatable {
         switch (lhs, rhs) {
         case let (.readError(lhsPath), .readError(rhsPath)):
             return lhsPath == rhsPath
-        case let (.invalidFormat(lhsVersion, lhsPath), .invalidFormat(rhsVersion, rhsPath)):
-            return lhsVersion == rhsVersion && lhsPath == rhsPath
-        default:
-            return false
         }
     }
 }
@@ -100,9 +92,6 @@ class VersionResolver: VersionResolving {
         } catch {
             throw VersionResolverError.readError(path: path)
         }
-        guard let version = Version(string: value) else {
-            throw VersionResolverError.invalidFormat(value, path: path)
-        }
-        return ResolvedVersion.versionFile(path, version.description)
+        return ResolvedVersion.versionFile(path, value)
     }
 }

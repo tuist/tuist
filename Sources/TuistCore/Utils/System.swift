@@ -11,8 +11,8 @@ public protocol Systeming {
     func capture2e(_ args: String..., verbose: Bool) -> System2eResult
     func capture3(_ args: [String], verbose: Bool) -> System3Result
     func capture3(_ args: String..., verbose: Bool) -> System3Result
-    func popen(_ args: String..., printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
-    func popen(_ args: [String], printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
+    func popen(_ args: String..., printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?) throws
+    func popen(_ args: [String], printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?) throws
 }
 
 struct SystemError: FatalError {
@@ -145,8 +145,8 @@ public final class System: Systeming {
                       verbose: Bool = false,
                       onOutput: ((String) -> Void)? = nil,
                       onError: ((String) -> Void)? = nil,
-                      onCompletion: ((Int) -> Void)? = nil) {
-        popen(args,
+                      onCompletion: ((Int) -> Void)? = nil) throws {
+        try popen(args,
               printing: printing,
               verbose: verbose,
               onOutput: onOutput,
@@ -159,31 +159,35 @@ public final class System: Systeming {
                       verbose _: Bool = false,
                       onOutput: ((String) -> Void)? = nil,
                       onError: ((String) -> Void)? = nil,
-                      onCompletion: ((Int) -> Void)? = nil) {
+                      onCompletion: ((Int) -> Void)? = nil) throws {
         precondition(args.count >= 1, "Invalid number of argumentss")
 
         var args = args
-        var command: AsyncCommand!
+        var command: PrintedAsyncCommand!
 
         if args.count == 1 {
             command = runAsync(args.first!)
         } else {
             let executable = args.first!
             args = args.dropFirst().map({ $0.shellEscaped() })
-            command = runAsync(executable, args)
+            command = runAsyncAndPrint(executable, args)
         }
-
-        command.onCompletion {
-            onCompletion?($0.exitcode())
-        }
-        command.stdout.onStringOutput {
-            if printing { FileHandle.standardOutput.write($0) }
-            onOutput?($0)
-        }
-        command.stderror.onStringOutput {
-            if printing { FileHandle.standardError.write($0) }
-            onError?($0)
-        }
+//        command.onCompletion {
+//            Swift.print("xx")
+//            onCompletion?($0.exitcode())
+//        }
+//        command.stdout.onStringOutput {
+//            Swift.print("xx")
+//            if printing { FileHandle.standardOutput.write($0) }
+//            onOutput?($0)
+//        }
+//        command.stderror.onStringOutput {
+//            Swift.print("xx")
+//            if printing { FileHandle.standardError.write($0) }
+//            onError?($0)
+//        }
+        
+        try command.launch()
     }
 
     // MARK: - Fileprivate

@@ -8,13 +8,11 @@ final class VersionResolverErrorTests: XCTestCase {
     func test_errorDescription() {
         let path = AbsolutePath("/test")
         XCTAssertEqual(VersionResolverError.readError(path: path).description, "Cannot read the version file at path /test.")
-        XCTAssertEqual(VersionResolverError.invalidFormat("3.2", path: path).description, "The version 3.2 at path /test doesn't have a valid semver format: x.y.z.")
     }
 
     func test_equatable() {
         let path = AbsolutePath("/test")
         XCTAssertEqual(VersionResolverError.readError(path: path), VersionResolverError.readError(path: path))
-        XCTAssertEqual(VersionResolverError.invalidFormat("3.2", path: path), VersionResolverError.invalidFormat("3.2", path: path))
     }
 }
 
