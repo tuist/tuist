@@ -4,7 +4,6 @@ copyright: 'Copyright © from 2018 Pedro Piñera Buendía. All rights reserved.'
 output: docs
 module: ProjectDescription
 clean: true
-documentation: guides/**/*
 xcodebuild_arguments:
   - -project
   - tuist.xcodeproj
