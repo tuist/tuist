@@ -12,3 +12,5 @@ if (tuistEnvFiles.length > 0 && !hasTuistEnvBin) {
     "bin/tuistenv needs to be regenerated. Run 'make build-env' and commit the changes."
   )
 }
+
+fail('fail')
