@@ -14,7 +14,7 @@ final class BundleCommandErrorTests: XCTestCase {
 
     func test_description() {
         let path = AbsolutePath("/test")
-        XCTAssertEqual(BundleCommandError.missingVersionFile(path).description, "Couldn't find a .tuist-version file in the directory \(path.asString).")
+        XCTAssertEqual(BundleCommandError.missingVersionFile(path).description, "Couldn't find a .tuist-version file in the directory \(path.asString)")
     }
 }
 
@@ -53,7 +53,7 @@ final class BundleCommandTests: XCTestCase {
     }
 
     func test_overview() {
-        XCTAssertEqual(BundleCommand.overview, "Bundles the version specified in the .tuist-version file into the .tuist-bin directory.")
+        XCTAssertEqual(BundleCommand.overview, "Bundles the version specified in the .tuist-version file into the .tuist-bin directory")
     }
 
     func test_run_throws_when_there_is_no_xmp_version_in_the_directory() throws {

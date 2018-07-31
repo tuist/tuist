@@ -8,7 +8,7 @@ class LocalCommand: Command {
     // MARK: - Command
 
     static var command: String = "local"
-    static var overview: String = "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions."
+    static var overview: String = "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions"
 
     // MARK: - Attributes
 

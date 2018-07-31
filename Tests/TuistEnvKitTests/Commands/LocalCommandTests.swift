@@ -30,7 +30,7 @@ final class LocalCommandTests: XCTestCase {
     }
 
     func test_overview() {
-        XCTAssertEqual(LocalCommand.overview, "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions.")
+        XCTAssertEqual(LocalCommand.overview, "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions")
     }
 
     func test_init_registers_the_command() {
