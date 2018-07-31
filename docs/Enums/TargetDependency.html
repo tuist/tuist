@@ -14,7 +14,7 @@
     <a title="TargetDependency Enumeration Reference"></a>
     <header>
       <div class="content-wrapper">
-        <p><a href="../index.html">ProjectDescription Docs</a> (5% documented)</p>
+        <p><a href="../index.html">ProjectDescription Docs</a> (6% documented)</p>
         <p class="header-right"><a href="https://github.com/tuist/tuist"><img src="../img/gh.png"/>View on GitHub</a></p>
       </div>
     </header>
@@ -28,29 +28,6 @@
     <div class="content-wrapper">
       <nav class="sidebar">
         <ul class="nav-groups">
-          <li class="nav-group-name">
-            <a href="../Tutorial.html">Tutorial</a>
-            <ul class="nav-group-tasks">
-              <li class="nav-group-task">
-                <a href="../1-install.html">1. Install</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="../2-init-command.html">2. Init command</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="../3-building-and-testing.html">3. Building and testing</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="../4-target-dependencies.html">4. Target dependencies</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="../5-continuous-integration.html">5. Continuous integration</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="../6-modules.html">6. Modules</a>
-              </li>
-            </ul>
-          </li>
           <li class="nav-group-name">
             <a href="../Worksaces.html">Worksaces</a>
             <ul class="nav-group-tasks">
@@ -70,6 +47,12 @@
               </li>
               <li class="nav-group-task">
                 <a href="../Enums/TargetDependency.html">TargetDependency</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/TargetDependency/CodingError.html">– CodingError</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/TargetDependency/CodingKeys.html">– CodingKeys</a>
               </li>
               <li class="nav-group-task">
                 <a href="../Classes/CoreDataModel.html">CoreDataModel</a>
@@ -127,7 +110,7 @@
             <h1>TargetDependency</h1>
               <div class="declaration">
                 <div class="language">
-                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">TargetDependency</span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">TargetDependency</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
 
                 </div>
               </div>
@@ -239,6 +222,152 @@
                         <div class="language">
                           <p class="aside-title">Swift</p>
                           <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">library</span><span class="p">(</span><span class="nv">path</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">publicHeaders</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">swiftModuleMap</span><span class="p">:</span> <span class="kt">String</span><span class="p">?)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:18ProjectDescription16TargetDependencyO8typeNameSSvp"></a>
+                    <a name="//apple_ref/swift/Property/typeName" class="dashAnchor"></a>
+                    <a class="token" href="#/s:18ProjectDescription16TargetDependencyO8typeNameSSvp">typeName</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">var</span> <span class="nv">typeName</span><span class="p">:</span> <span class="kt">String</span> <span class="p">{</span> <span class="k">get</span> <span class="p">}</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/TargetDependency%20(Coding)"></a>
+                <a name="//apple_ref/swift/Section/TargetDependency (Coding)" class="dashAnchor"></a>
+                <a href="#/TargetDependency%20(Coding)">
+                  <h3 class="section-name">TargetDependency (Coding)</h3>
+                </a>
+              </div>
+              <ul>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:18ProjectDescription16TargetDependencyO11CodingErrorO"></a>
+                    <a name="//apple_ref/swift/Enum/CodingError" class="dashAnchor"></a>
+                    <a class="token" href="#/s:18ProjectDescription16TargetDependencyO11CodingErrorO">CodingError</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                        <a href="../Enums/TargetDependency/CodingError.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">CodingError</span> <span class="p">:</span> <span class="kt">Error</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:18ProjectDescription16TargetDependencyO10CodingKeysO"></a>
+                    <a name="//apple_ref/swift/Enum/CodingKeys" class="dashAnchor"></a>
+                    <a class="token" href="#/s:18ProjectDescription16TargetDependencyO10CodingKeysO">CodingKeys</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                        <a href="../Enums/TargetDependency/CodingKeys.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">CodingKeys</span> <span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="kt">CodingKey</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:s9DecodablePxs7Decoder_p4from_tKcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(from:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:s9DecodablePxs7Decoder_p4from_tKcfc">init(from:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span><span class="n">from</span> <span class="nv">decoder</span><span class="p">:</span> <span class="kt">Decoder</span><span class="p">)</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:s9EncodableP6encodeys7Encoder_p2to_tKF"></a>
+                    <a name="//apple_ref/swift/Method/encode(to:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:s9EncodableP6encodeys7Encoder_p2to_tKF">encode(to:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">encode</span><span class="p">(</span><span class="n">to</span> <span class="nv">encoder</span><span class="p">:</span> <span class="kt">Encoder</span><span class="p">)</span> <span class="k">throws</span></code></pre>
 
                         </div>
                       </div>

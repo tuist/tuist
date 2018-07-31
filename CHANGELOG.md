@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.1.0
+
 ### Added
 
 - Local command prints all the local versions if no argument is given https://github.com/tuist/tuist/pull/79 by @pepibumur.
