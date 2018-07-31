@@ -7,7 +7,7 @@ final class UpdateCommand: Command {
     // MARK: - Command
 
     static var command: String = "update"
-    static var overview: String = "Installs the latest version if it's not already installed."
+    static var overview: String = "Installs the latest version if it's not already installed"
 
     // MARK: - Attributes
 

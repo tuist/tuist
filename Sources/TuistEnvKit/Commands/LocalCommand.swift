@@ -35,7 +35,7 @@ class LocalCommand: Command {
         versionArgument = subParser.add(positional: "version",
                                         kind: String.self,
                                         optional: true,
-                                        usage: "The version that you would like to pin your current directory to.")
+                                        usage: "The version that you would like to pin your current directory to")
         self.fileHandler = fileHandler
         self.printer = printer
         self.versionController = versionController
