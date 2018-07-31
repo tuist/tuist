@@ -47,7 +47,7 @@ final class UninstallCommand: Command {
             try versionsController.uninstall(version: version)
             printer.print(success: "Version \(version) uninstalled")
         } else {
-            printer.print(warning: "Version \(version) cannot be uninstalled becuase it's not installed")
+            printer.print(warning: "Version \(version) cannot be uninstalled because it's not installed")
         }
     }
 }

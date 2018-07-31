@@ -72,6 +72,6 @@ final class UninstallCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(printer.printWarningArgs.first, "Version 3.2.1 cannot be uninstalled becuase it's not installed")
+        XCTAssertEqual(printer.printWarningArgs.first, "Version 3.2.1 cannot be uninstalled because it's not installed")
     }
 }
