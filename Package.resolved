@@ -20,15 +20,6 @@
         }
       },
       {
-        "package": "SwiftShell",
-        "repositoryURL": "git@github.com:tuist/SwiftShell.git",
-        "state": {
-          "branch": null,
-          "revision": "f9d6e23a382cf7ccf728d7e046b1b91157ffeb56",
-          "version": null
-        }
-      },
-      {
         "package": "xcodeproj",
         "repositoryURL": "git@github.com:tuist/xcodeproj.git",
         "state": {

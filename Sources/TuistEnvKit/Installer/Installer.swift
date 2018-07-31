@@ -56,15 +56,11 @@ final class Installer: Installing {
             if printing { printer.print("Checking out \(version) reference") }
             try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
             if printing { printer.print("Building using Swift (it might take a while)") }
-            let os = ProcessInfo.processInfo.operatingSystemVersion
-            let target = "x86_64-apple-macosx\(os.majorVersion).\(os.minorVersion)"
             let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift", verbose: false).stdout.chuzzle()!
             try system.capture(swiftPath, "build",
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
                                "-Xswiftc", "-static-stdlib",
-                               "-Xswiftc", "-target",
-                               "-Xswiftc", target,
                                verbose: verbose).throwIfError()
 
             // Copying built files

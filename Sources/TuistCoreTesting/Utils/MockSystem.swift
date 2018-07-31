@@ -1,5 +1,5 @@
 import Foundation
-@testable import TuistCore
+import TuistCore
 
 public final class MockSystem: Systeming {
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int32?)] = [:]
