@@ -9,6 +9,6 @@ final class UpdateCommandTests: XCTestCase {
     }
 
     func test_overview() {
-        XCTAssertEqual(UpdateCommand.overview, "Installs the latest version if it's not already installed.")
+        XCTAssertEqual(UpdateCommand.overview, "Installs the latest version if it's not already installed")
     }
 }

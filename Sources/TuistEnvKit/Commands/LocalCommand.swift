@@ -8,7 +8,7 @@ class LocalCommand: Command {
     // MARK: - Command
 
     static var command: String = "local"
-    static var overview: String = "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions."
+    static var overview: String = "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions"
 
     // MARK: - Attributes
 
@@ -35,7 +35,7 @@ class LocalCommand: Command {
         versionArgument = subParser.add(positional: "version",
                                         kind: String.self,
                                         optional: true,
-                                        usage: "The version that you would like to pin your current directory to.")
+                                        usage: "The version that you would like to pin your current directory to")
         self.fileHandler = fileHandler
         self.printer = printer
         self.versionController = versionController

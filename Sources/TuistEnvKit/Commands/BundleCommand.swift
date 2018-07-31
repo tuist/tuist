@@ -16,7 +16,7 @@ enum BundleCommandError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingVersionFile(path):
-            return "Couldn't find a .tuist-version file in the directory \(path.asString)."
+            return "Couldn't find a .tuist-version file in the directory \(path.asString)"
         }
     }
 
@@ -33,7 +33,7 @@ final class BundleCommand: Command {
     // MARK: - Command
 
     static var command: String = "bundle"
-    static var overview: String = "Bundles the version specified in the .tuist-version file into the .tuist-bin directory."
+    static var overview: String = "Bundles the version specified in the .tuist-version file into the .tuist-bin directory"
 
     // MARK: - Attributes
 

@@ -17,7 +17,7 @@ public final class CommandRegistry {
 
     public convenience init() {
         self.init(processArguments: CommandRegistry.processArguments,
-                  commands: [LocalCommand.self, BundleCommand.self, UpdateCommand.self])
+                  commands: [LocalCommand.self, BundleCommand.self, UpdateCommand.self, InstallCommand.self])
     }
 
     init(processArguments: @escaping () -> [String],
@@ -26,8 +26,7 @@ public final class CommandRegistry {
          commands: [Command.Type] = []) {
         parser = ArgumentParser(commandName: "tuist",
                                 usage: "<command> <options>",
-                                overview: "Manage the environment tuist versions.",
-                                seeAlso: "http://docs.xcodepm.com/")
+                                overview: "Manage the environment tuist versions.")
         self.processArguments = processArguments
         self.errorHandler = errorHandler
         self.commandRunner = commandRunner

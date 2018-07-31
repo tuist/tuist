@@ -19,7 +19,7 @@ public struct SystemError: FatalError {
     public var description: String {
         return stderror ?? "Error running command"
     }
-    
+
     public init(stderror: String? = nil, exitcode: Int32) {
         self.stderror = stderror
         self.exitcode = exitcode
