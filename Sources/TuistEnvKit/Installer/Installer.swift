@@ -58,7 +58,8 @@ final class Installer: Installing {
             if printing { printer.print("Building using Swift (it might take a while)") }
             let os = ProcessInfo.processInfo.operatingSystemVersion
             let target = "x86_64-apple-macosx\(os.majorVersion).\(os.minorVersion)"
-            try system.capture("swift", "build",
+            let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift", verbose: false).stdout.chuzzle()!
+            try system.capture(swiftPath, "build",
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
                                "-Xswiftc", "-static-stdlib",

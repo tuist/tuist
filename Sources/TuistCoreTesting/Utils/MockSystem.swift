@@ -34,7 +34,7 @@ public final class MockSystem: Systeming {
                 throw SystemError(stderror: stub.stderror ?? "", exitcode: stub.exitstatus ?? -1)
             }
         } else {
-            throw SystemError(stderror: "Command not supported", exitcode: -1)
+            throw SystemError(stderror: "Command not supported: \(command)", exitcode: -1)
         }
     }
 }

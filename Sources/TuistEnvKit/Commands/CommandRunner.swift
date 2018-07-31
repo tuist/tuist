@@ -19,7 +19,7 @@ enum CommandRunnerError: FatalError {
     var description: String {
         switch self {
         case .versionNotFound:
-            return "No valid version has been found locally."
+            return "No valid version has been found locally"
         }
     }
 }
@@ -31,7 +31,6 @@ class CommandRunner: CommandRunning {
     let versionResolver: VersionResolving
     let fileHandler: FileHandling
     let printer: Printing
-    let commandRunnerMessageMapper: CommandRunnerMessageMapping
     let system: Systeming
     let updater: Updating
     let versionsController: VersionsControlling
@@ -44,7 +43,6 @@ class CommandRunner: CommandRunning {
     init(versionResolver: VersionResolving = VersionResolver(),
          fileHandler: FileHandling = FileHandler(),
          printer: Printing = Printer(),
-         commandRunnerMessageMapper: CommandRunnerMessageMapping = CommandRunnerMessageMapper(),
          system: Systeming = System(),
          updater: Updating = Updater(),
          installer: Installing = Installer(),
@@ -54,7 +52,6 @@ class CommandRunner: CommandRunning {
         self.versionResolver = versionResolver
         self.fileHandler = fileHandler
         self.printer = printer
-        self.commandRunnerMessageMapper = commandRunnerMessageMapper
         self.system = system
         self.versionsController = versionsController
         self.arguments = arguments
@@ -70,8 +67,14 @@ class CommandRunner: CommandRunning {
 
         // Version resolving
         let resolvedVersion = try versionResolver.resolve(path: currentPath)
-        if let resolvedVersionMessage = commandRunnerMessageMapper.resolvedVersion(resolvedVersion) {
-            printer.print(resolvedVersionMessage)
+
+        switch resolvedVersion {
+        case let .bin(path):
+            printer.print("Using bundled version at path \(path.asString)")
+        case let .versionFile(path, value):
+            printer.print("Using version \(value) defined at \(path.asString)")
+        default:
+            break
         }
 
         if case let ResolvedVersion.bin(path) = resolvedVersion {
@@ -106,10 +109,6 @@ class CommandRunner: CommandRunning {
         if !versionsController.versions().contains(where: { $0.description == version }) {
             printer.print("Version \(version) not found locally. Installing...")
             try installer.install(version: version)
-        }
-
-        if !versionsController.versions().contains(where: { $0.description == version }) {
-            throw CommandRunnerError.versionNotFound
         }
 
         let path = versionsController.path(version: version)

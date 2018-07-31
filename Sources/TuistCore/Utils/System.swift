@@ -17,7 +17,7 @@ struct SystemError: FatalError {
     }
 
     var description: String {
-        return stderror ?? "Error running command."
+        return stderror ?? "Error running command"
     }
 }
 
@@ -73,7 +73,7 @@ public final class System: Systeming {
 
     public func capture(_ args: [String], verbose: Bool = false) throws -> SystemResult {
         precondition(args.count >= 1, "Invalid number of argumentss")
-        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], environment: [:], redirectOutput: true, verbose: verbose)
+        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], redirectOutput: true, verbose: verbose)
         try process.launch()
         return try process.waitUntilExit().result()
     }
@@ -84,7 +84,7 @@ public final class System: Systeming {
 
     public func popen(_ args: [String], verbose: Bool = false) throws {
         precondition(args.count >= 1, "Invalid number of arguments")
-        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], environment: [:], redirectOutput: false, verbose: verbose)
+        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], redirectOutput: false, verbose: verbose)
         try process.launch()
         try process.waitUntilExit().result().throwIfError()
     }
