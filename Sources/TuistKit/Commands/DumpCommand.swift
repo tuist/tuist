@@ -8,7 +8,7 @@ enum DumpCommandError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .manifestNotFound(path):
-            return "Couldn't find Project.swift, Workspace.swift, or Config.swift in the directory \(path.asString)"
+            return "Couldn't find Project.swift or Workspace.swift in the directory \(path.asString)"
         }
     }
 
@@ -32,7 +32,7 @@ class DumpCommand: NSObject, Command {
     // MARK: - Command
 
     static let command = "dump"
-    static let overview = "Prints parsed Project.swift, Workspace.swift, or Config.swift as JSON."
+    static let overview = "Prints parsed Project.swift or Workspace.swift as JSON."
 
     // MARK: - Attributes
 
