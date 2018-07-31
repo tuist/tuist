@@ -85,7 +85,7 @@ class GraphManifestLoader: GraphManifestLoading {
         try fileAggregator.aggregate(moduleLoader.load(path).reversed(), into: file.path)
         arguments.append(file.path.asString)
         arguments.append("--dump")
-        let result = system.capture3(arguments, verbose: false)
+        let result = try system.capture(arguments, verbose: false)
         try result.throwIfError()
         let jsonString: String! = result.stdout.chuzzle()
         if jsonString == nil {

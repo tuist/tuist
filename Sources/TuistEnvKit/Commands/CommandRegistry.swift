@@ -19,7 +19,7 @@ public final class CommandRegistry {
         self.init(processArguments: CommandRegistry.processArguments,
                   commands: [LocalCommand.self, BundleCommand.self, UpdateCommand.self])
     }
-    
+
     init(processArguments: @escaping () -> [String],
          errorHandler: ErrorHandling = ErrorHandler(),
          commandRunner: CommandRunning = CommandRunner(),
@@ -35,7 +35,7 @@ public final class CommandRegistry {
     }
 
     // MARK: - Public
-    
+
     public func run() {
         do {
             if let parsedArguments = try parse() {
@@ -51,7 +51,7 @@ public final class CommandRegistry {
     }
 
     // MARK: - Fileprivate
-    
+
     fileprivate func parse() throws -> ArgumentParser.Result? {
         let arguments = Array(processArguments().dropFirst())
         guard let firstArgument = arguments.first else { return nil }

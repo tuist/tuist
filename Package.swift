@@ -14,12 +14,11 @@ let package = Package(
     dependencies: [
         .package(url: "git@github.com:tuist/xcodeproj.git", .revision("549d67686d90ef8e45fccdca147682f185af2ad0")),
         .package(url: "git@github.com:apple/swift-package-manager.git", .revision("3e71e57db41ebb32ccec1841a7e26c428a9c08c5")),
-        .package(url: "git@github.com:tuist/SwiftShell.git", .revision("71b7bc18af32114176e89f6637188ac3957011f6")),
     ],
     targets: [
         .target(
             name: "TuistCore",
-            dependencies: ["Utility", "SwiftShell"]),
+            dependencies: ["Utility"]),
         .target(
             name: "TuistCoreTesting",
             dependencies: ["TuistCore"]),
