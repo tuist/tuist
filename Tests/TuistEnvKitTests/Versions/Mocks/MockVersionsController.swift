@@ -14,6 +14,8 @@ final class MockVersionsController: VersionsControlling {
     var versionsStub: [InstalledVersion] = []
     var semverVersionsCount: UInt = 0
     var semverVersionsStub: [Version] = []
+    var uninstallCallCount: UInt = 0
+    var uninstallStub: ((String) throws -> Void)?
 
     init() throws {
         tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -33,6 +35,11 @@ final class MockVersionsController: VersionsControlling {
     func install(version: String, installation: Installation) throws {
         installCallCount += 1
         try installStub?(version, installation)
+    }
+
+    func uninstall(version: String) throws {
+        uninstallCallCount += 1
+        try uninstallStub?(version)
     }
 
     func versions() -> [InstalledVersion] {

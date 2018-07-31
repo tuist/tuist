@@ -7,6 +7,7 @@ protocol VersionsControlling: AnyObject {
     typealias Installation = (AbsolutePath) throws -> Void
 
     func install(version: String, installation: Installation) throws
+    func uninstall(version: String) throws
     func path(version: String) -> AbsolutePath
     func versions() -> [InstalledVersion]
     func semverVersions() -> [Version]
@@ -64,6 +65,13 @@ class VersionsController: VersionsControlling {
                 try fileHandler.delete(dstPath)
             }
             try fileHandler.copy(from: tmpDir.path, to: dstPath)
+        }
+    }
+
+    func uninstall(version: String) throws {
+        let path = self.path(version: version)
+        if fileHandler.exists(path) {
+            try fileHandler.delete(path)
         }
     }
 
