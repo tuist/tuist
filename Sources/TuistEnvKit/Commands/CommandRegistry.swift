@@ -7,34 +7,19 @@ public final class CommandRegistry {
 
     // MARK: - Attributes
 
-    // Argument parser.
     let parser: ArgumentParser
-
-    /// Commands
     var commands: [Command] = []
-
-    /// Error handler.
     private let errorHandler: ErrorHandling
-
-    /// Returns the process arguments.
     private let processArguments: () -> [String]
-
-    /// Command runner.
     private let commandRunner: CommandRunning
 
-    /// Default constructor.
+    // MARK: - Init
+
     public convenience init() {
         self.init(processArguments: CommandRegistry.processArguments,
                   commands: [LocalCommand.self, BundleCommand.self, UpdateCommand.self])
     }
 
-    /// Initializes the command registrry with its attributes.
-    ///
-    /// - Parameters:
-    ///   - processArguments: process arguments.
-    ///   - errorHandler: error handler.
-    ///   - commandRunner: command runner.
-    ///   - commands: list of commands to register.
     init(processArguments: @escaping () -> [String],
          errorHandler: ErrorHandling = ErrorHandler(),
          commandRunner: CommandRunning = CommandRunner(),
@@ -49,7 +34,8 @@ public final class CommandRegistry {
         commands.forEach(register)
     }
 
-    /// Runs the CLI using the process arguments.
+    // MARK: - Public
+
     public func run() {
         do {
             if let parsedArguments = try parse() {
@@ -64,13 +50,9 @@ public final class CommandRegistry {
         }
     }
 
-    /// Parses the process arguments and returns the result if the command
-    /// is a valid tuistenv command. Otherwise, it returns nil, meaning that
-    /// the command should be proxied to tuist.
-    ///
-    /// - Returns: parsing result if the command is a tuistenv command.
-    /// - Throws: an error if the command parsing fails (e.g. wrong arguments).
-    private func parse() throws -> ArgumentParser.Result? {
+    // MARK: - Fileprivate
+
+    fileprivate func parse() throws -> ArgumentParser.Result? {
         let arguments = Array(processArguments().dropFirst())
         guard let firstArgument = arguments.first else { return nil }
         if commands.map({ type(of: $0).command }).contains(firstArgument) {
@@ -79,17 +61,10 @@ public final class CommandRegistry {
         return nil
     }
 
-    /// Registers a new command.
-    ///
-    /// - Parameter command: command type to be registered.
     fileprivate func register(command: Command.Type) {
         commands.append(command.init(parser: parser))
     }
 
-    /// Process the parsing result.
-    ///
-    /// - Parameter arguments: parsing result.
-    /// - Throws: an error if the output cannot be processed
     fileprivate func process(arguments: ArgumentParser.Result) throws {
         let subparser = arguments.subparser(parser)!
         let command = commands.first(where: { type(of: $0).command == subparser })!
@@ -98,9 +73,6 @@ public final class CommandRegistry {
 
     // MARK: - Static
 
-    /// Returns the process arguments
-    ///
-    /// - Returns: process arguments.
     static func processArguments() -> [String] {
         return Array(ProcessInfo.processInfo.arguments)
     }

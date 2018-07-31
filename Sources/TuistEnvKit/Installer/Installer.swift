@@ -52,22 +52,23 @@ final class Installer: Installing {
 
             // Cloning and building
             if printing { printer.print("Cloning repository") }
-            try system.capture3("git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
+            try system.capture("git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
             if printing { printer.print("Checking out \(version) reference") }
-            try system.capture3("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
+            try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
             if printing { printer.print("Building using Swift (it might take a while)") }
             let os = ProcessInfo.processInfo.operatingSystemVersion
             let target = "x86_64-apple-macosx\(os.majorVersion).\(os.minorVersion)"
-            try system.capture3("swift", "build",
-                                "--package-path", temporaryDirectory.path.asString,
-                                "--configuration", "release",
-                                "-Xswiftc", "-static-stdlib",
-                                "-Xswiftc", "-target",
-                                "-Xswiftc", target,
-                                verbose: verbose).throwIfError()
+            let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift", verbose: false).stdout.chuzzle()!
+            try system.capture(swiftPath, "build",
+                               "--package-path", temporaryDirectory.path.asString,
+                               "--configuration", "release",
+                               "-Xswiftc", "-static-stdlib",
+                               "-Xswiftc", "-target",
+                               "-Xswiftc", target,
+                               verbose: verbose).throwIfError()
 
             // Copying built files
-            try fileHandler.createFolder(installationDirectory)
+            try system.capture("mkdir", installationDirectory.asString, verbose: verbose).throwIfError()
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
 

@@ -1,38 +1,31 @@
 import Basic
 import Foundation
-import SwiftShell
-
-var runningCommand: AsyncCommand?
 
 public protocol Systeming {
-    func capture2(_ args: [String], verbose: Bool) -> System2Result
-    func capture2(_ args: String..., verbose: Bool) -> System2Result
-    func capture2e(_ args: [String], verbose: Bool) -> System2eResult
-    func capture2e(_ args: String..., verbose: Bool) -> System2eResult
-    func capture3(_ args: [String], verbose: Bool) -> System3Result
-    func capture3(_ args: String..., verbose: Bool) -> System3Result
-    func popen(_ args: String..., printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
-    func popen(_ args: [String], printing: Bool, verbose: Bool, onOutput: ((String) -> Void)?, onError: ((String) -> Void)?, onCompletion: ((Int) -> Void)?)
+    func capture(_ args: [String], verbose: Bool) throws -> SystemResult
+    func capture(_ args: String..., verbose: Bool) throws -> SystemResult
+    func popen(_ args: String..., verbose: Bool) throws
+    func popen(_ args: [String], verbose: Bool) throws
 }
 
 struct SystemError: FatalError {
     let stderror: String?
-    let exitcode: Int
+    let exitcode: Int32
 
     var type: ErrorType {
         return .abort
     }
 
     var description: String {
-        return stderror ?? "Error running command."
+        return stderror ?? "Error running command"
     }
 }
 
-public struct System3Result {
+public struct SystemResult {
     public let stdout: String
     public let stderror: String
-    public let exitcode: Int
-    public init(stdout: String, stderror: String, exitcode: Int) {
+    public let exitcode: Int32
+    public init(stdout: String, stderror: String, exitcode: Int32) {
         self.stdout = stdout
         self.stderror = stderror
         self.exitcode = exitcode
@@ -43,34 +36,30 @@ public struct System3Result {
     }
 }
 
-public struct System2eResult {
-    public let std: String
-    public let exitcode: Int
-    public init(std: String, exitcode: Int) {
-        self.std = std
-        self.exitcode = exitcode
-    }
-
-    public func throwIfError() throws {
-        if exitcode != 0 { throw SystemError(stderror: nil, exitcode: exitcode) }
+extension ProcessResult.ExitStatus {
+    var code: Int32 {
+        switch self {
+        case let .signalled(code): return code
+        case let .terminated(code): return code
+        }
     }
 }
 
-public struct System2Result {
-    public let stdout: String
-    public let exitcode: Int
-    public init(stdout: String, exitcode: Int) {
-        self.stdout = stdout
-        self.exitcode = exitcode
-    }
-
-    public func throwIfError() throws {
-        if exitcode != 0 { throw SystemError(stderror: nil, exitcode: exitcode) }
+extension ProcessResult {
+    func result() throws -> SystemResult {
+        return SystemResult(stdout: try utf8Output(),
+                            stderror: try utf8stderrOutput(),
+                            exitcode: exitStatus.code)
     }
 }
 
 public final class System: Systeming {
+
+    // MARK: - Attributes
+
     let printer: Printing
+
+    // MARK: - Init
 
     public init(printer: Printing = Printer()) {
         self.printer = printer
@@ -78,112 +67,26 @@ public final class System: Systeming {
 
     // MARK: - Systeming
 
-    public func capture2(_ args: String..., verbose: Bool = false) -> System2Result {
-        return capture2(args, verbose: verbose)
+    public func capture(_ args: String..., verbose: Bool = false) throws -> SystemResult {
+        return try capture(args, verbose: verbose)
     }
 
-    public func capture2(_ args: [String], verbose _: Bool = false) -> System2Result {
+    public func capture(_ args: [String], verbose: Bool = false) throws -> SystemResult {
         precondition(args.count >= 1, "Invalid number of argumentss")
-        var args = args
-
-        var result: RunOutput!
-
-        if args.count == 1 {
-            result = run(bash: args.first!, combineOutput: false)
-        } else {
-            let executable = args.first!
-            args = args.dropFirst().map({ $0.shellEscaped() })
-            result = run(executable, args, combineOutput: false)
-        }
-        return System2Result(stdout: result.stdout, exitcode: result.exitcode)
+        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], redirectOutput: true, verbose: verbose)
+        try process.launch()
+        return try process.waitUntilExit().result()
     }
 
-    public func capture2e(_ args: String..., verbose: Bool = false) -> System2eResult {
-        return capture2e(args, verbose: verbose)
+    public func popen(_ args: String..., verbose: Bool = false) throws {
+        try popen(args, verbose: verbose)
     }
 
-    public func capture2e(_ args: [String], verbose _: Bool = false) -> System2eResult {
-        precondition(args.count >= 1, "Invalid number of argumentss")
-        var args = args
-
-        var result: RunOutput!
-
-        if args.count == 1 {
-            result = run(bash: args.first!, combineOutput: true)
-        } else {
-            let executable = args.first!
-            args = args.dropFirst().map({ $0.shellEscaped() })
-            result = run(executable, args, combineOutput: true)
-        }
-
-        return System2eResult(std: result.stdout, exitcode: result.exitcode)
-    }
-
-    public func capture3(_ args: String..., verbose: Bool = false) -> System3Result {
-        return capture3(args, verbose: verbose)
-    }
-
-    public func capture3(_ args: [String], verbose _: Bool = false) -> System3Result {
-        precondition(args.count >= 1, "Invalid number of argumentss")
-        var args = args
-
-        var result: RunOutput!
-
-        if args.count == 1 {
-            result = run(bash: args.first!, combineOutput: false)
-        } else {
-            let executable = args.first!
-            args = args.dropFirst().map({ $0.shellEscaped() })
-            result = run(executable, args, combineOutput: false)
-        }
-
-        return System3Result(stdout: result.stdout, stderror: result.stderror, exitcode: result.exitcode)
-    }
-
-    public func popen(_ args: String...,
-                      printing: Bool = false,
-                      verbose: Bool = false,
-                      onOutput: ((String) -> Void)? = nil,
-                      onError: ((String) -> Void)? = nil,
-                      onCompletion: ((Int) -> Void)? = nil) {
-        popen(args,
-              printing: printing,
-              verbose: verbose,
-              onOutput: onOutput,
-              onError: onError,
-              onCompletion: onCompletion)
-    }
-
-    public func popen(_ args: [String],
-                      printing: Bool = false,
-                      verbose _: Bool = false,
-                      onOutput: ((String) -> Void)? = nil,
-                      onError: ((String) -> Void)? = nil,
-                      onCompletion: ((Int) -> Void)? = nil) {
-        precondition(args.count >= 1, "Invalid number of argumentss")
-
-        var args = args
-        var command: AsyncCommand!
-
-        if args.count == 1 {
-            command = runAsync(args.first!)
-        } else {
-            let executable = args.first!
-            args = args.dropFirst().map({ $0.shellEscaped() })
-            command = runAsync(executable, args)
-        }
-
-        command.onCompletion {
-            onCompletion?($0.exitcode())
-        }
-        command.stdout.onStringOutput {
-            if printing { FileHandle.standardOutput.write($0) }
-            onOutput?($0)
-        }
-        command.stderror.onStringOutput {
-            if printing { FileHandle.standardError.write($0) }
-            onError?($0)
-        }
+    public func popen(_ args: [String], verbose: Bool = false) throws {
+        precondition(args.count >= 1, "Invalid number of arguments")
+        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], redirectOutput: false, verbose: verbose)
+        try process.launch()
+        try process.waitUntilExit().result().throwIfError()
     }
 
     // MARK: - Fileprivate

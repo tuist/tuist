@@ -2,15 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-/// It defines the interface of an object that can copy the tuist build artifacts
-/// into a destination folder filtering out the files that are not required.
 protocol BuildCopying: AnyObject {
-    /// Copies the build artifacts.
-    ///
-    /// - Parameters:
-    ///   - from: folder where the build artifacts are (e.g. .build/release)
-    ///   - to: folder where the build files should be copied into.
-    /// - Throws: an error if the copying fails.
     func copy(from: AbsolutePath, to: AbsolutePath) throws
 }
 
@@ -29,28 +21,26 @@ class BuildCopier: BuildCopying {
 
     // MARK: - Attributes
 
-    /// File handler.
     private let fileHandler: FileHandling
+    private let system: Systeming
 
-    /// Initializes the build copier with its attributes.
-    ///
-    /// - Parameter fileHandler: file handler.
-    init(fileHandler: FileHandling = FileHandler()) {
+    // MARK: - Init
+
+    init(fileHandler: FileHandling = FileHandler(),
+         system: Systeming = System()) {
         self.fileHandler = fileHandler
+        self.system = system
     }
 
-    /// Copies the build artifacts.
-    ///
-    /// - Parameters:
-    ///   - from: folder where the build artifacts are (e.g. .build/release)
-    ///   - to: folder where the build files should be copied into.
-    /// - Throws: an error if the copying fails.
     func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try BuildCopier.files.forEach { file in
             let filePath = from.appending(component: file)
             let toPath = to.appending(component: file)
             if !fileHandler.exists(filePath) { return }
-            try fileHandler.copy(from: filePath, to: toPath)
+            try system.capture("cp", "-rf", filePath.asString, toPath.asString, verbose: false).throwIfError()
+            if file == "tuist" {
+                try system.capture("chmod", "+x", toPath.asString, verbose: true).throwIfError()
+            }
         }
     }
 }
