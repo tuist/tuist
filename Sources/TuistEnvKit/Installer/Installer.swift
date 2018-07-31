@@ -6,6 +6,23 @@ protocol Installing: AnyObject {
     func install(version: String) throws
 }
 
+enum InstallerError: FatalError {
+    case versionNotFound(String)
+
+    var type: ErrorType {
+        switch self {
+        case .versionNotFound: return .abort
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .versionNotFound(version):
+            return "Version \(version) not found."
+        }
+    }
+}
+
 final class Installer: Installing {
 
     // MARK: - Attributes
@@ -51,10 +68,17 @@ final class Installer: Installing {
             }
 
             // Cloning and building
-            if printing { printer.print("Cloning repository") }
+            if printing { printer.print("Pulling source code") }
             try system.capture("git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
-            if printing { printer.print("Checking out \(version) reference") }
-            try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
+            do {
+                try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
+            } catch let error as SystemError {
+                if error.description.contains("did not match any file(s) known to git") {
+                    throw InstallerError.versionNotFound(version)
+                }
+                throw error
+            }
+
             if printing { printer.print("Building using Swift (it might take a while)") }
             let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift", verbose: false).stdout.chuzzle()!
             try system.capture(swiftPath, "build",

@@ -1,44 +1,30 @@
 import Foundation
 
-/// Error handling protocol.
 public protocol ErrorHandling: AnyObject {
-    /// It should be called when a fatal error happens. Depending on the error it
-    /// prints, and reports the error.
-    ///
-    /// - Parameter error: error.
     func fatal(error: FatalError)
 }
 
-/// Error handler.
 public final class ErrorHandler: ErrorHandling {
-    /// Printer.
-    let printer: Printing
 
-    /// Function to finish the program execution.
+    // MARK: - Attributes
+
+    let printer: Printing
     var exiter: (Int32) -> Void
 
-    /// Initializes the error handler with the printer.
-    ///
-    /// - Parameter printer: printer.
+    // MARK: - Init
+
     public convenience init(printer: Printing = Printer()) {
         self.init(printer: printer, exiter: { exit($0) })
     }
 
-    /// Initializes the error handler with its attributes.
-    ///
-    /// - Parameters:
-    ///   - printer: printer.
-    ///   - exiter:  function to finish the program execution.
     init(printer: Printing,
          exiter: @escaping (Int32) -> Void) {
         self.printer = printer
         self.exiter = exiter
     }
 
-    /// It should be called when a fatal error happens. Depending on the error it
-    /// prints, and reports the error.
-    ///
-    /// - Parameter error: error.
+    // MARK: - Public
+
     public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty && !isSilent {
