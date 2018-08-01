@@ -86,7 +86,7 @@ class TargetNode: GraphNode {
                 let projectPath = path.appending(projectRelativePath)
                 let circularTo = GraphCircularDetectorNode(path: projectPath, name: name)
                 try graphCircularDetector.start(from: circularFrom, to: circularTo)
-                return try TargetNode.read(name: name, path: path, cache: cache, graphCircularDetector: graphCircularDetector)
+                return try TargetNode.read(name: name, path: projectPath, cache: cache, graphCircularDetector: graphCircularDetector)
             } else if type == "framework" {
                 let frameworkPath: RelativePath = try RelativePath(json.get("path"))
                 return try FrameworkNode.parse(projectPath: path,
