@@ -2,13 +2,9 @@ import Basic
 import Foundation
 import TuistCore
 
-/// Graph error.
-///
-/// - unsupportedFileExtension: thrown when the file extension cannot be obtained for the given product.
 enum GraphError: FatalError {
     case unsupportedFileExtension(String)
 
-    /// Error description.
     var description: String {
         switch self {
         case let .unsupportedFileExtension(productType):
@@ -16,7 +12,6 @@ enum GraphError: FatalError {
         }
     }
 
-    /// Error type
     var type: ErrorType {
         switch self {
         case .unsupportedFileExtension:
@@ -25,20 +20,10 @@ enum GraphError: FatalError {
     }
 }
 
-/// Dependency reference.
-///
-/// - absolute: the reference is an absolute path to the dependency.
-/// - product: the reference is the name of it in the products directory.
 enum DependencyReference: Equatable {
     case absolute(AbsolutePath)
     case product(String)
 
-    /// Returns true if two instances of DependencyReference are equal.
-    ///
-    /// - Parameters:
-    ///   - lhs: first instance to be compared.
-    ///   - rhs: second instance to be compared.
-    /// - Returns: true if the two instances are the same.
     static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
         case let (.absolute(lhsPath), .absolute(rhsPath)):
@@ -51,7 +36,6 @@ enum DependencyReference: Equatable {
     }
 }
 
-/// Protocol that represents a graph.
 protocol Graphing: AnyObject {
     var name: String { get }
     var entryPath: AbsolutePath { get }
@@ -66,32 +50,20 @@ protocol Graphing: AnyObject {
     func targetDependencies(path: AbsolutePath, name: String) -> [String]
 }
 
-/// Graph representation.
 class Graph: Graphing {
-    /// Graph name.
+
+    // MARK: - Attributes
+
     let name: String
-
-    /// Entry path (directory)
     let entryPath: AbsolutePath
-
-    /// Cache.
     let cache: GraphLoaderCaching
-
-    /// Entry nodes.
     let entryNodes: [GraphNode]
-
-    /// Graph projects.
     var projects: [Project] {
         return Array(cache.projects.values)
     }
 
-    /// Initializes the graph with its attributes.
-    ///
-    /// - Parameters:
-    ///   - name: graph name.
-    ///   - entryPath: path to the folder that contains the entry point manifest.
-    ///   - cache: graph cache.
-    ///   - entryNodes: nodes that are defined in the entry point manifest.
+    // MARK: - Init
+
     init(name: String,
          entryPath: AbsolutePath,
          cache: GraphLoaderCaching,
@@ -102,10 +74,8 @@ class Graph: Graphing {
         self.entryNodes = entryNodes
     }
 
-    /// Returns all the dependencies of a project.
-    ///
-    /// - Parameter path: path to the folder where the project is defined.
-    /// - Returns: list of dependencies.
+    // MARK: - Internal
+
     func dependencies(path: AbsolutePath) -> Set<GraphNode> {
         var dependencies: Set<GraphNode> = Set()
         cache.targetNodes[path]?.forEach {
@@ -114,13 +84,6 @@ class Graph: Graphing {
         return dependencies
     }
 
-    /// Returns the list of dependencies that a given target is dependent on.
-    /// Thes list includes the direct dependencies and the dependencyes of those at any level.
-    ///
-    /// - Parameters:
-    ///   - path: path to the folder that contains the project definition.
-    ///   - name: target name.
-    /// - Returns: list of dependencies.
     func dependencies(path: AbsolutePath, name: String) -> Set<GraphNode> {
         var dependencies: Set<GraphNode> = Set()
         var add: ((GraphNode) -> Void)!
@@ -135,13 +98,6 @@ class Graph: Graphing {
         return dependencies
     }
 
-    /// Returns the dependencies of a given target that are in the same project.
-    /// This is useful to generate the target dependencies in the Xcode project.
-    ///
-    /// - Parameters:
-    ///   - path: path to the folder that contains the manifest where the target is defined.
-    ///   - name: target name.
-    /// - Returns: name of the targets.
     func targetDependencies(path: AbsolutePath, name: String) -> [String] {
         guard let targetNodes = cache.targetNodes[path] else { return [] }
         guard let targetNode = targetNodes[name] else { return [] }
@@ -151,12 +107,6 @@ class Graph: Graphing {
             .map({ $0.target.name })
     }
 
-    /// Given a target, it returns the list of dependencies that should be linked from it.
-    ///
-    /// - Parameters:
-    ///   - path: path to the folder that contains the manifest where the target is defined.
-    ///   - name: target name.
-    /// - Returns: paths to the linkable dependencies (.framework & .a)
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
         guard let targetNodes = cache.targetNodes[path] else { return [] }
         guard let targetNode = targetNodes[name] else { return [] }
@@ -185,13 +135,6 @@ class Graph: Graphing {
         return references
     }
 
-    /// Given a target, it returns the list of public headers folders that should be
-    /// exposed to the target.
-    ///
-    /// - Parameters:
-    ///   - path: path to the folder that contains the manifest where the target is defined.
-    ///   - name: target name.
-    /// - Returns: paths to the public headers folders.
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath] {
         guard let targetNodes = cache.targetNodes[path] else { return [] }
         guard let targetNode = targetNodes[name] else { return [] }
@@ -201,23 +144,27 @@ class Graph: Graphing {
             .map({ $0.publicHeaders })
     }
 
-    /// Given a target, it returns the list of frameworks that should be embedded into the
-    /// frameworks folder of the target product.
-    ///
-    /// - Parameters:
-    ///   - path: path to the folder that contains the manifest where the target is defined.
-    ///   - name: target name.
-    ///   - shell: shell util.
-    /// - Returns: paths to the frameworks that should be embedded.
-    /// - Throws: an error is thrown while trying to get whether a framework is static or dynamic.
     func embeddableFrameworks(path: AbsolutePath,
                               name: String,
                               shell: Shelling) throws -> [DependencyReference] {
         guard let targetNodes = cache.targetNodes[path] else { return [] }
         guard let targetNode = targetNodes[name] else { return [] }
 
-        /// If the target is not an app we shouldn't embed anything.
-        if targetNode.target.product != .app { return [] }
+        let validProducts: [Product] = [
+            .app,
+            .unitTests,
+            .uiTests,
+            .tvExtension,
+            .appExtension,
+            .watchExtension,
+            .watch2Extension,
+            .messagesExtension,
+            .watchApp,
+            .watch2App,
+            .messagesApplication,
+        ]
+
+        if !validProducts.contains(targetNode.target.product) { return [] }
 
         var references: [DependencyReference] = []
         let dependencies = self.dependencies(path: path, name: name)
