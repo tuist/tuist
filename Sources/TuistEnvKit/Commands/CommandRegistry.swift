@@ -43,7 +43,9 @@ public final class CommandRegistry {
 
     public func run() {
         do {
-            if let parsedArguments = try parse() {
+            if processArguments().dropFirst().first == "--help-env" {
+                parser.printUsage(on: stdoutStream)
+            } else if let parsedArguments = try parse() {
                 try process(arguments: parsedArguments)
             } else {
                 try commandRunner.run()

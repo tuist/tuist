@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Install command https://github.com/tuist/tuist/pull/83 by @pepibumur.
+- `--help-env` command to tuistenv by @pepibumur.
 
 ## 0.1.0
 
