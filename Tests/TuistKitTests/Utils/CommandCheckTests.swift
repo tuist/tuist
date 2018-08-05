@@ -22,32 +22,24 @@ final class CommandCheckErrorTests: XCTestCase {
 }
 
 final class CommandCheckTests: XCTestCase {
-    var shell: MockShell!
+    var system: MockSystem!
     var subject: CommandCheck!
 
     override func setUp() {
         super.setUp()
-        shell = MockShell()
-        let context = Context(shell: shell)
-        subject = CommandCheck(context: context)
+        system = MockSystem()
+        subject = CommandCheck(system: system)
     }
 
     func test_swiftVersionCompatibility_throws_whenSwiftVersionNotFound() {
-        shell.runAndOutputStub = { _, _ in
-            "this is an invalid output"
-        }
+        system.stub(args: ["xcrun", "swift", "--version"], stderror: nil, stdout: "invalid output", exitstatus: 0)
         XCTAssertThrowsError(try subject.swiftVersionCompatibility()) { error in
             XCTAssertEqual(error as? CommandCheckError, CommandCheckError.swiftVersionNotFound)
         }
     }
 
     func test_swiftVeresionCompatibility_throws_whenSwiftVersionsAreNotEqual() {
-        shell.runAndOutputStub = { command, _ in
-            if command == ["xcrun", "swift", "--version"] {
-                return "Apple Swift version 3.0 (swiftlang-902.0.48 clang-902.0.37.1)"
-            }
-            return ""
-        }
+        system.stub(args: ["xcrun", "swift", "--version"], stderror: nil, stdout: "Apple Swift version 3.0 (swiftlang-902.0.48 clang-902.0.37.1)", exitstatus: 0)
         XCTAssertThrowsError(try subject.swiftVersionCompatibility()) { error in
             let expected = CommandCheckError.incompatibleSwiftVersion(system: "3.0", expected: Constants.swiftVersion)
             XCTAssertEqual(error as? CommandCheckError, expected)

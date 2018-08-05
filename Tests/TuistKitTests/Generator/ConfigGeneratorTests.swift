@@ -7,7 +7,6 @@ import XCTest
 
 final class ConfigGeneratorTests: XCTestCase {
     var pbxproj: PBXProj!
-    var context: GeneratorContexting!
     var graph: Graph!
     var subject: ConfigGenerator!
     var pbxTarget: PBXNativeTarget!
@@ -19,8 +18,6 @@ final class ConfigGeneratorTests: XCTestCase {
         pbxTarget = PBXNativeTarget(name: "Test")
         pbxproj.objects.addObject(pbxTarget)
         resourceLocator = MockResourceLocator()
-        context = GeneratorContext(graph: Graph.test(),
-                                   resourceLocator: resourceLocator)
         resourceLocator.projectDescriptionStub = { AbsolutePath("/test/ProjectDescription.dylib") }
         subject = ConfigGenerator()
     }
@@ -137,8 +134,8 @@ final class ConfigGeneratorTests: XCTestCase {
     private func generateManifestsConfig(config: BuildConfiguration) throws {
         let options = GenerationOptions(buildConfiguration: config)
         _ = try subject.generateManifestsConfig(pbxproj: pbxproj,
-                                                context: context,
-                                                options: options)
+                                                options: options,
+                                                resourceLocator: resourceLocator)
     }
 
     private func generateTargetConfig(config: BuildConfiguration) throws {

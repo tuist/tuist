@@ -51,17 +51,11 @@ final class Embeddable {
     // MARK: - Attributes
 
     let path: AbsolutePath
-    let shell: Shelling
-    let fileHandler: FileHandling
 
     // MARK: - Init
 
-    init(path: AbsolutePath,
-         shell: Shelling = Shell(),
-         fileHandler: FileHandling = FileHandler()) {
+    init(path: AbsolutePath) {
         self.path = path
-        self.shell = shell
-        self.fileHandler = fileHandler
     }
 
     // MARK: - Package Information
@@ -95,10 +89,9 @@ final class Embeddable {
         return EmbeddableType(rawValue: bundlePackageType)
     }
 
-    func architectures() throws -> [String] {
-        let shell = Shell()
+    func architectures(system: Systeming = System()) throws -> [String] {
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try shell.runAndOutput("lipo", "-info", binPath.asString)
+        let lipoResult = try system.capture("lipo", "-info", binPath.asString, verbose: false).throwIfError().stdout.chuzzle() ?? ""
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)
@@ -174,9 +167,10 @@ final class Embeddable {
         })
     }
 
-    fileprivate func stripArchitecture(packagePath: AbsolutePath, architecture: String) throws {
-        let shell = Shell()
-        _ = try shell.run("lipo", "-remove", architecture, "-output", packagePath.asString, packagePath.asString)
+    fileprivate func stripArchitecture(packagePath: AbsolutePath,
+                                       architecture: String,
+                                       system: Systeming = System()) throws {
+        try system.popen("lipo", "-remove", architecture, "-output", packagePath.asString, packagePath.asString, verbose: false)
     }
 
     fileprivate func stripHeaders(frameworkPath: AbsolutePath) throws {
@@ -221,9 +215,9 @@ final class Embeddable {
         return try uuidsFromDwarfdump(path: path)
     }
 
-    fileprivate func uuidsFromDwarfdump(path: AbsolutePath) throws -> Set<UUID> {
-        let shell = Shell()
-        let result = try shell.runAndOutput("dwarfdump", "--uuid", path.asString)
+    fileprivate func uuidsFromDwarfdump(path: AbsolutePath,
+                                        system: Systeming = System()) throws -> Set<UUID> {
+        let result = try system.capture("dwarfdump", "--uuid", path.asString, verbose: false).throwIfError().stdout.chuzzle() ?? ""
         var uuidCharacterSet = CharacterSet()
         uuidCharacterSet.formUnion(.letters)
         uuidCharacterSet.formUnion(.decimalDigits)

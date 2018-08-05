@@ -1,53 +1,51 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
 
-/// Workspace generation protocol.
 protocol WorkspaceGenerating: AnyObject {
-    /// Generates the workspace at the given path.
-    ///
-    /// - Parameters:
-    ///   - path: path where the workspace should be generated.
-    ///   - context: generator context.
-    ///   - options: generation options.
-    /// - Throws: throw an error if the generation fails.
     func generate(path: AbsolutePath,
-                  context: GeneratorContexting,
-                  options: GenerationOptions) throws
+                  graph: Graphing,
+                  options: GenerationOptions,
+                  system: Systeming,
+                  printer: Printing,
+                  resourceLocator: ResourceLocating) throws
 }
 
-/// Workspace generator.
 final class WorkspaceGenerator: WorkspaceGenerating {
-    /// Project generator.
+
+    // MARK: - Attributes
+
     let projectGenerator: ProjectGenerating
 
-    /// Initializes the workspace generator with the project generator.
-    ///
-    /// - Parameter projectGenerator: project generator.
+    // MARK: - Init
+
     init(projectGenerator: ProjectGenerating = ProjectGenerator()) {
         self.projectGenerator = projectGenerator
     }
 
-    /// Generates the workspace at the given path.
-    ///
-    /// - Parameters:
-    ///   - path: path where the workspace should be generated.
-    ///   - context: generator context.
-    ///   - options: generation options.
-    /// - Throws: throw an error if the generation fails.
+    // MARK: - WorkspaceGenerating
+
     func generate(path: AbsolutePath,
-                  context: GeneratorContexting,
-                  options: GenerationOptions) throws {
-        let workspaceName = "\(context.graph.name).xcworkspace"
-        context.printer.print(section: "Generating workspace \(workspaceName)")
+                  graph: Graphing,
+                  options: GenerationOptions,
+                  system: Systeming = System(),
+                  printer: Printing = Printer(),
+                  resourceLocator: ResourceLocating = ResourceLocator()) throws {
+        let workspaceName = "\(graph.name).xcworkspace"
+        printer.print(section: "Generating workspace \(workspaceName)")
         let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        try context.graph.projects.forEach { project in
+        try graph.projects.forEach { project in
             let xcodeprojPath = try projectGenerator.generate(project: project,
+                                                              options: options,
+                                                              graph: graph,
                                                               sourceRootPath: nil,
-                                                              context: context,
-                                                              options: options)
+                                                              system: system,
+                                                              printer: printer,
+                                                              resourceLocator: resourceLocator)
+
             let relativePath = xcodeprojPath.relative(to: path)
             let location = XCWorkspaceDataElementLocationType.group(relativePath.asString)
             let fileRef = XCWorkspaceDataFileRef(location: location)

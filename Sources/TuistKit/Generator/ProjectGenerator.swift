@@ -1,46 +1,43 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
 
-/// Project generation protocol.
 protocol ProjectGenerating: AnyObject {
-    /// Generates the Xcode project from the spec.
-    ///
-    /// - Parameters:
-    ///   - project: project specification.
-    ///   - sourceRootPath: path to the folder that contains the project that is being generated.
-    ///     If it's not specified, it'll use the same folder where the spec is defined.
-    ///   - context: generation context.
-    ///   - options: generation options.
-    /// - Returns: the path where the project has been generated.
-    /// - Throws: an error if the generation fails.
-    func generate(project: Project, sourceRootPath: AbsolutePath?, context: GeneratorContexting, options: GenerationOptions) throws -> AbsolutePath
+    func generate(project: Project,
+                  options: GenerationOptions,
+                  graph: Graphing,
+                  sourceRootPath: AbsolutePath?,
+                  system: Systeming,
+                  printer: Printing,
+                  resourceLocator: ResourceLocating) throws -> AbsolutePath
 }
 
-/// Project generator.
 final class ProjectGenerator: ProjectGenerating {
-    /// Target generator.
-    let targetGenerator: TargetGenerating
 
-    /// Config generator.
+    // MARK: - Attributes
+
+    let targetGenerator: TargetGenerating
     let configGenerator: ConfigGenerating
 
-    /// Initializes the generator with sub-generators.
-    ///
-    /// - Parameters:
-    ///   - targetGenerator: target generator.
-    ///   - configGenerator: config generator.
+    // MARK: - Init
+
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
     }
 
+    // MARK: - ProjectGenerating
+
     func generate(project: Project,
+                  options: GenerationOptions,
+                  graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil,
-                  context: GeneratorContexting,
-                  options: GenerationOptions) throws -> AbsolutePath {
-        context.printer.print("Generating project \(project.name)")
+                  system: Systeming = System(),
+                  printer: Printing = Printer(),
+                  resourceLocator: ResourceLocating = ResourceLocator()) throws -> AbsolutePath {
+        printer.print("Generating project \(project.name)")
 
         // Getting the path.
         var sourceRootPath: AbsolutePath! = sourceRootPath
@@ -58,7 +55,7 @@ final class ProjectGenerator: ProjectGenerating {
         let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         fileElements.generateProjectFiles(project: project,
-                                          graph: context.graph,
+                                          graph: graph,
                                           groups: groups,
                                           objects: pbxproj.objects,
                                           sourceRootPath: sourceRootPath)
@@ -92,8 +89,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                     pbxProject: pbxProject,
                                                     groups: groups,
                                                     sourceRootPath: sourceRootPath,
-                                                    context: context,
-                                                    options: options)
+                                                    options: options,
+                                                    resourceLocator: resourceLocator)
 
         /// Native targets
         var nativeTargets: [String: PBXNativeTarget] = [:]
@@ -103,10 +100,12 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   pbxProject: pbxProject,
                                                                   groups: groups,
                                                                   fileElements: fileElements,
-                                                                  context: context,
                                                                   path: project.path,
                                                                   sourceRootPath: sourceRootPath,
-                                                                  options: options)
+                                                                  options: options,
+                                                                  graph: graph,
+                                                                  resourceLocator: resourceLocator,
+                                                                  system: system)
             nativeTargets[target.name] = nativeTarget
         }
 
@@ -114,7 +113,7 @@ final class ProjectGenerator: ProjectGenerating {
         try targetGenerator.generateTargetDependencies(path: project.path,
                                                        targets: project.targets,
                                                        nativeTargets: nativeTargets,
-                                                       graph: context.graph)
+                                                       graph: graph)
 
         /// Write.
         let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)

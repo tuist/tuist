@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistKit
 import XCTest
@@ -18,6 +19,13 @@ final class GraphErrorTests: XCTestCase {
 }
 
 final class GraphTests: XCTestCase {
+    var system: MockSystem!
+
+    override func setUp() {
+        super.setUp()
+        system = MockSystem()
+    }
+
     func test_targetDependencies() throws {
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .staticLibrary)
@@ -117,11 +125,12 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        let shell = MockShell()
-        shell.runStub = { _, _ in "dynamically linked" }
+        system.stub(args: [], stderror: nil, stdout: "dynamically linked", exitstatus: 0)
+
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
-                                                 shell: shell)
+                                                 system: system)
+
         XCTAssertNil(got.first)
     }
 
@@ -138,11 +147,11 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        let shell = MockShell()
-        shell.runAndOutputStub = { _, _ in "dynamically linked" }
+
+        system.stub(args: [], stderror: nil, stdout: "dynamically linked", exitstatus: 0)
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
-                                                 shell: shell)
+                                                 system: system)
         XCTAssertEqual(got.first, DependencyReference.product("Dependency.framework"))
     }
 
@@ -157,11 +166,16 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        let shell = MockShell()
-        shell.runAndOutputStub = { _, _ in "dynamically linked" }
+
+        system.stub(args: ["file", "/test/test.framework/test"],
+                    stderror: nil,
+                    stdout: "dynamically linked",
+                    exitstatus: 0)
+
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
-                                                 shell: shell)
+                                                 system: system)
+
         XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
     }
 }

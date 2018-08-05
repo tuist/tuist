@@ -36,8 +36,10 @@ public struct SystemResult {
         self.exitcode = exitcode
     }
 
-    public func throwIfError() throws {
+    @discardableResult
+    public func throwIfError() throws -> SystemResult {
         if exitcode != 0 { throw SystemError(stderror: stderror, exitcode: exitcode) }
+        return self
     }
 }
 
@@ -72,10 +74,12 @@ public final class System: Systeming {
 
     // MARK: - Systeming
 
+    @discardableResult
     public func capture(_ args: String..., verbose: Bool = false) throws -> SystemResult {
         return try capture(args, verbose: verbose)
     }
 
+    @discardableResult
     public func capture(_ args: [String], verbose: Bool = false) throws -> SystemResult {
         precondition(args.count >= 1, "Invalid number of argumentss")
         let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], redirectOutput: true, verbose: verbose)

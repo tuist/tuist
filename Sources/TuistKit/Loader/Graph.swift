@@ -44,7 +44,7 @@ protocol Graphing: AnyObject {
     var projects: [Project] { get }
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func embeddableFrameworks(path: AbsolutePath, name: String, shell: Shelling) throws -> [DependencyReference]
+    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
     func dependencies(path: AbsolutePath, name: String) -> Set<GraphNode>
     func dependencies(path: AbsolutePath) -> Set<GraphNode>
     func targetDependencies(path: AbsolutePath, name: String) -> [String]
@@ -143,7 +143,7 @@ class Graph: Graphing {
 
     func embeddableFrameworks(path: AbsolutePath,
                               name: String,
-                              shell: Shelling) throws -> [DependencyReference] {
+                              system: Systeming) throws -> [DependencyReference] {
         guard let targetNode = self.targetNode(path: path, name: name) else { return [] }
 
         let validProducts: [Product] = [
@@ -168,7 +168,7 @@ class Graph: Graphing {
         /// Precompiled frameworks
         references.append(contentsOf: try dependencies
             .compactMap({ $0 as? FrameworkNode })
-            .filter({ try $0.linking(shell: shell) == .dynamic })
+            .filter({ try $0.linking(system: system) == .dynamic })
             .map({ DependencyReference.absolute($0.path) }))
 
         /// Other targets' frameworks.

@@ -15,6 +15,9 @@ class GenerateCommand: NSObject, Command {
     fileprivate let graphLoader: GraphLoading
     fileprivate let workspaceGenerator: WorkspaceGenerating
     fileprivate let printer: Printing
+    fileprivate let system: Systeming
+    fileprivate let resourceLocator: ResourceLocating
+
     let pathArgument: OptionArgument<String>
     let configArgument: OptionArgument<String>
 
@@ -23,18 +26,21 @@ class GenerateCommand: NSObject, Command {
     required convenience init(parser: ArgumentParser) {
         self.init(graphLoader: GraphLoader(),
                   workspaceGenerator: WorkspaceGenerator(),
-                  parser: parser,
-                  printer: Printer())
+                  parser: parser)
     }
 
     init(graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
          parser: ArgumentParser,
-         printer: Printing) {
+         printer: Printing = Printer(),
+         system: Systeming = System(),
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
         self.printer = printer
+        self.system = system
+        self.resourceLocator = resourceLocator
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -50,8 +56,15 @@ class GenerateCommand: NSObject, Command {
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
         let config = try parseConfig(arguments: arguments)
-        let context = try GeneratorContext(graph: graphLoader.load(path: path))
-        try workspaceGenerator.generate(path: path, context: context, options: GenerationOptions(buildConfiguration: config))
+        let graph = try graphLoader.load(path: path)
+
+        try workspaceGenerator.generate(path: path,
+                                        graph: graph,
+                                        options: GenerationOptions(buildConfiguration: config),
+                                        system: system,
+                                        printer: printer,
+                                        resourceLocator: resourceLocator)
+
         printer.print(success: "Project generated.")
     }
 

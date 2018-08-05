@@ -9,18 +9,20 @@ protocol TargetGenerating: AnyObject {
                                  pbxProject: PBXProject,
                                  groups: ProjectGroups,
                                  sourceRootPath: AbsolutePath,
-                                 context: GeneratorContexting,
-                                 options: GenerationOptions) throws
+                                 options: GenerationOptions,
+                                 resourceLocator: ResourceLocating) throws
 
-    func generateTarget(target targetSpec: Target,
+    func generateTarget(target: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
-                        groups: ProjectGroups,
+                        groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        context: GeneratorContexting,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        options: GenerationOptions) throws -> PBXNativeTarget
+                        options: GenerationOptions,
+                        graph: Graphing,
+                        resourceLocator: ResourceLocating,
+                        system: Systeming) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
@@ -59,8 +61,8 @@ final class TargetGenerator: TargetGenerating {
                                  pbxProject: PBXProject,
                                  groups: ProjectGroups,
                                  sourceRootPath: AbsolutePath,
-                                 context: GeneratorContexting,
-                                 options: GenerationOptions) throws {
+                                 options: GenerationOptions,
+                                 resourceLocator: ResourceLocating = ResourceLocator()) throws {
         /// Names
         let name = "\(project.name)Description"
         let frameworkName = "\(name).framework"
@@ -77,15 +79,14 @@ final class TargetGenerator: TargetGenerating {
         try modulePaths.forEach { filePath in
             let fileReference = try fileGenerator.generateFile(path: filePath,
                                                                in: groups.projectDescription,
-                                                               sourceRootPath: sourceRootPath,
-                                                               context: context)
+                                                               sourceRootPath: sourceRootPath)
             files.append(fileReference.reference)
         }
 
         // Configuration
         let configurationListReference = try configGenerator.generateManifestsConfig(pbxproj: pbxproj,
-                                                                                     context: context,
-                                                                                     options: options)
+                                                                                     options: options,
+                                                                                     resourceLocator: resourceLocator)
 
         // Build phases
         let sourcesPhase = PBXSourcesBuildPhase()
@@ -108,10 +109,12 @@ final class TargetGenerator: TargetGenerating {
                         pbxProject: PBXProject,
                         groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        context: GeneratorContexting,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        options: GenerationOptions) throws -> PBXNativeTarget {
+                        options: GenerationOptions,
+                        graph: Graphing,
+                        resourceLocator: ResourceLocating = ResourceLocator(),
+                        system: Systeming = System()) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.productName]!
 
@@ -144,12 +147,14 @@ final class TargetGenerator: TargetGenerating {
         /// Links
         try linkGenerator.generateLinks(target: target,
                                         pbxTarget: pbxTarget,
-                                        context: context,
                                         objects: objects,
                                         pbxProject: pbxProject,
                                         fileElements: fileElements,
                                         path: path,
-                                        sourceRootPath: sourceRootPath)
+                                        sourceRootPath: sourceRootPath,
+                                        graph: graph,
+                                        resourceLocator: resourceLocator,
+                                        system: system)
         return pbxTarget
     }
 

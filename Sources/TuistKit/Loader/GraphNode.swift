@@ -152,19 +152,19 @@ class PrecompiledNode: GraphNode {
         fatalError("This method should be overriden by the subclasses")
     }
 
-    func architectures(shell: Shelling) throws -> [Architecture] {
-        let output = try shell.runAndOutput("lipo -info \(binaryPath.asString)", environment: [:])
+    func architectures(system: Systeming = System()) throws -> [Architecture] {
+        let result = try system.capture("lipo", "-info", binaryPath.asString, verbose: false).throwIfError().stdout.chuzzle() ?? ""
         let regex = try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: [])
-        guard let match = regex.firstMatch(in: output, options: [], range: NSRange(location: 0, length: output.count)) else {
+        guard let match = regex.firstMatch(in: result, options: [], range: NSRange(location: 0, length: result.count)) else {
             throw PrecompiledNodeError.architecturesNotFound(binaryPath)
         }
-        let architecturesString = (output as NSString).substring(with: match.range(at: 1))
+        let architecturesString = (result as NSString).substring(with: match.range(at: 1))
         return architecturesString.split(separator: " ").map(String.init).compactMap(Architecture.init)
     }
 
-    func linking(shell: Shelling) throws -> Linking {
-        let output = try shell.runAndOutput("file \(binaryPath.asString)", environment: [:])
-        return output.contains("dynamically linked") ? .dynamic : .static
+    func linking(system: Systeming = System()) throws -> Linking {
+        let result = try system.capture("file", binaryPath.asString, verbose: false).throwIfError().stdout.chuzzle() ?? ""
+        return result.contains("dynamically linked") ? .dynamic : .static
     }
 }
 

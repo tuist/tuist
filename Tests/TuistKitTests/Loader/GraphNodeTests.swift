@@ -5,11 +5,11 @@ import Foundation
 import XCTest
 
 final class PrecompiledNodeTests: XCTestCase {
-    var shell: MockShell!
+    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        shell = MockShell()
+        system = MockSystem()
     }
 
     func test_architecture_rawValues() {
@@ -21,13 +21,13 @@ final class PrecompiledNodeTests: XCTestCase {
 }
 
 final class FrameworkNodeTests: XCTestCase {
-    var shell: MockShell!
+    var system: MockSystem!
     var subject: FrameworkNode!
     var path: AbsolutePath!
 
     override func setUp() {
         super.setUp()
-        shell = MockShell()
+        system = MockSystem()
         path = AbsolutePath("/test.framework")
         subject = FrameworkNode(path: path)
     }
@@ -37,34 +37,24 @@ final class FrameworkNodeTests: XCTestCase {
     }
 
     func test_architectures() throws {
-        shell.runAndOutputStub = { command, _ in
-            if command.joined(separator: " ") == "lipo -info /test.framework/test" {
-                return "Non-fat file: path is architecture: x86_64"
-            }
-            return ""
-        }
-        try XCTAssertEqual(subject.architectures(shell: shell).first, .x8664)
+        system.stub(args: ["lipo -info /test.framework/test"], stderror: nil, stdout: "Non-fat file: path is architecture: x86_64", exitstatus: 0)
+        try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
     }
 
     func test_linking() {
-        shell.runAndOutputStub = { command, _ in
-            if command.joined(separator: " ") == "file /test.framework/test" {
-                return "whatever dynamically linked"
-            }
-            return ""
-        }
-        try XCTAssertEqual(subject.linking(shell: shell), .dynamic)
+        system.stub(args: ["file", "/test.framework/test"], stderror: nil, stdout: "whatever dynamically linked", exitstatus: 0)
+        try XCTAssertEqual(subject.linking(system: system), .dynamic)
     }
 }
 
 final class LibraryNodeTests: XCTestCase {
-    var shell: MockShell!
+    var system: MockSystem!
     var subject: LibraryNode!
     var path: AbsolutePath!
 
     override func setUp() {
         super.setUp()
-        shell = MockShell()
+        system = MockSystem()
         path = AbsolutePath("/test.a")
         subject = LibraryNode(path: path, publicHeaders: AbsolutePath("/headers"))
     }
@@ -74,22 +64,12 @@ final class LibraryNodeTests: XCTestCase {
     }
 
     func test_architectures() throws {
-        shell.runAndOutputStub = { command, _ in
-            if command.joined(separator: " ") == "lipo -info /test.a" {
-                return "Non-fat file: path is architecture: x86_64"
-            }
-            return ""
-        }
-        try XCTAssertEqual(subject.architectures(shell: shell).first, .x8664)
+        system.stub(args: ["lipo", "-info", "/test.a"], stderror: nil, stdout: "Non-fat file: path is architecture: x86_64", exitstatus: 0)
+        try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
     }
 
     func test_linking() {
-        shell.runAndOutputStub = { command, _ in
-            if command.joined(separator: " ") == "file /test.a" {
-                return "whatever dynamically linked"
-            }
-            return ""
-        }
-        try XCTAssertEqual(subject.linking(shell: shell), .dynamic)
+        system.stub(args: ["file /test.a"], stderror: nil, stdout: "whatever dynamically linked", exitstatus: 0)
+        try XCTAssertEqual(subject.linking(system: system), .dynamic)
     }
 }

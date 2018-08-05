@@ -1,13 +1,17 @@
 import Basic
 import Foundation
+import TuistCore
 @testable import TuistKit
 
 final class MockWorkspaceGenerator: WorkspaceGenerating {
-    var generateStub: ((AbsolutePath, GeneratorContexting, GenerationOptions) throws -> Void)?
+    var generateStub: ((AbsolutePath, Graphing, GenerationOptions, Systeming, Printing, ResourceLocating) throws -> Void)?
 
     func generate(path: AbsolutePath,
-                  context: GeneratorContexting,
-                  options: GenerationOptions) throws {
-        try generateStub?(path, context, options)
+                  graph: Graphing,
+                  options: GenerationOptions,
+                  system: Systeming,
+                  printer: Printing,
+                  resourceLocator: ResourceLocating) throws {
+        try generateStub?(path, graph, options, system, printer, resourceLocator)
     }
 }

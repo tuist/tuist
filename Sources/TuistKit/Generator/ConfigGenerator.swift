@@ -10,8 +10,8 @@ protocol ConfigGenerating: AnyObject {
                                options: GenerationOptions) throws -> PBXObjectReference
 
     func generateManifestsConfig(pbxproj: PBXProj,
-                                 context: GeneratorContexting,
-                                 options: GenerationOptions) throws -> PBXObjectReference
+                                 options: GenerationOptions,
+                                 resourceLocator: ResourceLocating) throws -> PBXObjectReference
 
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
@@ -95,13 +95,13 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     func generateManifestsConfig(pbxproj: PBXProj,
-                                 context: GeneratorContexting,
-                                 options: GenerationOptions) throws -> PBXObjectReference {
+                                 options: GenerationOptions,
+                                 resourceLocator: ResourceLocating = ResourceLocator()) throws -> PBXObjectReference {
         let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
         let configurationListReference = pbxproj.objects.addObject(configurationList)
 
         let addSettings: (XCBuildConfiguration) throws -> Void = { configuration in
-            let frameworkParentDirectory = try context.resourceLocator.projectDescription().parentDirectory
+            let frameworkParentDirectory = try resourceLocator.projectDescription().parentDirectory
             configuration.buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkParentDirectory.asString
             configuration.buildSettings["LIBRARY_SEARCH_PATHS"] = frameworkParentDirectory.asString
             configuration.buildSettings["SWIFT_FORCE_DYNAMIC_LINK_STDLIB"] = true
