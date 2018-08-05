@@ -41,7 +41,6 @@ final class GitHubClientTests: XCTestCase {
     }
 
     func test_execute_when_returns_data_without_errors() throws {
-        let error = NSError(domain: "test", code: 1, userInfo: nil)
         let request = URLRequest(url: URL(string: "http://test")!)
         sessionScheduler.scheduleStub = { _request in
             if _request == request {

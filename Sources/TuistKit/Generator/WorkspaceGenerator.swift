@@ -5,9 +5,11 @@ import xcodeproj
 
 protocol WorkspaceGenerating: AnyObject {
     func generate(path: AbsolutePath,
-                  context: GeneratorContexting,
+                  graph: Graphing,
                   options: GenerationOptions,
-                  system: Systeming) throws
+                  system: Systeming,
+                  printer: Printing,
+                  resourceLocator: ResourceLocating) throws
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -25,20 +27,25 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - WorkspaceGenerating
 
     func generate(path: AbsolutePath,
-                  context: GeneratorContexting,
+                  graph: Graphing,
                   options: GenerationOptions,
-                  system: Systeming = System()) throws {
-        let workspaceName = "\(context.graph.name).xcworkspace"
-        context.printer.print(section: "Generating workspace \(workspaceName)")
+                  system: Systeming = System(),
+                  printer: Printing = Printer(),
+                  resourceLocator: ResourceLocating = ResourceLocator()) throws {
+        let workspaceName = "\(graph.name).xcworkspace"
+        printer.print(section: "Generating workspace \(workspaceName)")
         let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        try context.graph.projects.forEach { project in
+        try graph.projects.forEach { project in
             let xcodeprojPath = try projectGenerator.generate(project: project,
-                                                              sourceRootPath: nil,
-                                                              context: context,
                                                               options: options,
-                                                              system: system)
+                                                              graph: graph,
+                                                              sourceRootPath: nil,
+                                                              system: system,
+                                                              printer: printer,
+                                                              resourceLocator: resourceLocator)
+
             let relativePath = xcodeprojPath.relative(to: path)
             let location = XCWorkspaceDataElementLocationType.group(relativePath.asString)
             let fileRef = XCWorkspaceDataFileRef(location: location)

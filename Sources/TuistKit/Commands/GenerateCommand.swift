@@ -50,11 +50,18 @@ class GenerateCommand: NSObject, Command {
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
         let config = try parseConfig(arguments: arguments)
-        let context = try GeneratorContext(graph: graphLoader.load(path: path))
+        let graph = try graphLoader.load(path: path)
+        let system = System()
+        let printer = Printer()
+        let resourceLocator = ResourceLocator()
+
         try workspaceGenerator.generate(path: path,
-                                        context: context,
+                                        graph: graph,
                                         options: GenerationOptions(buildConfiguration: config),
-                                        system: System())
+                                        system: system,
+                                        printer: printer,
+                                        resourceLocator: resourceLocator)
+
         printer.print(success: "Project generated.")
     }
 

@@ -5,10 +5,12 @@ import xcodeproj
 
 protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
-                  sourceRootPath: AbsolutePath?,
-                  context: GeneratorContexting,
                   options: GenerationOptions,
-                  system: Systeming) throws -> AbsolutePath
+                  graph: Graphing,
+                  sourceRootPath: AbsolutePath?,
+                  system: Systeming,
+                  printer: Printing,
+                  resourceLocator: ResourceLocating) throws -> AbsolutePath
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -29,11 +31,13 @@ final class ProjectGenerator: ProjectGenerating {
     // MARK: - ProjectGenerating
 
     func generate(project: Project,
-                  sourceRootPath: AbsolutePath? = nil,
-                  context: GeneratorContexting,
                   options: GenerationOptions,
-                  system: Systeming = System()) throws -> AbsolutePath {
-        context.printer.print("Generating project \(project.name)")
+                  graph: Graphing,
+                  sourceRootPath: AbsolutePath? = nil,
+                  system: Systeming = System(),
+                  printer: Printing = Printer(),
+                  resourceLocator: ResourceLocating = ResourceLocator()) throws -> AbsolutePath {
+        printer.print("Generating project \(project.name)")
 
         // Getting the path.
         var sourceRootPath: AbsolutePath! = sourceRootPath
@@ -51,7 +55,7 @@ final class ProjectGenerator: ProjectGenerating {
         let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         fileElements.generateProjectFiles(project: project,
-                                          graph: context.graph,
+                                          graph: graph,
                                           groups: groups,
                                           objects: pbxproj.objects,
                                           sourceRootPath: sourceRootPath)
@@ -85,8 +89,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                     pbxProject: pbxProject,
                                                     groups: groups,
                                                     sourceRootPath: sourceRootPath,
-                                                    context: context,
-                                                    options: options)
+                                                    options: options,
+                                                    resourceLocator: resourceLocator)
 
         /// Native targets
         var nativeTargets: [String: PBXNativeTarget] = [:]
@@ -99,8 +103,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   path: project.path,
                                                                   sourceRootPath: sourceRootPath,
                                                                   options: options,
-                                                                  graph: context.graph,
-                                                                  resourceLocator: context.resourceLocator,
+                                                                  graph: graph,
+                                                                  resourceLocator: resourceLocator,
                                                                   system: system)
             nativeTargets[target.name] = nativeTarget
         }
@@ -109,7 +113,7 @@ final class ProjectGenerator: ProjectGenerating {
         try targetGenerator.generateTargetDependencies(path: project.path,
                                                        targets: project.targets,
                                                        nativeTargets: nativeTargets,
-                                                       graph: context.graph)
+                                                       graph: graph)
 
         /// Write.
         let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
