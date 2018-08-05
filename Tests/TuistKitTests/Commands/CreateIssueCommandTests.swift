@@ -5,13 +5,13 @@ import Utility
 import XCTest
 
 final class CreateIssueCommandTests: XCTestCase {
-    var shell: MockShell!
+    var system: MockSystem!
     var subject: CreateIssueCommand!
 
     override func setUp() {
         super.setUp()
-        shell = MockShell()
-        subject = CreateIssueCommand(shell: shell)
+        system = MockSystem()
+        subject = CreateIssueCommand(system: system)
     }
 
     func test_command() {
@@ -23,7 +23,7 @@ final class CreateIssueCommandTests: XCTestCase {
     }
 
     func test_run() throws {
+        system.stub(args: ["open", CreateIssueCommand.createIssueUrl], stderror: nil, stdout: nil, exitstatus: 0)
         try subject.run(with: ArgumentParser.Result.test())
-        XCTAssertEqual(shell.runArgs.first, ["open", CreateIssueCommand.createIssueUrl])
     }
 }

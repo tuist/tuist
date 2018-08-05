@@ -44,7 +44,7 @@ final class GenerateCommandTests: XCTestCase {
         let result = try parser.parse([GenerateCommand.command, "-c", "Debug"])
         var configuration: BuildConfiguration?
         let error = NSError.test()
-        workspaceGenerator.generateStub = { _, _, options in
+        workspaceGenerator.generateStub = { _, _, options, _, _, _ in
             configuration = options.buildConfiguration
             throw error
         }

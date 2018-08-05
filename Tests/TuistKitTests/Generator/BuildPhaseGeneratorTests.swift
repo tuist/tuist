@@ -21,12 +21,12 @@ final class BuildPhaseGenerationErrorTests: XCTestCase {
 final class BuildPhaseGeneratorTests: XCTestCase {
     var subject: BuildPhaseGenerator!
     var errorHandler: MockErrorHandler!
-    var context: GeneratorContext!
+    var graph: Graphing!
 
     override func setUp() {
         subject = BuildPhaseGenerator()
         errorHandler = MockErrorHandler()
-        context = GeneratorContext(graph: Graph.test())
+        graph = Graph.test()
     }
 
     func test_generateSourcesBuildPhase() throws {
