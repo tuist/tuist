@@ -36,8 +36,9 @@ public struct SystemResult {
         self.exitcode = exitcode
     }
 
-    public func throwIfError() throws {
+    public func throwIfError() throws -> SystemResult {
         if exitcode != 0 { throw SystemError(stderror: stderror, exitcode: exitcode) }
+        return self
     }
 }
 

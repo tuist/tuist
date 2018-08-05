@@ -1,45 +1,38 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
 
-/// Project generation protocol.
 protocol ProjectGenerating: AnyObject {
-    /// Generates the Xcode project from the spec.
-    ///
-    /// - Parameters:
-    ///   - project: project specification.
-    ///   - sourceRootPath: path to the folder that contains the project that is being generated.
-    ///     If it's not specified, it'll use the same folder where the spec is defined.
-    ///   - context: generation context.
-    ///   - options: generation options.
-    /// - Returns: the path where the project has been generated.
-    /// - Throws: an error if the generation fails.
-    func generate(project: Project, sourceRootPath: AbsolutePath?, context: GeneratorContexting, options: GenerationOptions) throws -> AbsolutePath
+    func generate(project: Project,
+                  sourceRootPath: AbsolutePath?,
+                  context: GeneratorContexting,
+                  options: GenerationOptions,
+                  system: Systeming) throws -> AbsolutePath
 }
 
-/// Project generator.
 final class ProjectGenerator: ProjectGenerating {
-    /// Target generator.
-    let targetGenerator: TargetGenerating
 
-    /// Config generator.
+    // MARK: - Attributes
+
+    let targetGenerator: TargetGenerating
     let configGenerator: ConfigGenerating
 
-    /// Initializes the generator with sub-generators.
-    ///
-    /// - Parameters:
-    ///   - targetGenerator: target generator.
-    ///   - configGenerator: config generator.
+    // MARK: - Init
+
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
     }
 
+    // MARK: - ProjectGenerating
+
     func generate(project: Project,
                   sourceRootPath: AbsolutePath? = nil,
                   context: GeneratorContexting,
-                  options: GenerationOptions) throws -> AbsolutePath {
+                  options: GenerationOptions,
+                  system: Systeming = System()) throws -> AbsolutePath {
         context.printer.print("Generating project \(project.name)")
 
         // Getting the path.
@@ -103,10 +96,12 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   pbxProject: pbxProject,
                                                                   groups: groups,
                                                                   fileElements: fileElements,
-                                                                  context: context,
                                                                   path: project.path,
                                                                   sourceRootPath: sourceRootPath,
-                                                                  options: options)
+                                                                  options: options,
+                                                                  graph: context.graph,
+                                                                  resourceLocator: context.resourceLocator,
+                                                                  system: system)
             nativeTargets[target.name] = nativeTarget
         }
 

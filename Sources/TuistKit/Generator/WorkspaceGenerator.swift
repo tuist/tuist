@@ -1,43 +1,33 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
 
-/// Workspace generation protocol.
 protocol WorkspaceGenerating: AnyObject {
-    /// Generates the workspace at the given path.
-    ///
-    /// - Parameters:
-    ///   - path: path where the workspace should be generated.
-    ///   - context: generator context.
-    ///   - options: generation options.
-    /// - Throws: throw an error if the generation fails.
     func generate(path: AbsolutePath,
                   context: GeneratorContexting,
-                  options: GenerationOptions) throws
+                  options: GenerationOptions,
+                  system: Systeming) throws
 }
 
-/// Workspace generator.
 final class WorkspaceGenerator: WorkspaceGenerating {
-    /// Project generator.
+
+    // MARK: - Attributes
+
     let projectGenerator: ProjectGenerating
 
-    /// Initializes the workspace generator with the project generator.
-    ///
-    /// - Parameter projectGenerator: project generator.
+    // MARK: - Init
+
     init(projectGenerator: ProjectGenerating = ProjectGenerator()) {
         self.projectGenerator = projectGenerator
     }
 
-    /// Generates the workspace at the given path.
-    ///
-    /// - Parameters:
-    ///   - path: path where the workspace should be generated.
-    ///   - context: generator context.
-    ///   - options: generation options.
-    /// - Throws: throw an error if the generation fails.
+    // MARK: - WorkspaceGenerating
+
     func generate(path: AbsolutePath,
                   context: GeneratorContexting,
-                  options: GenerationOptions) throws {
+                  options: GenerationOptions,
+                  system: Systeming = System()) throws {
         let workspaceName = "\(context.graph.name).xcworkspace"
         context.printer.print(section: "Generating workspace \(workspaceName)")
         let workspacePath = path.appending(component: workspaceName)
@@ -47,7 +37,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             let xcodeprojPath = try projectGenerator.generate(project: project,
                                                               sourceRootPath: nil,
                                                               context: context,
-                                                              options: options)
+                                                              options: options,
+                                                              system: system)
             let relativePath = xcodeprojPath.relative(to: path)
             let location = XCWorkspaceDataElementLocationType.group(relativePath.asString)
             let fileRef = XCWorkspaceDataFileRef(location: location)

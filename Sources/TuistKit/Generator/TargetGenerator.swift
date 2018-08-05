@@ -12,15 +12,17 @@ protocol TargetGenerating: AnyObject {
                                  context: GeneratorContexting,
                                  options: GenerationOptions) throws
 
-    func generateTarget(target targetSpec: Target,
+    func generateTarget(target: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
-                        groups: ProjectGroups,
+                        groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        context: GeneratorContexting,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        options: GenerationOptions) throws -> PBXNativeTarget
+                        options: GenerationOptions,
+                        graph: Graphing,
+                        resourceLocator: ResourceLocating,
+                        system: Systeming) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
@@ -108,10 +110,12 @@ final class TargetGenerator: TargetGenerating {
                         pbxProject: PBXProject,
                         groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
-                        context: GeneratorContexting,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        options: GenerationOptions) throws -> PBXNativeTarget {
+                        options: GenerationOptions,
+                        graph: Graphing,
+                        resourceLocator: ResourceLocating = ResourceLocator(),
+                        system: Systeming = System()) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.productName]!
 
@@ -144,12 +148,14 @@ final class TargetGenerator: TargetGenerating {
         /// Links
         try linkGenerator.generateLinks(target: target,
                                         pbxTarget: pbxTarget,
-                                        context: context,
                                         objects: objects,
                                         pbxProject: pbxProject,
                                         fileElements: fileElements,
                                         path: path,
-                                        sourceRootPath: sourceRootPath)
+                                        sourceRootPath: sourceRootPath,
+                                        graph: graph,
+                                        resourceLocator: resourceLocator,
+                                        system: system)
         return pbxTarget
     }
 

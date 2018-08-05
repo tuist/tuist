@@ -3,17 +3,11 @@ import Foundation
 import TuistCore
 import xcodeproj
 
-/// Link generator error.
-///
-/// - missingProduct: thrown when a product reference is missing. Product references should be generated before the linking is.
-/// - missingReference: thrown when there s a file reference missing. File references should be generated before the linking is.
-/// - missingConfigurationList: thrown when a target doesn't have a configuration list.
 enum LinkGeneratorError: FatalError, Equatable {
     case missingProduct(name: String)
     case missingReference(path: AbsolutePath)
     case missingConfigurationList(targetName: String)
 
-    /// Error description
     var description: String {
         switch self {
         case let .missingProduct(name):
@@ -25,7 +19,6 @@ enum LinkGeneratorError: FatalError, Equatable {
         }
     }
 
-    /// Error type.
     var type: ErrorType {
         switch self {
         case .missingProduct, .missingConfigurationList, .missingReference:
@@ -33,12 +26,6 @@ enum LinkGeneratorError: FatalError, Equatable {
         }
     }
 
-    /// Returns true if two instances of LinkGeneratorError are the same.
-    ///
-    /// - Parameters:
-    ///   - lhs: first instance to be compared.
-    ///   - rhs: second instance to be compared.
-    /// - Returns: true if the two instances are the same
     static func == (lhs: LinkGeneratorError, rhs: LinkGeneratorError) -> Bool {
         switch (lhs, rhs) {
         case let (.missingProduct(lhsName), .missingProduct(rhsName)):
@@ -53,58 +40,39 @@ enum LinkGeneratorError: FatalError, Equatable {
     }
 }
 
-/// Generates the linking settings (build phases and build settings).
 protocol LinkGenerating: AnyObject {
-    /// Generates the linking for a given target.
-    ///
-    /// - Parameters:
-    ///   - target: target specification.
-    ///   - pbxTarget: Xcode project target.
-    ///   - context: generation context.
-    ///   - objects: Xcode project objects.
-    ///   - pbxProject: Xcode PBXProject object.
-    ///   - fileElements: project file elements.
-    ///   - path: path to the folder where the project manifest is.
-    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
-                       context: GeneratorContexting,
                        objects: PBXObjects,
                        pbxProject: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
-                       sourceRootPath: AbsolutePath) throws
+                       sourceRootPath: AbsolutePath,
+                       graph: Graphing,
+                       resourceLocator: ResourceLocating,
+                       system: Systeming) throws
 }
 
 final class LinkGenerator: LinkGenerating {
-    /// Generates the linking for a given target.
-    ///
-    /// - Parameters:
-    ///   - target: target specification.
-    ///   - pbxTarget: Xcode project target.
-    ///   - context: generation context.
-    ///   - objects: Xcode project objects.
-    ///   - pbxProject: Xcode PBXProject object.
-    ///   - fileElements: project file elements.
-    ///   - path: path to the folder where the project manifest is.
-    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
-                       context: GeneratorContexting,
                        objects: PBXObjects,
                        pbxProject _: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
-                       sourceRootPath: AbsolutePath) throws {
-        let embeddableFrameworks = try context.graph.embeddableFrameworks(path: path, name: target.name, shell: context.shell)
-        let headersSearchPaths = context.graph.librariesPublicHeadersFolders(path: path, name: target.name)
-        let linkableModules = try context.graph.linkableDependencies(path: path, name: target.name)
+                       sourceRootPath: AbsolutePath,
+                       graph: Graphing,
+                       resourceLocator: ResourceLocating = ResourceLocator(),
+                       system: Systeming = System()) throws {
+        let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
+        let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
+        let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
                                pbxTarget: pbxTarget,
                                objects: objects,
                                fileElements: fileElements,
-                               resourceLocator: context.resourceLocator,
+                               resourceLocator: resourceLocator,
                                sourceRootPath: sourceRootPath)
 
         try setupHeadersSearchPath(headersSearchPaths,
