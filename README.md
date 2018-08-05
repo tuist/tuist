@@ -19,7 +19,8 @@
 ## Install
 
 ```
-eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
+brew tap tuist/tuist git@github.com:tuist/tuist.git
+brew install tuist
 ```
 
 ## Setup for development
