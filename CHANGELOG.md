@@ -13,6 +13,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix missing target dependencies by @pepibumur.
 
+### Removed
+
+- Internal deprecation warnings by @pepibumur.
+
 ## 0.1.0
 
 ### Added
