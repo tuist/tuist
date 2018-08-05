@@ -53,7 +53,7 @@ class TargetNode: GraphNode {
                      cache: GraphLoaderCaching,
                      graphCircularDetector: GraphCircularDetecting) throws -> TargetNode {
         if let targetNode = cache.targetNode(path, name: name) { return targetNode }
-        let project = try Project.at(path, cache: cache)
+        let project = try Project.at(path, cache: cache, graphCircularDetector: graphCircularDetector)
 
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)

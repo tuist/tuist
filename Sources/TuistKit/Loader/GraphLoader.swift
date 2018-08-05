@@ -42,7 +42,7 @@ class GraphLoader: GraphLoading {
     fileprivate func loadProject(path: AbsolutePath) throws -> Graph {
         let cache = GraphLoaderCache()
         let graphCircularDetector = GraphCircularDetector()
-        let project = try Project.at(path, cache: cache)
+        let project = try Project.at(path, cache: cache, graphCircularDetector: graphCircularDetector)
         let entryNodes: [GraphNode] = try project.targets.map({ $0.name }).map { targetName in
             return try TargetNode.read(name: targetName, path: path, cache: cache, graphCircularDetector: graphCircularDetector)
         }
@@ -57,7 +57,7 @@ class GraphLoader: GraphLoading {
         let graphCircularDetector = GraphCircularDetector()
         let workspace = try Workspace.at(path)
         let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
-            return try (projectPath, Project.at(projectPath, cache: cache))
+            return try (projectPath, Project.at(projectPath, cache: cache, graphCircularDetector: graphCircularDetector))
         }
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
             return try project.1.targets.map({ $0.name }).map { targetName in

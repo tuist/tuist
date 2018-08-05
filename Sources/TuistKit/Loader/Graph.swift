@@ -92,15 +92,14 @@ class Graph: Graphing {
             targetNode.dependencies.forEach({ dependencies.insert($0) })
             targetNode.dependencies.compactMap({ $0 as? TargetNode }).forEach(add)
         }
-        if let target = cache.targetNodes[path]?[name] {
-            add(target)
+        if let targetNode = self.targetNode(path: path, name: name) {
+            add(targetNode)
         }
         return dependencies
     }
 
     func targetDependencies(path: AbsolutePath, name: String) -> [String] {
-        guard let targetNodes = cache.targetNodes[path] else { return [] }
-        guard let targetNode = targetNodes[name] else { return [] }
+        guard let targetNode = self.targetNode(path: path, name: name) else { return [] }
         return targetNode.dependencies
             .compactMap({ $0 as? TargetNode })
             .filter({ $0.path == path })
@@ -108,8 +107,7 @@ class Graph: Graphing {
     }
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
-        guard let targetNodes = cache.targetNodes[path] else { return [] }
-        guard let targetNode = targetNodes[name] else { return [] }
+        guard let targetNode = self.targetNode(path: path, name: name) else { return [] }
 
         var references: [DependencyReference] = []
 
@@ -136,8 +134,7 @@ class Graph: Graphing {
     }
 
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath] {
-        guard let targetNodes = cache.targetNodes[path] else { return [] }
-        guard let targetNode = targetNodes[name] else { return [] }
+        guard let targetNode = self.targetNode(path: path, name: name) else { return [] }
         return targetNode
             .dependencies
             .compactMap({ $0 as? LibraryNode })
@@ -147,8 +144,7 @@ class Graph: Graphing {
     func embeddableFrameworks(path: AbsolutePath,
                               name: String,
                               shell: Shelling) throws -> [DependencyReference] {
-        guard let targetNodes = cache.targetNodes[path] else { return [] }
-        guard let targetNode = targetNodes[name] else { return [] }
+        guard let targetNode = self.targetNode(path: path, name: name) else { return [] }
 
         let validProducts: [Product] = [
             .app,
@@ -187,5 +183,17 @@ class Graph: Graphing {
                 return DependencyReference.product("\(targetNode.target.name).\(`extension`)")
         }))
         return references
+    }
+
+    // MARK: - Fileprivate
+
+    fileprivate func targetNode(path: AbsolutePath, name: String) -> TargetNode? {
+        if let targetNode = self.entryNodes.compactMap({ $0 as? TargetNode }).first(where: {
+            $0.path == path && $0.target.name == name
+        }) {
+            return targetNode
+        }
+        guard let targetNodes = cache.targetNodes[path] else { return nil }
+        return targetNodes[name]
     }
 }

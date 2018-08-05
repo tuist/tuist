@@ -10,6 +10,6 @@ public class Constants {
 
     public struct Manifest {
         public static let project = "Project.swift"
-        public static let workspace = "Woskspace.swift"
+        public static let workspace = "Workspace.swift"
     }
 }

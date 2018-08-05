@@ -5,7 +5,7 @@ import Foundation
 public class Workspace: Codable {
     enum CodingKeys: String, CodingKey {
         case name
-        case projects = "project"
+        case projects
     }
 
     public let name: String

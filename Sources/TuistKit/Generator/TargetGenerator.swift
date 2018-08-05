@@ -3,19 +3,7 @@ import Foundation
 import TuistCore
 import xcodeproj
 
-/// Interface for targets generation.
 protocol TargetGenerating: AnyObject {
-    /// Generates the manifests target.
-    ///
-    /// - Parameters:
-    ///   - project: Project spec.
-    ///   - pbxproj: PBXProj instance from the generated Xcode project.
-    ///   - pbxProject: PBXProject instance from the generated project.
-    ///   - groups: Project groups.
-    ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
-    ///   - context: generation context.
-    ///   - options: Generation options.
-    /// - Throws: an error if the generation fails.
     func generateManifestsTarget(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
@@ -24,20 +12,6 @@ protocol TargetGenerating: AnyObject {
                                  context: GeneratorContexting,
                                  options: GenerationOptions) throws
 
-    /// Generates a native target.
-    ///
-    /// - Parameters:
-    ///   - target: Target spec.
-    ///   - objects: Xcode project objects.
-    ///   - pbxProject: PBXProject instance from the generated project.
-    ///   - groups: Project groups.
-    ///   - fileElements: Project file elements.
-    ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
-    ///   - context: generation context.
-    ///   - path: Path to the folder that contains the project manifest.
-    ///   - sourceRootPath: Path to the folder that contains the Xcode project that is generated.
-    ///   - options: Generation options.
-    /// - Returns: native target.
     func generateTarget(target targetSpec: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
@@ -48,45 +22,24 @@ protocol TargetGenerating: AnyObject {
                         sourceRootPath: AbsolutePath,
                         options: GenerationOptions) throws -> PBXNativeTarget
 
-    /// Generates the targets dependencies.
-    ///
-    /// - Parameters:
-    ///   - path: path to the folder where the project manifest is.
-    ///   - targets: project targets specs.
-    ///   - nativeTargets: generated native targes in the Xcode project.
-    ///   - objects: Xcode project objects.
-    ///   - graph: dependencies graph.
-    /// - Throws: an error if it fails generating the target dependencies.
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
                                     graph: Graphing) throws
 }
 
-/// Target generator.
 final class TargetGenerator: TargetGenerating {
-    /// Config generator.
+
+    // MARK: - Attributes
+
     let configGenerator: ConfigGenerating
-
-    /// Build phase generator.
     let buildPhaseGenerator: BuildPhaseGenerating
-
-    /// Link generator.
     let linkGenerator: LinkGenerating
-
-    /// File generator.
     let fileGenerator: FileGenerating
-
-    /// Module loader.
     let moduleLoader: GraphModuleLoading
 
-    /// Initializes the target generator with its attributes.
-    ///
-    /// - Parameters:
-    ///   - configGenerator: config generator.
-    ///   - fileGenerator: file generator.
-    ///   - buildPhaseGenerator: build phase generator.
-    ///   - linkGenerator: link generator.
+    // MARK: - Init
+
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
@@ -99,16 +52,8 @@ final class TargetGenerator: TargetGenerating {
         self.linkGenerator = linkGenerator
     }
 
-    /// Generates the manifests target.
-    ///
-    /// - Parameters:
-    ///   - project: Project spec.
-    ///   - pbxproj: PBXProj instance from the generated Xcode project.
-    ///   - pbxProject: PBXProject instance from the generated project.
-    ///   - groups: Project groups.
-    ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
-    ///   - context: generation context.
-    ///   - options: generation options.
+    // MARK: - TargetGenerating
+
     func generateManifestsTarget(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
@@ -158,20 +103,6 @@ final class TargetGenerator: TargetGenerating {
         pbxProject.targetsReferences.append(targetReference)
     }
 
-    /// Generates a native target.
-    ///
-    /// - Parameters:
-    ///   - target: Target spec.
-    ///   - objects: Xcode project objects.
-    ///   - pbxProject: PBXProject instance from the generated project.
-    ///   - groups: Project groups.
-    ///   - fileElements: Project file elements.
-    ///   - sourceRootPath: Path to the folder that contains the project that is getting generated.
-    ///   - context: generation context.
-    ///   - path: Path to the folder that contains the project manifest.
-    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
-    ///   - options: Generation options.
-    /// - Returns: native target.
     func generateTarget(target: Target,
                         objects: PBXObjects,
                         pbxProject: PBXProject,
@@ -222,15 +153,6 @@ final class TargetGenerator: TargetGenerating {
         return pbxTarget
     }
 
-    /// Generates the targets dependencies.
-    ///
-    /// - Parameters:
-    ///   - path: path to the folder where the project manifest is.
-    ///   - targets: project targets specs.
-    ///   - nativeTargets: generated native targes in the Xcode project.
-    ///   - objects: Xcode project objects.
-    ///   - graph: dependencies graph.
-    /// - Throws: an error if it fails generating the target dependencies
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],

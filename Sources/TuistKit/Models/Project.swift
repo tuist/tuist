@@ -25,17 +25,24 @@ class Project: Equatable {
 
     // MARK: - Init
 
-    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching) throws -> Project {
+    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, graphCircularDetector: GraphCircularDetecting) throws -> Project {
         if let project = cache.project(path) {
             return project
         } else {
-            let project = try Project(path: path)
+            let project = try Project(path: path, cache: cache)
             cache.add(project: project)
+
+            for target in project.targets {
+                if cache.targetNode(path, name: target.name) != nil { continue }
+                _ = try TargetNode.read(name: target.name, path: path, cache: cache, graphCircularDetector: graphCircularDetector)
+            }
+
             return project
         }
     }
 
     init(path: AbsolutePath,
+         cache _: GraphLoaderCaching,
          fileHandler: FileHandling = FileHandler(),
          manifestLoader: GraphManifestLoading = GraphManifestLoader()) throws {
         let projectPath = path.appending(component: Constants.Manifest.project)
