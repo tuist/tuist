@@ -19,11 +19,9 @@ class GeneratorContext: Context, GeneratorContexting {
     init(graph: Graphing,
          printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
-         shell: Shelling = Shell(),
          resourceLocator: ResourceLocating = ResourceLocator()) {
         self.graph = graph
         super.init(fileHandler: fileHandler,
-                   shell: shell,
                    printer: printer,
                    resourceLocator: resourceLocator)
     }

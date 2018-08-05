@@ -2,10 +2,6 @@ import Foundation
 import TuistCore
 import Utility
 
-/// Command check errors.
-///
-/// - swiftVersionNotFound: Thrown when the Swift version cannot be determined.
-/// - incompatibleSwiftVersion: Thrown when the version of Swift in the system is incompatible with the version of the precompiled frameworks.
 enum CommandCheckError: FatalError, Equatable {
     case swiftVersionNotFound
     case incompatibleSwiftVersion(system: String, expected: String)
@@ -22,7 +18,6 @@ enum CommandCheckError: FatalError, Equatable {
         }
     }
 
-    /// Error type.
     var type: ErrorType {
         switch self {
         case .incompatibleSwiftVersion, .swiftVersionNotFound:
@@ -30,12 +25,6 @@ enum CommandCheckError: FatalError, Equatable {
         }
     }
 
-    /// Returns true if two instances of the error are equal to each other.
-    ///
-    /// - Parameters:
-    ///   - lhs: first instance to be compared.
-    ///   - rhs: second instance to be compared.
-    /// - Returns: true if both are equal
     static func == (lhs: CommandCheckError, rhs: CommandCheckError) -> Bool {
         switch (lhs, rhs) {
         case (.swiftVersionNotFound, .swiftVersionNotFound): return true
@@ -48,40 +37,31 @@ enum CommandCheckError: FatalError, Equatable {
     }
 }
 
-/// A protocol that defines a check that can be executed before running commands.
 protocol CommandChecking: AnyObject {
-    /// Executes the startup checks.
-    ///
-    /// - Throws: throws if the tool cannot continue because certain requirements are not med.
     func check(command: String) throws
 }
 
-/// Class that executes some checks before running any command.
 final class CommandCheck: CommandChecking {
-    /// Context.
-    let context: Contexting
 
-    /// Initializes the startup check with a context.
-    ///
-    /// - Parameter context: context.
-    init(context: Contexting = Context()) {
-        self.context = context
+    // MARK: - Attributes
+
+    let system: Systeming
+
+    // MARK: - Init
+
+    init(system: Systeming = System()) {
+        self.system = system
     }
 
-    /// Executes some checks at startup.
-    ///
-    /// - Throws: an error if any of the checks fails.
+    // MARK: - CommandChecking
+
     func check(command: String) throws {
         if !CommandCheck.checkableCommands().contains(command) { return }
         try swiftVersionCompatibility()
     }
 
-    /// Throws if the Swift version the frameworks have been compiled with doesn't match the version in the system.
-    /// This won't be needed anymore after the ABI stability gets introduced.
-    ///
-    /// - Throws: an error if the versions don't match.
     func swiftVersionCompatibility() throws {
-        let output = try context.shell.runAndOutput("xcrun", "swift", "--version", environment: [:]).chomp()
+        let output = try system.capture("xcrun", "swift", "--version", verbose: false).throwIfError().stdout.chuzzle() ?? ""
         let regex = try NSRegularExpression(pattern: "Apple\\sSwift\\sversion\\s(\\d+\\.\\d+(\\.\\d+)?)", options: [])
         guard let versionMatch = regex.firstMatch(in: output, options: [], range: NSRange(location: 0, length: output.count)) else {
             throw CommandCheckError.swiftVersionNotFound
@@ -93,9 +73,6 @@ final class CommandCheck: CommandChecking {
         }
     }
 
-    /// Returns the list of commands that should be checked.
-    ///
-    /// - Returns: list of commands that should be checked.
     static func checkableCommands() -> [String] {
         return [
             DumpCommand.command,

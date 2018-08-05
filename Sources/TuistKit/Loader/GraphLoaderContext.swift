@@ -26,34 +26,17 @@ class GraphLoaderContext: Context, GraphLoaderContexting {
     /// Circular dependency detector.
     let circularDetector: GraphCircularDetecting
 
-    /// Initializes the context with its attributes.
-    ///
-    /// - Parameters:
-    ///   - manifestLoader: Manifest loader that is used to get a JSON representation of the manifests.
-    ///   - cache: Contains a reference to the manifests that are parsed during the graph loading.
-    ///   - fileHandler: Util to handle files.
-    ///   - circularDetector: Circular dependency detector.
-    ///   - shell: shell.
-    ///   - printer: printer.
     init(manifestLoader: GraphManifestLoading = GraphManifestLoader(),
          cache: GraphLoaderCaching = GraphLoaderCache(),
          fileHandler: FileHandling = FileHandler(),
          circularDetector: GraphCircularDetecting = GraphCircularDetector(),
-         shell: Shelling = Shell(),
          printer: Printing = Printer()) {
         self.manifestLoader = manifestLoader
         self.cache = cache
         self.circularDetector = circularDetector
-        super.init(fileHandler: fileHandler, shell: shell, printer: printer)
+        super.init(fileHandler: fileHandler, printer: printer)
     }
 
-    /// Initializes the graph loader context with a context and the extra attributes that the graph loader context has.
-    ///
-    /// - Parameters:
-    ///   - context: base context.
-    ///   - manifestLoader: manifest loader.
-    ///   - cache: graph loader cache.
-    ///   - circularDetector: circular dependencies detector.
     init(context: Context,
          manifestLoader: GraphManifestLoading = GraphManifestLoader(),
          cache: GraphLoaderCaching = GraphLoaderCache(),
@@ -61,6 +44,6 @@ class GraphLoaderContext: Context, GraphLoaderContexting {
         self.manifestLoader = manifestLoader
         self.cache = cache
         self.circularDetector = circularDetector
-        super.init(fileHandler: context.fileHandler, shell: context.shell, printer: context.printer)
+        super.init(fileHandler: context.fileHandler, printer: context.printer)
     }
 }

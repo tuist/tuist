@@ -13,22 +13,22 @@ class CreateIssueCommand: NSObject, Command {
 
     // MARK: - Attributes
 
-    private let shell: Shelling
+    private let system: Systeming
 
     // MARK: - Init
 
     required init(parser: ArgumentParser) {
         parser.add(subparser: CreateIssueCommand.command, overview: CreateIssueCommand.overview)
-        shell = Shell()
+        system = System()
     }
 
-    init(shell: Shelling) {
-        self.shell = shell
+    init(system: Systeming) {
+        self.system = system
     }
 
     // MARK: - Command
 
     func run(with _: ArgumentParser.Result) throws {
-        _ = try shell.run("open", CreateIssueCommand.createIssueUrl, environment: [:])
+        try system.popen("open", CreateIssueCommand.createIssueUrl, verbose: false)
     }
 }
