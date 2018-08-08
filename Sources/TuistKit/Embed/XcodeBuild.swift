@@ -42,7 +42,6 @@ class XcodeBuild {
         public let codeSignRequired: String
         public let codeSigningAllowed: String
         public let expandedCodeSignIdentityName: String
-        public let otherCodeSignFlags: String
         public let validArchs: [String]
         public let srcRoot: String
         public let action: Action
@@ -57,7 +56,6 @@ class XcodeBuild {
                     codeSignRequired: String,
                     codeSigningAllowed: String,
                     expandedCodeSignIdentityName: String,
-                    otherCodeSignFlags: String,
                     validArchs: [String],
                     srcRoot: String,
                     action: Action) {
@@ -71,7 +69,6 @@ class XcodeBuild {
             self.codeSignRequired = codeSignRequired
             self.codeSigningAllowed = codeSigningAllowed
             self.expandedCodeSignIdentityName = expandedCodeSignIdentityName
-            self.otherCodeSignFlags = otherCodeSignFlags
             self.validArchs = validArchs
             self.srcRoot = srcRoot
             self.action = action
@@ -108,9 +105,6 @@ class XcodeBuild {
             guard let expandedCodeSignIdentityName = environment["EXPANDED_CODE_SIGN_IDENTITY_NAME"] else {
                 throw EnvironmentError.missingVariable("EXPANDED_CODE_SIGN_IDENTITY_NAME")
             }
-            guard let otherCodeSignFlags = environment["OTHER_CODE_SIGN_FLAGS"] else {
-                throw EnvironmentError.missingVariable("OTHER_CODE_SIGN_FLAGS")
-            }
             guard let validArchs = environment["VALID_ARCHS"] else {
                 throw EnvironmentError.missingVariable("VALID_ARCHS")
             }
@@ -130,7 +124,6 @@ class XcodeBuild {
             self.codeSignRequired = codeSignRequired
             self.codeSigningAllowed = codeSigningAllowed
             self.expandedCodeSignIdentityName = expandedCodeSignIdentityName
-            self.otherCodeSignFlags = otherCodeSignFlags
             self.validArchs = validArchs.components(separatedBy: " ")
             self.srcRoot = srcRoot
             self.action = Action(rawValue: action) ?? .install

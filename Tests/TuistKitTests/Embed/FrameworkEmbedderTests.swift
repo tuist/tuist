@@ -72,7 +72,6 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
                                                  codeSignRequired: "1",
                                                  codeSigningAllowed: "1",
                                                  expandedCodeSignIdentityName: "test",
-                                                 otherCodeSignFlags: "other",
                                                  validArchs: validArchs,
                                                  srcRoot: srcRootPath.asString,
                                                  action: action)
