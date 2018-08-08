@@ -39,7 +39,7 @@ class BuildCopier: BuildCopying {
             if !fileHandler.exists(filePath) { return }
             try system.capture("cp", "-rf", filePath.asString, toPath.asString, verbose: false).throwIfError()
             if file == "tuist" {
-                try system.capture("chmod", "+x", toPath.asString, verbose: true).throwIfError()
+                try system.capture("chmod", "+x", toPath.asString, verbose: false).throwIfError()
             }
         }
     }
