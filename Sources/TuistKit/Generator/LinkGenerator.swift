@@ -54,6 +54,9 @@ protocol LinkGenerating: AnyObject {
 }
 
 final class LinkGenerator: LinkGenerating {
+
+    // MARK: - LinkGenerating
+
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
                        objects: PBXObjects,
@@ -75,6 +78,10 @@ final class LinkGenerator: LinkGenerating {
                                resourceLocator: resourceLocator,
                                sourceRootPath: sourceRootPath)
 
+        try setupFrameworkSearchPath(dependencies: linkableModules,
+                                     pbxTarget: pbxTarget,
+                                     sourceRootPath: sourceRootPath)
+
         try setupHeadersSearchPath(headersSearchPaths,
                                    pbxTarget: pbxTarget,
                                    sourceRootPath: sourceRootPath)
@@ -85,17 +92,6 @@ final class LinkGenerator: LinkGenerating {
                                  fileElements: fileElements)
     }
 
-    /// Generates the frameworks embed phase.
-    /// This phase copies dynamic frameworks into the products so that the dynamic linker can find them at
-    /// startup time and do the linking.
-    ///
-    /// - Parameters:
-    ///   - dependencies: list of dependencies that should be embeded.
-    ///   - pbxTarget: Xcode target.
-    ///   - objects: Xcode project objects.
-    ///   - fileElements: project file elements.
-    ///   - resourceLocator: resource locator used to get the path to the "tuist" util.
-    ///   - sourceRootPath: path to the folder where the Xcode project is generated.
     func generateEmbedPhase(dependencies: [DependencyReference],
                             pbxTarget: PBXTarget,
                             objects: PBXObjects,
@@ -137,15 +133,33 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    /// Setup the headers search paths.
-    ///
-    /// - Parameters:
-    ///   - headersFolders: headers folders paths.
-    ///   - pbxTarget: Xcode project target.
-    ///   - objects: Xcode project objects.
-    ///   - pbxProject: Xcodode PBXProject object.
-    ///   - fileElements: project file elements.
-    ///   - sourceRootPath: path to the folder where the project is generated.
+    func setupFrameworkSearchPath(dependencies: [DependencyReference],
+                                  pbxTarget: PBXTarget,
+                                  sourceRootPath: AbsolutePath) throws {
+        let paths = dependencies.compactMap { (dependency: DependencyReference) -> AbsolutePath? in
+            if case let .absolute(path) = dependency { return path }
+            return nil
+        }
+        .map({ $0.removingLastComponent() })
+        .map({ $0.relative(to: sourceRootPath).asString })
+        .map({ "$(SRCROOT)/\($0)" })
+        if paths.isEmpty { return }
+
+        let configurationList = try pbxTarget.buildConfigurationList()
+        let buildConfigurations = try configurationList?.buildConfigurations()
+
+        let pathsValue = Set(paths).joined(separator: " ")
+        buildConfigurations?.forEach { buildConfiguration in
+            var frameworkSearchPaths = (buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String) ?? ""
+            if frameworkSearchPaths.isEmpty {
+                frameworkSearchPaths = pathsValue
+            } else {
+                frameworkSearchPaths.append(" \(pathsValue)")
+            }
+            buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkSearchPaths
+        }
+    }
+
     func setupHeadersSearchPath(_ headersFolders: [AbsolutePath],
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws {
@@ -162,14 +176,6 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    /// Generates the linking build phase.
-    ///
-    /// - Parameters:
-    ///   - dependencies: dependencies that should be added to the linking phase.
-    ///   - pbxTarget: Xcode project target.
-    ///   - objects: Xcode project objects.
-    ///   - pbxProject: Xcode PBXProject instance.
-    ///   - fileElements: project file elements.
     func generateLinkingPhase(dependencies: [DependencyReference],
                               pbxTarget: PBXTarget,
                               objects: PBXObjects,

@@ -18,4 +18,8 @@ extension AbsolutePath {
     public func glob(_ pattern: String) -> [AbsolutePath] {
         return Glob(pattern: appending(RelativePath(pattern)).asString).paths.map({ AbsolutePath($0) })
     }
+
+    public func removingLastComponent() -> AbsolutePath {
+        return AbsolutePath("/\(components.dropLast().joined(separator: "/"))")
+    }
 }
