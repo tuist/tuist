@@ -4,6 +4,7 @@
 
 import Basic
 import Foundation
+import TuistCore
 
 class XcodeBuild {
     public enum Action: String {
@@ -13,6 +14,21 @@ class XcodeBuild {
         case clean
         case installhdrs
         case installsrc
+    }
+
+    enum EnvironmentError: FatalError {
+        case missingVariable(String)
+
+        var type: ErrorType {
+            return .abort
+        }
+
+        var description: String {
+            switch self {
+            case let .missingVariable(value):
+                return "The build variable \(value) is missing."
+            }
+        }
     }
 
     class Environment {
@@ -61,21 +77,49 @@ class XcodeBuild {
             self.action = action
         }
 
-        public init?(environment: [String: String] = ProcessInfo.processInfo.environment) {
-            guard let configuration = environment["CONFIGURATION"] else { return nil }
-            guard let configurationBuildDir = environment["CONFIGURATION_BUILD_DIR"] else { return nil }
-            guard let frameworksFolderPath = environment["FRAMEWORKS_FOLDER_PATH"] else { return nil }
-            guard let builtProductsDir = environment["BUILT_PRODUCTS_DIR"] else { return nil }
-            guard let targetBuildDir = environment["TARGET_BUILD_DIR"] else { return nil }
-            guard let dwardDsymFolderPath = environment["DWARF_DSYM_FOLDER_PATH"] else { return nil }
-            guard let expandedCodeSignIdentity = environment["EXPANDED_CODE_SIGN_IDENTITY"] else { return nil }
-            guard let codeSignRequired = environment["CODE_SIGNING_REQUIRED"] else { return nil }
-            guard let codeSigningAllowed = environment["CODE_SIGNING_ALLOWED"] else { return nil }
-            guard let expandedCodeSignIdentityName = environment["EXPANDED_CODE_SIGN_IDENTITY_NAME"] else { return nil }
-            guard let otherCodeSignFlags = environment["OTHER_CODE_SIGN_FLAGS"] else { return nil }
-            guard let validArchs = environment["VALID_ARCHS"] else { return nil }
-            guard let srcRoot = environment["SRCROOT"] else { return nil }
-            guard let action = environment["ACTION"] else { return nil }
+        public init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
+            guard let configuration = environment["CONFIGURATION"] else {
+                throw EnvironmentError.missingVariable("CONFIGURATION")
+            }
+            guard let configurationBuildDir = environment["CONFIGURATION_BUILD_DIR"] else {
+                throw EnvironmentError.missingVariable("CONFIGURATION_BUILD_DIR")
+            }
+            guard let frameworksFolderPath = environment["FRAMEWORKS_FOLDER_PATH"] else {
+                throw EnvironmentError.missingVariable("FRAMEWORKS_FOLDER_PATH")
+            }
+            guard let builtProductsDir = environment["BUILT_PRODUCTS_DIR"] else {
+                throw EnvironmentError.missingVariable("BUILT_PRODUCTS_DIR")
+            }
+            guard let targetBuildDir = environment["TARGET_BUILD_DIR"] else {
+                throw EnvironmentError.missingVariable("TARGET_BUILD_DIR")
+            }
+            guard let dwardDsymFolderPath = environment["DWARF_DSYM_FOLDER_PATH"] else {
+                throw EnvironmentError.missingVariable("DWARF_DSYM_FOLDER_PATH")
+            }
+            guard let expandedCodeSignIdentity = environment["EXPANDED_CODE_SIGN_IDENTITY"] else {
+                throw EnvironmentError.missingVariable("EXPANDED_CODE_SIGN_IDENTITY")
+            }
+            guard let codeSignRequired = environment["CODE_SIGNING_REQUIRED"] else {
+                throw EnvironmentError.missingVariable("CODE_SIGNING_REQUIRED")
+            }
+            guard let codeSigningAllowed = environment["CODE_SIGNING_ALLOWED"] else {
+                throw EnvironmentError.missingVariable("CODE_SIGNING_ALLOWED")
+            }
+            guard let expandedCodeSignIdentityName = environment["EXPANDED_CODE_SIGN_IDENTITY_NAME"] else {
+                throw EnvironmentError.missingVariable("EXPANDED_CODE_SIGN_IDENTITY_NAME")
+            }
+            guard let otherCodeSignFlags = environment["OTHER_CODE_SIGN_FLAGS"] else {
+                throw EnvironmentError.missingVariable("OTHER_CODE_SIGN_FLAGS")
+            }
+            guard let validArchs = environment["VALID_ARCHS"] else {
+                throw EnvironmentError.missingVariable("VALID_ARCHS")
+            }
+            guard let srcRoot = environment["SRCROOT"] else {
+                throw EnvironmentError.missingVariable("SRCROOT")
+            }
+            guard let action = environment["ACTION"] else {
+                throw EnvironmentError.missingVariable("ACTION")
+            }
             self.configuration = configuration
             self.configurationBuildDir = configurationBuildDir
             self.frameworksFolderPath = frameworksFolderPath

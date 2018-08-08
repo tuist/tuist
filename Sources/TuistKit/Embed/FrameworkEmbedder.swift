@@ -28,7 +28,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
     // MARK: - Internal
 
     func embed(path _: AbsolutePath) throws {
-        let environment = XcodeBuild.Environment()!
+        let environment = try XcodeBuild.Environment()
         try embed(frameworkPath: RelativePath(CommandLine.arguments[1]),
                   environment: environment)
     }
