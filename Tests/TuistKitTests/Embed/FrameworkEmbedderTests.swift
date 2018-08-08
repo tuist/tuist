@@ -63,15 +63,9 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
         try createDirectory(path: builtProductsDir)
         try createDirectory(path: targetBuildDir)
         let environment = XcodeBuild.Environment(configuration: "Debug",
-                                                 configurationBuildDir: tmpDir.path.asString,
                                                  frameworksFolderPath: frameworksPath,
                                                  builtProductsDir: builtProductsDir.asString,
                                                  targetBuildDir: targetBuildDir.asString,
-                                                 dwardDsymFolderPath: tmpDir.path.asString,
-                                                 expandedCodeSignIdentity: "",
-                                                 codeSignRequired: "1",
-                                                 codeSigningAllowed: "1",
-                                                 expandedCodeSignIdentityName: "test",
                                                  validArchs: validArchs,
                                                  srcRoot: srcRootPath.asString,
                                                  action: action)

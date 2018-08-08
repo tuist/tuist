@@ -33,42 +33,24 @@ class XcodeBuild {
 
     class Environment {
         public let configuration: String
-        public let configurationBuildDir: String
         public let frameworksFolderPath: String
         public let builtProductsDir: String
         public let targetBuildDir: String
-        public let dwardDsymFolderPath: String
-        public let expandedCodeSignIdentity: String
-        public let codeSignRequired: String
-        public let codeSigningAllowed: String
-        public let expandedCodeSignIdentityName: String
         public let validArchs: [String]
         public let srcRoot: String
         public let action: Action
 
         public init(configuration: String,
-                    configurationBuildDir: String,
                     frameworksFolderPath: String,
                     builtProductsDir: String,
                     targetBuildDir: String,
-                    dwardDsymFolderPath: String,
-                    expandedCodeSignIdentity: String,
-                    codeSignRequired: String,
-                    codeSigningAllowed: String,
-                    expandedCodeSignIdentityName: String,
                     validArchs: [String],
                     srcRoot: String,
                     action: Action) {
             self.configuration = configuration
-            self.configurationBuildDir = configurationBuildDir
             self.frameworksFolderPath = frameworksFolderPath
             self.builtProductsDir = builtProductsDir
             self.targetBuildDir = targetBuildDir
-            self.dwardDsymFolderPath = dwardDsymFolderPath
-            self.expandedCodeSignIdentity = expandedCodeSignIdentity
-            self.codeSignRequired = codeSignRequired
-            self.codeSigningAllowed = codeSigningAllowed
-            self.expandedCodeSignIdentityName = expandedCodeSignIdentityName
             self.validArchs = validArchs
             self.srcRoot = srcRoot
             self.action = action
@@ -78,9 +60,6 @@ class XcodeBuild {
             guard let configuration = environment["CONFIGURATION"] else {
                 throw EnvironmentError.missingVariable("CONFIGURATION")
             }
-            guard let configurationBuildDir = environment["CONFIGURATION_BUILD_DIR"] else {
-                throw EnvironmentError.missingVariable("CONFIGURATION_BUILD_DIR")
-            }
             guard let frameworksFolderPath = environment["FRAMEWORKS_FOLDER_PATH"] else {
                 throw EnvironmentError.missingVariable("FRAMEWORKS_FOLDER_PATH")
             }
@@ -89,21 +68,6 @@ class XcodeBuild {
             }
             guard let targetBuildDir = environment["TARGET_BUILD_DIR"] else {
                 throw EnvironmentError.missingVariable("TARGET_BUILD_DIR")
-            }
-            guard let dwardDsymFolderPath = environment["DWARF_DSYM_FOLDER_PATH"] else {
-                throw EnvironmentError.missingVariable("DWARF_DSYM_FOLDER_PATH")
-            }
-            guard let expandedCodeSignIdentity = environment["EXPANDED_CODE_SIGN_IDENTITY"] else {
-                throw EnvironmentError.missingVariable("EXPANDED_CODE_SIGN_IDENTITY")
-            }
-            guard let codeSignRequired = environment["CODE_SIGNING_REQUIRED"] else {
-                throw EnvironmentError.missingVariable("CODE_SIGNING_REQUIRED")
-            }
-            guard let codeSigningAllowed = environment["CODE_SIGNING_ALLOWED"] else {
-                throw EnvironmentError.missingVariable("CODE_SIGNING_ALLOWED")
-            }
-            guard let expandedCodeSignIdentityName = environment["EXPANDED_CODE_SIGN_IDENTITY_NAME"] else {
-                throw EnvironmentError.missingVariable("EXPANDED_CODE_SIGN_IDENTITY_NAME")
             }
             guard let validArchs = environment["VALID_ARCHS"] else {
                 throw EnvironmentError.missingVariable("VALID_ARCHS")
@@ -115,15 +79,9 @@ class XcodeBuild {
                 throw EnvironmentError.missingVariable("ACTION")
             }
             self.configuration = configuration
-            self.configurationBuildDir = configurationBuildDir
             self.frameworksFolderPath = frameworksFolderPath
             self.builtProductsDir = builtProductsDir
             self.targetBuildDir = targetBuildDir
-            self.dwardDsymFolderPath = dwardDsymFolderPath
-            self.expandedCodeSignIdentity = expandedCodeSignIdentity
-            self.codeSignRequired = codeSignRequired
-            self.codeSigningAllowed = codeSigningAllowed
-            self.expandedCodeSignIdentityName = expandedCodeSignIdentityName
             self.validArchs = validArchs.components(separatedBy: " ")
             self.srcRoot = srcRoot
             self.action = Action(rawValue: action) ?? .install
