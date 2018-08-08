@@ -6,7 +6,7 @@ import Foundation
 import TuistCore
 
 protocol FrameworkEmbedding: AnyObject {
-    func embed(path: AbsolutePath) throws
+    func embed(path: RelativePath) throws
 }
 
 final class FrameworkEmbedder: FrameworkEmbedding {
@@ -27,9 +27,9 @@ final class FrameworkEmbedder: FrameworkEmbedding {
 
     // MARK: - Internal
 
-    func embed(path _: AbsolutePath) throws {
+    func embed(path: RelativePath) throws {
         let environment = try XcodeBuild.Environment()
-        try embed(frameworkPath: RelativePath(CommandLine.arguments[1]),
+        try embed(frameworkPath: path,
                   environment: environment)
     }
 

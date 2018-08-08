@@ -57,7 +57,7 @@ final class EmbedCommand: HiddenCommand {
         guard let pathString = arguments.first else {
             throw EmbedCommandError.missingFrameworkPath
         }
-        let path = AbsolutePath(pathString, relativeTo: fileHandler.currentPath)
+        let path = RelativePath(pathString)
         printer.print("Embedding framework \(path.asString)")
         try embedder.embed(path: path)
         printer.print(success: "Framework embedded")
