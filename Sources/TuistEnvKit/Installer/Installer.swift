@@ -82,9 +82,15 @@ final class Installer: Installing {
             if printing { printer.print("Building using Swift (it might take a while)") }
             let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift", verbose: false).stdout.chuzzle()!
             try system.capture(swiftPath, "build",
+                               "--product", "tuist",
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
                                "-Xswiftc", "-static-stdlib",
+                               verbose: verbose).throwIfError()
+            try system.capture(swiftPath, "build",
+                               "--product", "ProjectDescription",
+                               "--package-path", temporaryDirectory.path.asString,
+                               "--configuration", "release",
                                verbose: verbose).throwIfError()
 
             // Copying built files
