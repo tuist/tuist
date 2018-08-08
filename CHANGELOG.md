@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Homebrew formula https://github.com/tuist/tuist/commit/0ab1c6e109134337d4a5e074d77bd305520a935d by @pepibumur.
 
+## Fixed
+
+- `FRAMEWORK_SEARCH_PATHS` build setting not being set for precompiled frameworks dependencies https://github.com/tuist/tuist/pull/87 by @pepibumur.
+
 ## 0.2.0
 
 ### Added

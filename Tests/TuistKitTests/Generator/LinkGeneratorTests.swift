@@ -77,6 +77,32 @@ final class LinkGeneratorErrorTests: XCTestCase {
         }
     }
 
+    func test_setupFrameworkSearchPath() throws {
+        let dependencies = [
+            DependencyReference.absolute(AbsolutePath("/Dependencies/A.framework")),
+            DependencyReference.absolute(AbsolutePath("/Dependencies/B.framework")),
+            DependencyReference.absolute(AbsolutePath("/Dependencies/C/C.framework")),
+        ]
+        let sourceRootPath = AbsolutePath("/")
+
+        let objects = PBXObjects()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
+        pbxTarget.buildConfigurationListReference = objects.addObject(configurationList)
+        let debugConfig = XCBuildConfiguration(name: "Debug")
+        let releaseConfig = XCBuildConfiguration(name: "Release")
+        configurationList.buildConfigurationsReferences.append(objects.addObject(debugConfig))
+        configurationList.buildConfigurationsReferences.append(objects.addObject(releaseConfig))
+
+        try subject.setupFrameworkSearchPath(dependencies: dependencies,
+                                             pbxTarget: pbxTarget,
+                                             sourceRootPath: sourceRootPath)
+
+        let expected = "$(SRCROOT)/Dependencies $(SRCROOT)/Dependencies/C"
+        XCTAssertEqual(debugConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
+        XCTAssertEqual(releaseConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
+    }
+
     func test_setupHeadersSearchPath() throws {
         let headersFolders = [AbsolutePath("/headers")]
         let objects = PBXObjects()
