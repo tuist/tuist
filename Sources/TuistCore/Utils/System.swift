@@ -1,5 +1,6 @@
-import Basic
 import Foundation
+import ReactiveSwift
+import ReactiveTask
 
 public protocol Systeming {
     func capture(_ args: [String], verbose: Bool) throws -> SystemResult
@@ -43,23 +44,6 @@ public struct SystemResult {
     }
 }
 
-extension ProcessResult.ExitStatus {
-    var code: Int32 {
-        switch self {
-        case let .signalled(code): return code
-        case let .terminated(code): return code
-        }
-    }
-}
-
-extension ProcessResult {
-    func result() throws -> SystemResult {
-        return SystemResult(stdout: try utf8Output(),
-                            stderror: try utf8stderrOutput(),
-                            exitcode: exitStatus.code)
-    }
-}
-
 public final class System: Systeming {
 
     // MARK: - Attributes
@@ -80,25 +64,52 @@ public final class System: Systeming {
     }
 
     @discardableResult
-    public func capture(_ args: [String], verbose: Bool = false) throws -> SystemResult {
+    public func capture(_ args: [String], verbose _: Bool = false) throws -> SystemResult {
         precondition(args.count >= 1, "Invalid number of argumentss")
-        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], redirectOutput: true, verbose: verbose)
-        try process.launch()
-        return try process.waitUntilExit().result()
+        let arguments = ["/bin/bash", "-c", "\(args.map({ $0.shellEscaped() }).joined(separator: " "))"]
+        return try task(arguments).first()!.dematerialize()
     }
 
     public func popen(_ args: String..., verbose: Bool = false) throws {
         try popen(args, verbose: verbose)
     }
 
-    public func popen(_ args: [String], verbose: Bool = false) throws {
+    public func popen(_ args: [String], verbose _: Bool = false) throws {
         precondition(args.count >= 1, "Invalid number of arguments")
-        let process = Process(arguments: ["/bin/bash", "-c", args.joined(separator: " ")], redirectOutput: false, verbose: verbose)
-        try process.launch()
-        try process.waitUntilExit().result().throwIfError()
+        let arguments = ["/bin/bash", "-c", "\(args.map({ $0.shellEscaped() }).joined(separator: " "))"]
+        _ = task(arguments, print: true).wait()
     }
 
     // MARK: - Fileprivate
+
+    fileprivate func task(_ args: [String], print: Bool = false) -> SignalProducer<SystemResult, SystemError> {
+        let task = Task(args.first!, arguments: Array(args.dropFirst()), workingDirectoryPath: nil, environment: nil)
+        return task.launch()
+            .on(value: {
+                if !print { return }
+                switch $0 {
+                case let .standardError(error):
+                    FileHandle.standardError.write(error)
+                case let .standardOutput(output):
+                    FileHandle.standardOutput.write(output)
+                default:
+                    break
+                }
+            })
+            .ignoreTaskData()
+            .mapError { (error: TaskError) -> SystemError in
+                switch error {
+                case let TaskError.posixError(code):
+                    return SystemError(stderror: nil, exitcode: code)
+                case let TaskError.shellTaskFailed(_, code, standardError):
+                    return SystemError(stderror: standardError, exitcode: code)
+                }
+            }
+            .map { data in
+                let stdout = String(data: data, encoding: .utf8)!
+                return SystemResult(stdout: stdout, stderror: "", exitcode: 0)
+            }
+    }
 
     fileprivate func print(command: [String]) {
         printer.print(command.joined(separator: " "))
