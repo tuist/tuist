@@ -12,12 +12,6 @@ public protocol Printing: AnyObject {
 
 public class Printer: Printing {
 
-    // MARK: - Attributes
-
-    // swiftlint:disable force_cast
-    let terminalController: TerminalController = TerminalController(stream: stdoutStream as! LocalFileOutputByteStream)!
-    // swiftlint:enable force_cast
-
     // MARK: - Init
 
     public init() {}
