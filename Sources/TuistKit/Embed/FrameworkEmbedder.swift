@@ -73,6 +73,9 @@ final class FrameworkEmbedder: FrameworkEmbedding {
 
     fileprivate func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
+        if fileHandler.exists(frameworkOutputPath) {
+            try fileHandler.delete(frameworkOutputPath)
+        }
         try fileHandler.copy(from: frameworkAbsolutePath,
                              to: frameworkOutputPath)
         let embeddable = Embeddable(path: frameworkOutputPath)
@@ -115,6 +118,9 @@ final class FrameworkEmbedder: FrameworkEmbedding {
                                  validArchs: [String]) throws {
         if fileHandler.exists(frameworkDsymPath) {
             let frameworkDsymOutputPath = destinationPath.appending(component: frameworkDsymPath.components.last!)
+            if fileHandler.exists(frameworkDsymOutputPath) {
+                try fileHandler.delete(frameworkDsymOutputPath)
+            }
             try fileHandler.copy(from: frameworkDsymPath,
                                  to: frameworkDsymOutputPath)
             let embeddable = Embeddable(path: frameworkDsymOutputPath)
