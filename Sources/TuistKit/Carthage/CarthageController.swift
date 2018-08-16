@@ -28,18 +28,7 @@ final class CarthageController: CarthageControlling {
         self.printer = printer
     }
 
-    // MARK: - Internal
-
-    func carthagePath() throws -> AbsolutePath? {
-        do {
-            guard let path = try system.capture("which", "carthage", verbose: false).stdout.chuzzle() else {
-                return nil
-            }
-            return AbsolutePath(path)
-        } catch {
-            return nil
-        }
-    }
+    // MARK: - CarthageControlling
 
     func updateIfNecessary(graph: Graphing) throws {
         let carthageDependencies = self.carthageDependencies(graph: graph)
@@ -54,16 +43,29 @@ final class CarthageController: CarthageControlling {
         message.append(nonExistingCarthageDependencies.map({ " - \($0.asString)" }).joined(separator: "\n"))
         printer.print(message)
 
+        guard let carthagePath = try self.carthagePath() else {
+            throw CarthageError.notFound
+        }
+
         try foldersWithCartfile.forEach { path in
             printer.print("Updating Carthage dependencies at \(path.asString)")
-
-            guard let carthagePath = try self.carthagePath() else {
-                throw CarthageError.notFound
-            }
 
             try system.capture(carthagePath.asString,
                                "--project-directory",
                                path.asString, verbose: true).throwIfError()
+        }
+    }
+
+    // MARK: - Internal
+
+    func carthagePath() throws -> AbsolutePath? {
+        do {
+            guard let path = try system.capture("which", "carthage", verbose: false).stdout.chuzzle() else {
+                return nil
+            }
+            return AbsolutePath(path)
+        } catch {
+            return nil
         }
     }
 

@@ -9,7 +9,7 @@ public protocol Systeming {
     func popen(_ args: [String], verbose: Bool) throws
 }
 
-public struct SystemError: FatalError {
+public struct SystemError: FatalError, Equatable {
     let stderror: String?
     let exitcode: Int32
 
@@ -24,6 +24,11 @@ public struct SystemError: FatalError {
     public init(stderror: String? = nil, exitcode: Int32) {
         self.stderror = stderror
         self.exitcode = exitcode
+    }
+
+    public static func == (lhs: SystemError, rhs: SystemError) -> Bool {
+        return lhs.stderror == rhs.stderror &&
+            lhs.exitcode == rhs.exitcode
     }
 }
 

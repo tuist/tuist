@@ -38,4 +38,8 @@ public final class MockFileHandler: FileHandling {
     public func isFolder(_ path: AbsolutePath) -> Bool {
         return fileHandler.isFolder(path)
     }
+
+    public func touch(_ path: AbsolutePath) throws {
+        try fileHandler.touch(path)
+    }
 }

@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
 
-enum CarthageError: FatalError {
+enum CarthageError: FatalError, Equatable {
     case notFound
 
     var type: ErrorType {
