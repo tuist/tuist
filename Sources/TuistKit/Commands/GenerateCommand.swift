@@ -63,6 +63,8 @@ class GenerateCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
+        printer.print(section: "Generating project")
+
         let path = self.path(arguments: arguments)
         let config = try parseConfig(arguments: arguments)
         let graph = try graphLoader.load(path: path)
@@ -80,7 +82,7 @@ class GenerateCommand: NSObject, Command {
                                         printer: printer,
                                         resourceLocator: resourceLocator)
 
-        printer.print(success: "Project generated.")
+        printer.print(success: "Project generated")
     }
 
     // MARK: - Fileprivate

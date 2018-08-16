@@ -12,6 +12,14 @@ final class CarthageController: CarthageControlling {
 
     private static let pathRegex: NSRegularExpression = try! NSRegularExpression(pattern: "(.+)/Carthage/Build/.+/.+\\.framework", options: [])
 
+    static func isCarthageFramework(_ path: AbsolutePath) -> Bool {
+        let range = NSRange(location: 0, length: path.asString.count)
+        if CarthageController.pathRegex.matches(in: path.asString, options: [], range: range).isEmpty {
+            return false
+        }
+        return true
+    }
+
     // MARK: - Attributes
 
     private let system: Systeming
