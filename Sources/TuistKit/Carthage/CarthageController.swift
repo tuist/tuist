@@ -37,12 +37,15 @@ final class CarthageController: CarthageControlling {
         let nonExistingCarthageDependencies = carthageDependencies.filter { !fileHandler.exists($0) }
         if nonExistingCarthageDependencies.isEmpty { return }
 
+        printDependenciesToUpdate(paths: nonExistingCarthageDependencies)
+
         let foldersWithCartfile = self.foldersWithCartfile(dependenciesPaths: nonExistingCarthageDependencies)
+        try updateDependencies(foldersWithCartfile: foldersWithCartfile)
+    }
 
-        var message = "The following Carthage dependencies need to be pulled:\n"
-        message.append(nonExistingCarthageDependencies.map({ " - \($0.asString)" }).joined(separator: "\n"))
-        printer.print(message)
+    // MARK: - Private
 
+    private func updateDependencies(foldersWithCartfile: [AbsolutePath]) throws {
         guard let carthagePath = try self.carthagePath() else {
             throw CarthageError.notFound
         }
@@ -56,9 +59,13 @@ final class CarthageController: CarthageControlling {
         }
     }
 
-    // MARK: - Internal
+    private func printDependenciesToUpdate(paths: [AbsolutePath]) {
+        var message = "The following Carthage dependencies need to be pulled:\n"
+        message.append(paths.map({ " - \($0.asString)" }).joined(separator: "\n"))
+        printer.print(message)
+    }
 
-    func carthagePath() throws -> AbsolutePath? {
+    private func carthagePath() throws -> AbsolutePath? {
         do {
             guard let path = try system.capture("which", "carthage", verbose: false).stdout.chuzzle() else {
                 return nil
@@ -68,8 +75,6 @@ final class CarthageController: CarthageControlling {
             return nil
         }
     }
-
-    // MARK: - Private
 
     func foldersWithCartfile(dependenciesPaths: [AbsolutePath]) -> [AbsolutePath] {
         return dependenciesPaths.compactMap { (path) -> AbsolutePath? in
