@@ -17,6 +17,7 @@ class GenerateCommand: NSObject, Command {
     fileprivate let printer: Printing
     fileprivate let system: Systeming
     fileprivate let resourceLocator: ResourceLocating
+    fileprivate let carthageController: CarthageControlling
 
     let pathArgument: OptionArgument<String>
     let configArgument: OptionArgument<String>
@@ -33,12 +34,14 @@ class GenerateCommand: NSObject, Command {
     init(graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
          parser: ArgumentParser,
+         carthageController: CarthageControlling = CarthageController(),
          printer: Printing = Printer(),
          system: Systeming = System(),
          resourceLocator: ResourceLocating = ResourceLocator()) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
+        self.carthageController = carthageController
         self.printer = printer
         self.system = system
         self.resourceLocator = resourceLocator
@@ -63,8 +66,12 @@ class GenerateCommand: NSObject, Command {
         let path = self.path(arguments: arguments)
         let config = try parseConfig(arguments: arguments)
         let graph = try graphLoader.load(path: path)
-        let options = GenerationOptions(buildConfiguration: config,
-                                        skipCarthage: skipCarthage(arguments: arguments))
+
+        if !skipCarthage(arguments: arguments) {
+            try carthageController.updateIfNecessary(graph: graph)
+        }
+
+        let options = GenerationOptions(buildConfiguration: config)
 
         try workspaceGenerator.generate(path: path,
                                         graph: graph,

@@ -3,11 +3,8 @@ import Foundation
 
 class GenerationOptions {
     let buildConfiguration: BuildConfiguration
-    let skipCarthage: Bool
 
-    init(buildConfiguration: BuildConfiguration = .debug,
-         skipCarthage: Bool = false) {
+    init(buildConfiguration: BuildConfiguration = .debug) {
         self.buildConfiguration = buildConfiguration
-        self.skipCarthage = skipCarthage
     }
 }
