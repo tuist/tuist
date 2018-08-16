@@ -6,7 +6,10 @@ public class Constants {
     public static let binName = "tuist"
     public static let gitRepositorySSH = "git@github.com:tuist/tuist.git"
     public static let version = "0.2.0"
-    public static let swiftVersion = "4.1.2"
+
+    public static func swiftVersion() -> String {
+        return "4.1.2"
+    }
 
     public struct Manifest {
         public static let project = "Project.swift"

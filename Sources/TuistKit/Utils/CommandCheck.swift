@@ -57,21 +57,21 @@ final class CommandCheck: CommandChecking {
 
     func check(command: String) throws {
         if !CommandCheck.checkableCommands().contains(command) { return }
-        try swiftVersionCompatibility()
+//        try swiftVersionCompatibility()
     }
 
-    func swiftVersionCompatibility() throws {
-        let output = try system.capture("xcrun", "swift", "--version", verbose: false).throwIfError().stdout.chuzzle() ?? ""
-        let regex = try NSRegularExpression(pattern: "Apple\\sSwift\\sversion\\s(\\d+\\.\\d+(\\.\\d+)?)", options: [])
-        guard let versionMatch = regex.firstMatch(in: output, options: [], range: NSRange(location: 0, length: output.count)) else {
-            throw CommandCheckError.swiftVersionNotFound
-        }
-        let versionRange = versionMatch.range(at: 1)
-        let currentVersion: String = (output as NSString).substring(with: versionRange)
-        if currentVersion != Constants.swiftVersion {
-            throw CommandCheckError.incompatibleSwiftVersion(system: currentVersion, expected: Constants.swiftVersion)
-        }
-    }
+//    func swiftVersionCompatibility() throws {
+//        let output = try system.capture("xcrun", "swift", "--version", verbose: false).throwIfError().stdout.chuzzle() ?? ""
+//        let regex = try NSRegularExpression(pattern: "Apple\\sSwift\\sversion\\s(\\d+\\.\\d+(\\.\\d+)?)", options: [])
+//        guard let versionMatch = regex.firstMatch(in: output, options: [], range: NSRange(location: 0, length: output.count)) else {
+//            throw CommandCheckError.swiftVersionNotFound
+//        }
+//        let versionRange = versionMatch.range(at: 1)
+//        let currentVersion: String = (output as NSString).substring(with: versionRange)
+//        if currentVersion != Constants.swiftVersion() {
+//            throw CommandCheckError.incompatibleSwiftVersion(system: currentVersion, expected: Constants.swiftVersion())
+//        }
+//    }
 
     static func checkableCommands() -> [String] {
         return [
