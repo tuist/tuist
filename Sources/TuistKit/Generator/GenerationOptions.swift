@@ -1,16 +1,13 @@
 import Basic
 import Foundation
 
-/// Generation options.
 class GenerationOptions {
-    /// Build configuration to be generated (Debug or Release)
     let buildConfiguration: BuildConfiguration
+    let skipCarthage: Bool
 
-    /// Initializes the options with its attributes.
-    ///
-    /// - Parameters:
-    ///   - buildConfiguration: build configuration.
-    init(buildConfiguration: BuildConfiguration = .debug) {
+    init(buildConfiguration: BuildConfiguration = .debug,
+         skipCarthage: Bool = false) {
         self.buildConfiguration = buildConfiguration
+        self.skipCarthage = skipCarthage
     }
 }
