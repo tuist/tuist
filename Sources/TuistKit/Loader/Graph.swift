@@ -42,6 +42,7 @@ protocol Graphing: AnyObject {
     var cache: GraphLoaderCaching { get }
     var entryNodes: [GraphNode] { get }
     var projects: [Project] { get }
+    var precompiledNodes: [PrecompiledNode] { get }
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
@@ -60,6 +61,10 @@ class Graph: Graphing {
     let entryNodes: [GraphNode]
     var projects: [Project] {
         return Array(cache.projects.values)
+    }
+
+    var precompiledNodes: [PrecompiledNode] {
+        return Array(cache.precompiledNodes.values)
     }
 
     // MARK: - Init

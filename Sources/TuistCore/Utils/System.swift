@@ -64,8 +64,11 @@ public final class System: Systeming {
     }
 
     @discardableResult
-    public func capture(_ args: [String], verbose _: Bool = false) throws -> SystemResult {
-        precondition(args.count >= 1, "Invalid number of argumentss")
+    public func capture(_ args: [String], verbose: Bool = false) throws -> SystemResult {
+        precondition(args.count >= 1, "Invalid number of arguments")
+        if verbose {
+            printer.print("Running command: \(args.joined(separator: " "))")
+        }
         let arguments = ["/bin/bash", "-c", "\(args.map({ $0.shellEscaped() }).joined(separator: " "))"]
         return try task(arguments).first()!.dematerialize()
     }
@@ -74,8 +77,11 @@ public final class System: Systeming {
         try popen(args, verbose: verbose)
     }
 
-    public func popen(_ args: [String], verbose _: Bool = false) throws {
+    public func popen(_ args: [String], verbose: Bool = false) throws {
         precondition(args.count >= 1, "Invalid number of arguments")
+        if verbose {
+            printer.print("Running command: \(args.joined(separator: " "))")
+        }
         let arguments = ["/bin/bash", "-c", "\(args.map({ $0.shellEscaped() }).joined(separator: " "))"]
         _ = task(arguments, print: true).wait()
     }
