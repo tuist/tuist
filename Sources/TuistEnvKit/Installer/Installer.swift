@@ -69,7 +69,7 @@ final class Installer: Installing {
 
             // Cloning and building
             if printing { printer.print("Pulling source code") }
-            try system.capture("git", "clone", Constants.gitRepositorySSH, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
+            try system.capture("git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
             do {
                 try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
             } catch let error as SystemError {
