@@ -20,8 +20,8 @@
 
 **Using Homebrew:**
 
-```
-brew tap tuist/tuist git@github.com:tuist/tuist.git
+```bash
+brew tap tuist/tuist https://github.com/tuist/tuist
 brew install tuist
 ```
 
