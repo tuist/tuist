@@ -12,9 +12,9 @@ let package = Package(
                  targets: ["ProjectDescription"]),
     ],
     dependencies: [
-        .package(url: "git@github.com:tuist/xcodeproj.git", .revision("549d67686d90ef8e45fccdca147682f185af2ad0")),
-        .package(url: "git@github.com:carthage/ReactiveTask.git", .revision("57d221b82270b05380d66117e07ac4069b78a4e9")),
-        .package(url: "git@github.com:apple/swift-package-manager.git", .revision("3e71e57db41ebb32ccec1841a7e26c428a9c08c5")),
+        .package(url: "https://github.com/tuist/xcodeproj.git", .revision("549d67686d90ef8e45fccdca147682f185af2ad0")),
+        .package(url: "https://github.com/carthage/ReactiveTask.git", .revision("57d221b82270b05380d66117e07ac4069b78a4e9")),
+        .package(url: "https://github.com/apple/swift-package-manager.git", .revision("3e71e57db41ebb32ccec1841a7e26c428a9c08c5")),
     ],
     targets: [
         .target(
