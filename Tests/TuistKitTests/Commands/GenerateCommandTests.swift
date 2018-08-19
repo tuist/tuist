@@ -13,6 +13,7 @@ final class GenerateCommandTests: XCTestCase {
     var workspaceGenerator: MockWorkspaceGenerator!
     var parser: ArgumentParser!
     var printer: MockPrinter!
+    var carthageController: MockCarthageController!
 
     override func setUp() {
         super.setUp()
@@ -21,9 +22,11 @@ final class GenerateCommandTests: XCTestCase {
         graphLoader = MockGraphLoader()
         workspaceGenerator = MockWorkspaceGenerator()
         parser = ArgumentParser.test()
+        carthageController = MockCarthageController()
         subject = GenerateCommand(graphLoader: graphLoader,
                                   workspaceGenerator: workspaceGenerator,
                                   parser: parser,
+                                  carthageController: carthageController,
                                   printer: printer)
     }
 
@@ -58,5 +61,17 @@ final class GenerateCommandTests: XCTestCase {
         let result = try parser.parse([GenerateCommand.command, "-c", "Debug"])
         try subject.run(with: result)
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
+    }
+
+    func test_run_updates_carthage_dependencies() throws {
+        let result = try parser.parse([GenerateCommand.command])
+        try subject.run(with: result)
+        XCTAssertEqual(carthageController.updateIfNecessaryCount, 1)
+    }
+
+    func test_run_doesnt_update_carthage_dependencies_when_skipCarthage_is_passed() throws {
+        let result = try parser.parse([GenerateCommand.command, "--skip-carthage"])
+        try subject.run(with: result)
+        XCTAssertEqual(carthageController.updateIfNecessaryCount, 0)
     }
 }

@@ -174,7 +174,9 @@ class FrameworkNode: PrecompiledNode {
                       fileHandler: FileHandling,
                       cache: GraphLoaderCaching) throws -> FrameworkNode {
         let absolutePath = projectPath.appending(path)
-        if !fileHandler.exists(absolutePath) {
+        if !fileHandler.exists(absolutePath) &&
+            // If a Carthage framework doesn't exist, tuist will pull it
+            !CarthageController.isCarthageFramework(absolutePath) {
             throw GraphLoadingError.missingFile(absolutePath)
         }
         if let frameworkNode = cache.precompiledNode(absolutePath) as? FrameworkNode { return frameworkNode }

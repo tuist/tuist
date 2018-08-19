@@ -9,7 +9,7 @@ public protocol Systeming {
     func popen(_ args: [String], verbose: Bool) throws
 }
 
-public struct SystemError: FatalError {
+public struct SystemError: FatalError, Equatable {
     let stderror: String?
     let exitcode: Int32
 
@@ -24,6 +24,11 @@ public struct SystemError: FatalError {
     public init(stderror: String? = nil, exitcode: Int32) {
         self.stderror = stderror
         self.exitcode = exitcode
+    }
+
+    public static func == (lhs: SystemError, rhs: SystemError) -> Bool {
+        return lhs.stderror == rhs.stderror &&
+            lhs.exitcode == rhs.exitcode
     }
 }
 
@@ -64,8 +69,11 @@ public final class System: Systeming {
     }
 
     @discardableResult
-    public func capture(_ args: [String], verbose _: Bool = false) throws -> SystemResult {
-        precondition(args.count >= 1, "Invalid number of argumentss")
+    public func capture(_ args: [String], verbose: Bool = false) throws -> SystemResult {
+        precondition(args.count >= 1, "Invalid number of arguments")
+        if verbose {
+            printer.print("Running command: \(args.joined(separator: " "))")
+        }
         let arguments = ["/bin/bash", "-c", "\(args.map({ $0.shellEscaped() }).joined(separator: " "))"]
         return try task(arguments).first()!.dematerialize()
     }
@@ -74,8 +82,11 @@ public final class System: Systeming {
         try popen(args, verbose: verbose)
     }
 
-    public func popen(_ args: [String], verbose _: Bool = false) throws {
+    public func popen(_ args: [String], verbose: Bool = false) throws {
         precondition(args.count >= 1, "Invalid number of arguments")
+        if verbose {
+            printer.print("Running command: \(args.joined(separator: " "))")
+        }
         let arguments = ["/bin/bash", "-c", "\(args.map({ $0.shellEscaped() }).joined(separator: " "))"]
         _ = task(arguments, print: true).wait()
     }

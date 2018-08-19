@@ -17,9 +17,11 @@ class GenerateCommand: NSObject, Command {
     fileprivate let printer: Printing
     fileprivate let system: Systeming
     fileprivate let resourceLocator: ResourceLocating
+    fileprivate let carthageController: CarthageControlling
 
     let pathArgument: OptionArgument<String>
     let configArgument: OptionArgument<String>
+    let skipCarthage: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -32,12 +34,14 @@ class GenerateCommand: NSObject, Command {
     init(graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
          parser: ArgumentParser,
+         carthageController: CarthageControlling = CarthageController(),
          printer: Printing = Printer(),
          system: Systeming = System(),
          resourceLocator: ResourceLocating = ResourceLocator()) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
+        self.carthageController = carthageController
         self.printer = printer
         self.system = system
         self.resourceLocator = resourceLocator
@@ -51,24 +55,44 @@ class GenerateCommand: NSObject, Command {
                                        kind: String.self,
                                        usage: "The configuration that will be generated.",
                                        completion: .filename)
+        skipCarthage = subParser.add(option: "--skip-carthage",
+                                     shortName: nil,
+                                     kind: Bool.self,
+                                     usage: "Skips updating Carthage dependencies.",
+                                     completion: .filename)
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
+        printer.print(section: "Generating project")
+
         let path = self.path(arguments: arguments)
         let config = try parseConfig(arguments: arguments)
         let graph = try graphLoader.load(path: path)
 
+        if !skipCarthage(arguments: arguments) {
+            try carthageController.updateIfNecessary(graph: graph)
+        }
+
+        let options = GenerationOptions(buildConfiguration: config)
+
         try workspaceGenerator.generate(path: path,
                                         graph: graph,
-                                        options: GenerationOptions(buildConfiguration: config),
+                                        options: options,
                                         system: system,
                                         printer: printer,
                                         resourceLocator: resourceLocator)
 
-        printer.print(success: "Project generated.")
+        printer.print(success: "Project generated")
     }
 
     // MARK: - Fileprivate
+
+    fileprivate func skipCarthage(arguments: ArgumentParser.Result) -> Bool {
+        if let skipCarthage = arguments.get(skipCarthage) {
+            return skipCarthage
+        }
+        return false
+    }
 
     fileprivate func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
