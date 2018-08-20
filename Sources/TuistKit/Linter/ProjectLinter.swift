@@ -11,11 +11,14 @@ class ProjectLinter: ProjectLinting {
     // MARK: - Attributes
 
     let targetLinter: TargetLinting
+    let settingsLinter: SettingsLinting
 
     // MARK: - Init
 
-    init(targetLinter: TargetLinting = TargetLinter()) {
+    init(targetLinter: TargetLinting = TargetLinter(),
+         settingsLinter: SettingsLinting = SettingsLinter()) {
         self.targetLinter = targetLinter
+        self.settingsLinter = settingsLinter
     }
 
     // MARK: - ProjectLinting
@@ -23,6 +26,9 @@ class ProjectLinter: ProjectLinting {
     func lint(_ project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintTargets(project: project))
+        if let settings = project.settings {
+            issues.append(contentsOf: settingsLinter.lint(settings: settings))
+        }
         return issues
     }
 

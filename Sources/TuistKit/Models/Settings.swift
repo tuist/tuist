@@ -16,13 +16,10 @@ class Configuration: Equatable {
         self.xcconfig = xcconfig
     }
 
-    init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
+    init(json: JSON, projectPath: AbsolutePath, fileHandler _: FileHandling) throws {
         settings = try json.get("settings")
         let xcconfigString: String? = json.get("xcconfig")
         xcconfig = xcconfigString.flatMap({ projectPath.appending(RelativePath($0)) })
-        if let xcconfig = xcconfig, !fileHandler.exists(xcconfig) {
-            throw GraphLoadingError.missingFile(xcconfig)
-        }
     }
 
     // MARK: - Equatable

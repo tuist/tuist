@@ -7,12 +7,28 @@ protocol TargetLinting: AnyObject {
 
 class TargetLinter: TargetLinting {
 
+    // MARK: - Attributes
+
+    private let fileHandler: FileHandling
+    private let settingsLinter: SettingsLinting
+
+    // MARK: - Init
+
+    init(settingsLinter: SettingsLinting = SettingsLinter(),
+         fileHandler: FileHandling = FileHandler()) {
+        self.settingsLinter = settingsLinter
+        self.fileHandler = fileHandler
+    }
+
     // MARK: - TargetLinting
 
     func lint(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
+        if let settings = target.settings {
+            issues.append(contentsOf: settingsLinter.lint(settings: settings))
+        }
         return issues
     }
 
@@ -37,6 +53,25 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: infoPlists.map({ LintingIssue(reason: "Info.plist at path \($0.asString) being copied into the target \(target.name) product.", severity: .warning) }))
         issues.append(contentsOf: entitlements.map({ LintingIssue(reason: "Entitlements file at path \($0.asString) being copied into the target \(target.name) product.", severity: .warning) }))
 
+        issues.append(contentsOf: lintInfoplistExists(target: target))
+        issues.append(contentsOf: lintEntitlementsExist(target: target))
+
+        return issues
+    }
+
+    fileprivate func lintInfoplistExists(target: Target) -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+        if !fileHandler.exists(target.infoPlist) {
+            issues.append(LintingIssue(reason: "Info.plist file not found at path \(target.infoPlist.asString)", severity: .error))
+        }
+        return issues
+    }
+
+    fileprivate func lintEntitlementsExist(target: Target) -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+        if let path = target.entitlements, !fileHandler.exists(path) {
+            issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.asString)", severity: .error))
+        }
         return issues
     }
 }
