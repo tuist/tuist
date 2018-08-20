@@ -114,7 +114,7 @@ class InitCommand: NSObject, Command {
                                        platform: .\(platform.rawValue),
                                        product: .unitTests,
                                        bundleId: "io.tuist.\(name)Tests",
-                                       infoPlist: "Info.plist",
+                                       infoPlist: "Tests.plist",
                                        sources: "Tests/**",
                                        dependencies: [
                                             .target(name: "\(name)")

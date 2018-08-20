@@ -4,9 +4,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Added
+
+- Throw an error if a library target contains resources https://github.com/tuist/tuist/pull/98 by @pepibumur.
+
 ### Changed
 
 - Don't fail if a Carthage framework doesn't exist. Print a warning instead https://github.com/tuist/tuist/pull/96 by @pepibuymur
+- Missing file errors are printed together https://github.com/tuist/tuist/pull/98 by @pepibumur.
 
 ## 0.3.0
 

@@ -31,9 +31,7 @@ final class GraphLinterTests: XCTestCase {
 
         let result = subject.lint(graph: graph)
 
-        XCTAssertEqual(result.count, 1)
-        XCTAssertEqual(result.first?.severity, .warning)
-        XCTAssertEqual(result.first?.reason, "Framework not found at path \(frameworkBPath.asString). The path might be wrong or Carthage dependencies not fetched")
+        XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.asString). The path might be wrong or Carthage dependencies not fetched", severity: .warning)))
     }
 
     func test_lint_when_frameworks_are_missing() throws {
@@ -53,8 +51,6 @@ final class GraphLinterTests: XCTestCase {
 
         let result = subject.lint(graph: graph)
 
-        XCTAssertEqual(result.count, 1)
-        XCTAssertEqual(result.first?.severity, .error)
-        XCTAssertEqual(result.first?.reason, "Framework not found at path \(frameworkBPath.asString)")
+        XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.asString)", severity: .error)))
     }
 }

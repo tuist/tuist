@@ -1,14 +1,17 @@
 import Basic
 import Foundation
+@testable import TuistCoreTesting
 @testable import TuistKit
 import XCTest
 
 final class TargetLinterTests: XCTestCase {
     var subject: TargetLinter!
+    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        subject = TargetLinter()
+        fileHandler = try! MockFileHandler()
+        subject = TargetLinter(fileHandler: fileHandler)
     }
 
     func test_lint_when_target_no_source_files() {
@@ -33,5 +36,36 @@ final class TargetLinterTests: XCTestCase {
         let got = subject.lint(target: target)
 
         XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file at path \(path.asString) being copied into the target \(target.name) product.", severity: .warning)))
+    }
+
+    func test_lint_when_entitlements_not_missing() {
+        let path = fileHandler.currentPath.appending(component: "Info.plist")
+        let target = Target.test(infoPlist: path)
+
+        let got = subject.lint(target: target)
+
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist file not found at path \(path.asString)", severity: .error)))
+    }
+
+    func test_lint_when_infoplist_not_found() {
+        let path = fileHandler.currentPath.appending(component: "App.entitlements")
+        let target = Target.test(entitlements: path)
+
+        let got = subject.lint(target: target)
+
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file not found at path \(path.asString)", severity: .error)))
+    }
+
+    func test_lint_when_library_has_resources() {
+        let path = fileHandler.currentPath.appending(component: "Image.png")
+
+        let staticLibrary = Target.test(product: .staticLibrary, resources: [path])
+        let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [path])
+
+        let staticResult = subject.lint(target: staticLibrary)
+        XCTAssertTrue(staticResult.contains(LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)))
+
+        let dynamicResult = subject.lint(target: staticLibrary)
+        XCTAssertTrue(dynamicResult.contains(LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)))
     }
 }
