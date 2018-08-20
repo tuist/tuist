@@ -37,8 +37,8 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 
     // MARK: - Attributes
 
-    fileprivate let reason: String
-    fileprivate let severity: Severity
+    let reason: String
+    let severity: Severity
 
     // MARK: - Init
 

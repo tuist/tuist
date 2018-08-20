@@ -39,9 +39,10 @@ enum DependencyReference: Equatable {
 protocol Graphing: AnyObject {
     var name: String { get }
     var entryPath: AbsolutePath { get }
-    var cache: GraphLoaderCaching { get }
     var entryNodes: [GraphNode] { get }
     var projects: [Project] { get }
+    var frameworks: [FrameworkNode] { get }
+
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
@@ -54,9 +55,9 @@ class Graph: Graphing {
 
     // MARK: - Attributes
 
+    private let cache: GraphLoaderCaching
     let name: String
     let entryPath: AbsolutePath
-    let cache: GraphLoaderCaching
     let entryNodes: [GraphNode]
     var projects: [Project] {
         return Array(cache.projects.values)
@@ -75,6 +76,10 @@ class Graph: Graphing {
     }
 
     // MARK: - Internal
+
+    var frameworks: [FrameworkNode] {
+        return cache.precompiledNodes.values.compactMap({ $0 as? FrameworkNode })
+    }
 
     func dependencies(path: AbsolutePath) -> Set<GraphNode> {
         var dependencies: Set<GraphNode> = Set()
