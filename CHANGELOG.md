@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Changed
+
+- Don't fail if a Carthage framework doesn't exist. Print a warning instead https://github.com/tuist/tuist/pull/96 by @pepibuymur
+
 ## 0.3.0
 
 ### Added

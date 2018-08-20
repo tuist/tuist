@@ -1,4 +1,5 @@
 import Foundation
+import TuistCore
 
 protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]
@@ -9,11 +10,14 @@ class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     let projectLinter: ProjectLinting
+    let fileHandler: FileHandling
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter()) {
+    init(projectLinter: ProjectLinting = ProjectLinter(),
+         fileHandler: FileHandling = FileHandler()) {
         self.projectLinter = projectLinter
+        self.fileHandler = fileHandler
     }
 
     // MARK: - GraphLinting
@@ -33,7 +37,14 @@ class GraphLinter: GraphLinting {
         graph.entryNodes.forEach {
             issues.append(contentsOf: lintGraphNode(node: $0, evaluatedNodes: &evaluatedNodes))
         }
+
         return issues
+    }
+
+    fileprivate func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
+        return graph.carthageFrameworks
+            .filter({ !fileHandler.exists($0.path) })
+            .map({ LintingIssue(reason: "Carthage framework at path \($0.path.asString) doesn't exist. Run 'carthage update'.", severity: .warning) })
     }
 
     fileprivate func lintGraphNode(node: GraphNode, evaluatedNodes: inout [GraphNode]) -> [LintingIssue] {

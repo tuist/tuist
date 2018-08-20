@@ -93,7 +93,6 @@ class TargetNode: GraphNode {
             let frameworkPath: RelativePath = try RelativePath(dictionary.get("path"))
             return try FrameworkNode.parse(projectPath: path,
                                            path: frameworkPath,
-                                           fileHandler: fileHandler,
                                            cache: cache)
         } else if type == "library" {
             let libraryPath: RelativePath = try RelativePath(dictionary.get("path"))
@@ -172,12 +171,8 @@ class PrecompiledNode: GraphNode {
 class FrameworkNode: PrecompiledNode {
     static func parse(projectPath: AbsolutePath,
                       path: RelativePath,
-                      fileHandler: FileHandling,
                       cache: GraphLoaderCaching) throws -> FrameworkNode {
         let absolutePath = projectPath.appending(path)
-        if !fileHandler.exists(absolutePath) {
-            throw GraphLoadingError.missingFile(absolutePath)
-        }
         if let frameworkNode = cache.precompiledNode(absolutePath) as? FrameworkNode { return frameworkNode }
         let framewokNode = FrameworkNode(path: absolutePath)
         cache.add(precompiledNode: framewokNode)

@@ -42,6 +42,8 @@ protocol Graphing: AnyObject {
     var cache: GraphLoaderCaching { get }
     var entryNodes: [GraphNode] { get }
     var projects: [Project] { get }
+    var carthageFrameworks: [FrameworkNode] { get }
+
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
@@ -75,6 +77,12 @@ class Graph: Graphing {
     }
 
     // MARK: - Internal
+
+    var carthageFrameworks: [FrameworkNode] {
+        return cache.precompiledNodes.values
+            .compactMap({ $0 as? FrameworkNode })
+            .filter({ $0.path.asString.contains("Carthage/Build") })
+    }
 
     func dependencies(path: AbsolutePath) -> Set<GraphNode> {
         var dependencies: Set<GraphNode> = Set()
