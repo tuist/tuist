@@ -179,6 +179,10 @@ class FrameworkNode: PrecompiledNode {
         return framewokNode
     }
 
+    var isCarthage: Bool {
+        return path.asString.contains("Carthage/Build")
+    }
+
     override var binaryPath: AbsolutePath {
         let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
         return path.appending(component: frameworkName)

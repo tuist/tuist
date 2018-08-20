@@ -42,9 +42,22 @@ class GraphLinter: GraphLinting {
     }
 
     fileprivate func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
-        return graph.carthageFrameworks
+        let frameworks = graph.frameworks
+        let carthageFrameworks = frameworks.filter({ $0.isCarthage })
+        let nonCarthageFrameworks = frameworks.filter({ !$0.isCarthage })
+
+        let carthageIssues = carthageFrameworks
             .filter({ !fileHandler.exists($0.path) })
-            .map({ LintingIssue(reason: "Carthage framework at path \($0.path.asString) doesn't exist. Run 'carthage update'.", severity: .warning) })
+            .map({ LintingIssue(reason: "Framework not found at path \($0.path.asString). The path might be wrong or Carthage dependencies not fetched.", severity: .warning) })
+        let nonCarthageIssues = nonCarthageFrameworks
+            .filter({ !fileHandler.exists($0.path) })
+            .map({ LintingIssue(reason: "Framework not found at path \($0.path.asString).", severity: .error) })
+
+        var issues: [LintingIssue] = []
+        issues.append(contentsOf: carthageIssues)
+        issues.append(contentsOf: nonCarthageIssues)
+
+        return []
     }
 
     fileprivate func lintGraphNode(node: GraphNode, evaluatedNodes: inout [GraphNode]) -> [LintingIssue] {

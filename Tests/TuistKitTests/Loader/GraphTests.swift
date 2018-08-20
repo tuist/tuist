@@ -26,6 +26,14 @@ final class GraphTests: XCTestCase {
         system = MockSystem()
     }
 
+    func test_frameworks() throws {
+        let framework = FrameworkNode(path: AbsolutePath("/path/to/framework.framework"))
+        let cache = GraphLoaderCache()
+        cache.add(precompiledNode: framework)
+        let graph = Graph.test(cache: cache)
+        XCTAssertTrue(graph.frameworks.contains(framework))
+    }
+
     func test_targetDependencies() throws {
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .staticLibrary)

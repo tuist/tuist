@@ -36,6 +36,12 @@ final class FrameworkNodeTests: XCTestCase {
         XCTAssertEqual(subject.binaryPath.asString, "/test.framework/test")
     }
 
+    func test_isCarthage() {
+        XCTAssertFalse(subject.isCarthage)
+        subject = FrameworkNode(path: AbsolutePath("/path/Carthage/Build/iOS/A.framework"))
+        XCTAssertTrue(subject.isCarthage)
+    }
+
     func test_architectures() throws {
         system.stub(args: ["lipo -info /test.framework/test"], stderror: nil, stdout: "Non-fat file: path is architecture: x86_64", exitstatus: 0)
         try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
