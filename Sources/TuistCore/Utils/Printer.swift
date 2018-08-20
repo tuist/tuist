@@ -3,6 +3,7 @@ import Foundation
 
 public protocol Printing: AnyObject {
     func print(_ text: String)
+    func print(_ text: String, color: TerminalController.Color)
     func print(section: String)
     func print(warning: String)
     func print(error: Error)
@@ -24,6 +25,12 @@ public class Printer: Printing {
         writer.write("\n")
     }
 
+    public func print(_ text: String, color: TerminalController.Color) {
+        let writer = InteractiveWriter.stdout
+        writer.write(text, inColor: color, bold: false)
+        writer.write("\n")
+    }
+
     public func print(error: Error) {
         let writer = InteractiveWriter.stderr
         writer.write("❌ Error: ", inColor: .red, bold: true)
@@ -41,14 +48,14 @@ public class Printer: Printing {
     public func print(warning: String) {
         let writer = InteractiveWriter.stdout
         writer.write("⚠️  Warning: ", inColor: .yellow, bold: true)
-        writer.write(warning)
+        writer.write(warning, inColor: .yellow, bold: false)
         writer.write("\n")
     }
 
     public func print(errorMessage: String) {
         let writer = InteractiveWriter.stderr
         writer.write("❌ Error: ", inColor: .red, bold: true)
-        writer.write(errorMessage)
+        writer.write(errorMessage, inColor: .red, bold: false)
         writer.write("\n")
     }
 

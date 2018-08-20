@@ -1,28 +1,8 @@
+import Basic
 import Foundation
 @testable import TuistCoreTesting
 @testable import TuistKit
 import XCTest
-
-final class LintingErrorTests: XCTestCase {
-    var subject: LintingError!
-
-    override func setUp() {
-        super.setUp()
-        subject = LintingError(issues: [LintingIssue(reason: "test", severity: .error)])
-    }
-
-    func test_type() {
-        XCTAssertEqual(subject.type, .abort)
-    }
-
-    func test_equal() {
-        XCTAssertEqual(subject, subject)
-    }
-
-    func test_description() {
-        XCTAssertEqual(subject.description, "- test")
-    }
-}
 
 final class LintingIssueTests: XCTestCase {
     func test_description() {
@@ -45,7 +25,12 @@ final class LintingIssueTests: XCTestCase {
 
         XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded(printer: printer))
 
-        XCTAssertEqual(printer.printWarningArgs, ["The following issues have been found:\n- warning"])
-        XCTAssertEqual(printer.printErrorMessageArgs, ["The following critical issues have been found:\n- error"])
+        XCTAssertEqual(printer.printWithColorArgs.first?.0, "The following issues have been found:")
+        XCTAssertEqual(printer.printWithColorArgs.first?.1, .yellow)
+        XCTAssertEqual(printer.printArgs.first, "  - warning")
+
+        XCTAssertEqual(printer.printWithColorArgs.last?.0, "The following critical issues have been found:")
+        XCTAssertEqual(printer.printWithColorArgs.last?.1, .red)
+        XCTAssertEqual(printer.printArgs.last, "  - error")
     }
 }

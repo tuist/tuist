@@ -62,16 +62,10 @@ class Target: GraphJSONInitiatable, Equatable {
         // Info.plist
         let infoPlistPath: String = try json.get("info_plist")
         infoPlist = projectPath.appending(RelativePath(infoPlistPath))
-        if !fileHandler.exists(infoPlist) {
-            throw GraphLoadingError.missingFile(infoPlist)
-        }
 
         // Entitlements
         let entitlementsPath: String? = try? json.get("entitlements")
         entitlements = entitlementsPath.map({ projectPath.appending(RelativePath($0)) })
-        if let entitlements = entitlements, !fileHandler.exists(entitlements) {
-            throw GraphLoadingError.missingFile(entitlements)
-        }
 
         // Settings
         let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")

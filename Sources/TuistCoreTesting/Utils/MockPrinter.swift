@@ -1,8 +1,10 @@
+import Basic
 import Foundation
 import TuistCore
 
 public final class MockPrinter: Printing {
     public var printArgs: [String] = []
+    public var printWithColorArgs: [(String, TerminalController.Color)] = []
     public var printErrorArgs: [Error] = []
     public var printSectionArgs: [String] = []
     public var printErrorMessageArgs: [String] = []
@@ -11,6 +13,10 @@ public final class MockPrinter: Printing {
 
     public func print(_ text: String) {
         printArgs.append(text)
+    }
+
+    public func print(_ text: String, color: TerminalController.Color) {
+        printWithColorArgs.append((text, color))
     }
 
     public func print(section: String) {

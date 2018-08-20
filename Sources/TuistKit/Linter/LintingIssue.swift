@@ -2,30 +2,8 @@ import Foundation
 import TuistCore
 
 struct LintingError: FatalError, Equatable {
-
-    // MARK: - Attributes
-
-    private let issues: [LintingIssue]
-
-    // MARK: - Init
-
-    init(issues: [LintingIssue]) {
-        self.issues = issues
-    }
-
-    // MARK: - FatalError
-
-    var description: String {
-        return issues.map({ "- \($0.description)" }).joined(separator: "\n")
-    }
-
-    var type: ErrorType {
-        return .abort
-    }
-
-    static func == (lhs: LintingError, rhs: LintingError) -> Bool {
-        return lhs.issues == rhs.issues
-    }
+    var description: String = "Fatal linting issues found"
+    var type: ErrorType = .abort
 }
 
 /// Linting issue.
@@ -71,21 +49,17 @@ extension Array where Element == LintingIssue {
         let warningIssues = filter({ $0.severity == .warning })
 
         if warningIssues.count != 0 {
-            let message = "The following issues have been found:\n"
-            let warningsMessage = message.appending(warningIssues
-                .map({ "- \($0.description)" })
-                .joined(separator: "\n"))
-            printer.print(warning: warningsMessage)
+            printer.print("The following issues have been found:", color: .yellow)
+            let message = warningIssues.map({ "  - \($0.description)" }).joined(separator: "\n")
+            printer.print(message)
         }
 
         if errorIssues.count != 0 {
-            let message = "The following critical issues have been found:\n"
-            let errorMessage = message.appending(errorIssues
-                .map({ "- \($0.description)" })
-                .joined(separator: "\n"))
-            printer.print(errorMessage: errorMessage)
+            printer.print("The following critical issues have been found:", color: .red)
+            let message = errorIssues.map({ "  - \($0.description)" }).joined(separator: "\n")
+            printer.print(message)
 
-            throw LintingError(issues: errorIssues)
+            throw LintingError()
         }
     }
 }
