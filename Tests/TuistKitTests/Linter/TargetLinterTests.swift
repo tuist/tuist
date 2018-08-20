@@ -55,4 +55,17 @@ final class TargetLinterTests: XCTestCase {
 
         XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file not found at path \(path.asString)", severity: .error)))
     }
+
+    func test_lint_when_library_has_resources() {
+        let path = fileHandler.currentPath.appending(component: "Image.png")
+
+        let staticLibrary = Target.test(product: .staticLibrary, resources: [path])
+        let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [path])
+
+        let staticResult = subject.lint(target: staticLibrary)
+        XCTAssertTrue(staticResult.contains(LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)))
+
+        let dynamicResult = subject.lint(target: staticLibrary)
+        XCTAssertTrue(dynamicResult.contains(LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)))
+    }
 }
