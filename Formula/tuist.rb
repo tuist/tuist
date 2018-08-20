@@ -1,8 +1,8 @@
 class Tuist < Formula
   desc "Generate, maintain, and interact with Xcode projects easily"
   homepage "https://tuist.io"
-  url "https://github.com/tuist/tuist/raw/0.2.0/bin/tuistenv"
-  sha256 "6769e784ade1a6c5726a71afc78b13dd1509f2b421deb6719fd2ff9ab796afda"
+  url "https://github.com/tuist/tuist/raw/0.3.0/bin/tuistenv"
+  sha256 "43915c5373f9fe22ac04be730aca625d8320bb27688d3acd8b1687a4728af8cb"
 
   def install
     File.rename("tuistenv", "tuist")
