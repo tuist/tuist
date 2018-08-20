@@ -35,6 +35,10 @@ public final class MockFileHandler: FileHandling {
         try fileHandler.delete(path)
     }
 
+    public func touch(_ path: AbsolutePath) throws {
+        try fileHandler.touch(path)
+    }
+
     public func isFolder(_ path: AbsolutePath) -> Bool {
         return fileHandler.isFolder(path)
     }

@@ -39,7 +39,6 @@ enum DependencyReference: Equatable {
 protocol Graphing: AnyObject {
     var name: String { get }
     var entryPath: AbsolutePath { get }
-    var cache: GraphLoaderCaching { get }
     var entryNodes: [GraphNode] { get }
     var projects: [Project] { get }
     var frameworks: [FrameworkNode] { get }
@@ -56,9 +55,9 @@ class Graph: Graphing {
 
     // MARK: - Attributes
 
+    private let cache: GraphLoaderCaching
     let name: String
     let entryPath: AbsolutePath
-    let cache: GraphLoaderCaching
     let entryNodes: [GraphNode]
     var projects: [Project] {
         return Array(cache.projects.values)
