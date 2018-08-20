@@ -51,58 +51,59 @@ class TargetNode: GraphNode {
     static func read(name: String,
                      path: AbsolutePath,
                      cache: GraphLoaderCaching,
-                     graphCircularDetector: GraphCircularDetecting) throws -> TargetNode {
+                     circularDetector: GraphCircularDetecting) throws -> TargetNode {
         if let targetNode = cache.targetNode(path, name: name) { return targetNode }
-        let project = try Project.at(path, cache: cache, graphCircularDetector: graphCircularDetector)
+        let project = try Project.at(path, cache: cache, circularDetector: circularDetector)
 
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
-        let dependencyMapper = TargetNode.readDependency(path: path, name: name, cache: cache, graphCircularDetector: graphCircularDetector)
-        let dependencies: [GraphNode] = try target.dependencies.compactMap(dependencyMapper)
+        let dependencies: [GraphNode] = try target.dependencies.map({
+            try self.readDependency(path: path, name: name, dictionary: $0, cache: cache, circularDetector: circularDetector)
+        })
+
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
-        graphCircularDetector.complete(GraphCircularDetectorNode(path: path, name: name))
+        circularDetector.complete(GraphCircularDetectorNode(path: path, name: name))
         cache.add(targetNode: targetNode)
         return targetNode
     }
 
     static func readDependency(path: AbsolutePath,
                                name: String,
+                               dictionary: JSON,
                                cache: GraphLoaderCaching,
-                               graphCircularDetector: GraphCircularDetecting,
-                               fileHandler: FileHandling = FileHandler()) -> (_ dictionary: JSON) throws -> GraphNode {
-        return { json in
-            let type: String = try json.get("type")
-            if type == "target" {
-                let circularFrom = GraphCircularDetectorNode(path: path, name: name)
-                let name: String = try json.get("name")
-                let circularTo = GraphCircularDetectorNode(path: path, name: name)
-                try graphCircularDetector.start(from: circularFrom, to: circularTo)
-                return try TargetNode.read(name: name, path: path, cache: cache, graphCircularDetector: graphCircularDetector)
-            } else if type == "project" {
-                let circularFrom = GraphCircularDetectorNode(path: path, name: name)
-                let name: String = try json.get("target")
-                let projectRelativePath: RelativePath = try RelativePath(json.get("path"))
-                let projectPath = path.appending(projectRelativePath)
-                let circularTo = GraphCircularDetectorNode(path: projectPath, name: name)
-                try graphCircularDetector.start(from: circularFrom, to: circularTo)
-                return try TargetNode.read(name: name, path: projectPath, cache: cache, graphCircularDetector: graphCircularDetector)
-            } else if type == "framework" {
-                let frameworkPath: RelativePath = try RelativePath(json.get("path"))
-                return try FrameworkNode.parse(projectPath: path,
-                                               path: frameworkPath,
-                                               fileHandler: fileHandler,
-                                               cache: cache)
-            } else if type == "library" {
-                let libraryPath: RelativePath = try RelativePath(json.get("path"))
-                return try LibraryNode.parse(json: json,
-                                             projectPath: path,
-                                             path: libraryPath,
-                                             fileHandler: fileHandler,
-                                             cache: cache)
-            } else {
-                fatalError("Invalid dependency type: \(type)")
-            }
+                               circularDetector: GraphCircularDetecting,
+                               fileHandler: FileHandling = FileHandler()) throws -> GraphNode {
+        let type: String = try dictionary.get("type")
+        if type == "target" {
+            let circularFrom = GraphCircularDetectorNode(path: path, name: name)
+            let name: String = try dictionary.get("name")
+            let circularTo = GraphCircularDetectorNode(path: path, name: name)
+            try circularDetector.start(from: circularFrom, to: circularTo)
+            return try TargetNode.read(name: name, path: path, cache: cache, circularDetector: circularDetector)
+        } else if type == "project" {
+            let circularFrom = GraphCircularDetectorNode(path: path, name: name)
+            let name: String = try dictionary.get("target")
+            let projectRelativePath: RelativePath = try RelativePath(dictionary.get("path"))
+            let projectPath = path.appending(projectRelativePath)
+            let circularTo = GraphCircularDetectorNode(path: projectPath, name: name)
+            try circularDetector.start(from: circularFrom, to: circularTo)
+            return try TargetNode.read(name: name, path: projectPath, cache: cache, circularDetector: circularDetector)
+        } else if type == "framework" {
+            let frameworkPath: RelativePath = try RelativePath(dictionary.get("path"))
+            return try FrameworkNode.parse(projectPath: path,
+                                           path: frameworkPath,
+                                           fileHandler: fileHandler,
+                                           cache: cache)
+        } else if type == "library" {
+            let libraryPath: RelativePath = try RelativePath(dictionary.get("path"))
+            return try LibraryNode.parse(json: dictionary,
+                                         projectPath: path,
+                                         path: libraryPath,
+                                         fileHandler: fileHandler,
+                                         cache: cache)
+        } else {
+            fatalError("Invalid dependency type: \(type)")
         }
     }
 }

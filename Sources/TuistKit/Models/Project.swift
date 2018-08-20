@@ -25,7 +25,7 @@ class Project: Equatable {
 
     // MARK: - Init
 
-    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, graphCircularDetector: GraphCircularDetecting) throws -> Project {
+    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, circularDetector: GraphCircularDetecting) throws -> Project {
         if let project = cache.project(path) {
             return project
         } else {
@@ -34,7 +34,7 @@ class Project: Equatable {
 
             for target in project.targets {
                 if cache.targetNode(path, name: target.name) != nil { continue }
-                _ = try TargetNode.read(name: target.name, path: path, cache: cache, graphCircularDetector: graphCircularDetector)
+                _ = try TargetNode.read(name: target.name, path: path, cache: cache, circularDetector: circularDetector)
             }
 
             return project
