@@ -1,14 +1,17 @@
 import Basic
 import Foundation
+@testable import TuistCoreTesting
 @testable import TuistKit
 @testable import xcodeproj
 import XCTest
 
 final class ProjectFileElementsTests: XCTestCase {
     var subject: ProjectFileElements!
+    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
+        fileHandler = try! MockFileHandler()
         subject = ProjectFileElements()
     }
 
@@ -264,6 +267,32 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(file?.sourceTree, .group)
         XCTAssertNil(file?.name)
         XCTAssertEqual(file?.lastKnownFileType, Xcode.filetype(extension: "swift"))
+    }
+
+    func test_generatePlaygrounds() throws {
+        let pbxproj = PBXProj()
+        let project = Project.test()
+        let sourceRootPath = fileHandler.currentPath
+        let groups = ProjectGroups.generate(project: project,
+                                            objects: pbxproj.objects,
+                                            sourceRootPath: sourceRootPath)
+
+        let playgroundsPath = sourceRootPath.appending(component: "Playgrounds")
+        let playgroundPath = playgroundsPath.appending(component: "Test.playground")
+        try fileHandler.createFolder(playgroundsPath)
+        try fileHandler.createFolder(playgroundPath)
+
+        subject.generatePlaygrounds(path: sourceRootPath,
+                                    groups: groups,
+                                    objects: pbxproj.objects,
+                                    sourceRootPath: sourceRootPath)
+        let file: PBXFileReference? = try groups.playgrounds.childrenReferences.first?.object()
+
+        XCTAssertEqual(file?.sourceTree, .group)
+        XCTAssertEqual(file?.lastKnownFileType, "file.playground")
+        XCTAssertEqual(file?.path, "Test.playground")
+        XCTAssertNil(file?.name)
+        XCTAssertEqual(file?.xcLanguageSpecificationIdentifier, "xcode.lang.swift")
     }
 
     func test_group() {
