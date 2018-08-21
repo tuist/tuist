@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Throw an error if a library target contains resources https://github.com/tuist/tuist/pull/98 by @pepibumur.
+- Playgrounds support https://github.com/tuist/tuist/pull/103 by @pepibumur.
 
 ### Changed
 
