@@ -23,6 +23,7 @@ final class InitCommandTests: XCTestCase {
     var fileHandler: MockFileHandler!
     var printer: MockPrinter!
     var infoplistProvisioner: InfoPlistProvisioning!
+    var playgroundGenerator: MockPlaygroundGenerator!
 
     override func setUp() {
         super.setUp()
@@ -30,10 +31,12 @@ final class InitCommandTests: XCTestCase {
         fileHandler = try! MockFileHandler()
         printer = MockPrinter()
         infoplistProvisioner = InfoPlistProvisioner()
+        playgroundGenerator = MockPlaygroundGenerator()
         subject = InitCommand(parser: parser,
                               fileHandler: fileHandler,
                               printer: printer,
-                              infoplistProvisioner: infoplistProvisioner)
+                              infoplistProvisioner: infoplistProvisioner,
+                              playgroundGenerator: playgroundGenerator)
     }
 
     func test_command() {
@@ -94,6 +97,14 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+
+        let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
+        XCTAssertTrue(fileHandler.exists(playgroundsPath))
+        XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
 
     func test_run_when_macos_application() throws {
@@ -106,6 +117,14 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+
+        let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
+        XCTAssertTrue(fileHandler.exists(playgroundsPath))
+        XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .macOS)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
 
     func test_run_when_ios_framework() throws {
@@ -118,6 +137,14 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+
+        let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
+        XCTAssertTrue(fileHandler.exists(playgroundsPath))
+        XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
 
     func test_run_when_macos_framework() throws {
@@ -130,5 +157,13 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+
+        let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
+        XCTAssertTrue(fileHandler.exists(playgroundsPath))
+        XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .macOS)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
 }
