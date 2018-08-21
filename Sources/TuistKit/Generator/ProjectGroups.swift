@@ -65,8 +65,8 @@ class ProjectGroups {
         let frameworksGroupReference = objects.addObject(frameworksGroup)
         mainGroup.childrenReferences.append(frameworksGroupReference)
 
-        /// Frameworks
-        let playgroundsGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "Playgrounds")
+        /// Playgrounds
+        let playgroundsGroup = PBXGroup(childrenReferences: [], sourceTree: .group, path: "Playgrounds")
         let playgroundsGroupReference = objects.addObject(playgroundsGroup)
         mainGroup.childrenReferences.append(playgroundsGroupReference)
 

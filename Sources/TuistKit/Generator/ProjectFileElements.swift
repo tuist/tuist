@@ -48,6 +48,12 @@ class ProjectFileElements {
                  groups: groups,
                  objects: objects)
 
+        /// Playgrounds
+        generatePlaygrounds(path: project.path,
+                            groups: groups,
+                            objects: objects,
+                            sourceRootPath: sourceRootPath)
+
         /// Dependencies
         generate(dependencies: graph.dependencies(path: project.path),
                  path: project.path,
@@ -124,6 +130,23 @@ class ProjectFileElements {
             let objectFileReference = objects.addObject(fileReference)
             groups.products.childrenReferences.append(objectFileReference)
             self.products[productName] = fileReference
+        }
+    }
+
+    func generatePlaygrounds(path: AbsolutePath,
+                             groups: ProjectGroups,
+                             objects: PBXObjects,
+                             sourceRootPath _: AbsolutePath) {
+        let paths = path.glob("Playgrounds/*.playground").sorted()
+        let group = groups.playgrounds
+        paths.forEach { playgroundPath in
+            let name = playgroundPath.components.last!
+            let reference = PBXFileReference(sourceTree: .group,
+                                             lastKnownFileType: "file.playground",
+                                             path: name,
+                                             xcLanguageSpecificationIdentifier: "xcode.lang.swift")
+            let fileReferenceReference = objects.addObject(reference)
+            group.childrenReferences.append(fileReferenceReference)
         }
     }
 

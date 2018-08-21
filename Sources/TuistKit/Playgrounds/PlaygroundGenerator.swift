@@ -2,8 +2,6 @@ import Basic
 import Foundation
 import TuistCore
 
-//        B92E5E1F212C447100E16D2A /* Downloads.playground */ = {isa = PBXFileReference; lastKnownFileType = file.playground; path = Downloads.playground; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.swift; };
-
 enum PlaygroundGenerationError: FatalError, Equatable {
     case alreadyExisting(AbsolutePath)
 
