@@ -45,8 +45,8 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(subject.products.sourceTree, .group)
 
         XCTAssertTrue(main.childrenReferences.contains(subject.playgrounds.reference))
-        XCTAssertEqual(subject.playgrounds.name, "Playgrounds")
-        XCTAssertNil(subject.playgrounds.path)
+        XCTAssertEqual(subject.playgrounds.path, "Playgrounds")
+        XCTAssertNil(subject.playgrounds.name)
         XCTAssertEqual(subject.playgrounds.sourceTree, .group)
     }
 
