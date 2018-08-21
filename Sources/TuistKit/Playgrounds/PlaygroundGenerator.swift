@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-enum PlaygroundGenerationError: FatalError {
+enum PlaygroundGenerationError: FatalError, Equatable {
     case alreadyExisting(AbsolutePath)
 
     var description: String {
@@ -15,6 +15,13 @@ enum PlaygroundGenerationError: FatalError {
     var type: ErrorType {
         switch self {
         case .alreadyExisting: return .abort
+        }
+    }
+
+    static func == (lhs: PlaygroundGenerationError, rhs: PlaygroundGenerationError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.alreadyExisting(lhsPath), .alreadyExisting(rhsPath)):
+            return lhsPath == rhsPath
         }
     }
 }
@@ -53,9 +60,9 @@ final class PlaygroundGenerator: PlaygroundGenerating {
         let xcplaygroundPath = playgroundPath.appending(component: "contents.xcplayground")
         let contentsPath = playgroundPath.appending(component: "Contents.swift")
 
-        try content.write(to: xcplaygroundPath.url, atomically: true, encoding: .utf8)
+        try content.write(to: contentsPath.url, atomically: true, encoding: .utf8)
         try PlaygroundGenerator.xcplaygroundContent(platform: platform)
-            .write(to: contentsPath.url,
+            .write(to: xcplaygroundPath.url,
                    atomically: true,
                    encoding: .utf8)
     }
