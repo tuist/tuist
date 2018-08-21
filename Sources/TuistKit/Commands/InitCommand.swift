@@ -34,6 +34,7 @@ class InitCommand: NSObject, Command {
     let fileHandler: FileHandling
     let printer: Printing
     let infoplistProvisioner: InfoPlistProvisioning
+    let playgroundGenerator: PlaygroundGenerating
 
     // MARK: - Init
 
@@ -41,13 +42,15 @@ class InitCommand: NSObject, Command {
         self.init(parser: parser,
                   fileHandler: FileHandler(),
                   printer: Printer(),
-                  infoplistProvisioner: InfoPlistProvisioner())
+                  infoplistProvisioner: InfoPlistProvisioner(),
+                  playgroundGenerator: PlaygroundGenerator())
     }
 
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
          printer: Printing,
-         infoplistProvisioner: InfoPlistProvisioning) {
+         infoplistProvisioner: InfoPlistProvisioning,
+         playgroundGenerator: PlaygroundGenerating) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         productArgument = subParser.add(option: "--product",
                                         shortName: nil,
@@ -78,6 +81,7 @@ class InitCommand: NSObject, Command {
         self.fileHandler = fileHandler
         self.printer = printer
         self.infoplistProvisioner = infoplistProvisioner
+        self.playgroundGenerator = playgroundGenerator
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
@@ -89,6 +93,7 @@ class InitCommand: NSObject, Command {
         try generateSources(name: name, platform: platform, product: product, path: path)
         try generateTests(name: name, path: path)
         try generatePlists(platform: platform, product: product, path: path)
+        try generatePlaygrounds(name: name, path: path, platform: platform)
         printer.print(success: "Project generated at path \(path.asString).")
     }
 
@@ -219,6 +224,15 @@ class InitCommand: NSObject, Command {
         }
         """
         try content.write(to: path.appending(component: "\(name)Tests.swift").url, atomically: true, encoding: .utf8)
+    }
+
+    fileprivate func generatePlaygrounds(name: String, path: AbsolutePath, platform: Platform) throws {
+        let playgroundsPath = path.appending(component: "Playgrounds")
+        try fileHandler.createFolder(playgroundsPath)
+        try playgroundGenerator.generate(path: playgroundsPath,
+                                         name: name,
+                                         platform: platform,
+                                         content: PlaygroundGenerator.defaultContent())
     }
 
     fileprivate func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
