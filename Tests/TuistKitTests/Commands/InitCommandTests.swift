@@ -64,9 +64,10 @@ final class InitCommandTests: XCTestCase {
     func test_platformArgument() {
         XCTAssertEqual(subject.platformArgument.name, "--platform")
         XCTAssertTrue(subject.platformArgument.isOptional)
-        XCTAssertEqual(subject.platformArgument.usage, "The platform (ios or macos) the product will be for (Default: ios).")
+        XCTAssertEqual(subject.platformArgument.usage, "The platform (ios, tvos or macos) the product will be for (Default: ios).")
         XCTAssertEqual(subject.platformArgument.completion, ShellCompletion.values([
             (value: "ios", description: "iOS platform"),
+            (value: "tvos", description: "tvOS platform"),
             (value: "macos", description: "macOS platform"),
         ]))
     }
@@ -104,6 +105,26 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
+    }
+    
+    func test_run_when_tvos_application() throws {
+        let result = try parser.parse(["init", "--product", "application", "--platform", "tvos"])
+        try subject.run(with: result)
+        let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+        
+        let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
+        XCTAssertTrue(fileHandler.exists(playgroundsPath))
+        XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .tvOS)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
 
@@ -144,6 +165,26 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
+    }
+    
+    func test_run_when_tvos_framework() throws {
+        let result = try parser.parse(["init", "--product", "framework", "--platform", "tvos"])
+        try subject.run(with: result)
+        let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
+        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+        
+        let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
+        XCTAssertTrue(fileHandler.exists(playgroundsPath))
+        XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.0, playgroundsPath)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
+        XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .tvOS)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
 
