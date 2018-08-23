@@ -63,9 +63,10 @@ class InitCommand: NSObject, Command {
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
                                          kind: String.self,
-                                         usage: "The platform (ios or macos) the product will be for (Default: ios).",
+                                         usage: "The platform (ios, tvos or macos) the product will be for (Default: ios).",
                                          completion: ShellCompletion.values([
                                              (value: "ios", description: "iOS platform"),
+                                             (value: "tvos", description: "tvOS platform"),
                                              (value: "macos", description: "macOS platform"),
         ]))
         pathArgument = subParser.add(option: "--path",
@@ -169,7 +170,7 @@ class InitCommand: NSObject, Command {
             
             }
             """
-        } else if platform == .iOS && product == .app {
+        } else if [.iOS, .tvOS].contains(platform) && product == .app {
             filename = "AppDelegate.swift"
 
             content = """
@@ -268,11 +269,10 @@ class InitCommand: NSObject, Command {
 
     fileprivate func platform(arguments: ArgumentParser.Result) throws -> Platform {
         if let platformString = arguments.get(self.platformArgument) {
-            let valid = ["ios", "macos"]
-            if valid.contains(platformString) {
-                return (platformString == "ios") ? .iOS : .macOS
+            if let platform = Platform(string: platformString) {
+                return platform
             } else {
-                throw ArgumentParserError.invalidValue(argument: "platform", error: .custom("Platform should be either ios or macos"))
+                throw ArgumentParserError.invalidValue(argument: "platform", error: .custom("Platform should be either ios, tvos, or macos"))
             }
         } else {
             return .iOS
