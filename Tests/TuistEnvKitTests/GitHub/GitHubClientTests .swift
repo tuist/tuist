@@ -51,7 +51,8 @@ final class GitHubClientTests: XCTestCase {
                 return (nil, nil)
             }
         }
-        let got = try subject.execute(request: request) as? [String: String]
+        let gotData = try subject.execute(request: request)
+        let got = try JSONSerialization.jsonObject(with: gotData, options: []) as? [String: String]
         XCTAssertEqual(got?["test"], "test")
     }
 }

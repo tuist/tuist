@@ -22,4 +22,11 @@ final class GitHubRequestsFactoryTests: XCTestCase {
         XCTAssertEqual(got.url, baseURL.appendingPathComponent("/repos/\(GitHubRequestsFactory.releasesRepository)/releases"))
         XCTAssertNil(got.httpBody)
     }
+
+    func test_release() {
+        let got = subject.release(tag: "1.2.3")
+        XCTAssertEqual(got.httpMethod, "GET")
+        XCTAssertEqual(got.url, baseURL.appendingPathComponent("/repos/\(GitHubRequestsFactory.releasesRepository)/releases/tags/1.2.3"))
+        XCTAssertNil(got.httpBody)
+    }
 }

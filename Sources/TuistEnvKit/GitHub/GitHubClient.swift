@@ -3,14 +3,10 @@ import TuistCore
 import Utility
 
 protocol GitHubClienting: AnyObject {
-    func execute(request: URLRequest) throws -> Any
+    func releases() throws -> [Release]
+    func release(tag: String) throws -> Release
 }
 
-/// GitHub client error.
-///
-/// - sessionError: when URLSession throws an error.
-/// - missingData: when the request doesn't return any data.
-/// - decodingError: when there's an error decoding the API response.
 enum GitHubClientError: FatalError {
     case sessionError(Error)
     case missingData
@@ -36,34 +32,52 @@ enum GitHubClientError: FatalError {
     }
 }
 
-/// GitHub Client.
 class GitHubClient: GitHubClienting {
-    /// Session scheduler.
-    let sessionScheduler: URLSessionScheduling
 
-    init(sessionScheduler: URLSessionScheduling = URLSessionScheduler()) {
+    // MARK: - Attributes
+
+    let sessionScheduler: URLSessionScheduling
+    let requestFactory: GitHubRequestsFactory
+    let decoder: JSONDecoder
+
+    // MARK: - Init
+
+    init(sessionScheduler: URLSessionScheduling = URLSessionScheduler(),
+         requestFactory: GitHubRequestsFactory = GitHubRequestsFactory(),
+         decoder: JSONDecoder = JSONDecoder()) {
         self.sessionScheduler = sessionScheduler
+        self.requestFactory = requestFactory
+        self.decoder = decoder
     }
 
-    /// Executes a request against the GitHub API.
-    ///
-    /// - Parameters:
-    ///   - path: request path.
-    ///   - method: request HTTP method.
-    /// - Returns: API json response.
-    /// - Throws: if the request fails.
-    func execute(request: URLRequest) throws -> Any {
+    // MARK: - GitHubClienting
+
+    func execute(request: URLRequest) throws -> Data {
         let response = sessionScheduler.schedule(request: request)
         if let error = response.error {
             throw GitHubClientError.sessionError(error)
         } else if response.data == nil {
             throw GitHubClientError.missingData
         } else {
-            do {
-                return try JSONSerialization.jsonObject(with: response.data!, options: [])
-            } catch {
-                throw GitHubClientError.decodingError(error)
-            }
+            return response.data!
+        }
+    }
+
+    func releases() throws -> [Release] {
+        let data = try execute(request: requestFactory.releases())
+        do {
+            return try decoder.decode([Release].self, from: data)
+        } catch {
+            throw GitHubClientError.decodingError(error)
+        }
+    }
+
+    func release(tag: String) throws -> Release {
+        let data = try execute(request: requestFactory.release(tag: tag))
+        do {
+            return try decoder.decode(Release.self, from: data)
+        } catch {
+            throw GitHubClientError.decodingError(error)
         }
     }
 }
