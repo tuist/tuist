@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Throw an error if a library target contains resources https://github.com/tuist/tuist/pull/98 by @pepibumur.
 - Playgrounds support https://github.com/tuist/tuist/pull/103 by @pepibumur.
+- Faster installation using bundled releases https://github.com/tuist/tuist/pull/104 by @pepibumur.
 
 ### Changed
 
