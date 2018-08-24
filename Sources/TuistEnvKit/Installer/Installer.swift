@@ -87,11 +87,13 @@ final class Installer: Installing {
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            try system.popen("curl", bundleURL.absoluteString, "--output", downloadPath.asString, verbose: false)
+            try system.capture("curl", "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString, verbose: false).throwIfError()
 
             // Unzip
             printer.print("Installing...")
-            try system.popen("unzip", downloadPath.asString, "-d", installationDirectory.asString, verbose: true)
+            try system.capture("unzip", downloadPath.asString, "-d", installationDirectory.asString, verbose: true).throwIfError()
+
+            printer.print("Version \(version) installed.")
         })
     }
 
