@@ -90,6 +90,13 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
                 "UIInterfaceOrientationLandscapeRight",
             ]
         }
+        
+        // tvOS application
+        if product == .app && platform == .tvOS {
+            base["LSRequiresIPhoneOS"] = true
+            base["UIRequiredDeviceCapabilities"] = ["arm64"]
+        }
+        
         return base
     }
 }

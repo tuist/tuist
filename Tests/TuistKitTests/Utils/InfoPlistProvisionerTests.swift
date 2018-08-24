@@ -44,6 +44,25 @@ final class InfoPlistProvisionerTests: XCTestCase {
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
     }
+    
+    func test_generate_when_tvos_app() throws {
+        let got = try provision(platform: .tvOS, product: .app)
+        let expected: [String: Any] = [
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleName": "$(PRODUCT_NAME)",
+            "CFBundleShortVersionString": "1.0",
+            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+            "CFBundleVersion": "1",
+            "CFBundlePackageType": "APPL",
+            "LSRequiresIPhoneOS": true,
+            "UIRequiredDeviceCapabilities": ["arm64"],
+        ]
+        XCTAssertEqual(NSDictionary(dictionary: got),
+                       NSDictionary(dictionary: expected))
+    }
 
     func test_generate_when_macos_app() throws {
         let got = try provision(platform: .macOS, product: .app)
@@ -66,24 +85,6 @@ final class InfoPlistProvisionerTests: XCTestCase {
     }
 
     func test_generate_when_macos_framework() throws {
-        let got = try provision(platform: .iOS, product: .framework)
-        let expected: [String: Any] = [
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleName": "$(PRODUCT_NAME)",
-            "CFBundleShortVersionString": "1.0",
-            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
-            "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
-            "CFBundlePackageType": "FMWK",
-            "NSPrincipalClass": "",
-        ]
-        XCTAssertEqual(NSDictionary(dictionary: got),
-                       NSDictionary(dictionary: expected))
-    }
-
-    func test_generate_when_ios_framework() throws {
         let got = try provision(platform: .macOS, product: .framework)
         let expected: [String: Any] = [
             "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
@@ -96,11 +97,47 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
             "CFBundlePackageType": "FMWK",
             "NSPrincipalClass": "",
-        ]
+            ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
     }
 
+    func test_generate_when_ios_framework() throws {
+        let got = try provision(platform: .iOS, product: .framework)
+        let expected: [String: Any] = [
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleName": "$(PRODUCT_NAME)",
+            "CFBundleShortVersionString": "1.0",
+            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+            "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+            "CFBundlePackageType": "FMWK",
+            "NSPrincipalClass": "",
+            ]
+        XCTAssertEqual(NSDictionary(dictionary: got),
+                       NSDictionary(dictionary: expected))
+    }
+
+    func test_generate_when_tvos_framework() throws {
+        let got = try provision(platform: .tvOS, product: .framework)
+        let expected: [String: Any] = [
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleName": "$(PRODUCT_NAME)",
+            "CFBundleShortVersionString": "1.0",
+            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+            "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+            "CFBundlePackageType": "FMWK",
+            "NSPrincipalClass": "",
+            ]
+        XCTAssertEqual(NSDictionary(dictionary: got),
+                       NSDictionary(dictionary: expected))
+    }
+    
     func provision(platform: Platform, product: Product) throws -> [String: AnyHashable] {
         try subject.generate(path: path, platform: platform, product: product)
         let data = try Data(contentsOf: path.url)

@@ -5,6 +5,21 @@ enum Platform: String {
     case macOS
     case watchOS
     case tvOS
+    
+    init?(string: String) {
+        switch string.lowercased() {
+        case "ios":
+            self = .iOS
+        case "macos":
+            self = .macOS
+        case "watchos":
+            self = .watchOS
+        case "tvos":
+            self = .tvOS
+        default:
+            return nil
+        }
+    }
 }
 
 extension Platform {
