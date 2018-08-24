@@ -2,11 +2,14 @@ import Foundation
 @testable import TuistEnvKit
 
 final class MockGitHubClient: GitHubClienting {
-    var executeCallCount: UInt = 0
-    var executeStub: ((URLRequest) throws -> Any)?
+    var releasesStub: (() throws -> [Release])?
+    var releaseStub: ((String) throws -> Release)?
 
-    func execute(request: URLRequest) throws -> Any {
-        executeCallCount += 1
-        return try executeStub?(request) ?? [:]
+    func releases() throws -> [Release] {
+        return try releasesStub?() ?? []
+    }
+
+    func release(tag: String) throws -> Release {
+        return try releaseStub?(tag) ?? Release.test()
     }
 }

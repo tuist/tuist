@@ -10,7 +10,6 @@ final class Updater: Updating {
     // MARK: - Attributes
 
     let githubClient: GitHubClienting
-    let githubRequestFactory: GitHubRequestsFactory = GitHubRequestsFactory()
     let versionsController: VersionsControlling
     let installer: Installing
     let printer: Printing
@@ -30,11 +29,7 @@ final class Updater: Updating {
     // MARK: - Internal
 
     func update() throws {
-        let json = try githubClient.execute(request: githubRequestFactory.releases())
-        let jsonDecoder = JSONDecoder()
-        let jsonData = try JSONSerialization.data(withJSONObject: json, options: [])
-
-        let releases: [Release] = try jsonDecoder.decode([Release].self, from: jsonData)
+        let releases = try githubClient.releases()
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
             print("No remote versions found")

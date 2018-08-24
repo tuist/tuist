@@ -27,33 +27,40 @@ enum ReleaseDecodeError: FatalError, Equatable {
     }
 }
 
-/// GitHub release.
 struct Release: Decodable {
-    /// Release asset.
     struct Asset: Decodable {
         let downloadURL: Foundation.URL
+        let name: String
 
         enum CodingKeys: String, CodingKey {
             case downloadURL = "browser_download_url"
+            case name
         }
     }
 
     // MARK: - Attributes
 
-    /// Release id
     let id: Int
-
-    /// Version
     let version: Version
-
-    /// Name
     let name: String?
-
-    /// Body
     let body: String?
-
-    /// Release assets
     let assets: [Asset]
+
+    // MARK: - Init
+
+    init(id: Int,
+         version: Version,
+         name: String?,
+         body: String?,
+         assets: [Asset]) {
+        self.id = id
+        self.version = version
+        self.name = name
+        self.body = body
+        self.assets = assets
+    }
+
+    // MARK: - Decodable
 
     enum CodingKeys: String, CodingKey {
         case id

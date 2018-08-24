@@ -32,6 +32,8 @@ final class Installer: Installing {
     let fileHandler: FileHandling
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
+    let githubClient: GitHubClienting
+    let githubRequestsFactory: GitHubRequestsFactory
 
     // MARK: - Init
 
@@ -39,25 +41,62 @@ final class Installer: Installing {
          printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
          buildCopier: BuildCopying = BuildCopier(),
-         versionsController: VersionsControlling = VersionsController()) {
+         versionsController: VersionsControlling = VersionsController(),
+         githubClient: GitHubClienting = GitHubClient(),
+         githubRequestsFactory: GitHubRequestsFactory = GitHubRequestsFactory()) {
         self.system = system
         self.printer = printer
         self.fileHandler = fileHandler
         self.buildCopier = buildCopier
         self.versionsController = versionsController
+        self.githubClient = githubClient
+        self.githubRequestsFactory = githubRequestsFactory
     }
 
     // MARK: - Installing
 
     func install(version: String) throws {
-        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try install(version: version, temporaryDirectory: temporaryDirectory)
+        do {
+            if let bundleURL = try self.bundleURL(version: version) {
+                try installFromBundle(bundleURL: bundleURL, version: version)
+            } else {
+                try installFromSource(version: version)
+            }
+        } catch {
+            try installFromSource(version: version)
+        }
     }
 
-    func install(version: String,
-                 temporaryDirectory: TemporaryDirectory,
-                 verbose: Bool = false,
-                 printing: Bool = true) throws {
+    func bundleURL(version: String) throws -> URL? {
+        let release = try githubClient.release(tag: version)
+        guard let bundleAsset = release.assets.first(where: { $0.name == Constants.bundleName }) else {
+            return nil
+        }
+        return bundleAsset.downloadURL
+    }
+
+    func installFromBundle(bundleURL: URL, version: String) throws {
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+
+        try versionsController.install(version: version, installation: { installationDirectory in
+            // Delete installation directory if it exists
+            if fileHandler.exists(installationDirectory) {
+                try fileHandler.delete(installationDirectory)
+            }
+
+            // Download bundle
+            printer.print("Downloading version from \(bundleURL.absoluteString)")
+            let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
+            try system.popen("curl", bundleURL.absoluteString, "--output", downloadPath.asString, verbose: false)
+
+            // Unzip
+            printer.print("Installing...")
+            try system.popen("unzip", downloadPath.asString, "-d", installationDirectory.asString, verbose: true)
+        })
+    }
+
+    func installFromSource(version: String) throws {
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         try versionsController.install(version: version) { installationDirectory in
             // Paths
             let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
@@ -68,10 +107,11 @@ final class Installer: Installing {
             }
 
             // Cloning and building
-            if printing { printer.print("Pulling source code") }
-            try system.capture("git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString, verbose: verbose).throwIfError()
+            printer.print("Pulling source code")
+
+            try system.capture("git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString, verbose: false).throwIfError()
             do {
-                try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: verbose).throwIfError()
+                try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: false).throwIfError()
             } catch let error as SystemError {
                 if error.description.contains("did not match any file(s) known to git") {
                     throw InstallerError.versionNotFound(version)
@@ -79,22 +119,23 @@ final class Installer: Installing {
                 throw error
             }
 
-            if printing { printer.print("Building using Swift (it might take a while)") }
+            printer.print("Building using Swift (it might take a while)")
+
             let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift", verbose: false).stdout.chuzzle()!
             try system.capture(swiftPath, "build",
                                "--product", "tuist",
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
                                "-Xswiftc", "-static-stdlib",
-                               verbose: verbose).throwIfError()
+                               verbose: false).throwIfError()
             try system.capture(swiftPath, "build",
                                "--product", "ProjectDescription",
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
-                               verbose: verbose).throwIfError()
+                               verbose: false).throwIfError()
 
             // Copying built files
-            try system.capture("mkdir", installationDirectory.asString, verbose: verbose).throwIfError()
+            try system.capture("mkdir", installationDirectory.asString, verbose: false).throwIfError()
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
 
@@ -102,7 +143,7 @@ final class Installer: Installing {
             let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
             try "\(version)".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
-            if printing { printer.print("Version \(version) installed.") }
+            printer.print("Version \(version) installed.")
         }
     }
 }
