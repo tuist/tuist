@@ -39,6 +39,21 @@ public class Target: Codable {
     /// CoreData models.
     let coreDataModels: [CoreDataModel]
 
+    public enum CodingKeys: String, CodingKey {
+        case name
+        case platform
+        case product
+        case bundleId = "bundle_id"
+        case infoPlist = "info_plist"
+        case entitlements
+        case settings
+        case dependencies
+        case sources
+        case resources
+        case headers
+        case coreDataModels = "core_data_models"
+    }
+
     /// Initializes the target.
     ///
     /// - Parameters:
