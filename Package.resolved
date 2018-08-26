@@ -39,7 +39,7 @@
       },
       {
         "package": "ReactiveTask",
-        "repositoryURL": "https://github.com/carthage/ReactiveTask.git",
+        "repositoryURL": "git@github.com:carthage/ReactiveTask.git",
         "state": {
           "branch": null,
           "revision": "57d221b82270b05380d66117e07ac4069b78a4e9",
@@ -57,7 +57,7 @@
       },
       {
         "package": "SwiftPM",
-        "repositoryURL": "https://github.com/apple/swift-package-manager.git",
+        "repositoryURL": "https://github.com/apple/swift-package-manager",
         "state": {
           "branch": null,
           "revision": "3e71e57db41ebb32ccec1841a7e26c428a9c08c5",
@@ -66,10 +66,19 @@
       },
       {
         "package": "xcodeproj",
-        "repositoryURL": "https://github.com/tuist/xcodeproj.git",
+        "repositoryURL": "git@github.com:tuist/xcodeproj.git",
         "state": {
           "branch": null,
           "revision": "549d67686d90ef8e45fccdca147682f185af2ad0",
+          "version": null
+        }
+      },
+      {
+        "package": "Yams",
+        "repositoryURL": "https://github.com/jpsim/Yams.git",
+        "state": {
+          "branch": null,
+          "revision": "5edc313ad5ba23c037cd1f76f6e9379bf026e592",
           "version": null
         }
       }
