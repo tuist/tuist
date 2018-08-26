@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Fixed
+
+- Snake-cased build settings keys https://github.com/tuist/tuist/pull/107 by @pepibumur.
+
 ## 0.4.0
 
 ### Added
