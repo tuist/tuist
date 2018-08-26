@@ -44,7 +44,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
     }
-    
+
     func test_generate_when_tvos_app() throws {
         let got = try provision(platform: .tvOS, product: .app)
         let expected: [String: Any] = [
@@ -97,7 +97,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
             "CFBundlePackageType": "FMWK",
             "NSPrincipalClass": "",
-            ]
+        ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
     }
@@ -115,7 +115,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
             "CFBundlePackageType": "FMWK",
             "NSPrincipalClass": "",
-            ]
+        ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
     }
@@ -133,11 +133,11 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
             "CFBundlePackageType": "FMWK",
             "NSPrincipalClass": "",
-            ]
+        ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
     }
-    
+
     func provision(platform: Platform, product: Product) throws -> [String: AnyHashable] {
         try subject.generate(path: path, platform: platform, product: product)
         let data = try Data(contentsOf: path.url)
