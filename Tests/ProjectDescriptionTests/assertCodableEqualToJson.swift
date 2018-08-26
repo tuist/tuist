@@ -3,7 +3,6 @@ import XCTest
 
 func assertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String) {
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let decoded = try! decoder.decode(C.self, from: json.data(using: .utf8)!)
     let encoder = JSONEncoder()
     encoder.keyEncodingStrategy = .convertToSnakeCase

@@ -5,6 +5,12 @@ import Foundation
 public class Configuration: Codable {
     public let settings: [String: String]
     public let xcconfig: String?
+
+    public enum CodingKeys: String, CodingKey {
+        case settings
+        case xcconfig
+    }
+
     public init(settings: [String: String] = [:], xcconfig: String? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig

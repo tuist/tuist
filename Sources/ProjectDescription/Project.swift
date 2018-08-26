@@ -7,6 +7,12 @@ public class Project: Codable {
     public let targets: [Target]
     public let settings: Settings?
 
+    public enum CodingKeys: String, CodingKey {
+        case name
+        case targets
+        case settings
+    }
+
     public init(name: String,
                 settings: Settings? = nil,
                 targets: [Target] = []) {

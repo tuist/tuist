@@ -34,8 +34,8 @@ extension TargetDependency {
         case name
         case target
         case path
-        case publicHeaders
-        case swiftModuleMap
+        case publicHeaders = "public_headers"
+        case swiftModuleMap = "swift_module_map"
     }
 
     public init(from decoder: Decoder) throws {
