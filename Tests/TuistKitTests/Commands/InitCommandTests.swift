@@ -107,7 +107,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
-    
+
     func test_run_when_tvos_application() throws {
         let result = try parser.parse(["init", "--product", "application", "--platform", "tvos"])
         try subject.run(with: result)
@@ -118,7 +118,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
-        
+
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
         XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
@@ -167,7 +167,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
     }
-    
+
     func test_run_when_tvos_framework() throws {
         let result = try parser.parse(["init", "--product", "framework", "--platform", "tvos"])
         try subject.run(with: result)
@@ -178,7 +178,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
-        
+
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
         XCTAssertEqual(playgroundGenerator.generateCallCount, 1)

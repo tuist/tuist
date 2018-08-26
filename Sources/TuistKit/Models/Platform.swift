@@ -5,7 +5,7 @@ enum Platform: String {
     case macOS
     case watchOS
     case tvOS
-    
+
     init?(string: String) {
         switch string.lowercased() {
         case "ios":
