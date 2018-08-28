@@ -13,23 +13,27 @@ class GraphLoader: GraphLoading {
     let linter: GraphLinting
     let printer: Printing
     let fileHandler: FileHandling
+    let manifestLoader: GraphManifestLoading
 
     // MARK: - Init
 
     init(linter: GraphLinting = GraphLinter(),
          printer: Printing = Printer(),
-         fileHandler: FileHandling = FileHandler()) {
+         fileHandler: FileHandling = FileHandler(),
+         manifestLoader: GraphManifestLoading = GraphManifestLoader()) {
         self.linter = linter
         self.printer = printer
         self.fileHandler = fileHandler
+        self.manifestLoader = manifestLoader
     }
 
     func load(path: AbsolutePath) throws -> Graph {
         var graph: Graph!
-        if fileHandler.exists(path.appending(component: Constants.Manifest.project)) {
-            graph = try loadProject(path: path)
-        } else if fileHandler.exists(path.appending(component: Constants.Manifest.workspace)) {
+        let manifests = manifestLoader.manifests(at: path)
+        if manifests.contains(.workspace) {
             graph = try loadWorkspace(path: path)
+        } else if manifests.contains(.project) {
+            graph = try loadProject(path: path)
         } else {
             throw GraphLoadingError.manifestNotFound(path)
         }

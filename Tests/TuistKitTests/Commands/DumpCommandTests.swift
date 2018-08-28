@@ -25,24 +25,19 @@ final class DumpCommandTests: XCTestCase {
                               parser: parser)
     }
 
-    func test_dumpCommandError_returns_the_right_description_when_manifestNotFound() {
-        let error = DumpCommandError.manifestNotFound(AbsolutePath("/test"))
-        XCTAssertEqual(error.description, "Couldn't find Project.swift or Workspace.swift in the directory /test")
-    }
-
     func test_name() {
         XCTAssertEqual(DumpCommand.command, "dump")
     }
 
     func test_overview() {
-        XCTAssertEqual(DumpCommand.overview, "Prints parsed Project.swift or Workspace.swift as JSON.")
+        XCTAssertEqual(DumpCommand.overview, "Outputs the project manifest as a JSON")
     }
 
     func test_run_throws_when_file_doesnt_exist() throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
         XCTAssertThrowsError(try subject.run(with: result)) {
-            XCTAssertEqual($0 as? DumpCommandError, DumpCommandError.manifestNotFound(tmpDir.path))
+            XCTAssertEqual($0 as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.project, tmpDir.path))
         }
     }
 
@@ -55,7 +50,7 @@ final class DumpCommandTests: XCTestCase {
         XCTAssertThrowsError(try subject.run(with: result))
     }
 
-    func test_prints_the_manifest() throws {
+    func test_prints_the_manifest_when_swift_manifest() throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let config = """
         import ProjectDescription
@@ -65,6 +60,52 @@ final class DumpCommandTests: XCTestCase {
               targets: [])
         """
         try config.write(toFile: tmpDir.path.appending(component: "Project.swift").asString,
+                         atomically: true,
+                         encoding: .utf8)
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
+        try subject.run(with: result)
+        let expected = """
+        {
+          "name": "tuist",
+          "targets": [
+
+          ]
+        }\n
+        """
+        XCTAssertEqual(printer.printArgs.first, expected)
+    }
+
+    func test_prints_the_manifest_when_json_manifest() throws {
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let config = """
+        {
+            "name": "tuist",
+            "targets": []
+        }
+        """
+        try config.write(toFile: tmpDir.path.appending(component: "Project.json").asString,
+                         atomically: true,
+                         encoding: .utf8)
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
+        try subject.run(with: result)
+        let expected = """
+        {
+          "name": "tuist",
+          "targets": [
+
+          ]
+        }\n
+        """
+        XCTAssertEqual(printer.printArgs.first, expected)
+    }
+
+    func test_prints_the_manifest_when_yaml_manifest() throws {
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let config = """
+        name: tuist
+        targets: []
+        """
+        try config.write(toFile: tmpDir.path.appending(component: "Project.yaml").asString,
                          atomically: true,
                          encoding: .utf8)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])

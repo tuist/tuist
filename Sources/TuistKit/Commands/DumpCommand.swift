@@ -3,36 +3,12 @@ import Foundation
 import TuistCore
 import Utility
 
-enum DumpCommandError: FatalError, Equatable {
-    case manifestNotFound(AbsolutePath)
-    var description: String {
-        switch self {
-        case let .manifestNotFound(path):
-            return "Couldn't find Project.swift or Workspace.swift in the directory \(path.asString)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .manifestNotFound:
-            return .abort
-        }
-    }
-
-    static func == (lhs: DumpCommandError, rhs: DumpCommandError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.manifestNotFound(lhsPath), .manifestNotFound(rhsPath)):
-            return lhsPath == rhsPath
-        }
-    }
-}
-
 class DumpCommand: NSObject, Command {
 
     // MARK: - Command
 
     static let command = "dump"
-    static let overview = "Prints parsed Project.swift or Workspace.swift as JSON."
+    static let overview = "Outputs the project manifest as a JSON"
 
     // MARK: - Attributes
 
@@ -61,7 +37,7 @@ class DumpCommand: NSObject, Command {
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
-                                     usage: "The path where the Project.swift file will be generated",
+                                     usage: "The path to the folder where the project manifest is",
                                      completion: .filename)
     }
 
@@ -74,16 +50,7 @@ class DumpCommand: NSObject, Command {
         } else {
             path = AbsolutePath.current
         }
-        let projectPath = path.appending(component: Constants.Manifest.project)
-        let workspacePath = path.appending(component: Constants.Manifest.workspace)
-        var json: JSON!
-        if fileHandler.exists(projectPath) {
-            json = try manifestLoader.load(path: projectPath)
-        } else if fileHandler.exists(workspacePath) {
-            json = try manifestLoader.load(path: workspacePath)
-        } else {
-            throw DumpCommandError.manifestNotFound(path)
-        }
+        let json: JSON = try manifestLoader.load(.project, path: path)
         printer.print(json.toString(prettyPrint: true))
     }
 }

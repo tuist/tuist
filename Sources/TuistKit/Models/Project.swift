@@ -45,9 +45,7 @@ class Project: Equatable {
          cache _: GraphLoaderCaching,
          fileHandler: FileHandling = FileHandler(),
          manifestLoader: GraphManifestLoading = GraphManifestLoader()) throws {
-        let projectPath = path.appending(component: Constants.Manifest.project)
-        if !fileHandler.exists(projectPath) { throw GraphLoadingError.missingFile(projectPath) }
-        let json = try manifestLoader.load(path: projectPath)
+        let json = try manifestLoader.load(.project, path: path)
         self.path = path
         name = try json.get("name")
         let targetsJSONs: [JSON] = try json.get("targets")

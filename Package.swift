@@ -15,6 +15,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/xcodeproj.git", .revision("549d67686d90ef8e45fccdca147682f185af2ad0")),
         .package(url: "https://github.com/apple/swift-package-manager.git", .revision("3e71e57db41ebb32ccec1841a7e26c428a9c08c5")),
         .package(url: "https://github.com/Carthage/ReactiveTask.git", .revision("57d221b82270b05380d66117e07ac4069b78a4e9")),
+        .package(url: "https://github.com/jpsim/Yams.git", .revision("5edc313ad5ba23c037cd1f76f6e9379bf026e592")),
     ],
     targets: [
         .target(
@@ -28,7 +29,7 @@ let package = Package(
             dependencies: ["TuistCore", "TuistCoreTesting"]),
         .target(
             name: "TuistKit",
-            dependencies: ["xcodeproj", "Utility", "TuistCore"]),
+            dependencies: ["xcodeproj", "Utility", "TuistCore", "Yams"]),
         .testTarget(
             name: "TuistKitTests",
             dependencies: ["TuistKit", "TuistCoreTesting"]),

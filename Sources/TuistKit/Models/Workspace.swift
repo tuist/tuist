@@ -17,11 +17,9 @@ class Workspace: Equatable {
     }
 
     static func at(_ path: AbsolutePath,
-                   fileHandler: FileHandling = FileHandler(),
+                   fileHandler _: FileHandling = FileHandler(),
                    manifestLoader: GraphManifestLoading = GraphManifestLoader()) throws -> Workspace {
-        let workspacePath = path.appending(component: Constants.Manifest.workspace)
-        if !fileHandler.exists(workspacePath) { throw GraphLoadingError.missingFile(workspacePath) }
-        let json = try manifestLoader.load(path: workspacePath)
+        let json = try manifestLoader.load(.workspace, path: path)
 
         let projectsStrings: [String] = try json.get("projects")
         let name: String = try json.get("name")
