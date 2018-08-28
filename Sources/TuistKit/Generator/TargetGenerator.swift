@@ -39,6 +39,7 @@ final class TargetGenerator: TargetGenerating {
     let linkGenerator: LinkGenerating
     let fileGenerator: FileGenerating
     let moduleLoader: GraphModuleLoading
+    let manifestLoader: GraphManifestLoading
 
     // MARK: - Init
 
@@ -46,12 +47,14 @@ final class TargetGenerator: TargetGenerating {
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
          moduleLoader: GraphModuleLoading = GraphModuleLoader(),
-         linkGenerator: LinkGenerating = LinkGenerator()) {
+         linkGenerator: LinkGenerating = LinkGenerator(),
+         manifestLoader: GraphManifestLoading = GraphManifestLoader()) {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.moduleLoader = moduleLoader
         self.linkGenerator = linkGenerator
+        self.manifestLoader = manifestLoader
     }
 
     // MARK: - TargetGenerating
@@ -74,7 +77,7 @@ final class TargetGenerator: TargetGenerating {
 
         /// Files
         var files: [PBXObjectReference] = []
-        let projectManifestPath = project.path.appending(component: Constants.Manifest.project)
+        let projectManifestPath = try manifestLoader.manifestPath(at: project.path, manifest: .project)
         let modulePaths = try moduleLoader.load(projectManifestPath)
         try modulePaths.forEach { filePath in
             let fileReference = try fileGenerator.generateFile(path: filePath,

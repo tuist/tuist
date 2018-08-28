@@ -44,7 +44,7 @@ class GenerateCommand: NSObject, Command {
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
-                                     usage: "The path where the Project.swift file will be generated.",
+                                     usage: "The path where the project will be generated.",
                                      completion: .filename)
         configArgument = subParser.add(option: "--config",
                                        shortName: "-c",
