@@ -107,8 +107,8 @@ class InitCommand: NSObject, Command {
         let project = Project(name: "\(name)",
                               targets: [
                                 Target(name: "\(name)",
-                                       platform: .\(platform.rawValue),
-                                       product: .\(product.rawValue),
+                                       platform: .\(platform.caseValue),
+                                       product: .\(product.caseValue),
                                        bundleId: "io.tuist.\(name)",
                                        infoPlist: "Info.plist",
                                        sources: "Sources/**",
@@ -117,7 +117,7 @@ class InitCommand: NSObject, Command {
                                             /* .framework(path: "framework") */
                                         ]),
                                 Target(name: "\(name)Tests",
-                                       platform: .\(platform.rawValue),
+                                       platform: .\(platform.caseValue),
                                        product: .unitTests,
                                        bundleId: "io.tuist.\(name)Tests",
                                        infoPlist: "Tests.plist",
@@ -269,7 +269,7 @@ class InitCommand: NSObject, Command {
 
     fileprivate func platform(arguments: ArgumentParser.Result) throws -> Platform {
         if let platformString = arguments.get(self.platformArgument) {
-            if let platform = Platform(string: platformString) {
+            if let platform = Platform(rawValue: platformString) {
                 return platform
             } else {
                 throw ArgumentParserError.invalidValue(argument: "platform", error: .custom("Platform should be either ios, tvos, or macos"))

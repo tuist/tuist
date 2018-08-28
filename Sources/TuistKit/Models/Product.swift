@@ -3,20 +3,55 @@ import xcodeproj
 
 public enum Product: String, CustomStringConvertible {
     case app
-    case staticLibrary
-    case dynamicLibrary
+    case staticLibrary = "static_library"
+    case dynamicLibrary = "dynamic_library"
     case framework
-    case unitTests
-    case uiTests
-    case appExtension
-    case watchApp
-    case watch2App
-    case watchExtension
-    case watch2Extension
-    case tvExtension
-    case messagesApplication
-    case messagesExtension
-    case stickerPack
+    case unitTests = "unit_tests"
+    case uiTests = "ui_tests"
+    case appExtension = "app_extension"
+    case watchApp = "watch_app"
+    case watch2App = "watch_2_app"
+    case watchExtension = "watch_extension"
+    case watch2Extension = "watch_2_extension"
+    case tvExtension = "tv_extension"
+    case messagesApplication = "messages_application"
+    case messagesExtension = "messages_extension"
+    case stickerPack = "sticker_pack"
+
+    public var caseValue: String {
+        switch self {
+        case .app:
+            return "app"
+        case .staticLibrary:
+            return "staticLibrary"
+        case .dynamicLibrary:
+            return "dynamicLibrary"
+        case .framework:
+            return "framework"
+        case .unitTests:
+            return "unitTests"
+        case .uiTests:
+            return "uiTests"
+        case .appExtension:
+            return "appExtension"
+        case .watchApp:
+            return "watchApp"
+        case .watch2App:
+            return "watch2App"
+        case .watchExtension:
+            return "watchExtension"
+        case .watch2Extension:
+            return "watch2Extension"
+        case .tvExtension:
+            return "tvExtension"
+        case .messagesApplication:
+            return "messagesApplication"
+        case .messagesExtension:
+            return "messagesExtension"
+        case .stickerPack:
+            return "stickerPack"
+        }
+    }
 
     public var description: String {
         switch self {

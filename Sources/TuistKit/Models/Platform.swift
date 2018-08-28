@@ -1,23 +1,17 @@
 import Foundation
 
 enum Platform: String {
-    case iOS
-    case macOS
-    case watchOS
-    case tvOS
+    case iOS = "ios"
+    case macOS = "macos"
+    case watchOS = "watchos"
+    case tvOS = "tvos"
 
-    init?(string: String) {
-        switch string.lowercased() {
-        case "ios":
-            self = .iOS
-        case "macos":
-            self = .macOS
-        case "watchos":
-            self = .watchOS
-        case "tvos":
-            self = .tvOS
-        default:
-            return nil
+    var caseValue: String {
+        switch self {
+        case .iOS: return "iOS"
+        case .macOS: return "macOS"
+        case .watchOS: return "watchOS"
+        case .tvOS: return "tvOS"
         }
     }
 }

@@ -3,8 +3,8 @@ import Foundation
 // MARK: - Platform
 
 public enum Platform: String, Codable {
-    case iOS
-    case macOS
-    case watchOS
-    case tvOS
+    case iOS = "ios"
+    case macOS = "macos"
+    case watchOS = "watchos"
+    case tvOS = "tvos"
 }
