@@ -20,37 +20,48 @@ let package = Package(
     targets: [
         .target(
             name: "TuistCore",
-            dependencies: ["Utility", "ReactiveTask"]),
+            dependencies: ["Utility", "ReactiveTask"]
+        ),
         .target(
             name: "TuistCoreTesting",
-            dependencies: ["TuistCore"]),
+            dependencies: ["TuistCore"]
+        ),
         .testTarget(
             name: "TuistCoreTests",
-            dependencies: ["TuistCore", "TuistCoreTesting"]),
+            dependencies: ["TuistCore", "TuistCoreTesting"]
+        ),
         .target(
             name: "TuistKit",
-            dependencies: ["xcodeproj", "Utility", "TuistCore", "Yams"]),
+            dependencies: ["xcodeproj", "Utility", "TuistCore", "Yams"]
+        ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistCoreTesting"]),
+            dependencies: ["TuistKit", "TuistCoreTesting"]
+        ),
         .target(
             name: "tuist",
-            dependencies: ["TuistKit"]),
+            dependencies: ["TuistKit"]
+        ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["Utility", "TuistCore"]),
+            dependencies: ["Utility", "TuistCore"]
+        ),
         .testTarget(
             name: "TuistEnvKitTests",
-            dependencies: ["TuistEnvKit", "TuistCoreTesting"]),
+            dependencies: ["TuistEnvKit", "TuistCoreTesting"]
+        ),
         .target(
             name: "tuistenv",
-            dependencies: ["TuistEnvKit"]),
+            dependencies: ["TuistEnvKit"]
+        ),
         .target(
             name: "ProjectDescription",
-            dependencies: []),
+            dependencies: []
+        ),
         .testTarget(
             name: "ProjectDescriptionTests",
-            dependencies: ["ProjectDescription"]),
+            dependencies: ["ProjectDescription"]
+        ),
         .testTarget(
             name: "IntegrationTests",
             dependencies: ["TuistKit", "Utility"]

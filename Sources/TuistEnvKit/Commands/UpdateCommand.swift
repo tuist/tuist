@@ -3,7 +3,6 @@ import TuistCore
 import Utility
 
 final class UpdateCommand: Command {
-
     // MARK: - Command
 
     static var command: String = "update"

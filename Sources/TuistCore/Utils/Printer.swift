@@ -12,7 +12,6 @@ public protocol Printing: AnyObject {
 }
 
 public class Printer: Printing {
-
     // MARK: - Init
 
     public init() {}
@@ -67,7 +66,6 @@ public class Printer: Printing {
 }
 
 final class InteractiveWriter {
-
     // MARK: - Attributes
 
     static let stderr = InteractiveWriter(stream: stderrStream)

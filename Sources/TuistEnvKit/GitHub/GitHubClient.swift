@@ -33,7 +33,6 @@ enum GitHubClientError: FatalError {
 }
 
 class GitHubClient: GitHubClienting {
-
     // MARK: - Attributes
 
     let sessionScheduler: URLSessionScheduling

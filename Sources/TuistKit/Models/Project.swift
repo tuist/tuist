@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 class Project: Equatable {
-
     // MARK: - Attributes
 
     let path: AbsolutePath

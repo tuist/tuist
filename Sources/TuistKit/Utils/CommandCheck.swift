@@ -42,7 +42,6 @@ protocol CommandChecking: AnyObject {
 }
 
 final class CommandCheck: CommandChecking {
-
     // MARK: - Attributes
 
     let system: Systeming

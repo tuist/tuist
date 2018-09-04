@@ -2,7 +2,6 @@ import Basic
 import Foundation
 
 class Scheme: JSONMappable, Equatable {
-
     // MARK: - Attributes
 
     let name: String
@@ -45,7 +44,6 @@ class Scheme: JSONMappable, Equatable {
 }
 
 class Arguments: JSONMappable, Equatable {
-
     // MARK: - Attributes
 
     let environment: [String: String]
@@ -73,7 +71,6 @@ class Arguments: JSONMappable, Equatable {
 }
 
 class BuildAction: JSONMappable, Equatable {
-
     // MARK: - Attributes
 
     let targets: [String]
@@ -96,7 +93,6 @@ class BuildAction: JSONMappable, Equatable {
 }
 
 class TestAction: JSONMappable, Equatable {
-
     // MARK: - Attributes
 
     let targets: [String]
@@ -135,7 +131,6 @@ class TestAction: JSONMappable, Equatable {
 }
 
 class RunAction: JSONMappable, Equatable {
-
     // MARK: - Attributes
 
     let config: BuildConfiguration

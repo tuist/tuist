@@ -52,7 +52,6 @@ protocol Graphing: AnyObject {
 }
 
 class Graph: Graphing {
-
     // MARK: - Attributes
 
     private let cache: GraphLoaderCaching

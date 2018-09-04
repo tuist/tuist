@@ -3,7 +3,6 @@ import Foundation
 import xcodeproj
 
 class ProjectGroups {
-
     // MARK: - Attributes
 
     let main: PBXGroup

@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 class Workspace: Equatable {
-
     // MARK: - Attributes
 
     let name: String

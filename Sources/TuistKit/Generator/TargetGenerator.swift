@@ -31,7 +31,6 @@ protocol TargetGenerating: AnyObject {
 }
 
 final class TargetGenerator: TargetGenerating {
-
     // MARK: - Attributes
 
     let configGenerator: ConfigGenerating

@@ -1,7 +1,6 @@
 import Foundation
 
 struct Device: Hashable, Equatable {
-
     // MARK: - Attributes
 
     let state: String

@@ -57,16 +57,16 @@ final class InstallerTests: XCTestCase {
             "--output", downloadPath.asString,
             downloadURL.absoluteString,
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
         system.stub(args: [
             "unzip", downloadPath.asString,
             "-d", self.fileHandler.currentPath.asString,
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
 
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
@@ -104,9 +104,9 @@ final class InstallerTests: XCTestCase {
             "--output", downloadPath.asString,
             downloadURL.absoluteString,
         ],
-        stderror: "download_error",
-        stdout: nil,
-        exitstatus: 1)
+                    stderror: "download_error",
+                    stdout: nil,
+                    exitstatus: 1)
 
         let expected = SystemError(stderror: "download_error", exitcode: 1)
         XCTAssertThrowsError(try subject.install(version: version,
@@ -139,16 +139,16 @@ final class InstallerTests: XCTestCase {
             "--output", downloadPath.asString,
             downloadURL.absoluteString,
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
         system.stub(args: [
             "unzip", downloadPath.asString,
             "-d", self.fileHandler.currentPath.asString,
         ],
-        stderror: "unzip_error",
-        stdout: nil,
-        exitstatus: 1)
+                    stderror: "unzip_error",
+                    stdout: nil,
+                    exitstatus: 1)
 
         let expected = SystemError(stderror: "unzip_error", exitcode: 1)
         XCTAssertThrowsError(try subject.install(version: version,
@@ -170,16 +170,16 @@ final class InstallerTests: XCTestCase {
             "clone", Constants.gitRepositoryURL,
             temporaryDirectory.path.asString,
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
         system.stub(args: [
             "git", "-C", temporaryDirectory.path.asString,
             "checkout", version,
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
         system.stub(args: ["/usr/bin/xcrun", "-f", "swift"],
                     stderror: nil,
                     stdout: "/path/to/swift",
@@ -191,25 +191,25 @@ final class InstallerTests: XCTestCase {
             "--configuration", "release",
             "-Xswiftc", "-static-stdlib",
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
         system.stub(args: [
             "/path/to/swift", "build",
             "--product", "ProjectDescription",
             "--package-path", temporaryDirectory.path.asString,
             "--configuration", "release",
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
         system.stub(args: [
             "/bin/mkdir",
             fileHandler.currentPath.asString,
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
@@ -238,16 +238,16 @@ final class InstallerTests: XCTestCase {
             "clone", Constants.gitRepositoryURL,
             temporaryDirectory.path.asString,
         ],
-        stderror: nil,
-        stdout: nil,
-        exitstatus: 0)
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
         system.stub(args: [
             "git", "-C", temporaryDirectory.path.asString,
             "checkout", version,
         ],
-        stderror: "did not match any file(s) known to git ",
-        stdout: nil,
-        exitstatus: 1)
+                    stderror: "did not match any file(s) known to git ",
+                    stdout: nil,
+                    exitstatus: 1)
 
         let expected = InstallerError.versionNotFound(version)
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory)) {

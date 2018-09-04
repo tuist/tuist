@@ -54,7 +54,6 @@ protocol LinkGenerating: AnyObject {
 }
 
 final class LinkGenerator: LinkGenerating {
-
     // MARK: - LinkGenerating
 
     func generateLinks(target: Target,

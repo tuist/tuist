@@ -3,7 +3,6 @@ import TuistCore
 import Utility
 
 final class UninstallCommand: Command {
-
     // MARK: - Command
 
     static var command: String = "uninstall"

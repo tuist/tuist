@@ -4,7 +4,6 @@ import TuistCore
 import Utility
 
 public final class CommandRegistry {
-
     // MARK: - Attributes
 
     let parser: ArgumentParser

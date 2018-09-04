@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 class GraphNode: Equatable, Hashable {
-
     // MARK: - Attributes
 
     let path: AbsolutePath
@@ -26,7 +25,6 @@ class GraphNode: Equatable, Hashable {
 }
 
 class TargetNode: GraphNode {
-
     // MARK: - Attributes
 
     let project: Project
@@ -190,7 +188,6 @@ class FrameworkNode: PrecompiledNode {
 }
 
 class LibraryNode: PrecompiledNode {
-
     // MARK: - Attributes
 
     let publicHeaders: AbsolutePath

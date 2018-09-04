@@ -2,5 +2,4 @@ import Foundation
 @testable import TuistEnvKit
 import XCTest
 
-final class SettingsTests: XCTestCase {
-}
+final class SettingsTests: XCTestCase {}

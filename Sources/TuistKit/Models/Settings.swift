@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 class Configuration: Equatable {
-
     // MARK: - Attributes
 
     let settings: [String: String]
@@ -30,7 +29,6 @@ class Configuration: Equatable {
 }
 
 class Settings: GraphJSONInitiatable, Equatable {
-
     // MARK: - Attributes
 
     let base: [String: String]

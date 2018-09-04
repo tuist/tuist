@@ -3,7 +3,6 @@ import Foundation
 import xcodeproj
 
 class ProjectFileElements {
-
     // MARK: - Static
 
     // swiftlint:disable:next force_try

@@ -7,7 +7,6 @@ protocol GraphLoading: AnyObject {
 }
 
 class GraphLoader: GraphLoading {
-
     // MARK: - Attributes
 
     let linter: GraphLinting

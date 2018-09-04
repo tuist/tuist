@@ -25,7 +25,6 @@ enum CommandRunnerError: FatalError {
 }
 
 class CommandRunner: CommandRunning {
-
     // MARK: - Attributes
 
     let versionResolver: VersionResolving

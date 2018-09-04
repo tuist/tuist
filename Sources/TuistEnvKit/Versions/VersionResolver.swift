@@ -51,7 +51,6 @@ enum VersionResolverError: FatalError, Equatable {
 }
 
 class VersionResolver: VersionResolving {
-
     // MARK: - Attributes
 
     private let settingsController: SettingsControlling

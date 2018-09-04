@@ -2,7 +2,6 @@ import Foundation
 
 /// Settings
 class Settings: Codable, Equatable {
-
     // MARK: - Init
 
     /// Initializes the settings instance.

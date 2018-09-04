@@ -5,7 +5,6 @@ public protocol ErrorHandling: AnyObject {
 }
 
 public final class ErrorHandler: ErrorHandling {
-
     // MARK: - Attributes
 
     let printer: Printing
