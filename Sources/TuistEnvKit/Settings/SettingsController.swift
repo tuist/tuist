@@ -18,7 +18,6 @@ protocol SettingsControlling: AnyObject {
 
 /// Controller to manage user settings.
 class SettingsController: SettingsControlling {
-
     // MARK: - Attributes
 
     /// Environment controller.

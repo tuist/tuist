@@ -3,7 +3,6 @@ import Foundation
 // MARK: - Workspace
 
 public class Workspace: Codable {
-
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

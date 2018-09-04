@@ -22,7 +22,6 @@ enum InitCommandError: FatalError {
 }
 
 class InitCommand: NSObject, Command {
-
     // MARK: - Attributes
 
     static let command = "init"
@@ -95,6 +94,7 @@ class InitCommand: NSObject, Command {
         try generateTests(name: name, path: path)
         try generatePlists(platform: platform, product: product, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
+        try generateGitIgnore(path: path)
         printer.print(success: "Project generated at path \(path.asString).")
     }
 
@@ -137,6 +137,15 @@ class InitCommand: NSObject, Command {
         try infoplistProvisioner.generate(path: path.appending(component: "Tests.plist"),
                                           platform: platform,
                                           product: .unitTests)
+    }
+
+    fileprivate func generateGitIgnore(path: AbsolutePath) throws {
+        let path = path.appending(component: ".gitignore")
+        let content = """
+        *.xcodeproj
+        *.xcworkspace
+        """
+        try content.write(to: path.url, atomically: true, encoding: .utf8)
     }
 
     fileprivate func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {

@@ -6,7 +6,6 @@ protocol TargetLinting: AnyObject {
 }
 
 class TargetLinter: TargetLinting {
-
     // MARK: - Attributes
 
     private let fileHandler: FileHandling

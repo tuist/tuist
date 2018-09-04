@@ -51,7 +51,6 @@ public struct SystemResult {
 }
 
 public final class System: Systeming {
-
     // MARK: - Attributes
 
     let printer: Printing

@@ -7,7 +7,6 @@ protocol ProjectLinting: AnyObject {
 }
 
 class ProjectLinter: ProjectLinting {
-
     // MARK: - Attributes
 
     let targetLinter: TargetLinting

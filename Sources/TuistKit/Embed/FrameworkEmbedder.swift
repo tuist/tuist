@@ -10,7 +10,6 @@ protocol FrameworkEmbedding: AnyObject {
 }
 
 final class FrameworkEmbedder: FrameworkEmbedding {
-
     // MARK: - Attributes
 
     private let fileHandler: FileHandling

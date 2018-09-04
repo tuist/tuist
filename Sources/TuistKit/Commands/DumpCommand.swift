@@ -4,7 +4,6 @@ import TuistCore
 import Utility
 
 class DumpCommand: NSObject, Command {
-
     // MARK: - Command
 
     static let command = "dump"

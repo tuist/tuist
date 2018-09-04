@@ -1,7 +1,6 @@
 import Foundation
 
 struct DeviceType: Hashable {
-
     // MARK: - Attributes
 
     let name: String

@@ -13,7 +13,6 @@ protocol GraphCircularDetecting: AnyObject {
 }
 
 final class GraphCircularDetector: GraphCircularDetecting {
-
     // MARK: - Attributes
 
     var edges: [GraphCircularDetectorNode: [GraphCircularDetectorNode]] = [:]

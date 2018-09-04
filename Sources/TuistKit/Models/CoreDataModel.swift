@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 class CoreDataModel: Equatable, GraphJSONInitiatable {
-
     // MARK: - Attributes
 
     let path: AbsolutePath

@@ -92,6 +92,7 @@ final class InitCommandTests: XCTestCase {
         let result = try parser.parse(["init", "--product", "application", "--platform", "ios"])
         try subject.run(with: result)
         let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -112,6 +113,7 @@ final class InitCommandTests: XCTestCase {
         let result = try parser.parse(["init", "--product", "application", "--platform", "tvos"])
         try subject.run(with: result)
         let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -132,6 +134,7 @@ final class InitCommandTests: XCTestCase {
         let result = try parser.parse(["init", "--product", "application", "--platform", "macos"])
         try subject.run(with: result)
         let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -152,6 +155,7 @@ final class InitCommandTests: XCTestCase {
         let result = try parser.parse(["init", "--product", "framework", "--platform", "ios"])
         try subject.run(with: result)
         let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -172,6 +176,8 @@ final class InitCommandTests: XCTestCase {
         let result = try parser.parse(["init", "--product", "framework", "--platform", "tvos"])
         try subject.run(with: result)
         let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
+
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -192,6 +198,7 @@ final class InitCommandTests: XCTestCase {
         let result = try parser.parse(["init", "--product", "framework", "--platform", "macos"])
         try subject.run(with: result)
         let name = fileHandler.currentPath.components.last!
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))

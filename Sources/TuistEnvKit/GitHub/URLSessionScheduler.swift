@@ -9,7 +9,6 @@ protocol URLSessionScheduling: AnyObject {
 }
 
 final class URLSessionScheduler: URLSessionScheduling {
-
     //  MARK: - Constants
 
     /// The default request timeout.

@@ -8,7 +8,6 @@ protocol InfoPlistProvisioning: AnyObject {
 
 /// Creates a base Info.plist. This is intended to be used from the init command.
 class InfoPlistProvisioner: InfoPlistProvisioning {
-
     // MARK: - Attributes
 
     /// File handler.

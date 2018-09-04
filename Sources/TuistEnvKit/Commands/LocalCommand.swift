@@ -4,7 +4,6 @@ import TuistCore
 import Utility
 
 class LocalCommand: Command {
-
     // MARK: - Command
 
     static var command: String = "local"

@@ -6,7 +6,6 @@ protocol GraphLinting: AnyObject {
 }
 
 class GraphLinter: GraphLinting {
-
     // MARK: - Attributes
 
     let projectLinter: ProjectLinting

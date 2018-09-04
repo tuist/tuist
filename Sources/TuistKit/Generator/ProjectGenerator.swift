@@ -14,7 +14,6 @@ protocol ProjectGenerating: AnyObject {
 }
 
 final class ProjectGenerator: ProjectGenerating {
-
     // MARK: - Attributes
 
     let targetGenerator: TargetGenerating

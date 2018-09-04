@@ -34,7 +34,6 @@ protocol PlaygroundGenerating: AnyObject {
 }
 
 final class PlaygroundGenerator: PlaygroundGenerating {
-
     // MARK: - Attributes
 
     private let fileHandler: FileHandling

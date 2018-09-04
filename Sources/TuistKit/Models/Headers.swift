@@ -5,7 +5,6 @@ import xcodeproj
 
 /// Headers
 class Headers: GraphJSONInitiatable, Equatable {
-
     // MARK: - Attributes
 
     let `public`: [AbsolutePath]

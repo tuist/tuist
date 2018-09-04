@@ -4,7 +4,6 @@ import TuistCore
 import Utility
 
 class VersionCommand: NSObject, Command {
-
     // MARK: - Command
 
     static let command = "version"

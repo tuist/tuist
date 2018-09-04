@@ -6,7 +6,6 @@ protocol Updating: AnyObject {
 }
 
 final class Updater: Updating {
-
     // MARK: - Attributes
 
     let githubClient: GitHubClienting

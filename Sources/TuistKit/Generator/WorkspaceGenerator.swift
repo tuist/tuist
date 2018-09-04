@@ -13,7 +13,6 @@ protocol WorkspaceGenerating: AnyObject {
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
-
     // MARK: - Attributes
 
     let projectGenerator: ProjectGenerating

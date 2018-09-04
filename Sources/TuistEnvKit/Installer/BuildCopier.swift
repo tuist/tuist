@@ -7,7 +7,6 @@ protocol BuildCopying: AnyObject {
 }
 
 class BuildCopier: BuildCopying {
-
     // MARK: - Static
 
     /// Files that should be copied (if they exist).

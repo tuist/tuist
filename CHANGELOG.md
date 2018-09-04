@@ -5,7 +5,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next version
 
 ### Added
+
 - Support for JSON and Yaml manifests https://github.com/tuist/tuist/pull/110 by @pepibumur.
+- Generate `.gitignore` file when running init command https://github.com/tuist/tuist/pull/118 by @pepibumur.
+
 ### Fixed
 
 - Snake-cased build settings keys https://github.com/tuist/tuist/pull/107 by @pepibumur.

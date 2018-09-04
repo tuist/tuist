@@ -4,7 +4,6 @@ import TuistCore
 import Utility
 
 class GenerateCommand: NSObject, Command {
-
     // MARK: - Static
 
     static let command = "generate"

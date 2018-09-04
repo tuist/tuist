@@ -29,7 +29,6 @@ enum BundleCommandError: FatalError, Equatable {
 }
 
 final class BundleCommand: Command {
-
     // MARK: - Command
 
     static var command: String = "bundle"

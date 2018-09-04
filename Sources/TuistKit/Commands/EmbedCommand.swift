@@ -22,7 +22,6 @@ enum EmbedCommandError: FatalError {
 }
 
 final class EmbedCommand: HiddenCommand {
-
     // MARK: - HiddenCommand
 
     static var command: String = "embed"

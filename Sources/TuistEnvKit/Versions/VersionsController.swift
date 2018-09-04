@@ -37,7 +37,6 @@ enum InstalledVersion: CustomStringConvertible, Equatable {
 }
 
 class VersionsController: VersionsControlling {
-
     // MARK: - Attributes
 
     let environmentController: EnvironmentControlling

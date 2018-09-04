@@ -7,7 +7,6 @@ protocol SettingsLinting: AnyObject {
 }
 
 final class SettingsLinter: SettingsLinting {
-
     // MARK: - Attributes
 
     let fileHandler: FileHandling

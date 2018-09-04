@@ -1,7 +1,6 @@
 import Foundation
 
 struct Runtime: Equatable, Hashable {
-
     // MARK: - Attributes
 
     let buildVersion: String

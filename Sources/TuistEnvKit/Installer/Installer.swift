@@ -31,7 +31,6 @@ enum InstallerError: FatalError, Equatable {
 }
 
 final class Installer: Installing {
-
     // MARK: - Attributes
 
     let system: Systeming

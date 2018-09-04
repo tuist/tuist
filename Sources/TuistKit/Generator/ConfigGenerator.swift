@@ -22,7 +22,6 @@ protocol ConfigGenerating: AnyObject {
 }
 
 final class ConfigGenerator: ConfigGenerating {
-
     // MARK: - Attributes
 
     let fileGenerator: FileGenerating

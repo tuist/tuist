@@ -3,7 +3,6 @@ import TuistCore
 import Utility
 
 final class InstallCommand: Command {
-
     // MARK: - Command
 
     static var command: String = "install"

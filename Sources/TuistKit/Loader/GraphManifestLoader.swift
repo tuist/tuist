@@ -76,7 +76,6 @@ protocol GraphManifestLoading {
 }
 
 class GraphManifestLoader: GraphManifestLoading {
-
     // MARK: - Attributes
 
     let moduleLoader: GraphModuleLoading

@@ -15,7 +15,6 @@ protocol GraphLoaderCaching: AnyObject {
 
 /// Graph loader cache.
 class GraphLoaderCache: GraphLoaderCaching {
-
     // MARK: - GraphLoaderCaching
 
     var projects: [AbsolutePath: Project] = [:]

@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 class Target: GraphJSONInitiatable, Equatable {
-
     // MARK: - Static
 
     static let validSourceExtensions: [String] = ["m", "swift", "mm"]
