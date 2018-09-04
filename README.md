@@ -37,3 +37,12 @@ eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/ins
 2.  Generate Xcode project with `swift package generate-xcodeproj`.
 3.  Open `tuist.xcodeproj`.
 4.  Have fun 🤖
+
+## Shield
+If your project uses Tuist, you can add the following badge to your project README:
+
+[![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
+
+```md
+[![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
+```
