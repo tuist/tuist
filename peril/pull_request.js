@@ -29,6 +29,7 @@ const checkErrorHandling = async () => {
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
   for (const path of allChangedFiles) {
     const result = await getContent(path)
+    message(result.data.content)
     if (regex.test(result.data.content)) {
       fail(`The file ${path} is handling errors without a concrete list`)
     }
