@@ -28,9 +28,8 @@ const checkErrorHandling = async () => {
   // do { /* some swift code */ } catch { /* some rescue logic here */ }
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
   for (const path of allChangedFiles) {
-    const content = await getContent(path)
-    message(content)
-    if (regex.test(content)) {
+    const result = await getContent(path)
+    if (regex.test(result.data.content)) {
       fail(`The file ${path} is handling errors without a concrete list`)
     }
   }
