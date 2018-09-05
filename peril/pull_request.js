@@ -28,7 +28,7 @@ const checkErrorHandling = async () => {
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
   await files.forEach(async path => {
     const content = await getContent(path)
-    message(content)
+    message(files.join('\n'))
     if (regex.test(content)) {
       fail(`The file ${path} is handling errors without a concrete list`)
     }
