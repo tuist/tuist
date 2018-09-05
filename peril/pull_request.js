@@ -3,9 +3,10 @@ import { flatten } from 'lodash'
 
 // Variables
 
-const modified = danger.git.modified_files
-const newFiles = danger.git.created_files
-const files = flatten([modified, newFiles])
+const allChangedFiles = [
+  ...danger.git.modified_files,
+  ...danger.git.created_files,
+]
 
 // Utilities
 
@@ -25,13 +26,11 @@ const getContent = async path => {
 // Error handling
 const checkErrorHandling = async () => {
   message('Running this')
-  message(modified.join('\n'))
-  message(new.join('\n'))
-  message(files.join('\n'))
+  message(allChangedFiles.join('\n'))
 
   // do { /* some swift code */ } catch { /* some rescue logic here */ }
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
-  await files.forEach(async path => {
+  await allChangedFiles.forEach(async path => {
     const content = await getContent(path)
     if (regex.test(content)) {
       fail(`The file ${path} is handling errors without a concrete list`)
