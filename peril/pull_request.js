@@ -1,11 +1,11 @@
 import { schedule, danger, warn, fail } from 'danger'
-import { includes } from 'lodash'
+import { flatten } from 'lodash'
 
 // Variables
 
 const modified = danger.git.modified_files
 const newFiles = danger.git.created_files
-const files = [danger.git.modified_files, danger.git.created_files].flat
+const files = flatten([modified, newFiles])
 
 // Utilities
 
