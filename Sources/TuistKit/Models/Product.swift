@@ -8,15 +8,15 @@ public enum Product: String, CustomStringConvertible {
     case framework
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
-    case appExtension = "app_extension"
-    case watchApp = "watch_app"
-    case watch2App = "watch_2_app"
-    case watchExtension = "watch_extension"
-    case watch2Extension = "watch_2_extension"
-    case tvExtension = "tv_extension"
-    case messagesApplication = "messages_application"
-    case messagesExtension = "messages_extension"
-    case stickerPack = "sticker_pack"
+//    case appExtension = "app_extension"
+//    case watchApp = "watch_app"
+//    case watch2App = "watch_2_app"
+//    case watchExtension = "watch_extension"
+//    case watch2Extension = "watch_2_extension"
+//    case tvExtension = "tv_extension"
+//    case messagesApplication = "messages_application"
+//    case messagesExtension = "messages_extension"
+//    case stickerPack = "sticker_pack"
 
     public var caseValue: String {
         switch self {
@@ -32,24 +32,24 @@ public enum Product: String, CustomStringConvertible {
             return "unitTests"
         case .uiTests:
             return "uiTests"
-        case .appExtension:
-            return "appExtension"
-        case .watchApp:
-            return "watchApp"
-        case .watch2App:
-            return "watch2App"
-        case .watchExtension:
-            return "watchExtension"
-        case .watch2Extension:
-            return "watch2Extension"
-        case .tvExtension:
-            return "tvExtension"
-        case .messagesApplication:
-            return "messagesApplication"
-        case .messagesExtension:
-            return "messagesExtension"
-        case .stickerPack:
-            return "stickerPack"
+//        case .appExtension:
+//            return "appExtension"
+//        case .watchApp:
+//            return "watchApp"
+//        case .watch2App:
+//            return "watch2App"
+//        case .watchExtension:
+//            return "watchExtension"
+//        case .watch2Extension:
+//            return "watch2Extension"
+//        case .tvExtension:
+//            return "tvExtension"
+//        case .messagesApplication:
+//            return "messagesApplication"
+//        case .messagesExtension:
+//            return "messagesExtension"
+//        case .stickerPack:
+//            return "stickerPack"
         }
     }
 
@@ -67,24 +67,24 @@ public enum Product: String, CustomStringConvertible {
             return "unit tests"
         case .uiTests:
             return "ui tests"
-        case .appExtension:
-            return "app extension"
-        case .watchApp:
-            return "watch application"
-        case .watch2App:
-            return "watch 2 application"
-        case .watchExtension:
-            return "watch extension"
-        case .watch2Extension:
-            return "watch 2 extension"
-        case .tvExtension:
-            return "tv extension"
-        case .messagesApplication:
-            return "iMessage application"
-        case .messagesExtension:
-            return "iMessage extension"
-        case .stickerPack:
-            return "stickers pack"
+//        case .appExtension:
+//            return "app extension"
+//        case .watchApp:
+//            return "watch application"
+//        case .watch2App:
+//            return "watch 2 application"
+//        case .watchExtension:
+//            return "watch extension"
+//        case .watch2Extension:
+//            return "watch 2 extension"
+//        case .tvExtension:
+//            return "tv extension"
+//        case .messagesApplication:
+//            return "iMessage application"
+//        case .messagesExtension:
+//            return "iMessage extension"
+//        case .stickerPack:
+//            return "stickers pack"
         }
     }
 
@@ -97,14 +97,14 @@ public enum Product: String, CustomStringConvertible {
         ]
 
         if platform == .iOS {
-            base.append(.appExtension)
-            base.append(.stickerPack)
-            base.append(.messagesApplication)
-            base.append(.messagesExtension)
+//            base.append(.appExtension)
+//            base.append(.stickerPack)
+//            base.append(.messagesApplication)
+//            base.append(.messagesExtension)
         }
 
         if platform == .tvOS {
-            base.append(.tvExtension)
+//            base.append(.tvExtension)
         }
 
         if platform == .macOS ||
@@ -114,14 +114,14 @@ public enum Product: String, CustomStringConvertible {
             base.append(.uiTests)
         }
 
-        if platform == .watchOS {
-            base.append(contentsOf: [
-                .watchApp,
-                .watch2App,
-                .watchExtension,
-                .watch2Extension,
-            ])
-        }
+//        if platform == .watchOS {
+//            base.append(contentsOf: [
+//                .watchApp,
+//                .watch2App,
+//                .watchExtension,
+//                .watch2Extension,
+//            ])
+//        }
         return Set(base)
     }
 }
@@ -141,24 +141,24 @@ extension Product {
             return .unitTestBundle
         case .uiTests:
             return .uiTestBundle
-        case .appExtension:
-            return .appExtension
-        case .watchApp:
-            return .watchApp
-        case .watch2App:
-            return .watch2App
-        case .watchExtension:
-            return .watchExtension
-        case .watch2Extension:
-            return .watch2Extension
-        case .tvExtension:
-            return .tvExtension
-        case .messagesApplication:
-            return .messagesApplication
-        case .messagesExtension:
-            return .messagesExtension
-        case .stickerPack:
-            return .stickerPack
+//        case .appExtension:
+//            return .appExtension
+//        case .watchApp:
+//            return .watchApp
+//        case .watch2App:
+//            return .watch2App
+//        case .watchExtension:
+//            return .watchExtension
+//        case .watch2Extension:
+//            return .watch2Extension
+//        case .tvExtension:
+//            return .tvExtension
+//        case .messagesApplication:
+//            return .messagesApplication
+//        case .messagesExtension:
+//            return .messagesExtension
+//        case .stickerPack:
+//            return .stickerPack
         }
     }
 }

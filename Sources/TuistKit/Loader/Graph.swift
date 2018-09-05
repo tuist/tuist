@@ -154,14 +154,14 @@ class Graph: Graphing {
             .app,
             .unitTests,
             .uiTests,
-            .tvExtension,
-            .appExtension,
-            .watchExtension,
-            .watch2Extension,
-            .messagesExtension,
-            .watchApp,
-            .watch2App,
-            .messagesApplication,
+//            .tvExtension,
+//            .appExtension,
+//            .watchExtension,
+//            .watch2Extension,
+//            .messagesExtension,
+//            .watchApp,
+//            .watch2App,
+//            .messagesApplication,
         ]
 
         if !validProducts.contains(targetNode.target.product) { return [] }

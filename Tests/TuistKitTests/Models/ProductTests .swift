@@ -11,15 +11,15 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(Product.framework.xcodeValue, PBXProductType.framework)
         XCTAssertEqual(Product.unitTests.xcodeValue, PBXProductType.unitTestBundle)
         XCTAssertEqual(Product.uiTests.xcodeValue, PBXProductType.uiTestBundle)
-        XCTAssertEqual(Product.appExtension.xcodeValue, PBXProductType.appExtension)
-        XCTAssertEqual(Product.watchApp.xcodeValue, PBXProductType.watchApp)
-        XCTAssertEqual(Product.watch2App.xcodeValue, PBXProductType.watch2App)
-        XCTAssertEqual(Product.watchExtension.xcodeValue, PBXProductType.watchExtension)
-        XCTAssertEqual(Product.watch2Extension.xcodeValue, PBXProductType.watch2Extension)
-        XCTAssertEqual(Product.tvExtension.xcodeValue, PBXProductType.tvExtension)
-        XCTAssertEqual(Product.messagesApplication.xcodeValue, PBXProductType.messagesApplication)
-        XCTAssertEqual(Product.messagesExtension.xcodeValue, PBXProductType.messagesExtension)
-        XCTAssertEqual(Product.stickerPack.xcodeValue, PBXProductType.stickerPack)
+//        XCTAssertEqual(Product.appExtension.xcodeValue, PBXProductType.appExtension)
+//        XCTAssertEqual(Product.watchApp.xcodeValue, PBXProductType.watchApp)
+//        XCTAssertEqual(Product.watch2App.xcodeValue, PBXProductType.watch2App)
+//        XCTAssertEqual(Product.watchExtension.xcodeValue, PBXProductType.watchExtension)
+//        XCTAssertEqual(Product.watch2Extension.xcodeValue, PBXProductType.watch2Extension)
+//        XCTAssertEqual(Product.tvExtension.xcodeValue, PBXProductType.tvExtension)
+//        XCTAssertEqual(Product.messagesApplication.xcodeValue, PBXProductType.messagesApplication)
+//        XCTAssertEqual(Product.messagesExtension.xcodeValue, PBXProductType.messagesExtension)
+//        XCTAssertEqual(Product.stickerPack.xcodeValue, PBXProductType.stickerPack)
     }
 
     func test_description() {
@@ -29,15 +29,15 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(Product.framework.description, "framework")
         XCTAssertEqual(Product.unitTests.description, "unit tests")
         XCTAssertEqual(Product.uiTests.description, "ui tests")
-        XCTAssertEqual(Product.appExtension.description, "app extension")
-        XCTAssertEqual(Product.watchExtension.description, "watch extension")
-        XCTAssertEqual(Product.watch2Extension.description, "watch 2 extension")
-        XCTAssertEqual(Product.watchApp.description, "watch application")
-        XCTAssertEqual(Product.watch2App.description, "watch 2 application")
-        XCTAssertEqual(Product.tvExtension.description, "tv extension")
-        XCTAssertEqual(Product.messagesApplication.description, "iMessage application")
-        XCTAssertEqual(Product.messagesExtension.description, "iMessage extension")
-        XCTAssertEqual(Product.stickerPack.description, "stickers pack")
+//        XCTAssertEqual(Product.appExtension.description, "app extension")
+//        XCTAssertEqual(Product.watchExtension.description, "watch extension")
+//        XCTAssertEqual(Product.watch2Extension.description, "watch 2 extension")
+//        XCTAssertEqual(Product.watchApp.description, "watch application")
+//        XCTAssertEqual(Product.watch2App.description, "watch 2 application")
+//        XCTAssertEqual(Product.tvExtension.description, "tv extension")
+//        XCTAssertEqual(Product.messagesApplication.description, "iMessage application")
+//        XCTAssertEqual(Product.messagesExtension.description, "iMessage extension")
+//        XCTAssertEqual(Product.stickerPack.description, "stickers pack")
     }
 
     func test_forPlatform_when_ios() {
@@ -47,10 +47,10 @@ final class ProductTests: XCTestCase {
             .staticLibrary,
             .dynamicLibrary,
             .framework,
-            .appExtension,
-            .stickerPack,
-            .messagesApplication,
-            .messagesExtension,
+//            .appExtension,
+//            .stickerPack,
+//            .messagesApplication,
+//            .messagesExtension,
             .unitTests,
             .uiTests,
         ]
@@ -77,25 +77,25 @@ final class ProductTests: XCTestCase {
             .staticLibrary,
             .dynamicLibrary,
             .framework,
-            .tvExtension,
+//            .tvExtension,
             .unitTests,
             .uiTests,
         ]
         XCTAssertEqual(got, Set(expected))
     }
 
-    func test_forPlatform_when_watchOS() {
-        let got = Product.forPlatform(.watchOS)
-        let expected: [Product] = [
-            .app,
-            .staticLibrary,
-            .dynamicLibrary,
-            .framework,
-            .watchApp,
-            .watch2App,
-            .watchExtension,
-            .watch2Extension,
-        ]
-        XCTAssertEqual(got, Set(expected))
-    }
+//    func test_forPlatform_when_watchOS() {
+//        let got = Product.forPlatform(.watchOS)
+//        let expected: [Product] = [
+//            .app,
+//            .staticLibrary,
+//            .dynamicLibrary,
+//            .framework,
+//            .watchApp,
+//            .watch2App,
+//            .watchExtension,
+//            .watch2Extension,
+//        ]
+//        XCTAssertEqual(got, Set(expected))
+//    }
 }
