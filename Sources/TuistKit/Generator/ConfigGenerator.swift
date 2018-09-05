@@ -207,7 +207,7 @@ final class ConfigGenerator: ConfigGenerating {
         case .iOS: platform = .iOS
         case .macOS: platform = .macOS
         case .tvOS: platform = .tvOS
-        case .watchOS: platform = .watchOS
+//        case .watchOS: platform = .watchOS
         }
         return platform
     }

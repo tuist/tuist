@@ -3,14 +3,14 @@ import Foundation
 enum Platform: String {
     case iOS = "ios"
     case macOS = "macos"
-    case watchOS = "watchos"
+//    case watchOS = "watchos"
     case tvOS = "tvos"
 
     var caseValue: String {
         switch self {
         case .iOS: return "iOS"
         case .macOS: return "macOS"
-        case .watchOS: return "watchOS"
+//        case .watchOS: return "watchOS"
         case .tvOS: return "tvOS"
         }
     }
@@ -25,8 +25,8 @@ extension Platform {
             return "iphoneos"
         case .tvOS:
             return "appletvos"
-        case .watchOS:
-            return "watchos"
+//        case .watchOS:
+//            return "watchos"
         }
     }
 
@@ -34,8 +34,8 @@ extension Platform {
         switch self {
         case .tvOS:
             return "appletvsimulator appletvos"
-        case .watchOS:
-            return "watchsimulator watchos"
+//        case .watchOS:
+//            return "watchsimulator watchos"
         case .iOS:
             return "iphonesimulator iphoneos"
         case .macOS:
