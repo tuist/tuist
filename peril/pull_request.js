@@ -15,7 +15,8 @@ const apiParams = () => ({
 })
 
 const getContent = path => {
-  return await danger.github.api.repos.getContent({ ...apiParams(), path })
+  const content = await danger.github.api.repos.getContent({ ...apiParams(), path })
+  return content
 }
 
 // Error handling
