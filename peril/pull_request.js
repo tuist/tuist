@@ -1,4 +1,4 @@
-import { schedule, danger, warn, fail } from 'danger'
+import { schedule, danger, warn, fail, message } from 'danger'
 import { flatten } from 'lodash'
 
 // Variables
@@ -28,6 +28,7 @@ const checkErrorHandling = async () => {
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
   await files.forEach(async path => {
     const content = await getContent(path)
+    message(content)
     if (regex.test(content)) {
       fail(`The file ${path} is handling errors without a concrete list`)
     }
