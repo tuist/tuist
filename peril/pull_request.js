@@ -25,11 +25,14 @@ const getContent = async path => {
 // Error handling
 const checkErrorHandling = async () => {
   message('Running this')
+  message(modified.join('\n'))
+  message(new.join('\n'))
+  message(files.join('\n'))
+
   // do { /* some swift code */ } catch { /* some rescue logic here */ }
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
   await files.forEach(async path => {
     const content = await getContent(path)
-    message(files.join('\n'))
     if (regex.test(content)) {
       fail(`The file ${path} is handling errors without a concrete list`)
     }
