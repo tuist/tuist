@@ -38,6 +38,4 @@ const checkErrorHandling = async () => {
 
 // Schedule
 
-schedule(async () => {
-  await checkErrorHandling()
-})
+schedule(checkErrorHandling())
