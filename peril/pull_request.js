@@ -14,8 +14,11 @@ const apiParams = () => ({
   ref: danger.github.pr.head.ref,
 })
 
-const getContent = path => {
-  const content = await danger.github.api.repos.getContent({ ...apiParams(), path })
+const getContent = async path => {
+  const content = await danger.github.api.repos.getContent({
+    ...apiParams(),
+    path,
+  })
   return content
 }
 
@@ -23,7 +26,7 @@ const getContent = path => {
 const checkErrorHandling = async () => {
   // do { /* some swift code */ } catch { /* some rescue logic here */ }
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
-  await files.forEach((path) => {
+  await files.forEach(async path => {
     const content = await getContent(path)
     if (regex.test(content)) {
       fail(`The file ${path} is handling errors without a concrete list`)
@@ -31,10 +34,8 @@ const checkErrorHandling = async () => {
   })
 }
 
-
 // Schedule
 
 schedule(async () => {
   await checkErrorHandling()
 })
-
