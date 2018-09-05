@@ -24,6 +24,7 @@ const getContent = async path => {
 
 // Error handling
 const checkErrorHandling = async () => {
+  message('Running this')
   // do { /* some swift code */ } catch { /* some rescue logic here */ }
   const regex = /do\s*\{[\s\S]*\}\s*catch\s*{[\s\S]*\}/
   await files.forEach(async path => {
