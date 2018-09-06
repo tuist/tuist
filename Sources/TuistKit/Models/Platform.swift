@@ -10,7 +10,7 @@ enum Platform: String {
         switch self {
         case .iOS: return "iOS"
         case .macOS: return "macOS"
-//        case .watchOS: return "watchOS"
+        //        case .watchOS: return "watchOS"
         case .tvOS: return "tvOS"
         }
     }
@@ -34,8 +34,8 @@ extension Platform {
         switch self {
         case .tvOS:
             return "appletvsimulator appletvos"
-//        case .watchOS:
-//            return "watchsimulator watchos"
+        //        case .watchOS:
+        //            return "watchsimulator watchos"
         case .iOS:
             return "iphonesimulator iphoneos"
         case .macOS:

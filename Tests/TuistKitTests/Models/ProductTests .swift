@@ -47,7 +47,7 @@ final class ProductTests: XCTestCase {
             .staticLibrary,
             .dynamicLibrary,
             .framework,
-//            .appExtension,
+            //            .appExtension,
 //            .stickerPack,
 //            .messagesApplication,
 //            .messagesExtension,
@@ -77,7 +77,7 @@ final class ProductTests: XCTestCase {
             .staticLibrary,
             .dynamicLibrary,
             .framework,
-//            .tvExtension,
+            //            .tvExtension,
             .unitTests,
             .uiTests,
         ]

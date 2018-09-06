@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Support for JSON and Yaml manifests https://github.com/tuist/tuist/pull/110 by @pepibumur.
 - Generate `.gitignore` file when running init command https://github.com/tuist/tuist/pull/118 by @pepibumur.
+- Git ignore Xcode and macOS files that shouldn't be included on a git repository https://github.com/tuist/tuist/pull/124 by @pepibumur.
 
 ### Fixed
 
