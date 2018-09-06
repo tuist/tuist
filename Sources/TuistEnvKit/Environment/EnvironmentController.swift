@@ -22,7 +22,7 @@ class EnvironmentController: EnvironmentControlling {
     private let directory: AbsolutePath
 
     /// Filemanager.
-    
+
     private let fileManager: FileManager = .default
 
     init(directory: AbsolutePath = EnvironmentController.defaultDirectory) {
