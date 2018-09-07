@@ -39,6 +39,7 @@ eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/ins
 4.  Have fun 🤖
 
 ## Shield
+
 If your project uses Tuist, you can add the following badge to your project README:
 
 [![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
@@ -46,6 +47,14 @@ If your project uses Tuist, you can add the following badge to your project READ
 ```md
 [![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
 ```
+
+## Donations
+
+Tuist is a non-profit project run entirely by unpaid volunteers. We need your funds to pay for software, hardware and hosting around continuous integration and future improvements to the project. Every donation will be spent on making Tuist better for our users.
+
+Please consider a regular donation through Patreon:
+
+[![Donate with Patreon](https://img.shields.io/badge/patreon-donate-green.svg)](https://www.patreon.com/tuist)
 
 ## Open source
 
