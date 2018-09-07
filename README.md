@@ -46,3 +46,8 @@ If your project uses Tuist, you can add the following badge to your project READ
 ```md
 [![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
 ```
+
+## Open source
+
+Tuist is a proud supporter of the [Software Freedom Conservacy](https://sfconservancy.org/)
+<a href="https://sfconservancy.org/supporter/"><img src="https://sfconservancy.org/img/supporter-badge.png" width="194" height="90" alt="Become a Conservancy Supporter!" border="0"/></a>
