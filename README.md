@@ -32,6 +32,15 @@ brew install tuist
 eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
 ```
 
+## Bootstrap your first project
+
+````
+tuist init --platform ios --product application
+tuist generate # Generates Xcode project
+```
+
+[Check out](https://tuist.io/guides/1-getting-started) the project "Getting Started" guide to learn more about Tuist and all its features.
+
 ## Setup for development
 
 1.  Git clone: `git@github.com:tuist/tuist.git`
@@ -51,7 +60,7 @@ If your project uses Tuist, you can add the following badge to your project READ
 
 ```md
 [![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
-```
+````
 
 ## Donations
 
