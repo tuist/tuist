@@ -18,12 +18,13 @@
 
 ## Install
 
+<!--
 **Using Homebrew:**
 
 ```bash
 brew tap tuist/tuist https://github.com/tuist/tuist
 brew install tuist
-```
+``` -->
 
 **Running script:**
 
@@ -37,6 +38,10 @@ eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/ins
 2.  Generate Xcode project with `swift package generate-xcodeproj`.
 3.  Open `tuist.xcodeproj`.
 4.  Have fun 🤖
+
+## Roadmap 📚
+
+The roadmap of Tuist is as open as the source code. Check out our public [Trello board](https://trello.com/b/DN6HvDzW/tuist) to know more about what's coming.
 
 ## Shield
 
