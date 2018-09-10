@@ -34,7 +34,7 @@ eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/ins
 
 ## Bootstrap your first project
 
-````
+```bash
 tuist init --platform ios --product application
 tuist generate # Generates Xcode project
 ```
@@ -60,7 +60,7 @@ If your project uses Tuist, you can add the following badge to your project READ
 
 ```md
 [![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
-````
+```
 
 ## Donations
 
