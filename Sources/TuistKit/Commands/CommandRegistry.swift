@@ -24,6 +24,7 @@ public final class CommandRegistry {
         register(command: DumpCommand.self)
         register(command: VersionCommand.self)
         register(command: CreateIssueCommand.self)
+        register(command: FocusCommand.self)
         register(hiddenCommand: EmbedCommand.self)
     }
 

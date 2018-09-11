@@ -4,12 +4,13 @@ import TuistCore
 import xcodeproj
 
 protocol WorkspaceGenerating: AnyObject {
+    @discardableResult
     func generate(path: AbsolutePath,
                   graph: Graphing,
                   options: GenerationOptions,
                   system: Systeming,
                   printer: Printing,
-                  resourceLocator: ResourceLocating) throws
+                  resourceLocator: ResourceLocating) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -25,12 +26,13 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - WorkspaceGenerating
 
+    @discardableResult
     func generate(path: AbsolutePath,
                   graph: Graphing,
                   options: GenerationOptions,
                   system: Systeming = System(),
                   printer: Printing = Printer(),
-                  resourceLocator: ResourceLocating = ResourceLocator()) throws {
+                  resourceLocator: ResourceLocating = ResourceLocator()) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
         printer.print(section: "Generating workspace \(workspaceName)")
         let workspacePath = path.appending(component: workspaceName)
@@ -51,5 +53,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             workspace.data.children.append(XCWorkspaceDataElement.file(fileRef))
         }
         try workspace.write(path: workspacePath, override: true)
+
+        return workspacePath
     }
 }
