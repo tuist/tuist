@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.5.0
+
 ### Added
 
 - Support for JSON and Yaml manifests https://github.com/tuist/tuist/pull/110 by @pepibumur.

@@ -22,6 +22,27 @@
       "warning": "undocumented"
     },
     {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/CoreDataModel.swift",
+      "line": 11,
+      "symbol": "CoreDataModel.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/CoreDataModel.swift",
+      "line": 12,
+      "symbol": "CoreDataModel.CodingKeys.path",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/CoreDataModel.swift",
+      "line": 13,
+      "symbol": "CoreDataModel.CodingKeys.currentVersion",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Headers.swift",
       "line": 14,
       "symbol": "Headers.init(public:private:project:)",
@@ -113,69 +134,6 @@
       "warning": "undocumented"
     },
     {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 12,
-      "symbol": "Product.appExtension",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 13,
-      "symbol": "Product.watchApp",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 14,
-      "symbol": "Product.watch2App",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 15,
-      "symbol": "Product.watchExtension",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 16,
-      "symbol": "Product.watch2Extension",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 17,
-      "symbol": "Product.tvExtension",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 18,
-      "symbol": "Product.messagesApplication",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 19,
-      "symbol": "Product.messagesExtension",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
-      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Product.swift",
-      "line": 20,
-      "symbol": "Product.stickerPack",
-      "symbol_kind": "source.lang.swift.decl.enumelement",
-      "warning": "undocumented"
-    },
-    {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
       "line": 5,
       "symbol": "Project",
@@ -206,6 +164,34 @@
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
       "line": 10,
+      "symbol": "Project.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
+      "line": 11,
+      "symbol": "Project.CodingKeys.name",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
+      "line": 12,
+      "symbol": "Project.CodingKeys.targets",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
+      "line": 13,
+      "symbol": "Project.CodingKeys.settings",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
+      "line": 16,
       "symbol": "Project.init(name:settings:targets:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
@@ -254,133 +240,273 @@
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 11,
+      "line": 12,
+      "symbol": "Scheme.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 13,
+      "symbol": "Scheme.CodingKeys.name",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 14,
+      "symbol": "Scheme.CodingKeys.shared",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 15,
+      "symbol": "Scheme.CodingKeys.buildAction",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 16,
+      "symbol": "Scheme.CodingKeys.testAction",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 17,
+      "symbol": "Scheme.CodingKeys.runAction",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 20,
       "symbol": "Scheme.init(name:shared:buildAction:testAction:runAction:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 26,
+      "line": 35,
       "symbol": "Arguments",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 27,
+      "line": 36,
       "symbol": "Arguments.environment",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 28,
+      "line": 37,
       "symbol": "Arguments.launch",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 29,
+      "line": 39,
+      "symbol": "Arguments.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 40,
+      "symbol": "Arguments.CodingKeys.environment",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 41,
+      "symbol": "Arguments.CodingKeys.launch",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 44,
       "symbol": "Arguments.init(environment:launch:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 38,
+      "line": 53,
       "symbol": "BuildAction",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 39,
+      "line": 54,
       "symbol": "BuildAction.targets",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 40,
+      "line": 56,
+      "symbol": "BuildAction.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 57,
+      "symbol": "BuildAction.CodingKeys.targets",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 60,
       "symbol": "BuildAction.init(targets:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 47,
+      "line": 67,
       "symbol": "TestAction",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 48,
+      "line": 68,
       "symbol": "TestAction.targets",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 49,
+      "line": 69,
       "symbol": "TestAction.arguments",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 50,
+      "line": 70,
       "symbol": "TestAction.config",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 51,
+      "line": 71,
       "symbol": "TestAction.coverage",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 52,
+      "line": 73,
+      "symbol": "TestAction.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 74,
+      "symbol": "TestAction.CodingKeys.targets",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 75,
+      "symbol": "TestAction.CodingKeys.arguments",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 76,
+      "symbol": "TestAction.CodingKeys.config",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 77,
+      "symbol": "TestAction.CodingKeys.coverage",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 80,
       "symbol": "TestAction.init(targets:arguments:config:coverage:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 65,
+      "line": 93,
       "symbol": "RunAction",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 66,
+      "line": 94,
       "symbol": "RunAction.config",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 67,
+      "line": 95,
       "symbol": "RunAction.executable",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 68,
+      "line": 96,
       "symbol": "RunAction.arguments",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
-      "line": 69,
+      "line": 98,
+      "symbol": "RunAction.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 99,
+      "symbol": "RunAction.CodingKeys.config",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 100,
+      "symbol": "RunAction.CodingKeys.executable",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 101,
+      "symbol": "RunAction.CodingKeys.arguments",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Scheme.swift",
+      "line": 104,
       "symbol": "RunAction.init(config:executable:arguments:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
@@ -408,49 +534,70 @@
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
-      "line": 8,
+      "line": 9,
+      "symbol": "Configuration.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
+      "line": 10,
+      "symbol": "Configuration.CodingKeys.settings",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
+      "line": 11,
+      "symbol": "Configuration.CodingKeys.xcconfig",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
+      "line": 14,
       "symbol": "Configuration.init(settings:xcconfig:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
-      "line": 13,
+      "line": 19,
       "symbol": "Configuration.settings(_:xcconfig:)",
       "symbol_kind": "source.lang.swift.decl.function.method.static",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
-      "line": 20,
+      "line": 26,
       "symbol": "Settings",
       "symbol_kind": "source.lang.swift.decl.class",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
-      "line": 21,
+      "line": 27,
       "symbol": "Settings.base",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
-      "line": 22,
+      "line": 28,
       "symbol": "Settings.debug",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
-      "line": 23,
+      "line": 29,
       "symbol": "Settings.release",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Settings.swift",
-      "line": 25,
+      "line": 31,
       "symbol": "Settings.init(base:debug:release:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
@@ -460,6 +607,97 @@
       "line": 5,
       "symbol": "Target",
       "symbol_kind": "source.lang.swift.decl.class",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 42,
+      "symbol": "Target.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 43,
+      "symbol": "Target.CodingKeys.name",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 44,
+      "symbol": "Target.CodingKeys.platform",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 45,
+      "symbol": "Target.CodingKeys.product",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 46,
+      "symbol": "Target.CodingKeys.bundleId",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 47,
+      "symbol": "Target.CodingKeys.infoPlist",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 48,
+      "symbol": "Target.CodingKeys.entitlements",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 49,
+      "symbol": "Target.CodingKeys.settings",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 50,
+      "symbol": "Target.CodingKeys.dependencies",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 51,
+      "symbol": "Target.CodingKeys.sources",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 52,
+      "symbol": "Target.CodingKeys.resources",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 53,
+      "symbol": "Target.CodingKeys.headers",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 54,
+      "symbol": "Target.CodingKeys.coreDataModels",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
@@ -583,21 +821,21 @@
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Workspace.swift",
-      "line": 11,
+      "line": 14,
       "symbol": "Workspace.name",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Workspace.swift",
-      "line": 12,
+      "line": 18,
       "symbol": "Workspace.projects",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Workspace.swift",
-      "line": 13,
+      "line": 20,
       "symbol": "Workspace.init(name:projects:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
