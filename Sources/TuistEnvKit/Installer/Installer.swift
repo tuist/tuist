@@ -145,7 +145,9 @@ final class Installer: Installing {
                                verbose: false).throwIfError()
 
             // Copying files
-            try system.capture("/bin/mkdir", installationDirectory.asString, verbose: false).throwIfError()
+            if !fileHandler.exists(installationDirectory) {
+                try system.capture("/bin/mkdir", installationDirectory.asString, verbose: false).throwIfError()
+            }
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
 
