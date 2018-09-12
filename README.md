@@ -63,7 +63,7 @@ Having a standard command line interface makes it easier to jump between project
   <br/><br/>
 </p>
 
-- **Init:** Bootstraps a new project. You can specify the platform and the type of project and it’ll generate all the necessary artifacts (Info.plist, AppDelegate, Project.swift, Playgrounds…)
+- **Init:** Bootstraps a new project. You can specify the platform and the type of project and it’ll generate all the necessary artifacts _(Info.plist, AppDelegate, Project.swift, Playgrounds…)_.
 - **Generate:** Generates the Xcode workspace and projects to work on a particular project.
 - **Build:** Builds the project in the current directory. It supports all the arguments that xcodebuild supports.
 - **Test:** Test the project in the current directory. It supports all the arguments that xcodebuild supports.
