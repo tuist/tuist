@@ -7,24 +7,68 @@
 [![CircleCI](https://circleci.com/gh/tuist/tuist.svg?style=svg)](https://circleci.com/gh/tuist/tuist)
 [![codecov](https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg)](https://codecov.io/gh/tuist/tuist)
 
-## Features
+## What's Tuist
 
-- 🥘 100% written in Swift.
-- 🐦 Type-safe Swift manifests editable with Xcode.
-- ↗️ Local dependencies support.
-- ⚠️ Misconfiguration catching.
-- 📦 Precompiled binaries _(Frameworks & Libraries support)_.
-- 🔄 Circular dependency detection.
+Tuist is a command line tool that helps you **generate**, **maintain** and **interact** with Xcode projects.
+
+It's open source and written in Swift.
+
+### Defining your projects
+
+With Tuist, projects are defined in a `Project.swift`, also known as manifest. The manifest format is a simple and convenient format that abstracts you from the implementation details of Xcode projects. In your manifest you can define which targets your project has, which sources and resources belong to them, as well as the dependencies with targets in the same and other projects. The advantages of defining the projects in a manifest are:
+
+- It can catch **misconfigurations and fail early.** For example, if a target has an invalid dependency, it’ll let you know before you start compiling the app.
+- Since the manifest doesn’t include Xcode implementation details, the **likelihood of having git conflicts** is significantly lower.
+- **It makes the configuration easier.** The decision on how the project looks is on you. Tuist processes it and manages the complexity for you. One example of that complexity is setting up dependencies between targets.
+
+```swift
+import ProjectDescription
+
+let project = Project(name: "App",
+                      targets: [
+                        Target(name: "App",
+                               platform: .iOS,
+                               product: .app,
+                               bundleId: "io.tuist.App",
+                               infoPlist: "Info.plist",
+                               sources: "Sources/**",
+                               dependencies: [
+                                    /* Target dependencies can be defined here */
+                                    /* .framework(path: "framework") */
+                                ]),
+                        Target(name: "AppTests",
+                               platform: .iOS,
+                               product: .unitTests,
+                               bundleId: "io.tuist.AppTests",
+                               infoPlist: "Tests.plist",
+                               sources: "Tests/**",
+                               dependencies: [
+                                    .target(name: "App")
+                               ])
+                      ])
+```
+
+### Interacting with your projects
+
+Tuist leverages project generation to provide a **simple and convenient set of commands, standard across all the projects**. The commands infer most of the necessary information from your projects, requiring you to pass only the arguments that are strictly necessary.
+
+Having a standard command line interface makes it easier to jump between projects since there’s an interaction language everyone in the team is familiar with.
+
+<p align="center">
+  <img src="https://github.com/tuist/tuist/raw/master/assets/commands.png" width="250" align="center"/>
+  <br/><br/>
+</p>
+
+- **Init:** Bootstraps a new project. You can specify the platform and the type of project and it’ll generate all the necessary artifacts (Info.plist, AppDelegate, Project.swift, Playgrounds…)
+- **Generate:** Generates the Xcode workspace and projects to work on a particular project.
+- **Build:** Builds the project in the current directory. It supports all the arguments that xcodebuild supports.
+- **Test:** Test the project in the current directory. It supports all the arguments that xcodebuild supports.
+- **Run:** Runs the project. If the project needs a device to run on, it’ll prompt you to select one.
+- **Release:** Builds and publishes your project on iTunes Connect.
+
+The list of actions will likely grow as we get feedback from you.
 
 ## Install
-
-<!--
-**Using Homebrew:**
-
-```bash
-brew tap tuist/tuist https://github.com/tuist/tuist
-brew install tuist
-``` -->
 
 **Running script:**
 
