@@ -21,6 +21,8 @@ With Tuist, projects are defined in a `Project.swift`, also known as manifest. T
 - Since the manifest doesn’t include Xcode implementation details, the **likelihood of having git conflicts** is significantly lower.
 - **It makes the configuration easier.** The decision on how the project looks is on you. Tuist processes it and manages the complexity for you. One example of that complexity is setting up dependencies between targets.
 
+The example below shows how projects are defined with Tuist:
+
 ```swift
 import ProjectDescription
 
@@ -47,6 +49,8 @@ let project = Project(name: "App",
                                ])
                       ])
 ```
+
+> Although we encourage defining them in Swift, Tuist supports JSON and Yaml formats.
 
 ### Interacting with your projects
 
