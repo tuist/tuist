@@ -59,7 +59,7 @@ Tuist leverages project generation to provide a **simple and convenient set of c
 Having a standard command line interface makes it easier to jump between projects since there’s an interaction language everyone in the team is familiar with.
 
 <p align="center">
-  <img src="https://github.com/tuist/tuist/raw/master/assets/commands.png" width="250" align="center"/>
+  <img src="https://github.com/tuist/tuist/raw/master/assets/commands.png" width="350" align="center"/>
   <br/><br/>
 </p>
 
