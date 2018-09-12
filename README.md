@@ -15,7 +15,7 @@ It's open source and written in Swift.
 
 ### Defining your projects
 
-With Tuist, projects are defined in a `Project.swift`, also known as manifest. The manifest format is a simple and convenient format that abstracts you from the implementation details of Xcode projects. In your manifest you can define which targets your project has, which sources and resources belong to them, as well as the dependencies with targets in the same and other projects. The advantages of defining the projects in a manifest are:
+With Tuist, projects are defined in a `Project.swift`, also known as manifest. The manifest format abstracts you from the implementation details of Xcode projects. In your manifest you can define which targets your project has, which sources and resources belong to them, as well as the dependencies with targets in the same and other projects. The advantages of defining the projects in a manifest are:
 
 - It can catch **misconfigurations and fail early.** For example, if a target has an invalid dependency, it’ll let you know before you start compiling the app.
 - Since the manifest doesn’t include Xcode implementation details, the **likelihood of having git conflicts** is significantly lower.
@@ -50,7 +50,7 @@ let project = Project(name: "App",
                       ])
 ```
 
-> Although we encourage defining them in Swift, Tuist supports JSON and Yaml formats.
+Although we encourage defining the manifests in Swift, Tuist also supports JSON and Yaml formats.
 
 ### Interacting with your projects
 
