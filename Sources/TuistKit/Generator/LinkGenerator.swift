@@ -43,7 +43,7 @@ enum LinkGeneratorError: FatalError, Equatable {
 protocol LinkGenerating: AnyObject {
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
-                       objects: PBXObjects,
+                       pbxproj: PBXProj,
                        pbxProject: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
@@ -58,7 +58,7 @@ final class LinkGenerator: LinkGenerating {
 
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
-                       objects: PBXObjects,
+                       pbxproj: PBXProj,
                        pbxProject _: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
@@ -72,7 +72,7 @@ final class LinkGenerator: LinkGenerating {
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
                                pbxTarget: pbxTarget,
-                               objects: objects,
+                               pbxproj: pbxproj,
                                fileElements: fileElements,
                                resourceLocator: resourceLocator,
                                sourceRootPath: sourceRootPath)
@@ -87,24 +87,24 @@ final class LinkGenerator: LinkGenerating {
 
         try generateLinkingPhase(dependencies: linkableModules,
                                  pbxTarget: pbxTarget,
-                                 objects: objects,
+                                 pbxproj: pbxproj,
                                  fileElements: fileElements)
     }
 
     func generateEmbedPhase(dependencies: [DependencyReference],
                             pbxTarget: PBXTarget,
-                            objects: PBXObjects,
+                            pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
                             resourceLocator: ResourceLocating,
                             sourceRootPath: AbsolutePath) throws {
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .frameworks,
                                                 name: "Embed Frameworks")
-        let precompiledEmbedPhaseReference = objects.addObject(precompiledEmbedPhase)
-        let embedPhaseReference = objects.addObject(embedPhase)
+        pbxproj.add(object: precompiledEmbedPhase)
+        pbxproj.add(object: embedPhase)
 
-        pbxTarget.buildPhasesReferences.append(precompiledEmbedPhaseReference)
-        pbxTarget.buildPhasesReferences.append(embedPhaseReference)
+        pbxTarget.buildPhases.append(precompiledEmbedPhase)
+        pbxTarget.buildPhases.append(embedPhase)
 
         var script: [String] = []
         let cliPath = try resourceLocator.cliPath()
@@ -120,9 +120,9 @@ final class LinkGenerator: LinkGenerating {
                 guard let fileRef = fileElements.product(name: name) else {
                     throw LinkGeneratorError.missingProduct(name: name)
                 }
-                let buildFile = PBXBuildFile(fileReference: fileRef.reference)
-                let buildFileReference = objects.addObject(buildFile)
-                embedPhase.fileReferences.append(buildFileReference)
+                let buildFile = PBXBuildFile(file: fileRef)
+                pbxproj.add(object: buildFile)
+                embedPhase.files.append(buildFile)
             }
         }
         if script.count == 0 {
@@ -144,8 +144,8 @@ final class LinkGenerator: LinkGenerating {
         .map({ "$(SRCROOT)/\($0)" })
         if paths.isEmpty { return }
 
-        let configurationList = try pbxTarget.buildConfigurationList()
-        let buildConfigurations = try configurationList?.buildConfigurations()
+        let configurationList = pbxTarget.buildConfigurationList
+        let buildConfigurations = configurationList?.buildConfigurations
 
         let pathsValue = Set(paths).joined(separator: " ")
         buildConfigurations?.forEach { buildConfiguration in
@@ -165,10 +165,10 @@ final class LinkGenerator: LinkGenerating {
         let relativePaths = headersFolders
             .map({ $0.relative(to: sourceRootPath).asString })
             .map({ "$(SRCROOT)/\($0)" })
-        guard let configurationList = try pbxTarget.buildConfigurationList() else {
+        guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
-        try configurationList.buildConfigurations().forEach {
+        configurationList.buildConfigurations.forEach {
             var headers = ($0.buildSettings["HEADER_SEARCH_PATHS"] as? String) ?? ""
             headers.append(" \(relativePaths.joined(separator: " "))")
             $0.buildSettings["HEADER_SEARCH_PATHS"] = headers
@@ -177,27 +177,28 @@ final class LinkGenerator: LinkGenerating {
 
     func generateLinkingPhase(dependencies: [DependencyReference],
                               pbxTarget: PBXTarget,
-                              objects: PBXObjects,
+                              pbxproj: PBXProj,
                               fileElements: ProjectFileElements) throws {
         let buildPhase = PBXFrameworksBuildPhase()
-        let buildPhaseReference = objects.addObject(buildPhase)
-        pbxTarget.buildPhasesReferences.append(buildPhaseReference)
+        pbxproj.add(object: buildPhase)
+        pbxTarget.buildPhases.append(buildPhase)
+
         try dependencies.forEach { dependency in
             if case let DependencyReference.absolute(path) = dependency {
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
-                let buildFile = PBXBuildFile(fileReference: fileRef.reference)
-                let buildFileReference = objects.addObject(buildFile)
-                buildPhase.fileReferences.append(buildFileReference)
+                let buildFile = PBXBuildFile(file: fileRef)
+                pbxproj.add(object: buildFile)
+                buildPhase.files.append(buildFile)
 
             } else if case let DependencyReference.product(name) = dependency {
                 guard let fileRef = fileElements.product(name: name) else {
                     throw LinkGeneratorError.missingProduct(name: name)
                 }
-                let buildFile = PBXBuildFile(fileReference: fileRef.reference)
-                let buildFileReference = objects.addObject(buildFile)
-                buildPhase.fileReferences.append(buildFileReference)
+                let buildFile = PBXBuildFile(file: fileRef)
+                pbxproj.add(object: buildFile)
+                buildPhase.files.append(buildFile)
             }
         }
     }

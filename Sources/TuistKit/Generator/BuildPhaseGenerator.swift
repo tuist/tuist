@@ -32,67 +32,67 @@ protocol BuildPhaseGenerating: AnyObject {
     func generateBuildPhases(target: Target,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
-                             objects: PBXObjects) throws
+                             pbxproj: PBXProj) throws
 }
 
 final class BuildPhaseGenerator: BuildPhaseGenerating {
     func generateBuildPhases(target: Target,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
-                             objects: PBXObjects) throws {
+                             pbxproj: PBXProj) throws {
         try generateSourcesBuildPhase(files: target.sources,
                                       pbxTarget: pbxTarget,
                                       fileElements: fileElements,
-                                      objects: objects)
+                                      pbxproj: pbxproj)
 
         try generateResourcesBuildPhase(files: target.resources,
                                         coreDataModels: target.coreDataModels,
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,
-                                        objects: objects)
+                                        pbxproj: pbxproj)
 
         if let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
                                           pbxTarget: pbxTarget,
                                           fileElements: fileElements,
-                                          objects: objects)
+                                          pbxproj: pbxproj)
         }
     }
 
     func generateSourcesBuildPhase(files: [AbsolutePath],
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
-                                   objects: PBXObjects) throws {
+                                   pbxproj: PBXProj) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
-        let sourcesBuildPhaseReference = objects.addObject(sourcesBuildPhase)
-        pbxTarget.buildPhasesReferences.append(sourcesBuildPhaseReference)
+        pbxproj.add(object: sourcesBuildPhase)
+        pbxTarget.buildPhases.append(sourcesBuildPhase)
         try files.forEach { buildFilePath in
             guard let fileReference = fileElements.file(path: buildFilePath) else {
                 throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
             }
-            let pbxBuildFile = PBXBuildFile(fileReference: fileReference.reference, settings: [:])
-            let buildFileRerence = objects.addObject(pbxBuildFile)
-            sourcesBuildPhase.fileReferences.append(buildFileRerence)
+            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: [:])
+            pbxproj.add(object: pbxBuildFile)
+            sourcesBuildPhase.files.append(pbxBuildFile)
         }
     }
 
     func generateHeadersBuildPhase(headers: Headers,
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
-                                   objects: PBXObjects) throws {
+                                   pbxproj: PBXProj) throws {
         let headersBuildPhase = PBXHeadersBuildPhase()
-        let headersBuildPhaseReference = objects.addObject(headersBuildPhase)
-        pbxTarget.buildPhasesReferences.append(headersBuildPhaseReference)
+        pbxproj.add(object: headersBuildPhase)
+        pbxTarget.buildPhases.append(headersBuildPhase)
 
         let addHeader: (AbsolutePath, String) throws -> Void = { path, accessLevel in
             guard let fileReference = fileElements.file(path: path) else {
                 throw BuildPhaseGenerationError.missingFileReference(path)
             }
-            let pbxBuildFile = PBXBuildFile(fileReference: fileReference.reference, settings: [
+            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: [
                 "ATTRIBUTES": [accessLevel.capitalized],
             ])
-            let buildFileRerence = objects.addObject(pbxBuildFile)
-            headersBuildPhase.fileReferences.append(buildFileRerence)
+            pbxproj.add(object: pbxBuildFile)
+            headersBuildPhase.files.append(pbxBuildFile)
         }
 
         try headers.private.forEach({ try addHeader($0, "private") })
@@ -104,27 +104,27 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                      coreDataModels: [CoreDataModel] = [],
                                      pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
-                                     objects: PBXObjects) throws {
+                                     pbxproj: PBXProj) throws {
         let resourcesBuildPhase = PBXResourcesBuildPhase()
-        let resourcesBuildPhaseReference = objects.addObject(resourcesBuildPhase)
-        pbxTarget.buildPhasesReferences.append(resourcesBuildPhaseReference)
+        pbxproj.add(object: resourcesBuildPhase)
+        pbxTarget.buildPhases.append(resourcesBuildPhase)
 
         try generateResourcesBuildFile(files: files,
                                        fileElements: fileElements,
-                                       objects: objects,
+                                       pbxproj: pbxproj,
                                        resourcesBuildPhase: resourcesBuildPhase)
 
         coreDataModels.forEach {
             self.generateCoreDataModel(coreDataModel: $0,
                                        fileElements: fileElements,
-                                       objects: objects,
+                                       pbxproj: pbxproj,
                                        resourcesBuildPhase: resourcesBuildPhase)
         }
     }
 
     private func generateResourcesBuildFile(files: [AbsolutePath],
                                             fileElements: ProjectFileElements,
-                                            objects: PBXObjects,
+                                            pbxproj: PBXProj,
                                             resourcesBuildPhase: PBXResourcesBuildPhase) throws {
         try files.forEach { buildFilePath in
             let pathString = buildFilePath.asString
@@ -140,7 +140,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 return
             }
 
-            var reference: PBXObjectReference?
+            var element: PBXFileElement?
 
             if isLocalized {
                 let name = buildFilePath.components.last!
@@ -148,25 +148,25 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 guard let group = fileElements.group(path: path) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
-                reference = group.reference
+                element = group
 
             } else if !isLproj {
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
-                reference = fileReference.reference
+                element = fileReference
             }
-            if let reference = reference {
-                let pbxBuildFile = PBXBuildFile(fileReference: reference)
-                let buildFileRerence = objects.addObject(pbxBuildFile)
-                resourcesBuildPhase.fileReferences.append(buildFileRerence)
+            if let element = element {
+                let pbxBuildFile = PBXBuildFile(file: element)
+                pbxproj.add(object: pbxBuildFile)
+                resourcesBuildPhase.files.append(pbxBuildFile)
             }
         }
     }
 
     private func generateCoreDataModel(coreDataModel: CoreDataModel,
                                        fileElements: ProjectFileElements,
-                                       objects: PBXObjects,
+                                       pbxproj: PBXProj,
                                        resourcesBuildPhase: PBXResourcesBuildPhase) {
         let currentVersion = coreDataModel.currentVersion
         let path = coreDataModel.path
@@ -174,10 +174,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         // swiftlint:disable:next force_cast
         let modelReference = fileElements.group(path: path)! as! XCVersionGroup
         let currentVersionReference = fileElements.file(path: currentVersionPath)!
-        modelReference.currentVersion = currentVersionReference.reference
+        modelReference.currentVersion = currentVersionReference
 
-        let pbxBuildFile = PBXBuildFile(fileReference: modelReference.reference)
-        let buildFileRerence = objects.addObject(pbxBuildFile)
-        resourcesBuildPhase.fileReferences.append(buildFileRerence)
+        let pbxBuildFile = PBXBuildFile(file: modelReference)
+        pbxproj.add(object: pbxBuildFile)
+        resourcesBuildPhase.files.append(pbxBuildFile)
     }
 }
