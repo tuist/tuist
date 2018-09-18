@@ -204,7 +204,7 @@ class ProjectFileElements {
         }
 
         // swiftlint:disable:next force_cast
-        var lastGroup: PBXGroup! = firstElement.element as! PBXGroup
+        var lastGroup: PBXGroup! = firstElement.element as? PBXGroup
         var lastPath: AbsolutePath = firstElement.path
 
         for component in path.relative(to: lastPath).components {
