@@ -1,7 +1,7 @@
 #!/bin/bash
 
 URL=$( curl -s "https://api.github.com/repos/tuist/tuist/releases/latest" \
-   | jq -r '.assets[] | select(.name=="tuistenv") | .browser_download_url' )
+   | jq -r '.assets[] | select(.name=="tuistenv.zip") | .browser_download_url' )
 if [ "$URL" != "" ]; then
   echo "Downloading tuist from $URL"
 else
@@ -9,5 +9,11 @@ else
   exit 1
 fi
 
-curl "$URL" > /usr/local/bin/tuist
+curl -LSs --output /tmp/tuistenv.zip "$URL"
+unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv
+mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
+
 chmod +x /usr/local/bin/tuist
+
+rm -rf /tmp/tuistenv
+rm /tmp/tuistenv.zip
