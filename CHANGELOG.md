@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Bump xcodeproj to 6.0.0 https://github.com/tuist/xcodeproj/pull/310 by @pepibumur.
+- Bump xcodeproj to 6.0.0 https://github.com/tuist/tuist/pull/133 by @pepibumur.
 
 ## 0.5.0
 
