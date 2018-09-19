@@ -97,3 +97,5 @@ build/
 Carthage/Checkouts
 *.profraw
 tuist.zip
+build/
+tuistenv
