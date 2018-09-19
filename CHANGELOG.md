@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Bump xcodeproj to 6.0.0 https://github.com/tuist/tuist/pull/133 by @pepibumur.
 
+### Removed
+
+- Remove `tuistenv` from the repository https://github.com/tuist/tuist/pull/135 by @pepibumur.
+
 ## 0.5.0
 
 ### Added
