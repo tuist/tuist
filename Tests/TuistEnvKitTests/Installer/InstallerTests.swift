@@ -33,6 +33,26 @@ final class InstallerTests: XCTestCase {
                             githubClient: githubClient)
     }
 
+    func test_install_when_invalid_swift_version() throws {
+        let version = "3.2.1"
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        system.swiftVersionStub = { "8.8.8" }
+        githubClient.getContentStub = { ref, path in
+            if ref == version && path == ".swift-version" {
+                return "7.7.7"
+            } else {
+                throw NSError.test()
+            }
+        }
+
+        let expectedError = InstallerError.incompatibleSwiftVersion(local: "8.8.8", expected: "7.7.7")
+        XCTAssertThrowsError(try subject.install(version: version,
+                                                 temporaryDirectory: temporaryDirectory)) { error in
+            XCTAssertEqual(error as? InstallerError, expectedError)
+        }
+        XCTAssertTrue(printer.printArgs.contains("Verifying the Swift version is compatible with your version 8.8.8"))
+    }
+
     func test_install_when_bundled_release() throws {
         let version = "3.2.1"
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)

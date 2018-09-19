@@ -4,6 +4,7 @@ import TuistCore
 public final class MockSystem: Systeming {
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int32?)] = [:]
     private var calls: [String] = []
+    var swiftVersionStub: (() throws -> String?)?
 
     public init() {}
 
@@ -39,6 +40,10 @@ public final class MockSystem: Systeming {
         } else {
             throw SystemError(stderror: "Command not supported: \(command)", exitcode: -1)
         }
+    }
+
+    public func swiftVersion() throws -> String? {
+        return try swiftVersionStub?()
     }
 
     public func called(_ args: String...) -> Bool {

@@ -5,9 +5,10 @@ import XCTest
 final class GitHubClientErrorTests: XCTestCase {
     func test_errorDescription() {
         let error = NSError(domain: "test", code: 1, userInfo: nil)
-        XCTAssertEqual(GitHubClientError.sessionError(error).description, "Session error: \(error.localizedDescription).")
-        XCTAssertEqual(GitHubClientError.missingData.description, "No data received from the GitHub API.")
+        XCTAssertEqual(GitHubClientError.sessionError(error).description, "Session error: \(error.localizedDescription)")
+        XCTAssertEqual(GitHubClientError.missingData.description, "No data received from the GitHub API")
         XCTAssertEqual(GitHubClientError.decodingError(error).description, "Error decoding JSON from API: \(error.localizedDescription)")
+        XCTAssertEqual(GitHubClientError.invalidResponse.description, "Received an invalid response from the GitHub API")
     }
 }
 

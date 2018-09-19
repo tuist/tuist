@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Added
+
+- Check that the local Swift version is compatible with the version that will be installed https://github.com/tuist/tuist/pull/134 by @pepibumur.
+
 ### Changed
 
 - Bump xcodeproj to 6.0.0 https://github.com/tuist/tuist/pull/133 by @pepibumur.
