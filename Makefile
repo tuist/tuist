@@ -1,5 +1,5 @@
 package-release:
-	mkdir build -f
+	mkdir -p build
 	swift build --product tuist --static-swift-stdlib --configuration release;
 	swift build --product ProjectDescription --static-swift-stdlib --configuration release;
 	cd .build/release && zip -q -r --symlinks tuist.zip tuist ProjectDescription.swiftmodule ProjectDescription.swiftdoc libProjectDescription.dylib
