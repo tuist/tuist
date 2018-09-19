@@ -16,7 +16,7 @@ final class ProjectGroupsTests: XCTestCase {
                               settings: nil,
                               targets: [])
         let pbxproj = PBXProj()
-        subject = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
     }
 
     func test_generate() {

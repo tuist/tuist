@@ -28,11 +28,11 @@ final class LinkGeneratorErrorTests: XCTestCase {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
         dependencies.append(DependencyReference.product("waka.framework"))
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
         let wakaFile = PBXFileReference()
-        let wakaFileReference = objects.addObject(wakaFile)
+        pbxproj.add(object: wakaFile)
         fileElements.products["waka.framework"] = wakaFile
         let resourceLocator = MockResourceLocator()
         resourceLocator.embedPathStub = { AbsolutePath("/embed") }
@@ -40,27 +40,27 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         try subject.generateEmbedPhase(dependencies: dependencies,
                                        pbxTarget: pbxTarget,
-                                       objects: objects,
+                                       pbxproj: pbxproj,
                                        fileElements: fileElements,
                                        resourceLocator: resourceLocator,
                                        sourceRootPath: sourceRootPath)
 
-        let scriptBuildPhase: PBXShellScriptBuildPhase? = try pbxTarget.buildPhasesReferences.first?.object()
+        let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
         XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
         XCTAssertEqual(scriptBuildPhase?.shellScript, "/ embed test.framework")
         XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/test.framework"])
         XCTAssertEqual(scriptBuildPhase?.outputPaths, ["$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/test.framework"])
 
-        let copyBuildPhase: PBXCopyFilesBuildPhase? = try pbxTarget.buildPhasesReferences.last?.object()
+        let copyBuildPhase: PBXCopyFilesBuildPhase? = pbxTarget.buildPhases.last as? PBXCopyFilesBuildPhase
         XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")
         let wakaBuildFile: PBXBuildFile? = try copyBuildPhase?.fileReferences.first?.object()
-        XCTAssertEqual(wakaBuildFile?.fileReference, wakaFileReference)
+        XCTAssertEqual(wakaBuildFile?.file, wakaFile)
     }
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.product("waka.framework"))
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
         let resourceLocator = MockResourceLocator()
@@ -69,7 +69,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         XCTAssertThrowsError(try subject.generateEmbedPhase(dependencies: dependencies,
                                                             pbxTarget: pbxTarget,
-                                                            objects: objects,
+                                                            pbxproj: pbxproj,
                                                             fileElements: fileElements,
                                                             resourceLocator: resourceLocator,
                                                             sourceRootPath: sourceRootPath)) {
@@ -85,14 +85,18 @@ final class LinkGeneratorErrorTests: XCTestCase {
         ]
         let sourceRootPath = AbsolutePath("/")
 
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
-        let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
-        pbxTarget.buildConfigurationListReference = objects.addObject(configurationList)
+        let configurationList = XCConfigurationList(buildConfigurations: [])
+        pbxproj.add(object: configurationList)
+        pbxTarget.buildConfigurationList = configurationList
+
         let debugConfig = XCBuildConfiguration(name: "Debug")
         let releaseConfig = XCBuildConfiguration(name: "Release")
-        configurationList.buildConfigurationsReferences.append(objects.addObject(debugConfig))
-        configurationList.buildConfigurationsReferences.append(objects.addObject(releaseConfig))
+        pbxproj.add(object: debugConfig)
+        pbxproj.add(object: releaseConfig)
+        configurationList.buildConfigurations.append(debugConfig)
+        configurationList.buildConfigurations.append(releaseConfig)
 
         try subject.setupFrameworkSearchPath(dependencies: dependencies,
                                              pbxTarget: pbxTarget,
@@ -105,18 +109,18 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_setupHeadersSearchPath() throws {
         let headersFolders = [AbsolutePath("/headers")]
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
 
         let pbxTarget = PBXNativeTarget(name: "Test")
-        objects.addObject(pbxTarget)
+        pbxproj.add(object: pbxTarget)
 
-        let configurationList = XCConfigurationList(buildConfigurationsReferences: [])
-        let configurationListReference = objects.addObject(configurationList)
-        pbxTarget.buildConfigurationListReference = configurationListReference
+        let configurationList = XCConfigurationList(buildConfigurations: [])
+        pbxproj.add(object: configurationList)
+        pbxTarget.buildConfigurationList = configurationList
 
         let config = XCBuildConfiguration(name: "Debug")
-        let configReference = objects.addObject(config)
-        configurationList.buildConfigurationsReferences.append(configReference)
+        pbxproj.add(object: config)
+        configurationList.buildConfigurations.append(config)
 
         let sourceRootPath = AbsolutePath("/")
 
@@ -129,10 +133,10 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {
         let headersFolders = [AbsolutePath("/headers")]
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
 
         let pbxTarget = PBXNativeTarget(name: "Test")
-        objects.addObject(pbxTarget)
+        pbxproj.add(object: pbxTarget)
         let sourceRootPath = AbsolutePath("/")
 
         XCTAssertThrowsError(try subject.setupHeadersSearchPath(headersFolders,
@@ -146,40 +150,40 @@ final class LinkGeneratorErrorTests: XCTestCase {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
         dependencies.append(DependencyReference.product("waka.framework"))
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
         let testFile = PBXFileReference()
-        let testFileReference = objects.addObject(testFile)
+        pbxproj.add(object: testFile)
         let wakaFile = PBXFileReference()
-        let wakaFileReference = objects.addObject(wakaFile)
+        pbxproj.add(object: wakaFile)
         fileElements.products["waka.framework"] = wakaFile
         fileElements.elements[AbsolutePath("/test.framework")] = testFile
 
         try subject.generateLinkingPhase(dependencies: dependencies,
                                          pbxTarget: pbxTarget,
-                                         objects: objects,
+                                         pbxproj: pbxproj,
                                          fileElements: fileElements)
 
-        let buildPhase: PBXFrameworksBuildPhase? = try pbxTarget.buildPhasesReferences.last?.object()
+        let buildPhase: PBXFrameworksBuildPhase? = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
 
-        let testBuildFile: PBXBuildFile? = try buildPhase?.fileReferences.first?.object()
-        let wakaBuildFile: PBXBuildFile? = try buildPhase?.fileReferences.last?.object()
+        let testBuildFile: PBXBuildFile? = buildPhase?.files.first
+        let wakaBuildFile: PBXBuildFile? = buildPhase?.files.last
 
-        XCTAssertEqual(testBuildFile?.fileReference, testFileReference)
-        XCTAssertEqual(wakaBuildFile?.fileReference, wakaFileReference)
+        XCTAssertEqual(testBuildFile?.file, testFile)
+        XCTAssertEqual(wakaBuildFile?.file, wakaFile)
     }
 
     func test_generateLinkingPhase_throws_whenFileReferenceIsMissing() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
 
         XCTAssertThrowsError(try subject.generateLinkingPhase(dependencies: dependencies,
                                                               pbxTarget: pbxTarget,
-                                                              objects: objects,
+                                                              pbxproj: pbxproj,
                                                               fileElements: fileElements)) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingReference(path: AbsolutePath("/test.framework")))
         }
@@ -188,13 +192,13 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.product("waka.framework"))
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
 
         XCTAssertThrowsError(try subject.generateLinkingPhase(dependencies: dependencies,
                                                               pbxTarget: pbxTarget,
-                                                              objects: objects,
+                                                              pbxproj: pbxproj,
                                                               fileElements: fileElements)) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
         }

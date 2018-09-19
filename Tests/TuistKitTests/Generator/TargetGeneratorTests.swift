@@ -13,26 +13,26 @@ final class TargetGeneratorTests: XCTestCase {
     }
 
     func test_generateTargetDependencies() throws {
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let path = AbsolutePath("/test")
         let targetA = Target.test(name: "TargetA")
         let targetB = Target.test(name: "TargetB")
         let nativeTargetA = PBXNativeTarget(name: "TargetA")
         let nativeTargetB = PBXNativeTarget(name: "TargetB")
-        objects.addObject(nativeTargetA)
-        objects.addObject(nativeTargetB)
-        let configList = XCConfigurationList(buildConfigurationsReferences: [])
-        let configListRef = objects.addObject(configList)
+        pbxproj.add(object: nativeTargetA)
+        pbxproj.add(object: nativeTargetB)
+        let configList = XCConfigurationList(buildConfigurations: [])
+        pbxproj.add(object: configList)
         let mainGroup = PBXGroup()
-        let mainGroupRef = objects.addObject(mainGroup)
+        pbxproj.add(object: mainGroup)
         let project = Project.test(path: path,
                                    name: "Project",
                                    targets: [targetA, targetB])
         let pbxProject = PBXProject(name: "Project",
-                                    buildConfigurationListReference: configListRef,
+                                    buildConfigurationList: configList,
                                     compatibilityVersion: "0",
-                                    mainGroupReference: mainGroupRef)
-        objects.addObject(pbxProject)
+                                    mainGroup: mainGroup)
+        pbxproj.add(object: pbxProject)
         let graphCache = GraphLoaderCache()
         let targetBNode = TargetNode(project: project,
                                      target: targetA,
@@ -52,6 +52,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                    "TargetB": nativeTargetB,
                                                ],
                                                graph: graph)
-        XCTAssertNotNil(nativeTargetA.dependenciesReferences.first)
+        XCTAssertNotNil(nativeTargetA.dependencies.first)
     }
 }
