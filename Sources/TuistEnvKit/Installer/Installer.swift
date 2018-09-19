@@ -92,13 +92,14 @@ final class Installer: Installing {
     func verifySwiftVersion(version: String) throws {
         guard let localVersion = try system.swiftVersion() else { return }
         printer.print("Verifying the Swift version is compatible with your version \(localVersion)")
+        var remoteVersion: String!
         do {
-            let version = try githubClient.getContent(ref: version, path: ".swift-version").chomp()
-            if localVersion != version {
-                throw InstallerError.incompatibleSwiftVersion(local: localVersion, expected: version)
-            }
+            remoteVersion = try githubClient.getContent(ref: version, path: ".swift-version").chomp()
         } catch {
             printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
+        }
+        if remoteVersion != nil && localVersion != remoteVersion {
+            throw InstallerError.incompatibleSwiftVersion(local: localVersion, expected: remoteVersion)
         }
     }
 

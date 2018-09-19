@@ -90,7 +90,7 @@ class GitHubClient: GitHubClienting {
         do {
             guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
                 let content = json["content"] as? String,
-                let base64Data = Data(base64Encoded: content),
+                let base64Data = Data(base64Encoded: content.chomp()),
                 let decodedContent = String(data: base64Data, encoding: .utf8) else {
                 throw GitHubClientError.invalidResponse
             }

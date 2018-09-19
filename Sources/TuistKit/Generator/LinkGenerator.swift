@@ -141,14 +141,14 @@ final class LinkGenerator: LinkGenerating {
         }
         .map({ $0.removingLastComponent() })
         .map({ $0.relative(to: sourceRootPath).asString })
-        .sorted()
         .map({ "$(SRCROOT)/\($0)" })
+
         if paths.isEmpty { return }
 
         let configurationList = pbxTarget.buildConfigurationList
         let buildConfigurations = configurationList?.buildConfigurations
 
-        let pathsValue = Set(paths).joined(separator: " ")
+        let pathsValue = Set(paths).sorted().joined(separator: " ")
         buildConfigurations?.forEach { buildConfiguration in
             var frameworkSearchPaths = (buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String) ?? ""
             if frameworkSearchPaths.isEmpty {
