@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCoreTesting
 @testable import TuistKit
-@testable import xcodeproj
+import xcodeproj
 import XCTest
 
 final class BuildPhaseGenerationErrorTests: XCTestCase {

@@ -141,6 +141,7 @@ final class LinkGenerator: LinkGenerating {
         }
         .map({ $0.removingLastComponent() })
         .map({ $0.relative(to: sourceRootPath).asString })
+        .sorted()
         .map({ "$(SRCROOT)/\($0)" })
         if paths.isEmpty { return }
 

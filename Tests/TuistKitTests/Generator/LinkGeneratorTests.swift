@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 @testable import TuistKit
-@testable import xcodeproj
+import xcodeproj
 import XCTest
 
 final class LinkGeneratorErrorTests: XCTestCase {
@@ -53,7 +53,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         let copyBuildPhase: PBXCopyFilesBuildPhase? = pbxTarget.buildPhases.last as? PBXCopyFilesBuildPhase
         XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")
-        let wakaBuildFile: PBXBuildFile? = try copyBuildPhase?.fileReferences.first?.object()
+        let wakaBuildFile: PBXBuildFile? = copyBuildPhase?.files.first
         XCTAssertEqual(wakaBuildFile?.file, wakaFile)
     }
 
@@ -102,7 +102,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                              pbxTarget: pbxTarget,
                                              sourceRootPath: sourceRootPath)
 
-        let expected = "$(SRCROOT)/Dependencies $(SRCROOT)/Dependencies/C"
+        let expected = "$(SRCROOT)/Dependencies/C $(SRCROOT)/Dependencies"
         XCTAssertEqual(debugConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
         XCTAssertEqual(releaseConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
     }
