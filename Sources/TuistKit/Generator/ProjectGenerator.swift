@@ -60,26 +60,26 @@ final class ProjectGenerator: ProjectGenerating {
                                           sourceRootPath: sourceRootPath)
 
         // Configuration list
-        let configurationListReference = try configGenerator.generateProjectConfig(project: project,
-                                                                                   objects: pbxproj.objects,
-                                                                                   fileElements: fileElements,
-                                                                                   options: options)
+        let configurationList = try configGenerator.generateProjectConfig(project: project,
+                                                                          objects: pbxproj.objects,
+                                                                          fileElements: fileElements,
+                                                                          options: options)
 
         /// Generate project object.
         let pbxProject = PBXProject(name: project.name,
-                                    buildConfigurationListReference: configurationListReference,
+                                    buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
-                                    mainGroupReference: groups.main.reference,
+                                    mainGroup: groups.main,
                                     developmentRegion: Xcode.Default.developmentRegion,
                                     hasScannedForEncodings: 0,
                                     knownRegions: ["en"],
-                                    productsGroupReference: groups.products.reference,
+                                    productsGroup: groups.products,
                                     projectDirPath: "",
-                                    projectReferences: [],
+                                    projects: [],
                                     projectRoots: [],
-                                    targetsReferences: [],
-                                    attributes: [:])
-        let projectReference = pbxproj.objects.addObject(pbxProject)
+                                    targets: [])
+        pbxproj.objects.add(object: pbxProject)
+
         pbxproj.rootObjectReference = projectReference
 
         /// Manifests target

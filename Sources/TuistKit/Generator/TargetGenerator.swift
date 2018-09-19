@@ -71,39 +71,42 @@ final class TargetGenerator: TargetGenerating {
 
         /// Products reference.
         let productFileReference = PBXFileReference(sourceTree: .buildProductsDir, name: frameworkName)
-        let productFileReferenceRef = pbxproj.objects.addObject(productFileReference)
-        groups.products.childrenReferences.append(productFileReferenceRef)
+        pbxproj.objects.add(object: productFileReference)
+        groups.products.children.append(productFileReference)
 
         /// Files
-        var files: [PBXObjectReference] = []
+        var files: [PBXFileElement] = []
         let projectManifestPath = try manifestLoader.manifestPath(at: project.path, manifest: .project)
         let modulePaths = try moduleLoader.load(projectManifestPath)
         try modulePaths.forEach { filePath in
             let fileReference = try fileGenerator.generateFile(path: filePath,
                                                                in: groups.projectDescription,
                                                                sourceRootPath: sourceRootPath)
-            files.append(fileReference.reference)
+            files.append(fileReference)
         }
 
         // Configuration
-        let configurationListReference = try configGenerator.generateManifestsConfig(pbxproj: pbxproj,
-                                                                                     options: options,
-                                                                                     resourceLocator: resourceLocator)
+        let configurationList = try configGenerator.generateManifestsConfig(pbxproj: pbxproj,
+                                                                            options: options,
+                                                                            resourceLocator: resourceLocator)
 
         // Build phases
         let sourcesPhase = PBXSourcesBuildPhase()
-        let sourcesPhaseReference = pbxproj.objects.addObject(sourcesPhase)
+        pbxproj.objects.add(object: sourcesPhase)
         try files.forEach({ _ = try sourcesPhase.addFile($0) })
 
         // Target
         let target = PBXNativeTarget(name: name,
-                                     buildConfigurationListReference: configurationListReference,
-                                     buildPhasesReferences: [sourcesPhaseReference],
+                                     buildConfigurationList: configurationList,
+                                     buildPhases: [sourcesPhase],
+                                     buildRules: [],
+                                     dependencies: [],
+                                     productInstallPath: nil,
                                      productName: frameworkName,
-                                     productReference: productFileReferenceRef,
+                                     product: productFileReference,
                                      productType: .framework)
-        let targetReference = pbxproj.objects.addObject(target)
-        pbxProject.targetsReferences.append(targetReference)
+        pbxproj.objects.add(object: target)
+        pbxProject.targets.append(target)
     }
 
     func generateTarget(target: Target,
@@ -122,15 +125,16 @@ final class TargetGenerator: TargetGenerating {
 
         /// Target
         let pbxTarget = PBXNativeTarget(name: target.name,
-                                        buildConfigurationListReference: nil,
-                                        buildPhasesReferences: [],
-                                        buildRulesReferences: [],
-                                        dependenciesReferences: [],
+                                        buildConfigurationList: nil,
+                                        buildPhases: [],
+                                        buildRules: [],
+                                        dependencies: [],
+                                        productInstallPath: nil,
                                         productName: target.productName,
-                                        productReference: productFileReference.reference,
+                                        product: productFileReference,
                                         productType: target.product.xcodeValue)
-        let targetReference = objects.addObject(pbxTarget)
-        pbxProject.targetsReferences.append(targetReference)
+        objects.add(object: pbxTarget)
+        pbxProject.targets.append(pbxTarget)
 
         /// Build configuration
         try configGenerator.generateTargetConfig(target,

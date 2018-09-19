@@ -285,9 +285,9 @@ class ProjectFileElements {
             let variantGroupPath = absolutePath.parentDirectory.appending(component: localizedName)
             var variantGroup: PBXVariantGroup! = elements[variantGroupPath] as? PBXVariantGroup
             if variantGroup == nil {
-                variantGroup = PBXVariantGroup(sourceTree: .group, name: localizedName)
-                let variantGroupReference = objects.addObject(variantGroup)
-                toGroup.childrenReferences.append(variantGroupReference)
+                variantGroup = PBXVariantGroup(children: [], sourceTree: .group, name: localizedName)
+                objects.add(object: variantGroup)
+                toGroup.children.append(variantGroup)
                 elements[variantGroupPath] = variantGroup
             }
 
@@ -299,8 +299,8 @@ class ProjectFileElements {
                                                           name: String(name),
                                                           lastKnownFileType: lastKnownFileType,
                                                           path: localizedFilePath)
-            let localizedFileReferenceReference = objects.addObject(localizedFileReference)
-            variantGroup.childrenReferences.append(localizedFileReferenceReference)
+            objects.add(object: localizedFileReference)
+            variantGroup.children.append(localizedFileReference)
         }
     }
 
@@ -316,8 +316,8 @@ class ProjectFileElements {
                                    name: name,
                                    sourceTree: .group,
                                    versionGroupType: versionGroupType)
-        let reference = objects.addObject(group)
-        toGroup.childrenReferences.append(reference)
+        objects.add(object: group)
+        toGroup.children.append(group)
         elements[folderAbsolutePath] = group
         return (element: group, path: from.appending(folderRelativePath))
     }
