@@ -102,7 +102,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                              pbxTarget: pbxTarget,
                                              sourceRootPath: sourceRootPath)
 
-        let expected = "$(SRCROOT)/Dependencies/C $(SRCROOT)/Dependencies"
+        let expected = "$(SRCROOT)/Dependencies $(SRCROOT)/Dependencies/C"
         XCTAssertEqual(debugConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
         XCTAssertEqual(releaseConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
     }
