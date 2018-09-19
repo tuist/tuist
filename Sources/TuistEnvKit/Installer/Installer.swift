@@ -8,17 +8,21 @@ protocol Installing: AnyObject {
 
 enum InstallerError: FatalError, Equatable {
     case versionNotFound(String)
+    case incompatibleSwiftVersion(local: String, expected: String)
 
     var type: ErrorType {
         switch self {
         case .versionNotFound: return .abort
+        case .incompatibleSwiftVersion: return .abort
         }
     }
 
     var description: String {
         switch self {
         case let .versionNotFound(version):
-            return "Version \(version) not found."
+            return "Version \(version) not found"
+        case let .incompatibleSwiftVersion(local, expected):
+            return "Found \(local) Swift version but expected \(expected)"
         }
     }
 
@@ -26,6 +30,10 @@ enum InstallerError: FatalError, Equatable {
         switch (lhs, rhs) {
         case let (.versionNotFound(lhsVersion), .versionNotFound(rhsVersion)):
             return lhsVersion == rhsVersion
+        case let (.incompatibleSwiftVersion(lhsLocal, lhsExpected), .incompatibleSwiftVersion(rhsLocal, rhsExpected)):
+            return lhsLocal == rhsLocal && lhsExpected == rhsExpected
+        default:
+            return false
         }
     }
 }
@@ -64,6 +72,8 @@ final class Installer: Installing {
     }
 
     func install(version: String, temporaryDirectory: TemporaryDirectory) throws {
+        try verifySwiftVersion(version: version)
+
         var bundleURL: URL?
         do {
             bundleURL = try self.bundleURL(version: version)
@@ -76,6 +86,19 @@ final class Installer: Installing {
         } else {
             try installFromSource(version: version,
                                   temporaryDirectory: temporaryDirectory)
+        }
+    }
+
+    func verifySwiftVersion(version: String) throws {
+        guard let localVersion = try system.swiftVersion() else { return }
+        printer.print("Verifying the Swift version is compatible with your version \(localVersion)")
+        do {
+            let version = try githubClient.getContent(ref: version, path: ".swift-version").chomp()
+            if localVersion != version {
+                throw InstallerError.incompatibleSwiftVersion(local: localVersion, expected: version)
+            }
+        } catch {
+            printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
         }
     }
 

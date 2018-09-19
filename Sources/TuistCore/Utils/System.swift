@@ -8,6 +8,8 @@ public protocol Systeming {
     func capture(_ args: String..., verbose: Bool) throws -> SystemResult
     func popen(_ args: String..., verbose: Bool) throws
     func popen(_ args: [String], verbose: Bool) throws
+
+    func swiftVersion() throws -> String?
 }
 
 public struct SystemError: FatalError, Equatable {
@@ -51,6 +53,8 @@ public struct SystemResult {
 }
 
 public final class System: Systeming {
+    private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
+
     // MARK: - Attributes
 
     let printer: Printing
@@ -87,6 +91,13 @@ public final class System: Systeming {
         precondition(args.count >= 1, "Invalid number of arguments")
         let arguments = ["/bin/bash", "-c", "\(args.map({ $0.shellEscaped() }).joined(separator: " "))"]
         _ = task(arguments, print: true).wait()
+    }
+
+    public func swiftVersion() throws -> String? {
+        let output = try capture("swift", "--version").throwIfError().stdout
+        let range = NSRange(location: 0, length: output.count)
+        guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else { return nil }
+        return NSString(string: output).substring(with: match.range(at: 1)).chomp()
     }
 
     // MARK: - Fileprivate

@@ -13,20 +13,28 @@ final class GitHubRequestsFactoryTests: XCTestCase {
     }
 
     func test_releasesRepository() {
-        XCTAssertEqual(GitHubRequestsFactory.releasesRepository, "tuist/tuist")
+        XCTAssertEqual(GitHubRequestsFactory.repository, "tuist/tuist")
     }
 
     func test_releases() {
         let got = subject.releases()
         XCTAssertEqual(got.httpMethod, "GET")
-        XCTAssertEqual(got.url, baseURL.appendingPathComponent("/repos/\(GitHubRequestsFactory.releasesRepository)/releases"))
+        XCTAssertEqual(got.url, baseURL.appendingPathComponent("/repos/\(GitHubRequestsFactory.repository)/releases"))
         XCTAssertNil(got.httpBody)
     }
 
     func test_release() {
         let got = subject.release(tag: "1.2.3")
         XCTAssertEqual(got.httpMethod, "GET")
-        XCTAssertEqual(got.url, baseURL.appendingPathComponent("/repos/\(GitHubRequestsFactory.releasesRepository)/releases/tags/1.2.3"))
+        XCTAssertEqual(got.url, baseURL.appendingPathComponent("/repos/\(GitHubRequestsFactory.repository)/releases/tags/1.2.3"))
         XCTAssertNil(got.httpBody)
+    }
+
+    func test_getContent() {
+        let got = subject.getContent(ref: "master", path: "path/to/file")
+        XCTAssertEqual(got.httpMethod, "GET")
+        let components = URLComponents(url: got.url!, resolvingAgainstBaseURL: true)!
+        XCTAssertEqual(components.query, "ref=master")
+        XCTAssertEqual(components.path, "/repos/\(GitHubRequestsFactory.repository)/contents/path/to/file")
     }
 }
