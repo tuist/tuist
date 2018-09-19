@@ -95,7 +95,7 @@ final class Installer: Installing {
         var remoteVersion: String!
         do {
             remoteVersion = try githubClient.getContent(ref: version, path: ".swift-version").chomp()
-        } catch {
+        } catch is GitHubClientError {
             printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
         }
         if remoteVersion != nil && localVersion != remoteVersion {
