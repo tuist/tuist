@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 @testable import TuistKit
-@testable import xcodeproj
+import xcodeproj
 import XCTest
 
 final class ProjectGroupsTests: XCTestCase {
@@ -16,7 +16,7 @@ final class ProjectGroupsTests: XCTestCase {
                               settings: nil,
                               targets: [])
         let pbxproj = PBXProj()
-        subject = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
     }
 
     func test_generate() {
@@ -24,27 +24,27 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
 
-        XCTAssertTrue(main.childrenReferences.contains(subject.project.reference))
+        XCTAssertTrue(main.children.contains(subject.project))
         XCTAssertEqual(subject.project.name, "Project")
         XCTAssertNil(subject.project.path)
         XCTAssertEqual(subject.project.sourceTree, .group)
 
-        XCTAssertTrue(main.childrenReferences.contains(subject.projectDescription.reference))
+        XCTAssertTrue(main.children.contains(subject.projectDescription))
         XCTAssertEqual(subject.projectDescription.name, "ProjectDescription")
         XCTAssertNil(subject.projectDescription.path)
         XCTAssertEqual(subject.projectDescription.sourceTree, .group)
 
-        XCTAssertTrue(main.childrenReferences.contains(subject.frameworks.reference))
+        XCTAssertTrue(main.children.contains(subject.frameworks))
         XCTAssertEqual(subject.frameworks.name, "Frameworks")
         XCTAssertNil(subject.frameworks.path)
         XCTAssertEqual(subject.frameworks.sourceTree, .group)
 
-        XCTAssertTrue(main.childrenReferences.contains(subject.products.reference))
+        XCTAssertTrue(main.children.contains(subject.products))
         XCTAssertEqual(subject.products.name, "Products")
         XCTAssertNil(subject.products.path)
         XCTAssertEqual(subject.products.sourceTree, .group)
 
-        XCTAssertTrue(main.childrenReferences.contains(subject.playgrounds.reference))
+        XCTAssertTrue(main.children.contains(subject.playgrounds))
         XCTAssertEqual(subject.playgrounds.path, "Playgrounds")
         XCTAssertNil(subject.playgrounds.name)
         XCTAssertEqual(subject.playgrounds.sourceTree, .group)
@@ -54,6 +54,6 @@ final class ProjectGroupsTests: XCTestCase {
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
         XCTAssertEqual(got.sourceTree, .group)
-        XCTAssertTrue(subject.frameworks.childrenReferences.contains(got.reference))
+        XCTAssertTrue(subject.frameworks.children.contains(got))
     }
 }

@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     macos:
-      xcode: "9.3.0"
+      xcode: '10.0.0'
     steps:
       - checkout
       - run:
@@ -13,6 +13,10 @@ jobs:
           name: Generate Xcode project
           command: |
             swift package generate-xcodeproj
+      - run:
+          name: Build for release
+          command: |
+            swift build -c release
       - run:
           name: Run tests
           command: xcodebuild test -scheme tuist-Package -enableCodeCoverage YES

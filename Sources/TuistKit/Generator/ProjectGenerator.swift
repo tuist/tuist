@@ -51,36 +51,35 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: Xcode.Default.objectVersion,
                               archiveVersion: Xcode.LastKnown.archiveVersion,
                               classes: [:])
-        let groups = ProjectGroups.generate(project: project, objects: pbxproj.objects, sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         fileElements.generateProjectFiles(project: project,
                                           graph: graph,
                                           groups: groups,
-                                          objects: pbxproj.objects,
+                                          pbxproj: pbxproj,
                                           sourceRootPath: sourceRootPath)
 
         // Configuration list
-        let configurationListReference = try configGenerator.generateProjectConfig(project: project,
-                                                                                   objects: pbxproj.objects,
-                                                                                   fileElements: fileElements,
-                                                                                   options: options)
+        let configurationList = try configGenerator.generateProjectConfig(project: project,
+                                                                          pbxproj: pbxproj,
+                                                                          fileElements: fileElements,
+                                                                          options: options)
 
         /// Generate project object.
         let pbxProject = PBXProject(name: project.name,
-                                    buildConfigurationListReference: configurationListReference,
+                                    buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
-                                    mainGroupReference: groups.main.reference,
+                                    mainGroup: groups.main,
                                     developmentRegion: Xcode.Default.developmentRegion,
                                     hasScannedForEncodings: 0,
                                     knownRegions: ["en"],
-                                    productsGroupReference: groups.products.reference,
+                                    productsGroup: groups.products,
                                     projectDirPath: "",
-                                    projectReferences: [],
+                                    projects: [],
                                     projectRoots: [],
-                                    targetsReferences: [],
-                                    attributes: [:])
-        let projectReference = pbxproj.objects.addObject(pbxProject)
-        pbxproj.rootObjectReference = projectReference
+                                    targets: [])
+        pbxproj.add(object: pbxProject)
+        pbxproj.rootObject = pbxProject
 
         /// Manifests target
         try targetGenerator.generateManifestsTarget(project: project,
@@ -95,7 +94,7 @@ final class ProjectGenerator: ProjectGenerating {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
-                                                                  objects: pbxproj.objects,
+                                                                  pbxproj: pbxproj,
                                                                   pbxProject: pbxProject,
                                                                   groups: groups,
                                                                   fileElements: fileElements,

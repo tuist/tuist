@@ -2,7 +2,7 @@ import Basic
 import Foundation
 @testable import TuistCoreTesting
 @testable import TuistKit
-@testable import xcodeproj
+import xcodeproj
 import XCTest
 
 final class ProjectFileElementsTests: XCTestCase {
@@ -75,14 +75,13 @@ final class ProjectFileElementsTests: XCTestCase {
         let project = Project.test()
         let sourceRootPath = AbsolutePath("/a/project/")
         let groups = ProjectGroups.generate(project: project,
-                                            objects: pbxproj.objects,
+                                            pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
         let products = ["Test.framework"]
-        let objects = PBXObjects()
         subject.generate(products: products,
                          groups: groups,
-                         objects: objects)
-        XCTAssertEqual(groups.products.childrenReferences.count, 1)
+                         pbxproj: pbxproj)
+        XCTAssertEqual(groups.products.children.count, 1)
         let fileReference = subject.product(name: "Test.framework")
         XCTAssertNotNil(fileReference)
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
@@ -98,9 +97,8 @@ final class ProjectFileElementsTests: XCTestCase {
         let target = Target.test()
         let project = Project.test(path: path, targets: [target])
         let groups = ProjectGroups.generate(project: project,
-                                            objects: pbxproj.objects,
+                                            pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        let objects = PBXObjects()
         var dependencies: Set<GraphNode> = Set()
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -110,10 +108,10 @@ final class ProjectFileElementsTests: XCTestCase {
         subject.generate(dependencies: dependencies,
                          path: path,
                          groups: groups,
-                         objects: objects,
+                         pbxproj: pbxproj,
                          sourceRootPath: sourceRootPath)
 
-        XCTAssertEqual(groups.products.childrenReferences.count, 0)
+        XCTAssertEqual(groups.products.children.count, 0)
     }
 
     func test_generateDependencies_whenTargetNode() throws {
@@ -123,9 +121,8 @@ final class ProjectFileElementsTests: XCTestCase {
         let target = Target.test()
         let project = Project.test(path: AbsolutePath("/waka"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
-                                            objects: pbxproj.objects,
+                                            pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        let objects = PBXObjects()
         var dependencies: Set<GraphNode> = Set()
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -135,10 +132,10 @@ final class ProjectFileElementsTests: XCTestCase {
         subject.generate(dependencies: dependencies,
                          path: path,
                          groups: groups,
-                         objects: objects,
+                         pbxproj: pbxproj,
                          sourceRootPath: sourceRootPath)
 
-        let fileReference: PBXFileReference? = try groups.products.childrenReferences.first?.object()
+        let fileReference: PBXFileReference? = groups.products.children.first as? PBXFileReference
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
         XCTAssertEqual(fileReference?.includeInIndex, false)
         XCTAssertEqual(fileReference?.path, "Target.app")
@@ -151,9 +148,8 @@ final class ProjectFileElementsTests: XCTestCase {
         let target = Target.test()
         let project = Project.test(path: AbsolutePath("/"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
-                                            objects: pbxproj.objects,
+                                            pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        let objects = PBXObjects()
         var dependencies: Set<GraphNode> = Set()
         let precompiledNode = FrameworkNode(path: project.path.appending(component: "waka.framework"))
         dependencies.insert(precompiledNode)
@@ -161,10 +157,10 @@ final class ProjectFileElementsTests: XCTestCase {
         subject.generate(dependencies: dependencies,
                          path: project.path,
                          groups: groups,
-                         objects: objects,
+                         pbxproj: pbxproj,
                          sourceRootPath: sourceRootPath)
 
-        let fileReference: PBXFileReference? = try groups.project.childrenReferences.first?.object()
+        let fileReference: PBXFileReference? = groups.project.children.first as? PBXFileReference
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertNil(fileReference?.name)
@@ -176,26 +172,26 @@ final class ProjectFileElementsTests: XCTestCase {
         let project = Project.test()
         let sourceRootPath = AbsolutePath("/a/project/")
         let groups = ProjectGroups.generate(project: project,
-                                            objects: pbxproj.objects,
+                                            pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
         subject.generate(path: path,
                          groups: groups,
-                         objects: pbxproj.objects,
+                         pbxproj: pbxproj,
                          sourceRootPath: sourceRootPath)
 
         let projectGroup = groups.project
 
-        let bGroup: PBXGroup = try projectGroup.childrenReferences.first!.object()
+        let bGroup: PBXGroup = projectGroup.children.first! as! PBXGroup
         XCTAssertEqual(bGroup.name, "b")
         XCTAssertEqual(bGroup.path, "../b")
         XCTAssertEqual(bGroup.sourceTree, .group)
 
-        let cGroup: PBXGroup = try bGroup.childrenReferences.first!.object()
+        let cGroup: PBXGroup = bGroup.children.first! as! PBXGroup
         XCTAssertEqual(cGroup.path, "c")
         XCTAssertNil(cGroup.name)
         XCTAssertEqual(cGroup.sourceTree, .group)
 
-        let file: PBXFileReference = try cGroup.childrenReferences.first!.object()
+        let file: PBXFileReference = cGroup.children.first! as! PBXFileReference
         XCTAssertEqual(file.path, "file.swift")
         XCTAssertNil(file.name)
         XCTAssertEqual(file.sourceTree, .group)
@@ -205,25 +201,25 @@ final class ProjectFileElementsTests: XCTestCase {
         let fileName = "localizable.strings"
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let localizedDir = dir.path.appending(component: "en.lproj")
-        try localizedDir.mkpath()
-        try localizedDir.appending(component: fileName).write("test")
+        try fileHandler.createFolder(localizedDir)
+        try "test".write(to: localizedDir.appending(component: fileName).url, atomically: true, encoding: .utf8)
         let from = dir.path.parentDirectory
         let absolutePath = localizedDir
         let relativePath = RelativePath("en.lproj")
         let group = PBXGroup()
-        let objects = PBXObjects()
-        objects.addObject(group)
+        let pbxproj = PBXProj()
+        pbxproj.add(object: group)
         subject.addVariantGroup(from: from,
                                 absolutePath: absolutePath,
                                 relativePath: relativePath,
                                 toGroup: group,
-                                objects: objects)
+                                pbxproj: pbxproj)
         let variantGroupPath = dir.path.appending(component: fileName)
         let variantGroup: PBXVariantGroup = subject.group(path: variantGroupPath) as! PBXVariantGroup
         XCTAssertEqual(variantGroup.name, fileName)
         XCTAssertEqual(variantGroup.sourceTree, .group)
 
-        let fileReference: PBXFileReference? = try variantGroup.childrenReferences.first?.object()
+        let fileReference: PBXFileReference? = variantGroup.children.first as? PBXFileReference
         XCTAssertEqual(fileReference?.name, "en")
         XCTAssertEqual(fileReference?.sourceTree, .group)
         XCTAssertEqual(fileReference?.path, "en.lproj/\(fileName)")
@@ -234,15 +230,15 @@ final class ProjectFileElementsTests: XCTestCase {
         let folderAbsolutePath = AbsolutePath("/project/model.xcdatamodel")
         let folderRelativePath = RelativePath("./model.xcdatamodel")
         let group = PBXGroup()
-        let objects = PBXObjects()
-        objects.addObject(group)
+        let pbxproj = PBXProj()
+        pbxproj.add(object: group)
         _ = subject.addVersionGroupElement(from: from,
                                            folderAbsolutePath: folderAbsolutePath,
                                            folderRelativePath: folderRelativePath,
                                            name: nil,
                                            toGroup: group,
-                                           objects: objects)
-        let versionGroup: XCVersionGroup? = try group.childrenReferences.first?.object()
+                                           pbxproj: pbxproj)
+        let versionGroup: XCVersionGroup? = group.children.first as? XCVersionGroup
         XCTAssertEqual(versionGroup?.path, "model.xcdatamodel")
         XCTAssertEqual(versionGroup?.sourceTree, .group)
         XCTAssertNil(versionGroup?.name)
@@ -254,15 +250,15 @@ final class ProjectFileElementsTests: XCTestCase {
         let fileAbsolutePath = AbsolutePath("/project/file.swift")
         let fileRelativePath = RelativePath("./file.swift")
         let group = PBXGroup()
-        let objects = PBXObjects()
-        objects.addObject(group)
+        let pbxproj = PBXProj()
+        pbxproj.add(object: group)
         _ = subject.addFileElement(from: from,
                                    fileAbsolutePath: fileAbsolutePath,
                                    fileRelativePath: fileRelativePath,
                                    name: nil,
                                    toGroup: group,
-                                   objects: objects)
-        let file: PBXFileReference? = try group.childrenReferences.first?.object()
+                                   pbxproj: pbxproj)
+        let file: PBXFileReference? = group.children.first as? PBXFileReference
         XCTAssertEqual(file?.path, "file.swift")
         XCTAssertEqual(file?.sourceTree, .group)
         XCTAssertNil(file?.name)
@@ -274,7 +270,7 @@ final class ProjectFileElementsTests: XCTestCase {
         let project = Project.test()
         let sourceRootPath = fileHandler.currentPath
         let groups = ProjectGroups.generate(project: project,
-                                            objects: pbxproj.objects,
+                                            pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
 
         let playgroundsPath = sourceRootPath.appending(component: "Playgrounds")
@@ -284,9 +280,9 @@ final class ProjectFileElementsTests: XCTestCase {
 
         subject.generatePlaygrounds(path: sourceRootPath,
                                     groups: groups,
-                                    objects: pbxproj.objects,
+                                    pbxproj: pbxproj,
                                     sourceRootPath: sourceRootPath)
-        let file: PBXFileReference? = try groups.playgrounds.childrenReferences.first?.object()
+        let file: PBXFileReference? = groups.playgrounds.children.first as? PBXFileReference
 
         XCTAssertEqual(file?.sourceTree, .group)
         XCTAssertEqual(file?.lastKnownFileType, "file.playground")

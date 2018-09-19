@@ -63,7 +63,7 @@ final class LocalCommandTests: XCTestCase {
 
     func test_run_prints_when_no_argument_is_passed() throws {
         let result = try argumentParser.parse(["local"])
-        versionController.semverVersionsStub = [Version("1.2.3"), Version("3.2.1")]
+        versionController.semverVersionsStub = [Version(string: "1.2.3")!, Version(string: "3.2.1")!]
         try subject.run(with: result)
 
         XCTAssertEqual(printer.printSectionArgs.count, 1)

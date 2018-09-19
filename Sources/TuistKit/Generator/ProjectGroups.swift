@@ -11,7 +11,7 @@ class ProjectGroups {
     let project: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup
-    let objects: PBXObjects
+    let pbxproj: PBXProj
 
     // MARK: - Init
 
@@ -21,14 +21,14 @@ class ProjectGroups {
          frameworks: PBXGroup,
          project: PBXGroup,
          playgrounds: PBXGroup,
-         objects: PBXObjects) {
+         pbxproj: PBXProj) {
         self.main = main
         self.products = products
         self.projectDescription = projectDescription
         self.frameworks = frameworks
         self.project = project
         self.playgrounds = playgrounds
-        self.objects = objects
+        self.pbxproj = pbxproj
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
@@ -40,39 +40,39 @@ class ProjectGroups {
     }
 
     static func generate(project: Project,
-                         objects: PBXObjects,
+                         pbxproj: PBXProj,
                          sourceRootPath: AbsolutePath) -> ProjectGroups {
         /// Main
         let projectRelativePath = project.path.relative(to: sourceRootPath).asString
-        let mainGroup = PBXGroup(childrenReferences: [],
+        let mainGroup = PBXGroup(children: [],
                                  sourceTree: .group,
                                  path: (projectRelativePath != ".") ? projectRelativePath : nil)
-        objects.addObject(mainGroup)
+        pbxproj.add(object: mainGroup)
 
         /// Project
-        let projectGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "Project")
-        let projectGroupReference = objects.addObject(projectGroup)
-        mainGroup.childrenReferences.append(projectGroupReference)
+        let projectGroup = PBXGroup(children: [], sourceTree: .group, name: "Project")
+        pbxproj.add(object: projectGroup)
+        mainGroup.children.append(projectGroup)
 
         /// ProjectDescription
-        let projectDescriptionGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "ProjectDescription")
-        let projectDescriptionGroupReference = objects.addObject(projectDescriptionGroup)
-        mainGroup.childrenReferences.append(projectDescriptionGroupReference)
+        let projectDescriptionGroup = PBXGroup(children: [], sourceTree: .group, name: "ProjectDescription")
+        pbxproj.add(object: projectDescriptionGroup)
+        mainGroup.children.append(projectDescriptionGroup)
 
         /// Frameworks
-        let frameworksGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "Frameworks")
-        let frameworksGroupReference = objects.addObject(frameworksGroup)
-        mainGroup.childrenReferences.append(frameworksGroupReference)
+        let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
+        pbxproj.add(object: frameworksGroup)
+        mainGroup.children.append(frameworksGroup)
 
         /// Playgrounds
-        let playgroundsGroup = PBXGroup(childrenReferences: [], sourceTree: .group, path: "Playgrounds")
-        let playgroundsGroupReference = objects.addObject(playgroundsGroup)
-        mainGroup.childrenReferences.append(playgroundsGroupReference)
+        let playgroundsGroup = PBXGroup(children: [], sourceTree: .group, path: "Playgrounds")
+        pbxproj.add(object: playgroundsGroup)
+        mainGroup.children.append(playgroundsGroup)
 
         /// Products
-        let productsGroup = PBXGroup(childrenReferences: [], sourceTree: .group, name: "Products")
-        let productsGroupReference = objects.addObject(productsGroup)
-        mainGroup.childrenReferences.append(productsGroupReference)
+        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
+        pbxproj.add(object: productsGroup)
+        mainGroup.children.append(productsGroup)
 
         return ProjectGroups(main: mainGroup,
                              products: productsGroup,
@@ -80,6 +80,6 @@ class ProjectGroups {
                              frameworks: frameworksGroup,
                              project: projectGroup,
                              playgrounds: playgroundsGroup,
-                             objects: objects)
+                             pbxproj: pbxproj)
     }
 }

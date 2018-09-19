@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCoreTesting
 @testable import TuistKit
-@testable import xcodeproj
+import xcodeproj
 import XCTest
 
 final class BuildPhaseGenerationErrorTests: XCTestCase {
@@ -32,36 +32,37 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     func test_generateSourcesBuildPhase() throws {
         let path = AbsolutePath("/test/file.swift")
         let target = PBXNativeTarget(name: "Test")
-        let objects = PBXObjects()
-        objects.addObject(target)
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
         let fileReference = PBXFileReference(sourceTree: .group, name: "Test")
-        let fileReferenceReference = objects.addObject(fileReference)
+        pbxproj.add(object: fileReference)
         fileElements.elements[path] = fileReference
 
         try subject.generateSourcesBuildPhase(files: [path],
                                               pbxTarget: target,
                                               fileElements: fileElements,
-                                              objects: objects)
+                                              pbxproj: pbxproj)
 
-        let buildPhase: PBXSourcesBuildPhase? = try target.buildPhasesReferences.first?.object()
+        let buildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(buildPhase)
-        let pbxBuildFile: PBXBuildFile? = try buildPhase?.fileReferences.first?.object()
+        XCTAssertTrue(buildPhase is PBXSourcesBuildPhase)
+        let pbxBuildFile: PBXBuildFile? = buildPhase?.files.first
         XCTAssertNotNil(pbxBuildFile)
-        XCTAssertEqual(pbxBuildFile?.fileReference, fileReferenceReference)
+        XCTAssertEqual(pbxBuildFile?.file, fileReference)
     }
 
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
         let path = AbsolutePath("/test/file.swift")
         let target = PBXNativeTarget(name: "Test")
-        let objects = PBXObjects()
-        objects.addObject(target)
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
         XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [path],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
-                                                                   objects: objects)) {
+                                                                   pbxproj: pbxproj)) {
             XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
         }
     }
@@ -69,32 +70,33 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     func test_generateHeadersBuildPhase() throws {
         let path = AbsolutePath("/test.h")
         let headers = Headers.test(public: [path], private: [], project: [])
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let header = PBXFileReference()
-        let headerReference = objects.addObject(header)
+        pbxproj.add(object: header)
         fileElements.elements[AbsolutePath("/test.h")] = header
         let target = PBXNativeTarget(name: "Test")
 
         try subject.generateHeadersBuildPhase(headers: headers,
                                               pbxTarget: target,
                                               fileElements: fileElements,
-                                              objects: objects)
+                                              pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXHeadersBuildPhase? = try target.buildPhasesReferences.first?.object()
+        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = try pbxBuildPhase?.fileReferences.first?.object()
+        XCTAssertTrue(pbxBuildPhase is PBXHeadersBuildPhase)
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
         XCTAssertNotNil(pbxBuildFile)
         XCTAssertEqual(pbxBuildFile?.settings?["ATTRIBUTES"] as? [String], ["Public"])
-        XCTAssertEqual(pbxBuildFile?.fileReference, headerReference)
+        XCTAssertEqual(pbxBuildFile?.file, header)
     }
 
     func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
         let path = AbsolutePath("/en.lproj/Main.storyboard")
         let fileElements = ProjectFileElements()
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let group = PBXVariantGroup()
-        let groupReference = objects.addObject(group)
+        pbxproj.add(object: group)
         fileElements.elements[AbsolutePath("/Main.storyboard")] = group
         let target = PBXNativeTarget(name: "Test")
 
@@ -102,12 +104,13 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                                 coreDataModels: [],
                                                 pbxTarget: target,
                                                 fileElements: fileElements,
-                                                objects: objects)
+                                                pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXResourcesBuildPhase? = try target.buildPhasesReferences.first?.object()
+        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = try pbxBuildPhase?.fileReferences.first?.object()
-        XCTAssertEqual(pbxBuildFile?.fileReference, groupReference)
+        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
+        XCTAssertEqual(pbxBuildFile?.file, group)
     }
 
     func test_generateResourcesBuildPhase_whenCoreDataModel() throws {
@@ -115,15 +118,15 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                           versions: [AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")],
                                           currentVersion: "1")
         let fileElements = ProjectFileElements()
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
 
         let versionGroup = XCVersionGroup()
-        let versionGroupReference = objects.addObject(versionGroup)
+        pbxproj.add(object: versionGroup)
         fileElements.elements[AbsolutePath("/Model.xcdatamodeld")] = versionGroup
 
         let model = PBXFileReference()
-        let modelReference = objects.addObject(model)
-        versionGroup.childrenReferences.append(modelReference)
+        pbxproj.add(object: model)
+        versionGroup.children.append(model)
         fileElements.elements[AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")] = model
 
         let target = PBXNativeTarget(name: "Test")
@@ -131,21 +134,22 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                                 coreDataModels: [coreDataModel],
                                                 pbxTarget: target,
                                                 fileElements: fileElements,
-                                                objects: objects)
+                                                pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXResourcesBuildPhase? = try target.buildPhasesReferences.first?.object()
+        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = try pbxBuildPhase?.fileReferences.first?.object()
-        XCTAssertEqual(pbxBuildFile?.fileReference, versionGroupReference)
-        XCTAssertEqual(versionGroup.currentVersion, modelReference)
+        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
+        XCTAssertEqual(pbxBuildFile?.file, versionGroup)
+        XCTAssertEqual(versionGroup.currentVersion, model)
     }
 
     func test_generateResourcesBuildPhase_whenNormalResource() throws {
         let path = AbsolutePath("/image.png")
         let fileElements = ProjectFileElements()
-        let objects = PBXObjects()
+        let pbxproj = PBXProj()
         let fileElement = PBXFileReference()
-        let fileElementReference = objects.addObject(fileElement)
+        pbxproj.add(object: fileElement)
         fileElements.elements[path] = fileElement
         let target = PBXNativeTarget(name: "Test")
 
@@ -153,11 +157,12 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                                 coreDataModels: [],
                                                 pbxTarget: target,
                                                 fileElements: fileElements,
-                                                objects: objects)
+                                                pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXResourcesBuildPhase? = try target.buildPhasesReferences.first?.object()
+        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = try pbxBuildPhase?.fileReferences.first?.object()
-        XCTAssertEqual(pbxBuildFile?.fileReference, fileElementReference)
+        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
+        XCTAssertEqual(pbxBuildFile?.file, fileElement)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 @testable import TuistKit
-@testable import xcodeproj
+import xcodeproj
 import XCTest
 
 final class ProductTests: XCTestCase {

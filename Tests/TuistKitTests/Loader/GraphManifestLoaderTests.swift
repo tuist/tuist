@@ -54,8 +54,7 @@ final class GraphManifestLoaderTests: XCTestCase {
                           encoding: .utf8)
 
         let got = try subject.load(.project, path: fileHandler.currentPath)
-
-        XCTAssertEqual(try got.get(String.self, forKey: "name"), "tuist")
+        XCTAssertEqual(try got.get("name") as String, "tuist")
     }
 
     func test_load_when_json() throws {
@@ -72,7 +71,7 @@ final class GraphManifestLoaderTests: XCTestCase {
 
         let got = try subject.load(.project, path: fileHandler.currentPath)
 
-        XCTAssertEqual(try got.get(String.self, forKey: "name"), "tuist")
+        XCTAssertEqual(try got.get("name") as String, "tuist")
     }
 
     func test_load_when_yaml() throws {
@@ -87,7 +86,7 @@ final class GraphManifestLoaderTests: XCTestCase {
 
         let got = try subject.load(.project, path: fileHandler.currentPath)
 
-        XCTAssertEqual(try got.get(String.self, forKey: "name"), "tuist")
+        XCTAssertEqual(try got.get("name") as String, "tuist")
     }
 
     func test_load_when_yml() throws {
@@ -102,7 +101,7 @@ final class GraphManifestLoaderTests: XCTestCase {
 
         let got = try subject.load(.project, path: fileHandler.currentPath)
 
-        XCTAssertEqual(try got.get(String.self, forKey: "name"), "tuist")
+        XCTAssertEqual(try got.get("name") as String, "tuist")
     }
 
     func test_manifestPath_when_swift() throws {
