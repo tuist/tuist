@@ -53,7 +53,7 @@ let project = Project(name: "App",
 
 Although we encourage defining the manifests in Swift, Tuist also supports JSON and Yaml formats.
 
-### Interacting with your projects
+### Interacting with your projects 🙇‍♀️
 
 Tuist leverages project generation to provide a **simple and convenient set of commands, standard across all the projects**. The commands infer most of the necessary information from your projects, requiring you to pass only the arguments that are strictly necessary.
 
@@ -68,7 +68,7 @@ Having a standard command line interface makes it easier to jump between project
 
 The list of actions will likely grow as we get feedback from you.
 
-## Install
+## Install ⬇️
 
 **Running script:**
 
@@ -76,7 +76,7 @@ The list of actions will likely grow as we get feedback from you.
 eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
 ```
 
-## Bootstrap your first project
+## Bootstrap your first project 🌀
 
 ```bash
 tuist init --platform ios --product application
@@ -85,7 +85,7 @@ tuist generate # Generates Xcode project
 
 [Check out](https://tuist.io/guides/1-getting-started) the project "Getting Started" guide to learn more about Tuist and all its features.
 
-## Setup for development
+## Setup for development 👩‍💻
 
 1.  Git clone: `git@github.com:tuist/tuist.git`
 2.  Generate Xcode project with `swift package generate-xcodeproj`.
