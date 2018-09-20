@@ -8,13 +8,13 @@
 [![codecov](https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg)](https://codecov.io/gh/tuist/tuist)
 [![Slack](http://slack.tuist.io/badge.svg)](http://slack.tuist.io)
 
-## What's Tuist
+## What's Tuist 🕺
 
 Tuist is a command line tool that helps you **generate**, **maintain** and **interact** with Xcode projects.
 
 It's open source and written in Swift.
 
-### Defining your projects
+### Defining your projects 💼
 
 With Tuist, projects are defined in a `Project.swift`, also known as manifest. The manifest format abstracts you from the implementation details of Xcode projects. In your manifest you can define which targets your project has, which sources and resources belong to them, as well as the dependencies with targets in the same and other projects. The advantages of defining the projects in a manifest are:
 
