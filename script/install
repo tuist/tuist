@@ -3,17 +3,21 @@
 URL=$( curl -s "https://api.github.com/repos/tuist/tuist/releases/latest" \
    | jq -r '.assets[] | select(.name=="tuistenv.zip") | .browser_download_url' )
 if [ "$URL" != "" ]; then
-  echo "Downloading tuist from $URL"
+  echo "Downloading Tuist"
 else
   echo "Couldn't find tuistenv on the latest release"
   exit 1
 fi
 
 curl -LSs --output /tmp/tuistenv.zip "$URL"
-unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv
+
+echo "Installing Tuist"
+unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
 mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
 
 chmod +x /usr/local/bin/tuist
 
 rm -rf /tmp/tuistenv
 rm /tmp/tuistenv.zip
+
+echo "Tuist installed. Try running 'tuist'"
