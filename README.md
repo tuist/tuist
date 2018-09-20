@@ -59,17 +59,12 @@ Tuist leverages project generation to provide a **simple and convenient set of c
 
 Having a standard command line interface makes it easier to jump between projects since there’s an interaction language everyone in the team is familiar with.
 
-<p align="center">
-  <img src="https://github.com/tuist/tuist/raw/master/assets/commands.png" width="350" align="center"/>
-  <br/><br/>
-</p>
-
-- **Init:** Bootstraps a new project. You can specify the platform and the type of project and it’ll generate all the necessary artifacts _(Info.plist, AppDelegate, Project.swift, Playgrounds…)_.
-- **Generate:** Generates the Xcode workspace and projects to work on a particular project.
-- **Build:** _(Not available yet)_ Builds the project in the current directory. It supports all the arguments that xcodebuild supports.
-- **Test:** _(Not available yet)_ Test the project in the current directory. It supports all the arguments that xcodebuild supports.
-- **Run:** _(Not available yet)_ Runs the project. If the project needs a device to run on, it’ll prompt you to select one.
-- **Release:** _(Not available yet)_ Builds and publishes your project on iTunes Connect.
+- **👩‍💻 Init:** Bootstraps a new project. You can specify the platform and the type of project and it’ll generate all the necessary artifacts _(Info.plist, AppDelegate, Project.swift, Playgrounds…)_.
+- **💫 Generate:** Generates the Xcode workspace and projects to work on a particular project.
+- **📦 Build:** _(Not available yet)_ Builds the project in the current directory. It supports all the arguments that xcodebuild supports.
+- **✅ Test:** _(Not available yet)_ Test the project in the current directory. It supports all the arguments that xcodebuild supports.
+- **📱 Run:** _(Not available yet)_ Runs the project. If the project needs a device to run on, it’ll prompt you to select one.
+- **🚀 Release:** _(Not available yet)_ Builds and publishes your project on iTunes Connect.
 
 The list of actions will likely grow as we get feedback from you.
 
