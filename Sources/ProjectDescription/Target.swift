@@ -36,6 +36,9 @@ public class Target: Codable {
     /// Headers.
     let headers: Headers?
 
+    /// Target actions.
+    let actions: [TargetAction]
+
     /// CoreData models.
     let coreDataModels: [CoreDataModel]
 
@@ -52,6 +55,7 @@ public class Target: Codable {
         case resources
         case headers
         case coreDataModels = "core_data_models"
+        case actions
     }
 
     /// Initializes the target.
@@ -66,6 +70,7 @@ public class Target: Codable {
     ///   - resources: relative path to the resources directory.
     ///   - headers: headers.
     ///   - entitlements: relative path to the entitlements file.
+    ///   - actions: target actions.
     ///   - dependencies: target dependencies.
     ///   - settings: target settings.
     ///   - coreDataModels: CoreData models.
@@ -78,6 +83,7 @@ public class Target: Codable {
                 resources: String? = nil,
                 headers: Headers? = nil,
                 entitlements: String? = nil,
+                actions: [TargetAction] = [],
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = []) {
@@ -92,6 +98,7 @@ public class Target: Codable {
         self.sources = sources
         self.resources = resources
         self.headers = headers
+        self.actions = actions
         self.coreDataModels = coreDataModels
     }
 }
