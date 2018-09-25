@@ -76,6 +76,8 @@ The list of actions will likely grow as we get feedback from you.
 eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
 ```
 
+If you run into issues, make sure you have `jq` installed in your system: `brew install jq`. 
+
 ## Bootstrap your first project 🌀
 
 ```bash
