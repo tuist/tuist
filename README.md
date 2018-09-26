@@ -73,10 +73,8 @@ The list of actions will likely grow as we get feedback from you.
 **Running script:**
 
 ```bash
-eval "$(curl -sL https://raw.githubusercontent.com/tuist/tuist/master/script/install)"
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/install/master/install)"
 ```
-
-If you run into issues, make sure you have `jq` installed in your system: `brew install jq`. 
 
 ## Bootstrap your first project 🌀
 
