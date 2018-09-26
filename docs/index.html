@@ -141,37 +141,80 @@
 
 <p><a href="https://github.com/prettier/prettier"><img src="https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square" alt="code style: prettier"></a>
 <a href="https://circleci.com/gh/tuist/tuist"><img src="https://circleci.com/gh/tuist/tuist.svg?style=svg" alt="CircleCI"></a>
-<a href="https://codecov.io/gh/tuist/tuist"><img src="https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg" alt="codecov"></a></p>
-<h2 id='features' class='heading'>Features</h2>
+<a href="https://codecov.io/gh/tuist/tuist"><img src="https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg" alt="codecov"></a>
+<a href="http://slack.tuist.io"><img src="http://slack.tuist.io/badge.svg" alt="Slack"></a></p>
+<h2 id='what-39-s-tuist' class='heading'>What&rsquo;s Tuist 🕺</h2>
+
+<p>Tuist is a command line tool that helps you <strong>generate</strong>, <strong>maintain</strong> and <strong>interact</strong> with Xcode projects.</p>
+
+<p>It&rsquo;s open source and written in Swift.</p>
+<h3 id='defining-your-projects' class='heading'>Defining your projects 💼</h3>
+
+<p>With Tuist, projects are defined in a <code>Project.swift</code>, also known as manifest. The manifest format abstracts you from the implementation details of Xcode projects. In your manifest you can define which targets your project has, which sources and resources belong to them, as well as the dependencies with targets in the same and other projects. The advantages of defining the projects in a manifest are:</p>
+<li>It can catch <strong>misconfigurations and fail early.</strong> For example, if a target has an invalid dependency, it’ll let you know before you start compiling the app.</li>
+<div class="aside aside-since">
+    <p class="aside-title">Since</p>
+    Since the manifest doesn’t include Xcode implementation details, the <strong>likelihood of having git conflicts</strong> is significantly lower.
+
+</div>
+<li><strong>It makes the configuration easier.</strong> The decision on how the project looks is on you. Tuist processes it and manages the complexity for you. One example of that complexity is setting up dependencies between targets.</li>
+
+<p>The example below shows how projects are defined with Tuist:</p>
+<pre class="highlight swift"><code><span class="kd">import</span> <span class="kt">ProjectDescription</span>
+
+<span class="k">let</span> <span class="nv">project</span> <span class="o">=</span> <span class="kt">Project</span><span class="p">(</span><span class="nv">name</span><span class="p">:</span> <span class="s">"App"</span><span class="p">,</span>
+                      <span class="nv">targets</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="kt">Target</span><span class="p">(</span><span class="nv">name</span><span class="p">:</span> <span class="s">"App"</span><span class="p">,</span>
+                               <span class="nv">platform</span><span class="p">:</span> <span class="o">.</span><span class="n">iOS</span><span class="p">,</span>
+                               <span class="nv">product</span><span class="p">:</span> <span class="o">.</span><span class="n">app</span><span class="p">,</span>
+                               <span class="nv">bundleId</span><span class="p">:</span> <span class="s">"io.tuist.App"</span><span class="p">,</span>
+                               <span class="nv">infoPlist</span><span class="p">:</span> <span class="s">"Info.plist"</span><span class="p">,</span>
+                               <span class="nv">sources</span><span class="p">:</span> <span class="s">"Sources/**"</span><span class="p">,</span>
+                               <span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span>
+                                    <span class="cm">/* Target dependencies can be defined here */</span>
+                                    <span class="cm">/* .framework(path: "framework") */</span>
+                                <span class="p">]),</span>
+                        <span class="kt">Target</span><span class="p">(</span><span class="nv">name</span><span class="p">:</span> <span class="s">"AppTests"</span><span class="p">,</span>
+                               <span class="nv">platform</span><span class="p">:</span> <span class="o">.</span><span class="n">iOS</span><span class="p">,</span>
+                               <span class="nv">product</span><span class="p">:</span> <span class="o">.</span><span class="n">unitTests</span><span class="p">,</span>
+                               <span class="nv">bundleId</span><span class="p">:</span> <span class="s">"io.tuist.AppTests"</span><span class="p">,</span>
+                               <span class="nv">infoPlist</span><span class="p">:</span> <span class="s">"Tests.plist"</span><span class="p">,</span>
+                               <span class="nv">sources</span><span class="p">:</span> <span class="s">"Tests/**"</span><span class="p">,</span>
+                               <span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span>
+                                    <span class="o">.</span><span class="nf">target</span><span class="p">(</span><span class="nv">name</span><span class="p">:</span> <span class="s">"App"</span><span class="p">)</span>
+                               <span class="p">])</span>
+                      <span class="p">])</span>
+</code></pre>
+
+<p>Although we encourage defining the manifests in Swift, Tuist also supports JSON and Yaml formats.</p>
+<h3 id='interacting-with-your-projects' class='heading'>Interacting with your projects 🙇‍♀️</h3>
+
+<p>Tuist leverages project generation to provide a <strong>simple and convenient set of commands, standard across all the projects</strong>. The commands infer most of the necessary information from your projects, requiring you to pass only the arguments that are strictly necessary.</p>
+
+<p>Having a standard command line interface makes it easier to jump between projects since there’s an interaction language everyone in the team is familiar with.</p>
 
 <ul>
-<li>🥘 100% written in Swift.</li>
-<li>🐦 Type-safe Swift manifests editable with Xcode.</li>
-<li>↗️ Local dependencies support.</li>
-<li>⚠️ Misconfiguration catching.</li>
-<li>📦 Precompiled binaries <em>(Frameworks &amp; Libraries support)</em>.</li>
-<li>🔄 Circular dependency detection.</li>
+<li><strong>👩‍💻 Init:</strong> Bootstraps a new project. You can specify the platform and the type of project and it’ll generate all the necessary artifacts <em>(Info.plist, AppDelegate, Project.swift, Playgrounds…)</em>.</li>
+<li><strong>💫 Generate:</strong> Generates the Xcode workspace and projects to work on a particular project.</li>
+<li><strong>📦 Build:</strong> <em>(Not available yet)</em> Builds the project in the current directory. It supports all the arguments that xcodebuild supports.</li>
+<li><strong>✅ Test:</strong> <em>(Not available yet)</em> Test the project in the current directory. It supports all the arguments that xcodebuild supports.</li>
+<li><strong>📱 Run:</strong> <em>(Not available yet)</em> Runs the project. If the project needs a device to run on, it’ll prompt you to select one.</li>
+<li><strong>🚀 Release:</strong> <em>(Not available yet)</em> Builds and publishes your project on iTunes Connect.</li>
 </ul>
-<h2 id='install' class='heading'>Install</h2>
 
-<!--
-**Using Homebrew:**
-
-```bash
-brew tap tuist/tuist https://github.com/tuist/tuist
-brew install tuist
-``` -->
+<p>The list of actions will likely grow as we get feedback from you.</p>
+<h2 id='install' class='heading'>Install ⬇️</h2>
 
 <p><strong>Running script:</strong></p>
-<pre class="highlight shell"><code><span class="nb">eval</span> <span class="s2">"</span><span class="k">$(</span>curl <span class="nt">-sL</span> https://raw.githubusercontent.com/tuist/tuist/master/script/install<span class="k">)</span><span class="s2">"</span>
+<pre class="highlight shell"><code>/usr/bin/ruby <span class="nt">-e</span> <span class="s2">"</span><span class="k">$(</span>curl <span class="nt">-fsSL</span> https://raw.githubusercontent.com/tuist/install/master/install<span class="k">)</span><span class="s2">"</span>
 </code></pre>
-<h2 id='bootstrap-your-first-project' class='heading'>Bootstrap your first project</h2>
+<h2 id='bootstrap-your-first-project' class='heading'>Bootstrap your first project 🌀</h2>
 <pre class="highlight shell"><code>tuist init <span class="nt">--platform</span> ios <span class="nt">--product</span> application
 tuist generate <span class="c"># Generates Xcode project</span>
 </code></pre>
 
 <p><a href="https://tuist.io/guides/1-getting-started">Check out</a> the project <q>Getting Started</q> guide to learn more about Tuist and all its features.</p>
-<h2 id='setup-for-development' class='heading'>Setup for development</h2>
+<h2 id='setup-for-development' class='heading'>Setup for development 👩‍💻</h2>
 
 <ol>
 <li>Git clone: <code>git@github.com:tuist/tuist.git</code></li>
@@ -179,9 +222,6 @@ tuist generate <span class="c"># Generates Xcode project</span>
 <li>Open <code>tuist.xcodeproj</code>.</li>
 <li>Have fun 🤖</li>
 </ol>
-<h2 id='roadmap' class='heading'>Roadmap 📚</h2>
-
-<p>The roadmap of Tuist is as open as the source code. Check out our public <a href="https://trello.com/b/DN6HvDzW/tuist">Trello board</a> to know more about what&rsquo;s coming.</p>
 <h2 id='shield' class='heading'>Shield</h2>
 
 <p>If your project uses Tuist, you can add the following badge to your project README:</p>

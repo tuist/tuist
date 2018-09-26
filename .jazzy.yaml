@@ -9,18 +9,10 @@ xcodebuild_arguments:
   - tuist.xcodeproj
   - -scheme
   - tuist-Package
-swift_version: "4.1.2"
+swift_version: "4.2"
 min_acl: public
 readme: README.md
 custom_categories:
-  - name: Tutorial
-    children:
-      - 1. Install
-      - 2. Init command
-      - 3. Building and testing
-      - 4. Target dependencies
-      - 5. Continuous integration
-      - 6. Modules
   - name: Worksaces
     children:
       - Workspace

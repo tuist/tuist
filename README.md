@@ -92,10 +92,6 @@ tuist generate # Generates Xcode project
 3.  Open `tuist.xcodeproj`.
 4.  Have fun 🤖
 
-## Roadmap 📚
-
-The roadmap of Tuist is as open as the source code. Check out our public [Trello board](https://trello.com/b/DN6HvDzW/tuist) to know more about what's coming.
-
 ## Shield
 
 If your project uses Tuist, you can add the following badge to your project README:

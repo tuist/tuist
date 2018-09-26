@@ -717,28 +717,28 @@
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetDependency.swift",
       "line": 6,
-      "symbol": "TargetDependency.target",
+      "symbol": "TargetDependency.target(name:)",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetDependency.swift",
       "line": 7,
-      "symbol": "TargetDependency.project",
+      "symbol": "TargetDependency.project(target:path:)",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetDependency.swift",
       "line": 8,
-      "symbol": "TargetDependency.framework",
+      "symbol": "TargetDependency.framework(path:)",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetDependency.swift",
       "line": 9,
-      "symbol": "TargetDependency.library",
+      "symbol": "TargetDependency.library(path:publicHeaders:swiftModuleMap:)",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
@@ -759,7 +759,7 @@
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetDependency.swift",
       "line": 29,
-      "symbol": "TargetDependency.CodingError.unknownType",
+      "symbol": "TargetDependency.CodingError.unknownType(_:)",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
