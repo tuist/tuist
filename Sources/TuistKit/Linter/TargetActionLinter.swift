@@ -47,7 +47,7 @@ class TargetActionLinter: TargetActionLinting {
             _ = try system.which(tool)
             return []
         } catch {
-            return [LintingIssue(reason: "The action tool '\(tool)' not found in the environment",
+            return [LintingIssue(reason: "The action tool '\(tool)' was not found in the environment",
                                  severity: .error)]
         }
     }

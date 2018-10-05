@@ -24,7 +24,7 @@ final class TargetActionLinterTests: XCTestCase {
                                   tool: "randomtool")
         let got = subject.lint(action)
 
-        let expected = LintingIssue(reason: "The action tool 'randomtool' not found in the environment",
+        let expected = LintingIssue(reason: "The action tool 'randomtool' was not found in the environment",
                                     severity: .error)
         XCTAssertTrue(got.contains(expected))
     }
