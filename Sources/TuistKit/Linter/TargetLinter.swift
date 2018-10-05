@@ -10,13 +10,16 @@ class TargetLinter: TargetLinting {
 
     private let fileHandler: FileHandling
     private let settingsLinter: SettingsLinting
+    private let targetActionLinter: TargetActionLinting
 
     // MARK: - Init
 
     init(settingsLinter: SettingsLinting = SettingsLinter(),
-         fileHandler: FileHandling = FileHandler()) {
+         fileHandler: FileHandling = FileHandler(),
+         targetActionLinter: TargetActionLinting = TargetActionLinter()) {
         self.settingsLinter = settingsLinter
         self.fileHandler = fileHandler
+        self.targetActionLinter = targetActionLinter
     }
 
     // MARK: - TargetLinting
@@ -29,6 +32,9 @@ class TargetLinter: TargetLinting {
 
         if let settings = target.settings {
             issues.append(contentsOf: settingsLinter.lint(settings: settings))
+        }
+        target.actions.forEach { action in
+            issues.append(contentsOf: targetActionLinter.lint(action))
         }
         return issues
     }

@@ -14,27 +14,31 @@ public struct TargetAction: GraphJSONInitiatable {
     }
 
     /// Name of the build phase when the project gets generated.
-    private let name: String
+    let name: String
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    private let tool: String?
+    let tool: String?
 
     /// Path to the script to execute.
-    private let path: String?
+    let path: AbsolutePath?
 
     /// Target action order.
-    private let order: Order
+    let order: Order
 
     /// Arguments that to be passed.
-    private let arguments: [String]
+    let arguments: [String]
 
     // MARK: - GraphJSONInitiatable
 
-    init(json: JSON, projectPath _: AbsolutePath, fileHandler _: FileHandling) throws {
+    init(json: JSON, projectPath: AbsolutePath, fileHandler _: FileHandling) throws {
         name = try json.get("name")
         order = Order(rawValue: try json.get("order"))!
         arguments = try json.get("arguments")
-        path = try? json.get("path")
+        if let path: String = try? json.get("path") {
+            self.path = AbsolutePath(path, relativeTo: projectPath)
+        } else {
+            path = nil
+        }
         tool = try? json.get("name")
     }
 }
