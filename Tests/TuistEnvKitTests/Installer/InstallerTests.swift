@@ -74,7 +74,7 @@ final class InstallerTests: XCTestCase {
             .path
             .appending(component: Constants.bundleName)
         system.stub(args: [
-            "curl", "-LSs",
+            "/usr/bin/curl", "-LSs",
             "--output", downloadPath.asString,
             downloadURL.absoluteString,
         ],
@@ -82,7 +82,7 @@ final class InstallerTests: XCTestCase {
                     stdout: nil,
                     exitstatus: 0)
         system.stub(args: [
-            "unzip", downloadPath.asString,
+            "/usr/bin/unzip", downloadPath.asString,
             "-d", self.fileHandler.currentPath.asString,
         ],
                     stderror: nil,
@@ -121,7 +121,7 @@ final class InstallerTests: XCTestCase {
             .path
             .appending(component: Constants.bundleName)
         system.stub(args: [
-            "curl", "-LSs",
+            "/usr/bin/curl", "-LSs",
             "--output", downloadPath.asString,
             downloadURL.absoluteString,
         ],
@@ -156,7 +156,7 @@ final class InstallerTests: XCTestCase {
             .path
             .appending(component: Constants.bundleName)
         system.stub(args: [
-            "curl", "-LSs",
+            "/usr/bin/curl", "-LSs",
             "--output", downloadPath.asString,
             downloadURL.absoluteString,
         ],
@@ -164,7 +164,7 @@ final class InstallerTests: XCTestCase {
                     stdout: nil,
                     exitstatus: 0)
         system.stub(args: [
-            "unzip", downloadPath.asString,
+            "/usr/bin/unzip", downloadPath.asString,
             "-d", self.fileHandler.currentPath.asString,
         ],
                     stderror: "unzip_error",
@@ -187,7 +187,7 @@ final class InstallerTests: XCTestCase {
         }
 
         system.stub(args: [
-            "git",
+            "/usr/bin/env", "git",
             "clone", Constants.gitRepositoryURL,
             temporaryDirectory.path.asString,
         ],
@@ -195,7 +195,7 @@ final class InstallerTests: XCTestCase {
                     stdout: nil,
                     exitstatus: 0)
         system.stub(args: [
-            "git", "-C", temporaryDirectory.path.asString,
+            "/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
             "checkout", version,
         ],
                     stderror: nil,
@@ -255,7 +255,7 @@ final class InstallerTests: XCTestCase {
         }
 
         system.stub(args: [
-            "git",
+            "/usr/bin/env", "git",
             "clone", Constants.gitRepositoryURL,
             temporaryDirectory.path.asString,
         ],
@@ -263,7 +263,7 @@ final class InstallerTests: XCTestCase {
                     stdout: nil,
                     exitstatus: 0)
         system.stub(args: [
-            "git", "-C", temporaryDirectory.path.asString,
+            "/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
             "checkout", version,
         ],
                     stderror: "did not match any file(s) known to git ",

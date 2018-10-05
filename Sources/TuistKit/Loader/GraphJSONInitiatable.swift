@@ -14,6 +14,6 @@ protocol GraphJSONInitiatable {
     ///   - json: JSON representation of the entity. This JSON is the output of the same entity in the ProjectDescription framework.
     ///   - projectPath: Absolute path to the folder that contains the manifest. This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
     ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
-    /// - Throws: An error if the
+    /// - Throws: A decoding error if an expected property is missing or has an invalid value.
     init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws
 }

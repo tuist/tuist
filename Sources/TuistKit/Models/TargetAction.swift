@@ -13,23 +13,50 @@ public struct TargetAction: GraphJSONInitiatable {
         case post
     }
 
-    /// Name of the build phase when the project gets generated.
+    /// Name of the build phase when the project gets generated
     let name: String
 
-    /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+    /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH
     let tool: String?
 
-    /// Path to the script to execute.
+    /// Path to the script to execute
     let path: AbsolutePath?
 
-    /// Target action order.
+    /// Target action order
     let order: Order
 
-    /// Arguments that to be passed.
+    /// Arguments that to be passed
     let arguments: [String]
 
     // MARK: - GraphJSONInitiatable
 
+    /// Initializes a new target action with its attributes.
+    ///
+    /// - Parameters:
+    ///   - name: Name of the build phase when the project gets generated
+    ///   - order: Target action order
+    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH
+    ///   - path: Path to the script to execute
+    ///   - arguments: Arguments that to be passed
+    init(name: String,
+         order: Order,
+         tool: String? = nil,
+         path: AbsolutePath? = nil,
+         arguments: [String] = []) {
+        self.name = name
+        self.order = order
+        self.tool = tool
+        self.path = path
+        self.arguments = arguments
+    }
+
+    /// Action constructor from its JSON representation.
+    ///
+    /// - Parameters:
+    ///   - json: JSON representation of the target action.
+    ///   - projectPath: Absolute path to the folder that contains the manifest. This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
+    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
+    /// - Throws: A decoding error if an expected property is missing or has an invalid value.
     init(json: JSON, projectPath: AbsolutePath, fileHandler _: FileHandling) throws {
         name = try json.get("name")
         order = Order(rawValue: try json.get("order"))!

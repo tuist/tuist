@@ -47,7 +47,7 @@ class TargetActionLinter: TargetActionLinting {
             _ = try system.which(tool)
             return []
         } catch {
-            return [LintingIssue(reason: "Action tool '\(tool)' not found in the environment",
+            return [LintingIssue(reason: "The action tool '\(tool)' not found in the environment",
                                  severity: .error)]
         }
     }
@@ -55,7 +55,7 @@ class TargetActionLinter: TargetActionLinting {
     func lintPathExistence(_ action: TargetAction) -> [LintingIssue] {
         guard let path = action.path else { return [] }
         if fileHandler.exists(path) { return [] }
-        return [LintingIssue(reason: "Action path doesn't exist \(path.asString)",
+        return [LintingIssue(reason: "The action path \(path.asString) doesn't exist",
                              severity: .error)]
     }
 }
