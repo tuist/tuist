@@ -1,171 +1,108 @@
 /* Credit to https://gist.github.com/wataru420/2048287 */
 .highlight {
-  /* Comment */
-  /* Error */
-  /* Keyword */
-  /* Operator */
-  /* Comment.Multiline */
-  /* Comment.Preproc */
-  /* Comment.Single */
-  /* Comment.Special */
-  /* Generic.Deleted */
-  /* Generic.Deleted.Specific */
-  /* Generic.Emph */
-  /* Generic.Error */
-  /* Generic.Heading */
-  /* Generic.Inserted */
-  /* Generic.Inserted.Specific */
-  /* Generic.Output */
-  /* Generic.Prompt */
-  /* Generic.Strong */
-  /* Generic.Subheading */
-  /* Generic.Traceback */
-  /* Keyword.Constant */
-  /* Keyword.Declaration */
-  /* Keyword.Pseudo */
-  /* Keyword.Reserved */
-  /* Keyword.Type */
-  /* Literal.Number */
-  /* Literal.String */
-  /* Name.Attribute */
-  /* Name.Builtin */
-  /* Name.Class */
-  /* Name.Constant */
-  /* Name.Entity */
-  /* Name.Exception */
-  /* Name.Function */
-  /* Name.Namespace */
-  /* Name.Tag */
-  /* Name.Variable */
-  /* Operator.Word */
-  /* Text.Whitespace */
-  /* Literal.Number.Float */
-  /* Literal.Number.Hex */
-  /* Literal.Number.Integer */
-  /* Literal.Number.Oct */
-  /* Literal.String.Backtick */
-  /* Literal.String.Char */
-  /* Literal.String.Doc */
-  /* Literal.String.Double */
-  /* Literal.String.Escape */
-  /* Literal.String.Heredoc */
-  /* Literal.String.Interpol */
-  /* Literal.String.Other */
-  /* Literal.String.Regex */
-  /* Literal.String.Single */
-  /* Literal.String.Symbol */
-  /* Name.Builtin.Pseudo */
-  /* Name.Variable.Class */
-  /* Name.Variable.Global */
-  /* Name.Variable.Instance */
-  /* Literal.Number.Integer.Long */ }
+  background: #fff; }
+  .highlighter-rouge .highlight {
+    background: #fff; }
   .highlight .c {
-    color: #999988;
+    color: #998;
     font-style: italic; }
   .highlight .err {
     color: #a61717;
     background-color: #e3d2d2; }
   .highlight .k {
-    color: #000000;
     font-weight: bold; }
   .highlight .o {
-    color: #000000;
     font-weight: bold; }
   .highlight .cm {
-    color: #999988;
+    color: #998;
     font-style: italic; }
   .highlight .cp {
-    color: #999999;
+    color: #999;
     font-weight: bold; }
   .highlight .c1 {
-    color: #999988;
+    color: #998;
     font-style: italic; }
   .highlight .cs {
-    color: #999999;
+    color: #999;
     font-weight: bold;
     font-style: italic; }
   .highlight .gd {
-    color: #000000;
-    background-color: #ffdddd; }
+    color: #000;
+    background-color: #fdd; }
   .highlight .gd .x {
-    color: #000000;
-    background-color: #ffaaaa; }
+    color: #000;
+    background-color: #faa; }
   .highlight .ge {
-    color: #000000;
     font-style: italic; }
   .highlight .gr {
-    color: #aa0000; }
+    color: #a00; }
   .highlight .gh {
-    color: #999999; }
+    color: #999; }
   .highlight .gi {
-    color: #000000;
-    background-color: #ddffdd; }
+    color: #000;
+    background-color: #dfd; }
   .highlight .gi .x {
-    color: #000000;
-    background-color: #aaffaa; }
+    color: #000;
+    background-color: #afa; }
   .highlight .go {
-    color: #888888; }
+    color: #888; }
   .highlight .gp {
-    color: #555555; }
+    color: #555; }
   .highlight .gs {
     font-weight: bold; }
   .highlight .gu {
-    color: #aaaaaa; }
+    color: #aaa; }
   .highlight .gt {
-    color: #aa0000; }
+    color: #a00; }
   .highlight .kc {
-    color: #000000;
     font-weight: bold; }
   .highlight .kd {
-    color: #000000;
     font-weight: bold; }
   .highlight .kp {
-    color: #000000;
     font-weight: bold; }
   .highlight .kr {
-    color: #000000;
     font-weight: bold; }
   .highlight .kt {
-    color: #445588; }
+    color: #0c5d65; }
   .highlight .m {
-    color: #009999; }
+    color: #099; }
   .highlight .s {
-    color: #d14; }
+    color: #a82200; }
   .highlight .na {
     color: #008080; }
   .highlight .nb {
-    color: #0086B3; }
+    color: #0086b3; }
   .highlight .nc {
-    color: #445588;
+    color: #458;
     font-weight: bold; }
   .highlight .no {
     color: #008080; }
   .highlight .ni {
     color: #800080; }
   .highlight .ne {
-    color: #990000;
-    font-weight: bold; }
+    color: #0c5d65;
+    font-weight: normal; }
   .highlight .nf {
-    color: #990000; }
+    color: #0c5d65;
+    font-weight: normal; }
   .highlight .nn {
-    color: #555555; }
+    color: #555; }
   .highlight .nt {
     color: #000080; }
   .highlight .nv {
-    color: #008080; }
+    color: black; }
   .highlight .ow {
-    color: #000000;
     font-weight: bold; }
   .highlight .w {
-    color: #bbbbbb; }
+    color: #bbb; }
   .highlight .mf {
-    color: #009999; }
+    color: #099; }
   .highlight .mh {
-    color: #009999; }
+    color: #099; }
   .highlight .mi {
-    color: #009999; }
+    color: #099; }
   .highlight .mo {
-    color: #009999; }
+    color: #099; }
   .highlight .sb {
     color: #d14; }
   .highlight .sc {
@@ -189,7 +126,7 @@
   .highlight .ss {
     color: #990073; }
   .highlight .bp {
-    color: #999999; }
+    color: #999; }
   .highlight .vc {
     color: #008080; }
   .highlight .vg {
@@ -197,4 +134,11 @@
   .highlight .vi {
     color: #008080; }
   .highlight .il {
-    color: #009999; }
+    color: #099; }
+  .highlight .language-swift .kd + .nf,
+  .highlight .language-swift .kd + .kt {
+    color: #0c5d65; }
+  .highlight .language-swift .o + .n {
+    color: #0c5d65; }
+  .highlight .language-swift .nv + .o + .n {
+    color: inherit; }
