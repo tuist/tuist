@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistShared
 import Utility
 
 class VersionCommand: NSObject, Command {

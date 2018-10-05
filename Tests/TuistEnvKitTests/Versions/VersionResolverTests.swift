@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 @testable import TuistEnvKit
+import TuistShared
 import XCTest
 
 final class VersionResolverErrorTests: XCTestCase {

@@ -3,6 +3,7 @@ import Foundation
 @testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
+import TuistShared
 @testable import Utility
 import XCTest
 
