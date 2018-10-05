@@ -13,7 +13,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.0.0")),
-        .package(url: "https://github.com/tuist/core.git", .upToNextMinor(from: "0.2.0")),
+        .package(url: "https://github.com/tuist/core.git", .revision("4500863dd846244323b29cb0950cb861e1fddcd0")),
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMinor(from: "0.2.1")),
         .package(url: "https://github.com/Carthage/ReactiveTask.git", .upToNextMinor(from: "0.15.0")),
         .package(url: "https://github.com/jpsim/Yams.git", .upToNextMinor(from: "1.0.1")),

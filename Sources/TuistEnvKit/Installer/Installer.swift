@@ -124,11 +124,17 @@ final class Installer: Installing {
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            try system.capture("curl", "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString, verbose: false).throwIfError()
+            try system.capture("/usr/bin/curl",
+                               arguments: "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString,
+                               verbose: false,
+                               environment: nil).throwIfError()
 
             // Unzip
             printer.print("Installing...")
-            try system.capture("unzip", downloadPath.asString, "-d", installationDirectory.asString, verbose: true).throwIfError()
+            try system.capture("/usr/bin/unzip",
+                               arguments: downloadPath.asString, "-d", installationDirectory.asString,
+                               verbose: false,
+                               environment: nil).throwIfError()
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
@@ -144,9 +150,15 @@ final class Installer: Installing {
             // Cloning and building
             printer.print("Pulling source code")
 
-            try system.capture("git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString, verbose: false).throwIfError()
+            try system.capture("/usr/bin/env",
+                               arguments: "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString,
+                               verbose: false,
+                               environment: System.userEnvironment).throwIfError()
             do {
-                try system.capture("git", "-C", temporaryDirectory.path.asString, "checkout", version, verbose: false).throwIfError()
+                try system.capture("/usr/bin/env",
+                                   arguments: "git", "-C", temporaryDirectory.path.asString, "checkout", version,
+                                   verbose: false,
+                                   environment: System.userEnvironment).throwIfError()
             } catch let error as SystemError {
                 if error.description.contains("did not match any file(s) known to git") {
                     throw InstallerError.versionNotFound(version)
@@ -156,22 +168,26 @@ final class Installer: Installing {
 
             printer.print("Building using Swift (it might take a while)")
 
-            let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift", verbose: false).stdout.chuzzle()!
-            try system.capture(swiftPath, "build",
+            let swiftPath = try system.capture("/usr/bin/xcrun", arguments: "-f", "swift", verbose: false, environment: nil).stdout.chuzzle()!
+            try system.capture(swiftPath,
+                               arguments: "build",
                                "--product", "tuist",
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
                                "-Xswiftc", "-static-stdlib",
-                               verbose: false).throwIfError()
-            try system.capture(swiftPath, "build",
+                               verbose: false,
+                               environment: System.userEnvironment).throwIfError()
+            try system.capture(swiftPath,
+                               arguments: "build",
                                "--product", "ProjectDescription",
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
-                               verbose: false).throwIfError()
+                               verbose: false,
+                               environment: System.userEnvironment).throwIfError()
 
             // Copying files
             if !fileHandler.exists(installationDirectory) {
-                try system.capture("/bin/mkdir", installationDirectory.asString, verbose: false).throwIfError()
+                try system.capture("/bin/mkdir", arguments: installationDirectory.asString, verbose: false, environment: nil).throwIfError()
             }
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)

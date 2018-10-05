@@ -175,7 +175,7 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
 
-        system.stub(args: ["file", "/test/test.framework/test"],
+        system.stub(args: ["/usr/bin/file", "/test/test.framework/test"],
                     stderror: nil,
                     stdout: "dynamically linked",
                     exitstatus: 0)

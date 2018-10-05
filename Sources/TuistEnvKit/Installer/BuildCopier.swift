@@ -36,9 +36,9 @@ class BuildCopier: BuildCopying {
             let filePath = from.appending(component: file)
             let toPath = to.appending(component: file)
             if !fileHandler.exists(filePath) { return }
-            try system.capture("cp", "-rf", filePath.asString, toPath.asString, verbose: false).throwIfError()
+            try system.capture("/bin/cp", arguments: "-rf", filePath.asString, toPath.asString, verbose: false, environment: nil).throwIfError()
             if file == "tuist" {
-                try system.capture("chmod", "+x", toPath.asString, verbose: false).throwIfError()
+                try system.capture("/bin/chmod", arguments: "+x", toPath.asString, verbose: false, environment: nil).throwIfError()
             }
         }
     }

@@ -160,7 +160,7 @@ class GraphManifestLoader: GraphManifestLoading {
     fileprivate func loadSwiftManifest(path: AbsolutePath) throws -> JSON {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         var arguments: [String] = [
-            "xcrun", "swiftc",
+            "swiftc",
             "--driver-mode=swift",
             "-suppress-warnings",
             "-I", projectDescriptionPath.parentDirectory.asString,
@@ -172,7 +172,10 @@ class GraphManifestLoader: GraphManifestLoading {
         try fileAggregator.aggregate(moduleLoader.load(path).reversed(), into: file.path)
         arguments.append(file.path.asString)
         arguments.append("--dump")
-        let result = try system.capture(arguments, verbose: false)
+        let result = try system.capture("/usr/bin/xcrun",
+                                        arguments: arguments,
+                                        verbose: false,
+                                        environment: System.userEnvironment)
         try result.throwIfError()
         let jsonString: String! = result.stdout.chuzzle()
         if jsonString == nil {
