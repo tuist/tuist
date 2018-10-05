@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Added
+
+- Support for actions https://github.com/tuist/tuist/pull/136 by @pepibumur.
+
 ## 0.6.0
 
 ### Added
