@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistShared
 
 protocol Installing: AnyObject {
     func install(version: String) throws
