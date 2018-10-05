@@ -148,7 +148,8 @@ final class TargetGenerator: TargetGenerating {
         try buildPhaseGenerator.generateBuildPhases(target: target,
                                                     pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
-                                                    pbxproj: pbxproj)
+                                                    pbxproj: pbxproj,
+                                                    sourceRootPath: sourceRootPath)
 
         /// Links
         try linkGenerator.generateLinks(target: target,

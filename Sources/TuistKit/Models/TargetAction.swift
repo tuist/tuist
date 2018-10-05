@@ -39,6 +39,32 @@ public struct TargetAction: GraphJSONInitiatable {
         } else {
             path = nil
         }
-        tool = try? json.get("name")
+        tool = try? json.get("tool")
+    }
+
+    /// Returns the shell script that should be used in the target build phase.
+    ///
+    /// - Parameters:
+    ///   - sourceRootPath: Path to the directory where the Xcode project is generated.
+    ///   - system: System instance used to obtain the absolute path of the tool.
+    /// - Returns: Shell script that should be used in the target build phase.
+    /// - Throws: An error if the tool absolute path cannot be obtained.
+    func shellScript(sourceRootPath: AbsolutePath,
+                     system: Systeming = System()) throws -> String {
+        if let path = path {
+            return "\(path.relative(to: sourceRootPath).asString) \(arguments.joined(separator: " "))"
+        } else {
+            return try "\(system.which(tool!).chomp().chuzzle()!) \(arguments.joined(separator: " "))"
+        }
+    }
+}
+
+extension Array where Element == TargetAction {
+    var preActions: [TargetAction] {
+        return filter({ $0.order == .pre })
+    }
+
+    var postActions: [TargetAction] {
+        return filter({ $0.order == .post })
     }
 }
