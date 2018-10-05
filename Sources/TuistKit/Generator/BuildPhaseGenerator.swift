@@ -32,14 +32,23 @@ protocol BuildPhaseGenerating: AnyObject {
     func generateBuildPhases(target: Target,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
-                             pbxproj: PBXProj) throws
+                             pbxproj: PBXProj,
+                             sourceRootPath: AbsolutePath) throws
 }
 
 final class BuildPhaseGenerator: BuildPhaseGenerating {
+    // MARK: - Attributes
+
     func generateBuildPhases(target: Target,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
-                             pbxproj: PBXProj) throws {
+                             pbxproj: PBXProj,
+                             sourceRootPath: AbsolutePath) throws {
+        try generateActions(actions: target.actions.preActions,
+                            pbxTarget: pbxTarget,
+                            pbxproj: pbxproj,
+                            sourceRootPath: sourceRootPath)
+
         try generateSourcesBuildPhase(files: target.sources,
                                       pbxTarget: pbxTarget,
                                       fileElements: fileElements,
@@ -56,6 +65,29 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                           pbxTarget: pbxTarget,
                                           fileElements: fileElements,
                                           pbxproj: pbxproj)
+        }
+
+        try generateActions(actions: target.actions.postActions,
+                            pbxTarget: pbxTarget,
+                            pbxproj: pbxproj,
+                            sourceRootPath: sourceRootPath)
+    }
+
+    func generateActions(actions: [TargetAction],
+                         pbxTarget: PBXTarget,
+                         pbxproj: PBXProj,
+                         sourceRootPath: AbsolutePath) throws {
+        try actions.forEach { action in
+            let buildPhase = try PBXShellScriptBuildPhase(files: [],
+                                                          name: action.name,
+                                                          inputPaths: [],
+                                                          outputPaths: [],
+                                                          inputFileListPaths: [],
+                                                          outputFileListPaths: [],
+                                                          shellPath: "/bin/sh",
+                                                          shellScript: action.shellScript(sourceRootPath: sourceRootPath))
+            pbxproj.add(object: buildPhase)
+            pbxTarget.buildPhases.append(buildPhase)
         }
     }
 

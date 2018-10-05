@@ -22,6 +22,7 @@ class Target: GraphJSONInitiatable, Equatable {
     let resources: [AbsolutePath]
     let headers: Headers?
     let coreDataModels: [CoreDataModel]
+    let actions: [TargetAction]
 
     // MARK: - Init
 
@@ -36,6 +37,7 @@ class Target: GraphJSONInitiatable, Equatable {
          resources: [AbsolutePath] = [],
          headers: Headers? = nil,
          coreDataModels: [CoreDataModel] = [],
+         actions: [TargetAction] = [],
          dependencies: [JSON] = []) {
         self.name = name
         self.product = product
@@ -49,6 +51,7 @@ class Target: GraphJSONInitiatable, Equatable {
         self.headers = headers
         self.coreDataModels = coreDataModels
         self.dependencies = dependencies
+        self.actions = actions
     }
 
     required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling = FileHandler()) throws {
@@ -97,6 +100,15 @@ class Target: GraphJSONInitiatable, Equatable {
             })
         } else {
             coreDataModels = []
+        }
+
+        // Actions
+        if let actions: [JSON] = try? json.get("actions") {
+            self.actions = try actions.map({
+                try TargetAction(json: $0, projectPath: projectPath, fileHandler: fileHandler)
+            })
+        } else {
+            actions = []
         }
     }
 
