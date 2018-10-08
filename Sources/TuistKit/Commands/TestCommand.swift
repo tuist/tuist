@@ -3,7 +3,8 @@ import Foundation
 import TuistCore
 import Utility
 
-class TestCommand: NSObject, Command {
+class TestCommand: NSObject, ForwardCommad {
+
     // MARK: - Command
 
     static let command = "test"
@@ -24,10 +25,17 @@ class TestCommand: NSObject, Command {
         self.printer = printer
     }
 
-    // MARK: - Command
+    // MARK: - ForwardCommand
 
-    func run(with _: ArgumentParser.Result) {
+    func forward(arguments: [String]) throws {
+        let system = System()
+        let output = try? system.capture(arguments).throwIfError().stdout
         printer.print(TestCommand.overview)
-//        printer.print(Constants.version)
+        printer.print(output!)
     }
+
+    func run(with arguments: ArgumentParser.Result) throws {
+
+    }
+
 }

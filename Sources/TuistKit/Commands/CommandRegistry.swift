@@ -8,6 +8,7 @@ public final class CommandRegistry {
 
     let parser: ArgumentParser
     var commands: [Command] = []
+    var forwardCommands: [String: ForwardCommad] = [:]
     var hiddenCommands: [String: HiddenCommand] = [:]
     private let commandCheck: CommandChecking
     private let errorHandler: ErrorHandling
@@ -25,7 +26,7 @@ public final class CommandRegistry {
         register(command: VersionCommand.self)
         register(command: CreateIssueCommand.self)
         register(command: FocusCommand.self)
-        register(command: TestCommand.self)
+        register(forwardCommand: TestCommand.self)
         register(hiddenCommand: EmbedCommand.self)
     }
 
@@ -50,6 +51,10 @@ public final class CommandRegistry {
         commands.append(command.init(parser: parser))
     }
 
+    func register(forwardCommand: ForwardCommad.Type) {
+        forwardCommands[forwardCommand.command] = forwardCommand.init(parser: parser)
+    }
+
     func register(hiddenCommand command: HiddenCommand.Type) {
         hiddenCommands[command.command] = command.init()
     }
@@ -60,6 +65,8 @@ public final class CommandRegistry {
         do {
             if let hiddenCommand = hiddenCommand() {
                 try hiddenCommand.run(arguments: Array(processArguments().dropFirst(2)))
+            } else if let forwardCommand = forwardCommand() {
+                try forwardCommand.forward(arguments: Array(processArguments().dropFirst(2)))
             } else {
                 let parsedArguments = try parse()
                 try process(arguments: parsedArguments)
@@ -82,6 +89,12 @@ public final class CommandRegistry {
         let arguments = Array(processArguments().dropFirst())
         guard let commandName = arguments.first else { return nil }
         return hiddenCommands[commandName]
+    }
+
+    fileprivate func forwardCommand() -> ForwardCommad? {
+        let arguments = Array(processArguments().dropFirst())
+        guard let commandName = arguments.first else { return nil }
+        return forwardCommands[commandName]
     }
 
     fileprivate func process(arguments: ArgumentParser.Result) throws {
