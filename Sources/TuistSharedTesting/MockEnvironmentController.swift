@@ -1,6 +1,5 @@
 import Basic
 import Foundation
-@testable import TuistEnvKit
 import TuistShared
 
 public class MockEnvironmentController: EnvironmentControlling {
