@@ -6,6 +6,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Geration of projects and workspaces in the `~/.tuist/DerivedProjects` directory https://github.com/tuist/tuist/pull/146 by pepibumur.
+
+## 0.7.0
+
+### Added
+
 - Support for actions https://github.com/tuist/tuist/pull/136 by @pepibumur.
 
 ## 0.6.0
