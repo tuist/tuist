@@ -1,8 +1,9 @@
 import Basic
 import Foundation
 @testable import TuistEnvKit
+import TuistShared
 
-class MockEnvironmentController: EnvironmentControlling {
+public class MockEnvironmentController: EnvironmentControlling {
     let directory: TemporaryDirectory
     var setupCallCount: UInt = 0
     var setupErrorStub: Error?
@@ -14,11 +15,15 @@ class MockEnvironmentController: EnvironmentControlling {
                                                 attributes: nil)
     }
 
-    var versionsDirectory: AbsolutePath {
+    public var versionsDirectory: AbsolutePath {
         return directory.path.appending(component: "Versions")
     }
 
-    var settingsPath: AbsolutePath {
+    public var derivedProjectsDirectory: AbsolutePath {
+        return directory.path.appending(component: "DerivedProjects")
+    }
+
+    public var settingsPath: AbsolutePath {
         return directory.path.appending(component: "settings.json")
     }
 
