@@ -21,7 +21,11 @@ let package = Package(
     targets: [
         .target(
             name: "TuistShared",
-            dependencies: []
+            dependencies: ["Utility", "TuistCore"]
+        ),
+        .target(
+            name: "TuistSharedTesting",
+            dependencies: ["TuistShared"]
         ),
         .target(
             name: "TuistKit",
@@ -29,7 +33,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistCoreTesting"]
+            dependencies: ["TuistKit", "TuistCoreTesting", "TuistSharedTesting"]
         ),
         .target(
             name: "tuist",
@@ -37,7 +41,7 @@ let package = Package(
         ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["Utility", "TuistCore", "TuistShared"]
+            dependencies: ["Utility", "TuistCore", "TuistShared", "TuistSharedTesting"]
         ),
         .testTarget(
             name: "TuistEnvKitTests",

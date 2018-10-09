@@ -50,7 +50,7 @@ final class FocusCommandTests: XCTestCase {
         let result = try parser.parse([FocusCommand.command, "-c", "Debug"])
         var configuration: BuildConfiguration?
         let error = NSError.test()
-        workspaceGenerator.generateStub = { _, _, options, _, _, _ in
+        workspaceGenerator.generateStub = { _, _, options, _ in
             configuration = options.buildConfiguration
             throw error
         }
@@ -63,7 +63,7 @@ final class FocusCommandTests: XCTestCase {
     func test_run() throws {
         let result = try parser.parse([FocusCommand.command, "-c", "Debug"])
         let workspacePath = AbsolutePath("/test.xcworkspace")
-        workspaceGenerator.generateStub = { _, _, _, _, _, _ in
+        workspaceGenerator.generateStub = { _, _, _, _ in
             workspacePath
         }
         try subject.run(with: result)

@@ -60,9 +60,7 @@ class GenerateCommand: NSObject, Command {
         try workspaceGenerator.generate(path: path,
                                         graph: graph,
                                         options: GenerationOptions(buildConfiguration: config),
-                                        system: system,
-                                        printer: printer,
-                                        resourceLocator: resourceLocator)
+                                        directory: .manifest)
 
         printer.print(success: "Project generated.")
     }
