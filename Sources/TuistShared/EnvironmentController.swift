@@ -48,8 +48,6 @@ public class EnvironmentController: EnvironmentControlling {
     // MARK: - EnvironmentControlling
 
     /// Sets up the local environment.
-    ///
-    /// - Throws: an error if something the directories creation fails.
     private func setup() {
         [directory, versionsDirectory, derivedProjectsDirectory].forEach {
             if !fileHandler.exists($0) {
