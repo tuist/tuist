@@ -1,7 +1,6 @@
 import Basic
 import Foundation
 import TuistCore
-import TuistShared
 
 /// Protocol that defines the interface of a class that can be used to set up the directories where projects are generated.
 protocol ProjectDirectoryHelping: AnyObject {

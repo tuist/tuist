@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistKit
-import TuistShared
 import xcodeproj
 import XCTest
 

@@ -1,7 +1,6 @@
 import Basic
 @testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistSharedTesting
 import XCTest
 
 final class ProjectDirectoryHelperTests: XCTestCase {

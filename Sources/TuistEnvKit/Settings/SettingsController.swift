@@ -1,6 +1,5 @@
 import Foundation
 import TuistCore
-import TuistShared
 
 /// The class that conforms this protocol exposes an interface for interacting with the user settings.
 protocol SettingsControlling: AnyObject {

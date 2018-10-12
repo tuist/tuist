@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistShared
+import TuistCore
 
 public class MockEnvironmentController: EnvironmentControlling {
     let directory: TemporaryDirectory

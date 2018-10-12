@@ -1,7 +1,6 @@
 import Basic
 import Foundation
 import TuistCore
-import TuistShared
 import xcodeproj
 
 protocol ConfigGenerating: AnyObject {

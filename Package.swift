@@ -13,27 +13,18 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.0.0")),
-        .package(url: "https://github.com/tuist/core.git", .revision("4500863dd846244323b29cb0950cb861e1fddcd0")),
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMinor(from: "0.2.1")),
         .package(url: "https://github.com/Carthage/ReactiveTask.git", .upToNextMinor(from: "0.15.0")),
         .package(url: "https://github.com/jpsim/Yams.git", .upToNextMinor(from: "1.0.1")),
     ],
     targets: [
         .target(
-            name: "TuistShared",
-            dependencies: ["Utility", "TuistCore"]
-        ),
-        .target(
-            name: "TuistSharedTesting",
-            dependencies: ["TuistShared"]
-        ),
-        .target(
             name: "TuistKit",
-            dependencies: ["xcodeproj", "Utility", "TuistCore", "Yams", "TuistShared"]
+            dependencies: ["xcodeproj", "Utility", "TuistCore", "Yams"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistCoreTesting", "TuistSharedTesting"]
+            dependencies: ["TuistKit", "TuistCoreTesting"]
         ),
         .target(
             name: "tuist",
@@ -41,7 +32,7 @@ let package = Package(
         ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["Utility", "TuistCore", "TuistShared", "TuistSharedTesting"]
+            dependencies: ["Utility", "TuistCore"]
         ),
         .testTarget(
             name: "TuistEnvKitTests",
@@ -62,6 +53,18 @@ let package = Package(
         .testTarget(
             name: "IntegrationTests",
             dependencies: ["TuistKit", "Utility"]
+        ),
+        .target(
+            name: "TuistCore",
+            dependencies: ["Utility", "ReactiveTask"]
+        ),
+        .target(
+            name: "TuistCoreTesting",
+            dependencies: ["TuistCore"]
+        ),
+        .testTarget(
+            name: "TuistCoreTests",
+            dependencies: ["TuistCore", "TuistCoreTesting"]
         ),
     ]
 )

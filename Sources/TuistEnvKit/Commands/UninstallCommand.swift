@@ -1,6 +1,5 @@
 import Foundation
 import TuistCore
-import TuistShared
 import Utility
 
 final class UninstallCommand: Command {

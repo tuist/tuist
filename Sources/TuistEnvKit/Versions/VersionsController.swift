@@ -1,7 +1,6 @@
 import Basic
 import Foundation
 import TuistCore
-import TuistShared
 import Utility
 
 protocol VersionsControlling: AnyObject {
