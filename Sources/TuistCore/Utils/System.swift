@@ -54,7 +54,10 @@ public protocol Systeming {
     ///   - print: When true, it outputs the output from the execution.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: SignalProducer that encapsulates the task action.
-    func task(_ launchPath: String, arguments: [String], print: Bool, environment: [String: String]?) -> SignalProducer<SystemResult, SystemError>
+    func task(_ launchPath: String,
+              arguments: [String],
+              print: Bool,
+              environment: [String: String]?) -> SignalProducer<TaskEvent<Data>, SystemError>
 
     /// Returns the Swift version.
     ///
@@ -173,7 +176,15 @@ public final class System: Systeming {
         if verbose {
             printCommand(launchPath, arguments: arguments)
         }
-        let task = self.task(launchPath, arguments: arguments, print: false, environment: environment)
+        let task: SignalProducer<SystemResult, SystemError> = self.task(launchPath,
+                                                                        arguments: arguments,
+                                                                        print: false,
+                                                                        environment: environment)
+            .ignoreTaskData()
+            .map { data in
+                let stdout = String(data: data, encoding: .utf8)!.replacingOccurrences(of: "\n", with: "").chomp()
+                return SystemResult(stdout: stdout, stderror: "", exitcode: 0)
+            }
         if let output = task.single() {
             return try output.dematerialize()
         } else {
@@ -225,7 +236,7 @@ public final class System: Systeming {
     public func task(_ launchPath: String,
                      arguments: [String],
                      print: Bool = false,
-                     environment: [String: String]? = nil) -> SignalProducer<SystemResult, SystemError> {
+                     environment: [String: String]? = nil) -> SignalProducer<TaskEvent<Data>, SystemError> {
         let task = Task(launchPath, arguments: arguments, workingDirectoryPath: nil, environment: environment)
         return task.launch()
             .on(value: {
@@ -239,7 +250,6 @@ public final class System: Systeming {
                     break
                 }
             })
-            .ignoreTaskData()
             .mapError { (error: TaskError) -> SystemError in
                 switch error {
                 case let TaskError.posixError(code):
@@ -247,10 +257,6 @@ public final class System: Systeming {
                 case let TaskError.shellTaskFailed(_, code, standardError):
                     return SystemError(stderror: standardError, exitcode: code)
                 }
-            }
-            .map { data in
-                let stdout = String(data: data, encoding: .utf8)!.replacingOccurrences(of: "\n", with: "").chomp()
-                return SystemResult(stdout: stdout, stderror: "", exitcode: 0)
             }
     }
 

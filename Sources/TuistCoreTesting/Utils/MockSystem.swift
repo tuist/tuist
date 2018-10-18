@@ -1,5 +1,6 @@
 import Foundation
 import ReactiveSwift
+import ReactiveTask
 import Result
 import TuistCore
 
@@ -49,20 +50,21 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func task(_ launchPath: String, arguments: [String], print _: Bool, environment _: [String: String]?) -> SignalProducer<SystemResult, SystemError> {
+    public func task(_ launchPath: String, arguments: [String], print _: Bool, environment _: [String: String]?) -> SignalProducer<TaskEvent<Data>, SystemError> {
         var arguments = arguments
         arguments.insert(launchPath, at: 0)
         let command = arguments.joined(separator: " ")
         calls.append(command)
-        return SignalProducer { () -> Result<SystemResult, SystemError> in
+        return SignalProducer { () -> Result<TaskEvent<Data>, SystemError> in
             if let stub = self.stubs[command] {
                 if stub.exitstatus != 0 {
-                    return Result.failure(SystemError(stderror: stub.stderror ?? "", exitcode: stub.exitstatus ?? -1))
+                    return .failure(SystemError(stderror: stub.stderror ?? "", exitcode: stub.exitstatus ?? -1))
                 } else {
-                    return Result.success(SystemResult(stdout: stub.stdout ?? "", stderror: "", exitcode: 0))
+                    let stdoutData = (stub.stdout ?? "").data(using: .utf8) ?? Data()
+                    return .success(TaskEvent<Data>.standardOutput(stdoutData))
                 }
             } else {
-                return Result.failure(SystemError(stderror: "Command not supported: \(command)", exitcode: -1))
+                return .failure(SystemError(stderror: "Command not supported: \(command)", exitcode: -1))
             }
         }
     }
