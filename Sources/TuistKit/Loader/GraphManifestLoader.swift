@@ -78,7 +78,6 @@ protocol GraphManifestLoading {
 class GraphManifestLoader: GraphManifestLoading {
     // MARK: - Attributes
 
-    let moduleLoader: GraphModuleLoading
     let fileAggregator: FileAggregating
     let fileHandler: FileHandling
     let system: Systeming
@@ -86,12 +85,10 @@ class GraphManifestLoader: GraphManifestLoading {
 
     // MARK: - Init
 
-    init(moduleLoader: GraphModuleLoading = GraphModuleLoader(),
-         fileAggregator: FileAggregating = FileAggregator(),
+    init(fileAggregator: FileAggregating = FileAggregator(),
          fileHandler: FileHandling = FileHandler(),
          system: Systeming = System(),
          resourceLocator: ResourceLocating = ResourceLocator()) {
-        self.moduleLoader = moduleLoader
         self.fileAggregator = fileAggregator
         self.fileHandler = fileHandler
         self.system = system
@@ -168,9 +165,7 @@ class GraphManifestLoader: GraphManifestLoading {
             "-F", projectDescriptionPath.parentDirectory.asString,
             "-lProjectDescription",
         ]
-        let file = try TemporaryFile()
-        try fileAggregator.aggregate(moduleLoader.load(path).reversed(), into: file.path)
-        arguments.append(file.path.asString)
+        arguments.append(path.asString)
         arguments.append("--dump")
         let result = try system.capture("/usr/bin/xcrun",
                                         arguments: arguments,
