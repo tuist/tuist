@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Removed
+
+- Module loader https://github.com/tuist/tuist/pull/150/files by @pepibumur.
+
 ### Added
 
 - Geration of projects and workspaces in the `~/.tuist/DerivedProjects` directory https://github.com/tuist/tuist/pull/146 by pepibumur.
