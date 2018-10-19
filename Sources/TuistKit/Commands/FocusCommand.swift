@@ -60,9 +60,7 @@ class FocusCommand: NSObject, Command {
         let workspacePath = try workspaceGenerator.generate(path: path,
                                                             graph: graph,
                                                             options: GenerationOptions(buildConfiguration: config),
-                                                            system: system,
-                                                            printer: printer,
-                                                            resourceLocator: resourceLocator)
+                                                            directory: .manifest)
 
         try opener.open(path: workspacePath)
     }

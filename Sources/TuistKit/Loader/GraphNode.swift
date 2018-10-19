@@ -151,7 +151,10 @@ class PrecompiledNode: GraphNode {
     }
 
     func architectures(system: Systeming = System()) throws -> [Architecture] {
-        let result = try system.capture("lipo", "-info", binaryPath.asString, verbose: false).throwIfError().stdout.chuzzle() ?? ""
+        let result = try system.capture("/usr/bin/lipo",
+                                        arguments: "-info", binaryPath.asString,
+                                        verbose: false,
+                                        environment: nil).stdout.chuzzle() ?? ""
         let regex = try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: [])
         guard let match = regex.firstMatch(in: result, options: [], range: NSRange(location: 0, length: result.count)) else {
             throw PrecompiledNodeError.architecturesNotFound(binaryPath)
@@ -161,7 +164,10 @@ class PrecompiledNode: GraphNode {
     }
 
     func linking(system: Systeming = System()) throws -> Linking {
-        let result = try system.capture("file", binaryPath.asString, verbose: false).throwIfError().stdout.chuzzle() ?? ""
+        let result = try system.capture("/usr/bin/file",
+                                        arguments: binaryPath.asString,
+                                        verbose: false,
+                                        environment: nil).throwIfError().stdout.chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static
     }
 }

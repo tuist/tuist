@@ -13,7 +13,6 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.0.0")),
-        .package(url: "https://github.com/tuist/core.git", .upToNextMinor(from: "0.1.0")),
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMinor(from: "0.2.1")),
         .package(url: "https://github.com/Carthage/ReactiveTask.git", .upToNextMinor(from: "0.15.0")),
         .package(url: "https://github.com/jpsim/Yams.git", .upToNextMinor(from: "1.0.1")),
@@ -54,6 +53,18 @@ let package = Package(
         .testTarget(
             name: "IntegrationTests",
             dependencies: ["TuistKit", "Utility"]
+        ),
+        .target(
+            name: "TuistCore",
+            dependencies: ["Utility", "ReactiveTask"]
+        ),
+        .target(
+            name: "TuistCoreTesting",
+            dependencies: ["TuistCore"]
+        ),
+        .testTarget(
+            name: "TuistCoreTests",
+            dependencies: ["TuistCore", "TuistCoreTesting"]
         ),
     ]
 )

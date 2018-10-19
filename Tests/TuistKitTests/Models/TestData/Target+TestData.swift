@@ -14,6 +14,7 @@ extension Target {
                      resources: [AbsolutePath] = [AbsolutePath("/resources/*")],
                      coreDataModels: [CoreDataModel] = [],
                      headers: Headers? = nil,
+                     actions: [TargetAction] = [],
                      dependencies: [JSON] = []) -> Target {
         return Target(name: name,
                       platform: platform,
@@ -26,6 +27,7 @@ extension Target {
                       resources: resources,
                       headers: headers,
                       coreDataModels: coreDataModels,
+                      actions: actions,
                       dependencies: dependencies)
     }
 }

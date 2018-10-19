@@ -37,7 +37,6 @@ final class TargetGenerator: TargetGenerating {
     let buildPhaseGenerator: BuildPhaseGenerating
     let linkGenerator: LinkGenerating
     let fileGenerator: FileGenerating
-    let moduleLoader: GraphModuleLoading
     let manifestLoader: GraphManifestLoading
 
     // MARK: - Init
@@ -45,13 +44,11 @@ final class TargetGenerator: TargetGenerating {
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-         moduleLoader: GraphModuleLoading = GraphModuleLoader(),
          linkGenerator: LinkGenerating = LinkGenerator(),
          manifestLoader: GraphManifestLoading = GraphManifestLoader()) {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
-        self.moduleLoader = moduleLoader
         self.linkGenerator = linkGenerator
         self.manifestLoader = manifestLoader
     }
@@ -77,13 +74,10 @@ final class TargetGenerator: TargetGenerating {
         /// Files
         var files: [PBXFileElement] = []
         let projectManifestPath = try manifestLoader.manifestPath(at: project.path, manifest: .project)
-        let modulePaths = try moduleLoader.load(projectManifestPath)
-        try modulePaths.forEach { filePath in
-            let fileReference = try fileGenerator.generateFile(path: filePath,
-                                                               in: groups.projectDescription,
-                                                               sourceRootPath: sourceRootPath)
-            files.append(fileReference)
-        }
+        let fileReference = try fileGenerator.generateFile(path: projectManifestPath,
+                                                           in: groups.projectDescription,
+                                                           sourceRootPath: sourceRootPath)
+        files.append(fileReference)
 
         // Configuration
         let configurationList = try configGenerator.generateManifestsConfig(pbxproj: pbxproj,
@@ -148,7 +142,8 @@ final class TargetGenerator: TargetGenerating {
         try buildPhaseGenerator.generateBuildPhases(target: target,
                                                     pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
-                                                    pbxproj: pbxproj)
+                                                    pbxproj: pbxproj,
+                                                    sourceRootPath: sourceRootPath)
 
         /// Links
         try linkGenerator.generateLinks(target: target,

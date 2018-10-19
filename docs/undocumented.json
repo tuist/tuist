@@ -611,92 +611,148 @@
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 42,
+      "line": 45,
       "symbol": "Target.CodingKeys",
       "symbol_kind": "source.lang.swift.decl.enum",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 43,
+      "line": 46,
       "symbol": "Target.CodingKeys.name",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 44,
+      "line": 47,
       "symbol": "Target.CodingKeys.platform",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 45,
+      "line": 48,
       "symbol": "Target.CodingKeys.product",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 46,
+      "line": 49,
       "symbol": "Target.CodingKeys.bundleId",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 47,
+      "line": 50,
       "symbol": "Target.CodingKeys.infoPlist",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 48,
+      "line": 51,
       "symbol": "Target.CodingKeys.entitlements",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 49,
+      "line": 52,
       "symbol": "Target.CodingKeys.settings",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 50,
+      "line": 53,
       "symbol": "Target.CodingKeys.dependencies",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 51,
+      "line": 54,
       "symbol": "Target.CodingKeys.sources",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 52,
+      "line": 55,
       "symbol": "Target.CodingKeys.resources",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 53,
+      "line": 56,
       "symbol": "Target.CodingKeys.headers",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
-      "line": 54,
+      "line": 57,
       "symbol": "Target.CodingKeys.coreDataModels",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Target.swift",
+      "line": 58,
+      "symbol": "Target.CodingKeys.actions",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetAction.swift",
+      "line": 3,
+      "symbol": "TargetAction",
+      "symbol_kind": "source.lang.swift.decl.struct",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetAction.swift",
+      "line": 28,
+      "symbol": "TargetAction.CodingKeys",
+      "symbol_kind": "source.lang.swift.decl.enum",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetAction.swift",
+      "line": 29,
+      "symbol": "TargetAction.CodingKeys.name",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetAction.swift",
+      "line": 30,
+      "symbol": "TargetAction.CodingKeys.tool",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetAction.swift",
+      "line": 31,
+      "symbol": "TargetAction.CodingKeys.path",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetAction.swift",
+      "line": 32,
+      "symbol": "TargetAction.CodingKeys.order",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/TargetAction.swift",
+      "line": 33,
+      "symbol": "TargetAction.CodingKeys.arguments",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
