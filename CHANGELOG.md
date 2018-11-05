@@ -4,6 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.8.0
+
+### Added
+
+- Swift 4.2.1 compatibility by @pepibumur.
+
 ### Removed
 
 - Module loader https://github.com/tuist/tuist/pull/150/files by @pepibumur.
