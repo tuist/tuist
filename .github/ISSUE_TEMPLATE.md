@@ -9,6 +9,3 @@
 ## Proposal 🎉
 
 > Attach your own proposal _(if you have it)_. We'll discuss in on the issue to find the best one that fits into the library.
-
-<!-- Love tuist? Please consider supporting our collective:
-👉  https://opencollective.com/tuistapp/donate -->
