@@ -9,7 +9,7 @@ xcodebuild_arguments:
   - tuist.xcodeproj
   - -scheme
   - tuist-Package
-swift_version: "4.2"
+swift_version: '4.2.1'
 min_acl: public
 readme: README.md
 custom_categories:
@@ -37,5 +37,3 @@ custom_categories:
       - TestAction
       - BuildAction
       - Arguments
-      
-      
