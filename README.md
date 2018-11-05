@@ -1,8 +1,3 @@
-<p align="center">
-  <img src="https://github.com/tuist/tuist/raw/master/assets/logo.png" width="250" align="center"/>
-  <br/><br/>
-</p>
-
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
 [![CircleCI](https://circleci.com/gh/tuist/tuist.svg?style=svg)](https://circleci.com/gh/tuist/tuist)
 [![codecov](https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg)](https://codecov.io/gh/tuist/tuist)
@@ -101,32 +96,6 @@ If your project uses Tuist, you can add the following badge to your project READ
 ```md
 [![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
 ```
-
-## Contributors
-
-This project exists thanks to all the people who contribute. [[Contribute]](CONTRIBUTING.md).
-<a href="graphs/contributors"><img src="https://opencollective.com/tuistapp/contributors.svg?width=890" /></a>
-
-## Backers
-
-Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/tuistapp#backer)]
-
-<a href="https://opencollective.com/tuistapp#backers" target="_blank"><img src="https://opencollective.com/tuistapp/backers.svg?width=890"></a>
-
-## Sponsors
-
-Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/tuistapp#sponsor)]
-
-<a href="https://opencollective.com/tuistapp/sponsor/0/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/0/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/1/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/2/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/3/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/4/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/5/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/6/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/7/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/8/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/tuistapp/sponsor/9/website" target="_blank"><img src="https://opencollective.com/tuistapp/sponsor/9/avatar.svg"></a>
 
 ## Open source
 
