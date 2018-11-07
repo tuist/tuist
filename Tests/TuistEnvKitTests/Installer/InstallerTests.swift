@@ -180,9 +180,10 @@ final class InstallerTests: XCTestCase {
     func test_install_when_no_bundled_release() throws {
         let version = "3.2.1"
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(installationDirectory)
         }
 
         system.stub(args: [
@@ -223,13 +224,6 @@ final class InstallerTests: XCTestCase {
                     stderror: nil,
                     stdout: nil,
                     exitstatus: 0)
-        system.stub(args: [
-            "/bin/mkdir",
-            fileHandler.currentPath.asString,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
@@ -241,7 +235,68 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(printer.printArgs[1], "Building using Swift (it might take a while)")
         XCTAssertEqual(printer.printArgs[2], "Version 3.2.1 installed")
 
-        let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+        let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
+        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
+    }
+
+    func test_install_when_force() throws {
+        let version = "3.2.1"
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
+
+        versionsController.installStub = { _, closure in
+            try closure(installationDirectory)
+        }
+
+        system.stub(args: [
+            "/usr/bin/env", "git",
+            "clone", Constants.gitRepositoryURL,
+            temporaryDirectory.path.asString,
+        ],
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
+        system.stub(args: [
+            "/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
+            "checkout", version,
+        ],
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
+        system.stub(args: ["/usr/bin/xcrun", "-f", "swift"],
+                    stderror: nil,
+                    stdout: "/path/to/swift",
+                    exitstatus: 0)
+        system.stub(args: [
+            "/path/to/swift", "build",
+            "--product", "tuist",
+            "--package-path", temporaryDirectory.path.asString,
+            "--configuration", "release",
+            "-Xswiftc", "-static-stdlib",
+        ],
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
+        system.stub(args: [
+            "/path/to/swift", "build",
+            "--product", "ProjectDescription",
+            "--package-path", temporaryDirectory.path.asString,
+            "--configuration", "release",
+        ],
+                    stderror: nil,
+                    stdout: nil,
+                    exitstatus: 0)
+
+        try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
+
+        XCTAssertEqual(printer.printArgs.count, 4)
+
+        XCTAssertEqual(printer.printArgs[0], "Forcing the installation of 3.2.1 from the source code")
+        XCTAssertEqual(printer.printArgs[1], "Pulling source code")
+        XCTAssertEqual(printer.printArgs[2], "Building using Swift (it might take a while)")
+        XCTAssertEqual(printer.printArgs[3], "Version 3.2.1 installed")
+
+        let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
     }
 

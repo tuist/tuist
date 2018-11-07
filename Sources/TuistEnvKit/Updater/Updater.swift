@@ -2,7 +2,7 @@ import Foundation
 import TuistCore
 
 protocol Updating: AnyObject {
-    func update() throws
+    func update(force: Bool) throws
 }
 
 final class Updater: Updating {
@@ -27,24 +27,27 @@ final class Updater: Updating {
 
     // MARK: - Internal
 
-    func update() throws {
+    func update(force: Bool) throws {
         let releases = try githubClient.releases()
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
-            print("No remote versions found")
+            printer.print("No remote versions found")
             return
         }
 
-        if let highestLocalVersion = versionsController.semverVersions().sorted().last {
+        if force {
+            printer.print("Forcing the update of version \(highestRemoteVersion)")
+            try installer.install(version: highestRemoteVersion.description, force: true)
+        } else if let highestLocalVersion = versionsController.semverVersions().sorted().last {
             if highestRemoteVersion <= highestLocalVersion {
                 printer.print("There are no updates available")
             } else {
                 printer.print("Installing new version available \(highestRemoteVersion)")
-                try installer.install(version: highestRemoteVersion.description)
+                try installer.install(version: highestRemoteVersion.description, force: false)
             }
         } else {
             printer.print("No local versions available. Installing the latest version \(highestRemoteVersion)")
-            try installer.install(version: highestRemoteVersion.description)
+            try installer.install(version: highestRemoteVersion.description, force: false)
         }
     }
 }

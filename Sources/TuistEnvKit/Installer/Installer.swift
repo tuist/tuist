@@ -2,10 +2,21 @@ import Basic
 import Foundation
 import TuistCore
 
+/// Protocol that defines the interface of an instance that can install versions of Tuist.
 protocol Installing: AnyObject {
-    func install(version: String) throws
+    /// It installs a version of Tuist in the local environment.
+    ///
+    /// - Parameters:
+    ///   - version: Version to be installed.
+    ///   - force: When true, it ignores the Swift version and compiles it from the source.
+    /// - Throws: An error if the installation fails.
+    func install(version: String, force: Bool) throws
 }
 
+/// Error thrown by the installer.
+///
+/// - versionNotFound: When the specified version cannot be found.
+/// - incompatibleSwiftVersion: When the environment Swift version is incompatible with the Swift version Tuist has been compiled with.
 enum InstallerError: FatalError, Equatable {
     case versionNotFound(String)
     case incompatibleSwiftVersion(local: String, expected: String)
@@ -38,6 +49,7 @@ enum InstallerError: FatalError, Equatable {
     }
 }
 
+/// Class that manages the installation of Tuist versions.
 final class Installer: Installing {
     // MARK: - Attributes
 
@@ -66,12 +78,20 @@ final class Installer: Installing {
 
     // MARK: - Installing
 
-    func install(version: String) throws {
+    func install(version: String, force: Bool) throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try install(version: version, temporaryDirectory: temporaryDirectory)
+        try install(version: version, temporaryDirectory: temporaryDirectory, force: force)
     }
 
-    func install(version: String, temporaryDirectory: TemporaryDirectory) throws {
+    func install(version: String, temporaryDirectory: TemporaryDirectory, force: Bool = false) throws {
+        // We ignore the Swift version and install from the soruce code
+        if force {
+            printer.print("Forcing the installation of \(version) from the source code")
+            try installFromSource(version: version,
+                                  temporaryDirectory: temporaryDirectory)
+            return
+        }
+
         try verifySwiftVersion(version: version)
 
         var bundleURL: URL?
@@ -184,10 +204,11 @@ final class Installer: Installing {
                                verbose: false,
                                environment: System.userEnvironment).throwIfError()
 
-            // Copying files
-            if !fileHandler.exists(installationDirectory) {
-                try system.capture("/bin/mkdir", arguments: installationDirectory.asString, verbose: false, environment: nil).throwIfError()
+            if fileHandler.exists(installationDirectory) {
+                try fileHandler.delete(installationDirectory)
             }
+            try fileHandler.createFolder(installationDirectory)
+
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
 

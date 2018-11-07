@@ -2,18 +2,32 @@ import Foundation
 import TuistCore
 import Utility
 
+/// Command that installs new versions of Tuist in the system.
 final class InstallCommand: Command {
     // MARK: - Command
 
+    /// Command name.
     static var command: String = "install"
+
+    /// Command description.
     static var overview: String = "Installs a version of tuist"
 
     // MARK: - Attributes
 
+    /// Controller to manage system versions.
     private let versionsController: VersionsControlling
+
+    /// Printer instance to output messages to the user.
     private let printer: Printing
+
+    /// Installer instance to run the installation.
     private let installer: Installing
+
+    /// Version argument to specify the version that will be installed.
     let versionArgument: PositionalArgument<String>
+
+    /// Force argument (-f). When passed, it re-installs the version compiling it from the source.
+    let forceArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -37,15 +51,24 @@ final class InstallCommand: Command {
                                         kind: String.self,
                                         optional: false,
                                         usage: "The version of tuist to be installed")
+        forceArgument = subParser.add(option: "--force",
+                                      shortName: "-f",
+                                      kind: Bool.self,
+                                      usage: "Re-installs the version compiling it from the source", completion: nil)
     }
 
+    /// Runs the install command.
+    ///
+    /// - Parameter result: Result obtained from parsing the CLI arguments.
+    /// - Throws: An error if the installation process fails.
     func run(with result: ArgumentParser.Result) throws {
+        let force = result.get(forceArgument) ?? false
         let version = result.get(versionArgument)!
         let versions = versionsController.versions().map({ $0.description })
         if versions.contains(version) {
             printer.print(warning: "Version \(version) already installed, skipping")
             return
         }
-        try installer.install(version: version)
+        try installer.install(version: version, force: force)
     }
 }
