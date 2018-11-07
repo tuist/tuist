@@ -31,7 +31,7 @@ final class Updater: Updating {
         let releases = try githubClient.releases()
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
-            print("No remote versions found")
+            printer.print("No remote versions found")
             return
         }
 

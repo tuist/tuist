@@ -1,6 +1,5 @@
 import Basic
 import Foundation
-import TuistCore
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
