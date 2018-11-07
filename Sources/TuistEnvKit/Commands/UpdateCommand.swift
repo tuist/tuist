@@ -10,31 +10,33 @@ final class UpdateCommand: Command {
 
     // MARK: - Attributes
 
-    private let versionsController: VersionsControlling
     private let updater: Updating
     private let printer: Printing
+    let forceArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  versionsController: VersionsController(),
                   updater: Updater(),
                   printer: Printer())
     }
 
     init(parser: ArgumentParser,
-         versionsController: VersionsControlling,
          updater: Updating,
-         printer: Printer) {
-        parser.add(subparser: UpdateCommand.command, overview: UpdateCommand.overview)
-        self.versionsController = versionsController
+         printer: Printing) {
+        let subparser = parser.add(subparser: UpdateCommand.command, overview: UpdateCommand.overview)
         self.printer = printer
         self.updater = updater
+        forceArgument = subparser.add(option: "--force",
+                                      shortName: "-f",
+                                      kind: Bool.self,
+                                      usage: "Re-installs the latest version compiling it from the source", completion: nil)
     }
 
-    func run(with _: ArgumentParser.Result) throws {
+    func run(with result: ArgumentParser.Result) throws {
+        let force = result.get(forceArgument) ?? false
         printer.print(section: "Checking for updates...")
-        try updater.update()
+        try updater.update(force: force)
     }
 }

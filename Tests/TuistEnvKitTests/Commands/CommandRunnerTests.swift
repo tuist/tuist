@@ -159,7 +159,7 @@ final class CommandRunnerTests: XCTestCase {
         versionResolver.resolveStub = { _ in ResolvedVersion.undefined }
 
         versionsController.semverVersionsStub = []
-        updater.updateStub = {
+        updater.updateStub = { _ in
             self.versionsController.semverVersionsStub = [Version(string: "3.2.1")!]
         }
 
@@ -182,7 +182,7 @@ final class CommandRunnerTests: XCTestCase {
 
         versionsController.semverVersionsStub = []
         let error = NSError.test()
-        updater.updateStub = {
+        updater.updateStub = { _ in
             throw error
         }
 

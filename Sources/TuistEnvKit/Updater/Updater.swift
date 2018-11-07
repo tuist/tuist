@@ -2,7 +2,7 @@ import Foundation
 import TuistCore
 
 protocol Updating: AnyObject {
-    func update() throws
+    func update(force: Bool) throws
 }
 
 final class Updater: Updating {
@@ -27,7 +27,7 @@ final class Updater: Updating {
 
     // MARK: - Internal
 
-    func update() throws {
+    func update(force _: Bool) throws {
         let releases = try githubClient.releases()
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {

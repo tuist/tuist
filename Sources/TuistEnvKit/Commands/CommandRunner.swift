@@ -93,7 +93,7 @@ class CommandRunner: CommandRunning {
         if let highgestVersion = versionsController.semverVersions().last?.description {
             version = highgestVersion
         } else {
-            try updater.update()
+            try updater.update(force: false)
             guard let highgestVersion = versionsController.semverVersions().last?.description else {
                 throw CommandRunnerError.versionNotFound
             }
