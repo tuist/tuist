@@ -11,15 +11,6 @@
         }
       },
       {
-        "package": "core",
-        "repositoryURL": "https://github.com/tuist/core.git",
-        "state": {
-          "branch": null,
-          "revision": "4500863dd846244323b29cb0950cb861e1fddcd0",
-          "version": null
-        }
-      },
-      {
         "package": "Nimble",
         "repositoryURL": "https://github.com/Quick/Nimble.git",
         "state": {

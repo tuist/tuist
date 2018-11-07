@@ -19,6 +19,7 @@ final class UpdateCommand: Command {
 
     /// Printer instance to output updates during the process.
     private let printer: Printing
+    let forceArgument: OptionArgument<Bool>
 
     /// Force argument (-f). When passed, it re-installs the latest version compiling it from the source.
     let forceArgument: OptionArgument<Bool>
