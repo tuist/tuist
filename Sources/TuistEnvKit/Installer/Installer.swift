@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 protocol Installing: AnyObject {
-    func install(version: String) throws
+    func install(version: String, force: Bool) throws
 }
 
 enum InstallerError: FatalError, Equatable {
@@ -66,7 +66,7 @@ final class Installer: Installing {
 
     // MARK: - Installing
 
-    func install(version: String) throws {
+    func install(version: String, force _: Bool) throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         try install(version: version, temporaryDirectory: temporaryDirectory)
     }

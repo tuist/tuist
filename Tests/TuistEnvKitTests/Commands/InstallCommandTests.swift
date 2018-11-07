@@ -54,11 +54,28 @@ final class InstallCommandTests: XCTestCase {
 
         versionsController.versionsStub = []
 
-        var installedVersion: String?
-        installer.installStub = { installedVersion = $0 }
+        var installArgs: [(version: String, force: Bool)] = []
+        installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
 
         try subject.run(with: result)
 
-        XCTAssertEqual(installedVersion, "3.2.1")
+        XCTAssertEqual(installArgs.count, 1)
+        XCTAssertEqual(installArgs.first?.version, "3.2.1")
+        XCTAssertEqual(installArgs.first?.force, false)
+    }
+
+    func test_run_when_force() throws {
+        let result = try parser.parse(["install", "3.2.1", "-f"])
+
+        versionsController.versionsStub = []
+
+        var installArgs: [(version: String, force: Bool)] = []
+        installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
+
+        try subject.run(with: result)
+
+        XCTAssertEqual(installArgs.count, 1)
+        XCTAssertEqual(installArgs.first?.version, "3.2.1")
+        XCTAssertEqual(installArgs.first?.force, true)
     }
 }

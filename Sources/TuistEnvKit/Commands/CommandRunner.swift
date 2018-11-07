@@ -107,7 +107,7 @@ class CommandRunner: CommandRunning {
     func runVersion(_ version: String) throws {
         if !versionsController.versions().contains(where: { $0.description == version }) {
             printer.print("Version \(version) not found locally. Installing...")
-            try installer.install(version: version)
+            try installer.install(version: version, force: false)
         }
 
         let path = versionsController.path(version: version)

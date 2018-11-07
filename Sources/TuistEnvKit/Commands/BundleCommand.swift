@@ -81,7 +81,7 @@ final class BundleCommand: Command {
         // Installing
         if !fileHandler.exists(versionPath) {
             printer.print("Version \(version) not available locally. Installing...")
-            try installer.install(version: version)
+            try installer.install(version: version, force: false)
         }
 
         // Copying

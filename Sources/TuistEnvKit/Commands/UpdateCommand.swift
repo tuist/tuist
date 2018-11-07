@@ -43,10 +43,10 @@ final class UpdateCommand: Command {
     init(parser: ArgumentParser,
          updater: Updating,
          printer: Printing) {
-        let subparser = parser.add(subparser: UpdateCommand.command, overview: UpdateCommand.overview)
+        let subParser = parser.add(subparser: UpdateCommand.command, overview: UpdateCommand.overview)
         self.printer = printer
         self.updater = updater
-        forceArgument = subparser.add(option: "--force",
+        forceArgument = subParser.add(option: "--force",
                                       shortName: "-f",
                                       kind: Bool.self,
                                       usage: "Re-installs the latest version compiling it from the source", completion: nil)

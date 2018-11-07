@@ -68,8 +68,8 @@ final class BundleCommandTests: XCTestCase {
         let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
-        installer.installStub = { versionToInstall in
-            let versionPath = self.versionsController.path(version: versionToInstall)
+        installer.installStub = { version, _ in
+            let versionPath = self.versionsController.path(version: version)
             try self.fileHandler.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }
@@ -102,8 +102,8 @@ final class BundleCommandTests: XCTestCase {
 
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
-        installer.installStub = { versionToInstall in
-            let versionPath = self.versionsController.path(version: versionToInstall)
+        installer.installStub = { version, _ in
+            let versionPath = self.versionsController.path(version: version)
             try self.fileHandler.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }

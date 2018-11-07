@@ -27,7 +27,7 @@ final class Updater: Updating {
 
     // MARK: - Internal
 
-    func update(force _: Bool) throws {
+    func update(force: Bool) throws {
         let releases = try githubClient.releases()
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
@@ -35,16 +35,19 @@ final class Updater: Updating {
             return
         }
 
-        if let highestLocalVersion = versionsController.semverVersions().sorted().last {
+        if force {
+            printer.print("Forcing the update of version \(highestRemoteVersion)")
+            try installer.install(version: highestRemoteVersion.description, force: true)
+        } else if let highestLocalVersion = versionsController.semverVersions().sorted().last {
             if highestRemoteVersion <= highestLocalVersion {
                 printer.print("There are no updates available")
             } else {
                 printer.print("Installing new version available \(highestRemoteVersion)")
-                try installer.install(version: highestRemoteVersion.description)
+                try installer.install(version: highestRemoteVersion.description, force: false)
             }
         } else {
             printer.print("No local versions available. Installing the latest version \(highestRemoteVersion)")
-            try installer.install(version: highestRemoteVersion.description)
+            try installer.install(version: highestRemoteVersion.description, force: false)
         }
     }
 }
