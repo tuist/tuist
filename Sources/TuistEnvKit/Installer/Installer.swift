@@ -78,7 +78,7 @@ final class Installer: Installing {
 
     // MARK: - Installing
 
-    func install(version: String, force: Bool) throws {
+    func install(version: String, force _: Bool) throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         try install(version: version, temporaryDirectory: temporaryDirectory, force: force)
     }

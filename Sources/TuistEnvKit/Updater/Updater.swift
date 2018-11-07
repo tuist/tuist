@@ -27,7 +27,7 @@ final class Updater: Updating {
 
     // MARK: - Internal
 
-    func update(force _: Bool) throws {
+    func update(force: Bool) throws {
         let releases = try githubClient.releases()
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
