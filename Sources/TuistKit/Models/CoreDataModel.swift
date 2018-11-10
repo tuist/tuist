@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-class CoreDataModel: Equatable, GraphJSONInitiatable {
+class CoreDataModel: Equatable, GraphInitiatable {
     // MARK: - Attributes
 
     let path: AbsolutePath
@@ -19,13 +19,20 @@ class CoreDataModel: Equatable, GraphJSONInitiatable {
         self.currentVersion = currentVersion
     }
 
-    required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
-        let pathString: String = try json.get("path")
+    /// Default constructor of entities that are part of the manifest.
+    ///
+    /// - Parameters:
+    ///   - dictionary: Dictionary with the object representation.
+    ///   - projectPath: Absolute path to the folder that contains the manifest. This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
+    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
+    /// - Throws: A decoding error if an expected property is missing or has an invalid value.
+    required init(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
+        let pathString: String = try dictionary.get("path")
         path = projectPath.appending(RelativePath(pathString))
         if !fileHandler.exists(path) {
             throw GraphLoadingError.missingFile(path)
         }
-        currentVersion = try json.get("current_version")
+        currentVersion = try dictionary.get("current_version")
         versions = path.glob("*.xcdatamodel")
     }
 

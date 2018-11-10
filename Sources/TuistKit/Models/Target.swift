@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-class Target: GraphJSONInitiatable, Equatable {
+class Target: GraphInitiatable, Equatable {
     // MARK: - Static
 
     static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
@@ -54,58 +54,65 @@ class Target: GraphJSONInitiatable, Equatable {
         self.actions = actions
     }
 
-    required init(json: JSON, projectPath: AbsolutePath, fileHandler: FileHandling = FileHandler()) throws {
-        name = try json.get("name")
-        platform = Platform(rawValue: try json.get("platform"))!
-        product = Product(rawValue: try json.get("product"))!
-        bundleId = try json.get("bundle_id")
-        dependencies = try json.get("dependencies")
+    /// Default constructor of entities that are part of the manifest.
+    ///
+    /// - Parameters:
+    ///   - dictionary: Dictionary with the object representation.
+    ///   - projectPath: Absolute path to the folder that contains the manifest. This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
+    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
+    /// - Throws: A decoding error if an expected property is missing or has an invalid value.
+    required init(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling = FileHandler()) throws {
+        name = try dictionary.get("name")
+        platform = Platform(rawValue: try dictionary.get("platform"))!
+        product = Product(rawValue: try dictionary.get("product"))!
+        bundleId = try dictionary.get("bundle_id")
+        dependencies = try dictionary.get("dependencies")
 
         // Info.plist
-        let infoPlistPath: String = try json.get("info_plist")
+        let infoPlistPath: String = try dictionary.get("info_plist")
         infoPlist = projectPath.appending(RelativePath(infoPlistPath))
 
         // Entitlements
-        let entitlementsPath: String? = try? json.get("entitlements")
+        let entitlementsPath: String? = try? dictionary.get("entitlements")
         entitlements = entitlementsPath.map({ projectPath.appending(RelativePath($0)) })
 
         // Settings
-        let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")
+        let settingsDictionary: [String: JSONSerializable]? = try? dictionary.get("settings")
         settings = try settingsDictionary.map({ dictionary in
-            try Settings(json: JSON(dictionary), projectPath: projectPath, fileHandler: fileHandler)
+            try Settings(dictionary: JSON(dictionary), projectPath: projectPath, fileHandler: fileHandler)
         })
 
         // Sources
-        let sources: String = try json.get("sources")
+        let sources: String = try dictionary.get("sources")
         self.sources = try Target.sources(projectPath: projectPath, sources: sources, fileHandler: fileHandler)
 
         // Resources
-        if let resources: String = try? json.get("resources") {
+        if let resources: String = try? dictionary.get("resources") {
             self.resources = try Target.resources(projectPath: projectPath, resources: resources, fileHandler: fileHandler)
         } else {
             resources = []
         }
 
         // Headers
-        if let headers: JSON = try? json.get("headers") {
-            self.headers = try Headers(json: headers, projectPath: projectPath, fileHandler: fileHandler)
+        if let headers: JSON = try? dictionary.get("headers") {
+            self.headers = try Headers(dictionary: headers, projectPath: projectPath, fileHandler: fileHandler)
         } else {
             headers = nil
         }
 
         // Core Data Models
-        if let coreDataModels: [JSON] = try? json.get("core_data_models") {
+        if let coreDataModels: [JSON] = try? dictionary.get("core_data_models") {
             self.coreDataModels = try coreDataModels.map({
-                try CoreDataModel(json: $0, projectPath: projectPath, fileHandler: fileHandler)
+                try CoreDataModel(dictionary: $0, projectPath: projectPath, fileHandler: fileHandler)
             })
         } else {
             coreDataModels = []
         }
 
         // Actions
-        if let actions: [JSON] = try? json.get("actions") {
+        if let actions: [JSON] = try? dictionary.get("actions") {
             self.actions = try actions.map({
-                try TargetAction(json: $0, projectPath: projectPath, fileHandler: fileHandler)
+                try TargetAction(dictionary: $0, projectPath: projectPath, fileHandler: fileHandler)
             })
         } else {
             actions = []

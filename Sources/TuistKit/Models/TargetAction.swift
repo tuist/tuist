@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 /// It represents a target script build phase
-public struct TargetAction: GraphJSONInitiatable {
+public struct TargetAction: GraphInitiatable {
     /// Order when the action gets executed.
     ///
     /// - pre: Before the sources and resources build phase.
@@ -50,23 +50,23 @@ public struct TargetAction: GraphJSONInitiatable {
         self.arguments = arguments
     }
 
-    /// Action constructor from its JSON representation.
+    /// Default constructor of entities that are part of the manifest.
     ///
     /// - Parameters:
-    ///   - json: JSON representation of the target action.
+    ///   - dictionary: Dictionary with the object representation.
     ///   - projectPath: Absolute path to the folder that contains the manifest. This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
     ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
     /// - Throws: A decoding error if an expected property is missing or has an invalid value.
-    init(json: JSON, projectPath: AbsolutePath, fileHandler _: FileHandling) throws {
-        name = try json.get("name")
-        order = Order(rawValue: try json.get("order"))!
-        arguments = try json.get("arguments")
-        if let path: String = try? json.get("path") {
+    init(dictionary: JSON, projectPath: AbsolutePath, fileHandler _: FileHandling) throws {
+        name = try dictionary.get("name")
+        order = Order(rawValue: try dictionary.get("order"))!
+        arguments = try dictionary.get("arguments")
+        if let path: String = try? dictionary.get("path") {
             self.path = AbsolutePath(path, relativeTo: projectPath)
         } else {
             path = nil
         }
-        tool = try? json.get("tool")
+        tool = try? dictionary.get("tool")
     }
 
     /// Returns the shell script that should be used in the target build phase.
