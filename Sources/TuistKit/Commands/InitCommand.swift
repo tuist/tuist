@@ -105,6 +105,10 @@ class InitCommand: NSObject, Command {
         import ProjectDescription
         
         let project = Project(name: "\(name)",
+                              up: [
+                                /* Configures the environment for the project */
+                                /* .homebrew(packages: ["swiftlint"]) */
+                              ],
                               targets: [
                                 Target(name: "\(name)",
                                        platform: .\(platform.caseValue),
