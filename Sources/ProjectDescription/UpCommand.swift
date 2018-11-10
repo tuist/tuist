@@ -4,12 +4,12 @@ import Foundation
 /// The steps to set up the project are usually specified in the project README.
 /// With Tuist, that's not necessary anymore because you can define declaratively those steps
 /// and developers can run them by executing 'tuist up'
-public class SetupCommand: Codable {
+public class UpCommand: Codable {
     /// Returns a command that installs Homebrew packages.
     ///
     /// - Parameter packages: Packages to be installed.
     /// - Returns: The Homebrew setup command.
-    static func homebrew(packages: [String]) -> SetupCommand {
+    static func homebrew(packages: [String]) -> UpCommand {
         return HomebrewCommand(packages: packages)
     }
 
@@ -20,13 +20,13 @@ public class SetupCommand: Codable {
     ///   - meet: Shell command that needs to be executed if the command is not met in the environment.
     ///   - isMet: Shell command that should return a 0 exit status if the setup has already been done (e.g. which carthage)
     /// - Returns: The custom command.
-    static func custom(name: String, meet: [String], isMet: [String]) -> SetupCommand {
+    static func custom(name: String, meet: [String], isMet: [String]) -> UpCommand {
         return CustomCommand(name: name, meet: meet, isMet: isMet)
     }
 }
 
 /// Command that installs Homebrew and packages.
-fileprivate class HomebrewCommand: SetupCommand {
+fileprivate class HomebrewCommand: UpCommand {
     /// Homebrew packages to be installed.
     let packages: [String]
 
@@ -57,7 +57,7 @@ fileprivate class HomebrewCommand: SetupCommand {
 }
 
 /// Custom setup command defined by the user.
-fileprivate class CustomCommand: SetupCommand {
+fileprivate class CustomCommand: UpCommand {
     /// Name of the command.
     let name: String
 
