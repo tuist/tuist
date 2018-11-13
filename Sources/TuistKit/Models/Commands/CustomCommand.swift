@@ -36,4 +36,28 @@ class CustomCommand: UpCommand, GraphInitiatable {
         meet = try dictionary.get("meet")
         super.init(name: try dictionary.get("name"))
     }
+
+    /// When the command is not met, this method runs it.
+    ///
+    /// - Parameters:
+    ///   - system: System instance to run commands on the shell.
+    ///   - printer: Printer instance to output information to the user.
+    ///   - projectPath: Path to the directory that contains the project manifest.
+    /// - Throws: An error if any error is thrown while running it.
+    override func meet(system: Systeming, printer _: Printing, projectPath _: AbsolutePath) throws {
+        // TODO:
+        try system.popen("", arguments: [], verbose: false, workingDirectoryPath: nil, environment: System.userEnvironment)
+    }
+
+    /// Returns true when the command doesn't need to be run.
+    ///
+    /// - Parameters
+    ///   - system: System instance to run commands on the shell.
+    ///   - projectPath: Path to the directory that contains the project manifest.
+    /// - Returns: True if the command doesn't need to be run.
+    /// - Throws: An error if the check fails.
+    override func isMet(system _: Systeming, projectPath _: AbsolutePath) throws -> Bool {
+        // TODO:
+        return false
+    }
 }

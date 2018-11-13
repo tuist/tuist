@@ -173,6 +173,7 @@ final class Embeddable {
         try system.popen("/usr/bin/lipo",
                          arguments: "-remove", architecture, "-output", packagePath.asString, packagePath.asString,
                          verbose: false,
+                         workingDirectoryPath: nil,
                          environment: nil)
     }
 
