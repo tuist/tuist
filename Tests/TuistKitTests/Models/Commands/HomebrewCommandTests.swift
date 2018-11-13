@@ -8,9 +8,11 @@ import XCTest
 
 final class HomebrewCommandTests: XCTestCase {
     var system: MockSystem!
+    var fileHandler: MockFileHandler!
 
     override func setUp() {
         system = MockSystem()
+        fileHandler = try! MockFileHandler()
         super.setUp()
     }
 
@@ -23,7 +25,7 @@ final class HomebrewCommandTests: XCTestCase {
                 return ""
             }
         }
-        let got = try subject.isMet(system: system)
+        let got = try subject.isMet(system: system, projectPath: fileHandler.currentPath)
         XCTAssertFalse(got)
     }
 
@@ -36,14 +38,14 @@ final class HomebrewCommandTests: XCTestCase {
                 return ""
             }
         }
-        let got = try subject.isMet(system: system)
+        let got = try subject.isMet(system: system, projectPath: fileHandler.currentPath)
         XCTAssertFalse(got)
     }
 
     func test_isMet() throws {
         let subject = HomebrewCommand(packages: ["swiftlint"])
         system.whichStub = { _ in "" }
-        let got = try subject.isMet(system: system)
+        let got = try subject.isMet(system: system, projectPath: fileHandler.currentPath)
         XCTAssertTrue(got)
     }
 }

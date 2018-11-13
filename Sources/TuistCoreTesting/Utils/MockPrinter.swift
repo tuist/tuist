@@ -7,6 +7,7 @@ public final class MockPrinter: Printing {
     public var printWithColorArgs: [(String, TerminalController.Color)] = []
     public var printErrorArgs: [Error] = []
     public var printSectionArgs: [String] = []
+    public var printSubsectionArgs: [String] = []
     public var printErrorMessageArgs: [String] = []
     public var printSuccessArgs: [String] = []
     public var printWarningArgs: [String] = []
@@ -37,5 +38,9 @@ public final class MockPrinter: Printing {
 
     public func print(success: String) {
         printSuccessArgs.append(success)
+    }
+
+    public func print(subsection: String) {
+        printSubsectionArgs.append(subsection)
     }
 }

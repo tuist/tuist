@@ -29,10 +29,12 @@ class HomebrewCommand: UpCommand, GraphInitiatable {
 
     /// Returns true when the command doesn't need to be run.
     ///
-    /// - Parameter system: System instance to run commands on the shell.
+    /// - Parameters
+    ///   - system: System instance to run commands on the shell.
+    ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    override func isMet(system: Systeming) throws -> Bool {
+    override func isMet(system: Systeming, projectPath _: AbsolutePath) throws -> Bool {
         let packagesInstalled = packages.reduce(true, { $0 && toolInstalled($1, system: system) })
         return toolInstalled("brew", system: system) && packagesInstalled
     }
@@ -42,11 +44,14 @@ class HomebrewCommand: UpCommand, GraphInitiatable {
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
     ///   - printer: Printer instance to output information to the user.
+    ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer: Printing) throws {
+    override func meet(system: Systeming, printer: Printing, projectPath _: AbsolutePath) throws {
         if !toolInstalled("brew", system: system) {
             printer.print("Installing Homebrew")
-            // TODO:
+            try system.popen("/usr/bin/ruby", arguments: ["-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\""],
+                             verbose: true,
+                             environment: System.userEnvironment)
         }
         let nonInstalledPackages = packages.filter({ !toolInstalled($0, system: system) })
         try nonInstalledPackages.forEach { package in

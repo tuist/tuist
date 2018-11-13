@@ -9,18 +9,21 @@ protocol UpCommanding {
 
     /// Returns true when the command doesn't need to be run.
     ///
-    /// - Parameter system: System instance to run commands on the shell.
+    /// - Parameters
+    ///   - system: System instance to run commands on the shell.
+    ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    func isMet(system: Systeming) throws -> Bool
+    func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool
 
     /// When the command is not met, this method runs it.
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
     ///   - printer: Printer instance to output information to the user.
+    ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system: Systeming, printer: Printing) throws
+    func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws
 }
 
 /// It represents a command that configures the environment for the project to work.
@@ -33,10 +36,12 @@ class UpCommand: UpCommanding {
 
     /// Returns true when the command doesn't need to be run.
     ///
-    /// - Parameter system: System instance to run commands on the shell.
+    /// - Parameters
+    ///   - system: System instance to run commands on the shell.
+    ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    func isMet(system _: Systeming) throws -> Bool {
+    func isMet(system _: Systeming, projectPath _: AbsolutePath) throws -> Bool {
         fatalError("This method should be overriden")
     }
 
@@ -45,8 +50,9 @@ class UpCommand: UpCommanding {
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
     ///   - printer: Printer instance to output information to the user.
+    ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system _: Systeming, printer _: Printing) throws {
+    func meet(system _: Systeming, printer _: Printing, projectPath _: AbsolutePath) throws {
         fatalError("This method should be overriden")
     }
 

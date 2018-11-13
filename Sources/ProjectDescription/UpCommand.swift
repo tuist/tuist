@@ -9,7 +9,7 @@ public class UpCommand: Codable {
     ///
     /// - Parameter packages: Packages to be installed.
     /// - Returns: The Homebrew setup command.
-    static func homebrew(packages: [String]) -> UpCommand {
+    public static func homebrew(packages: [String]) -> UpCommand {
         return HomebrewCommand(packages: packages)
     }
 
@@ -20,7 +20,7 @@ public class UpCommand: Codable {
     ///   - meet: Shell command that needs to be executed if the command is not met in the environment.
     ///   - isMet: Shell command that should return a 0 exit status if the setup has already been done (e.g. which carthage)
     /// - Returns: The custom command.
-    static func custom(name: String, meet: [String], isMet: [String]) -> UpCommand {
+    public static func custom(name: String, meet: [String], isMet: [String]) -> UpCommand {
         return CustomCommand(name: name, meet: meet, isMet: isMet)
     }
 }

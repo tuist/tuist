@@ -5,6 +5,7 @@ public protocol Printing: AnyObject {
     func print(_ text: String)
     func print(_ text: String, color: TerminalController.Color)
     func print(section: String)
+    func print(subsection: String)
     func print(warning: String)
     func print(error: Error)
     func print(success: String)
@@ -61,6 +62,12 @@ public class Printer: Printing {
     public func print(section: String) {
         let writer = InteractiveWriter.stdout
         writer.write("\(section)", inColor: .cyan, bold: true)
+        writer.write("\n")
+    }
+
+    public func print(subsection: String) {
+        let writer = InteractiveWriter.stdout
+        writer.write("\(subsection)", inColor: .cyan, bold: false)
         writer.write("\n")
     }
 }
