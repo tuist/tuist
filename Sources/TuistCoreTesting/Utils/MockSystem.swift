@@ -72,7 +72,11 @@ public final class MockSystem: Systeming {
     }
 
     public func which(_ name: String) throws -> String {
-        return try whichStub?(name) ?? ""
+        if let path = try whichStub?(name) {
+            return path
+        } else {
+            throw NSError.test()
+        }
     }
 
     public func called(_ args: String...) -> Bool {
