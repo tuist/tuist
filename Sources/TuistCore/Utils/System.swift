@@ -10,10 +10,11 @@ public protocol Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
-    func capture(_ launchPath: String, arguments: String..., verbose: Bool, environment: [String: String]?) throws -> SystemResult
+    func capture(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult
 
     /// Runs a command in the shell and returns the result (exit status, standard output and standard error).
     ///
@@ -21,10 +22,11 @@ public protocol Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
-    func capture(_ launchPath: String, arguments: [String], verbose: Bool, environment: [String: String]?) throws -> SystemResult
+    func capture(_ launchPath: String, arguments: [String], verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult
 
     /// Runs a command in the shell printing its output.
     ///
@@ -148,6 +150,7 @@ public final class System: Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
@@ -155,6 +158,7 @@ public final class System: Systeming {
     public func capture(_ launchPath: String,
                         arguments: String...,
                         verbose: Bool = false,
+                        workingDirectoryPath _: AbsolutePath? = nil,
                         environment: [String: String]? = System.userEnvironment) throws -> SystemResult {
         return try capture(launchPath, arguments: arguments, verbose: verbose, environment: environment)
     }
@@ -165,6 +169,7 @@ public final class System: Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
@@ -172,11 +177,12 @@ public final class System: Systeming {
     public func capture(_ launchPath: String,
                         arguments: [String],
                         verbose: Bool = false,
+                        workingDirectoryPath: AbsolutePath? = nil,
                         environment: [String: String]? = System.userEnvironment) throws -> SystemResult {
         if verbose {
             printCommand(launchPath, arguments: arguments)
         }
-        let task = self.task(launchPath, arguments: arguments, print: false, environment: environment)
+        let task = self.task(launchPath, arguments: arguments, print: false, workingDirectoryPath: workingDirectoryPath, environment: environment)
         if let output = task.single() {
             return try output.dematerialize()
         } else {

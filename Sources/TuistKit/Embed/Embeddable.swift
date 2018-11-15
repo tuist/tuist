@@ -91,7 +91,12 @@ final class Embeddable {
 
     func architectures(system: Systeming = System()) throws -> [String] {
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try system.capture("/usr/bin/lipo", arguments: "-info", binPath.asString, verbose: false, environment: nil).stdout.chuzzle() ?? ""
+        let lipoResult = try system.capture("/usr/bin/lipo",
+                                            arguments: "-info",
+                                            binPath.asString,
+                                            verbose: false,
+                                            workingDirectoryPath: nil,
+                                            environment: nil).stdout.chuzzle() ?? ""
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)
@@ -224,6 +229,7 @@ final class Embeddable {
         let result = try system.capture("/usr/bin/dwarfdump",
                                         arguments: "--uuid", path.asString,
                                         verbose: false,
+                                        workingDirectoryPath: nil,
                                         environment: nil).stdout.chuzzle() ?? ""
         var uuidCharacterSet = CharacterSet()
         uuidCharacterSet.formUnion(.letters)

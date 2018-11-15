@@ -170,6 +170,7 @@ class GraphManifestLoader: GraphManifestLoading {
         let result = try system.capture("/usr/bin/xcrun",
                                         arguments: arguments,
                                         verbose: false,
+                                        workingDirectoryPath: nil,
                                         environment: System.userEnvironment)
         try result.throwIfError()
         let jsonString: String! = result.stdout.chuzzle()

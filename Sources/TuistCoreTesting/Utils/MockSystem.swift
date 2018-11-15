@@ -16,11 +16,11 @@ public final class MockSystem: Systeming {
         stubs[args.joined(separator: " ")] = (stderror: stderror, stdout: stdout, exitstatus: exitstatus)
     }
 
-    public func capture(_ launchPath: String, arguments: String..., verbose: Bool, environment: [String: String]?) throws -> SystemResult {
-        return try capture(launchPath, arguments: arguments, verbose: verbose, environment: environment)
+    public func capture(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult {
+        return try capture(launchPath, arguments: arguments, verbose: verbose, workingDirectoryPath: workingDirectoryPath, environment: environment)
     }
 
-    public func capture(_ launchPath: String, arguments: [String], verbose _: Bool, environment _: [String: String]?) throws -> SystemResult {
+    public func capture(_ launchPath: String, arguments: [String], verbose _: Bool, workingDirectoryPath: AbsolutePath?, environment _: [String: String]?) throws -> SystemResult {
         var arguments = arguments
         arguments.insert(launchPath, at: 0)
         let command = arguments.joined(separator: " ")
