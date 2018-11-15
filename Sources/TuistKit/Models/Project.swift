@@ -11,8 +11,8 @@ class Project: Equatable {
     /// Project name.
     let name: String
 
-    /// Commands to configure the environment for the project.
-    let up: [UpCommand]
+    /// Up instances to configure the environment for the project.
+    let up: [Up]
 
     /// Project targets.
     let targets: [Target]
@@ -27,11 +27,11 @@ class Project: Equatable {
     /// - Parameters:
     ///   - path: Path to the folder that contains the project manifest.
     ///   - name: Project name.
-    ///   - up: Commands to configure the environment for the project.
+    ///   - up: Up instances to configure the environment for the project.
     ///   - targets: Project settings.
     init(path: AbsolutePath,
          name: String,
-         up: [UpCommand] = [],
+         up: [Up] = [],
          settings: Settings? = nil,
          targets: [Target]) {
         self.path = path
@@ -77,7 +77,7 @@ class Project: Equatable {
         let targetsJSONs: [JSON] = try json.get("targets")
         targets = try targetsJSONs.map({ try Target(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
         let upJSONs: [JSON] = try json.get("up")
-        up = try upJSONs.compactMap({ try UpCommand.with(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
+        up = try upJSONs.compactMap({ try Up.with(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
         let settingsJSON: JSON? = try? json.get("settings")
         settings = try settingsJSON.map({ try Settings(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
     }

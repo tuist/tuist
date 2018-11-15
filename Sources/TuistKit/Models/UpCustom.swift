@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 /// Custom setup command defined by the user.
-class CustomCommand: UpCommand, GraphInitiatable {
+class UpCustom: Up, GraphInitiatable {
     /// Shell command that needs to be executed if the command is not met in the environment.
     let meet: [String]
 

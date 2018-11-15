@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 /// Protocol that defines the interface of an up command.
-protocol UpCommanding {
+protocol Upping {
     /// Name of the command.
     var name: String { get }
 
@@ -30,7 +30,7 @@ protocol UpCommanding {
 /// The steps to set up the project are usually specified in the project README.
 /// With Tuist, that's not necessary anymore because you can define declaratively those steps
 /// and developers can run them by executing 'tuist up'
-class UpCommand: UpCommanding {
+class Up: Upping {
     /// Name of the command.
     let name: String
 
@@ -71,12 +71,12 @@ class UpCommand: UpCommanding {
     ///   - fileHandler: File handler instance to interact with the file system.
     /// - Returns: Initialized command.
     /// - Throws: An error if the representation has an invalid format
-    static func with(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws -> UpCommand? {
+    static func with(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws -> Up? {
         let type: String = try dictionary.get("type")
         if type == "custom" {
-            return try CustomCommand(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpCustom(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
         } else if type == "homebrew" {
-            return try HomebrewCommand(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpHomebrew(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
         }
         return nil
     }

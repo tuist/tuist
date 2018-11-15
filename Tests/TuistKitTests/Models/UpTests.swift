@@ -6,7 +6,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class UpCommandTests: XCTestCase {
+final class UpTests: XCTestCase {
     var fileHandler: MockFileHandler!
 
     override func setUp() {
@@ -21,9 +21,9 @@ final class UpCommandTests: XCTestCase {
             "is_met": JSON.array([JSON.string("is_met")]),
             "meet": JSON.array([JSON.string("meet")]),
         ])
-        let got = try UpCommand.with(dictionary: dictionary,
-                                     projectPath: fileHandler.currentPath,
-                                     fileHandler: fileHandler) as? CustomCommand
+        let got = try Up.with(dictionary: dictionary,
+                              projectPath: fileHandler.currentPath,
+                              fileHandler: fileHandler) as? UpCustom
         XCTAssertEqual(got?.name, "name")
         XCTAssertEqual(got?.meet, ["meet"])
         XCTAssertEqual(got?.isMet, ["is_met"])
@@ -34,9 +34,9 @@ final class UpCommandTests: XCTestCase {
             "type": "homebrew",
             "packages": JSON.array([JSON.string("swiftlint")]),
         ])
-        let got = try UpCommand.with(dictionary: dictionary,
-                                     projectPath: fileHandler.currentPath,
-                                     fileHandler: fileHandler) as? HomebrewCommand
+        let got = try Up.with(dictionary: dictionary,
+                              projectPath: fileHandler.currentPath,
+                              fileHandler: fileHandler) as? UpHomebrew
         XCTAssertEqual(got?.name, "Homebrew")
         XCTAssertEqual(got?.packages, ["swiftlint"])
     }

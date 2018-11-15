@@ -6,12 +6,12 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class CLIUpCommandTests: XCTestCase {
+final class UpCommandTests: XCTestCase {
     var fileHandler: MockFileHandler!
     var printer: MockPrinter!
     var graphLoader: MockGraphLoader!
     var graphUp: MockGraphUp!
-    var subject: CLIUpCommand!
+    var subject: UpCommand!
     var parser: ArgumentParser!
 
     override func setUp() {
@@ -21,23 +21,23 @@ final class CLIUpCommandTests: XCTestCase {
         graphLoader = MockGraphLoader()
         graphUp = MockGraphUp()
         parser = ArgumentParser.test()
-        subject = CLIUpCommand(parser: parser,
-                               fileHandler: fileHandler,
-                               printer: printer,
-                               graphLoader: graphLoader,
-                               graphUp: graphUp)
+        subject = UpCommand(parser: parser,
+                            fileHandler: fileHandler,
+                            printer: printer,
+                            graphLoader: graphLoader,
+                            graphUp: graphUp)
     }
 
     func test_command() {
-        XCTAssertEqual(CLIUpCommand.command, "up")
+        XCTAssertEqual(UpCommand.command, "up")
     }
 
     func test_overview() {
-        XCTAssertEqual(CLIUpCommand.overview, "Configures the environment for the project.")
+        XCTAssertEqual(UpCommand.overview, "Configures the environment for the project.")
     }
 
     func test_run_configures_the_environment() throws {
-        let result = try parser.parse([CLIUpCommand.command])
+        let result = try parser.parse([UpCommand.command])
 
         graphLoader.loadStub = { path in
             XCTAssertEqual(path, self.fileHandler.currentPath)

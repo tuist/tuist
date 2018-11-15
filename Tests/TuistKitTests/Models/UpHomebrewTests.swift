@@ -6,7 +6,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class HomebrewCommandTests: XCTestCase {
+final class UpHomebrewTests: XCTestCase {
     var system: MockSystem!
     var fileHandler: MockFileHandler!
     var printer: MockPrinter!
@@ -19,7 +19,7 @@ final class HomebrewCommandTests: XCTestCase {
     }
 
     func test_isMet_when_homebrew_is_missing() throws {
-        let subject = HomebrewCommand(packages: [])
+        let subject = UpHomebrew(packages: [])
         system.whichStub = { tool in
             if tool == "brew" {
                 throw NSError.test()
@@ -32,7 +32,7 @@ final class HomebrewCommandTests: XCTestCase {
     }
 
     func test_isMet_when_a_package_is_missing() throws {
-        let subject = HomebrewCommand(packages: ["swiftlint"])
+        let subject = UpHomebrew(packages: ["swiftlint"])
         system.whichStub = { tool in
             if tool == "swiftlint" {
                 throw NSError.test()
@@ -45,14 +45,14 @@ final class HomebrewCommandTests: XCTestCase {
     }
 
     func test_isMet() throws {
-        let subject = HomebrewCommand(packages: ["swiftlint"])
+        let subject = UpHomebrew(packages: ["swiftlint"])
         system.whichStub = { _ in "" }
         let got = try subject.isMet(system: system, projectPath: fileHandler.currentPath)
         XCTAssertTrue(got)
     }
 
     func test_meet() throws {
-        let subject = HomebrewCommand(packages: ["swiftlint"])
+        let subject = UpHomebrew(packages: ["swiftlint"])
 
         system.whichStub = { _ in nil }
         system.stub(args: ["/usr/bin/ruby",

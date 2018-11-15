@@ -26,9 +26,9 @@ final class GraphUpTests: XCTestCase {
 
     func test_isMet_returnsTrueWhenAnyCommandIsNotMet() throws {
         graphCache.projects[fileHandler.currentPath] = Project.test(up: [
-            CustomCommand(name: "invalid",
-                          meet: ["install", "invalid"],
-                          isMet: ["which invalid"]),
+            UpCustom(name: "invalid",
+                     meet: ["install", "invalid"],
+                     isMet: ["which invalid"]),
         ])
         XCTAssertFalse(try subject.isMet(graph: graph))
     }

@@ -4,7 +4,7 @@ import TuistCore
 import Utility
 
 /// Command that configures the environment to work on the project.
-class CLIUpCommand: NSObject, Command {
+class UpCommand: NSObject, Command {
     // MARK: - Attributes
 
     /// Name of the command.
@@ -53,7 +53,7 @@ class CLIUpCommand: NSObject, Command {
          printer: Printing,
          graphLoader: GraphLoading,
          graphUp: GraphUpping) {
-        parser.add(subparser: CLIUpCommand.command, overview: CLIUpCommand.overview)
+        parser.add(subparser: UpCommand.command, overview: UpCommand.overview)
         self.fileHandler = fileHandler
         self.printer = printer
         self.graphLoader = graphLoader
