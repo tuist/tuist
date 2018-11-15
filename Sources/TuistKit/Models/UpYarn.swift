@@ -39,5 +39,10 @@ class UpYarn: Up, GraphInitiatable {
     ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer: Printing, projectPath _: AbsolutePath) throws {}
+    override func meet(system: Systeming, printer: Printing, projectPath _: AbsolutePath) throws {
+        // Install Yarn
+        if (try? system.which("yarn")) == nil {
+            // TODO: Install Yarn
+        }
+    }
 }

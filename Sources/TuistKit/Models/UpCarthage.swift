@@ -2,33 +2,22 @@ import Basic
 import Foundation
 import TuistCore
 
-enum UpCarthageError: FatalError {
-    case carthageNotInstalled
-
-    var type: ErrorType {
-        switch self {
-        case .carthageNotInstalled: return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .carthageNotInstalled:
-            return "Carthage not found in the system. Please, include it in the homebrew up action: .up(packages: [\"carthage\"])"
-        }
-    }
-}
-
 /// Up that updates outdated Carthage dependencies.
 class UpCarthage: Up, GraphInitiatable {
     /// The platforms Carthage dependencies should be updated for.
     let platforms: [Platform]
 
+    /// Up homebrew for installing Carthge.
+    let upHomebrew: Upping
+
     /// Initializes the Carthage command.
     ///
-    /// - Parameter platforms: The platforms Carthage dependencies should be updated for.
-    init(platforms: [Platform]) {
+    /// - Parameters:
+    ///   - platforms: The platforms Carthage dependencies should be updated for.
+    ///   - upHomebrew: Up homebrew for installing Carthge.
+    init(platforms: [Platform], upHomebrew: Upping = UpHomebrew(packages: ["carthage"])) {
         self.platforms = platforms
+        self.upHomebrew = upHomebrew
         super.init(name: "Carthage update")
     }
 
@@ -57,9 +46,8 @@ class UpCarthage: Up, GraphInitiatable {
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
     override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
-        guard let carthagePath = try? system.which("carthage") else {
-            return false
-        }
+        if try !upHomebrew.isMet(system: system, projectPath: projectPath) { return false }
+        let carthagePath = try system.which("carthage")
 
         do {
             // TODO: Verify if "validate" is the right command here
@@ -82,13 +70,15 @@ class UpCarthage: Up, GraphInitiatable {
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
     override func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws {
-        guard let carthagePath = try? system.which("carthage") else {
-            throw UpCarthageError.carthageNotInstalled
+        // Installing Carthage
+        if try !upHomebrew.isMet(system: system, projectPath: projectPath) {
+            try upHomebrew.meet(system: system, printer: printer, projectPath: projectPath)
         }
+
+        /// Updating Carthage dependencies.
         let arguments = ["update", "--platform", platforms.map({ $0.caseValue }).joined(separator: ",")]
-
         printer.print("Updating Carthage dependencies")
-
+        let carthagePath = try system.which("carthage")
         try system.popen(carthagePath,
                          arguments: arguments,
                          verbose: false,
