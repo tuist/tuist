@@ -15,7 +15,6 @@ final class GenerateCommandTests: XCTestCase {
     var parser: ArgumentParser!
     var printer: MockPrinter!
     var resourceLocator: ResourceLocator!
-    var graphUp: MockGraphUp!
 
     override func setUp() {
         super.setUp()
@@ -25,15 +24,13 @@ final class GenerateCommandTests: XCTestCase {
         workspaceGenerator = MockWorkspaceGenerator()
         parser = ArgumentParser.test()
         resourceLocator = ResourceLocator()
-        graphUp = MockGraphUp()
 
         subject = GenerateCommand(graphLoader: graphLoader,
                                   workspaceGenerator: workspaceGenerator,
                                   parser: parser,
                                   printer: printer,
                                   system: System(),
-                                  resourceLocator: resourceLocator,
-                                  graphUp: graphUp)
+                                  resourceLocator: resourceLocator)
     }
 
     func test_command() {

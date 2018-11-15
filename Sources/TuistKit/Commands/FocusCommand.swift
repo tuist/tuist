@@ -33,9 +33,6 @@ class FocusCommand: NSObject, Command {
     /// File handler instance to interact with the file system.
     fileprivate let fileHandler: FileHandling
 
-    /// Graph up instance to print a warning if the environment is not configured at all.
-    fileprivate let graphUp: GraphUpping
-
     /// Opener instance to run open in the system.
     fileprivate let opener: Opening
 
@@ -48,18 +45,14 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
-        let printer = Printer()
-        let system = System()
-
         self.init(parser: parser,
                   graphLoader: GraphLoader(),
                   workspaceGenerator: WorkspaceGenerator(),
-                  printer: printer,
-                  system: system,
+                  printer: Printer(),
+                  system: System(),
                   resourceLocator: ResourceLocator(),
                   fileHandler: FileHandler(),
-                  opener: Opener(),
-                  graphUp: GraphUp(printer: printer, system: system))
+                  opener: Opener())
     }
 
     /// Initializes the focus command with its attributes.
@@ -81,8 +74,7 @@ class FocusCommand: NSObject, Command {
          system: Systeming,
          resourceLocator: ResourceLocating,
          fileHandler: FileHandling,
-         opener: Opening,
-         graphUp: GraphUpping) {
+         opener: Opening) {
         let subParser = parser.add(subparser: FocusCommand.command, overview: FocusCommand.overview)
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
@@ -91,7 +83,6 @@ class FocusCommand: NSObject, Command {
         self.resourceLocator = resourceLocator
         self.fileHandler = fileHandler
         self.opener = opener
-        self.graphUp = graphUp
         configArgument = subParser.add(option: "--config",
                                        shortName: "-c",
                                        kind: String.self,
@@ -102,11 +93,6 @@ class FocusCommand: NSObject, Command {
     func run(with _: ArgumentParser.Result) throws {
         let path = fileHandler.currentPath
         let graph = try graphLoader.load(path: path)
-
-        if try !graphUp.isMet(graph: graph) {
-            printer.print(warning: GraphUp.warningMessage)
-        }
-
         let workspacePath = try workspaceGenerator.generate(path: path,
                                                             graph: graph,
                                                             options: GenerationOptions(),
