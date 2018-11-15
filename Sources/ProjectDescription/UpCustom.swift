@@ -1,6 +1,6 @@
 import Foundation
 
-/// Custom setup command defined by the user.
+/// Custom up defined by the user.
 class UpCustom: Up {
     /// Name of the command.
     let name: String

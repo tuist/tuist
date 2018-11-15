@@ -5,22 +5,39 @@ import Foundation
 /// With Tuist, that's not necessary anymore because you can define declaratively those steps
 /// and developers can run them by executing 'tuist up'
 public class Up: Codable {
-    /// Returns a command that installs Homebrew packages.
+    /// Returns an up that installs Homebrew packages.
     ///
     /// - Parameter packages: Packages to be installed.
-    /// - Returns: The Homebrew setup command.
+    /// - Returns: Instance of an UpHomebrew
     public static func homebrew(packages: [String]) -> Up {
         return UpHomebrew(packages: packages)
     }
 
-    /// It return a user-defined command.
+    /// Returns a user-defined up.
     ///
     /// - Parameters:
     ///   - name: Name of the command.
     ///   - meet: Shell command that needs to be executed if the command is not met in the environment.
     ///   - isMet: Shell command that should return a 0 exit status if the setup has already been done (e.g. which carthage)
-    /// - Returns: The custom command.
+    /// - Returns: Instance of an UpCustom.
     public static func custom(name: String, meet: [String], isMet: [String]) -> Up {
         return UpCustom(name: name, meet: meet, isMet: isMet)
+    }
+
+    /// Returns an up that updates Carthage dependencies in the project directory.
+    ///
+    /// - Parameters
+    ///     - platforms: The platforms Carthage dependencies should be updated for. If the argument is not passed, the frameworks will be updated for all the platforms.
+    /// - Returns: Instance of an UpCarthage.
+    public static func carthage(platforms: [Platform]? = nil) -> Up {
+        let platforms = platforms ?? [.iOS, .macOS, .tvOS, .watchOS]
+        return UpCarthage(platforms: platforms)
+    }
+
+    /// Returns an up that installs outdated NPM dependencies using Yarn.
+    ///
+    /// - Returns: An instance of an UpYarn
+    public static func yarn() -> Up {
+        return UpYarn()
     }
 }

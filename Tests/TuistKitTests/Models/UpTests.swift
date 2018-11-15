@@ -40,4 +40,24 @@ final class UpTests: XCTestCase {
         XCTAssertEqual(got?.name, "Homebrew")
         XCTAssertEqual(got?.packages, ["swiftlint"])
     }
+
+    func test_with_when_carthage() throws {
+        let dictionary = JSON([
+            "type": "carthage",
+            "platforms": JSON.array([JSON.string("macos")]),
+        ])
+        let got = try Up.with(dictionary: dictionary,
+                              projectPath: fileHandler.currentPath,
+                              fileHandler: fileHandler) as? UpCarthage
+        XCTAssertEqual(got?.name, "Carthage update")
+        XCTAssertEqual(got?.platforms, [.macOS])
+    }
+
+    func test_with_when_yarn() throws {
+        let dictionary = JSON(["type": "yarn"])
+        let got = try Up.with(dictionary: dictionary,
+                              projectPath: fileHandler.currentPath,
+                              fileHandler: fileHandler) as? UpYarn
+        XCTAssertEqual(got?.name, "Yarn update")
+    }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Command that installs Homebrew and packages.
+/// Up that installs Homebrew and packages.
 class UpHomebrew: Up {
     /// Homebrew packages to be installed.
     let packages: [String]
