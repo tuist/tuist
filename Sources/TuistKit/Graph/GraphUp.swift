@@ -27,6 +27,9 @@ final class GraphUp: GraphUpping {
     /// System instance to run commands on the shell.
     fileprivate let system: Systeming
 
+    /// Default warning message that is printed when the environment is not set up.
+    static let warningMessage: String = "You can run 'tuist up' to install everything you need to run this project"
+
     /// Default initializer.
     ///
     /// - Parameters:

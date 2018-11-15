@@ -15,6 +15,9 @@ final class FocusCommandTests: XCTestCase {
     var printer: MockPrinter!
     var fileHandler: MockFileHandler!
     var opener: MockOpener!
+    var system: MockSystem!
+    var resourceLocator: MockResourceLocator!
+    var graphUp: MockGraphUp!
 
     override func setUp() {
         super.setUp()
@@ -25,12 +28,19 @@ final class FocusCommandTests: XCTestCase {
         parser = ArgumentParser.test()
         fileHandler = try! MockFileHandler()
         opener = MockOpener()
-        subject = FocusCommand(graphLoader: graphLoader,
+        system = MockSystem()
+        resourceLocator = MockResourceLocator()
+        graphUp = MockGraphUp()
+
+        subject = FocusCommand(parser: parser,
+                               graphLoader: graphLoader,
                                workspaceGenerator: workspaceGenerator,
-                               parser: parser,
                                printer: printer,
+                               system: system,
+                               resourceLocator: resourceLocator,
                                fileHandler: fileHandler,
-                               opener: opener)
+                               opener: opener,
+                               graphUp: graphUp)
     }
 
     func test_command() {
@@ -61,5 +71,13 @@ final class FocusCommandTests: XCTestCase {
         try subject.run(with: result)
 
         XCTAssertEqual(opener.openArgs.last, workspacePath)
+    }
+
+    func test_run_printsAWarning_when_theEnvironmentIsNotSetup() throws {
+        graphUp.isMetStub = { _ in false }
+        let result = try parser.parse([FocusCommand.command, "-c", "Debug"])
+        try subject.run(with: result)
+
+        XCTAssertTrue(printer.printWarningArgs.contains(GraphUp.warningMessage))
     }
 }

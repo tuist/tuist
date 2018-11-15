@@ -60,7 +60,7 @@ class GenerateCommand: NSObject, Command {
         let graph = try graphLoader.load(path: path)
 
         if try !graphUp.isMet(graph: graph) {
-            printer.print(warning: "You can run 'tuist up' to install everything you need to run this project")
+            printer.print(warning: GraphUp.warningMessage)
         }
 
         try workspaceGenerator.generate(path: path,
