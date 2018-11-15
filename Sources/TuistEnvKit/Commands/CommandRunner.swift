@@ -118,6 +118,7 @@ class CommandRunner: CommandRunning {
         try system.popen(path.appending(component: Constants.binName).asString,
                          arguments: Array(arguments().dropFirst()),
                          verbose: false,
+                         workingDirectoryPath: nil,
                          environment: System.userEnvironment)
     }
 

@@ -44,7 +44,7 @@ final class GraphUp: GraphUpping {
     /// - Throws: An error if any of the commands exit unsuccessfully.
     func meet(graph: Graph) throws {
         for project in graph.projects {
-            printer.print(section: "Setting up environment for \(project.path)")
+            printer.print(section: "Setting up environment for \(project.path.asString)")
             for command in project.up {
                 if try !command.isMet(system: system, projectPath: project.path) {
                     printer.print(subsection: "Configuring \(command.name)")

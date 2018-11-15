@@ -4,7 +4,7 @@ import Foundation
 
 public class Project: Codable {
     public let name: String
-    public let up: [UpCommand]
+    public let up: [Up]
     public let targets: [Target]
     public let settings: Settings?
 
@@ -16,7 +16,7 @@ public class Project: Codable {
     }
 
     public init(name: String,
-                up: [UpCommand] = [],
+                up: [Up] = [],
                 settings: Settings? = nil,
                 targets: [Target] = []) {
         self.name = name
