@@ -5,6 +5,8 @@
 [![codecov](https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg)](https://codecov.io/gh/tuist/tuist)
 [![Slack](http://slack.tuist.io/badge.svg)](http://slack.tuist.io)
 [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/pepibumur)
+<img src="https://opencollective.com/tuistapp/tiers/backer/badge.svg?label=backer&color=brightgreen" />
+<img src="https://opencollective.com/tuistapp/tiers/sponsor/badge.svg?label=sponsor&color=brightgreen" />
 
 ## What's Tuist 🕺
 
@@ -99,6 +101,66 @@ If your project uses Tuist, you can add the following badge to your project READ
 ```md
 [![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
 ```
+
+## Backers
+
+[Become a backer](https://opencollective.com/tuistapp#backer) and show your support to our open source project.
+
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/0/avatar)](https://opencollective.com/tuistapp/backer/0/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/1/avatar)](https://opencollective.com/tuistapp/backer/1/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/2/avatar)](https://opencollective.com/tuistapp/backer/2/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/3/avatar)](https://opencollective.com/tuistapp/backer/3/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/4/avatar)](https://opencollective.com/tuistapp/backer/4/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/5/avatar)](https://opencollective.com/tuistapp/backer/5/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/6/avatar)](https://opencollective.com/tuistapp/backer/6/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/7/avatar)](https://opencollective.com/tuistapp/backer/7/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/8/avatar)](https://opencollective.com/tuistapp/backer/8/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/9/avatar)](https://opencollective.com/tuistapp/backer/9/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/10/avatar)](https://opencollective.comtuistapps/backer/10/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/11/avatar)](https://opencollective.com/tuistapp/backer/11/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/12/avatar)](https://opencollective.com/tuistapp/backer/12/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/13/avatar)](https://opencollective.com/tuistapp/backer/13/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/14/avatar)](https://opencollective.com/tuistapp/backer/14/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/15/avatar)](https://opencollective.com/tuistapp/backer/15/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/16/avatar)](https://opencollective.com/tuistapp/backer/16/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/17/avatar)](https://opencollective.com/tuistapp/backer/17/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/18/avatar)](https://opencollective.com/tuistapp/backer/18/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/19/avatar)](https://opencollective.com/tuistapp/backer/19/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/20/avatar)](https://opencollective.com/tuistapp/backer/20/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/21/avatar)](https://opencollective.com/tuistapp/backer/21/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/22/avatar)](https://opencollective.com/tuistapp/backer/22/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/23/avatar)](https://opencollective.com/tuistapp/backer/23/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/24/avatar)](https://opencollective.com/tuistapp/backer/24/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/25/avatar)](https://opencollective.com/tuistapp/backer/25/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/26/avatar)](https://opencollective.com/tuistapp/backer/26/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/27/avatar)](https://opencollective.com/tuistapp/backer/27/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/28/avatar)](https://opencollective.com/tuistapp/backer/28/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/backer/29/avatar)](https://opencollective.com/tuistapp/backer/29/website)
+
+## Sponsors
+
+Does your company use Tuist?  Ask your manager or marketing team if your company would be interested in supporting our project.  Support will allow the maintainers to dedicate more time for maintenance and new features for everyone.  Also, your company's logo will show [on GitHub](https://github.com/tuist/tuist#readme) and on [our site](https://tuist.io) - who doesn't want a little extra exposure?  [Here's the info](https://opencollective.com/tuistapp)
+
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/0/avatar)](https://opencollective.com/tuistapp/sponsor/0/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/1/avatar)](https://opencollective.com/tuistapp/sponsor/1/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/2/avatar)](https://opencollective.com/tuistapp/sponsor/2/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/3/avatar)](https://opencollective.com/tuistapp/sponsor/3/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/4/avatar)](https://opencollective.com/tuistapp/sponsor/4/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/5/avatar)](https://opencollective.com/tuistapp/sponsor/5/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/6/avatar)](https://opencollective.com/tuistapp/sponsor/6/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/7/avatar)](https://opencollective.com/tuistapp/sponsor/7/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/8/avatar)](https://opencollective.com/tuistapp/sponsor/8/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/9/avatar)](https://opencollective.com/tuistapp/sponsor/9/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/10/avatar)](https://opencollective.comtuistapps/sponsor/10/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/11/avatar)](https://opencollective.com/tuistapp/sponsor/11/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/12/avatar)](https://opencollective.com/tuistapp/sponsor/12/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/13/avatar)](https://opencollective.com/tuistapp/sponsor/13/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/14/avatar)](https://opencollective.com/tuistapp/sponsor/14/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/15/avatar)](https://opencollective.com/tuistapp/sponsor/15/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/16/avatar)](https://opencollective.com/tuistapp/sponsor/16/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/17/avatar)](https://opencollective.com/tuistapp/sponsor/17/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/18/avatar)](https://opencollective.com/tuistapp/sponsor/18/website)
+[![Tuist Backer](https://opencollective.com/tuistapp/sponsor/19/avatar)](https://opencollective.com/tuistapp/sponsor/19/website)
 
 ## Open source
 
