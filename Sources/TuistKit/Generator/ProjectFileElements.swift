@@ -37,7 +37,7 @@ class ProjectFileElements {
         files.formUnion(projectFiles(project: project))
 
         /// Files
-        generate(files: files.sorted(),
+        generate(files: files.sorted(by: AbsolutePath.xcodeSortener()),
                  groups: groups,
                  pbxproj: pbxproj,
                  sourceRootPath: sourceRootPath)
@@ -119,7 +119,7 @@ class ProjectFileElements {
     func generate(products: [String],
                   groups: ProjectGroups,
                   pbxproj: PBXProj) {
-        products.forEach { productName in
+        products.sorted().forEach { productName in
             if self.products[productName] != nil { return }
             let fileType = Xcode.filetype(extension: String(productName.split(separator: ".").last!))
             let fileReference = PBXFileReference(sourceTree: .buildProductsDir,
@@ -278,7 +278,7 @@ class ProjectFileElements {
                          toGroup: PBXGroup,
                          pbxproj: PBXProj) {
         // /path/to/*.lproj/*
-        absolutePath.glob("*").forEach { localizedFile in
+        absolutePath.glob("*").sorted().forEach { localizedFile in
             let localizedName = localizedFile.components.last!
 
             // Variant group
