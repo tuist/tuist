@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Fixed
+
+- Files and groups sort order https://github.com/tuist/tuist/pull/164 by @pepibumur.
+
 ## 0.8.0
 
 ### Added
