@@ -18,7 +18,6 @@ class GenerateCommand: NSObject, Command {
     fileprivate let resourceLocator: ResourceLocating
 
     let pathArgument: OptionArgument<String>
-    let configArgument: OptionArgument<String>
 
     // MARK: - Init
 
@@ -45,21 +44,15 @@ class GenerateCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path where the project will be generated.",
                                      completion: .filename)
-        configArgument = subParser.add(option: "--config",
-                                       shortName: "-c",
-                                       kind: String.self,
-                                       usage: "The configuration that will be generated.",
-                                       completion: .filename)
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        let config = try parseConfig(arguments: arguments)
         let graph = try graphLoader.load(path: path)
 
         try workspaceGenerator.generate(path: path,
                                         graph: graph,
-                                        options: GenerationOptions(buildConfiguration: config),
+                                        options: GenerationOptions(),
                                         directory: .manifest)
 
         printer.print(success: "Project generated.")
@@ -73,18 +66,5 @@ class GenerateCommand: NSObject, Command {
         } else {
             return AbsolutePath.current
         }
-    }
-
-    private func parseConfig(arguments: ArgumentParser.Result) throws -> BuildConfiguration {
-        var config: BuildConfiguration = .debug
-        if let configString = arguments.get(configArgument) {
-            guard let buildConfiguration = BuildConfiguration(rawValue: configString.lowercased()) else {
-                let error = ArgumentParserError.invalidValue(argument: "config",
-                                                             error: ArgumentConversionError.custom("config can only be debug or release"))
-                throw error
-            }
-            config = buildConfiguration
-        }
-        return config
     }
 }

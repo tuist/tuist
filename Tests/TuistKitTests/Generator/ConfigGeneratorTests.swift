@@ -48,71 +48,51 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")
     }
 
-    func test_generateManifestsConfig_whenDebug() throws {
-        try generateManifestsConfig(config: .debug)
+    func test_generateManifestsConfig() throws {
+        try generateManifestsConfig()
         let configurationList = pbxproj.configurationLists.first
-        let config: XCBuildConfiguration? = configurationList?.buildConfigurations.last
-        XCTAssertEqual(config?.name, "Debug")
-        XCTAssertEqual(config?.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, "/test")
-        XCTAssertEqual(config?.buildSettings["LIBRARY_SEARCH_PATHS"] as? String, "/test")
-        XCTAssertEqual(config?.buildSettings["SWIFT_FORCE_DYNAMIC_LINK_STDLIB"] as? Bool, true)
-        XCTAssertEqual(config?.buildSettings["SWIFT_FORCE_STATIC_LINK_STDLIB"] as? Bool, false)
-        XCTAssertEqual(config?.buildSettings["SWIFT_INCLUDE_PATHS"] as? String, "/test")
-        XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
-        XCTAssertEqual(config?.buildSettings["LD"] as? String, "/usr/bin/true")
-        XCTAssertEqual(config?.buildSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] as? String, "SWIFT_PACKAGE")
-        XCTAssertEqual(config?.buildSettings["OTHER_SWIFT_FLAGS"] as? String, "-swift-version 4 -I /test")
+        XCTAssertEqual(configurationList?.buildConfigurations.count, 2)
+        let debugConfig = try configurationList?.configuration(name: "Debug")
+        let releaseConfig = try configurationList?.configuration(name: "Release")
+
+        func assert(config: XCBuildConfiguration?) {
+            XCTAssertEqual(config?.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, "/test")
+            XCTAssertEqual(config?.buildSettings["LIBRARY_SEARCH_PATHS"] as? String, "/test")
+            XCTAssertEqual(config?.buildSettings["SWIFT_FORCE_DYNAMIC_LINK_STDLIB"] as? Bool, true)
+            XCTAssertEqual(config?.buildSettings["SWIFT_FORCE_STATIC_LINK_STDLIB"] as? Bool, false)
+            XCTAssertEqual(config?.buildSettings["SWIFT_INCLUDE_PATHS"] as? String, "/test")
+            XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
+            XCTAssertEqual(config?.buildSettings["LD"] as? String, "/usr/bin/true")
+            XCTAssertEqual(config?.buildSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] as? String, "SWIFT_PACKAGE")
+            XCTAssertEqual(config?.buildSettings["OTHER_SWIFT_FLAGS"] as? String, "-swift-version 4 -I /test")
+        }
+
+        assert(config: debugConfig)
+        assert(config: releaseConfig)
     }
 
-    func test_generateManifestsConfig_whenRelease() throws {
-        try generateManifestsConfig(config: .release)
-        let configurationList = pbxproj.configurationLists.first
-        let config = configurationList?.buildConfigurations.first
-        XCTAssertEqual(config?.name, "Release")
-        XCTAssertEqual(config?.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, "/test")
-        XCTAssertEqual(config?.buildSettings["LIBRARY_SEARCH_PATHS"] as? String, "/test")
-        XCTAssertEqual(config?.buildSettings["SWIFT_FORCE_DYNAMIC_LINK_STDLIB"] as? Bool, true)
-        XCTAssertEqual(config?.buildSettings["SWIFT_FORCE_STATIC_LINK_STDLIB"] as? Bool, false)
-        XCTAssertEqual(config?.buildSettings["SWIFT_INCLUDE_PATHS"] as? String, "/test")
-        XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
-        XCTAssertEqual(config?.buildSettings["LD"] as? String, "/usr/bin/true")
-        XCTAssertEqual(config?.buildSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] as? String, "SWIFT_PACKAGE")
-        XCTAssertEqual(config?.buildSettings["OTHER_SWIFT_FLAGS"] as? String, "-swift-version 4 -I /test")
-    }
-
-    func test_generateTargetConfig_whenDebug() throws {
-        try generateTargetConfig(config: .debug)
-        let configurationList = pbxTarget.buildConfigurationList
-        let config = configurationList?.buildConfigurations.first
-        XCTAssertEqual(config?.name, "Debug")
-        XCTAssertEqual(config?.buildSettings["Base"] as? String, "Base")
-        XCTAssertEqual(config?.buildSettings["Debug"] as? String, "Debug")
-        XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
-        XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
-        XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
-        XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
-
-        let xcconfig: PBXFileReference? = config?.baseConfiguration
-        XCTAssertEqual(xcconfig?.path, "debug.xcconfig")
-    }
-
-    func test_generateTargetConfig_whenRelease() throws {
+    func test_generateTargetConfig() throws {
         try generateTargetConfig(config: .release)
         let configurationList = pbxTarget.buildConfigurationList
-        let config = configurationList?.buildConfigurations.first
-        XCTAssertEqual(config?.name, "Release")
-        XCTAssertEqual(config?.buildSettings["Base"] as? String, "Base")
-        XCTAssertEqual(config?.buildSettings["Release"] as? String, "Release")
-        XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
-        XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
-        XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
-        XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
+        let debugConfig = try configurationList?.configuration(name: "Debug")
+        let releaseConfig = try configurationList?.configuration(name: "Release")
 
-        let xcconfig: PBXFileReference? = config?.baseConfiguration
-        XCTAssertEqual(xcconfig?.path, "release.xcconfig")
+        func assert(config: XCBuildConfiguration?) {
+            XCTAssertEqual(config?.buildSettings["Base"] as? String, "Base")
+            XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
+            XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
+            XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
+            XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
+
+            let xcconfig: PBXFileReference? = config?.baseConfiguration
+            XCTAssertEqual(xcconfig?.path, "\(config!.name.lowercased()).xcconfig")
+        }
+
+        assert(config: debugConfig)
+        assert(config: releaseConfig)
     }
 
-    private func generateProjectConfig(config: BuildConfiguration) throws {
+    private func generateProjectConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try fileHandler.createFolder(xcconfigsDir)
@@ -127,21 +107,21 @@ final class ConfigGeneratorTests: XCTestCase {
                                                                         xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))),
                               targets: [])
         let fileElements = ProjectFileElements()
-        let options = GenerationOptions(buildConfiguration: config)
+        let options = GenerationOptions()
         _ = try subject.generateProjectConfig(project: project,
                                               pbxproj: pbxproj,
                                               fileElements: fileElements,
                                               options: options)
     }
 
-    private func generateManifestsConfig(config: BuildConfiguration) throws {
-        let options = GenerationOptions(buildConfiguration: config)
+    private func generateManifestsConfig() throws {
+        let options = GenerationOptions()
         _ = try subject.generateManifestsConfig(pbxproj: pbxproj,
                                                 options: options,
                                                 resourceLocator: resourceLocator)
     }
 
-    private func generateTargetConfig(config: BuildConfiguration) throws {
+    private func generateTargetConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try fileHandler.createFolder(xcconfigsDir)
@@ -165,7 +145,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                           groups: groups,
                                           pbxproj: pbxproj,
                                           sourceRootPath: project.path)
-        let options = GenerationOptions(buildConfiguration: config)
+        let options = GenerationOptions()
         _ = try subject.generateTargetConfig(target,
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
