@@ -9,6 +9,7 @@ jobs:
           name: Install Dependencies
           command: |
             brew install swiftlint
+            bundle install
       - run:
           name: Generate Xcode project
           command: |
@@ -18,8 +19,11 @@ jobs:
           command: |
             swift build -c release
       - run:
-          name: Run tests
+          name: Run unit tests
           command: xcodebuild test -scheme tuist-Package -enableCodeCoverage YES
+      - run:
+          name: Run acceptance tests
+          command: bundle exec rake features
       - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)
