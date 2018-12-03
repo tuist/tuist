@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.9.0
+
 ### Added
 
 - Acceptance tests https://github.com/tuist/tuist/pull/166 by @pepibumur.

@@ -3,7 +3,7 @@
 This document describes the process of releasing new versions of tuist.
 
 1.  First make sure you are in master and the latest changes are pulled: `git pull origin master`
-2.  Ensure that the project is in a releaseable state by running the tests: `swift test`.
+2.  Ensure that the project is in a releaseable state by running the tests: `swift test` and `bundle exec rake features`.
 3.  Determine the new version:
 
 - Major if there's been a breaking change.
