@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Files and groups sort order https://github.com/tuist/tuist/pull/164 by @pepibumur.
 
+### Added
+
+- Generate both, the `Debug` and `Release` configurations https://github.com/tuist/tuist/pull/165 by @pepibumur.
+
 ## 0.8.0
 
 ### Added
