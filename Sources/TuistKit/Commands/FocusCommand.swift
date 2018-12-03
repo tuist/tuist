@@ -52,31 +52,15 @@ class FocusCommand: NSObject, Command {
                                        completion: .filename)
     }
 
-    func run(with arguments: ArgumentParser.Result) throws {
+    func run(with _: ArgumentParser.Result) throws {
         let path = fileHandler.currentPath
-        let config = try parseConfig(arguments: arguments)
         let graph = try graphLoader.load(path: path)
 
         let workspacePath = try workspaceGenerator.generate(path: path,
                                                             graph: graph,
-                                                            options: GenerationOptions(buildConfiguration: config),
+                                                            options: GenerationOptions(),
                                                             directory: .manifest)
 
         try opener.open(path: workspacePath)
-    }
-
-    // MARK: - Fileprivate
-
-    private func parseConfig(arguments: ArgumentParser.Result) throws -> BuildConfiguration {
-        var config: BuildConfiguration = .debug
-        if let configString = arguments.get(configArgument) {
-            guard let buildConfiguration = BuildConfiguration(rawValue: configString.lowercased()) else {
-                let error = ArgumentParserError.invalidValue(argument: "config",
-                                                             error: ArgumentConversionError.custom("config can only be debug or release"))
-                throw error
-            }
-            config = buildConfiguration
-        }
-        return config
     }
 }

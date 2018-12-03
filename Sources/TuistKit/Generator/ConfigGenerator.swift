@@ -37,28 +37,24 @@ final class ConfigGenerator: ConfigGenerating {
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
                                fileElements: ProjectFileElements,
-                               options: GenerationOptions) throws -> XCConfigurationList {
+                               options _: GenerationOptions) throws -> XCConfigurationList {
         /// Configuration list
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
 
-        if options.buildConfiguration == .debug {
-            try generateProjectSettingsFor(buildConfiguration: .debug,
-                                           configuration: project.settings?.debug,
-                                           project: project,
-                                           fileElements: fileElements,
-                                           pbxproj: pbxproj,
-                                           configurationList: configurationList)
-        }
+        try generateProjectSettingsFor(buildConfiguration: .debug,
+                                       configuration: project.settings?.debug,
+                                       project: project,
+                                       fileElements: fileElements,
+                                       pbxproj: pbxproj,
+                                       configurationList: configurationList)
 
-        if options.buildConfiguration == .release {
-            try generateProjectSettingsFor(buildConfiguration: .release,
-                                           configuration: project.settings?.release,
-                                           project: project,
-                                           fileElements: fileElements,
-                                           pbxproj: pbxproj,
-                                           configurationList: configurationList)
-        }
+        try generateProjectSettingsFor(buildConfiguration: .release,
+                                       configuration: project.settings?.release,
+                                       project: project,
+                                       fileElements: fileElements,
+                                       pbxproj: pbxproj,
+                                       configurationList: configurationList)
         return configurationList
     }
 
@@ -66,35 +62,31 @@ final class ConfigGenerator: ConfigGenerating {
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               fileElements: ProjectFileElements,
-                              options: GenerationOptions,
+                              options _: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
 
-        if options.buildConfiguration == .debug {
-            try generateTargetSettingsFor(target: target,
-                                          buildConfiguration: .debug,
-                                          configuration: target.settings?.debug,
-                                          fileElements: fileElements,
-                                          pbxproj: pbxproj,
-                                          configurationList: configurationList,
-                                          sourceRootPath: sourceRootPath)
-        }
+        try generateTargetSettingsFor(target: target,
+                                      buildConfiguration: .debug,
+                                      configuration: target.settings?.debug,
+                                      fileElements: fileElements,
+                                      pbxproj: pbxproj,
+                                      configurationList: configurationList,
+                                      sourceRootPath: sourceRootPath)
 
-        if options.buildConfiguration == .release {
-            try generateTargetSettingsFor(target: target,
-                                          buildConfiguration: .release,
-                                          configuration: target.settings?.release,
-                                          fileElements: fileElements,
-                                          pbxproj: pbxproj,
-                                          configurationList: configurationList,
-                                          sourceRootPath: sourceRootPath)
-        }
+        try generateTargetSettingsFor(target: target,
+                                      buildConfiguration: .release,
+                                      configuration: target.settings?.release,
+                                      fileElements: fileElements,
+                                      pbxproj: pbxproj,
+                                      configurationList: configurationList,
+                                      sourceRootPath: sourceRootPath)
     }
 
     func generateManifestsConfig(pbxproj: PBXProj,
-                                 options: GenerationOptions,
+                                 options _: GenerationOptions,
                                  resourceLocator: ResourceLocating = ResourceLocator()) throws -> XCConfigurationList {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
@@ -111,20 +103,21 @@ final class ConfigGenerator: ConfigGenerating {
             configuration.buildSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "SWIFT_PACKAGE"
             configuration.buildSettings["OTHER_SWIFT_FLAGS"] = "-swift-version 4 -I \(frameworkParentDirectory.asString)"
         }
-        if options.buildConfiguration == .debug {
-            let debugConfig = XCBuildConfiguration(name: "Debug", baseConfiguration: nil, buildSettings: [:])
-            pbxproj.add(object: debugConfig)
-            debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .debug, platform: .macOS, product: .framework, swift: true)
-            configurationList.buildConfigurations.append(debugConfig)
-            try addSettings(debugConfig)
-        }
-        if options.buildConfiguration == .release {
-            let releaseConfig = XCBuildConfiguration(name: "Release", baseConfiguration: nil, buildSettings: [:])
-            pbxproj.add(object: releaseConfig)
-            releaseConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .release, platform: .macOS, product: .framework, swift: true)
-            configurationList.buildConfigurations.append(releaseConfig)
-            try addSettings(releaseConfig)
-        }
+
+        // Debug configuration
+        let debugConfig = XCBuildConfiguration(name: "Debug", baseConfiguration: nil, buildSettings: [:])
+        pbxproj.add(object: debugConfig)
+        debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .debug, platform: .macOS, product: .framework, swift: true)
+        configurationList.buildConfigurations.append(debugConfig)
+        try addSettings(debugConfig)
+
+        // Release configuration
+        let releaseConfig = XCBuildConfiguration(name: "Release", baseConfiguration: nil, buildSettings: [:])
+        pbxproj.add(object: releaseConfig)
+        releaseConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .release, platform: .macOS, product: .framework, swift: true)
+        configurationList.buildConfigurations.append(releaseConfig)
+        try addSettings(releaseConfig)
+
         return configurationList
     }
 
