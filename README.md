@@ -137,6 +137,7 @@ If your project uses Tuist, you can add the following badge to your project READ
 [![Tuist Backer](https://opencollective.com/tuistapp/backer/27/avatar)](https://opencollective.com/tuistapp/backer/27/website)
 [![Tuist Backer](https://opencollective.com/tuistapp/backer/28/avatar)](https://opencollective.com/tuistapp/backer/28/website)
 [![Tuist Backer](https://opencollective.com/tuistapp/backer/29/avatar)](https://opencollective.com/tuistapp/backer/29/website)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ftuist%2Ftuist.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Ftuist%2Ftuist?ref=badge_shield)
 
 ## Sponsors
 
@@ -168,3 +169,7 @@ Does your company use Tuist?  Ask your manager or marketing team if your company
 Tuist is a proud supporter of the [Software Freedom Conservacy](https://sfconservancy.org/)
 
 <a href="https://sfconservancy.org/supporter/"><img src="https://sfconservancy.org/img/supporter-badge.png" width="194" height="90" alt="Become a Conservancy Supporter!" border="0"/></a>
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ftuist%2Ftuist.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Ftuist%2Ftuist?ref=badge_large)
