@@ -60,4 +60,8 @@ class UpCustom: Up, GraphInitiatable {
         // TODO:
         return false
     }
+
+    fileprivate func launchPath() -> String {
+        return ""
+    }
 }
