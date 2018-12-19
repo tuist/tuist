@@ -5,7 +5,7 @@ import TuistCore
 class Target: GraphJSONInitiatable, Equatable {
     // MARK: - Static
 
-    static let validSourceExtensions: [String] = ["m", "swift", "mm"]
+    static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
     static let validFolderExtensions: [String] = ["framework", "bundle", "app", "appiconset"]
 
     // MARK: - Attributes

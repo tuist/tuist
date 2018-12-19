@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Don't generate the Playgrounds group if there are no playgrounds https://github.com/tuist/tuist/pull/177 by @pepibumur.
 
+### Added
+
+- Support `.cpp` and `.c` source files https://github.com/tuist/tuist/pull/178 by @pepibumur.
+
 ## 0.9.0
 
 ### Added
