@@ -6,20 +6,33 @@ import XCTest
 
 final class ProjectGroupsTests: XCTestCase {
     var subject: ProjectGroups!
+    var playgrounds: MockPlaygrounds!
+    var sourceRootPath: AbsolutePath!
+    var project: Project!
+    var pbxproj: PBXProj!
 
     override func setUp() {
         super.setUp()
         let path = AbsolutePath("/test/")
-        let sourceRootPath = AbsolutePath("/test/")
-        let project = Project(path: path,
-                              name: "Project",
-                              settings: nil,
-                              targets: [])
-        let pbxproj = PBXProj()
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
+        playgrounds = MockPlaygrounds()
+        sourceRootPath = AbsolutePath("/test/")
+        project = Project(path: path,
+                          name: "Project",
+                          settings: nil,
+                          targets: [])
+        pbxproj = PBXProj()
     }
 
     func test_generate() {
+        playgrounds.pathsStub = { projectPath in
+            if projectPath == self.sourceRootPath {
+                return [self.sourceRootPath.appending(RelativePath("Playgrounds/Test.playground"))]
+            } else {
+                return []
+            }
+        }
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+
         let main = subject.main
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
@@ -44,13 +57,25 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNil(subject.products.path)
         XCTAssertEqual(subject.products.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.playgrounds))
-        XCTAssertEqual(subject.playgrounds.path, "Playgrounds")
-        XCTAssertNil(subject.playgrounds.name)
-        XCTAssertEqual(subject.playgrounds.sourceTree, .group)
+        XCTAssertNotNil(subject.playgrounds)
+        XCTAssertTrue(main.children.contains(subject.playgrounds!))
+        XCTAssertEqual(subject.playgrounds?.path, "Playgrounds")
+        XCTAssertNil(subject.playgrounds?.name)
+        XCTAssertEqual(subject.playgrounds?.sourceTree, .group)
+    }
+
+    func test_generate_when_there_are_no_playgrounds() {
+        playgrounds.pathsStub = { _ in
+            []
+        }
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+
+        XCTAssertNil(subject.playgrounds)
     }
 
     func test_targetFrameworks() throws {
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+        
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
         XCTAssertEqual(got.sourceTree, .group)

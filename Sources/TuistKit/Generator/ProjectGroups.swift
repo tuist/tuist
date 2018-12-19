@@ -10,7 +10,7 @@ class ProjectGroups {
     let projectDescription: PBXGroup
     let project: PBXGroup
     let frameworks: PBXGroup
-    let playgrounds: PBXGroup
+    let playgrounds: PBXGroup?
     let pbxproj: PBXProj
 
     // MARK: - Init
@@ -20,7 +20,7 @@ class ProjectGroups {
          projectDescription: PBXGroup,
          frameworks: PBXGroup,
          project: PBXGroup,
-         playgrounds: PBXGroup,
+         playgrounds: PBXGroup?,
          pbxproj: PBXProj) {
         self.main = main
         self.products = products
@@ -41,7 +41,8 @@ class ProjectGroups {
 
     static func generate(project: Project,
                          pbxproj: PBXProj,
-                         sourceRootPath: AbsolutePath) -> ProjectGroups {
+                         sourceRootPath: AbsolutePath,
+                         playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
         /// Main
         let projectRelativePath = project.path.relative(to: sourceRootPath).asString
         let mainGroup = PBXGroup(children: [],
@@ -65,9 +66,12 @@ class ProjectGroups {
         mainGroup.children.append(frameworksGroup)
 
         /// Playgrounds
-        let playgroundsGroup = PBXGroup(children: [], sourceTree: .group, path: "Playgrounds")
-        pbxproj.add(object: playgroundsGroup)
-        mainGroup.children.append(playgroundsGroup)
+        var playgroundsGroup: PBXGroup!
+        if !playgrounds.paths(path: project.path).isEmpty {
+            playgroundsGroup = PBXGroup(children: [], sourceTree: .group, path: "Playgrounds")
+            pbxproj.add(object: playgroundsGroup)
+            mainGroup.children.append(playgroundsGroup)
+        }
 
         /// Products
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
