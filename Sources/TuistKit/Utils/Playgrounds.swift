@@ -7,7 +7,7 @@ protocol Playgrounding {
     ///
     /// - Parameter path: Directory where the project is defined.
     /// - Returns: List of paths.
-    func playgrounds(path: AbsolutePath) -> [AbsolutePath]
+    func paths(path: AbsolutePath) -> [AbsolutePath]
 }
 
 final class Playgrounds: Playgrounding {
@@ -16,7 +16,7 @@ final class Playgrounds: Playgrounding {
     ///
     /// - Parameter path: Directory where the project is defined.
     /// - Returns: List of paths.
-    func playgrounds(path: AbsolutePath) -> [AbsolutePath] {
+    func paths(path: AbsolutePath) -> [AbsolutePath] {
         return path.glob("Playgrounds/*.playground").sorted()
     }
 }

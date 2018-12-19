@@ -8,11 +8,13 @@ import XCTest
 final class ProjectFileElementsTests: XCTestCase {
     var subject: ProjectFileElements!
     var fileHandler: MockFileHandler!
+    var playgrounds: MockPlaygrounds!
 
     override func setUp() {
         super.setUp()
         fileHandler = try! MockFileHandler()
-        subject = ProjectFileElements()
+        playgrounds = MockPlaygrounds()
+        subject = ProjectFileElements(playgrounds: playgrounds)
     }
 
     func test_projectFiles() {
@@ -267,22 +269,30 @@ final class ProjectFileElementsTests: XCTestCase {
 
     func test_generatePlaygrounds() throws {
         let pbxproj = PBXProj()
-        let project = Project.test()
         let sourceRootPath = fileHandler.currentPath
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath)
 
         let playgroundsPath = sourceRootPath.appending(component: "Playgrounds")
         let playgroundPath = playgroundsPath.appending(component: "Test.playground")
-        try fileHandler.createFolder(playgroundsPath)
-        try fileHandler.createFolder(playgroundPath)
+
+        playgrounds.pathsStub = { projectPath in
+            if projectPath == sourceRootPath {
+                return [playgroundPath]
+            } else {
+                return []
+            }
+        }
+
+        let project = Project.test(path: sourceRootPath)
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            sourceRootPath: sourceRootPath,
+                                            playgrounds: playgrounds)
 
         subject.generatePlaygrounds(path: sourceRootPath,
                                     groups: groups,
                                     pbxproj: pbxproj,
                                     sourceRootPath: sourceRootPath)
-        let file: PBXFileReference? = groups.playgrounds.children.first as? PBXFileReference
+        let file: PBXFileReference? = groups.playgrounds?.children.first as? PBXFileReference
 
         XCTAssertEqual(file?.sourceTree, .group)
         XCTAssertEqual(file?.lastKnownFileType, "file.playground")

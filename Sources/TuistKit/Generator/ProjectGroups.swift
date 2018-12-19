@@ -67,7 +67,7 @@ class ProjectGroups {
 
         /// Playgrounds
         var playgroundsGroup: PBXGroup!
-        if !playgrounds.playgrounds(path: project.path).isEmpty {
+        if !playgrounds.paths(path: project.path).isEmpty {
             playgroundsGroup = PBXGroup(children: [], sourceTree: .group, path: "Playgrounds")
             pbxproj.add(object: playgroundsGroup)
             mainGroup.children.append(playgroundsGroup)

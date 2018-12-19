@@ -139,7 +139,7 @@ class ProjectFileElements {
                              groups: ProjectGroups,
                              pbxproj: PBXProj,
                              sourceRootPath _: AbsolutePath) {
-        let paths = playgrounds.playgrounds(path: path)
+        let paths = playgrounds.paths(path: path)
         if paths.isEmpty { return }
 
         let group = groups.playgrounds
