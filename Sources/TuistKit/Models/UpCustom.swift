@@ -44,9 +44,9 @@ class UpCustom: Up, GraphInitiatable {
     ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer _: Printing, projectPath _: AbsolutePath) throws {
-        // TODO:
-        try system.popen("", arguments: [], verbose: false, workingDirectoryPath: nil, environment: System.userEnvironment)
+    override func meet(system: Systeming, printer _: Printing, projectPath: AbsolutePath) throws {
+        let launchPath = try self.launchPath(command: meet, projectPath: projectPath, system: system)
+        try system.popen(launchPath.asString, arguments: Array(meet.dropFirst()), verbose: false, workingDirectoryPath: nil, environment: System.userEnvironment)
     }
 
     /// Returns true when the command doesn't need to be run.
@@ -56,12 +56,30 @@ class UpCustom: Up, GraphInitiatable {
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    override func isMet(system _: Systeming, projectPath _: AbsolutePath) throws -> Bool {
-        // TODO:
-        return false
+    override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
+        let launchPath = try self.launchPath(command: isMet, projectPath: projectPath, system: system)
+        let result = try system.capture(launchPath.asString, arguments: Array(isMet.dropFirst()), verbose: false, workingDirectoryPath: nil, environment: System.userEnvironment)
+        return result.succeeded
     }
 
-    fileprivate func launchPath() -> String {
-        return ""
+    /// Given the command components, it returns the launch path.
+    /// If the launch path is a name, it uses which to find the tool directory.
+    /// If it's a path, it returns the absolute path.
+    ///
+    /// - Parameters:
+    ///   - command: Command whose launch path will be returned.
+    ///   - projectPath: Project path used to get the absolute path if the command path is relative.
+    ///   - system: System instance used to run commands in the system.
+    /// - Returns: Launch path.
+    /// - Throws: A system error if the path can't be obtained running which in the system.
+    fileprivate func launchPath(command: [String], projectPath: AbsolutePath, system: Systeming) throws -> AbsolutePath {
+        // It's safe to unwrap the first argument here.
+        // There's a linter in place that prevents this code from running if the command is empty.
+        let launchArgument = command.first!
+        if launchArgument.contains("/") {
+            return AbsolutePath(launchArgument, relativeTo: projectPath)
+        } else {
+            return try AbsolutePath(system.which(launchArgument))
+        }
     }
 }

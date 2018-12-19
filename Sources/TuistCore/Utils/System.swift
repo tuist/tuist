@@ -102,6 +102,8 @@ public struct SystemResult {
     public let stdout: String
     public let stderror: String
     public let exitcode: Int32
+    public var succeeded: Bool { return exitcode == 0 }
+
     public init(stdout: String, stderror: String, exitcode: Int32) {
         self.stdout = stdout
         self.stderror = stderror
