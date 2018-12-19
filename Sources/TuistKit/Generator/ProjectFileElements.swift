@@ -16,11 +16,14 @@ class ProjectFileElements {
 
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
+    let playgrounds: Playgrounding
 
     // MARK: - Init
 
-    init(_ elements: [AbsolutePath: PBXFileElement] = [:]) {
+    init(_ elements: [AbsolutePath: PBXFileElement] = [:],
+         playgrounds: Playgrounding = Playgrounds()) {
         self.elements = elements
+        self.playgrounds = playgrounds
     }
 
     func generateProjectFiles(project: Project,
@@ -136,7 +139,9 @@ class ProjectFileElements {
                              groups: ProjectGroups,
                              pbxproj: PBXProj,
                              sourceRootPath _: AbsolutePath) {
-        let paths = path.glob("Playgrounds/*.playground").sorted()
+        let paths = playgrounds.playgrounds(path: path)
+        if paths.isEmpty { return }
+
         let group = groups.playgrounds
         paths.forEach { playgroundPath in
             let name = playgroundPath.components.last!
@@ -145,7 +150,7 @@ class ProjectFileElements {
                                              path: name,
                                              xcLanguageSpecificationIdentifier: "xcode.lang.swift")
             pbxproj.add(object: reference)
-            group.children.append(reference)
+            group!.children.append(reference)
         }
     }
 
