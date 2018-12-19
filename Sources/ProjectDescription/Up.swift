@@ -33,11 +33,4 @@ public class Up: Codable {
         let platforms = platforms ?? [.iOS, .macOS, .tvOS, .watchOS]
         return UpCarthage(platforms: platforms)
     }
-
-    /// Returns an up that installs outdated NPM dependencies using Yarn.
-    ///
-    /// - Returns: An instance of an UpYarn
-    public static func yarn() -> Up {
-        return UpYarn()
-    }
 }

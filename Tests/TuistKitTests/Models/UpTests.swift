@@ -52,12 +52,4 @@ final class UpTests: XCTestCase {
         XCTAssertEqual(got?.name, "Carthage update")
         XCTAssertEqual(got?.platforms, [.macOS])
     }
-
-    func test_with_when_yarn() throws {
-        let dictionary = JSON(["type": "yarn"])
-        let got = try Up.with(dictionary: dictionary,
-                              projectPath: fileHandler.currentPath,
-                              fileHandler: fileHandler) as? UpYarn
-        XCTAssertEqual(got?.name, "Yarn update")
-    }
 }
