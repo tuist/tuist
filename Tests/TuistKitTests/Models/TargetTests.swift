@@ -4,6 +4,6 @@ import XCTest
 
 final class TargetTests: XCTestCase {
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp"])
+        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c"])
     }
 }

@@ -10,7 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Support `cpp` source files https://github.com/tuist/tuist/pull/178 by @pepibumur.
+- Support `.cpp` and `.c` source files https://github.com/tuist/tuist/pull/178 by @pepibumur.
 
 ## 0.9.0
 
