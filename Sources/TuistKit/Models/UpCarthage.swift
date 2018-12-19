@@ -85,4 +85,6 @@ class UpCarthage: Up, GraphInitiatable {
                          workingDirectoryPath: projectPath,
                          environment: System.userEnvironment)
     }
+
+    func whatever() {}
 }

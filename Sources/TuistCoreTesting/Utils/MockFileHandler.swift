@@ -39,6 +39,10 @@ public final class MockFileHandler: FileHandling {
         try fileHandler.touch(path)
     }
 
+    public func readTextFile(_ at: AbsolutePath) throws -> String {
+        return try fileHandler.readTextFile(at)
+    }
+
     public func isFolder(_ path: AbsolutePath) -> Bool {
         return fileHandler.isFolder(path)
     }
