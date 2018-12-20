@@ -1,6 +1,5 @@
 import struct Basic.AbsolutePath
 import Foundation
-import Result
 import TuistCore
 
 public final class MockSystem: Systeming {
