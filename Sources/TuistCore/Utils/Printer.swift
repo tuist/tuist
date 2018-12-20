@@ -72,23 +72,31 @@ public class Printer: Printing {
     }
 }
 
-final class InteractiveWriter {
-    // MARK: - Attributes
-
+/// This class is used to write on the underlying stream.
+///
+/// If underlying stream is a not tty, the string will be written in without any
+/// formatting.
+private final class InteractiveWriter {
+    
+    /// The standard error writer.
     static let stderr = InteractiveWriter(stream: stderrStream)
+    
+    /// The standard output writer.
     static let stdout = InteractiveWriter(stream: stdoutStream)
+    
+    /// The terminal controller, if present.
     let term: TerminalController?
+    
+    /// The output byte stream reference.
     let stream: OutputByteStream
-
-    // MARK: - Init
-
+    
+    /// Create an instance with the given stream.
     init(stream: OutputByteStream) {
-        term = (stream as? LocalFileOutputByteStream).flatMap(TerminalController.init(stream:))
+        self.term = TerminalController(stream: stream)
         self.stream = stream
     }
-
-    // MARK: - Internal
-
+    
+    /// Write the string to the contained terminal or stream.
     func write(_ string: String, inColor color: TerminalController.Color = .noColor, bold: Bool = false) {
         if let term = term {
             term.write(string, inColor: color, bold: bold)
