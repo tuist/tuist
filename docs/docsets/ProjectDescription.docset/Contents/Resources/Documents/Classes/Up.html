@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang='en'>
   <head>
-    <title>Headers Class Reference</title>
+    <title>Up Class Reference</title>
     <link rel='stylesheet' type='text/css' href='../css/jazzy.css' />
     <link rel='stylesheet' type='text/css' href='../css/highlight.css' />
     <meta charset='utf-8'>
@@ -10,9 +10,9 @@
   </head>
   <body>
 
-    <a name='//apple_ref/swift/Class/Headers' class='dashAnchor'></a>
+    <a name='//apple_ref/swift/Class/Up' class='dashAnchor'></a>
 
-    <a title='Headers Class Reference'></a>
+    <a title='Up Class Reference'></a>
 
     <header class='header'>
       <p class='header-col header-col--primary'>
@@ -34,7 +34,7 @@
     <p class='breadcrumbs'>
       <a class='breadcrumb' href='../index.html'>ProjectDescription Reference</a>
       <img class='carat' src='' />
-      Headers Class Reference
+      Up Class Reference
     </p>
 
     <div class='content-wrapper'>
@@ -166,14 +166,17 @@
 
         <section class='section'>
           <div class='section-content'>
-            <h1>Headers</h1>
+            <h1>Up</h1>
               <div class='declaration'>
                 <div class='language'>
-                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">Headers</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">Up</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
 
                 </div>
               </div>
-            <p>Headers</p>
+            <p>It represents a command that configures the environment for the project to work.
+The steps to set up the project are usually specified in the project README.
+With Tuist, that&rsquo;s not necessary anymore because you can define declaratively those steps
+and developers can run them by executing &lsquo;tuist up&rsquo;</p>
 
           </div>
         </section>
@@ -185,9 +188,9 @@
                 <li class="item">
                   <div class="item-heading">
                     <code>
-                    <a name="/s:18ProjectDescription7HeadersC6public7private7projectACSSSg_A2Gtcfc"></a>
-                    <a name="//apple_ref/swift/Method/init(public:private:project:)" class="dashAnchor"></a>
-                    <a class="token" href="#/s:18ProjectDescription7HeadersC6public7private7projectACSSSg_A2Gtcfc">init(public:private:project:)</a>
+                    <a name="/s:18ProjectDescription2UpC8homebrew8packagesACSaySSG_tFZ"></a>
+                    <a name="//apple_ref/swift/Method/homebrew(packages:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:18ProjectDescription2UpC8homebrew8packagesACSaySSG_tFZ">homebrew(packages:)</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -195,18 +198,150 @@
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Undocumented</p>
+                        <p>Returns an up that installs Homebrew packages.</p>
 
                       </div>
                       <div class="declaration">
                         <h5>Declaration</h5>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span><span class="nv">public</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">,</span>
-            <span class="nv">private</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">,</span>
-            <span class="nv">project</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">)</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">static</span> <span class="kd">func</span> <span class="nf">homebrew</span><span class="p">(</span><span class="nv">packages</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kt">Up</span></code></pre>
 
                         </div>
+                      </div>
+                      <div>
+                        <h5>Parameters</h5>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>packages</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Packages to be installed.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h5>Return Value</h5>
+                        <p>Instance of an UpHomebrew</p>
+                      </div>
+                      <div class="slightly-smaller">
+                        
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div class="item-heading">
+                    <code>
+                    <a name="/s:18ProjectDescription2UpC6custom4name4meet5isMetACSS_SaySSGAHtFZ"></a>
+                    <a name="//apple_ref/swift/Method/custom(name:meet:isMet:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:18ProjectDescription2UpC6custom4name4meet5isMetACSS_SaySSGAHtFZ">custom(name:meet:isMet:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns a user-defined up.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h5>Declaration</h5>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">static</span> <span class="kd">func</span> <span class="nf">custom</span><span class="p">(</span><span class="nv">name</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">meet</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">],</span> <span class="nv">isMet</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kt">Up</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h5>Parameters</h5>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>name</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Name of the command.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>meet</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Shell command that needs to be executed if the command is not met in the environment.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>isMet</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Shell command that should return a 0 exit status if the setup has already been done (e.g. which carthage)</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h5>Return Value</h5>
+                        <p>Instance of an UpCustom.</p>
+                      </div>
+                      <div class="slightly-smaller">
+                        
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div class="item-heading">
+                    <code>
+                    <a name="/s:18ProjectDescription2UpC8carthage9platformsACSayAA8PlatformOGSg_tFZ"></a>
+                    <a name="//apple_ref/swift/Method/carthage(platforms:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:18ProjectDescription2UpC8carthage9platformsACSayAA8PlatformOGSg_tFZ">carthage(platforms:)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns an up that updates Carthage dependencies in the project directory.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h5>Declaration</h5>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">static</span> <span class="kd">func</span> <span class="nf">carthage</span><span class="p">(</span><span class="nv">platforms</span><span class="p">:</span> <span class="p">[</span><span class="kt"><a href="../Enums/Platform.html">Platform</a></span><span class="p">]?</span> <span class="o">=</span> <span class="kc">nil</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Up</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h5>Return Value</h5>
+                        <p>Instance of an UpCarthage.</p>
                       </div>
                       <div class="slightly-smaller">
                         

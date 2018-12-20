@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.10.1
+
 ### Changed
 
 - Replace ReactiveTask with SwiftShell https://github.com/tuist/tuist/pull/179 by @pepibumur.
