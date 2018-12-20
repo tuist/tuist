@@ -10,10 +10,11 @@ public protocol Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
-    func capture(_ launchPath: String, arguments: String..., verbose: Bool, environment: [String: String]?) throws -> SystemResult
+    func capture(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult
 
     /// Runs a command in the shell and returns the result (exit status, standard output and standard error).
     ///
@@ -21,10 +22,11 @@ public protocol Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
-    func capture(_ launchPath: String, arguments: [String], verbose: Bool, environment: [String: String]?) throws -> SystemResult
+    func capture(_ launchPath: String, arguments: [String], verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult
 
     /// Runs a command in the shell printing its output.
     ///
@@ -32,9 +34,10 @@ public protocol Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    func popen(_ launchPath: String, arguments: String..., verbose: Bool, environment: [String: String]?) throws
+    func popen(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws
 
     /// Runs a command in the shell printing its output.
     ///
@@ -42,9 +45,10 @@ public protocol Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    func popen(_ launchPath: String, arguments: [String], verbose: Bool, environment: [String: String]?) throws
+    func popen(_ launchPath: String, arguments: [String], verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws
 
     /// Instantiates a SignalProducer that launches the given path.
     ///
@@ -52,9 +56,10 @@ public protocol Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - print: When true, it outputs the output from the execution.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: SignalProducer that encapsulates the task action.
-    func task(_ launchPath: String, arguments: [String], print: Bool, environment: [String: String]?) -> SignalProducer<SystemResult, SystemError>
+    func task(_ launchPath: String, arguments: [String], print: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) -> SignalProducer<SystemResult, SystemError>
 
     /// Returns the Swift version.
     ///
@@ -97,6 +102,8 @@ public struct SystemResult {
     public let stdout: String
     public let stderror: String
     public let exitcode: Int32
+    public var succeeded: Bool { return exitcode == 0 }
+
     public init(stdout: String, stderror: String, exitcode: Int32) {
         self.stdout = stdout
         self.stderror = stderror
@@ -145,6 +152,7 @@ public final class System: Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
@@ -152,6 +160,7 @@ public final class System: Systeming {
     public func capture(_ launchPath: String,
                         arguments: String...,
                         verbose: Bool = false,
+                        workingDirectoryPath _: AbsolutePath? = nil,
                         environment: [String: String]? = System.userEnvironment) throws -> SystemResult {
         return try capture(launchPath, arguments: arguments, verbose: verbose, environment: environment)
     }
@@ -162,6 +171,7 @@ public final class System: Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: Result of running the command.
     /// - Throws: An error if the command fails.
@@ -169,11 +179,12 @@ public final class System: Systeming {
     public func capture(_ launchPath: String,
                         arguments: [String],
                         verbose: Bool = false,
+                        workingDirectoryPath: AbsolutePath? = nil,
                         environment: [String: String]? = System.userEnvironment) throws -> SystemResult {
         if verbose {
             printCommand(launchPath, arguments: arguments)
         }
-        let task = self.task(launchPath, arguments: arguments, print: false, environment: environment)
+        let task = self.task(launchPath, arguments: arguments, print: false, workingDirectoryPath: workingDirectoryPath, environment: environment)
         if let output = task.single() {
             return try output.dematerialize()
         } else {
@@ -187,13 +198,19 @@ public final class System: Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
     public func popen(_ launchPath: String,
                       arguments: String...,
                       verbose: Bool = false,
+                      workingDirectoryPath: AbsolutePath? = nil,
                       environment: [String: String]? = System.userEnvironment) throws {
-        try popen(launchPath, arguments: arguments, verbose: verbose, environment: environment)
+        try popen(launchPath,
+                  arguments: arguments,
+                  verbose: verbose,
+                  workingDirectoryPath: workingDirectoryPath,
+                  environment: environment)
     }
 
     /// Runs a command in the shell printing its output.
@@ -202,16 +219,22 @@ public final class System: Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
     public func popen(_ launchPath: String,
                       arguments: [String],
                       verbose: Bool = false,
+                      workingDirectoryPath: AbsolutePath? = nil,
                       environment: [String: String]? = System.userEnvironment) throws {
         if verbose {
             printCommand(launchPath, arguments: arguments)
         }
-        _ = task(launchPath, arguments: arguments, print: true, environment: environment).wait()
+        _ = task(launchPath,
+                 arguments: arguments,
+                 print: true,
+                 workingDirectoryPath: workingDirectoryPath,
+                 environment: environment).wait()
     }
 
     /// Instantiates a SignalProducer that launches the given path.
@@ -220,13 +243,18 @@ public final class System: Systeming {
     ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - print: When true, it outputs the output from the execution.
+    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Returns: SignalProducer that encapsulates the task action.
     public func task(_ launchPath: String,
                      arguments: [String],
                      print: Bool = false,
+                     workingDirectoryPath: AbsolutePath? = nil,
                      environment: [String: String]? = nil) -> SignalProducer<SystemResult, SystemError> {
-        let task = Task(launchPath, arguments: arguments, workingDirectoryPath: nil, environment: environment)
+        let task = Task(launchPath,
+                        arguments: arguments,
+                        workingDirectoryPath: workingDirectoryPath?.asString,
+                        environment: environment)
         return task.launch()
             .on(value: {
                 if !print { return }

@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistKit
 import Utility
@@ -13,6 +14,7 @@ final class GenerateCommandTests: XCTestCase {
     var workspaceGenerator: MockWorkspaceGenerator!
     var parser: ArgumentParser!
     var printer: MockPrinter!
+    var resourceLocator: ResourceLocator!
 
     override func setUp() {
         super.setUp()
@@ -21,10 +23,14 @@ final class GenerateCommandTests: XCTestCase {
         graphLoader = MockGraphLoader()
         workspaceGenerator = MockWorkspaceGenerator()
         parser = ArgumentParser.test()
+        resourceLocator = ResourceLocator()
+
         subject = GenerateCommand(graphLoader: graphLoader,
                                   workspaceGenerator: workspaceGenerator,
                                   parser: parser,
-                                  printer: printer)
+                                  printer: printer,
+                                  system: System(),
+                                  resourceLocator: resourceLocator)
     }
 
     func test_command() {

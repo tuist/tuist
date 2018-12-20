@@ -146,6 +146,7 @@ final class Installer: Installing {
             try system.capture("/usr/bin/curl",
                                arguments: "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString,
                                verbose: false,
+                               workingDirectoryPath: nil,
                                environment: nil).throwIfError()
 
             // Unzip
@@ -153,6 +154,7 @@ final class Installer: Installing {
             try system.capture("/usr/bin/unzip",
                                arguments: downloadPath.asString, "-d", installationDirectory.asString,
                                verbose: false,
+                               workingDirectoryPath: nil,
                                environment: nil).throwIfError()
 
             try createTuistVersionFile(version: version, path: installationDirectory)
@@ -172,11 +174,13 @@ final class Installer: Installing {
             try system.capture("/usr/bin/env",
                                arguments: "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString,
                                verbose: false,
+                               workingDirectoryPath: nil,
                                environment: System.userEnvironment).throwIfError()
             do {
                 try system.capture("/usr/bin/env",
                                    arguments: "git", "-C", temporaryDirectory.path.asString, "checkout", version,
                                    verbose: false,
+                                   workingDirectoryPath: nil,
                                    environment: System.userEnvironment).throwIfError()
             } catch let error as SystemError {
                 if error.description.contains("did not match any file(s) known to git") {
@@ -187,7 +191,11 @@ final class Installer: Installing {
 
             printer.print("Building using Swift (it might take a while)")
 
-            let swiftPath = try system.capture("/usr/bin/xcrun", arguments: "-f", "swift", verbose: false, environment: nil).stdout.chuzzle()!
+            let swiftPath = try system.capture("/usr/bin/xcrun",
+                                               arguments: "-f", "swift",
+                                               verbose: false,
+                                               workingDirectoryPath: nil,
+                                               environment: nil).stdout.chuzzle()!
             try system.capture(swiftPath,
                                arguments: "build",
                                "--product", "tuist",
@@ -195,6 +203,7 @@ final class Installer: Installing {
                                "--configuration", "release",
                                "-Xswiftc", "-static-stdlib",
                                verbose: false,
+                               workingDirectoryPath: nil,
                                environment: System.userEnvironment).throwIfError()
             try system.capture(swiftPath,
                                arguments: "build",
@@ -202,6 +211,7 @@ final class Installer: Installing {
                                "--package-path", temporaryDirectory.path.asString,
                                "--configuration", "release",
                                verbose: false,
+                               workingDirectoryPath: nil,
                                environment: System.userEnvironment).throwIfError()
 
             if fileHandler.exists(installationDirectory) {

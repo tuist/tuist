@@ -22,17 +22,22 @@ class GenerateCommand: NSObject, Command {
     // MARK: - Init
 
     required convenience init(parser: ArgumentParser) {
+        let system = System()
+        let printer = Printer()
         self.init(graphLoader: GraphLoader(),
                   workspaceGenerator: WorkspaceGenerator(),
-                  parser: parser)
+                  parser: parser,
+                  printer: printer,
+                  system: system,
+                  resourceLocator: ResourceLocator())
     }
 
     init(graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
          parser: ArgumentParser,
-         printer: Printing = Printer(),
-         system: Systeming = System(),
-         resourceLocator: ResourceLocating = ResourceLocator()) {
+         printer: Printing,
+         system: Systeming,
+         resourceLocator: ResourceLocating) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
@@ -49,7 +54,6 @@ class GenerateCommand: NSObject, Command {
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
         let graph = try graphLoader.load(path: path)
-
         try workspaceGenerator.generate(path: path,
                                         graph: graph,
                                         options: GenerationOptions(),

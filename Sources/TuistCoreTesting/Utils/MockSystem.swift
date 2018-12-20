@@ -1,3 +1,4 @@
+import struct Basic.AbsolutePath
 import Foundation
 import ReactiveSwift
 import Result
@@ -15,11 +16,11 @@ public final class MockSystem: Systeming {
         stubs[args.joined(separator: " ")] = (stderror: stderror, stdout: stdout, exitstatus: exitstatus)
     }
 
-    public func capture(_ launchPath: String, arguments: String..., verbose: Bool, environment: [String: String]?) throws -> SystemResult {
-        return try capture(launchPath, arguments: arguments, verbose: verbose, environment: environment)
+    public func capture(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult {
+        return try capture(launchPath, arguments: arguments, verbose: verbose, workingDirectoryPath: workingDirectoryPath, environment: environment)
     }
 
-    public func capture(_ launchPath: String, arguments: [String], verbose _: Bool, environment _: [String: String]?) throws -> SystemResult {
+    public func capture(_ launchPath: String, arguments: [String], verbose _: Bool, workingDirectoryPath: AbsolutePath?, environment _: [String: String]?) throws -> SystemResult {
         var arguments = arguments
         arguments.insert(launchPath, at: 0)
         let command = arguments.joined(separator: " ")
@@ -31,11 +32,11 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func popen(_ launchPath: String, arguments: String..., verbose: Bool, environment: [String: String]?) throws {
-        try popen(launchPath, arguments: arguments, verbose: verbose, environment: environment)
+    public func popen(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws {
+        try popen(launchPath, arguments: arguments, verbose: verbose, workingDirectoryPath: workingDirectoryPath, environment: environment)
     }
 
-    public func popen(_ launchPath: String, arguments: [String], verbose _: Bool, environment _: [String: String]?) throws {
+    public func popen(_ launchPath: String, arguments: [String], verbose _: Bool, workingDirectoryPath: AbsolutePath?, environment _: [String: String]?) throws {
         var arguments = arguments
         arguments.insert(launchPath, at: 0)
         let command = arguments.joined(separator: " ")
@@ -49,7 +50,7 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func task(_ launchPath: String, arguments: [String], print _: Bool, environment _: [String: String]?) -> SignalProducer<SystemResult, SystemError> {
+    public func task(_ launchPath: String, arguments: [String], print _: Bool, workingDirectoryPath: AbsolutePath?, environment _: [String: String]?) -> SignalProducer<SystemResult, SystemError> {
         var arguments = arguments
         arguments.insert(launchPath, at: 0)
         let command = arguments.joined(separator: " ")
@@ -72,7 +73,11 @@ public final class MockSystem: Systeming {
     }
 
     public func which(_ name: String) throws -> String {
-        return try whichStub?(name) ?? ""
+        if let path = try whichStub?(name) {
+            return path
+        } else {
+            throw NSError.test()
+        }
     }
 
     public func called(_ args: String...) -> Bool {

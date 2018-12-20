@@ -154,6 +154,7 @@ class PrecompiledNode: GraphNode {
         let result = try system.capture("/usr/bin/lipo",
                                         arguments: "-info", binaryPath.asString,
                                         verbose: false,
+                                        workingDirectoryPath: nil,
                                         environment: nil).stdout.chuzzle() ?? ""
         let regex = try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: [])
         guard let match = regex.firstMatch(in: result, options: [], range: NSRange(location: 0, length: result.count)) else {
@@ -167,6 +168,7 @@ class PrecompiledNode: GraphNode {
         let result = try system.capture("/usr/bin/file",
                                         arguments: binaryPath.asString,
                                         verbose: false,
+                                        workingDirectoryPath: nil,
                                         environment: nil).throwIfError().stdout.chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static
     }

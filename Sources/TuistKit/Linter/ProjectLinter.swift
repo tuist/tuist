@@ -11,13 +11,16 @@ class ProjectLinter: ProjectLinting {
 
     let targetLinter: TargetLinting
     let settingsLinter: SettingsLinting
+    let upLinter: UpLinting
 
     // MARK: - Init
 
     init(targetLinter: TargetLinting = TargetLinter(),
-         settingsLinter: SettingsLinting = SettingsLinter()) {
+         settingsLinter: SettingsLinting = SettingsLinter(),
+         upLinter: UpLinting = UpLinter()) {
         self.targetLinter = targetLinter
         self.settingsLinter = settingsLinter
+        self.upLinter = upLinter
     }
 
     // MARK: - ProjectLinting

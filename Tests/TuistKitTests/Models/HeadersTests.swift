@@ -38,7 +38,7 @@ final class HeadersTests: XCTestCase {
             "project": "project/*".toJSON(),
         ])
 
-        let subject = try Headers(json: json,
+        let subject = try Headers(dictionary: json,
                                   projectPath: fileHandler.currentPath,
                                   fileHandler: fileHandler)
 

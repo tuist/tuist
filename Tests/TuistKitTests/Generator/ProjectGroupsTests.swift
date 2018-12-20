@@ -75,7 +75,7 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_targetFrameworks() throws {
         subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
-        
+
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
         XCTAssertEqual(got.sourceTree, .group)

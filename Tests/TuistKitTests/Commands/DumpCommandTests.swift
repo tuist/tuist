@@ -64,14 +64,7 @@ final class DumpCommandTests: XCTestCase {
                          encoding: .utf8)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
         try subject.run(with: result)
-        let expected = """
-        {
-          "name": "tuist",
-          "targets": [
-
-          ]
-        }\n
-        """
+        let expected = "{\n  \"name\": \"tuist\",\n  \"targets\": [\n\n  ],\n  \"up\": [\n\n  ]\n}\n"
         XCTAssertEqual(printer.printArgs.first, expected)
     }
 

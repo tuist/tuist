@@ -29,6 +29,10 @@ class CreateIssueCommand: NSObject, Command {
     // MARK: - Command
 
     func run(with _: ArgumentParser.Result) throws {
-        try system.popen("/usr/bin/open", arguments: CreateIssueCommand.createIssueUrl, verbose: false, environment: nil)
+        try system.popen("/usr/bin/open",
+                         arguments: CreateIssueCommand.createIssueUrl,
+                         verbose: false,
+                         workingDirectoryPath: nil,
+                         environment: nil)
     }
 }

@@ -22,7 +22,7 @@ final class CoreDataModelTests: XCTestCase {
             "current_version": "3".toJSON(),
         ])
 
-        let subject = try CoreDataModel(json: json,
+        let subject = try CoreDataModel(dictionary: json,
                                         projectPath: fileHandler.currentPath,
                                         fileHandler: fileHandler)
 

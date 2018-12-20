@@ -15,6 +15,8 @@ final class FocusCommandTests: XCTestCase {
     var printer: MockPrinter!
     var fileHandler: MockFileHandler!
     var opener: MockOpener!
+    var system: MockSystem!
+    var resourceLocator: MockResourceLocator!
 
     override func setUp() {
         super.setUp()
@@ -25,10 +27,15 @@ final class FocusCommandTests: XCTestCase {
         parser = ArgumentParser.test()
         fileHandler = try! MockFileHandler()
         opener = MockOpener()
-        subject = FocusCommand(graphLoader: graphLoader,
+        system = MockSystem()
+        resourceLocator = MockResourceLocator()
+
+        subject = FocusCommand(parser: parser,
+                               graphLoader: graphLoader,
                                workspaceGenerator: workspaceGenerator,
-                               parser: parser,
                                printer: printer,
+                               system: system,
+                               resourceLocator: resourceLocator,
                                fileHandler: fileHandler,
                                opener: opener)
     }
