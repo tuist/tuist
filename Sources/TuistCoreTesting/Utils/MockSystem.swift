@@ -3,6 +3,7 @@ import Foundation
 import TuistCore
 
 public final class MockSystem: Systeming {
+    public var env: [String: String] = ProcessInfo.processInfo.environment
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var calls: [String] = []
     var swiftVersionStub: (() throws -> String?)?
@@ -10,41 +11,78 @@ public final class MockSystem: Systeming {
 
     public init() {}
 
-    public func stub(args: [String], stderror: String? = nil, stdout: String? = nil, exitstatus: Int? = nil) {
-        stubs[args.joined(separator: " ")] = (stderror: stderror, stdout: stdout, exitstatus: exitstatus)
+    public func errorCommand(_ arguments: String..., error: String? = nil) {
+        self.errorCommand(arguments, error: error)
     }
 
-    public func capture(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult {
-        return try capture(launchPath, arguments: arguments, verbose: verbose, workingDirectoryPath: workingDirectoryPath, environment: environment)
+    public func errorCommand(_ arguments: [String], error: String? = nil) {
+        stubs[arguments.joined(separator: " ")] = (stderror: error, stdout: nil, exitstatus: 1)
     }
 
-    public func capture(_ launchPath: String, arguments: [String], verbose _: Bool, workingDirectoryPath: AbsolutePath?, environment _: [String: String]?) throws -> SystemResult {
-        var arguments = arguments
-        arguments.insert(launchPath, at: 0)
+    public func succeedCommand(_ arguments: String..., output: String? = nil) {
+        self.succeedCommand(arguments, output: output)
+    }
+
+    public func succeedCommand(_ arguments: [String], output: String? = nil) {
+        stubs[arguments.joined(separator: " ")] = (stderror: nil, stdout: output, exitstatus: 0)
+    }
+
+    public func run(_ arguments: [String]) throws {
         let command = arguments.joined(separator: " ")
-        calls.append(command)
-        if let stub = stubs[command] {
-            return SystemResult(stdout: stub.stdout ?? "", stderror: stub.stderror ?? "", exitcode: stub.exitstatus ?? -1)
-        } else {
-            return SystemResult(stdout: "", stderror: "", exitcode: -1)
+        guard let stub = self.stubs[command] else {
+            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+        }
+        if stub.exitstatus != 0 {
+            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
         }
     }
 
-    public func popen(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws {
-        try popen(launchPath, arguments: arguments, verbose: verbose, workingDirectoryPath: workingDirectoryPath, environment: environment)
+    public func run(_ arguments: String...) throws {
+        try self.run(arguments)
     }
 
-    public func popen(_ launchPath: String, arguments: [String], verbose _: Bool, workingDirectoryPath: AbsolutePath?, environment _: [String: String]?) throws {
-        var arguments = arguments
-        arguments.insert(launchPath, at: 0)
+    public func capture(_ arguments: [String]) throws -> String {
+        return try self.capture(arguments, verbose: false, environment: [:])
+    }
+
+    public func capture(_ arguments: String...) throws -> String {
+        return try self.capture(arguments, verbose: false, environment: [:])
+    }
+
+    public func capture(_ arguments: String..., verbose: Bool, environment: [String: String]) throws -> String {
+        return try self.capture(arguments, verbose: verbose, environment: environment)
+    }
+
+    public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
         let command = arguments.joined(separator: " ")
-        calls.append(command)
-        if let stub = stubs[command] {
-            if stub.exitstatus != 0 {
-                throw SystemError(stderror: stub.stderror ?? "", exitcode: stub.exitstatus ?? -1)
-            }
-        } else {
-            throw SystemError(stderror: "Command not supported: \(command)", exitcode: -1)
+        guard let stub = self.stubs[command] else {
+            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+        }
+        if stub.exitstatus != 0 {
+            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
+        }
+        return stub.stdout ?? ""
+    }
+
+    public func popen(_ arguments: String...) throws {
+        try self.popen(arguments)
+    }
+
+    public func popen(_ arguments: [String]) throws {
+        try self.popen(arguments, verbose: false, environment: [:])
+    }
+
+    public func popen(_ arguments: String..., verbose: Bool, environment: [String: String]) throws {
+        try self.popen(arguments, verbose: verbose, environment: environment)
+    }
+
+    public func popen(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
+        let command = arguments.joined(separator: " ")
+        guard let stub = self.stubs[command] else {
+            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+        }
+        if stub.exitstatus != 0 {
+            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
         }
     }
 

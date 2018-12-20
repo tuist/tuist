@@ -46,7 +46,11 @@ class UpCustom: Up, GraphInitiatable {
     /// - Throws: An error if any error is thrown while running it.
     override func meet(system: Systeming, printer _: Printing, projectPath: AbsolutePath) throws {
         let launchPath = try self.launchPath(command: meet, projectPath: projectPath, system: system)
-        try system.popen(launchPath.asString, arguments: Array(meet.dropFirst()), verbose: false, workingDirectoryPath: nil, environment: System.userEnvironment)
+
+        var arguments = [launchPath.asString]
+        arguments.append(contentsOf: Array(meet.dropFirst()))
+
+        try system.popen(arguments)
     }
 
     /// Returns true when the command doesn't need to be run.
@@ -63,8 +67,15 @@ class UpCustom: Up, GraphInitiatable {
         } catch {
             return false
         }
-        let result = try system.capture(launchPath.asString, arguments: Array(isMet.dropFirst()), verbose: false, workingDirectoryPath: nil, environment: System.userEnvironment)
-        return result.succeeded
+        var arguments = [launchPath.asString]
+        arguments.append(contentsOf: Array(isMet.dropFirst()))
+
+        do {
+            try system.run(arguments)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Given the command components, it returns the launch path.

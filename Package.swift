@@ -12,10 +12,9 @@ let package = Package(
                  targets: ["ProjectDescription"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.0.0")),
-        .package(url: "https://github.com/apple/swift-package-manager", .upToNextMinor(from: "0.2.1")),
+        .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.3.0")),
+        .package(url: "https://github.com/apple/swift-package-manager", .revision("a107d28d1b40491cf505799a046fee53e7c422e1")),
         .package(url: "https://github.com/jpsim/Yams.git", .upToNextMinor(from: "1.0.1")),
-        .package(url: "https://github.com/tuist/SwiftShell.git", .revision("193356dabffac07ec9081913475b60cbf8972365")),
     ],
     targets: [
         .target(
@@ -52,7 +51,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCore",
-            dependencies: ["Utility", "SwiftShell"]
+            dependencies: ["Utility"]
         ),
         .target(
             name: "TuistCoreTesting",

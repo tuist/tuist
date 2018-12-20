@@ -43,12 +43,14 @@ final class FrameworkNodeTests: XCTestCase {
     }
 
     func test_architectures() throws {
-        system.stub(args: ["/usr/bin/lipo -info /test.framework/test"], stderror: nil, stdout: "Non-fat file: path is architecture: x86_64", exitstatus: 0)
+        system.succeedCommand("/usr/bin/lipo -info /test.framework/test",
+                              output: "Non-fat file: path is architecture: x86_64")
         try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
     }
 
     func test_linking() {
-        system.stub(args: ["/usr/bin/file", "/test.framework/test"], stderror: nil, stdout: "whatever dynamically linked", exitstatus: 0)
+        system.succeedCommand("/usr/bin/file", "/test.framework/test",
+                              output: "whatever dynamically linked")
         try XCTAssertEqual(subject.linking(system: system), .dynamic)
     }
 }
@@ -70,12 +72,12 @@ final class LibraryNodeTests: XCTestCase {
     }
 
     func test_architectures() throws {
-        system.stub(args: ["/usr/bin/lipo", "-info", "/test.a"], stderror: nil, stdout: "Non-fat file: path is architecture: x86_64", exitstatus: 0)
+        system.succeedCommand("/usr/bin/lipo", "-info", "/test.a", output: "Non-fat file: path is architecture: x86_64")
         try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
     }
 
     func test_linking() {
-        system.stub(args: ["/usr/bin/file", "/test.a"], stderror: nil, stdout: "whatever dynamically linked", exitstatus: 0)
+        system.succeedCommand("/usr/bin/file", "/test.a", output: "whatever dynamically linked")
         try XCTAssertEqual(subject.linking(system: system), .dynamic)
     }
 }

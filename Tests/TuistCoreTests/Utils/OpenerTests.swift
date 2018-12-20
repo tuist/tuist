@@ -41,11 +41,7 @@ final class OpenerTests: XCTestCase {
     func test_open() throws {
         let path = fileHandler.currentPath.appending(component: "tool")
         try fileHandler.touch(path)
-
-        system.stub(args: ["/usr/bin/open", path.asString],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
+        system.succeedCommand("/usr/bin/open", path.asString)
         try subject.open(path: path)
     }
 }

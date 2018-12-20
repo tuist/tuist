@@ -23,7 +23,7 @@ final class CreateIssueCommandTests: XCTestCase {
     }
 
     func test_run() throws {
-        system.stub(args: ["/usr/bin/open", CreateIssueCommand.createIssueUrl], stderror: nil, stdout: nil, exitstatus: 0)
+        system.succeedCommand("/usr/bin/open", CreateIssueCommand.createIssueUrl)
         try subject.run(with: ArgumentParser.Result.test())
     }
 }

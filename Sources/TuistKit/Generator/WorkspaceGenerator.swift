@@ -63,7 +63,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             let fileRef = XCWorkspaceDataFileRef(location: location)
             workspace.data.children.append(XCWorkspaceDataElement.file(fileRef))
         }
-        try workspace.write(path: workspacePath, override: true)
+        try workspace.write(path: workspacePath.path, override: true)
 
         return workspacePath
     }

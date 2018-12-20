@@ -115,7 +115,7 @@ final class ProjectGenerator: ProjectGenerating {
 
         /// Write.
         let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        try xcodeproj.write(path: xcodeprojPath)
+        try xcodeproj.write(path: xcodeprojPath.path)
         return xcodeprojPath
     }
 }

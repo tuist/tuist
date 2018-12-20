@@ -55,16 +55,10 @@ final class UpHomebrewTests: XCTestCase {
         let subject = UpHomebrew(packages: ["swiftlint"])
 
         system.whichStub = { _ in nil }
-        system.stub(args: ["/usr/bin/ruby",
-                           "-e",
-                           "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\""],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: ["/usr/local/bin/brew", "install", "swiftlint"],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
+        system.succeedCommand("/usr/bin/ruby",
+                              "-e",
+                              "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"")
+        system.succeedCommand("/usr/local/bin/brew", "install", "swiftlint")
 
         try subject.meet(system: system, printer: printer, projectPath: fileHandler.currentPath)
 
