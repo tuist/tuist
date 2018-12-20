@@ -24,7 +24,7 @@ protocol Carthaging {
     ///
     /// - Parameter path: Project directory.
     /// - Returns: List of outdated dependencies.
-    func outdated(path: AbsolutePath) throws -> [String]
+    func outdated(path: AbsolutePath) throws -> [String]?
 }
 
 final class Carthage: Carthaging {
@@ -74,14 +74,14 @@ final class Carthage: Carthaging {
     ///
     /// - Parameter path: Project directory.
     /// - Returns: List of outdated dependencies.
-    func outdated(path: AbsolutePath) throws -> [String] {
-        var outdated: [String] = []
+    func outdated(path: AbsolutePath) throws -> [String]? {
         let cartfileResolvedPath = path.appending(component: "Cartfile.resolved")
 
         if !fileHandler.exists(cartfileResolvedPath) {
-            return outdated
+            return nil
         }
 
+        var outdated: [String] = []
         let carfileResolved = try fileHandler.readTextFile(cartfileResolvedPath)
         let carfileResolvedNSString = carfileResolved as NSString
         let jsonDecoder = JSONDecoder()

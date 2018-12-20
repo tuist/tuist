@@ -43,6 +43,13 @@ final class UpCarthageTests: XCTestCase {
         XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
     }
 
+    func test_isMet_when_carthage_doesnt_have_outdated_dependencies() throws {
+        upHomebrew.isMetStub = { _, _ in true }
+        carthage.outdatedStub = { _ in nil }
+
+        XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+    }
+
     func test_isMet_when_carthage_has_outdated_dependencies() throws {
         upHomebrew.isMetStub = { _, _ in true }
         carthage.outdatedStub = { _ in ["Dependency"] }

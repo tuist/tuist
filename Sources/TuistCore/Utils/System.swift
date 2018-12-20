@@ -1,7 +1,6 @@
 import Basic
 import Foundation
-import ReactiveSwift
-import ReactiveTask
+import SwiftShell
 
 public protocol Systeming {
     /// Runs a command in the shell and returns the result (exit status, standard output and standard error).
@@ -50,17 +49,6 @@ public protocol Systeming {
     /// - Throws: An error if the command fails.
     func popen(_ launchPath: String, arguments: [String], verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws
 
-    /// Instantiates a SignalProducer that launches the given path.
-    ///
-    /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
-    ///   - print: When true, it outputs the output from the execution.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
-    ///   - environment: Environment that should be used when running the task.
-    /// - Returns: SignalProducer that encapsulates the task action.
-    func task(_ launchPath: String, arguments: [String], print: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) -> SignalProducer<SystemResult, SystemError>
-
     /// Returns the Swift version.
     ///
     /// - Returns: Swift version.
@@ -77,7 +65,7 @@ public protocol Systeming {
 
 public struct SystemError: FatalError, Equatable {
     let stderror: String?
-    let exitcode: Int32
+    let exitcode: Int
 
     public var type: ErrorType {
         return .abort
@@ -87,7 +75,7 @@ public struct SystemError: FatalError, Equatable {
         return stderror ?? "Error running command"
     }
 
-    public init(stderror: String? = nil, exitcode: Int32) {
+    public init(stderror: String? = nil, exitcode: Int) {
         self.stderror = stderror
         self.exitcode = exitcode
     }
@@ -101,10 +89,10 @@ public struct SystemError: FatalError, Equatable {
 public struct SystemResult {
     public let stdout: String
     public let stderror: String
-    public let exitcode: Int32
+    public let exitcode: Int
     public var succeeded: Bool { return exitcode == 0 }
 
-    public init(stdout: String, stderror: String, exitcode: Int32) {
+    public init(stdout: String, stderror: String, exitcode: Int) {
         self.stdout = stdout
         self.stderror = stderror
         self.exitcode = exitcode
@@ -184,12 +172,9 @@ public final class System: Systeming {
         if verbose {
             printCommand(launchPath, arguments: arguments)
         }
-        let task = self.task(launchPath, arguments: arguments, print: false, workingDirectoryPath: workingDirectoryPath, environment: environment)
-        if let output = task.single() {
-            return try output.dematerialize()
-        } else {
-            throw SystemError(stderror: "Error running command: \(commandString(launchPath, arguments: arguments))", exitcode: 1)
-        }
+        let context = self.context(workingDirectoryPath: workingDirectoryPath, environment: environment)
+        let result = context.run(launchPath, arguments, combineOutput: false)
+        return SystemResult(stdout: result.stdout, stderror: result.stderror, exitcode: result.exitcode)
     }
 
     /// Runs a command in the shell printing its output.
@@ -230,56 +215,26 @@ public final class System: Systeming {
         if verbose {
             printCommand(launchPath, arguments: arguments)
         }
-        _ = task(launchPath,
-                 arguments: arguments,
-                 print: true,
-                 workingDirectoryPath: workingDirectoryPath,
-                 environment: environment).wait()
+        let context = self.context(workingDirectoryPath: workingDirectoryPath, environment: environment)
+        try context.runAndPrint(launchPath, arguments)
     }
 
-    /// Instantiates a SignalProducer that launches the given path.
+    /// Creates the context to run the command
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
-    ///   - print: When true, it outputs the output from the execution.
     ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
-    /// - Returns: SignalProducer that encapsulates the task action.
-    public func task(_ launchPath: String,
-                     arguments: [String],
-                     print: Bool = false,
-                     workingDirectoryPath: AbsolutePath? = nil,
-                     environment: [String: String]? = nil) -> SignalProducer<SystemResult, SystemError> {
-        let task = Task(launchPath,
-                        arguments: arguments,
-                        workingDirectoryPath: workingDirectoryPath?.asString,
-                        environment: environment)
-        return task.launch()
-            .on(value: {
-                if !print { return }
-                switch $0 {
-                case let .standardError(error):
-                    FileHandle.standardError.write(error)
-                case let .standardOutput(output):
-                    FileHandle.standardOutput.write(output)
-                default:
-                    break
-                }
-            })
-            .ignoreTaskData()
-            .mapError { (error: TaskError) -> SystemError in
-                switch error {
-                case let TaskError.posixError(code):
-                    return SystemError(stderror: nil, exitcode: code)
-                case let TaskError.shellTaskFailed(_, code, standardError):
-                    return SystemError(stderror: standardError, exitcode: code)
-                }
-            }
-            .map { data in
-                let stdout = String(data: data, encoding: .utf8)!.replacingOccurrences(of: "\n", with: "").chomp()
-                return SystemResult(stdout: stdout, stderror: "", exitcode: 0)
-            }
+    /// - Returns: The context to run the command on.
+    public func context(workingDirectoryPath: AbsolutePath?,
+                        environment: [String: String]?) -> CustomContext {
+        var context = CustomContext(main)
+        if let workingDirectoryPath = workingDirectoryPath {
+            context.currentdirectory = workingDirectoryPath.asString
+        }
+        if let environment = environment {
+            context.env = environment
+        }
+        return context
     }
 
     /// Returns the Swift version.
