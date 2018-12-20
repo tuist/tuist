@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.10.2
+
 ### Fixed
 
 - Processes not stopping after receiving an interruption signal https://github.com/tuist/tuist/pull/180 by @pepibumur.
