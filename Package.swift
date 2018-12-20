@@ -50,10 +50,6 @@ let package = Package(
             name: "ProjectDescriptionTests",
             dependencies: ["ProjectDescription"]
         ),
-        .testTarget(
-            name: "IntegrationTests",
-            dependencies: ["TuistKit", "Utility"]
-        ),
         .target(
             name: "TuistCore",
             dependencies: ["Utility", "ReactiveTask"]
