@@ -6,14 +6,18 @@ import TuistCore
 
 final class MockUp: Upping {
     var isMetStub: ((Systeming, AbsolutePath) throws -> Bool)?
+    var isMetCallCount: UInt = 0
     var meetStub: ((Systeming, Printing, AbsolutePath) throws -> Void)?
+    var meetCallCount: UInt = 0
     var name: String = String(describing: MockUp.self)
 
     func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
+        isMetCallCount += 1
         return try isMetStub?(system, projectPath) ?? false
     }
 
     func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws {
+        meetCallCount += 1
         try meetStub?(system, printer, projectPath)
     }
 }

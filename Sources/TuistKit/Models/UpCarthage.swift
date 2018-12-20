@@ -10,14 +10,21 @@ class UpCarthage: Up, GraphInitiatable {
     /// Up homebrew for installing Carthge.
     let upHomebrew: Upping
 
+    /// Carthage instace to interact with the project Carthage setup.
+    let carthage: Carthaging
+
     /// Initializes the Carthage command.
     ///
     /// - Parameters:
     ///   - platforms: The platforms Carthage dependencies should be updated for.
     ///   - upHomebrew: Up homebrew for installing Carthge.
-    init(platforms: [Platform], upHomebrew: Upping = UpHomebrew(packages: ["carthage"])) {
+    ///   - carthage: Carthage instace to interact with the project Carthage setup.
+    init(platforms: [Platform],
+         upHomebrew: Upping = UpHomebrew(packages: ["carthage"]),
+         carthage: Carthaging = Carthage()) {
         self.platforms = platforms
         self.upHomebrew = upHomebrew
+        self.carthage = carthage
         super.init(name: "Carthage update")
     }
 
@@ -47,19 +54,7 @@ class UpCarthage: Up, GraphInitiatable {
     /// - Throws: An error if the check fails.
     override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
         if try !upHomebrew.isMet(system: system, projectPath: projectPath) { return false }
-        let carthagePath = try system.which("carthage")
-
-        do {
-            // TODO: Verify if "validate" is the right command here
-            try system.capture(carthagePath,
-                               arguments: ["validate"],
-                               verbose: false,
-                               workingDirectoryPath: projectPath,
-                               environment: System.userEnvironment).throwIfError()
-            return true
-        } catch {
-            return false
-        }
+        return try carthage.outdated(path: projectPath).isEmpty
     }
 
     /// When the command is not met, this method runs it.
@@ -76,14 +71,8 @@ class UpCarthage: Up, GraphInitiatable {
         }
 
         /// Updating Carthage dependencies.
-        let arguments = ["update", "--platform", platforms.map({ $0.caseValue }).joined(separator: ",")]
-        printer.print("Updating Carthage dependencies")
-        let carthagePath = try system.which("carthage")
-        try system.popen(carthagePath,
-                         arguments: arguments,
-                         verbose: false,
-                         workingDirectoryPath: projectPath,
-                         environment: System.userEnvironment)
+        let oudated = try carthage.outdated(path: projectPath)
+        try carthage.update(path: projectPath, platforms: platforms, dependencies: oudated)
     }
 
     func whatever() {}

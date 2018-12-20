@@ -57,7 +57,12 @@ class UpCustom: Up, GraphInitiatable {
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
     override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
-        let launchPath = try self.launchPath(command: isMet, projectPath: projectPath, system: system)
+        var launchPath: AbsolutePath!
+        do {
+            launchPath = try self.launchPath(command: isMet, projectPath: projectPath, system: system)
+        } catch {
+            return false
+        }
         let result = try system.capture(launchPath.asString, arguments: Array(isMet.dropFirst()), verbose: false, workingDirectoryPath: nil, environment: System.userEnvironment)
         return result.succeeded
     }
