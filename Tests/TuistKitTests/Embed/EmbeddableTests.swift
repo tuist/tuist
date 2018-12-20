@@ -100,7 +100,8 @@ final class EmbeddableTests: XCTestCase {
 
     func test_uuids_whenFramework() throws {
         try withUniversalFramework {
-            let expected: Set<UUID> = Set(arrayLiteral: UUID(uuidString: "510FD121-B669-3524-A748-2DDF357A051C")!)
+            let expected: Set<UUID> = Set(arrayLiteral: UUID(uuidString: "FB17107A-86FA-3880-92AC-C9AA9E04BA98")!,
+                                          UUID(uuidString: "510FD121-B669-3524-A748-2DDF357A051C")!)
             try XCTAssertEqual($0.uuids(), expected)
         }
     }
