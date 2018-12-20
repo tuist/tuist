@@ -150,49 +150,63 @@
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
       "line": 7,
-      "symbol": "Project.targets",
+      "symbol": "Project.up",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
       "line": 8,
+      "symbol": "Project.targets",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
+      "line": 9,
       "symbol": "Project.settings",
       "symbol_kind": "source.lang.swift.decl.var.instance",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
-      "line": 10,
+      "line": 11,
       "symbol": "Project.CodingKeys",
       "symbol_kind": "source.lang.swift.decl.enum",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
-      "line": 11,
+      "line": 12,
       "symbol": "Project.CodingKeys.name",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
-      "line": 12,
+      "line": 13,
+      "symbol": "Project.CodingKeys.up",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
+      "line": 14,
       "symbol": "Project.CodingKeys.targets",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
-      "line": 13,
+      "line": 15,
       "symbol": "Project.CodingKeys.settings",
       "symbol_kind": "source.lang.swift.decl.enumelement",
       "warning": "undocumented"
     },
     {
       "file": "/Users/pedropinera/src/github.com/tuist/tuist/Sources/ProjectDescription/Project.swift",
-      "line": 16,
-      "symbol": "Project.init(name:settings:targets:)",
+      "line": 18,
+      "symbol": "Project.init(name:up:settings:targets:)",
       "symbol_kind": "source.lang.swift.decl.function.method.instance",
       "warning": "undocumented"
     },

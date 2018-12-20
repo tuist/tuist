@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.10.0
+
 ### Fixed
 
 - Don't generate the Playgrounds group if there are no playgrounds https://github.com/tuist/tuist/pull/177 by @pepibumur.
