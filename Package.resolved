@@ -21,7 +21,7 @@
       },
       {
         "package": "SwiftShell",
-        "repositoryURL": "https://github.com/tuist/SwiftShell/",
+        "repositoryURL": "https://github.com/tuist/SwiftShell.git",
         "state": {
           "branch": null,
           "revision": "50d8186859aedd1ce3ab404d080ab6a781591e72",
