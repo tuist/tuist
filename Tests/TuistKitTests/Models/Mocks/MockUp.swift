@@ -9,7 +9,11 @@ final class MockUp: Upping {
     var isMetCallCount: UInt = 0
     var meetStub: ((Systeming, Printing, AbsolutePath) throws -> Void)?
     var meetCallCount: UInt = 0
-    var name: String = String(describing: MockUp.self)
+    let name: String
+
+    init(name: String = String(describing: MockUp.self)) {
+        self.name = name
+    }
 
     func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
         isMetCallCount += 1

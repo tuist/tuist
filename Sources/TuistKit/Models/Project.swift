@@ -12,7 +12,7 @@ class Project: Equatable {
     let name: String
 
     /// Up instances to configure the environment for the project.
-    let up: [Up]
+    let up: [Upping]
 
     /// Project targets.
     let targets: [Target]
@@ -31,7 +31,7 @@ class Project: Equatable {
     ///   - targets: Project settings.
     init(path: AbsolutePath,
          name: String,
-         up: [Up] = [],
+         up: [Upping] = [],
          settings: Settings? = nil,
          targets: [Target]) {
         self.path = path

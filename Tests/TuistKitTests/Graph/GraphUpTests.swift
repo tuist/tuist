@@ -12,6 +12,7 @@ final class GraphUpTests: XCTestCase {
     var graphCache: GraphLoaderCache!
     var graph: Graph!
     var fileHandler: MockFileHandler!
+    var up: MockUp!
 
     override func setUp() {
         super.setUp()
@@ -20,16 +21,38 @@ final class GraphUpTests: XCTestCase {
         fileHandler = try! MockFileHandler()
         graphCache = GraphLoaderCache()
         graph = Graph.test(cache: graphCache)
+        up = MockUp(name: "GraphUpTests")
+        graphCache.projects[fileHandler.currentPath] = Project.test(up: [up])
         subject = GraphUp(printer: printer,
                           system: system)
     }
 
+    func test_meet_when_there_are_not_met_ups() throws {
+        up.isMetStub = { _, _ in false }
+
+        try subject.meet(graph: graph)
+
+        XCTAssertStandardOutput(printer, pattern: """
+        Setting up environment for project at /test
+        Configuring GraphUpTests
+        Environment configured
+        """)
+        XCTAssertEqual(up.meetCallCount, 1)
+    }
+
+    func test_meet_when_ups_are_met() throws {
+        up.isMetStub = { _, _ in true }
+
+        try subject.meet(graph: graph)
+
+        XCTAssertStandardOutput(printer, pattern: """
+        Setting up environment for project at /test
+        Environment configured
+        """)
+        XCTAssertEqual(up.meetCallCount, 0)
+    }
+
     func test_isMet_returnsTrueWhenAnyCommandIsNotMet() throws {
-        graphCache.projects[fileHandler.currentPath] = Project.test(up: [
-            UpCustom(name: "invalid",
-                     meet: ["install", "invalid"],
-                     isMet: ["which invalid"]),
-        ])
         XCTAssertFalse(try subject.isMet(graph: graph))
     }
 }
