@@ -114,7 +114,7 @@ final class Installer: Installing {
         printer.print("Verifying the Swift version is compatible with your version \(localVersion)")
         var remoteVersion: String!
         do {
-            remoteVersion = try githubClient.getContent(ref: version, path: ".swift-version").chomp()
+            remoteVersion = try githubClient.getContent(ref: version, path: ".swift-version").spm_chomp()
         } catch is GitHubClientError {
             printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
         }
@@ -143,19 +143,11 @@ final class Installer: Installing {
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            try system.capture("/usr/bin/curl",
-                               arguments: "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString,
-                               verbose: false,
-                               workingDirectoryPath: nil,
-                               environment: nil).throwIfError()
+            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString)
 
             // Unzip
             printer.print("Installing...")
-            try system.capture("/usr/bin/unzip",
-                               arguments: downloadPath.asString, "-d", installationDirectory.asString,
-                               verbose: false,
-                               workingDirectoryPath: nil,
-                               environment: nil).throwIfError()
+            try system.run("/usr/bin/unzip", downloadPath.asString, "-d", installationDirectory.asString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
@@ -170,18 +162,10 @@ final class Installer: Installing {
 
             // Cloning and building
             printer.print("Pulling source code")
+            try system.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString)
 
-            try system.capture("/usr/bin/env",
-                               arguments: "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString,
-                               verbose: false,
-                               workingDirectoryPath: nil,
-                               environment: System.userEnvironment).throwIfError()
             do {
-                try system.capture("/usr/bin/env",
-                                   arguments: "git", "-C", temporaryDirectory.path.asString, "checkout", version,
-                                   verbose: false,
-                                   workingDirectoryPath: nil,
-                                   environment: System.userEnvironment).throwIfError()
+                try system.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString, "checkout", version)
             } catch let error as SystemError {
                 if error.description.contains("did not match any file(s) known to git") {
                     throw InstallerError.versionNotFound(version)
@@ -190,29 +174,17 @@ final class Installer: Installing {
             }
 
             printer.print("Building using Swift (it might take a while)")
+            let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift").spm_chuzzle()!
 
-            let swiftPath = try system.capture("/usr/bin/xcrun",
-                                               arguments: "-f", "swift",
-                                               verbose: false,
-                                               workingDirectoryPath: nil,
-                                               environment: nil).stdout.chuzzle()!
-            try system.capture(swiftPath,
-                               arguments: "build",
-                               "--product", "tuist",
-                               "--package-path", temporaryDirectory.path.asString,
-                               "--configuration", "release",
-                               "-Xswiftc", "-static-stdlib",
-                               verbose: false,
-                               workingDirectoryPath: nil,
-                               environment: System.userEnvironment).throwIfError()
-            try system.capture(swiftPath,
-                               arguments: "build",
-                               "--product", "ProjectDescription",
-                               "--package-path", temporaryDirectory.path.asString,
-                               "--configuration", "release",
-                               verbose: false,
-                               workingDirectoryPath: nil,
-                               environment: System.userEnvironment).throwIfError()
+            try system.run(swiftPath, "build",
+                           "--product", "tuist",
+                           "--package-path", temporaryDirectory.path.asString,
+                           "--configuration", "release",
+                           "-Xswiftc", "-static-stdlib")
+            try system.run(swiftPath, "build",
+                           "--product", "ProjectDescription",
+                           "--package-path", temporaryDirectory.path.asString,
+                           "--configuration", "release")
 
             if fileHandler.exists(installationDirectory) {
                 try fileHandler.delete(installationDirectory)

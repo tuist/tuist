@@ -49,18 +49,15 @@ class UpHomebrew: Up, GraphInitiatable {
     override func meet(system: Systeming, printer: Printing, projectPath _: AbsolutePath) throws {
         if !toolInstalled("brew", system: system) {
             printer.print("Installing Homebrew")
-            try system.popen("/usr/bin/ruby", arguments: ["-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\""],
+            try system.popen("/usr/bin/ruby", "-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
                              verbose: true,
-                             workingDirectoryPath: nil,
                              environment: System.userEnvironment)
         }
         let nonInstalledPackages = packages.filter({ !toolInstalled($0, system: system) })
         try nonInstalledPackages.forEach { package in
             printer.print("Installing Homebrew package: \(package)")
-            try system.popen("/usr/local/bin/brew",
-                             arguments: ["install", package],
-                             verbose: false,
-                             workingDirectoryPath: nil,
+            try system.popen("/usr/local/bin/brew", "install", package,
+                             verbose: true,
                              environment: System.userEnvironment)
         }
     }

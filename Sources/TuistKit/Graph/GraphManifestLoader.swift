@@ -157,6 +157,7 @@ class GraphManifestLoader: GraphManifestLoading {
     fileprivate func loadSwiftManifest(path: AbsolutePath) throws -> JSON {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         var arguments: [String] = [
+            "/usr/bin/xcrun",
             "swiftc",
             "--driver-mode=swift",
             "-suppress-warnings",
@@ -167,14 +168,8 @@ class GraphManifestLoader: GraphManifestLoading {
         ]
         arguments.append(path.asString)
         arguments.append("--dump")
-        let result = try system.capture("/usr/bin/xcrun",
-                                        arguments: arguments,
-                                        verbose: false,
-                                        workingDirectoryPath: nil,
-                                        environment: System.userEnvironment)
-        try result.throwIfError()
-        let jsonString: String! = result.stdout.chuzzle()
-        if jsonString == nil {
+                
+        guard let jsonString = try system.capture(arguments).spm_chuzzle() else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
         return try JSON(string: jsonString)

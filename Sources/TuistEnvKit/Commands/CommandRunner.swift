@@ -115,11 +115,10 @@ class CommandRunner: CommandRunning {
     }
 
     func runAtPath(_ path: AbsolutePath) throws {
-        try system.popen(path.appending(component: Constants.binName).asString,
-                         arguments: Array(arguments().dropFirst()),
-                         verbose: false,
-                         workingDirectoryPath: nil,
-                         environment: System.userEnvironment)
+        var args = [path.appending(component: Constants.binName).asString]
+        args.append(contentsOf: Array(arguments().dropFirst()))
+        
+        try system.popen(args)
     }
 
     // MARK: - Static

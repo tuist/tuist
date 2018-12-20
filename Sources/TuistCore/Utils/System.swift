@@ -1,53 +1,87 @@
 import Basic
 import Foundation
-import SwiftShell
 
 public protocol Systeming {
-    /// Runs a command in the shell and returns the result (exit status, standard output and standard error).
+    
+    /// Runs a command without collecting output nor printing anything.
+    ///
+    /// - Parameter arguments: Command.
+    /// - Throws: An error if the command fails
+    func run(_ arguments: [String]) throws
+    
+    /// Runs a command without collecting output nor printing anything.
+    ///
+    /// - Parameter arguments: Command.
+    /// - Throws: An error if the command fails
+    func run(_ arguments: String...) throws
+    
+    /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
-    ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
-    ///   - environment: Environment that should be used when running the task.
-    /// - Returns: Result of running the command.
+    ///   - arguments: Command.
+    /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
-    func capture(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult
+    func capture(_ arguments: String...) throws -> String
+    
+    /// Runs a command in the shell and returns the standard output string.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    /// - Returns: Standard output string.
+    /// - Throws: An error if the command fails.
+    func capture(_ arguments: [String]) throws -> String
+    
+    /// Runs a command in the shell and returns the standard output string.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the task.
+    /// - Returns: Standard output string.
+    /// - Throws: An error if the command fails.
+    func capture(_ arguments: String..., verbose: Bool, environment: [String: String]) throws -> String
 
-    /// Runs a command in the shell and returns the result (exit status, standard output and standard error).
+    /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
+    ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
-    /// - Returns: Result of running the command.
+    /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
-    func capture(_ launchPath: String, arguments: [String], verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws -> SystemResult
+    func capture(_ arguments: [String], verbose: Bool, environment: [String: String]) throws -> String
 
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
+    ///   - arguments: Command.
+    /// - Throws: An error if the command fails.
+    func popen(_ arguments: String...) throws
+    
+    /// Runs a command in the shell printing its output.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    /// - Throws: An error if the command fails.
+    func popen(_ arguments: [String]) throws
+    
+    /// Runs a command in the shell printing its output.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    func popen(_ launchPath: String, arguments: String..., verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws
+    func popen(_ arguments: String..., verbose: Bool, environment: [String: String]) throws
 
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
+    ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    func popen(_ launchPath: String, arguments: [String], verbose: Bool, workingDirectoryPath: AbsolutePath?, environment: [String: String]?) throws
+    func popen(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
 
     /// Returns the Swift version.
     ///
@@ -86,26 +120,8 @@ public struct SystemError: FatalError, Equatable {
     }
 }
 
-public struct SystemResult {
-    public let stdout: String
-    public let stderror: String
-    public let exitcode: Int
-    public var succeeded: Bool { return exitcode == 0 }
-
-    public init(stdout: String, stderror: String, exitcode: Int) {
-        self.stdout = stdout
-        self.stderror = stderror
-        self.exitcode = exitcode
-    }
-
-    @discardableResult
-    public func throwIfError() throws -> SystemResult {
-        if exitcode != 0 { throw SystemError(stderror: stderror, exitcode: exitcode) }
-        return self
-    }
-}
-
 public final class System: Systeming {
+    
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
@@ -133,128 +149,152 @@ public final class System: Systeming {
     public static var userEnvironment: [String: String] {
         return ProcessInfo.processInfo.environment.filter({ acceptedEnvironmentVariables.contains($0.key) })
     }
-
-    /// Runs a command in the shell and returns the result (exit status, standard output and standard error).
+    
+    /// Runs a command without collecting output nor printing anything.
     ///
-    /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
-    ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
-    ///   - environment: Environment that should be used when running the task.
-    /// - Returns: Result of running the command.
-    /// - Throws: An error if the command fails.
-    @discardableResult
-    public func capture(_ launchPath: String,
-                        arguments: String...,
-                        verbose: Bool = false,
-                        workingDirectoryPath _: AbsolutePath? = nil,
-                        environment: [String: String]? = System.userEnvironment) throws -> SystemResult {
-        return try capture(launchPath, arguments: arguments, verbose: verbose, environment: environment)
+    /// - Parameter arguments: Command.
+    /// - Throws: An error if the command fails
+    public func run(_ arguments: [String]) throws {
+        let process = Process(arguments: arguments,
+                              environment: System.userEnvironment,
+                              outputRedirection: .none,
+                              verbose: false,
+                              startNewProcessGroup: false)
+        try process.launch()
+        try process.waitUntilExit()
     }
 
-    /// Runs a command in the shell and returns the result (exit status, standard output and standard error).
+    /// Runs a command without collecting output nor printing anything.
+    ///
+    /// - Parameter arguments: Command.
+    /// - Throws: An error if the command fails
+    public func run(_ arguments: String...) throws {
+        try self.run(arguments)
+    }
+    
+    /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
-    /// - Returns: Result of running the command.
+    /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
-    @discardableResult
-    public func capture(_ launchPath: String,
-                        arguments: [String],
+    public func capture(_ arguments: String...) throws -> String {
+        return try self.capture(arguments)
+    }
+    
+    /// Runs a command in the shell and returns the standard output string.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    /// - Returns: Standard output string.
+    /// - Throws: An error if the command fails.
+    public func capture(_ arguments: [String]) throws -> String {
+        return try self.capture(arguments, verbose: false, environment: System.userEnvironment)
+    }
+
+    /// Runs a command in the shell and returns the standard output string.
+    ///
+    /// - Parameters:
+    ///   - arguments: Arguments to be passed.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the task.
+    /// - Returns: Standard output string.
+    /// - Throws: An error if the command fails.
+    public func capture(_ arguments: String...,
+                        verbose: Bool,
+                        environment: [String: String]) throws -> String {
+        return try capture(arguments, verbose: verbose)
+    }
+
+    /// Runs a command in the shell and returns the standard output string.
+    ///
+    /// - Parameters:
+    ///   - arguments: Arguments to be passed.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the task.
+    /// - Returns: Standard output string.
+    /// - Throws: An error if the command fails.
+    public func capture(_ arguments: [String],
                         verbose: Bool = false,
-                        workingDirectoryPath: AbsolutePath? = nil,
-                        environment: [String: String]? = System.userEnvironment) throws -> SystemResult {
-        if verbose {
-            printCommand(launchPath, arguments: arguments)
-        }
-        let context = self.context(workingDirectoryPath: workingDirectoryPath, environment: environment)
-        let result = context.run(launchPath, arguments, combineOutput: false)
-        return SystemResult(stdout: result.stdout, stderror: result.stderror, exitcode: result.exitcode)
+                        environment: [String: String] = System.userEnvironment) throws -> String {
+        let process = Process(arguments: arguments,
+                              environment: environment,
+                              outputRedirection: .collect,
+                              verbose: verbose,
+                              startNewProcessGroup: false)
+        try process.launch()
+        let result = try process.waitUntilExit()
+        return try result.utf8Output()
+    }
+    
+    /// Runs a command in the shell printing its output.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    /// - Throws: An error if the command fails.
+    public func popen(_ arguments: String...) throws {
+        try self.popen(arguments)
+    }
+    
+    /// Runs a command in the shell printing its output.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    /// - Throws: An error if the command fails.
+    public func popen(_ arguments: [String]) throws {
+        try self.popen(arguments, verbose: false, environment: System.userEnvironment)
     }
 
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
     ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    public func popen(_ launchPath: String,
-                      arguments: String...,
-                      verbose: Bool = false,
-                      workingDirectoryPath: AbsolutePath? = nil,
-                      environment: [String: String]? = System.userEnvironment) throws {
-        try popen(launchPath,
-                  arguments: arguments,
+    public func popen(_ arguments: String...,
+                      verbose: Bool,
+                      environment: [String: String]) throws {
+        try popen(arguments,
                   verbose: verbose,
-                  workingDirectoryPath: workingDirectoryPath,
                   environment: environment)
     }
 
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
-    ///   - launchPath: Path to the binary or script to run.
-    ///   - arguments: Arguments to be passed.
+    ///   - arguments: Command arguments
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    public func popen(_ launchPath: String,
-                      arguments: [String],
+    public func popen(_ arguments: [String],
                       verbose: Bool = false,
-                      workingDirectoryPath: AbsolutePath? = nil,
-                      environment: [String: String]? = System.userEnvironment) throws {
-        if verbose {
-            printCommand(launchPath, arguments: arguments)
-        }
-        let context = self.context(workingDirectoryPath: workingDirectoryPath, environment: environment)
-        do {
-            try context.runAndPrint(launchPath, arguments)
-        } catch let error as CommandError {
-            switch error {
-            case let .inAccessibleExecutable(path):
-                throw SystemError(stderror: "The following path is inaccessible \(path)", exitcode: error.errorcode)
-            case let .returnedErrorCode(_, errorCode):
-                throw SystemError(exitcode: errorCode)
-            }
-        }
+                      environment: [String: String] = System.userEnvironment) throws {
+        let process = Process(arguments: arguments,
+                              environment: environment,
+                              outputRedirection: .stream(stdout: { (bytes) in
+                                FileHandle.standardOutput.write(Data(bytes: bytes))
+                              }, stderr: { (bytes) in
+                                FileHandle.standardError.write(Data(bytes: bytes))
+                              }), verbose: verbose,
+                                  startNewProcessGroup: false)
+        try process.launch()
+        try process.waitUntilExit()
     }
 
-    /// Creates the context to run the command
-    ///
-    /// - Parameters:
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
-    ///   - environment: Environment that should be used when running the task.
-    /// - Returns: The context to run the command on.
-    public func context(workingDirectoryPath: AbsolutePath?,
-                        environment: [String: String]?) -> CustomContext {
-        var context = CustomContext(main)
-        if let workingDirectoryPath = workingDirectoryPath {
-            context.currentdirectory = workingDirectoryPath.asString
-        }
-        if let environment = environment {
-            context.env = environment
-        }
-        return context
-    }
 
     /// Returns the Swift version.
     ///
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
     public func swiftVersion() throws -> String? {
-        let output = try capture("/usr/bin/xcrun", arguments: "swift", "--version", verbose: false, environment: nil).throwIfError().stdout
+        let output = try capture("/usr/bin/xcrun", "swift", "--version")
         let range = NSRange(location: 0, length: output.count)
         guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else { return nil }
-        return NSString(string: output).substring(with: match.range(at: 1)).chomp()
+        return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
     }
 
     /// Runs /usr/bin/which passing the given tool.
@@ -263,32 +303,6 @@ public final class System: Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
-        return try capture("/usr/bin/env", arguments: "which", name).throwIfError().stdout
-    }
-
-    // MARK: - Fileprivate
-
-    /// Prints the given command.
-    ///
-    /// - Parameters:
-    ///   - launchPath: Launch path.
-    ///   - arguments: Arguments passed to the task.
-    fileprivate func printCommand(_ launchPath: String, arguments: [String]) {
-        let output = "Running: \(commandString(launchPath, arguments: arguments))"
-        if let data = output.data(using: .utf8) {
-            FileHandle.standardOutput.write(data)
-        }
-    }
-
-    /// Returns a string with the launch path and arguments joined with a space in between.
-    ///
-    /// - Parameters:
-    ///   - launchPath: Launch path.
-    ///   - arguments: Arguments passed to the task.
-    /// - Returns: String with the launch path and arguments joined with a space in between.
-    fileprivate func commandString(_ launchPath: String, arguments: [String]) -> String {
-        var arguments = arguments
-        arguments.insert(launchPath, at: 0)
-        return arguments.joined(separator: " ")
+        return try capture("/usr/bin/env", "which", name)
     }
 }

@@ -53,7 +53,7 @@ final class Carthage: Carthaging {
     func update(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws {
         let carthagePath = try system.which("carthage")
 
-        var command: [String] = []
+        var command: [String] = [carthagePath]
         command.append("update")
 
         if !platforms.isEmpty {
@@ -62,11 +62,8 @@ final class Carthage: Carthaging {
         }
 
         command.append(contentsOf: dependencies)
-        try system.popen(carthagePath,
-                         arguments: command,
-                         verbose: false,
-                         workingDirectoryPath: path,
-                         environment: System.userEnvironment)
+        
+        try system.run(command)
     }
 
     /// Returns the list of outdated dependencies in the given directory.

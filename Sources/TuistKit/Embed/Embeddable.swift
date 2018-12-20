@@ -91,12 +91,7 @@ final class Embeddable {
 
     func architectures(system: Systeming = System()) throws -> [String] {
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try system.capture("/usr/bin/lipo",
-                                            arguments: "-info",
-                                            binPath.asString,
-                                            verbose: false,
-                                            workingDirectoryPath: nil,
-                                            environment: nil).stdout.chuzzle() ?? ""
+        let lipoResult = try system.capture("/usr/bin/lipo", "-info").spm_chuzzle() ?? ""
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)
@@ -175,11 +170,7 @@ final class Embeddable {
     fileprivate func stripArchitecture(packagePath: AbsolutePath,
                                        architecture: String,
                                        system: Systeming = System()) throws {
-        try system.popen("/usr/bin/lipo",
-                         arguments: "-remove", architecture, "-output", packagePath.asString, packagePath.asString,
-                         verbose: false,
-                         workingDirectoryPath: nil,
-                         environment: nil)
+        try system.run("/usr/bin/lipo", "-remove", architecture, "-output", packagePath.asString, packagePath.asString)
     }
 
     fileprivate func stripHeaders(frameworkPath: AbsolutePath) throws {
@@ -226,11 +217,7 @@ final class Embeddable {
 
     fileprivate func uuidsFromDwarfdump(path: AbsolutePath,
                                         system: Systeming = System()) throws -> Set<UUID> {
-        let result = try system.capture("/usr/bin/dwarfdump",
-                                        arguments: "--uuid", path.asString,
-                                        verbose: false,
-                                        workingDirectoryPath: nil,
-                                        environment: nil).stdout.chuzzle() ?? ""
+        let result = try system.capture("/usr/bin/dwarfdump", "--uuid", path.asString).spm_chuzzle() ?? ""
         var uuidCharacterSet = CharacterSet()
         uuidCharacterSet.formUnion(.letters)
         uuidCharacterSet.formUnion(.decimalDigits)

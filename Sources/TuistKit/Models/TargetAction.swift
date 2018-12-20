@@ -81,7 +81,7 @@ public struct TargetAction: GraphInitiatable {
         if let path = path {
             return "\(path.relative(to: sourceRootPath).asString) \(arguments.joined(separator: " "))"
         } else {
-            return try "\(system.which(tool!).chomp().chuzzle()!) \(arguments.joined(separator: " "))"
+            return try "\(system.which(tool!).spm_chomp().spm_chuzzle()!) \(arguments.joined(separator: " "))"
         }
     }
 }
