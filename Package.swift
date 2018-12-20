@@ -15,7 +15,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.0.0")),
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMinor(from: "0.2.1")),
         .package(url: "https://github.com/jpsim/Yams.git", .upToNextMinor(from: "1.0.1")),
-        .package(url: "https://github.com/tuist/SwiftShell/", .revision("50d8186859aedd1ce3ab404d080ab6a781591e72")),
+        .package(url: "https://github.com/tuist/SwiftShell.git", .revision("50d8186859aedd1ce3ab404d080ab6a781591e72")),
     ],
     targets: [
         .target(
