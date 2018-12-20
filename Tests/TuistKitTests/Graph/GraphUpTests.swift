@@ -35,7 +35,6 @@ final class GraphUpTests: XCTestCase {
         XCTAssertStandardOutput(printer, pattern: """
         Setting up environment for project at /test
         Configuring GraphUpTests
-        Environment configured
         """)
         XCTAssertEqual(up.meetCallCount, 1)
     }
@@ -47,7 +46,6 @@ final class GraphUpTests: XCTestCase {
 
         XCTAssertStandardOutput(printer, pattern: """
         Setting up environment for project at /test
-        Environment configured
         """)
         XCTAssertEqual(up.meetCallCount, 0)
     }

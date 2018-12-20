@@ -54,7 +54,8 @@ class UpCarthage: Up, GraphInitiatable {
     /// - Throws: An error if the check fails.
     override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
         if try !upHomebrew.isMet(system: system, projectPath: projectPath) { return false }
-        return try carthage.outdated(path: projectPath).isEmpty
+        guard let outdated = try carthage.outdated(path: projectPath) else { return false }
+        return outdated.isEmpty
     }
 
     /// When the command is not met, this method runs it.
@@ -71,7 +72,7 @@ class UpCarthage: Up, GraphInitiatable {
         }
 
         /// Updating Carthage dependencies.
-        let oudated = try carthage.outdated(path: projectPath)
+        let oudated = try carthage.outdated(path: projectPath) ?? []
         try carthage.update(path: projectPath, platforms: platforms, dependencies: oudated)
     }
 

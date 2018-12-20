@@ -53,7 +53,6 @@ final class GraphUp: GraphUpping {
                     printer.print(subsection: "Configuring \(command.name)")
                     try command.meet(system: system, printer: printer, projectPath: project.path)
                 }
-                printer.print(subsection: "Environment configured")
             }
         }
     }
