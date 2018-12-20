@@ -25,6 +25,9 @@ class UpCommand: NSObject, Command {
     /// Graph up instance to print a warning if the environment is not configured.
     fileprivate let graphUp: GraphUpping
 
+    /// Path to the project directory.
+    let pathArgument: OptionArgument<String>
+
     // MARK: - Init
 
     /// Initializes the command with the CLI parser.
@@ -53,18 +56,36 @@ class UpCommand: NSObject, Command {
          printer: Printing,
          graphLoader: GraphLoading,
          graphUp: GraphUpping) {
-        parser.add(subparser: UpCommand.command, overview: UpCommand.overview)
+        let subParser = parser.add(subparser: UpCommand.command, overview: UpCommand.overview)
         self.fileHandler = fileHandler
         self.printer = printer
         self.graphLoader = graphLoader
         self.graphUp = graphUp
+        pathArgument = subParser.add(option: "--path",
+                                     shortName: "-p",
+                                     kind: String.self,
+                                     usage: "The path to the directory that contains the project.",
+                                     completion: .filename)
     }
 
     /// Runs the command using the result from parsing the command line arguments.
     ///
     /// - Throws: An error if the the configuration of the environment fails.
-    func run(with _: ArgumentParser.Result) throws {
-        let graph = try graphLoader.load(path: fileHandler.currentPath)
+    func run(with arguments: ArgumentParser.Result) throws {
+        let graph = try graphLoader.load(path: path(arguments: arguments))
         try graphUp.meet(graph: graph)
+    }
+
+    /// Parses the arguments and returns the path to the directory where
+    /// the up command should be ran.
+    ///
+    /// - Parameter arguments: Result from parsing the command line arguments.
+    /// - Returns: Path to be used for the up command.
+    fileprivate func path(arguments: ArgumentParser.Result) -> AbsolutePath {
+        if let path = arguments.get(pathArgument) {
+            return AbsolutePath(path, relativeTo: fileHandler.currentPath)
+        } else {
+            return fileHandler.currentPath
+        }
     }
 }

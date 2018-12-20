@@ -52,4 +52,17 @@ final class UpCommandTests: XCTestCase {
 
         XCTAssertTrue(met)
     }
+
+    func test_run_uses_the_given_path() throws {
+        let path = AbsolutePath("/path")
+        let result = try parser.parse([UpCommand.command, "-p", path.asString])
+
+        graphLoader.loadStub = { gotPath in
+            XCTAssertEqual(gotPath, path)
+            return Graph.test()
+        }
+        try subject.run(with: result)
+
+        XCTAssertEqual(graphUp.meetCallCount, 1)
+    }
 }
