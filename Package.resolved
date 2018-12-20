@@ -3,11 +3,20 @@
     "pins": [
       {
         "package": "AEXML",
-        "repositoryURL": "https://github.com/tadija/AEXML.git",
+        "repositoryURL": "https://github.com/tadija/AEXML",
         "state": {
           "branch": null,
           "revision": "54bb8ea6fb693dd3f92a89e5fcc19e199fdeedd0",
           "version": "4.3.3"
+        }
+      },
+      {
+        "package": "ColorizeSwift",
+        "repositoryURL": "https://github.com/mtynior/ColorizeSwift.git",
+        "state": {
+          "branch": null,
+          "revision": "16cb4545a54311ca29d314fa3b907296285cfde9",
+          "version": "1.2.0"
         }
       },
       {
