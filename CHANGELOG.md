@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Replace ReactiveTask with SwiftShell https://github.com/tuist/tuist/pull/179 by @pepibumur.
 
+### Fixed
+
+- Carthage up command not running when the `Cartfile.resolved` file doesn't exist https://github.com/tuist/tuist/pull/179 by @pepibumur.
+
 ## 0.10.0
 
 ### Fixed
