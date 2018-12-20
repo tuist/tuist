@@ -77,25 +77,24 @@ public class Printer: Printing {
 /// If underlying stream is a not tty, the string will be written in without any
 /// formatting.
 private final class InteractiveWriter {
-    
     /// The standard error writer.
     static let stderr = InteractiveWriter(stream: stderrStream)
-    
+
     /// The standard output writer.
     static let stdout = InteractiveWriter(stream: stdoutStream)
-    
+
     /// The terminal controller, if present.
     let term: TerminalController?
-    
+
     /// The output byte stream reference.
     let stream: OutputByteStream
-    
+
     /// Create an instance with the given stream.
     init(stream: OutputByteStream) {
-        self.term = TerminalController(stream: stream)
+        term = TerminalController(stream: stream)
         self.stream = stream
     }
-    
+
     /// Write the string to the contained terminal or stream.
     func write(_ string: String, inColor color: TerminalController.Color = .noColor, bold: Bool = false) {
         if let term = term {
