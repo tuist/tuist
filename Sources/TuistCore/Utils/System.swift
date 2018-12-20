@@ -2,19 +2,21 @@ import Basic
 import Foundation
 
 public protocol Systeming {
-    
+    /// System environment.
+    var env: [String: String] { get }
+
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
     /// - Throws: An error if the command fails
     func run(_ arguments: [String]) throws
-    
+
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
     /// - Throws: An error if the command fails
     func run(_ arguments: String...) throws
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -22,7 +24,7 @@ public protocol Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     func capture(_ arguments: String...) throws -> String
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -30,7 +32,7 @@ public protocol Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     func capture(_ arguments: [String]) throws -> String
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -57,14 +59,14 @@ public protocol Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     func popen(_ arguments: String...) throws
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     func popen(_ arguments: [String]) throws
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -97,31 +99,39 @@ public protocol Systeming {
     func which(_ name: String) throws -> String
 }
 
-public struct SystemError: FatalError, Equatable {
-    let stderror: String?
-    let exitcode: Int
-
-    public var type: ErrorType {
-        return .abort
-    }
-
-    public var description: String {
-        return stderror ?? "Command exited with code \(exitcode)"
-    }
-
-    public init(stderror: String? = nil, exitcode: Int) {
-        self.stderror = stderror
-        self.exitcode = exitcode
-    }
-
-    public static func == (lhs: SystemError, rhs: SystemError) -> Bool {
-        return lhs.stderror == rhs.stderror &&
-            lhs.exitcode == rhs.exitcode
+extension ProcessResult {
+    /// Throws a SystemError if the result is unsuccessful.
+    ///
+    /// - Throws: A SystemError.
+    func throwIfErrored() throws {
+        switch exitStatus {
+        case let .signalled(code):
+            throw SystemError.signalled(code: code)
+        case let .terminated(code):
+            if code != 0 {
+                throw SystemError.terminated(code: code, error: try utf8stderrOutput())
+            }
+        }
     }
 }
 
+public enum SystemError: FatalError {
+    case terminated(code: Int32, error: String)
+    case signalled(code: Int32)
+
+    public var description: String {
+        switch self {
+        case let .signalled(code):
+            return "Command interrupted with a signal \(code)"
+        case let .terminated(code, error):
+            return "Command exited with error code \(code) and error: \(error)"
+        }
+    }
+
+    public var type: ErrorType { return .abort }
+}
+
 public final class System: Systeming {
-    
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
@@ -138,6 +148,11 @@ public final class System: Systeming {
         "GEM_PATH", "RUBY_ENGINE", "GEM_ROOT", "GEM_HOME", "RUBY_ROOT", "RUBY_VERSION",
     ]
 
+    /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.
+    public var env: [String: String] {
+        return ProcessInfo.processInfo.environment.filter({ System.acceptedEnvironmentVariables.contains($0.key) })
+    }
+
     // MARK: - Init
 
     /// Default constructor.
@@ -145,18 +160,13 @@ public final class System: Systeming {
 
     // MARK: - Systeming
 
-    /// User environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.
-    public static var userEnvironment: [String: String] {
-        return ProcessInfo.processInfo.environment.filter({ acceptedEnvironmentVariables.contains($0.key) })
-    }
-    
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
     /// - Throws: An error if the command fails
     public func run(_ arguments: [String]) throws {
         let process = Process(arguments: arguments,
-                              environment: System.userEnvironment,
+                              environment: env,
                               outputRedirection: .none,
                               verbose: false,
                               startNewProcessGroup: false)
@@ -169,9 +179,9 @@ public final class System: Systeming {
     /// - Parameter arguments: Command.
     /// - Throws: An error if the command fails
     public func run(_ arguments: String...) throws {
-        try self.run(arguments)
+        try run(arguments)
     }
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -181,9 +191,9 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: String...) throws -> String {
-        return try self.capture(arguments)
+        return try capture(arguments)
     }
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -191,7 +201,7 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String]) throws -> String {
-        return try self.capture(arguments, verbose: false, environment: System.userEnvironment)
+        return try capture(arguments, verbose: false, environment: env)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -205,7 +215,7 @@ public final class System: Systeming {
     public func capture(_ arguments: String...,
                         verbose: Bool,
                         environment: [String: String]) throws -> String {
-        return try capture(arguments, verbose: verbose)
+        return try capture(arguments, verbose: verbose, environment: environment)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -217,8 +227,8 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String],
-                        verbose: Bool = false,
-                        environment: [String: String] = System.userEnvironment) throws -> String {
+                        verbose: Bool,
+                        environment: [String: String]) throws -> String {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .collect,
@@ -226,25 +236,26 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
         try process.launch()
         let result = try process.waitUntilExit()
+        try result.throwIfErrored()
         return try result.utf8Output()
     }
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func popen(_ arguments: String...) throws {
-        try self.popen(arguments)
+        try popen(arguments)
     }
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func popen(_ arguments: [String]) throws {
-        try self.popen(arguments, verbose: false, environment: System.userEnvironment)
+        try popen(arguments, verbose: false, environment: env)
     }
 
     /// Runs a command in the shell printing its output.
@@ -271,20 +282,19 @@ public final class System: Systeming {
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
     public func popen(_ arguments: [String],
-                      verbose: Bool = false,
-                      environment: [String: String] = System.userEnvironment) throws {
+                      verbose: Bool,
+                      environment: [String: String]) throws {
         let process = Process(arguments: arguments,
                               environment: environment,
-                              outputRedirection: .stream(stdout: { (bytes) in
-                                FileHandle.standardOutput.write(Data(bytes: bytes))
-                              }, stderr: { (bytes) in
-                                FileHandle.standardError.write(Data(bytes: bytes))
+                              outputRedirection: .stream(stdout: { bytes in
+                                  FileHandle.standardOutput.write(Data(bytes: bytes))
+                              }, stderr: { bytes in
+                                  FileHandle.standardError.write(Data(bytes: bytes))
                               }), verbose: verbose,
-                                  startNewProcessGroup: false)
+                              startNewProcessGroup: false)
         try process.launch()
         try process.waitUntilExit()
     }
-
 
     /// Returns the Swift version.
     ///
@@ -303,6 +313,6 @@ public final class System: Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
-        return try capture("/usr/bin/env", "which", name)
+        return try capture("/usr/bin/env", "which", name).spm_chomp()
     }
 }

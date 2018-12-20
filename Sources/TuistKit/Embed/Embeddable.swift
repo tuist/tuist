@@ -91,7 +91,7 @@ final class Embeddable {
 
     func architectures(system: Systeming = System()) throws -> [String] {
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try system.capture("/usr/bin/lipo", "-info").spm_chuzzle() ?? ""
+        let lipoResult = try system.capture("/usr/bin/lipo", "-info", binPath.asString).spm_chuzzle() ?? ""
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)

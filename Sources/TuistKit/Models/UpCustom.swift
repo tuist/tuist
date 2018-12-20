@@ -46,10 +46,10 @@ class UpCustom: Up, GraphInitiatable {
     /// - Throws: An error if any error is thrown while running it.
     override func meet(system: Systeming, printer _: Printing, projectPath: AbsolutePath) throws {
         let launchPath = try self.launchPath(command: meet, projectPath: projectPath, system: system)
-        
+
         var arguments = [launchPath.asString]
         arguments.append(contentsOf: Array(meet.dropFirst()))
-        
+
         try system.popen(arguments)
     }
 
@@ -69,7 +69,7 @@ class UpCustom: Up, GraphInitiatable {
         }
         var arguments = [launchPath.asString]
         arguments.append(contentsOf: Array(isMet.dropFirst()))
-        
+
         do {
             try system.run(arguments)
             return true

@@ -117,7 +117,7 @@ class CommandRunner: CommandRunning {
     func runAtPath(_ path: AbsolutePath) throws {
         var args = [path.appending(component: Constants.binName).asString]
         args.append(contentsOf: Array(arguments().dropFirst()))
-        
+
         try system.popen(args)
     }
 

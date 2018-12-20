@@ -51,14 +51,14 @@ class UpHomebrew: Up, GraphInitiatable {
             printer.print("Installing Homebrew")
             try system.popen("/usr/bin/ruby", "-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
                              verbose: true,
-                             environment: System.userEnvironment)
+                             environment: system.env)
         }
         let nonInstalledPackages = packages.filter({ !toolInstalled($0, system: system) })
         try nonInstalledPackages.forEach { package in
             printer.print("Installing Homebrew package: \(package)")
             try system.popen("/usr/local/bin/brew", "install", package,
                              verbose: true,
-                             environment: System.userEnvironment)
+                             environment: system.env)
         }
     }
 }

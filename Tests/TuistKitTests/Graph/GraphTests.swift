@@ -133,7 +133,7 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        system.stub(args: [], stderror: nil, stdout: "dynamically linked", exitstatus: 0)
+        system.succeedCommand([], output: "dynamically linked")
 
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
@@ -156,7 +156,7 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
 
-        system.stub(args: [], stderror: nil, stdout: "dynamically linked", exitstatus: 0)
+        system.succeedCommand([], output: "dynamically linked")
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  system: system)
@@ -175,10 +175,8 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
 
-        system.stub(args: ["/usr/bin/file", "/test/test.framework/test"],
-                    stderror: nil,
-                    stdout: "dynamically linked",
-                    exitstatus: 0)
+        system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
+                              output: "dynamically linked")
 
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,

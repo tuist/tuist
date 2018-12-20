@@ -72,21 +72,11 @@ final class InstallerTests: XCTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.stub(args: [
-            "/usr/bin/curl", "-LSs",
-            "--output", downloadPath.asString,
-            downloadURL.absoluteString,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: [
-            "/usr/bin/unzip", downloadPath.asString,
-            "-d", self.fileHandler.currentPath.asString,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
+        system.succeedCommand("/usr/bin/curl", "-LSs",
+                              "--output", downloadPath.asString,
+                              downloadURL.absoluteString)
+        system.succeedCommand("/usr/bin/unzip", downloadPath.asString,
+                              "-d", fileHandler.currentPath.asString)
 
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
@@ -119,20 +109,12 @@ final class InstallerTests: XCTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.stub(args: [
-            "/usr/bin/curl", "-LSs",
-            "--output", downloadPath.asString,
-            downloadURL.absoluteString,
-        ],
-                    stderror: "download_error",
-                    stdout: nil,
-                    exitstatus: 1)
+        system.errorCommand("/usr/bin/curl", "-LSs",
+                            "--output", downloadPath.asString,
+                            downloadURL.absoluteString,
+                            error: "download_error")
 
-        let expected = SystemError(stderror: "download_error", exitcode: 1)
-        XCTAssertThrowsError(try subject.install(version: version,
-                                                 temporaryDirectory: temporaryDirectory)) {
-            XCTAssertEqual($0 as? SystemError, expected)
-        }
+        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory))
     }
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
@@ -154,27 +136,14 @@ final class InstallerTests: XCTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.stub(args: [
-            "/usr/bin/curl", "-LSs",
-            "--output", downloadPath.asString,
-            downloadURL.absoluteString,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: [
-            "/usr/bin/unzip", downloadPath.asString,
-            "-d", self.fileHandler.currentPath.asString,
-        ],
-                    stderror: "unzip_error",
-                    stdout: nil,
-                    exitstatus: 1)
+        system.succeedCommand("/usr/bin/curl", "-LSs",
+                              "--output", downloadPath.asString,
+                              downloadURL.absoluteString)
+        system.errorCommand("/usr/bin/unzip", downloadPath.asString,
+                            "-d", fileHandler.currentPath.asString,
+                            error: "unzip_error")
 
-        let expected = SystemError(stderror: "unzip_error", exitcode: 1)
-        XCTAssertThrowsError(try subject.install(version: version,
-                                                 temporaryDirectory: temporaryDirectory)) {
-            XCTAssertEqual($0 as? SystemError, expected)
-        }
+        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory))
     }
 
     func test_install_when_no_bundled_release() throws {
@@ -186,44 +155,22 @@ final class InstallerTests: XCTestCase {
             try closure(installationDirectory)
         }
 
-        system.stub(args: [
-            "/usr/bin/env", "git",
-            "clone", Constants.gitRepositoryURL,
-            temporaryDirectory.path.asString,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: [
-            "/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
-            "checkout", version,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: ["/usr/bin/xcrun", "-f", "swift"],
-                    stderror: nil,
-                    stdout: "/path/to/swift",
-                    exitstatus: 0)
-        system.stub(args: [
-            "/path/to/swift", "build",
-            "--product", "tuist",
-            "--package-path", temporaryDirectory.path.asString,
-            "--configuration", "release",
-            "-Xswiftc", "-static-stdlib",
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: [
-            "/path/to/swift", "build",
-            "--product", "ProjectDescription",
-            "--package-path", temporaryDirectory.path.asString,
-            "--configuration", "release",
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
+        system.succeedCommand("/usr/bin/env", "git",
+                              "clone", Constants.gitRepositoryURL,
+                              temporaryDirectory.path.asString)
+        system.succeedCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
+                              "checkout", version)
+        system.succeedCommand("/usr/bin/xcrun", "-f", "swift", output: "/path/to/swift")
+
+        system.succeedCommand("/path/to/swift", "build",
+                              "--product", "tuist",
+                              "--package-path", temporaryDirectory.path.asString,
+                              "--configuration", "release",
+                              "-Xswiftc", "-static-stdlib")
+        system.succeedCommand("/path/to/swift", "build",
+                              "--product", "ProjectDescription",
+                              "--package-path", temporaryDirectory.path.asString,
+                              "--configuration", "release")
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
@@ -248,44 +195,22 @@ final class InstallerTests: XCTestCase {
             try closure(installationDirectory)
         }
 
-        system.stub(args: [
-            "/usr/bin/env", "git",
-            "clone", Constants.gitRepositoryURL,
-            temporaryDirectory.path.asString,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: [
-            "/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
-            "checkout", version,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: ["/usr/bin/xcrun", "-f", "swift"],
-                    stderror: nil,
-                    stdout: "/path/to/swift",
-                    exitstatus: 0)
-        system.stub(args: [
-            "/path/to/swift", "build",
-            "--product", "tuist",
-            "--package-path", temporaryDirectory.path.asString,
-            "--configuration", "release",
-            "-Xswiftc", "-static-stdlib",
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: [
-            "/path/to/swift", "build",
-            "--product", "ProjectDescription",
-            "--package-path", temporaryDirectory.path.asString,
-            "--configuration", "release",
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
+        system.succeedCommand("/usr/bin/env", "git",
+                              "clone", Constants.gitRepositoryURL,
+                              temporaryDirectory.path.asString)
+        system.succeedCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
+                              "checkout", version)
+        system.succeedCommand("/usr/bin/xcrun", "-f", "swift",
+                              output: "/path/to/swift")
+        system.succeedCommand("/path/to/swift", "build",
+                              "--product", "tuist",
+                              "--package-path", temporaryDirectory.path.asString,
+                              "--configuration", "release",
+                              "-Xswiftc", "-static-stdlib")
+        system.succeedCommand("/path/to/swift", "build",
+                              "--product", "ProjectDescription",
+                              "--package-path", temporaryDirectory.path.asString,
+                              "--configuration", "release")
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
 
@@ -307,22 +232,12 @@ final class InstallerTests: XCTestCase {
         versionsController.installStub = { _, closure in
             try closure(self.fileHandler.currentPath)
         }
-
-        system.stub(args: [
-            "/usr/bin/env", "git",
-            "clone", Constants.gitRepositoryURL,
-            temporaryDirectory.path.asString,
-        ],
-                    stderror: nil,
-                    stdout: nil,
-                    exitstatus: 0)
-        system.stub(args: [
-            "/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
-            "checkout", version,
-        ],
-                    stderror: "did not match any file(s) known to git ",
-                    stdout: nil,
-                    exitstatus: 1)
+        system.succeedCommand("/usr/bin/env", "git",
+                              "clone", Constants.gitRepositoryURL,
+                              temporaryDirectory.path.asString)
+        system.errorCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
+                            "checkout", version,
+                            error: "did not match any file(s) known to git ")
 
         let expected = InstallerError.versionNotFound(version)
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory)) {

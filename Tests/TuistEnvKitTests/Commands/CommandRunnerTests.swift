@@ -53,10 +53,7 @@ final class CommandRunnerTests: XCTestCase {
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.bin(self.fileHandler.currentPath) }
-        system.stub(args: [binaryPath.asString, "--help"],
-                    stderror: nil,
-                    stdout: "output",
-                    exitstatus: 0)
+        system.succeedCommand(binaryPath.asString, "--help", output: "output")
         try subject.run()
     }
 
@@ -65,10 +62,7 @@ final class CommandRunnerTests: XCTestCase {
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.bin(self.fileHandler.currentPath) }
-        system.stub(args: [binaryPath.asString, "--help"],
-                    stderror: "error",
-                    stdout: nil,
-                    exitstatus: -1)
+        system.errorCommand(binaryPath.asString, "--help", error: "error")
 
         XCTAssertThrowsError(try subject.run())
     }
@@ -86,11 +80,7 @@ final class CommandRunnerTests: XCTestCase {
 
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
-
-        system.stub(args: [binaryPath.asString, "--help"],
-                    stderror: nil,
-                    stdout: "",
-                    exitstatus: 0)
+        system.succeedCommand(binaryPath.asString, "--help", output: "")
 
         try subject.run()
 
@@ -126,10 +116,7 @@ final class CommandRunnerTests: XCTestCase {
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(self.fileHandler.currentPath, "3.2.1")
         }
 
-        system.stub(args: [binaryPath.asString, "--help"],
-                    stderror: "error",
-                    stdout: nil,
-                    exitstatus: 1)
+        system.errorCommand(binaryPath.asString, "--help", error: "error")
 
         XCTAssertThrowsError(try subject.run())
     }
@@ -145,10 +132,7 @@ final class CommandRunnerTests: XCTestCase {
             $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
         }
 
-        system.stub(args: [binaryPath.asString, "--help"],
-                    stderror: nil,
-                    stdout: "",
-                    exitstatus: 0)
+        system.succeedCommand(binaryPath.asString, "--help", output: "")
 
         try subject.run()
     }
@@ -168,10 +152,7 @@ final class CommandRunnerTests: XCTestCase {
             $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
         }
 
-        system.stub(args: [binaryPath.asString, "--help"],
-                    stderror: nil,
-                    stdout: "",
-                    exitstatus: 0)
+        system.succeedCommand(binaryPath.asString, "--help", output: "")
 
         try subject.run()
     }
@@ -205,10 +186,7 @@ final class CommandRunnerTests: XCTestCase {
             $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
         }
 
-        system.stub(args: [binaryPath.asString, "--help"],
-                    stderror: "error",
-                    stdout: nil,
-                    exitstatus: 1)
+        system.errorCommand(binaryPath.asString, "--help", error: "error")
 
         XCTAssertThrowsError(try subject.run())
     }

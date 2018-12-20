@@ -26,11 +26,8 @@ final class CarthageTests: XCTestCase {
                 throw NSError.test()
             }
         }
-
-        system.stub(args: ["/path/to/carthage", "update", "--platform", "iOS,macOS", "Alamofire"],
-                    stderror: nil,
-                    stdout: "",
-                    exitstatus: 0)
+        system.succeedCommand("/path/to/carthage", "update", "--project-directory", fileHandler.currentPath.asString, "--platform", "iOS,macOS", "Alamofire",
+                              output: "")
 
         try subject.update(path: fileHandler.currentPath,
                            platforms: [.iOS, .macOS],

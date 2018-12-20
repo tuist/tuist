@@ -55,6 +55,8 @@ final class Carthage: Carthaging {
 
         var command: [String] = [carthagePath]
         command.append("update")
+        command.append("--project-directory")
+        command.append(path.asString)
 
         if !platforms.isEmpty {
             command.append("--platform")
@@ -62,7 +64,7 @@ final class Carthage: Carthaging {
         }
 
         command.append(contentsOf: dependencies)
-        
+
         try system.run(command)
     }
 

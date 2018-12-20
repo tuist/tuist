@@ -1,9 +1,9 @@
-import Foundation
 import Basic
+import Foundation
 import PathKit
 
 extension AbsolutePath {
     var path: Path {
-        return Path(self.asString)
+        return Path(asString)
     }
 }
