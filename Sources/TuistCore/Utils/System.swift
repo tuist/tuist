@@ -72,7 +72,7 @@ public struct SystemError: FatalError, Equatable {
     }
 
     public var description: String {
-        return stderror ?? "Error running command"
+        return stderror ?? "Command exited with code \(exitcode)"
     }
 
     public init(stderror: String? = nil, exitcode: Int) {
@@ -216,7 +216,16 @@ public final class System: Systeming {
             printCommand(launchPath, arguments: arguments)
         }
         let context = self.context(workingDirectoryPath: workingDirectoryPath, environment: environment)
-        try context.runAndPrint(launchPath, arguments)
+        do {
+            try context.runAndPrint(launchPath, arguments)
+        } catch let error as CommandError {
+            switch error {
+            case let .inAccessibleExecutable(path):
+                throw SystemError(stderror: "The following path is inaccessible \(path)", exitcode: error.errorcode)
+            case let .returnedErrorCode(_, errorCode):
+                throw SystemError(exitcode: errorCode)
+            }
+        }
     }
 
     /// Creates the context to run the command
