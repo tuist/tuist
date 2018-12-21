@@ -1,4 +1,9 @@
 version: 2
+workflows:
+  build:
+    jobs:
+      - build:
+          context: tuist
 jobs:
   build:
     macos:
@@ -13,7 +18,6 @@ jobs:
       - run:
           name: Run Danger
           command: bundle exec danger
-          context: tuist
       - run:
           name: Generate Xcode project
           command: |
