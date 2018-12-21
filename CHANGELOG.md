@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Use environment tuist instead of the absolute path in the embed frameworks build phase https://github.com/tuist/tuist/pull/185 by @pepibumur.
 
+### Added
+
+- Danger https://github.com/tuist/tuist/pull/186 by @pepibumur.
+
 ## 0.10.2
 
 ### Fixed
