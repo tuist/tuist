@@ -1,6 +1,7 @@
 version: 2
 jobs:
   build:
+    context: tuist
     macos:
       xcode: '10.1.0'
     steps:
@@ -24,6 +25,9 @@ jobs:
       - run:
           name: Run acceptance tests
           command: bundle exec rake features
+      - run:
+          name: Run Danger
+          command: bundle exec danger
       - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)
