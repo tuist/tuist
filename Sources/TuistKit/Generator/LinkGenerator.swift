@@ -49,7 +49,6 @@ protocol LinkGenerating: AnyObject {
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
                        graph: Graphing,
-                       resourceLocator: ResourceLocating,
                        system: Systeming) throws
 }
 
@@ -64,7 +63,6 @@ final class LinkGenerator: LinkGenerating {
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
                        graph: Graphing,
-                       resourceLocator: ResourceLocating = ResourceLocator(),
                        system: Systeming = System()) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
@@ -74,7 +72,6 @@ final class LinkGenerator: LinkGenerating {
                                pbxTarget: pbxTarget,
                                pbxproj: pbxproj,
                                fileElements: fileElements,
-                               resourceLocator: resourceLocator,
                                sourceRootPath: sourceRootPath)
 
         try setupFrameworkSearchPath(dependencies: linkableModules,
@@ -95,7 +92,6 @@ final class LinkGenerator: LinkGenerating {
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
-                            resourceLocator: ResourceLocating,
                             sourceRootPath: AbsolutePath) throws {
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .frameworks,
@@ -107,12 +103,11 @@ final class LinkGenerator: LinkGenerating {
         pbxTarget.buildPhases.append(embedPhase)
 
         var script: [String] = []
-        let cliPath = try resourceLocator.cliPath()
 
         try dependencies.forEach { dependency in
             if case let DependencyReference.absolute(path) = dependency {
                 let relativePath = "$(SRCROOT)/\(path.relative(to: sourceRootPath).asString)"
-                script.append("\(cliPath.asString) embed \(path.relative(to: sourceRootPath).asString)")
+                script.append("tuist embed \(path.relative(to: sourceRootPath).asString)")
                 precompiledEmbedPhase.inputPaths.append(relativePath)
                 precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
 

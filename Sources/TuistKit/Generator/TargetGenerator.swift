@@ -154,7 +154,6 @@ final class TargetGenerator: TargetGenerating {
                                         path: path,
                                         sourceRootPath: sourceRootPath,
                                         graph: graph,
-                                        resourceLocator: resourceLocator,
                                         system: system)
         return pbxTarget
     }
