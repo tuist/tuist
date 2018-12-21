@@ -12,6 +12,9 @@ jobs:
             brew install swiftlint
             bundle install
       - run:
+          name: Run Danger
+          command: bundle exec danger
+      - run:
           name: Generate Xcode project
           command: |
             swift package generate-xcodeproj
@@ -25,9 +28,6 @@ jobs:
       - run:
           name: Run acceptance tests
           command: bundle exec rake features
-      - run:
-          name: Run Danger
-          command: bundle exec danger
       - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)
