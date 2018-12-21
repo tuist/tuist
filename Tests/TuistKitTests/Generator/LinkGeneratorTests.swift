@@ -34,15 +34,12 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let wakaFile = PBXFileReference()
         pbxproj.add(object: wakaFile)
         fileElements.products["waka.framework"] = wakaFile
-        let resourceLocator = MockResourceLocator()
-        resourceLocator.embedPathStub = { AbsolutePath("/embed") }
         let sourceRootPath = AbsolutePath("/")
 
         try subject.generateEmbedPhase(dependencies: dependencies,
                                        pbxTarget: pbxTarget,
                                        pbxproj: pbxproj,
                                        fileElements: fileElements,
-                                       resourceLocator: resourceLocator,
                                        sourceRootPath: sourceRootPath)
 
         let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
@@ -63,15 +60,12 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
-        let resourceLocator = MockResourceLocator()
-        resourceLocator.embedPathStub = { AbsolutePath("/embed") }
         let sourceRootPath = AbsolutePath("/")
 
         XCTAssertThrowsError(try subject.generateEmbedPhase(dependencies: dependencies,
                                                             pbxTarget: pbxTarget,
                                                             pbxproj: pbxproj,
                                                             fileElements: fileElements,
-                                                            resourceLocator: resourceLocator,
                                                             sourceRootPath: sourceRootPath)) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
         }

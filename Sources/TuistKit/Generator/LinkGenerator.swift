@@ -49,7 +49,6 @@ protocol LinkGenerating: AnyObject {
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
                        graph: Graphing,
-                       resourceLocator: ResourceLocating,
                        system: Systeming) throws
 }
 
@@ -64,7 +63,6 @@ final class LinkGenerator: LinkGenerating {
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
                        graph: Graphing,
-                       resourceLocator: ResourceLocating = ResourceLocator(),
                        system: Systeming = System()) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
@@ -74,7 +72,6 @@ final class LinkGenerator: LinkGenerating {
                                pbxTarget: pbxTarget,
                                pbxproj: pbxproj,
                                fileElements: fileElements,
-                               resourceLocator: resourceLocator,
                                sourceRootPath: sourceRootPath)
 
         try setupFrameworkSearchPath(dependencies: linkableModules,
@@ -95,7 +92,6 @@ final class LinkGenerator: LinkGenerating {
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
-                            resourceLocator _: ResourceLocating,
                             sourceRootPath: AbsolutePath) throws {
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .frameworks,
