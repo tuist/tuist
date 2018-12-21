@@ -1,4 +1,11 @@
 version: 2
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build:
+          context: tuist
+
 jobs:
   build:
     macos:
@@ -10,6 +17,9 @@ jobs:
           command: |
             brew install swiftlint
             bundle install
+      - run:
+          name: Run Danger
+          command: bundle exec danger
       - run:
           name: Generate Xcode project
           command: |
