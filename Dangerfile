@@ -1,4 +1,4 @@
-
+# Changelog
 if !git.modified_files.include?("CHANGELOG.md") && !declared_trivial
   message = <<~MESSAGE
     Please include a CHANGELOG entry.
@@ -6,3 +6,6 @@ if !git.modified_files.include?("CHANGELOG.md") && !declared_trivial
   MESSAGE
   fail(message, sticky: false)
 end
+
+# Swiftlint
+swiftlint.lint_files
