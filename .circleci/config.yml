@@ -1,7 +1,6 @@
 version: 2
 jobs:
   build:
-    context: tuist
     macos:
       xcode: '10.1.0'
     steps:
@@ -14,6 +13,7 @@ jobs:
       - run:
           name: Run Danger
           command: bundle exec danger
+          context: tuist
       - run:
           name: Generate Xcode project
           command: |
