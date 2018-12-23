@@ -7,10 +7,7 @@ protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
                   options: GenerationOptions,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath?,
-                  system: Systeming,
-                  printer: Printing,
-                  resourceLocator: ResourceLocating) throws -> GeneratedProject
+                  sourceRootPath: AbsolutePath?) throws -> GeneratedProject
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -25,6 +22,15 @@ final class ProjectGenerator: ProjectGenerating {
     /// Generator for the project schemes.
     let schemesGenerator: SchemesGenerating
 
+    /// Printer instance to output messages to the user.
+    let printer: Printing
+
+    /// System instance to run commands in the system.
+    let system: Systeming
+
+    /// Instance to find Tuist resources.
+    let resourceLocator: ResourceLocating
+
     // MARK: - Init
 
     /// Initializes the project generator with its attributes.
@@ -33,12 +39,21 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemesGenerator: Generator for the project schemes.
+    ///   - printer: Printer instance to output messages to the user.
+    ///   - system: System instance to run commands in the system.
+    ///   - resourceLocator: Instance to find Tuist resources.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemesGenerator: SchemesGenerating = SchemesGenerator()) {
+         schemesGenerator: SchemesGenerating = SchemesGenerator(),
+         printer: Printing = Printer(),
+         system: Systeming = System(),
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
+        self.printer = printer
+        self.system = system
+        self.resourceLocator = resourceLocator
     }
 
     // MARK: - ProjectGenerating
@@ -46,10 +61,7 @@ final class ProjectGenerator: ProjectGenerating {
     func generate(project: Project,
                   options: GenerationOptions,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath? = nil,
-                  system: Systeming = System(),
-                  printer: Printing = Printer(),
-                  resourceLocator: ResourceLocating = ResourceLocator()) throws -> GeneratedProject {
+                  sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
         printer.print("Generating project \(project.name)")
 
         // Getting the path.

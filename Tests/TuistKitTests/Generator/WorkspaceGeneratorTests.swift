@@ -10,6 +10,5 @@ final class WorkspaceGeneratorTests: XCTestCase {
     override func setUp() {
         super.setUp()
         projectGenerator = MockProjectGenerator()
-        subject = WorkspaceGenerator(projectGenerator: projectGenerator)
     }
 }
