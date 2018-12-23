@@ -18,13 +18,13 @@ final class ProjectGenerator: ProjectGenerating {
 
     /// Generator for the project targets.
     let targetGenerator: TargetGenerating
-    
+
     /// Generator for the project configuration.
     let configGenerator: ConfigGenerating
-    
+
     /// Generator for the project schemes.
     let schemesGenerator: SchemesGenerating
-    
+
     // MARK: - Init
 
     /// Initializes the project generator with its attributes.
@@ -136,7 +136,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 targets: nativeTargets)
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
-        
+
         return generatedProject
     }
 }

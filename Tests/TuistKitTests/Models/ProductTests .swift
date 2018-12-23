@@ -84,15 +84,25 @@ final class ProductTests: XCTestCase {
         ]
         XCTAssertEqual(got, Set(expected))
     }
-    
+
     func test_runnable() {
-        Product.allCases.forEach { (product) in
+        Product.allCases.forEach { product in
             if product == .app {
                 XCTAssertTrue(product.runnable)
             } else {
                 XCTAssertFalse(product.runnable)
             }
-        }        
+        }
+    }
+
+    func test_testsBundle() {
+        Product.allCases.forEach { product in
+            if product == .uiTests || product == .unitTests {
+                XCTAssertTrue(product.testsBundle)
+            } else {
+                XCTAssertFalse(product.testsBundle)
+            }
+        }
     }
 
 //    func test_forPlatform_when_watchOS() {

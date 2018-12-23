@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import xcodeproj
 import TuistCore
+import xcodeproj
 
 /// Protocol that defines the interface of the schemes generation.
 protocol SchemesGenerating {
@@ -16,17 +16,16 @@ protocol SchemesGenerating {
 }
 
 final class SchemesGenerator: SchemesGenerating {
-    
     /// Instance to interact with the file system.
     let fileHandler: FileHandling
-    
+
     /// Initializes the schemes generator with its attributes.
     ///
     /// - Parameter fileHandler: File handler.
     init(fileHandler: FileHandling = FileHandler()) {
         self.fileHandler = fileHandler
     }
-    
+
     /// Generates the schemes for the project targets.
     ///
     /// - Parameters:
@@ -35,14 +34,14 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateTargetSchemes(project: Project,
                                generatedProject: GeneratedProject) throws {
-        try project.targets.forEach { (target) in
+        try project.targets.forEach { target in
             let pbxTarget = generatedProject.targets[target.name]!
             try generateTargetScheme(target: target,
                                      pbxTarget: pbxTarget,
                                      projectPath: generatedProject.path)
         }
     }
-    
+
     /// Generates the scheme for a given target.
     ///
     /// - Parameters:
@@ -55,13 +54,14 @@ final class SchemesGenerator: SchemesGenerating {
                               projectPath: AbsolutePath) throws {
         let schemesDirectory = try createSchemesDirectory(projectPath: projectPath)
         let schemePath = schemesDirectory.appending(component: "\(target.name).xcscheme")
-        var buildAction: XCScheme.BuildAction?
         var testAction: XCScheme.TestAction?
-        
+
         let scheme = XCScheme(name: target.name,
                               lastUpgradeVersion: "1010",
                               version: "1.3",
-                              buildAction: buildAction,
+                              buildAction: buildAction(target: target,
+                                                       pbxTarget: pbxTarget,
+                                                       projectPath: projectPath),
                               testAction: testAction,
                               launchAction: launchAction(target: target,
                                                          pbxTarget: pbxTarget,
@@ -73,7 +73,36 @@ final class SchemesGenerator: SchemesGenerating {
                               archiveAction: archiveAction())
         try scheme.write(path: schemePath.path, override: true)
     }
-    
+
+    /// Generates the scheme build action for a given target.
+    ///
+    /// - Parameters:
+    ///   - target: Target manifest.
+    ///   - pbxTarget: Xcode native target.
+    ///   - projectPath: Path to the Xcode project.
+    /// - Returns: Scheme build action.
+    func buildAction(target: Target,
+                     pbxTarget: PBXNativeTarget,
+                     projectPath: AbsolutePath) -> XCScheme.BuildAction? {
+        let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
+            .analyzing, .archiving, .profiling, .running, .testing,
+        ]
+
+        let buildableReference = self.buildableReference(target: target,
+                                                         pbxTarget: pbxTarget,
+                                                         projectPath: projectPath)
+        var entries: [XCScheme.BuildAction.Entry] = []
+
+        // If the target is a tests bundle, Xcode infers that the target needs to be built.
+        if !target.product.testsBundle {
+            entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
+        }
+
+        return XCScheme.BuildAction(buildActionEntries: entries,
+                                    parallelizeBuild: true,
+                                    buildImplicitDependencies: true)
+    }
+
     /// Generates the scheme launch action for a given target.
     ///
     /// - Parameters:
@@ -82,8 +111,8 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - projectPath: Path to the Xcode project.
     /// - Returns: Scheme launch action.
     func launchAction(target: Target,
-                       pbxTarget: PBXNativeTarget,
-                       projectPath: AbsolutePath) -> XCScheme.LaunchAction? {
+                      pbxTarget: PBXNativeTarget,
+                      projectPath: AbsolutePath) -> XCScheme.LaunchAction? {
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         let buildableReference = self.buildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)
@@ -96,7 +125,7 @@ final class SchemesGenerator: SchemesGenerating {
                                      buildConfiguration: "Debug",
                                      macroExpansion: macroExpansion)
     }
-    
+
     /// Generates the scheme profile action for a given target.
     ///
     /// - Parameters:
@@ -110,7 +139,7 @@ final class SchemesGenerator: SchemesGenerating {
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         let buildableReference = self.buildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)
-        
+
         if target.product.runnable {
             buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
         } else {
@@ -120,7 +149,7 @@ final class SchemesGenerator: SchemesGenerating {
                                       buildConfiguration: "Release",
                                       macroExpansion: macroExpansion)
     }
-    
+
     /// Returns the scheme buildable reference for a given target.
     ///
     /// - Parameters:
@@ -131,19 +160,19 @@ final class SchemesGenerator: SchemesGenerating {
     func buildableReference(target: Target, pbxTarget: PBXNativeTarget, projectPath: AbsolutePath) -> XCScheme.BuildableReference {
         let projectName = projectPath.components.last!
         return XCScheme.BuildableReference(referencedContainer: "container:\(projectName)",
-            blueprint: pbxTarget,
-            buildableName: target.productName,
-            blueprintName: target.name,
-            buildableIdentifier: "primary")
+                                           blueprint: pbxTarget,
+                                           buildableName: target.productName,
+                                           blueprintName: target.name,
+                                           buildableIdentifier: "primary")
     }
-    
+
     /// Returns the scheme analyze action for a given target.
     ///
     /// - Returns: Scheme analyze action.
     func analyzeAction() -> XCScheme.AnalyzeAction {
         return XCScheme.AnalyzeAction(buildConfiguration: "Debug")
     }
-    
+
     /// Returns the scheme archive action for a given target.
     ///
     /// - Returns: Scheme archive action.
@@ -151,7 +180,7 @@ final class SchemesGenerator: SchemesGenerating {
         return XCScheme.ArchiveAction(buildConfiguration: "Release",
                                       revealArchiveInOrganizer: true)
     }
-    
+
     /// Creates the directory where the schemes are stored inside the project.
     /// If the directory exists it does not re-create it.
     ///
@@ -162,9 +191,8 @@ final class SchemesGenerator: SchemesGenerating {
     fileprivate func createSchemesDirectory(projectPath: AbsolutePath) throws -> AbsolutePath {
         let path = projectPath.appending(RelativePath("xcshareddata/xcschemes"))
         if !fileHandler.exists(path) {
-            try self.fileHandler.createFolder(path)
+            try fileHandler.createFolder(path)
         }
         return path
     }
-    
 }

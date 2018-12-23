@@ -87,7 +87,7 @@ enum Product: String, CustomStringConvertible, CaseIterable {
 //            return "stickers pack"
         }
     }
-    
+
     /// Returns true if the target can be ran.
     var runnable: Bool {
         switch self {
@@ -96,6 +96,11 @@ enum Product: String, CustomStringConvertible, CaseIterable {
         default:
             return false
         }
+    }
+
+    /// Returns true if the product is a tests bundle.
+    var testsBundle: Bool {
+        return self == .uiTests || self == .unitTests
     }
 
     static func forPlatform(_ platform: Platform) -> Set<Product> {
