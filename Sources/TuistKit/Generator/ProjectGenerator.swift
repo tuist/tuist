@@ -16,15 +16,29 @@ protocol ProjectGenerating: AnyObject {
 final class ProjectGenerator: ProjectGenerating {
     // MARK: - Attributes
 
+    /// Generator for the project targets.
     let targetGenerator: TargetGenerating
+    
+    /// Generator for the project configuration.
     let configGenerator: ConfigGenerating
-
+    
+    /// Generator for the project schemes.
+    let schemesGenerator: SchemesGenerating
+    
     // MARK: - Init
 
+    /// Initializes the project generator with its attributes.
+    ///
+    /// - Parameters:
+    ///   - targetGenerator: Generator for the project targets.
+    ///   - configGenerator: Generator for the project configuration.
+    ///   - schemesGenerator: Generator for the project schemes.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
-         configGenerator: ConfigGenerating = ConfigGenerator()) {
+         configGenerator: ConfigGenerating = ConfigGenerator(),
+         schemesGenerator: SchemesGenerating = SchemesGenerator()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
+        self.schemesGenerator = schemesGenerator
     }
 
     // MARK: - ProjectGenerating
@@ -117,7 +131,12 @@ final class ProjectGenerator: ProjectGenerating {
         let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         try xcodeproj.write(path: xcodeprojPath.path)
 
-        return GeneratedProject(path: xcodeprojPath,
-                                targets: nativeTargets)
+        /// Schemes
+        let generatedProject = GeneratedProject(path: xcodeprojPath,
+                                                targets: nativeTargets)
+        try schemesGenerator.generateTargetSchemes(project: project,
+                                                   generatedProject: generatedProject)
+        
+        return generatedProject
     }
 }

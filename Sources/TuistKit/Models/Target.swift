@@ -124,7 +124,12 @@ class Target: GraphInitiatable, Equatable {
     }
 
     var productName: String {
-        return "\(name).\(product.xcodeValue.fileExtension!)"
+        switch product {
+        case .staticLibrary, .dynamicLibrary:
+            return "lib\(name).\(product.xcodeValue.fileExtension!)"
+        case _:
+            return "\(name).\(product.xcodeValue.fileExtension!)"
+        }
     }
 
     // MARK: - Fileprivate

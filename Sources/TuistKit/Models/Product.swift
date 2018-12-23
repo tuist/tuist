@@ -1,7 +1,7 @@
 import Foundation
 import xcodeproj
 
-public enum Product: String, CustomStringConvertible {
+enum Product: String, CustomStringConvertible, CaseIterable {
     case app
     case staticLibrary = "static_library"
     case dynamicLibrary = "dynamic_library"
@@ -18,7 +18,7 @@ public enum Product: String, CustomStringConvertible {
 //    case messagesExtension = "messages_extension"
 //    case stickerPack = "sticker_pack"
 
-    public var caseValue: String {
+    var caseValue: String {
         switch self {
         case .app:
             return "app"
@@ -53,7 +53,7 @@ public enum Product: String, CustomStringConvertible {
         }
     }
 
-    public var description: String {
+    var description: String {
         switch self {
         case .app:
             return "application"
@@ -85,6 +85,16 @@ public enum Product: String, CustomStringConvertible {
 //            return "iMessage extension"
 //        case .stickerPack:
 //            return "stickers pack"
+        }
+    }
+    
+    /// Returns true if the target can be ran.
+    var runnable: Bool {
+        switch self {
+        case .app:
+            return true
+        default:
+            return false
         }
     }
 
