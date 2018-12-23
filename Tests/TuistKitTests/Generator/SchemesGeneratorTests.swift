@@ -15,6 +15,41 @@ final class SchemeGeneratorTests: XCTestCase {
         subject = SchemesGenerator()
     }
 
+    func test_testAction_when_notTestsTarget() {
+        let target = Target.test(name: "AppTests", product: .app)
+        let pbxTarget = PBXNativeTarget(name: "App")
+        let projectPath = AbsolutePath("/project.xcodeproj")
+
+        let got = subject.testAction(target: target,
+                                     pbxTarget: pbxTarget,
+                                     projectPath: projectPath)
+
+        XCTAssertEqual(got?.buildConfiguration, "Debug")
+        XCTAssertNil(got?.macroExpansion)
+        XCTAssertEqual(got?.testables.count, 0)
+    }
+
+    func test_testAction_when_testsTarget() {
+        let target = Target.test(name: "AppTests", product: .unitTests)
+        let pbxTarget = PBXNativeTarget(name: "App")
+        let projectPath = AbsolutePath("/project.xcodeproj")
+
+        let got = subject.testAction(target: target,
+                                     pbxTarget: pbxTarget,
+                                     projectPath: projectPath)
+
+        XCTAssertEqual(got?.buildConfiguration, "Debug")
+        XCTAssertNil(got?.macroExpansion)
+        let testable = got?.testables.first
+        let buildableReference = testable?.buildableReference
+
+        XCTAssertEqual(testable?.skipped, false)
+        XCTAssertEqual(buildableReference?.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(buildableReference?.buildableName, "AppTests.xctest")
+        XCTAssertEqual(buildableReference?.blueprintName, "AppTests")
+        XCTAssertEqual(buildableReference?.buildableIdentifier, "primary")
+    }
+
     func test_buildAction_when_testsTarget() {
         let target = Target.test(name: "AppTests", product: .unitTests)
         let pbxTarget = PBXNativeTarget(name: "App")
@@ -118,7 +153,7 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got?.debugDocumentVersioning, true)
         XCTAssertNil(got?.commandlineArguments)
         XCTAssertNil(got?.environmentVariables)
-        XCTAssertEqual(got?.enableTestabilityWhenProfilingTests, false)
+        XCTAssertEqual(got?.enableTestabilityWhenProfilingTests, true)
     }
 
     func test_profileAction_when_notRunnableTarget() {

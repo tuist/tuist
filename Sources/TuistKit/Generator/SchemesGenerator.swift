@@ -54,7 +54,6 @@ final class SchemesGenerator: SchemesGenerating {
                               projectPath: AbsolutePath) throws {
         let schemesDirectory = try createSchemesDirectory(projectPath: projectPath)
         let schemePath = schemesDirectory.appending(component: "\(target.name).xcscheme")
-        var testAction: XCScheme.TestAction?
 
         let scheme = XCScheme(name: target.name,
                               lastUpgradeVersion: "1010",
@@ -62,7 +61,9 @@ final class SchemesGenerator: SchemesGenerating {
                               buildAction: buildAction(target: target,
                                                        pbxTarget: pbxTarget,
                                                        projectPath: projectPath),
-                              testAction: testAction,
+                              testAction: testAction(target: target,
+                                                     pbxTarget: pbxTarget,
+                                                     projectPath: projectPath),
                               launchAction: launchAction(target: target,
                                                          pbxTarget: pbxTarget,
                                                          projectPath: projectPath),
@@ -72,6 +73,30 @@ final class SchemesGenerator: SchemesGenerating {
                               analyzeAction: analyzeAction(),
                               archiveAction: archiveAction())
         try scheme.write(path: schemePath.path, override: true)
+    }
+
+    /// Generates the scheme test action for a given target.
+    ///
+    /// - Parameters:
+    ///   - target: Target manifest.
+    ///   - pbxTarget: Xcode native target.
+    ///   - projectPath: Path to the Xcode project.
+    /// - Returns: Scheme test action.
+    func testAction(target: Target,
+                    pbxTarget: PBXNativeTarget,
+                    projectPath: AbsolutePath) -> XCScheme.TestAction? {
+        var testables: [XCScheme.TestableReference] = []
+        if target.product.testsBundle {
+            let reference = buildableReference(target: target,
+                                               pbxTarget: pbxTarget,
+                                               projectPath: projectPath)
+            let testable = XCScheme.TestableReference(skipped: false,
+                                                      buildableReference: reference)
+            testables.append(testable)
+        }
+        return XCScheme.TestAction(buildConfiguration: "Debug",
+                                   macroExpansion: nil,
+                                   testables: testables)
     }
 
     /// Generates the scheme build action for a given target.
