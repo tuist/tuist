@@ -4,7 +4,7 @@ import TuistCore
 @testable import TuistKit
 
 final class MockProjectGenerator: ProjectGenerating {
-    var generateStub: ((Project, GenerationOptions, Graphing, AbsolutePath?, Systeming, Printing, ResourceLocating) throws -> AbsolutePath)?
+    var generateStub: ((Project, GenerationOptions, Graphing, AbsolutePath?, Systeming, Printing, ResourceLocating) throws -> GeneratedProject)?
 
     func generate(project: Project,
                   options: GenerationOptions,
@@ -12,7 +12,7 @@ final class MockProjectGenerator: ProjectGenerating {
                   sourceRootPath: AbsolutePath?,
                   system: Systeming,
                   printer: Printing,
-                  resourceLocator: ResourceLocating) throws -> AbsolutePath {
-        return try generateStub?(project, options, graph, sourceRootPath, system, printer, resourceLocator) ?? AbsolutePath("/")
+                  resourceLocator: ResourceLocating) throws -> GeneratedProject {
+        return try generateStub?(project, options, graph, sourceRootPath, system, printer, resourceLocator) ?? GeneratedProject.test()
     }
 }

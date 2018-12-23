@@ -10,7 +10,7 @@ protocol ProjectGenerating: AnyObject {
                   sourceRootPath: AbsolutePath?,
                   system: Systeming,
                   printer: Printing,
-                  resourceLocator: ResourceLocating) throws -> AbsolutePath
+                  resourceLocator: ResourceLocating) throws -> GeneratedProject
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -35,7 +35,7 @@ final class ProjectGenerator: ProjectGenerating {
                   sourceRootPath: AbsolutePath? = nil,
                   system: Systeming = System(),
                   printer: Printing = Printer(),
-                  resourceLocator: ResourceLocating = ResourceLocator()) throws -> AbsolutePath {
+                  resourceLocator: ResourceLocating = ResourceLocator()) throws -> GeneratedProject {
         printer.print("Generating project \(project.name)")
 
         // Getting the path.
@@ -116,6 +116,8 @@ final class ProjectGenerator: ProjectGenerating {
         /// Write.
         let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         try xcodeproj.write(path: xcodeprojPath.path)
-        return xcodeprojPath
+
+        return GeneratedProject(path: xcodeprojPath,
+                                targets: nativeTargets)
     }
 }

@@ -50,15 +50,15 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         try graph.projects.forEach { project in
             let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
                                                                                   directory: directory)
-            let xcodeprojPath = try projectGenerator.generate(project: project,
-                                                              options: options,
-                                                              graph: graph,
-                                                              sourceRootPath: sourceRootPath,
-                                                              system: system,
-                                                              printer: printer,
-                                                              resourceLocator: resourceLocator)
+            let generatedProject = try projectGenerator.generate(project: project,
+                                                                 options: options,
+                                                                 graph: graph,
+                                                                 sourceRootPath: sourceRootPath,
+                                                                 system: system,
+                                                                 printer: printer,
+                                                                 resourceLocator: resourceLocator)
 
-            let relativePath = xcodeprojPath.relative(to: path)
+            let relativePath = generatedProject.path.relative(to: path)
             let location = XCWorkspaceDataElementLocationType.group(relativePath.asString)
             let fileRef = XCWorkspaceDataFileRef(location: location)
             workspace.data.children.append(XCWorkspaceDataElement.file(fileRef))
