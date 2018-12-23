@@ -117,11 +117,7 @@ final class SchemesGenerator: SchemesGenerating {
                                                          pbxTarget: pbxTarget,
                                                          projectPath: projectPath)
         var entries: [XCScheme.BuildAction.Entry] = []
-
-        // If the target is a tests bundle, Xcode infers that the target needs to be built.
-        if !target.product.testsBundle {
-            entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
-        }
+        entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
 
         return XCScheme.BuildAction(buildActionEntries: entries,
                                     parallelizeBuild: true,

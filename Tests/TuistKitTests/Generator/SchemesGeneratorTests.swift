@@ -50,21 +50,7 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference?.buildableIdentifier, "primary")
     }
 
-    func test_buildAction_when_testsTarget() {
-        let target = Target.test(name: "AppTests", product: .unitTests)
-        let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-
-        let got = subject.buildAction(target: target,
-                                      pbxTarget: pbxTarget,
-                                      projectPath: projectPath)
-
-        XCTAssertEqual(got?.buildActionEntries.count, 0)
-        XCTAssertEqual(got?.parallelizeBuild, true)
-        XCTAssertEqual(got?.buildImplicitDependencies, true)
-    }
-
-    func test_buildAction_when_notTestsTarget() {
+    func test_buildAction() {
         let target = Target.test(name: "App", product: .app)
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
