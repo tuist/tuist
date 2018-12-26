@@ -1,10 +1,12 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    CFPropertyList (3.0.0)
     addressable (2.5.2)
       public_suffix (>= 2.0.2, < 4.0)
     backports (3.11.4)
     builder (3.2.3)
+    byebug (10.0.2)
     claide (1.0.2)
     claide-plugins (0.9.2)
       cork
@@ -53,10 +55,12 @@ GEM
     gherkin (5.1.0)
     git (1.5.0)
     kramdown (1.17.0)
+    minitest (5.11.3)
     multi_json (1.13.1)
     multi_test (0.1.2)
     multipart-post (2.0.0)
     nap (1.1.0)
+    naturally (2.2.0)
     no_proxy_fix (0.1.2)
     octokit (4.13.0)
       sawyer (~> 0.8.0, >= 0.5.3)
@@ -66,6 +70,9 @@ GEM
     sawyer (0.8.1)
       addressable (>= 2.3.5, < 2.6)
       faraday (~> 0.8, < 1.0)
+    simctl (1.6.5)
+      CFPropertyList
+      naturally
     terminal-table (1.8.0)
       unicode-display_width (~> 1.1, >= 1.1.1)
     thor (0.20.3)
@@ -75,10 +82,13 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  byebug (~> 10.0)
   cucumber (~> 3.1)
   danger (~> 5.10)
   danger-swiftlint (~> 0.18.0)
+  minitest (~> 5.11)
   rake (~> 12.3)
+  simctl (~> 1.6)
 
 BUNDLED WITH
    1.17.1

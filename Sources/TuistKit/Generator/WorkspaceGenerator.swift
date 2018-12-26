@@ -19,16 +19,29 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - Init
 
-    init(projectGenerator: ProjectGenerating = ProjectGenerator(),
-         system: Systeming = System(),
-         printer: Printing = Printer(),
-         resourceLocator: ResourceLocating = ResourceLocator(),
-         projectDirectoryHelper: ProjectDirectoryHelping = ProjectDirectoryHelper()) {
-        self.projectGenerator = projectGenerator
+    convenience init(system: Systeming = System(),
+                     printer: Printing = Printer(),
+                     resourceLocator: ResourceLocating = ResourceLocator(),
+                     projectDirectoryHelper: ProjectDirectoryHelping = ProjectDirectoryHelper()) {
+        self.init(system: system,
+                  printer: printer,
+                  resourceLocator: resourceLocator,
+                  projectDirectoryHelper: projectDirectoryHelper,
+                  projectGenerator: ProjectGenerator(printer: printer,
+                                                     system: system,
+                                                     resourceLocator: resourceLocator))
+    }
+
+    init(system: Systeming,
+         printer: Printing,
+         resourceLocator: ResourceLocating,
+         projectDirectoryHelper: ProjectDirectoryHelping,
+         projectGenerator: ProjectGenerating) {
         self.system = system
         self.printer = printer
         self.resourceLocator = resourceLocator
         self.projectDirectoryHelper = projectDirectoryHelper
+        self.projectGenerator = projectGenerator
     }
 
     // MARK: - WorkspaceGenerating
@@ -50,15 +63,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         try graph.projects.forEach { project in
             let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
                                                                                   directory: directory)
-            let xcodeprojPath = try projectGenerator.generate(project: project,
-                                                              options: options,
-                                                              graph: graph,
-                                                              sourceRootPath: sourceRootPath,
-                                                              system: system,
-                                                              printer: printer,
-                                                              resourceLocator: resourceLocator)
+            let generatedProject = try projectGenerator.generate(project: project,
+                                                                 options: options,
+                                                                 graph: graph,
+                                                                 sourceRootPath: sourceRootPath)
 
-            let relativePath = xcodeprojPath.relative(to: path)
+            let relativePath = generatedProject.path.relative(to: path)
             let location = XCWorkspaceDataElementLocationType.group(relativePath.asString)
             let fileRef = XCWorkspaceDataFileRef(location: location)
             workspace.data.children.append(XCWorkspaceDataElement.file(fileRef))
