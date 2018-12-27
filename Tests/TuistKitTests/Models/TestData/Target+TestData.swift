@@ -15,6 +15,7 @@ extension Target {
                      coreDataModels: [CoreDataModel] = [],
                      headers: Headers? = nil,
                      actions: [TargetAction] = [],
+                     environment: [String: String] = [:],
                      dependencies: [JSON] = []) -> Target {
         return Target(name: name,
                       platform: platform,
@@ -28,6 +29,7 @@ extension Target {
                       headers: headers,
                       coreDataModels: coreDataModels,
                       actions: actions,
+                      environment: environment,
                       dependencies: dependencies)
     }
 }
