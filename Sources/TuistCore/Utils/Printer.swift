@@ -10,6 +10,11 @@ public protocol Printing: AnyObject {
     func print(error: Error)
     func print(success: String)
     func print(errorMessage: String)
+
+    /// Prints a deprecation message (yellow color)
+    ///
+    /// - Parameter deprecation: Deprecation message.
+    func print(deprecation: String)
 }
 
 public class Printer: Printing {
@@ -42,6 +47,16 @@ public class Printer: Printing {
         let writer = InteractiveWriter.stdout
         writer.write("✅ Success: ", inColor: .green, bold: true)
         writer.write(success)
+        writer.write("\n")
+    }
+
+    /// Prints a deprecation message (yellow color)
+    ///
+    /// - Parameter deprecation: Deprecation message.
+    public func print(deprecation: String) {
+        let writer = InteractiveWriter.stdout
+        writer.write("Deprecated: ", inColor: .yellow, bold: true)
+        writer.write(deprecation, inColor: .yellow, bold: false)
         writer.write("\n")
     }
 

@@ -16,6 +16,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Danger https://github.com/tuist/tuist/pull/186 by @pepibumur.
 
+### Deprecated
+
+- JSON and YAML manifests https://github.com/tuist/tuist/pull/190 by @pepibumur.
+
 ## 0.10.2
 
 ### Fixed
