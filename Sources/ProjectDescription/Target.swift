@@ -41,7 +41,7 @@ public class Target: Codable {
 
     /// CoreData models.
     let coreDataModels: [CoreDataModel]
-    
+
     /// Environment variables to be exposed to the target.
     let environment: [String: String]
 
@@ -59,7 +59,7 @@ public class Target: Codable {
         case headers
         case coreDataModels = "core_data_models"
         case actions
-        case environment = "environment"
+        case environment
     }
 
     /// Initializes the target.
