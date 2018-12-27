@@ -14,6 +14,7 @@ public final class MockPrinter: Printing {
     public var printErrorMessageArgs: [String] = []
     public var printSuccessArgs: [String] = []
     public var printWarningArgs: [String] = []
+    public var printDeprecationArgs: [String] = []
 
     public func print(_ text: String) {
         printArgs.append(text)
@@ -33,6 +34,11 @@ public final class MockPrinter: Printing {
     public func print(warning: String) {
         printWarningArgs.append(warning)
         standardOutput.append("\(warning)\n")
+    }
+
+    public func print(deprecation: String) {
+        printDeprecationArgs.append(deprecation)
+        standardOutput.append("\(deprecation)\n")
     }
 
     public func print(errorMessage: String) {

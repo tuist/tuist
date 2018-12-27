@@ -78,21 +78,28 @@ protocol GraphManifestLoading {
 class GraphManifestLoader: GraphManifestLoading {
     // MARK: - Attributes
 
-    let fileAggregator: FileAggregating
+    /// File handler to interact with the file system.
     let fileHandler: FileHandling
+
+    /// Instance to run commands in the system.
     let system: Systeming
+
+    /// Resource locator to look up Tuist-related resources.
     let resourceLocator: ResourceLocating
+
+    /// Depreactor to notify about deprecations.
+    let deprecator: Deprecating
 
     // MARK: - Init
 
-    init(fileAggregator: FileAggregating = FileAggregator(),
-         fileHandler: FileHandling = FileHandler(),
+    init(fileHandler: FileHandling = FileHandler(),
          system: Systeming = System(),
-         resourceLocator: ResourceLocating = ResourceLocator()) {
-        self.fileAggregator = fileAggregator
+         resourceLocator: ResourceLocating = ResourceLocator(),
+         deprecator: Deprecating = Deprecator()) {
         self.fileHandler = fileHandler
         self.system = system
         self.resourceLocator = resourceLocator
+        self.deprecator = deprecator
     }
 
     func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON {
@@ -100,8 +107,10 @@ class GraphManifestLoader: GraphManifestLoading {
         if manifestPath.extension == "swift" {
             return try loadSwiftManifest(path: manifestPath)
         } else if manifestPath.extension == "json" {
+            deprecator.notify(deprecation: "JSON manifests", suggestion: "Swift manifests")
             return try loadJSONManifest(path: manifestPath)
         } else if manifestPath.extension == "yaml" || manifestPath.extension == "yml" {
+            deprecator.notify(deprecation: "YAML manifests", suggestion: "Swift manifests")
             return try loadYamlManifest(path: manifestPath)
         } else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
