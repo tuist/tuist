@@ -92,6 +92,13 @@ class GraphManifestLoader: GraphManifestLoading {
 
     // MARK: - Init
 
+    /// Initializes the manifest loader with its attributes.
+    ///
+    /// - Parameters:
+    ///   - fileHandler: File handler to interact with the file system.
+    ///   - system: Instance to run commands in the system.
+    ///   - resourceLocator: Resource locator to look up Tuist-related resources.
+    ///   - deprecator: Depreactor to notify about deprecations.
     init(fileHandler: FileHandling = FileHandler(),
          system: Systeming = System(),
          resourceLocator: ResourceLocating = ResourceLocator(),

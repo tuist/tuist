@@ -34,12 +34,15 @@ final class ManifestTests: XCTestCase {
 
 final class GraphManifestLoaderTests: XCTestCase {
     var fileHandler: MockFileHandler!
+    var deprecator: MockDeprecator!
     var subject: GraphManifestLoader!
 
     override func setUp() {
         super.setUp()
         fileHandler = try! MockFileHandler()
-        subject = GraphManifestLoader(fileHandler: fileHandler)
+        deprecator = MockDeprecator()
+        subject = GraphManifestLoader(fileHandler: fileHandler,
+                                      deprecator: deprecator)
     }
 
     func test_load_when_swift() throws {
@@ -72,6 +75,9 @@ final class GraphManifestLoaderTests: XCTestCase {
         let got = try subject.load(.project, path: fileHandler.currentPath)
 
         XCTAssertEqual(try got.get("name") as String, "tuist")
+        XCTAssertEqual(deprecator.notifyArgs.count, 1)
+        XCTAssertEqual(deprecator.notifyArgs.first?.deprecation, "JSON manifests")
+        XCTAssertEqual(deprecator.notifyArgs.first?.suggestion, "Swift manifests")
     }
 
     func test_load_when_yaml() throws {
@@ -87,6 +93,9 @@ final class GraphManifestLoaderTests: XCTestCase {
         let got = try subject.load(.project, path: fileHandler.currentPath)
 
         XCTAssertEqual(try got.get("name") as String, "tuist")
+        XCTAssertEqual(deprecator.notifyArgs.count, 1)
+        XCTAssertEqual(deprecator.notifyArgs.first?.deprecation, "YAML manifests")
+        XCTAssertEqual(deprecator.notifyArgs.first?.suggestion, "Swift manifests")
     }
 
     func test_load_when_yml() throws {
