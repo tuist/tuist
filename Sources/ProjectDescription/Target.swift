@@ -41,6 +41,9 @@ public class Target: Codable {
 
     /// CoreData models.
     let coreDataModels: [CoreDataModel]
+    
+    /// Environment variables to be exposed to the target.
+    let environment: [String: String]
 
     public enum CodingKeys: String, CodingKey {
         case name
@@ -56,6 +59,7 @@ public class Target: Codable {
         case headers
         case coreDataModels = "core_data_models"
         case actions
+        case environment = "environment"
     }
 
     /// Initializes the target.
@@ -74,6 +78,7 @@ public class Target: Codable {
     ///   - dependencies: target dependencies.
     ///   - settings: target settings.
     ///   - coreDataModels: CoreData models.
+    ///   - environment: Environment variables to be exposed to the target.
     public init(name: String,
                 platform: Platform,
                 product: Product,
@@ -86,7 +91,8 @@ public class Target: Codable {
                 actions: [TargetAction] = [],
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
-                coreDataModels: [CoreDataModel] = []) {
+                coreDataModels: [CoreDataModel] = [],
+                environment: [String: String] = [:]) {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId
@@ -100,5 +106,6 @@ public class Target: Codable {
         self.headers = headers
         self.actions = actions
         self.coreDataModels = coreDataModels
+        self.environment = environment
     }
 }
