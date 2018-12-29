@@ -35,3 +35,21 @@ public protocol HiddenCommand {
     /// Default constructor
     init()
 }
+
+/// It represents a command that accepts the raw argument without parsing them beforehand.
+public protocol RawCommand {
+    /// Name of the command that the user should use to execute the command.
+    static var command: String { get }
+
+    /// A short sentece that describes what the command is for.
+    static var overview: String { get }
+
+    /// Initializes the command
+    init()
+
+    /// Runs the command using the arguments that the user passed to the CLI.
+    ///
+    /// - Parameter arguments: Arguments that the user passed to the CLI: cli command arg1 arg2 arg3
+    /// - Throws: Errors that are thrown by the underlying command action.
+    func run(arguments: [String]) throws
+}
