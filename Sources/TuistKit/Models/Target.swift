@@ -23,6 +23,7 @@ class Target: GraphInitiatable, Equatable {
     let headers: Headers?
     let coreDataModels: [CoreDataModel]
     let actions: [TargetAction]
+    let environment: [String: String]
 
     // MARK: - Init
 
@@ -38,6 +39,7 @@ class Target: GraphInitiatable, Equatable {
          headers: Headers? = nil,
          coreDataModels: [CoreDataModel] = [],
          actions: [TargetAction] = [],
+         environment: [String: String] = [:],
          dependencies: [JSON] = []) {
         self.name = name
         self.product = product
@@ -50,8 +52,9 @@ class Target: GraphInitiatable, Equatable {
         self.resources = resources
         self.headers = headers
         self.coreDataModels = coreDataModels
-        self.dependencies = dependencies
         self.actions = actions
+        self.environment = environment
+        self.dependencies = dependencies
     }
 
     /// Default constructor of entities that are part of the manifest.
@@ -117,6 +120,13 @@ class Target: GraphInitiatable, Equatable {
         } else {
             actions = []
         }
+
+        // Environment
+        if let environment: [String: String] = try? dictionary.get("environment") {
+            self.environment = environment
+        } else {
+            environment = [:]
+        }
     }
 
     func isLinkable() -> Bool {
@@ -170,6 +180,7 @@ class Target: GraphInitiatable, Equatable {
             lhs.resources == rhs.resources &&
             lhs.headers == rhs.headers &&
             lhs.coreDataModels == rhs.coreDataModels &&
-            lhs.dependencies == rhs.dependencies
+            lhs.dependencies == rhs.dependencies &&
+            lhs.environment == rhs.environment
     }
 }

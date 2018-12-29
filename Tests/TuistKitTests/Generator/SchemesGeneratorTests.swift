@@ -25,6 +25,7 @@ final class SchemeGeneratorTests: XCTestCase {
                                      projectPath: projectPath)
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
+        XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(got?.macroExpansion)
         XCTAssertEqual(got?.testables.count, 0)
     }
@@ -39,6 +40,7 @@ final class SchemeGeneratorTests: XCTestCase {
                                      projectPath: projectPath)
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
+        XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(got?.macroExpansion)
         let testable = got?.testables.first
         let buildableReference = testable?.buildableReference
@@ -74,7 +76,7 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_launchAction_when_runnableTarget() {
-        let target = Target.test(name: "App", product: .app)
+        let target = Target.test(name: "App", product: .app, environment: ["a": "b"])
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
         let got = subject.launchAction(target: target,
@@ -85,6 +87,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let buildableReference = got?.buildableProductRunnable?.buildableReference
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
+        XCTAssertEqual(got?.environmentVariables, [XCScheme.EnvironmentVariable(variable: "a", value: "b", enabled: true)])
         XCTAssertEqual(buildableReference?.referencedContainer, "container:project.xcodeproj")
         XCTAssertEqual(buildableReference?.buildableName, "App.app")
         XCTAssertEqual(buildableReference?.blueprintName, "App")

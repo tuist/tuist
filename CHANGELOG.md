@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Schemes generation https://github.com/tuist/tuist/pull/188 by @pepibumur.
+- Environment variables per target https://github.com/tuist/tuist/pull/189 by @pepibumur.
 
 ### Fixed
 

@@ -142,9 +142,13 @@ final class SchemesGenerator: SchemesGenerating {
         } else {
             macroExpansion = buildableReference
         }
+        let environmentVariables: [XCScheme.EnvironmentVariable] = target.environment.map({ variable, value in
+            XCScheme.EnvironmentVariable(variable: variable, value: value, enabled: true)
+        })
         return XCScheme.LaunchAction(buildableProductRunnable: buildableProductRunnable,
                                      buildConfiguration: "Debug",
-                                     macroExpansion: macroExpansion)
+                                     macroExpansion: macroExpansion,
+                                     environmentVariables: environmentVariables)
     }
 
     /// Generates the scheme profile action for a given target.
