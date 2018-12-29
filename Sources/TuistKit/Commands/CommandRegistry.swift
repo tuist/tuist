@@ -8,6 +8,7 @@ public final class CommandRegistry {
 
     let parser: ArgumentParser
     var commands: [Command] = []
+    var rawCommands: [RawCommand] = []
     var hiddenCommands: [String: HiddenCommand] = [:]
     private let commandCheck: CommandChecking
     private let errorHandler: ErrorHandling
@@ -27,6 +28,7 @@ public final class CommandRegistry {
         register(command: FocusCommand.self)
         register(command: UpCommand.self)
         register(hiddenCommand: EmbedCommand.self)
+        register(rawCommand: BuildCommand.self)
     }
 
     init(commandCheck: CommandChecking,
@@ -54,12 +56,25 @@ public final class CommandRegistry {
         hiddenCommands[command.command] = command.init()
     }
 
+    func register(rawCommand command: RawCommand.Type) {
+        rawCommands.append(command.init())
+        parser.add(subparser: command.command, overview: command.overview)
+    }
+
     // MARK: - Public
 
     public func run() {
         do {
+            // Hidden command
             if let hiddenCommand = hiddenCommand() {
-                try hiddenCommand.run(arguments: Array(processArguments().dropFirst(2)))
+                try hiddenCommand.run(arguments: argumentsDroppingCommand())
+
+                // Raw command
+            } else if let commandName = commandName(),
+                let command = rawCommands.first(where: { type(of: $0).command == commandName }) {
+                try command.run(arguments: argumentsDroppingCommand())
+
+                // Normal command
             } else {
                 let parsedArguments = try parse()
                 try process(arguments: parsedArguments)
@@ -73,6 +88,19 @@ public final class CommandRegistry {
 
     // MARK: - Fileprivate
 
+    func argumentsDroppingCommand() -> [String] {
+        return Array(processArguments().dropFirst(2))
+    }
+
+    /// Returns the command name.
+    ///
+    /// - Returns: Command name.
+    func commandName() -> String? {
+        let arguments = processArguments()
+        if arguments.count < 2 { return nil }
+        return arguments[1]
+    }
+
     fileprivate func parse() throws -> ArgumentParser.Result {
         let arguments = Array(processArguments().dropFirst())
         return try parser.parse(arguments)
@@ -85,12 +113,13 @@ public final class CommandRegistry {
     }
 
     fileprivate func process(arguments: ArgumentParser.Result) throws {
-        guard let subparser = arguments.subparser(parser),
-            let command = commands.first(where: { type(of: $0).command == subparser }) else {
+        guard let subparser = arguments.subparser(parser) else {
             parser.printUsage(on: stdoutStream)
             return
         }
-        try commandCheck.check(command: type(of: command).command)
-        try command.run(with: arguments)
+        if let command = commands.first(where: { type(of: $0).command == subparser }) {
+            try commandCheck.check(command: type(of: command).command)
+            try command.run(with: arguments)
+        }
     }
 }
