@@ -36,6 +36,22 @@ final class XcodeBuildOutputParserTests: XCTestCase {
                                                configuration: "Debug"))
     }
 
+    func test_parse_when_analyzeTarget() throws {
+        let line = try sample(name: "analyze_target")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, .analyzeTarget(target: "Pods",
+                                             project: "The Spacer",
+                                             configuration: "Debug"))
+    }
+
+    func test_parse_when_checkDependencies() throws {
+        let line = try sample(name: "check_dependencies")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, .checkDependencies)
+    }
+
+    // MARK: - Fileprivate
+
     fileprivate func sample(name: String) throws -> String {
         let path = fixture(path: RelativePath("xcodebuild/samples/\(name)"))
         return try String(contentsOf: path.url)

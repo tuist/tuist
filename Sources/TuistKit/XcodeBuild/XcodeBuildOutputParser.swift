@@ -18,7 +18,10 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
                                                                    options: [])
     private static let aggregateTargetRegex = try! NSRegularExpression(pattern: "^=== BUILD AGGREGATE TARGET\\s(.*)\\sOF PROJECT\\s(.*)\\sWITH.*CONFIGURATION\\s(.*)\\s===",
                                                                        options: [])
-
+    private static let analyzeTargetRegex = try! NSRegularExpression(pattern: "^=== ANALYZE TARGET\\s(.*)\\sOF PROJECT\\s(.*)\\sWITH.*CONFIGURATION\\s(.*)\\s===",
+                                                                     options: [])
+    private static let checkDependencies = try! NSRegularExpression(pattern: "^Check dependencies",
+                                                                    options: [])
     /// Parsers a line from the xcodebuild output and maps it into an XcodeBuildOutputEvent.
     ///
     /// - Parameter line: Line to be parsed.
@@ -48,6 +51,17 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
             let target = nsLine.substring(with: match.range(at: 2))
             let configuration = nsLine.substring(with: match.range(at: 3))
             return .aggregateTarget(target: target, project: project, configuration: configuration)
+        } else if let match = XcodeBuildOutputParser.analyzeTargetRegex.firstMatch(in: line,
+                                                                                   options: [],
+                                                                                   range: range) {
+            let project = nsLine.substring(with: match.range(at: 1))
+            let target = nsLine.substring(with: match.range(at: 2))
+            let configuration = nsLine.substring(with: match.range(at: 3))
+            return .analyzeTarget(target: target, project: project, configuration: configuration)
+        } else if XcodeBuildOutputParser.checkDependencies.firstMatch(in: line,
+                                                                      options: [],
+                                                                      range: range) != nil {
+            return .checkDependencies
         }
 
         return nil

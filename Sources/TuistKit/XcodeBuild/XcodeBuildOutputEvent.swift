@@ -12,6 +12,12 @@ enum XcodeBuildOutputEvent: Equatable {
     /// Aggregate target event.
     case aggregateTarget(target: String, project: String, configuration: String)
 
+    /// Analyze target event.
+    case analyzeTarget(target: String, project: String, configuration: String)
+
+    /// Check dependencies between targets event.
+    case checkDependencies
+
     /// Compares two instances of XcodeBuildOutputEvent and returns true if both
     /// are equal.
     ///
@@ -32,6 +38,12 @@ enum XcodeBuildOutputEvent: Equatable {
             return lhsTarget == rhsTarget &&
                 lhsProject == rhsProject &&
                 lhsConfiguration == rhsConfiguration
+        case let (.analyzeTarget(lhsTarget, lhsProject, lhsConfiguration), .analyzeTarget(rhsTarget, rhsProject, rhsConfiguration)):
+            return lhsTarget == rhsTarget &&
+                lhsProject == rhsProject &&
+                lhsConfiguration == rhsConfiguration
+        case (.checkDependencies, .checkDependencies):
+            return true
         default:
             return false
         }
