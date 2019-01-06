@@ -6,6 +6,9 @@ enum XcodeBuildOutputEvent: Equatable {
     /// Analyze event.
     case analyze(filePath: String, name: String)
 
+    /// Build a project target event.
+    case buildTarget(target: String, project: String, configuration: String)
+
     /// Compares two instances of XcodeBuildOutputEvent and returns true if both
     /// are equal.
     ///
@@ -18,6 +21,12 @@ enum XcodeBuildOutputEvent: Equatable {
         case let (.analyze(lhsFilePath, lhsName), .analyze(rhsFilePath, rhsName)):
             return lhsFilePath == rhsFilePath &&
                 lhsName == rhsName
+        case let (.buildTarget(lhsTarget, lhsProject, lhsConfiguration), .buildTarget(rhsTarget, rhsProject, rhsConfiguration)):
+            return lhsTarget == rhsTarget &&
+                lhsProject == rhsProject &&
+                lhsConfiguration == rhsConfiguration
+        default:
+            return false
         }
     }
 }

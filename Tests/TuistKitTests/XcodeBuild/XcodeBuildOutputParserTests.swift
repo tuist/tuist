@@ -16,8 +16,16 @@ final class XcodeBuildOutputParserTests: XCTestCase {
     func test_parse_when_analyze() throws {
         let line = try sample(name: "analyze")
         let event = subject.parse(line: line)
-        XCTAssertEqual(event, XcodeBuildOutputEvent.analyze(filePath: "CocoaChip/CCChip8DisplayView.m",
-                                                            name: "CCChip8DisplayView.m"))
+        XCTAssertEqual(event, .analyze(filePath: "CocoaChip/CCChip8DisplayView.m",
+                                       name: "CCChip8DisplayView.m"))
+    }
+
+    func test_parse_when_buildTarget() throws {
+        let line = try sample(name: "build_target")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, .buildTarget(target: "Pods",
+                                           project: "The Spacer",
+                                           configuration: "Debug"))
     }
 
     fileprivate func sample(name: String) throws -> String {
