@@ -70,6 +70,12 @@ final class XcodeBuildOutputParserTests: XCTestCase {
                                            configuration: "Debug"))
     }
 
+    func test_parse_when_codeSign() throws {
+        let line = try sample(name: "code_sign")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, XcodeBuildOutputEvent.codeSign(path: "build/Release/CocoaChip.app"))
+    }
+
     // MARK: - Fileprivate
 
     fileprivate func sample(name: String) throws -> String {

@@ -27,6 +27,9 @@ enum XcodeBuildOutputEvent: Equatable {
     /// Clean target event.
     case cleanTarget(target: String, project: String, configuration: String)
 
+    /// Code sign event where the path points to the file being code signed.
+    case codeSign(path: String)
+
     /// Compares two instances of XcodeBuildOutputEvent and returns true if both
     /// are equal.
     ///
@@ -61,6 +64,8 @@ enum XcodeBuildOutputEvent: Equatable {
             return lhsTarget == rhsTarget &&
                 lhsProject == rhsProject &&
                 lhsConfiguration == rhsConfiguration
+        case let (.codeSign(lhsPath), .codeSign(rhsPath)):
+            return lhsPath == rhsPath
         default:
             return false
         }

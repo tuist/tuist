@@ -1,0 +1,5 @@
+CodeSign build/Release/CocoaChip.app
+    cd /Users/dustin/Source/CocoaChip
+    setenv CODESIGN_ALLOCATE /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/codesign_allocate
+    Using code signing identity \"Mac Developer: John Smith (0123456789)\"
+    /usr/bin/codesign --force --sign 0123456789ABCDEF0123456789ABCDEF01234567 /Users/dustin/Source/CocoaChip/build/Release/CocoaChip.app

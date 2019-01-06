@@ -28,6 +28,8 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
                                                                    options: [])
     private static let cleanTargetRegex = try! NSRegularExpression(pattern: "^=== CLEAN TARGET\\s(.*)\\sOF PROJECT\\s(.*)\\sWITH CONFIGURATION\\s(.*)\\s===",
                                                                    options: [])
+    private static let codeSignRegex = try! NSRegularExpression(pattern: "^CodeSign\\s((?:\\ |[^ ])*)$",
+                                                                options: [])
 
     /// Parsers a line from the xcodebuild output and maps it into an XcodeBuildOutputEvent.
     ///
@@ -86,6 +88,11 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
             let project = nsLine.substring(with: match.range(at: 2))
             let configuration = nsLine.substring(with: match.range(at: 3))
             return .cleanTarget(target: target, project: project, configuration: configuration)
+        } else if let match = XcodeBuildOutputParser.codeSignRegex.firstMatch(in: line,
+                                                                              options: [],
+                                                                              range: range) {
+            let path = nsLine.substring(with: match.range(at: 1))
+            return .codeSign(path: path)
         }
 
         return nil
