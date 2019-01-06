@@ -21,6 +21,12 @@ enum XcodeBuildOutputEvent: Equatable {
     /// Shell command event. Output when Xcode runs a shell script build phase.
     case shellCommand(path: String, arguments: String)
 
+    /// Clean remove event.
+    case cleanRemove
+
+    /// Clean target event.
+    case cleanTarget(target: String, project: String, configuration: String)
+
     /// Compares two instances of XcodeBuildOutputEvent and returns true if both
     /// are equal.
     ///
@@ -49,6 +55,12 @@ enum XcodeBuildOutputEvent: Equatable {
             return true
         case let (.shellCommand(lhsPath, lhsArguments), .shellCommand(rhsPath, rhsArguments)):
             return lhsPath == rhsPath && lhsArguments == rhsArguments
+        case (.cleanRemove, .cleanRemove):
+            return true
+        case let (.cleanTarget(lhsTarget, lhsProject, lhsConfiguration), .cleanTarget(rhsTarget, rhsProject, rhsConfiguration)):
+            return lhsTarget == rhsTarget &&
+                lhsProject == rhsProject &&
+                lhsConfiguration == rhsConfiguration
         default:
             return false
         }

@@ -24,6 +24,10 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
                                                                          options: [])
     private static let shellCommandRegex = try! NSRegularExpression(pattern: "^\\s{4}(cd|setenv|(?:[\\w\\/:\\\\s\\-.]+?\\/)?[\\w\\-]+)\\s(.*)$",
                                                                     options: [])
+    private static let cleanRemoveRegex = try! NSRegularExpression(pattern: "^Clean.Remove",
+                                                                   options: [])
+    private static let cleanTargetRegex = try! NSRegularExpression(pattern: "^=== CLEAN TARGET\\s(.*)\\sOF PROJECT\\s(.*)\\sWITH CONFIGURATION\\s(.*)\\s===",
+                                                                   options: [])
 
     /// Parsers a line from the xcodebuild output and maps it into an XcodeBuildOutputEvent.
     ///
@@ -43,22 +47,22 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
         } else if let match = XcodeBuildOutputParser.buildTargetRegex.firstMatch(in: line,
                                                                                  options: [],
                                                                                  range: range) {
-            let project = nsLine.substring(with: match.range(at: 1))
-            let target = nsLine.substring(with: match.range(at: 2))
+            let target = nsLine.substring(with: match.range(at: 1))
+            let project = nsLine.substring(with: match.range(at: 2))
             let configuration = nsLine.substring(with: match.range(at: 3))
             return .buildTarget(target: target, project: project, configuration: configuration)
         } else if let match = XcodeBuildOutputParser.aggregateTargetRegex.firstMatch(in: line,
                                                                                      options: [],
                                                                                      range: range) {
-            let project = nsLine.substring(with: match.range(at: 1))
-            let target = nsLine.substring(with: match.range(at: 2))
+            let target = nsLine.substring(with: match.range(at: 1))
+            let project = nsLine.substring(with: match.range(at: 2))
             let configuration = nsLine.substring(with: match.range(at: 3))
             return .aggregateTarget(target: target, project: project, configuration: configuration)
         } else if let match = XcodeBuildOutputParser.analyzeTargetRegex.firstMatch(in: line,
                                                                                    options: [],
                                                                                    range: range) {
-            let project = nsLine.substring(with: match.range(at: 1))
-            let target = nsLine.substring(with: match.range(at: 2))
+            let target = nsLine.substring(with: match.range(at: 1))
+            let project = nsLine.substring(with: match.range(at: 2))
             let configuration = nsLine.substring(with: match.range(at: 3))
             return .analyzeTarget(target: target, project: project, configuration: configuration)
         } else if XcodeBuildOutputParser.checkDependenciesRegex.firstMatch(in: line,
@@ -71,6 +75,17 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
             let path = nsLine.substring(with: match.range(at: 1))
             let arguments = nsLine.substring(with: match.range(at: 2))
             return .shellCommand(path: path, arguments: arguments)
+        } else if XcodeBuildOutputParser.cleanRemoveRegex.firstMatch(in: line,
+                                                                     options: [],
+                                                                     range: range) != nil {
+            return .cleanRemove
+        } else if let match = XcodeBuildOutputParser.cleanTargetRegex.firstMatch(in: line,
+                                                                                 options: [],
+                                                                                 range: range) {
+            let target = nsLine.substring(with: match.range(at: 1))
+            let project = nsLine.substring(with: match.range(at: 2))
+            let configuration = nsLine.substring(with: match.range(at: 3))
+            return .cleanTarget(target: target, project: project, configuration: configuration)
         }
 
         return nil

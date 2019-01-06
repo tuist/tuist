@@ -23,24 +23,24 @@ final class XcodeBuildOutputParserTests: XCTestCase {
     func test_parse_when_buildTarget() throws {
         let line = try sample(name: "build_target")
         let event = subject.parse(line: line)
-        XCTAssertEqual(event, .buildTarget(target: "Pods",
-                                           project: "The Spacer",
+        XCTAssertEqual(event, .buildTarget(target: "The Spacer",
+                                           project: "Pods",
                                            configuration: "Debug"))
     }
 
     func test_parse_when_aggregateTarget() throws {
         let line = try sample(name: "aggregate_target")
         let event = subject.parse(line: line)
-        XCTAssertEqual(event, .aggregateTarget(target: "AggregateExample",
-                                               project: "Be Aggro",
+        XCTAssertEqual(event, .aggregateTarget(target: "Be Aggro",
+                                               project: "AggregateExample",
                                                configuration: "Debug"))
     }
 
     func test_parse_when_analyzeTarget() throws {
         let line = try sample(name: "analyze_target")
         let event = subject.parse(line: line)
-        XCTAssertEqual(event, .analyzeTarget(target: "Pods",
-                                             project: "The Spacer",
+        XCTAssertEqual(event, .analyzeTarget(target: "The Spacer",
+                                             project: "Pods",
                                              configuration: "Debug"))
     }
 
@@ -56,10 +56,24 @@ final class XcodeBuildOutputParserTests: XCTestCase {
         XCTAssertEqual(event, .shellCommand(path: "/bin/rm", arguments: "-rf /bin /usr /Users"))
     }
 
+    func test_parse_when_cleanRemove() throws {
+        let line = try sample(name: "clean_remove")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, .cleanRemove)
+    }
+
+    func test_parse_when_cleanTarget() throws {
+        let line = try sample(name: "clean_target")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, .cleanTarget(target: "Pods-ObjectiveSugar",
+                                           project: "Pods",
+                                           configuration: "Debug"))
+    }
+
     // MARK: - Fileprivate
 
     fileprivate func sample(name: String) throws -> String {
-        let path = fixture(path: RelativePath("xcodebuild/samples/\(name)"))
+        let path = fixture(path: RelativePath("xcodebuild/outputs/\(name)"))
         return try String(contentsOf: path.url)
     }
 }
