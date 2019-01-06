@@ -10,10 +10,14 @@ protocol XcodeBuildOutputParsing {
 }
 
 final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
+    // MARK: - Regular expressions
+
     private static let analyzeRegex = try! NSRegularExpression(pattern: "^Analyze(?:Shallow)?\\s(.*\\/(.*\\.(?:m|mm|cc|cpp|c|cxx)))\\s*",
                                                                options: [])
     private static let buildTargetRegex = try! NSRegularExpression(pattern: "^=== BUILD TARGET\\s(.*)\\sOF PROJECT\\s(.*)\\sWITH.*CONFIGURATION\\s(.*)\\s===",
                                                                    options: [])
+    private static let aggregateTargetRegex = try! NSRegularExpression(pattern: "^=== BUILD AGGREGATE TARGET\\s(.*)\\sOF PROJECT\\s(.*)\\sWITH.*CONFIGURATION\\s(.*)\\s===",
+                                                                       options: [])
 
     /// Parsers a line from the xcodebuild output and maps it into an XcodeBuildOutputEvent.
     ///
@@ -37,6 +41,13 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
             let target = nsLine.substring(with: match.range(at: 2))
             let configuration = nsLine.substring(with: match.range(at: 3))
             return .buildTarget(target: target, project: project, configuration: configuration)
+        } else if let match = XcodeBuildOutputParser.aggregateTargetRegex.firstMatch(in: line,
+                                                                                     options: [],
+                                                                                     range: range) {
+            let project = nsLine.substring(with: match.range(at: 1))
+            let target = nsLine.substring(with: match.range(at: 2))
+            let configuration = nsLine.substring(with: match.range(at: 3))
+            return .aggregateTarget(target: target, project: project, configuration: configuration)
         }
 
         return nil

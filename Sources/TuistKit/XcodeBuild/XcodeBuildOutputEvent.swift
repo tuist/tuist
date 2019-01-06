@@ -9,6 +9,9 @@ enum XcodeBuildOutputEvent: Equatable {
     /// Build a project target event.
     case buildTarget(target: String, project: String, configuration: String)
 
+    /// Aggregate target event.
+    case aggregateTarget(target: String, project: String, configuration: String)
+
     /// Compares two instances of XcodeBuildOutputEvent and returns true if both
     /// are equal.
     ///
@@ -22,6 +25,10 @@ enum XcodeBuildOutputEvent: Equatable {
             return lhsFilePath == rhsFilePath &&
                 lhsName == rhsName
         case let (.buildTarget(lhsTarget, lhsProject, lhsConfiguration), .buildTarget(rhsTarget, rhsProject, rhsConfiguration)):
+            return lhsTarget == rhsTarget &&
+                lhsProject == rhsProject &&
+                lhsConfiguration == rhsConfiguration
+        case let (.aggregateTarget(lhsTarget, lhsProject, lhsConfiguration), .aggregateTarget(rhsTarget, rhsProject, rhsConfiguration)):
             return lhsTarget == rhsTarget &&
                 lhsProject == rhsProject &&
                 lhsConfiguration == rhsConfiguration

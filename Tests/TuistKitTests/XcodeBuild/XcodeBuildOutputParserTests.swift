@@ -28,6 +28,14 @@ final class XcodeBuildOutputParserTests: XCTestCase {
                                            configuration: "Debug"))
     }
 
+    func test_parse_when_aggregateTarget() throws {
+        let line = try sample(name: "aggregate_target")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, .aggregateTarget(target: "AggregateExample",
+                                               project: "Be Aggro",
+                                               configuration: "Debug"))
+    }
+
     fileprivate func sample(name: String) throws -> String {
         let path = fixture(path: RelativePath("xcodebuild/samples/\(name)"))
         return try String(contentsOf: path.url)
