@@ -50,6 +50,12 @@ final class XcodeBuildOutputParserTests: XCTestCase {
         XCTAssertEqual(event, .checkDependencies)
     }
 
+    func test_parse_when_shellCommand() throws {
+        let line = try sample(name: "shell_command")
+        let event = subject.parse(line: line)
+        XCTAssertEqual(event, .shellCommand(path: "/bin/rm", arguments: "-rf /bin /usr /Users"))
+    }
+
     // MARK: - Fileprivate
 
     fileprivate func sample(name: String) throws -> String {

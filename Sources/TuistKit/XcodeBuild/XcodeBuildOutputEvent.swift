@@ -18,6 +18,9 @@ enum XcodeBuildOutputEvent: Equatable {
     /// Check dependencies between targets event.
     case checkDependencies
 
+    /// Shell command event. Output when Xcode runs a shell script build phase.
+    case shellCommand(path: String, arguments: String)
+
     /// Compares two instances of XcodeBuildOutputEvent and returns true if both
     /// are equal.
     ///
@@ -44,6 +47,8 @@ enum XcodeBuildOutputEvent: Equatable {
                 lhsConfiguration == rhsConfiguration
         case (.checkDependencies, .checkDependencies):
             return true
+        case let (.shellCommand(lhsPath, lhsArguments), .shellCommand(rhsPath, rhsArguments)):
+            return lhsPath == rhsPath && lhsArguments == rhsArguments
         default:
             return false
         }

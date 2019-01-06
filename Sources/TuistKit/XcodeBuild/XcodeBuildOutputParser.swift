@@ -20,8 +20,11 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
                                                                        options: [])
     private static let analyzeTargetRegex = try! NSRegularExpression(pattern: "^=== ANALYZE TARGET\\s(.*)\\sOF PROJECT\\s(.*)\\sWITH.*CONFIGURATION\\s(.*)\\s===",
                                                                      options: [])
-    private static let checkDependencies = try! NSRegularExpression(pattern: "^Check dependencies",
+    private static let checkDependenciesRegex = try! NSRegularExpression(pattern: "^Check dependencies",
+                                                                         options: [])
+    private static let shellCommandRegex = try! NSRegularExpression(pattern: "^\\s{4}(cd|setenv|(?:[\\w\\/:\\\\s\\-.]+?\\/)?[\\w\\-]+)\\s(.*)$",
                                                                     options: [])
+
     /// Parsers a line from the xcodebuild output and maps it into an XcodeBuildOutputEvent.
     ///
     /// - Parameter line: Line to be parsed.
@@ -58,10 +61,16 @@ final class XcodeBuildOutputParser: XcodeBuildOutputParsing {
             let target = nsLine.substring(with: match.range(at: 2))
             let configuration = nsLine.substring(with: match.range(at: 3))
             return .analyzeTarget(target: target, project: project, configuration: configuration)
-        } else if XcodeBuildOutputParser.checkDependencies.firstMatch(in: line,
-                                                                      options: [],
-                                                                      range: range) != nil {
+        } else if XcodeBuildOutputParser.checkDependenciesRegex.firstMatch(in: line,
+                                                                           options: [],
+                                                                           range: range) != nil {
             return .checkDependencies
+        } else if let match = XcodeBuildOutputParser.shellCommandRegex.firstMatch(in: line,
+                                                                                  options: [],
+                                                                                  range: range) {
+            let path = nsLine.substring(with: match.range(at: 1))
+            let arguments = nsLine.substring(with: match.range(at: 2))
+            return .shellCommand(path: path, arguments: arguments)
         }
 
         return nil
