@@ -56,8 +56,10 @@ class ProjectFileElements {
                             pbxproj: pbxproj,
                             sourceRootPath: sourceRootPath)
 
+        let dependencies = graph.findAll(path: project.path)
+        
         /// Dependencies
-        generate(dependencies: graph.dependencies(path: project.path),
+        generate(dependencies: dependencies,
                  path: project.path,
                  groups: groups,
                  pbxproj: pbxproj,
