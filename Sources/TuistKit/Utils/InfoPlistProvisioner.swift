@@ -55,7 +55,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
             base["CFBundlePackageType"] = "APPL"
 
             // Framework
-        } else if product == .framework {
+        } else if product == .framework || product == .staticFramework {
             base["CFBundleVersion"] = "$(CURRENT_PROJECT_VERSION)"
             base["CFBundlePackageType"] = "FMWK"
             base["NSPrincipalClass"] = ""

@@ -192,6 +192,10 @@ final class ConfigGenerator: ConfigGenerating {
         if settings["SWIFT_VERSION"] == nil {
             settings["SWIFT_VERSION"] = Constants.swiftVersion
         }
+        
+        if target.product == .staticFramework {
+            settings["MACH_O_TYPE"] = "staticlib"
+        }
 
         variantBuildConfiguration.buildSettings = settings
         pbxproj.add(object: variantBuildConfiguration)
@@ -217,7 +221,7 @@ final class ConfigGenerator: ConfigGenerating {
             return .dynamicLibrary
         case .staticLibrary:
             return .staticLibrary
-        case .framework:
+        case .framework, .staticFramework:
             return .framework
         default:
             return nil

@@ -7,6 +7,7 @@ public enum Product: String, Codable {
     case staticLibrary = "static_library"
     case dynamicLibrary = "dynamic_library"
     case framework
+    case staticFramework
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
 
