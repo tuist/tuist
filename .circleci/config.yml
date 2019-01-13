@@ -15,6 +15,7 @@ jobs:
       - run:
           name: Install Dependencies
           command: |
+            brew upgrade
             brew install swiftlint
             bundle install
       - run:
