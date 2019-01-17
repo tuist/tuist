@@ -6,7 +6,7 @@ class Target: GraphInitiatable, Equatable {
     // MARK: - Static
 
     static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
-    static let validFolderExtensions: [String] = ["framework", "bundle", "app", "appiconset"]
+    static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset"]
 
     // MARK: - Attributes
 
@@ -91,8 +91,10 @@ class Target: GraphInitiatable, Equatable {
         self.sources = try Target.sources(projectPath: projectPath, sources: sources, fileHandler: fileHandler)
 
         // Resources
-        if let resources: String = try? dictionary.get("resources") {
-            self.resources = try Target.resources(projectPath: projectPath, resources: resources, fileHandler: fileHandler)
+        if let resources: [String] = try? dictionary.get("resources") {
+            self.resources = try resources.flatMap({
+                try Target.resources(projectPath: projectPath, resources: $0, fileHandler: fileHandler)
+            })
         } else {
             resources = []
         }
