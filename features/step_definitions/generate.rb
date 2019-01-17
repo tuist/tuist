@@ -23,3 +23,25 @@ Then("the product {string} with destination {string} contains the framework {str
   assert(status.success?, err)
   refute(out.include?(architecture))
 end
+
+Then("the product {string} with destination {string} contains resource {string}") do |product, destination, resource|
+  resource_path = Xcode.find_resource(
+    product: product,
+    destination: destination,
+    resource: resource,
+    derived_data_path: @derived_data_path
+  )
+
+  assert(status.success?, resource_path.nil?)
+end
+
+Then("the product {string} with destination {string} does not contain resource {string}") do |product, destination, resource|
+  resource_path = Xcode.find_resource(
+    product: product,
+    destination: destination,
+    resource: resource,
+    derived_data_path: @derived_data_path
+  )
+
+  assert(status.success?, resource_path.nil? == true)
+end

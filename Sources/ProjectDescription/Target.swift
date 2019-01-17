@@ -27,11 +27,11 @@ public class Target: Codable {
     /// Target dependencies.
     public let dependencies: [TargetDependency]
 
-    /// Relative path to the sources directory.
-    public let sources: String
-
-    /// Relative path to the resources directory.
-    public let resources: String?
+    /// Relative paths to the sources directory.
+    public let sources: FileList?
+    
+    /// Relative paths to the resources directory.
+    public let resources: FileList?
 
     /// Headers.
     public let headers: Headers?
@@ -70,8 +70,8 @@ public class Target: Codable {
     ///   - product: product type.
     ///   - bundleId: bundle identifier.
     ///   - infoPlist: relative path to the Info.plist file.
-    ///   - sources: relative path to the sources directory.
-    ///   - resources: relative path to the resources directory.
+    ///   - sources: relative paths to the sources directory.
+    ///   - resources: relative paths to the resources directory.
     ///   - headers: headers.
     ///   - entitlements: relative path to the entitlements file.
     ///   - actions: target actions.
@@ -84,8 +84,8 @@ public class Target: Codable {
                 product: Product,
                 bundleId: String,
                 infoPlist: String,
-                sources: String,
-                resources: String? = nil,
+                sources: FileList? = nil,
+                resources: FileList? = nil,
                 headers: Headers? = nil,
                 entitlements: String? = nil,
                 actions: [TargetAction] = [],
