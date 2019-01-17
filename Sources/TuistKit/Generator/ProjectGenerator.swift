@@ -146,7 +146,7 @@ final class ProjectGenerator: ProjectGenerating {
         /// Schemes
         let generatedProject = GeneratedProject(path: xcodeprojPath,
                                                 targets: nativeTargets)
-        try schemesGenerator.generateTargetSchemes(project: project,
+        try schemesGenerator.generateSchemes(project: project,
                                                    generatedProject: generatedProject)
 
         return generatedProject

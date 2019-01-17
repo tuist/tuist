@@ -17,6 +17,9 @@ class Project: Equatable {
     /// Project targets.
     let targets: [Target]
 
+    /// Project schemes
+    let schemes: [Scheme]
+    
     /// Project settings.
     let settings: Settings?
 
@@ -33,11 +36,13 @@ class Project: Equatable {
          name: String,
          up: [Upping] = [],
          settings: Settings? = nil,
+         schemes: [Scheme] = [],
          targets: [Target]) {
         self.path = path
         self.name = name
         self.up = up
         self.targets = targets
+        self.schemes = schemes
         self.settings = settings
     }
 
@@ -76,6 +81,10 @@ class Project: Equatable {
         name = try json.get("name")
         let targetsJSONs: [JSON] = try json.get("targets")
         targets = try targetsJSONs.map({ try Target(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
+
+        let schemesJSONs: [JSON] = try json.get("schemes")
+        schemes = try schemesJSONs.map({ try Scheme(json: $0) })
+
         let upJSONs: [JSON] = try json.get("up")
         up = try upJSONs.compactMap({ try Up.with(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
         let settingsJSON: JSON? = try? json.get("settings")
@@ -88,6 +97,7 @@ class Project: Equatable {
         return lhs.path == rhs.path &&
             lhs.name == rhs.name &&
             lhs.targets == rhs.targets &&
+            lhs.schemes == rhs.schemes &&
             lhs.settings == rhs.settings
     }
 }
