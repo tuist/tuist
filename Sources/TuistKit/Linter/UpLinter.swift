@@ -6,7 +6,7 @@ protocol UpLinting {
     ///
     /// - Parameter up: Task to be linted.
     /// - Returns: Array that contains all the linting issues.
-    func lint(up: Up) -> [LintingIssue]
+    func lint(up: Upping) -> [LintingIssue]
 }
 
 final class UpLinter: UpLinting {
@@ -14,7 +14,7 @@ final class UpLinter: UpLinting {
     ///
     /// - Parameter up: Task to be linted.
     /// - Returns: Array that contains all the linting issues.
-    func lint(up: Up) -> [LintingIssue] {
+    func lint(up: Upping) -> [LintingIssue] {
         if let upCustom = up as? UpCustom {
             return lint(upCustom: upCustom)
         }

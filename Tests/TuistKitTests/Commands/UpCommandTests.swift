@@ -7,25 +7,21 @@ import XCTest
 @testable import TuistKit
 
 final class UpCommandTests: XCTestCase {
-    var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
-    var graphLoader: MockGraphLoader!
-    var graphUp: MockGraphUp!
+
     var subject: UpCommand!
+    var fileHandler: MockFileHandler!
     var parser: ArgumentParser!
+    var setupLoader: MockSetupLoader!
 
     override func setUp() {
         super.setUp()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
-        graphLoader = MockGraphLoader()
-        graphUp = MockGraphUp()
         parser = ArgumentParser.test()
+        setupLoader = MockSetupLoader()
+
         subject = UpCommand(parser: parser,
                             fileHandler: fileHandler,
-                            printer: printer,
-                            graphLoader: graphLoader,
-                            graphUp: graphUp)
+                            setupLoader: setupLoader)
     }
 
     func test_command() {
@@ -37,32 +33,36 @@ final class UpCommandTests: XCTestCase {
     }
 
     func test_run_configures_the_environment() throws {
+        // given
+        let currentPath = fileHandler.currentPath.asString
         let result = try parser.parse([UpCommand.command])
-
-        graphLoader.loadStub = { path in
-            XCTAssertEqual(path, self.fileHandler.currentPath)
-            return Graph.test()
-        }
-        var met: Bool = false
-        graphUp.meetStub = { _ in
-            met = true
+        var receivedPaths = [String]()
+        setupLoader.meetStub = { path in
+            receivedPaths.append(path.asString)
         }
 
+        // when
         try subject.run(with: result)
 
-        XCTAssertTrue(met)
+        // then
+        XCTAssertEqual(receivedPaths, [currentPath])
+        XCTAssertEqual(setupLoader.meetCount, 1)
     }
 
     func test_run_uses_the_given_path() throws {
+        // given
         let path = AbsolutePath("/path")
         let result = try parser.parse([UpCommand.command, "-p", path.asString])
-
-        graphLoader.loadStub = { gotPath in
-            XCTAssertEqual(gotPath, path)
-            return Graph.test()
+        var receivedPaths = [String]()
+        setupLoader.meetStub = { path in
+            receivedPaths.append(path.asString)
         }
+
+        // when
         try subject.run(with: result)
 
-        XCTAssertEqual(graphUp.meetCallCount, 1)
+        // then
+        XCTAssertEqual(receivedPaths, ["/path"])
+        XCTAssertEqual(setupLoader.meetCount, 1)
     }
 }

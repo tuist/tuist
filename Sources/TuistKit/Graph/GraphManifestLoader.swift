@@ -8,6 +8,7 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     case unexpectedOutput(AbsolutePath)
     case invalidYaml(AbsolutePath)
     case manifestNotFound(Manifest, AbsolutePath)
+    case setupNotFound(AbsolutePath)
 
     var description: String {
         switch self {
@@ -19,6 +20,8 @@ enum GraphManifestLoaderError: FatalError, Equatable {
             return "Invalid yaml at path \(path.asString). The root element should be a dictionary"
         case let .manifestNotFound(manifest, path):
             return "\(manifest.fileName.capitalized) not found at \(path.asString)"
+        case let .setupNotFound(path):
+            return "Setup.swift not found at \(path.asString)"
         }
     }
 
@@ -31,6 +34,8 @@ enum GraphManifestLoaderError: FatalError, Equatable {
         case .invalidYaml:
             return .abort
         case .manifestNotFound:
+            return .abort
+        case .setupNotFound:
             return .abort
         }
     }
@@ -47,6 +52,8 @@ enum GraphManifestLoaderError: FatalError, Equatable {
             return lhsPath == rhsPath
         case let (.manifestNotFound(lhsManifest, lhsPath), .manifestNotFound(rhsManifest, rhsPath)):
             return lhsManifest == rhsManifest && lhsPath == rhsPath
+        case let (.setupNotFound(lhsPath), .setupNotFound(rhsPath)):
+            return lhsPath == rhsPath
         default:
             return false
         }
@@ -73,6 +80,7 @@ protocol GraphManifestLoading {
     func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON
     func manifests(at path: AbsolutePath) -> Set<Manifest>
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath
+    func loadSetup(at path: AbsolutePath) throws -> [Upping]
 }
 
 class GraphManifestLoader: GraphManifestLoading {
@@ -151,6 +159,20 @@ class GraphManifestLoader: GraphManifestLoading {
             return paths.contains(where: { fileHandler.exists($0) })
         }
         return Set(manifests)
+    }
+
+    func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+        let setupPath = path.appending(component: "Setup.swift")
+        guard fileHandler.exists(setupPath) else {
+            throw GraphManifestLoaderError.setupNotFound(path)
+        }
+
+        let setup = try loadSwiftManifest(path: setupPath)
+        let actionsJson: [JSON] = try setup.get("actions")
+        return try actionsJson.compactMap {
+            try Up.with(dictionary: $0,
+                        projectPath: path,
+                        fileHandler: fileHandler) }
     }
 
     // MARK: - Fileprivate

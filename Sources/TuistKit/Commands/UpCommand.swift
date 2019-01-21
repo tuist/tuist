@@ -16,17 +16,10 @@ class UpCommand: NSObject, Command {
     /// File handler instance to interact with the file system.
     fileprivate let fileHandler: FileHandling
 
-    /// Printer instance to output information to the user.
-    fileprivate let printer: Printing
-
-    /// Graph loader instance to load the project and its dependencies.
-    fileprivate let graphLoader: GraphLoading
-
-    /// Graph up instance to print a warning if the environment is not configured.
-    fileprivate let graphUp: GraphUpping
-
     /// Path to the project directory.
     let pathArgument: OptionArgument<String>
+
+    private let setupLoader: SetupLoading
 
     // MARK: - Init
 
@@ -34,13 +27,10 @@ class UpCommand: NSObject, Command {
     ///
     /// - Parameter parser: CLI parser where the command should register itself.
     public required convenience init(parser: ArgumentParser) {
-        let printer = Printer()
-        let system = System()
+        let fileHandler = FileHandler()
         self.init(parser: parser,
                   fileHandler: FileHandler(),
-                  printer: printer,
-                  graphLoader: GraphLoader(),
-                  graphUp: GraphUp(printer: printer, system: system))
+                  setupLoader: SetupLoader(fileHandler: fileHandler))
     }
 
     /// Initializes the command with its arguments.
@@ -48,32 +38,24 @@ class UpCommand: NSObject, Command {
     /// - Parameters:
     ///   - parser: CLI parser where the command should register itself.
     ///   - fileHandler: File handler instance to interact with the file system.
-    ///   - printer: Printer instance to output information to the user.
-    ///   - graphLoader: Graph loader instance to load the project and its dependencies.
-    ///   - graphUp: Graph up instance to print a warning if the environment is not configured.
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
-         printer: Printing,
-         graphLoader: GraphLoading,
-         graphUp: GraphUpping) {
+         setupLoader: SetupLoading) {
         let subParser = parser.add(subparser: UpCommand.command, overview: UpCommand.overview)
         self.fileHandler = fileHandler
-        self.printer = printer
-        self.graphLoader = graphLoader
-        self.graphUp = graphUp
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
                                      usage: "The path to the directory that contains the project.",
                                      completion: .filename)
+        self.setupLoader = setupLoader
     }
 
     /// Runs the command using the result from parsing the command line arguments.
     ///
     /// - Throws: An error if the the configuration of the environment fails.
     func run(with arguments: ArgumentParser.Result) throws {
-        let graph = try graphLoader.load(path: path(arguments: arguments))
-        try graphUp.meet(graph: graph)
+        try setupLoader.meet(at: path(arguments: arguments))
     }
 
     /// Parses the arguments and returns the path to the directory where
@@ -82,10 +64,9 @@ class UpCommand: NSObject, Command {
     /// - Parameter arguments: Result from parsing the command line arguments.
     /// - Returns: Path to be used for the up command.
     fileprivate func path(arguments: ArgumentParser.Result) -> AbsolutePath {
-        if let path = arguments.get(pathArgument) {
-            return AbsolutePath(path, relativeTo: fileHandler.currentPath)
-        } else {
+        guard let path = arguments.get(pathArgument) else {
             return fileHandler.currentPath
         }
+        return AbsolutePath(path, relativeTo: fileHandler.currentPath)
     }
 }
