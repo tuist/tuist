@@ -101,6 +101,20 @@ tuist generate # Generates Xcode project
 3.  Open `tuist.xcodeproj`.
 4.  Have fun 🤖
 
+## Testing
+
+### Unit tests
+
+Tuist has a suite of unit tests for its various target that can be run via Swift Packager Manager by invoking:
+
+`swift test`
+
+### Acceptance tests
+
+Additionally, Tuist has a few high level acceptance tests written in cucumber and ruby which can be run by invoking:
+
+`rake features`
+
 ## Shield
 
 If your project uses Tuist, you can add the following badge to your project README:
