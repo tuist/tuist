@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Changed
+
+- Use array `[String]` for Source and Resource paths https://github.com/tuist/tuist/pull/201 by @dangthaison91
+
 ### Added
 
 - Integration tests for `generate` command https://github.com/tuist/tuist/pull/208 by @marciniwanicki & @kwridan

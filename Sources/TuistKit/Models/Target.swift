@@ -87,8 +87,13 @@ class Target: GraphInitiatable, Equatable {
         })
 
         // Sources
-        let sources: String = try dictionary.get("sources")
-        self.sources = try Target.sources(projectPath: projectPath, sources: sources, fileHandler: fileHandler)
+        if let sources: [String] = try? dictionary.get("sources") {
+            self.sources = try sources.flatMap({
+                try Target.sources(projectPath: projectPath, sources: sources, fileHandler: fileHandler)
+            })
+        } else {
+            sources = []
+        }
 
         // Resources
         if let resources: [String] = try? dictionary.get("resources") {
