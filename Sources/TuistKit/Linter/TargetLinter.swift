@@ -83,7 +83,7 @@ class TargetLinter: TargetLinting {
 
     fileprivate func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
         
-        if target.product == .dynamicLibrary || target.product == .staticLibrary {
+        if target.product == .dynamicLibrary {
             return [ ]
         }
         
