@@ -3,7 +3,7 @@
 require 'tmpdir'
 require 'fileutils'
 
-And(/I have have a working directory/) do
+And(/I have a working directory/) do
   @dir = Dir.mktmpdir
 end
 
