@@ -26,4 +26,4 @@ Feature: Generate a new project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture sample_3 into the working directory
-    Then tuist generates reports error "❌ Error: Couldn't find manifest at path:"
+    Then tuist generates reports error "❌ Error: Couldn't find manifest at path: '${ARG_PATH}'"

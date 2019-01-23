@@ -29,3 +29,8 @@ Dependencies:
   - App -> Framework1
   - App -> Framework2
   - Framework1 -> Framework2
+
+
+## sample_3
+
+Contains a single file `Workspac.swift`, incorrectly named workspace manifest file.
