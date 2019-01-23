@@ -12,6 +12,11 @@ end
 Then(/tuist sets up the project/) do
   system("swift", "run", "tuist", "up", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+<<<<<<< HEAD
+end
+||||||| merged common ancestors
+end
+=======
 end
 
 Then(/tuist generates reports error "(.+)"/) do |error|
@@ -23,3 +28,4 @@ Then(/tuist generates reports error "(.+)"/) do |error|
     fail "Exit status is not 1"
   end
 end
+>>>>>>> Add acceptance test for missing manifest case
