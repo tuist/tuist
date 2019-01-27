@@ -82,7 +82,7 @@ final class GraphTests: XCTestCase {
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
                                                  name: target.name)
-        XCTAssertEqual(got.first, .product("Dependency.a"))
+        XCTAssertEqual(got.first, .product("libDependency.a"))
     }
 
     func test_linkableDependencies_whenAFrameworkTarget() throws {

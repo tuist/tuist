@@ -63,9 +63,9 @@ final class TargetLinterTests: XCTestCase {
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [path])
 
         let staticResult = subject.lint(target: staticLibrary)
-        XCTAssertTrue(staticResult.contains(LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)))
+        XCTAssertTrue(staticResult.contains(LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), staticResult.description)
 
         let dynamicResult = subject.lint(target: staticLibrary)
-        XCTAssertTrue(dynamicResult.contains(LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)))
+        XCTAssertTrue(dynamicResult.contains(LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), dynamicResult.description)
     }
 }
