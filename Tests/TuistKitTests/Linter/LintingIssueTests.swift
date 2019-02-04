@@ -29,6 +29,17 @@ final class LintingIssueTests: XCTestCase {
         XCTAssertEqual(printer.printWithColorArgs.first?.1, .yellow)
         XCTAssertEqual(printer.printArgs.first, "  - warning")
 
+        XCTAssertEqual(printer.printWithColorArgs.last?.0, "\nThe following critical issues have been found:")
+        XCTAssertEqual(printer.printWithColorArgs.last?.1, .red)
+        XCTAssertEqual(printer.printArgs.last, "  - error")
+    }
+
+    func test_printAndThrowIfNeeded_whenErrorsOnly() throws {
+        let printer = MockPrinter()
+        let first = LintingIssue(reason: "error", severity: .error)
+
+        XCTAssertThrowsError(try [first].printAndThrowIfNeeded(printer: printer))
+
         XCTAssertEqual(printer.printWithColorArgs.last?.0, "The following critical issues have been found:")
         XCTAssertEqual(printer.printWithColorArgs.last?.1, .red)
         XCTAssertEqual(printer.printArgs.last, "  - error")

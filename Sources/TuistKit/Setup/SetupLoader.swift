@@ -68,12 +68,14 @@ class SetupLoader: SetupLoading {
     ///           or if there isn't a `Setup.swift` file within the project path.
     func meet(at path: AbsolutePath) throws {
         let setup = try graphManifestLoader.loadSetup(at: path)
-        for command in setup {
+        try setup.map { command in upLinter.lint(up: command) }
+            .flatMap { $0 }
+            .printAndThrowIfNeeded(printer: printer)
+        try setup.forEach { command in
             if try !command.isMet(system: system, projectPath: path) {
                 printer.print(subsection: "Configuring \(command.name)")
                 try command.meet(system: system, printer: printer, projectPath: path)
             }
-            try upLinter.lint(up: command).printAndThrowIfNeeded(printer: printer)
         }
     }
 }
