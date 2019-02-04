@@ -19,6 +19,7 @@ class UpCommand: NSObject, Command {
     /// Path to the project directory.
     let pathArgument: OptionArgument<String>
 
+    /// Instance to load the setup manifest and perform the project setup.
     private let setupLoader: SetupLoading
 
     // MARK: - Init
@@ -38,6 +39,7 @@ class UpCommand: NSObject, Command {
     /// - Parameters:
     ///   - parser: CLI parser where the command should register itself.
     ///   - fileHandler: File handler instance to interact with the file system.
+    ///   - setupLoader: Instance to load the setup manifest and perform the project setup.
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
          setupLoader: SetupLoading) {
