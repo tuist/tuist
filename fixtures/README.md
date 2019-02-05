@@ -1,12 +1,9 @@
 # Fixtures
 
 This folder contains sample projects we use in the integration and acceptance tests. 
+Please keep this keep in alphabetical order.
 
-## app_with_tests
-
-Simple app with tests.
-
-## sample_2
+## app_with_frameworks
 
 Slightly more complicated project consists of an iOS app and few frameworks. 
 
@@ -30,7 +27,10 @@ Dependencies:
   - App -> Framework2
   - Framework1 -> Framework2
 
+## app_with_tests
 
-## sample_3
+Simple app with tests.
+
+## invalid_manifest
 
 Contains a single file `Workspac.swift`, incorrectly named workspace manifest file.
