@@ -50,7 +50,7 @@ protocol Graphing: AnyObject {
     func targetDependencies(path: AbsolutePath, name: String) -> [String]
     func staticLibraryDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     
-    // MARK:- Depth First Search
+    // MARK: - Depth First Search
     
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
     /// and explores as far as possible along each branch before backtracking.
@@ -91,7 +91,7 @@ class Graph: Graphing {
     // MARK: - Internal
     
     var frameworks: [FrameworkNode] {
-        return cache.precompiledNodes.values.compactMap{ $0 as? FrameworkNode }
+        return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
     }
     
     func targetDependencies(path: AbsolutePath, name: String) -> [String] {
@@ -101,7 +101,7 @@ class Graph: Graphing {
         }
         
         return targetNode.targetDependencies
-            .filter{ $0.path == path }
+            .filter { $0.path == path }
             .map(\.target.name)
     }
     
@@ -180,7 +180,7 @@ class Graph: Graphing {
         let validProducts: [Product] = [
             .app,
             .unitTests,
-            .uiTests,
+            .uiTests
 //            .tvExtension,
 //            .appExtension,
 //            .watchExtension,
@@ -224,7 +224,7 @@ class Graph: Graphing {
             return node.path == path && node.target.name == name
         }
         
-        let targetNodes = entryNodes.compactMap{ $0 as? TargetNode }
+        let targetNodes = entryNodes.compactMap { $0 as? TargetNode }
         
         if let targetNode = targetNodes.first(where: isPathAndNameEqual) {
             return targetNode
@@ -238,7 +238,7 @@ class Graph: Graphing {
     }
 }
 
-// MARK:- Predicates
+// MARK: - Predicates
 
 extension Graph {
     
@@ -263,24 +263,24 @@ extension Graph {
     
 }
 
-// MARK:- TargetNode helper computed properties, provide lazy arrays by default.
+// MARK: - TargetNode helper computed properties, provide lazy arrays by default.
 
 extension TargetNode {
     
     fileprivate var targetDependencies: [TargetNode] {
-        return dependencies.lazy.compactMap{ $0 as? TargetNode }
+        return dependencies.lazy.compactMap { $0 as? TargetNode }
     }
     
     fileprivate var precompiledDependencies: [PrecompiledNode] {
-        return dependencies.lazy.compactMap{ $0 as? PrecompiledNode }
+        return dependencies.lazy.compactMap { $0 as? PrecompiledNode }
     }
     
     fileprivate var libraryDependencies: [LibraryNode] {
-        return dependencies.lazy.compactMap{ $0 as? LibraryNode }
+        return dependencies.lazy.compactMap { $0 as? LibraryNode }
     }
     
     fileprivate var frameworkDependencies: [FrameworkNode] {
-        return dependencies.lazy.compactMap{ $0 as? FrameworkNode }
+        return dependencies.lazy.compactMap { $0 as? FrameworkNode }
     }
     
 }

@@ -145,7 +145,7 @@ public final class System: Systeming {
         // Node
         "NVM_DIR",
         // Ruby
-        "GEM_PATH", "RUBY_ENGINE", "GEM_ROOT", "GEM_HOME", "RUBY_ROOT", "RUBY_VERSION",
+        "GEM_PATH", "RUBY_ENGINE", "GEM_ROOT", "GEM_HOME", "RUBY_ROOT", "RUBY_VERSION"
     ]
 
     /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.

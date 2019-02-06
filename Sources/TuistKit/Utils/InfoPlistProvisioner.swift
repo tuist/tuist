@@ -80,13 +80,13 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
             base["UISupportedInterfaceOrientations"] = [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
+                "UIInterfaceOrientationLandscapeRight"
             ]
             base["UISupportedInterfaceOrientations~ipad"] = [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationPortraitUpsideDown",
                 "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
+                "UIInterfaceOrientationLandscapeRight"
             ]
         }
 
