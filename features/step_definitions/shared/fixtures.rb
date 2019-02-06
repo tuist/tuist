@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'fileutils'
 
 Then(/I copy the fixture (.+) into the working directory/) do |fixture|
@@ -5,5 +7,5 @@ Then(/I copy the fixture (.+) into the working directory/) do |fixture|
   fixture_path = File.join(fixtures_path, fixture)
   assert(false, "Fixture #{fixture} not found") unless File.exist?(fixture_path)
 
-  FileUtils.cp_r File.join(fixture_path, "."), @dir
+  FileUtils.cp_r(File.join(fixture_path, "."), @dir)
 end

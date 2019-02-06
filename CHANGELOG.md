@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Schemes generation https://github.com/tuist/tuist/pull/188 by @pepibumur.
 - Environment variables per target https://github.com/tuist/tuist/pull/189 by @pepibumur.
 - Danger warn that reminds contributors to update the docuementation https://github.com/tuist/tuist/pull/214 by @pepibumur
+- Rubocop https://github.com/tuist/tuist/pull/216 by @pepibumur.
 
 ### Fixed
 

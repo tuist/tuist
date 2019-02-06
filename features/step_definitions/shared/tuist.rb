@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Given(/tuist is available/) do
   system("swift", "build")
 end
