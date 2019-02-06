@@ -21,3 +21,6 @@ if all_files.any? { |f| f =~ %r{Sources/} }
   MESSAGE
   warn(message)
 end
+
+# Rubocop
+rubocop.lint

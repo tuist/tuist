@@ -18,7 +18,17 @@ end
 desc("Corrects the issues with the Swift style")
 task :style_swift_correct do
   abort_unless_swiftlint_installed
-  system("swiftlint", "autocorrect")
+  system("swiftlint", "autocorrect") || abort
+end
+
+desc("Lints the Ruby code style")
+task :style_ruby do
+  system("bundle", "exec", "rubocop") || abort
+end
+
+desc("Corrects the issues with the Ruby style")
+task :style_ruby_correct do
+  system("bundle", "exec", "rubocop", "-a") || abort
 end
 
 def abort_unless_swiftlint_installed
