@@ -21,6 +21,7 @@ enum InitCommandError: FatalError {
     }
 }
 
+// swiftlint:disable:next type_body_length
 class InitCommand: NSObject, Command {
     // MARK: - Attributes
 
@@ -57,7 +58,7 @@ class InitCommand: NSObject, Command {
                                         usage: "The product (application or framework) the generated project will build (Default: application).",
                                         completion: ShellCompletion.values([
                                             (value: "application", description: "Application"),
-                                            (value: "framework", description: "Framework")
+                                            (value: "framework", description: "Framework"),
         ]))
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
@@ -66,7 +67,7 @@ class InitCommand: NSObject, Command {
                                          completion: ShellCompletion.values([
                                              (value: "ios", description: "iOS platform"),
                                              (value: "tvos", description: "tvOS platform"),
-                                             (value: "macos", description: "macOS platform")
+                                             (value: "macos", description: "macOS platform"),
         ]))
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
@@ -76,7 +77,7 @@ class InitCommand: NSObject, Command {
         nameArgument = subParser.add(option: "--name",
                                      shortName: "-n",
                                      kind: String.self,
-                                     usage: "The name of the project. If it's not passed, the name of the folder will be used (Default: Name of the directory).",
+                                     usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
         self.fileHandler = fileHandler
         self.printer = printer
@@ -224,7 +225,7 @@ class InitCommand: NSObject, Command {
         var content: String!
         var filename: String!
 
-        if platform == .macOS && product == .app {
+        if platform == .macOS, product == .app {
             filename = "AppDelegate.swift"
             content = """
             import Cocoa
@@ -244,7 +245,7 @@ class InitCommand: NSObject, Command {
             
             }
             """
-        } else if [.iOS, .tvOS].contains(platform) && product == .app {
+        } else if [.iOS, .tvOS].contains(platform), product == .app {
             filename = "AppDelegate.swift"
 
             content = """
@@ -255,7 +256,8 @@ class InitCommand: NSObject, Command {
             
                 var window: UIWindow?
             
-                func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
+                func application(_ application: UIApplication,
+                                   didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
                     window = UIWindow(frame: UIScreen.main.bounds)
                     let viewController = UIViewController()
                     viewController.view.backgroundColor = .white

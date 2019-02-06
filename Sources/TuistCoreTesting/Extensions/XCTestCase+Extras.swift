@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 public extension XCTestCase {
-    public func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String) {
+    func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String) {
         XCTAssertTrue(printer.standardOutputMatches(with: pattern), """
         The pattern:
         \(pattern)
@@ -12,7 +12,7 @@ public extension XCTestCase {
         """)
     }
 
-    public func XCTAssertStandarError(_ printer: MockPrinter, pattern: String) {
+    func XCTAssertStandarError(_ printer: MockPrinter, pattern: String) {
         XCTAssertTrue(printer.standardErrorMatches(with: pattern), """
         The pattern:
         \(pattern)

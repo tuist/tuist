@@ -50,7 +50,7 @@ public class EnvironmentController: EnvironmentControlling {
     private func setup() {
         [directory, versionsDirectory, derivedProjectsDirectory].forEach {
             if !fileHandler.exists($0) {
-                // Note: It should be safe to use try! here
+                // swiftlint:disable:next force_try
                 try! fileHandler.createFolder($0)
             }
         }

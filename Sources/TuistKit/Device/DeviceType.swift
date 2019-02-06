@@ -6,8 +6,8 @@ struct DeviceType: Hashable {
     let name: String
     let identifier: String
 
-    var hashValue: Int {
-        return identifier.hashValue
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(identifier)
     }
 
     // MARK: - Init

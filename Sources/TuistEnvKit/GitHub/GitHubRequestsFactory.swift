@@ -1,7 +1,7 @@
 import Foundation
 
 class GitHubRequestsFactory {
-    /// MARK: - Constants
+    // MARK: - Constants
 
     static let repository: String = "tuist/tuist"
 

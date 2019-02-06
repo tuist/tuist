@@ -3,7 +3,7 @@ import Foundation
 @testable import TuistCoreTesting
 import XCTest
 
-fileprivate struct TestError: FatalError {
+private struct TestError: FatalError {
     var description: String { return "Error" }
     var type: ErrorType
 }

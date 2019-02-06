@@ -49,7 +49,10 @@ public class Glob: Collection {
         // If false and the last characters of the pattern are "**/" then only directories are returned in the results.
         let includesFilesInResultsIfTrailingSlash: Bool
 
-        public init(supportsGlobstar: Bool, includesFilesFromRootOfGlobstar: Bool, includesDirectoriesInResults: Bool, includesFilesInResultsIfTrailingSlash: Bool) {
+        public init(supportsGlobstar: Bool,
+                    includesFilesFromRootOfGlobstar: Bool,
+                    includesDirectoriesInResults: Bool,
+                    includesFilesInResultsIfTrailingSlash: Bool) {
             self.supportsGlobstar = supportsGlobstar
             self.includesFilesFromRootOfGlobstar = includesFilesFromRootOfGlobstar
             self.includesDirectoriesInResults = includesDirectoriesInResults

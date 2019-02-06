@@ -29,6 +29,7 @@ protocol Carthaging {
 
 final class Carthage: Carthaging {
     /// Regex used to match and extract information from the lines in the Cartfile.resolved file.
+    // swiftlint:disable:next force_try
     static let resolvedLineRegex = try! NSRegularExpression(pattern: "(github|git|binary) \"([^\"]+)\" \"([^\"]+)\"", options: [])
 
     /// System instance to run run commands in the shell.
@@ -85,7 +86,10 @@ final class Carthage: Carthaging {
         let carfileResolvedNSString = carfileResolved as NSString
         let jsonDecoder = JSONDecoder()
 
-        try Carthage.resolvedLineRegex.matches(in: carfileResolved, options: [], range: NSRange(location: 0, length: carfileResolved.count)).forEach { match in
+        try Carthage.resolvedLineRegex.matches(in: carfileResolved,
+                                               options: [],
+                                               range: NSRange(location: 0,
+                                                              length: carfileResolved.count)).forEach { match in
             let dependencyNameRange = match.range(at: 2)
             let dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
 

@@ -19,8 +19,8 @@ class GraphNode: Equatable, Hashable {
         return lhs.path == rhs.path
     }
 
-    var hashValue: Int {
-        return path.hashValue
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
     }
 }
 
@@ -42,8 +42,9 @@ class TargetNode: GraphNode {
         super.init(path: project.path)
     }
 
-    override var hashValue: Int {
-        return path.hashValue ^ target.name.hashValue
+    override func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+        hasher.combine(target.name)
     }
 
     static func read(name: String,

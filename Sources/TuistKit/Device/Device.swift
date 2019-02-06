@@ -8,8 +8,8 @@ struct Device: Hashable, Equatable {
     let name: String
     let udid: String
 
-    var hashValue: Int {
-        return udid.hashValue
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(udid)
     }
 
     var available: Bool {

@@ -44,7 +44,7 @@ class TargetLinter: TargetLinting {
     fileprivate func lintHasSourceFiles(target: Target) -> [LintingIssue] {
         let files = target.sources
         var issues: [LintingIssue] = []
-        if files.count == 0 {
+        if files.isEmpty {
             issues.append(LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning))
         }
         return issues
@@ -82,16 +82,14 @@ class TargetLinter: TargetLinting {
     }
 
     fileprivate func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
-        
         if target.product == .dynamicLibrary {
-            return [ ]
+            return []
         }
-        
-        if target.resources.count != 0 {
+
+        if !target.resources.isEmpty {
             return [LintingIssue(reason: "Target \(target.name) cannot contain resources. Libraries don't support resources", severity: .error)]
         }
-        
-        return [ ]
-        
+
+        return []
     }
 }

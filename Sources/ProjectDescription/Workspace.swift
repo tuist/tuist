@@ -21,6 +21,7 @@ public class Workspace: Codable {
                 projects: [String]) {
         self.name = name
         self.projects = projects
-        dumpIfNeeded(self)
+        // swiftlint:disable:next force_try
+        try! dumpIfNeeded(self)
     }
 }

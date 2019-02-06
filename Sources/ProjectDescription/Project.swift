@@ -23,6 +23,7 @@ public class Project: Codable {
         self.up = up
         self.targets = targets
         self.settings = settings
-        dumpIfNeeded(self)
+        // swiftlint:disable:next force_try
+        try! dumpIfNeeded(self)
     }
 }

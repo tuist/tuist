@@ -3,8 +3,8 @@ import Foundation
 import XCTest
 
 final class WorkspaceTests: XCTestCase {
-    func test_toJSON() {
-        let subject = Workspace(name: "name", projects: ["/path/to/project"])
+    func test_toJSON() throws {
+        let subject = try Workspace(name: "name", projects: ["/path/to/project"])
         let expected = "{\"name\": \"name\", \"projects\": [\"/path/to/project\"]}"
         assertCodableEqualToJson(subject, expected)
     }

@@ -38,7 +38,7 @@ final class InstallerTests: XCTestCase {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         system.swiftVersionStub = { "8.8.8" }
         githubClient.getContentStub = { ref, path in
-            if ref == version && path == ".swift-version" {
+            if ref == version, path == ".swift-version" {
                 return "7.7.7"
             } else {
                 throw NSError.test()

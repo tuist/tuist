@@ -4,6 +4,7 @@ import TuistCore
 
 public final class MockSystem: Systeming {
     public var env: [String: String] = ProcessInfo.processInfo.environment
+    // swiftlint:disable:next large_tuple
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var calls: [String] = []
     var swiftVersionStub: (() throws -> String?)?

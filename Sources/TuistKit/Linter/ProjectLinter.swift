@@ -49,7 +49,7 @@ class ProjectLinter: ProjectLinting {
             .reduce(into: [String: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
             .filter({ $0.value > 1 })
             .keys
-        if duplicatedTargets.count != 0 {
+        if !duplicatedTargets.isEmpty {
             let issue = LintingIssue(reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.asString) have duplicates.",
                                      severity: .error)
             issues.append(issue)

@@ -62,11 +62,13 @@ public final class MockPrinter: Printing {
     }
 
     func standardOutputMatches(with pattern: String) -> Bool {
+        // swiftlint:disable:next force_try
         let regex = try! NSRegularExpression(pattern: pattern, options: [])
         return regex.firstMatch(in: standardOutput, options: [], range: NSRange(location: 0, length: standardOutput.count)) != nil
     }
 
     func standardErrorMatches(with pattern: String) -> Bool {
+        // swiftlint:disable:next force_try
         let regex = try! NSRegularExpression(pattern: pattern, options: [])
         return regex.firstMatch(in: standardError, options: [], range: NSRange(location: 0, length: standardError.count)) != nil
     }
