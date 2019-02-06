@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** Up can now be specified via `Setup.swift` https://github.com/tuist/tuist/issues/203 by @marciniwanicki & @kwridan
 - Schemes generation https://github.com/tuist/tuist/pull/188 by @pepibumur.
 - Environment variables per target https://github.com/tuist/tuist/pull/189 by @pepibumur.
+- Danger warn that reminds contributors to update the docuementation https://github.com/tuist/tuist/pull/214 by @pepibumur
 
 ### Fixed
 
