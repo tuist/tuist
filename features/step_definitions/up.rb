@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 
 Then(/I should have (.+) installed/) do |tool_path|
   @tool_path = tool_path
