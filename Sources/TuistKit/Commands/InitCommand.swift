@@ -58,7 +58,7 @@ class InitCommand: NSObject, Command {
                                         usage: "The product (application or framework) the generated project will build (Default: application).",
                                         completion: ShellCompletion.values([
                                             (value: "application", description: "Application"),
-                                            (value: "framework", description: "Framework"),
+                                            (value: "framework", description: "Framework")
         ]))
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
@@ -67,7 +67,7 @@ class InitCommand: NSObject, Command {
                                          completion: ShellCompletion.values([
                                              (value: "ios", description: "iOS platform"),
                                              (value: "tvos", description: "tvOS platform"),
-                                             (value: "macos", description: "macOS platform"),
+                                             (value: "macos", description: "macOS platform")
         ]))
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",

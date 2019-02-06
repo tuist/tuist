@@ -172,7 +172,7 @@ class Graph: Graphing {
         let validProducts: [Product] = [
             .app,
             .unitTests,
-            .uiTests,
+            .uiTests
 //            .tvExtension,
 //            .appExtension,
 //            .watchExtension,

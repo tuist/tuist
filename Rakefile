@@ -10,7 +10,7 @@ end
 desc "Lints the Swift code style"
 task :style_swift do
   abort_unless_swiftlint_installed
-  system("swiftlint") || abort
+  system("swiftlint", "--strict") || abort
 end
 
 desc "Corrects the issues with the Swift style"

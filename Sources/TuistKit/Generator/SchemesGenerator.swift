@@ -110,7 +110,7 @@ final class SchemesGenerator: SchemesGenerating {
                      pbxTarget: PBXNativeTarget,
                      projectPath: AbsolutePath) -> XCScheme.BuildAction? {
         let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
-            .analyzing, .archiving, .profiling, .running, .testing,
+            .analyzing, .archiving, .profiling, .running, .testing
         ]
 
         let buildableReference = self.buildableReference(target: target,

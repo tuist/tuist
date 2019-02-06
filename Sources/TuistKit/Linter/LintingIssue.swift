@@ -48,7 +48,7 @@ extension Array where Element == LintingIssue {
         let errorIssues = filter({ $0.severity == .error })
         let warningIssues = filter({ $0.severity == .warning })
 
-        if !warningIssues.isEmpty {
+        if warningIssues.count != 0 {
             printer.print("The following issues have been found:", color: .yellow)
             let message = warningIssues.map({ "  - \($0.description)" }).joined(separator: "\n")
             printer.print(message)

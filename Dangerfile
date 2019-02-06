@@ -8,4 +8,4 @@ if !git.modified_files.include?("CHANGELOG.md")
 end
 
 # Swiftlint
-swiftlint.lint_files
+swiftlint.lint_files(additional_swiftlint_args: "--strict")
