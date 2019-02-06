@@ -118,7 +118,7 @@ final class Installer: Installing {
         } catch is GitHubClientError {
             printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
         }
-        if remoteVersion != nil && localVersion != remoteVersion {
+        if remoteVersion != nil, localVersion != remoteVersion {
             throw InstallerError.incompatibleSwiftVersion(local: localVersion, expected: remoteVersion)
         }
     }

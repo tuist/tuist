@@ -21,7 +21,7 @@ public final class CommandRegistry {
                       BundleCommand.self,
                       UpdateCommand.self,
                       InstallCommand.self,
-                      UninstallCommand.self,
+                      UninstallCommand.self
         ])
     }
 

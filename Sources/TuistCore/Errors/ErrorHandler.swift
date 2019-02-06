@@ -48,7 +48,7 @@ public final class ErrorHandler: ErrorHandling {
     /// - Parameter error: Fatal error that should be handler.
     public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
-        if !error.description.isEmpty && !isSilent {
+        if !error.description.isEmpty, !isSilent {
             printer.print(errorMessage: error.description)
         } else if isSilent {
             let message = """

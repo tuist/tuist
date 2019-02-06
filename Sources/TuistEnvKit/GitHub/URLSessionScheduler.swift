@@ -9,7 +9,7 @@ protocol URLSessionScheduling: AnyObject {
 }
 
 final class URLSessionScheduler: URLSessionScheduling {
-    //  MARK: - Constants
+    // MARK: - Constants
 
     /// The default request timeout.
     static let defaultRequestTimeout: Double = 3

@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import xcodeproj
 
+// swiftlint:disable:next type_body_length
 class ProjectFileElements {
     // MARK: - Static
 
@@ -57,7 +58,7 @@ class ProjectFileElements {
                             sourceRootPath: sourceRootPath)
 
         let dependencies = graph.findAll(path: project.path)
-        
+
         /// Dependencies
         generate(dependencies: dependencies,
                  path: project.path,
@@ -201,7 +202,10 @@ class ProjectFileElements {
         let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
 
         // Add the first relative element.
-        guard let firstElement = addElement(relativePath: closestRelativeRelativePath, from: sourceRootPath, toGroup: groups.project, pbxproj: pbxproj) else {
+        guard let firstElement = addElement(relativePath: closestRelativeRelativePath,
+                                            from: sourceRootPath,
+                                            toGroup: groups.project,
+                                            pbxproj: pbxproj) else {
             return
         }
 
@@ -210,7 +214,6 @@ class ProjectFileElements {
             return
         }
 
-        // swiftlint:disable:next force_cast
         var lastGroup: PBXGroup! = firstElement.element as? PBXGroup
         var lastPath: AbsolutePath = firstElement.path
 
@@ -405,10 +408,10 @@ class ProjectFileElements {
         let relativePathComponents = path.relative(to: sourceRootPath).components
         let firstElementComponents = relativePathComponents.reduce(into: [String]()) { components, component in
             let isLastRelative = components.last == ".." || components.last == "."
-            if components.last != nil && !isLastRelative { return }
+            if components.last != nil, !isLastRelative { return }
             components.append(component)
         }
-        if firstElementComponents.count == 0 && relativePathComponents.count != 0 {
+        if firstElementComponents.isEmpty, !relativePathComponents.isEmpty {
             return RelativePath(relativePathComponents.first!)
         } else {
             return RelativePath(firstElementComponents.joined(separator: "/"))

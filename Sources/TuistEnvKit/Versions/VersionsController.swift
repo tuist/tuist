@@ -58,7 +58,7 @@ class VersionsController: VersionsControlling {
         try installation(tmpDir.path)
 
         // Copy only if there's file in the folder
-        if tmpDir.path.glob("*").count != 0 {
+        if !tmpDir.path.glob("*").isEmpty {
             let dstPath = path(version: version)
             if fileHandler.exists(dstPath) {
                 try fileHandler.delete(dstPath)

@@ -55,7 +55,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         let productFrameworksPath = destinationPath.appending(frameworksPath)
         let embeddable = Embeddable(path: frameworkAbsolutePath)
 
-        if try embeddable.architectures().filter({ validArchs.contains($0) }).count == 0 {
+        if try embeddable.architectures().filter({ validArchs.contains($0) }).isEmpty {
             return
         }
 

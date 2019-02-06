@@ -15,7 +15,7 @@ class BuildCopier: BuildCopying {
         // Project description
         "ProjectDescription.swiftmodule",
         "ProjectDescription.swiftdoc",
-        "libProjectDescription.dylib",
+        "libProjectDescription.dylib"
     ]
 
     // MARK: - Attributes

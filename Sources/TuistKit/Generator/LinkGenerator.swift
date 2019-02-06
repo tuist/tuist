@@ -86,7 +86,7 @@ final class LinkGenerator: LinkGenerating {
                                  pbxTarget: pbxTarget,
                                  pbxproj: pbxproj,
                                  fileElements: fileElements)
-        
+
         // If the current target, which is non-shared (e.g., static lib), depends on other focused targets which
         // include Swift code, we must ensure those are treated as dependencies so that Xcode builds the targets
         // in the correct order. Unfortunately, those deps can be part of other projects which would require
@@ -97,20 +97,17 @@ final class LinkGenerator: LinkGenerating {
         // Products Dir into Products Dir" which is a nop. To be on the safe side, we're explicitly marking the
         // copy phase as only running for deployment postprocessing (i.e., "Copy only when installing") and
         // disabling deployment postprocessing (it's enabled by default for release builds).
-        
+
         if target.product == .staticLibrary {
-            
             let dependencies = graph.staticLibraryDependencies(path: path, name: target.name)
-            
+
             try generateDependenciesBuildPhase(
                 dependencies: dependencies,
                 pbxTarget: pbxTarget,
                 pbxproj: pbxproj,
                 fileElements: fileElements
             )
-            
         }
-
     }
 
     func generateEmbedPhase(dependencies: [DependencyReference],
@@ -145,7 +142,7 @@ final class LinkGenerator: LinkGenerating {
                 embedPhase.files.append(buildFile)
             }
         }
-        if script.count == 0 {
+        if script.isEmpty {
             precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
         } else {
             precompiledEmbedPhase.shellScript = script.joined(separator: "\n")
@@ -223,28 +220,28 @@ final class LinkGenerator: LinkGenerating {
             }
         }
     }
-    
+
     func generateDependenciesBuildPhase(dependencies: [DependencyReference],
                                         pbxTarget: PBXTarget,
                                         pbxproj: PBXProj,
                                         fileElements: ProjectFileElements) throws {
-        var files: [PBXBuildFile] = [ ]
-        
+        var files: [PBXBuildFile] = []
+
         for case let .product(name) in dependencies {
             guard let fileRef = fileElements.product(name: name) else {
                 throw LinkGeneratorError.missingProduct(name: name)
             }
-            
+
             let buildFile = PBXBuildFile(file: fileRef)
             pbxproj.add(object: buildFile)
             files.append(buildFile)
         }
-        
+
         // Nothing to link, move on.
-        if files.count == 0 {
+        if files.isEmpty {
             return
         }
-        
+
         let buildPhase = PBXCopyFilesBuildPhase(
             dstPath: nil,
             dstSubfolderSpec: .productsDirectory,
@@ -253,9 +250,8 @@ final class LinkGenerator: LinkGenerating {
             files: files,
             runOnlyForDeploymentPostprocessing: true
         )
-        
+
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
     }
-    
 }

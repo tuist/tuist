@@ -75,7 +75,7 @@ final class CommandCheck: CommandChecking {
     static func checkableCommands() -> [String] {
         return [
             DumpCommand.command,
-            GenerateCommand.command,
+            GenerateCommand.command
         ]
     }
 }

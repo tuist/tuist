@@ -138,7 +138,9 @@ final class ConfigGenerator: ConfigGenerating {
         extend(buildSettings: &settings, with: project.settings?.base ?? [:])
         extend(buildSettings: &settings, with: defaultConfigSettings)
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized, baseConfiguration: nil, buildSettings: [:])
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+                                                             baseConfiguration: nil,
+                                                             buildSettings: [:])
         if let variantConfig = configuration {
             extend(buildSettings: &settings, with: variantConfig.settings)
             if let xcconfig = variantConfig.xcconfig {
@@ -168,7 +170,9 @@ final class ConfigGenerator: ConfigGenerating {
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized, baseConfiguration: nil, buildSettings: [:])
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+                                                             baseConfiguration: nil,
+                                                             buildSettings: [:])
         if let variantConfig = configuration {
             if let xcconfig = variantConfig.xcconfig {
                 let fileReference = fileElements.file(path: xcconfig)

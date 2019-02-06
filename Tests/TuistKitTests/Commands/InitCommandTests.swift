@@ -77,7 +77,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(subject.nameArgument.shortName, "-n")
 
         XCTAssertTrue(subject.nameArgument.isOptional)
-        XCTAssertEqual(subject.nameArgument.usage, "The name of the project. If it's not passed, the name of the folder will be used (Default: Name of the directory).")
+        XCTAssertEqual(subject.nameArgument.usage, "The name of the project. If it's not passed (Default: Name of the directory).")
     }
 
     func test_pathArgument() {

@@ -73,7 +73,7 @@ enum Manifest {
         }
     }
 
-    static var supportedExtensions: Set<String> = Set(arrayLiteral: "json", "swift", "yaml", "yml")
+    static var supportedExtensions: Set<String> = ["json", "swift", "yaml", "yml"]
 }
 
 protocol GraphManifestLoading {
@@ -202,7 +202,7 @@ class GraphManifestLoader: GraphManifestLoading {
             "-I", projectDescriptionPath.parentDirectory.asString,
             "-L", projectDescriptionPath.parentDirectory.asString,
             "-F", projectDescriptionPath.parentDirectory.asString,
-            "-lProjectDescription",
+            "-lProjectDescription"
         ]
         arguments.append(path.asString)
         arguments.append("--dump")

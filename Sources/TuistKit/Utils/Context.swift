@@ -2,6 +2,7 @@ import Foundation
 import TuistCore
 
 /// Context protocol.
+// swiftlint:disable:next line_length
 @available(*, deprecated, message: "The context approach for injecting dependencies is deprecated. Inject dependencies through the constructor instead.")
 protocol Contexting: AnyObject {
     /// Util to handle files.
@@ -16,6 +17,7 @@ protocol Contexting: AnyObject {
 
 /// tuist uses contexts as a dependency injection mechanism.
 /// Contexts are initialized by the commands and passed to the different components that will use the dependencies defined in them.
+// swiftlint:disable:next line_length
 @available(*, deprecated, message: "The context approach for injecting dependencies is deprecated. Inject dependencies through the constructor instead.")
 class Context: Contexting {
     /// Util to handle files.

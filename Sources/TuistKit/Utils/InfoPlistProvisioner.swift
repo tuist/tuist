@@ -67,31 +67,31 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
         }
 
         // macOS application
-        if product == .app && platform == .macOS {
+        if product == .app, platform == .macOS {
             base["LSMinimumSystemVersion"] = "$(MACOSX_DEPLOYMENT_TARGET)"
             base["NSPrincipalClass"] = "NSApplication"
             base["CFBundleIconFile"] = ""
         }
 
         // iOS application
-        if product == .app && platform == .iOS {
+        if product == .app, platform == .iOS {
             base["LSRequiresIPhoneOS"] = true
             base["UIRequiredDeviceCapabilities"] = ["armv7"]
             base["UISupportedInterfaceOrientations"] = [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
+                "UIInterfaceOrientationLandscapeRight"
             ]
             base["UISupportedInterfaceOrientations~ipad"] = [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationPortraitUpsideDown",
                 "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
+                "UIInterfaceOrientationLandscapeRight"
             ]
         }
 
         // tvOS application
-        if product == .app && platform == .tvOS {
+        if product == .app, platform == .tvOS {
             base["LSRequiresIPhoneOS"] = true
             base["UIRequiredDeviceCapabilities"] = ["arm64"]
         }

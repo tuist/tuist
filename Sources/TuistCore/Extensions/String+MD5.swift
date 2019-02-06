@@ -23,10 +23,10 @@
 import Foundation
 
 public extension String {
-    public var md5: String {
+    var md5: String {
         if let data = data(using: .utf8, allowLossyConversion: true) {
             let message = data.withUnsafeBytes { bytes -> [UInt8] in
-                return Array(UnsafeBufferPointer(start: bytes, count: data.count))
+                Array(UnsafeBufferPointer(start: bytes, count: data.count))
             }
 
             let MD5Calculator = MD5(message)
@@ -85,14 +85,14 @@ extension NSMutableData {
 }
 
 protocol HashProtocol {
-    var message: Array<UInt8> { get }
+    var message: [UInt8] { get }
 
     /** Common part for hash calculation. Prepare header data. */
-    func prepare(_ len: Int) -> Array<UInt8>
+    func prepare(_ len: Int) -> [UInt8]
 }
 
 extension HashProtocol {
-    func prepare(_ len: Int) -> Array<UInt8> {
+    func prepare(_ len: Int) -> [UInt8] {
         var tmpMessage = message
 
         // Step 1. Append Padding Bits
@@ -107,13 +107,13 @@ extension HashProtocol {
             msgLength += 1
         }
 
-        tmpMessage += Array<UInt8>(repeating: 0, count: counter)
+        tmpMessage += [UInt8](repeating: 0, count: counter)
         return tmpMessage
     }
 }
 
-func toUInt32Array(_ slice: ArraySlice<UInt8>) -> Array<UInt32> {
-    var result = Array<UInt32>()
+func toUInt32Array(_ slice: ArraySlice<UInt8>) -> [UInt32] {
+    var result = [UInt32]()
     result.reserveCapacity(16)
 
     for idx in stride(from: slice.startIndex, to: slice.endIndex, by: MemoryLayout<UInt32>.size) {
@@ -143,7 +143,7 @@ struct BytesIterator: IteratorProtocol {
         let end = min(chunkSize, data.count - offset)
         let result = data[offset ..< offset + end]
         offset += result.count
-        return result.count > 0 ? result : nil
+        return !result.isEmpty ? result : nil
     }
 }
 
@@ -235,19 +235,15 @@ class MD5: HashProtocol {
                 case 0 ... 15:
                     F = (B & C) | ((~B) & D)
                     g = j
-                    break
                 case 16 ... 31:
                     F = (D & B) | (~D & C)
                     g = (5 * j + 1) % 16
-                    break
                 case 32 ... 47:
                     F = B ^ C ^ D
                     g = (3 * j + 5) % 16
-                    break
                 case 48 ... 63:
                     F = C ^ (B | (~D))
                     g = (7 * j) % 16
-                    break
                 default:
                     break
                 }
