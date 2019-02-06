@@ -171,7 +171,8 @@ public final class System: Systeming {
                               verbose: false,
                               startNewProcessGroup: false)
         try process.launch()
-        try process.waitUntilExit()
+        let result = try process.waitUntilExit()
+        try result.throwIfErrored()
     }
 
     /// Runs a command without collecting output nor printing anything.

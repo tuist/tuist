@@ -5,10 +5,16 @@ import Foundation
 final class MockGraphManifestLoader: GraphManifestLoading {
     var loadCount: UInt = 0
     var loadStub: ((Manifest, AbsolutePath) throws -> JSON)?
+
     var manifestsAtCount: UInt = 0
     var manifestsAtStub: ((AbsolutePath) -> Set<Manifest>)?
+
     var manifestPathCount: UInt = 0
     var manifestPathStub: ((AbsolutePath, Manifest) throws -> AbsolutePath)?
+
+    var loadSetupCount: UInt = 0
+    var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
+
 
     func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON {
         loadCount += 1
@@ -23,5 +29,10 @@ final class MockGraphManifestLoader: GraphManifestLoading {
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
         manifestPathCount += 1
         return try manifestPathStub?(path, manifest) ?? TemporaryDirectory(removeTreeOnDeinit: true).path
+    }
+
+    func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+        loadSetupCount += 1
+        return try loadSetupStub?(path) ?? []
     }
 }

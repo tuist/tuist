@@ -10,6 +10,7 @@ final class GraphManifestLoaderErrorTests: XCTestCase {
         XCTAssertEqual(GraphManifestLoaderError.unexpectedOutput(AbsolutePath("/test/")).description, "Unexpected output trying to parse the manifest at path /test")
         XCTAssertEqual(GraphManifestLoaderError.invalidYaml(AbsolutePath("/test/")).description, "Invalid yaml at path /test. The root element should be a dictionary")
         XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).description, "Project not found at /test")
+        XCTAssertEqual(GraphManifestLoaderError.setupNotFound(AbsolutePath("/test/")).description, "Setup.swift not found at /test")
     }
 
     func test_type() {
@@ -17,6 +18,7 @@ final class GraphManifestLoaderErrorTests: XCTestCase {
         XCTAssertEqual(GraphManifestLoaderError.unexpectedOutput(AbsolutePath("/test/")).type, .bug)
         XCTAssertEqual(GraphManifestLoaderError.invalidYaml(AbsolutePath("/test/")).type, .abort)
         XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).type, .abort)
+        XCTAssertEqual(GraphManifestLoaderError.setupNotFound(AbsolutePath("/test/")).type, .abort)
     }
 }
 
