@@ -31,6 +31,6 @@ Dependencies:
 
 Simple app with tests.
 
-## invalid_manifest
+## invalid_workspace_manifest_name
 
 Contains a single file `Workspac.swift`, incorrectly named workspace manifest file.
