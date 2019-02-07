@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Environment variables per target https://github.com/tuist/tuist/pull/189 by @pepibumur.
 - Danger warn that reminds contributors to update the docuementation https://github.com/tuist/tuist/pull/214 by @pepibumur
 - Rubocop https://github.com/tuist/tuist/pull/216 by @pepibumur.
+- Fail init command if the directory is not empty https://github.com/tuist/tuist/pull/218 by @pepibumur.
 
 ### Fixed
 
