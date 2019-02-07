@@ -3,10 +3,11 @@ import Foundation
 import TuistCore
 import Utility
 
-enum InitCommandError: FatalError {
+enum InitCommandError: FatalError, Equatable {
     case alreadyExists(AbsolutePath)
     case ungettableProjectName(AbsolutePath)
-
+    case nonEmptyDirectory(AbsolutePath)
+    
     var type: ErrorType {
         return .abort
     }
@@ -17,8 +18,24 @@ enum InitCommandError: FatalError {
             return "\(path.asString) already exists."
         case let .ungettableProjectName(path):
             return "Couldn't infer the project name from path \(path.asString)."
+        case let .nonEmptyDirectory(path):
+            return "Can't initialize a project in the non-empty directory at path \(path.asString)."
         }
     }
+    
+    static func ==(lhs: InitCommandError, rhs: InitCommandError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.alreadyExists(lhsPath), .alreadyExists(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.ungettableProjectName(lhsPath), .ungettableProjectName(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.nonEmptyDirectory(lhsPath), .nonEmptyDirectory(rhsPath)):
+            return lhsPath == rhsPath
+        default:
+            return false
+        }
+    }
+    
 }
 
 // swiftlint:disable:next type_body_length
@@ -90,6 +107,7 @@ class InitCommand: NSObject, Command {
         let platform = try self.platform(arguments: arguments)
         let path = try self.path(arguments: arguments)
         let name = try self.name(arguments: arguments, path: path)
+        try verifyDirectoryIsEmpty(path: path)
         try generateProjectSwift(name: name, platform: platform, product: product, path: path)
         try generateSources(name: name, platform: platform, product: product, path: path)
         try generateTests(name: name, path: path)
@@ -100,6 +118,16 @@ class InitCommand: NSObject, Command {
     }
 
     // MARK: - Fileprivate
+    
+    /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
+    ///
+    /// - Parameter path: Directory to be checked.
+    /// - Throws: An InitCommandError.nonEmptyDirectory error when the directory is not empty.
+    fileprivate func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
+        if !path.glob("*").isEmpty {
+            throw InitCommandError.nonEmptyDirectory(path)
+        }
+    }
 
     fileprivate func generateProjectSwift(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
         let content = """
