@@ -13,6 +13,17 @@ final class TargetLinterTests: XCTestCase {
         fileHandler = try! MockFileHandler()
         subject = TargetLinter(fileHandler: fileHandler)
     }
+    
+    func test_lint_when_target_has_invalid_bundle_identifier() {
+        let reason: (String) -> String = { bundleId in
+            return "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
+        }
+        
+        let bundleId = "_.company.app"
+        let target = Target.test(bundleId: bundleId)
+        let got = subject.lint(target: target)
+        XCTAssertTrue(got.contains(LintingIssue(reason: reason(bundleId), severity: .error)))
+    }
 
     func test_lint_when_target_no_source_files() {
         let target = Target.test(sources: [])
