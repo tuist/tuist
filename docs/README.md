@@ -9,4 +9,4 @@
 
 # For contributors/maintainers
 
-- [Contribution](contribution/README.md)
+- [Getting started as a contributor](contribution/getting-started.md)
