@@ -6,6 +6,7 @@
 - [Dependencies](usage/dependencies.md)
 - [Up](usage/up.md)
 - [Managing versions](usage/managing-versions.md)
+- [Frequently asked questions](usage/faq.md)
 
 # For contributors/maintainers
 
