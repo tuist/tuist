@@ -16,15 +16,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fail init command if the directory is not empty https://github.com/tuist/tuist/pull/218 by @pepibumur.
 - Verify that the bundle identifier has only valid characters https://github.com/tuist/tuist/pull/219 by @pepibumur.
 - Merge documentation from the documentation repository https://github.com/tuist/tuist/pull/222 by @pepibumur.
+- Danger https://github.com/tuist/tuist/pull/186 by @pepibumur.
 
 ### Fixed
 
 - Swiftlint style issues https://github.com/tuist/tuist/pull/213 by @pepibumur.
 - Use environment tuist instead of the absolute path in the embed frameworks build phase https://github.com/tuist/tuist/pull/185 by @pepibumur.
-
-### Added
-
-- Danger https://github.com/tuist/tuist/pull/186 by @pepibumur.
 
 ### Deprecated
 
