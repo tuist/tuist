@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Danger warn that reminds contributors to update the docuementation https://github.com/tuist/tuist/pull/214 by @pepibumur
 - Rubocop https://github.com/tuist/tuist/pull/216 by @pepibumur.
 - Fail init command if the directory is not empty https://github.com/tuist/tuist/pull/218 by @pepibumur.
+- Verify that the bundle identifier has only valid characters https://github.com/tuist/tuist/pull/219 by @pepibumur.
 
 ### Fixed
 
