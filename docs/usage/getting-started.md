@@ -21,8 +21,8 @@ In a more advanced section on the documentation, we'll see the power of `tuisten
 Now that we have Tuist installed, we can create our first project. Create a directory for your app:
 
 ```bash
-mkdir MyAppcd MyApp
-
+mkdir MyApp
+cd MyApp
 ```
 
 And then run:
@@ -33,9 +33,7 @@ tuist init --platform ios --product application
 
 The `init` command will bootstrap an iOS application, which includes the `Info.plist` files, an `AppDelegate.swift,` a tests file, and a **`Project.swift` that contains the definition of the project.**
 
-{% hint style="info" %}
-If you have used the Swift Package Manager before, the `Project.swift` file is the equivalent to the `Package.swift`.
-{% endhint %}
+> If you have used the Swift Package Manager before, the `Project.swift` file is the equivalent to the `Package.swift`.
 
 The definition file, also known as manifest, has the following structure:
 

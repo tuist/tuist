@@ -27,7 +27,7 @@ It’ll execute help on `tuistenv` which prints the list of commands that are av
 When executed with no arguments, `tuist local`, it prints the list of versions that are available locally:
 
 ```bash
-$ tuist local
+tuist local
 
 The following versions are available in the local environment:
 - 0.4.0
@@ -36,7 +36,7 @@ The following versions are available in the local environment:
 If you execute the same command passing a version as an argument, it pins the directory where you are running the command from to the given version:
 
 ```text
-$ tuist local 0.4.0 
+tuist local 0.4.0
 
 Generating .tuist-version file with version 0.4.0
 ✅ Success: File generated at path /Tuist/.tuist-version
@@ -49,7 +49,7 @@ Note that it pins the version by creating a `.tuist-version` file in the current
 You might want to bundle `tuist` in your repository so that each git snapshot contains all the necessary elements to interact with the projects in it. The `tuist bundle` command is precisely for that:
 
 ```text
-$ tuist bundle 0.4.0
+tuist bundle 0.4.0
 
 Bundling the version 0.4.0 in the directory /Tuist/.tuist-bin
 ✅ Success: tuist bundled successfully at /Tuist/.tuist-bin
@@ -62,7 +62,7 @@ It creates a `.tuist-bin` directory in the current directory that contains the `
 `tuist install` installs a given version locally. It requires a version or a commit sha to be passed:
 
 ```text
-$ tuist install 0.4.0
+tuist install 0.4.0
 
 Downloading version from https://github.com/tuist/tuist/releases/download/0.4.0/tuist.zip
 Installing...
@@ -76,7 +76,7 @@ If the given version has a GitHub release, it’ll pull the compiled assets and 
 As you might have guessed, this command reverts the command above by deleting an installed version:
 
 ```text
-$ tuist uninstall 0.4.0
+tuist uninstall 0.4.0
 
 ✅ Success: Version 0.4.0 uninstalled
 ```
@@ -86,7 +86,7 @@ $ tuist uninstall 0.4.0
 If there isn’t any version installed, or there’s a new version that is not installed locally, the update command installs it:
 
 ```text
-$ tuist update
+tuist update
 
 Checking for updates...
 No local versions available. Installing the latest version 0.4.0
@@ -101,17 +101,17 @@ As we mentioned earlier, Tuist version management works **transparently**. Any o
 
 When you run Tuist:
 
-* It determines which version should be executed by using the following priority order:
-  * Bundled version _\(in current directory or parents\)_
-  * Pinned version _\(in current directory or parents\)_
-  * Highest local version
-* Once the version is determined, it checks if the version exists locally. If it doesn’t, it installs it.
-* After ensuring that the version exists, it runs it, passing the right arguments.
+- It determines which version should be executed by using the following priority order:
+  - Bundled version _\(in current directory or parents\)_
+  - Pinned version _\(in current directory or parents\)_
+  - Highest local version
+- Once the version is determined, it checks if the version exists locally. If it doesn’t, it installs it.
+- After ensuring that the version exists, it runs it, passing the right arguments.
 
 **Running Tuist with a pinned version that is not installed**
 
 ```text
-$ tuist --help
+tuist --help
 
 Using version 0.4.0 defined at /Users/pedropinera/Downloads/.tuist-version
 Version 0.4.0 not found locally. Installing...
@@ -127,7 +127,7 @@ USAGE: tuist <command> <options>
 **Running tuist with a bundled version**
 
 ```text
-$ tuist --help
+tuist --help
 
 Using bundled version at path /Users/pedropinera/Downloads/.tuist-bin
 OVERVIEW: Generate, build and test your Xcode projects.
@@ -139,11 +139,10 @@ USAGE: tuist <command> <options>
 **Running tuist without any pinned nor bundled version**
 
 ```text
-$ tuist --help
+tuist --help
 
 OVERVIEW: Generate, build and test your Xcode projects.
 
 USAGE: tuist <command> <options>
 ...
 ```
-

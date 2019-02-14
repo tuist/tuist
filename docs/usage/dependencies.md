@@ -15,7 +15,7 @@ If you noticed when we first introduced the manifest file, there isn't any publi
 
 ### Defining dependencies
 
-The `Target` model that we use from the manifest has a property, `dependencies`, that allows you to define the dependencies of the target. 
+The `Target` model that we use from the manifest has a property, `dependencies`, that allows you to define the dependencies of the target.
 
 ```swift
 let target = Target(
@@ -55,18 +55,13 @@ It defines a dependency with a pre-compiled framework, for example, a framework 
 #### Library dependencies
 
 ```swift
-.library(path: "Vendor/Library.a", 
-         publicHeaders: nil, 
+.library(path: "Vendor/Library.a",
+         publicHeaders: nil,
          swiftModuleMap: "Vendor/Library.modulemap")
 ```
 
 It defines a dependency with a pre-compiled library. It allows specifying the path where the public headers or Swift module map is.
 
-{% hint style="info" %}
-Dependencies on static libraries that depend on other static libraries \(transitive dependencies\) is not supported yet. There's an [ongoing work](https://github.com/tuist/tuist/pull/168) to give support for it.
-{% endhint %}
+> Dependencies on static libraries that depend on other static libraries \(transitive dependencies\) is not supported yet. There's an [ongoing work](https://github.com/tuist/tuist/pull/168) to give support for it.
 
 As we mentioned, the beauty of defining your dependencies with Tuist is that when you generate the project, things are set up and ready for you to successfully compile your targets.
-
-
-

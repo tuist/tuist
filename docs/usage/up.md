@@ -70,13 +70,8 @@ It runs [Carthage](https://github.com/carthage) dependencies for those dependenc
 
 Besides the built-in commands, you can define yours using the custom option. It takes the following arguments:
 
-* **Name:** Name of the command
-* **Meet:** Command to run in the system to configure the environment.
-* **Met:** Command to run in the system to verify whether the environment is already configure. A 0 exit code means that the environment is already configured.
+- **Name:** Name of the command
+- **Meet:** Command to run in the system to configure the environment.
+- **Met:** Command to run in the system to verify whether the environment is already configure. A 0 exit code means that the environment is already configured.
 
 If you have ideas of other built-in commands that Tuist could offer, don’t hesitate to [open an issue](https://github.com/tuist/tuist/issues/new) with your ideas.
-
-
-
-
-
