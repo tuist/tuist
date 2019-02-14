@@ -41,21 +41,21 @@ class TargetLinter: TargetLinting {
     }
 
     // MARK: - Fileprivate
-    
+
     /// Verifies that the bundle identifier doesn't include characters that are not supported.
     ///
     /// - Parameter target: Target whose bundle identified will be linted.
     /// - Returns: An array with a linting issue if the bundle identifier contains invalid characters.
     fileprivate func lintBundleIdentifier(target: Target) -> [LintingIssue] {
         let bundleIdentifier = target.bundleId
-        
-         var allowed = CharacterSet.alphanumerics
-        allowed.formUnion(CharacterSet.init(charactersIn: "-."))
-        
+
+        var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        allowed.formUnion(CharacterSet(charactersIn: "-."))
+
         if !bundleIdentifier.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
             let reason = "Invalid bundle identifier '\(bundleIdentifier)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
-            
-            return [LintingIssue.init(reason: reason, severity: .error)]
+
+            return [LintingIssue(reason: reason, severity: .error)]
         }
         return []
     }
