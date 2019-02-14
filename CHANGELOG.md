@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+## 0.11.0
+
 ### Added
 
 - **Breaking** Up can now be specified via `Setup.swift` https://github.com/tuist/tuist/issues/203 by @marciniwanicki & @kwridan
