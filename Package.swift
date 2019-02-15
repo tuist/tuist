@@ -10,6 +10,20 @@ let package = Package(
         .library(name: "ProjectDescription",
                  type: .dynamic,
                  targets: ["ProjectDescription"]),
+        
+        /// TuistGenerator
+        ///
+        /// A high level Xcode generator library
+        /// responsible for generating Xcode projects & workspaces.
+        ///
+        /// This library can be used in external tools that wish to
+        /// leverage Tuist's Xcode generation features.
+        ///
+        /// Note: This library should be treated as **unstable** as
+        ///       it is still under development and may include breaking
+        ///       changes in future releases.
+        .library(name: "TuistGenerator",
+                 targets: ["TuistGenerator"]),
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.3.0")),
@@ -19,7 +33,7 @@ let package = Package(
     targets: [
         .target(
             name: "TuistKit",
-            dependencies: ["xcodeproj", "Utility", "TuistCore", "Yams"]
+            dependencies: ["xcodeproj", "Utility", "TuistCore", "TuistGenerator", "Yams"]
         ),
         .testTarget(
             name: "TuistKitTests",
@@ -60,6 +74,14 @@ let package = Package(
         .testTarget(
             name: "TuistCoreTests",
             dependencies: ["TuistCore", "TuistCoreTesting"]
+        ),
+        .target(
+            name: "TuistGenerator",
+            dependencies: ["xcodeproj", "Utility", "TuistCore"]
+        ),
+        .testTarget(
+            name: "TuistGeneratorTests",
+            dependencies: ["TuistGenerator", "TuistCoreTesting"]
         ),
     ]
 )
