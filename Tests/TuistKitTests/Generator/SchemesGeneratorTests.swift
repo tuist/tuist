@@ -20,7 +20,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
 
-        let got = subject.testAction(target: target,
+        let got = subject.targetTestAction(target: target,
                                      pbxTarget: pbxTarget,
                                      projectPath: projectPath)
 
@@ -35,7 +35,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
 
-        let got = subject.testAction(target: target,
+        let got = subject.targetTestAction(target: target,
                                      pbxTarget: pbxTarget,
                                      projectPath: projectPath)
 
@@ -57,7 +57,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
 
-        let got = subject.buildAction(target: target,
+        let got = subject.targetBuildAction(target: target,
                                       pbxTarget: pbxTarget,
                                       projectPath: projectPath)
 
@@ -79,7 +79,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let target = Target.test(name: "App", product: .app, environment: ["a": "b"])
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.launchAction(target: target,
+        let got = subject.targetLaunchAction(target: target,
                                        pbxTarget: pbxTarget,
                                        projectPath: projectPath)
 
@@ -100,7 +100,7 @@ final class SchemeGeneratorTests: XCTestCase {
                                  product: .dynamicLibrary)
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.launchAction(target: target,
+        let got = subject.targetLaunchAction(target: target,
                                        pbxTarget: pbxTarget,
                                        projectPath: projectPath)
 
@@ -119,7 +119,7 @@ final class SchemeGeneratorTests: XCTestCase {
                                  product: .app)
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.profileAction(target: target,
+        let got = subject.targetProfileAction(target: target,
                                         pbxTarget: pbxTarget,
                                         projectPath: projectPath)
 
@@ -151,7 +151,7 @@ final class SchemeGeneratorTests: XCTestCase {
                                  product: .dynamicLibrary)
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.profileAction(target: target,
+        let got = subject.targetProfileAction(target: target,
                                         pbxTarget: pbxTarget,
                                         projectPath: projectPath)
 
@@ -178,12 +178,12 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_analyzeAction() {
-        let got = subject.analyzeAction()
+        let got = subject.targetAnalyzeAction()
         XCTAssertEqual(got.buildConfiguration, "Debug")
     }
 
     func test_archiveAction() {
-        let got = subject.archiveAction()
+        let got = subject.targetArchiveAction()
         XCTAssertEqual(got.buildConfiguration, "Release")
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }
