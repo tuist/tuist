@@ -9,6 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Integration tests for `generate` command https://github.com/tuist/tuist/pull/208 by @marciniwanicki & @kwridan
 - Frequently asked questions to the documentation https://github.com/tuist/tuist/pull/223/ by @pepibumur.
 
+### Removed
+
+- Up attribute from the `Project` model https://github.com/tuist/tuist/pull/228 by @pepibumur.
+
 ## 0.11.0
 
 ### Added
