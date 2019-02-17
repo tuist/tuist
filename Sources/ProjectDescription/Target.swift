@@ -17,14 +17,14 @@ public final class FileList: Codable {
 /// Support file as single string
 extension FileList: ExpressibleByStringLiteral {
     public convenience init(stringLiteral value: String) {
-        self.init(files: [value])
+        self.init(globs: [value])
     }
 }
 
 extension FileList: ExpressibleByArrayLiteral {
     
     public convenience init(arrayLiteral elements: String...) {
-        self.init(files: elements)
+        self.init(globs: elements)
     }
 }
 
