@@ -1,9 +1,3 @@
----
-description: >-
-  Learn how to define dependencies between targets and with pre-compiled
-  frameworks and libraries.
----
-
 # Dependencies
 
 **Setting up dependencies in Xcode projects isn't straightforward**. When dependencies have transitive dependencies things get complicated because it requires changes in the targets that are part of the branch where the transitive dependency is. To illustrate that, think about an app, depending on a dynamic framework `Search`, which has no dependencies. If at some point in the future we add a new dynamic framework `Core`, on which `Search` depends, well need to update not only `Search`, but the app to embed the framework into the product.
