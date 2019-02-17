@@ -1,5 +1,33 @@
 import Foundation
 
+// MARK: - FileList
+
+public final class FileList: Codable {
+    public enum CodingKeys: String, CodingKey {
+        case globs
+    }
+    
+    let globs: [String]
+    
+    public init(globs: [String]) {
+        self.globs = globs
+    }
+}
+
+/// Support file as single string
+extension FileList: ExpressibleByStringLiteral {
+    public convenience init(stringLiteral value: String) {
+        self.init(files: [value])
+    }
+}
+
+extension FileList: ExpressibleByArrayLiteral {
+    
+    public convenience init(arrayLiteral elements: String...) {
+        self.init(files: elements)
+    }
+}
+
 // MARK: - Target
 
 public class Target: Codable {
@@ -28,10 +56,10 @@ public class Target: Codable {
     let dependencies: [TargetDependency]
 
     /// Relative path to the sources directory.
-    let sources: [String]
-
+    let sources: FileList?
+    
     /// Relative path to the resources directory.
-    let resources: [String]
+    let resources: FileList?
 
     /// Headers.
     let headers: Headers?
@@ -84,8 +112,8 @@ public class Target: Codable {
                 product: Product,
                 bundleId: String,
                 infoPlist: String,
-                sources: [String],
-                resources: [String] = [],
+                sources: FileList? = nil,
+                resources: FileList? = nil,
                 headers: Headers? = nil,
                 entitlements: String? = nil,
                 actions: [TargetAction] = [],
