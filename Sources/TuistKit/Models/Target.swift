@@ -185,3 +185,17 @@ class Target: GraphInitiatable, Equatable {
             lhs.environment == rhs.environment
     }
 }
+
+extension Sequence where Element == Target {
+    
+    /// Filters and returns only the targets that are test bundles.
+    var testBundles: [Target] {
+        return self.filter({ $0.product.testsBundle })
+    }
+    
+    /// Filters and returns only the targets that are apps.
+    var apps: [Target] {
+        return self.filter({ $0.product == .app})
+    }
+    
+}

@@ -104,7 +104,7 @@ final class SchemesGenerator: SchemesGenerating {
             }
             
             return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
-                                              buildFor: [.analyzing])
+                                              buildFor: buildFor)
         }
         
         return XCScheme.BuildAction(buildActionEntries: entries,
