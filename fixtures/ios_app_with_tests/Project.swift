@@ -1,10 +1,6 @@
 import ProjectDescription
 
 let project = Project(name: "App",
-                      up: [
-                          /* Configures the environment for the project */
-                          /* .homebrew(packages: ["swiftlint"]) */
-                      ],
                       targets: [
                           Target(name: "App",
                                  platform: .iOS,
