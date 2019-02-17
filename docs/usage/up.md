@@ -1,9 +1,3 @@
----
-description: >-
-  Learn how to define your project's dependencies and let Tuist set things up
-  for you.
----
-
 # Up
 
 Xcode projects often have dependencies with system tools like [SwiftLint](https://github.com/realm/SwiftLint), [Carthage](https://github.com/Carthage/Carthage), or [Sourcery](https://github.com/krzysztofzablocki/Sourcery). Those are dependencies that need to be installed/pulled and properly configured in the developer environment for the project to run.
