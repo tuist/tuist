@@ -4,6 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Changed
+
+- Rename manifest group to `Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
+- Rename manifest target to `Project-Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
+
 ### Added
 
 - Integration tests for `generate` command https://github.com/tuist/tuist/pull/208 by @marciniwanicki & @kwridan
