@@ -63,7 +63,7 @@ final class TargetGenerator: TargetGenerating {
                                  options: GenerationOptions,
                                  resourceLocator: ResourceLocating = ResourceLocator()) throws {
         /// Names
-        let name = "\(project.name)Description"
+        let name = "\(project.name)-Manifest"
         let frameworkName = "\(name).framework"
 
         /// Products reference.
@@ -75,7 +75,7 @@ final class TargetGenerator: TargetGenerating {
         var files: [PBXFileElement] = []
         let projectManifestPath = try manifestLoader.manifestPath(at: project.path, manifest: .project)
         let fileReference = try fileGenerator.generateFile(path: projectManifestPath,
-                                                           in: groups.projectDescription,
+                                                           in: groups.projectManifest,
                                                            sourceRootPath: sourceRootPath)
         files.append(fileReference)
 
