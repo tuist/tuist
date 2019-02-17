@@ -56,7 +56,7 @@ class ProjectGroups {
         mainGroup.children.append(projectGroup)
 
         /// ProjectDescription
-        let projectManifestGroup = PBXGroup(children: [], sourceTree: .group, name: "ProjectManifest")
+        let projectManifestGroup = PBXGroup(children: [], sourceTree: .group, name: "Manifest")
         pbxproj.add(object: projectManifestGroup)
         mainGroup.children.append(projectManifestGroup)
 

@@ -43,7 +43,7 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(subject.project.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.projectManifest))
-        XCTAssertEqual(subject.projectManifest.name, "ProjectManifest")
+        XCTAssertEqual(subject.projectManifest.name, "Manifest")
         XCTAssertNil(subject.projectManifest.path)
         XCTAssertEqual(subject.projectManifest.sourceTree, .group)
 
