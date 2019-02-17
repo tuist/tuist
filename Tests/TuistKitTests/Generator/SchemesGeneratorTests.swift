@@ -28,8 +28,13 @@ final class SchemeGeneratorTests: XCTestCase {
         
         let generatedProject = GeneratedProject(path: projectPath,
                                                 targets: targets)
+
+        let graphCache = GraphLoaderCache()
+        let graph = Graph.test(cache: graphCache)
+        
         let got = subject.projectBuildAction(project: project,
-                                            generatedProject: generatedProject)
+                                            generatedProject: generatedProject,
+                                            graph: graph)
         
         XCTAssertTrue(got.parallelizeBuild)
         XCTAssertTrue(got.buildImplicitDependencies)

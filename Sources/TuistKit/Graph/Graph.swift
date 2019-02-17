@@ -46,7 +46,7 @@ protocol Graphing: AnyObject {
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
-    func targetDependencies(path: AbsolutePath, name: String) -> [String]
+    func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticLibraryDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
 
     // MARK: - Depth First Search
@@ -91,14 +91,13 @@ class Graph: Graphing {
         return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
     }
 
-    func targetDependencies(path: AbsolutePath, name: String) -> [String] {
+    func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
 
         return targetNode.targetDependencies
             .filter { $0.path == path }
-            .map(\.target.name)
     }
 
     func staticLibraryDependencies(path: AbsolutePath, name: String) -> [DependencyReference] {

@@ -19,9 +19,11 @@ protocol SchemesGenerating {
     /// - Parameters:
     ///   - project: Project manifest.
     ///   - generatedProject: Generated Xcode project.
+    ///   - graph: Dependencies graph.
     /// - Throws: An error if the generation of the scheme fails.
     func generateProjectScheme(project: Project,
-                               generatedProject: GeneratedProject) throws
+                               generatedProject: GeneratedProject,
+                               graph: Graphing) throws
 }
 
 final class SchemesGenerator: SchemesGenerating {
@@ -63,9 +65,11 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Parameters:
     ///   - project: Project manifest.
     ///   - generatedProject: Generated Xcode project.
+    ///   - graph: Dependencies graph.
     /// - Throws: An error if the generation of the scheme fails.
     func generateProjectScheme(project: Project,
-                               generatedProject: GeneratedProject) throws {
+                               generatedProject: GeneratedProject,
+                               graph: Graphing) throws {
         let name = "\(project.name)-Project"
         let schemesDirectory = try createSchemesDirectory(projectPath: generatedProject.path)
         let path = schemesDirectory.appending(component: "\(name).xcscheme")
@@ -74,7 +78,8 @@ final class SchemesGenerator: SchemesGenerating {
                               lastUpgradeVersion: SchemesGenerator.defaultLastUpgradeVersion,
                               version: SchemesGenerator.defaultVersion,
                               buildAction: projectBuildAction(project: project,
-                                                              generatedProject: generatedProject),
+                                                              generatedProject: generatedProject,
+                                                              graph: graph),
                               testAction: projectTestAction(project: project,
                                                             generatedProject: generatedProject))
         
@@ -86,11 +91,13 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Parameters:
     ///   - project: Project manifest.
     ///   - generatedProject: Generated Xcode project.
+    ///   - graph: Dependencies graph.
     /// - Returns: Scheme build action.
     func projectBuildAction(project: Project,
-                            generatedProject: GeneratedProject) -> XCScheme.BuildAction {
+                            generatedProject: GeneratedProject,
+                            graph: Graphing) -> XCScheme.BuildAction {
         
-        let targets = project.targets.sorted(by: { !$0.product.testsBundle || $0.name < $1.name })
+        let targets = project.sortedTargetsForProjectScheme(graph: graph)
         let entries: [XCScheme.BuildAction.Entry] = targets.map { (target) -> XCScheme.BuildAction.Entry in
             let pbxTarget = generatedProject.targets[target.name]!
             let buildableReference = self.targetBuildableReference(target: target,

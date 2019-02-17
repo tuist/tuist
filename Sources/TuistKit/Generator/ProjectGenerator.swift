@@ -149,7 +149,8 @@ final class ProjectGenerator: ProjectGenerating {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
         try schemesGenerator.generateProjectScheme(project: project,
-                                                   generatedProject: generatedProject)
+                                                   generatedProject: generatedProject,
+                                                   graph: graph)
 
         return generatedProject
     }

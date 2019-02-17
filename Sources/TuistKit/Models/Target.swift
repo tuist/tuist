@@ -130,10 +130,14 @@ class Target: GraphInitiatable, Equatable {
         }
     }
 
+    /// Return true if the target can be linked.
+    ///
+    /// - Returns: True if the target can be linked from another target.
     func isLinkable() -> Bool {
         return product == .dynamicLibrary || product == .staticLibrary || product == .framework
     }
 
+    /// Returns the product name including the extension.
     var productName: String {
         switch product {
         case .staticLibrary, .dynamicLibrary:
