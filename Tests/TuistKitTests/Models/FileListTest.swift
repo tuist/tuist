@@ -16,7 +16,7 @@ final class FileListTests: XCTestCase {
     }
     
     func test_init() throws {
-        let dictionary = JSON.dictionary(["files": ["sources/*"].toJSON()])
+        let dictionary = JSON.dictionary(["globs": ["sources/*"].toJSON()])
         let got = try FileList(json: dictionary)
             
         XCTAssertEqual(got.globs, ["sources/*"])
