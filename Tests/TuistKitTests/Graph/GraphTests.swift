@@ -49,7 +49,7 @@ final class GraphTests: XCTestCase {
         let graph = Graph.test(cache: cache)
         let dependencies = graph.targetDependencies(path: project.path,
                                                     name: target.name)
-        XCTAssertEqual(dependencies.first, "Dependency")
+        XCTAssertEqual(dependencies.first?.target.name, "Dependency")
     }
 
     func test_linkableDependencies_whenPrecompiled() throws {

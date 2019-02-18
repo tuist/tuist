@@ -8,7 +8,7 @@ unless git.modified_files.include?("CHANGELOG.md")
     Please include a CHANGELOG entry.
     You can find it at [CHANGELOG.md](https://github.com/tuist/tuist/blob/master/CHANGELOG.md).
   MESSAGE
-  raise(message)
+  warn(message)
 end
 
 # Swiftlint

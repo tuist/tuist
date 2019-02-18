@@ -130,10 +130,14 @@ class Target: GraphInitiatable, Equatable {
         }
     }
 
+    /// Return true if the target can be linked.
+    ///
+    /// - Returns: True if the target can be linked from another target.
     func isLinkable() -> Bool {
         return product == .dynamicLibrary || product == .staticLibrary || product == .framework
     }
 
+    /// Returns the product name including the extension.
     var productName: String {
         switch product {
         case .staticLibrary, .dynamicLibrary:
@@ -184,4 +188,18 @@ class Target: GraphInitiatable, Equatable {
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment
     }
+}
+
+extension Sequence where Element == Target {
+    
+    /// Filters and returns only the targets that are test bundles.
+    var testBundles: [Target] {
+        return filter({ $0.product.testsBundle })
+    }
+    
+    /// Filters and returns only the targets that are apps.
+    var apps: [Target] {
+        return filter({ $0.product == .app})
+    }
+    
 }

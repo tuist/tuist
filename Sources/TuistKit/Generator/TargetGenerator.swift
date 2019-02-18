@@ -164,9 +164,9 @@ final class TargetGenerator: TargetGenerating {
                                     graph: Graphing) throws {
         try targets.forEach { targetSpec in
             let dependencies = graph.targetDependencies(path: path, name: targetSpec.name)
-            try dependencies.forEach { dependencyName in
+            try dependencies.forEach { dependency in
                 let target = nativeTargets[targetSpec.name]!
-                let dependency = nativeTargets[dependencyName]!
+                let dependency = nativeTargets[dependency.target.name]!
                 _ = try target.addDependency(target: dependency)
             }
         }
