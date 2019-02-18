@@ -100,7 +100,7 @@ final class SchemesGenerator: SchemesGenerating {
         let targets = project.sortedTargetsForProjectScheme(graph: graph)
         let entries: [XCScheme.BuildAction.Entry] = targets.map { (target) -> XCScheme.BuildAction.Entry in
             let pbxTarget = generatedProject.targets[target.name]!
-            let buildableReference = self.targetBuildableReference(target: target,
+            let buildableReference = targetBuildableReference(target: target,
                                                                    pbxTarget: pbxTarget,
                                                                    projectPath: generatedProject.path)
             var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
@@ -217,7 +217,7 @@ final class SchemesGenerator: SchemesGenerating {
             .analyzing, .archiving, .profiling, .running, .testing
         ]
 
-        let buildableReference = self.targetBuildableReference(target: target,
+        let buildableReference = targetBuildableReference(target: target,
                                                          pbxTarget: pbxTarget,
                                                          projectPath: projectPath)
         var entries: [XCScheme.BuildAction.Entry] = []
@@ -240,7 +240,7 @@ final class SchemesGenerator: SchemesGenerating {
                       projectPath: AbsolutePath) -> XCScheme.LaunchAction? {
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
-        let buildableReference = self.targetBuildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)
+        let buildableReference = targetBuildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)
         if target.product.runnable {
             buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
         } else {
@@ -267,7 +267,7 @@ final class SchemesGenerator: SchemesGenerating {
                        projectPath: AbsolutePath) -> XCScheme.ProfileAction? {
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
-        let buildableReference = self.targetBuildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)
+        let buildableReference = targetBuildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)
 
         if target.product.runnable {
             buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")

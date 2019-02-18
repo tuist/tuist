@@ -4,6 +4,7 @@ import Basic
 import XCTest
 
 final class ProjectTests: XCTestCase {
+    
     func test_sortedTargetsForProjectScheme() {
         let framework = Target.test(name: "Framework", product: .framework)
         let app = Target.test(name: "App", product: .app)
@@ -13,25 +14,12 @@ final class ProjectTests: XCTestCase {
             framework, app, appTests, frameworkTests
             ])
         
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
-        let frameworkNode = TargetNode(project: project,
-                                       target: framework,
-                                       dependencies: [])
-        let frameworkTestsNode = TargetNode(project: project,
-                                            target: frameworkTests,
-                                            dependencies: [frameworkNode])
-        let appNode = TargetNode(project: project,
-                                 target: app,
-                                 dependencies: [frameworkNode])
-        let appTestsNode = TargetNode(project: project,
-                                      target: appTests,
-                                      dependencies: [appNode])
-        
-        cache.add(targetNode: frameworkNode)
-        cache.add(targetNode: frameworkTestsNode)
-        cache.add(targetNode: appNode)
-        cache.add(targetNode: appTestsNode)
+        let graph = createGraph(project: project, dependencies: [
+            (target: framework, dependencies: []),
+            (target: frameworkTests, dependencies: [framework]),
+            (target: app, dependencies: [framework]),
+            (target: appTests, dependencies: [app]),
+            ])
 
         let got = project.sortedTargetsForProjectScheme(graph: graph)
         XCTAssertEqual(got.count, 4)
@@ -39,5 +27,34 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(got[1], app)
         XCTAssertEqual(got[2], appTests)
         XCTAssertEqual(got[3], frameworkTests)
+    }
+    
+    // MARK: - Private
+    
+    private func createTargetNodes(project: Project,
+                           dependencies: [(target: Target, dependencies: [Target])]) -> [TargetNode] {
+        let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
+            ($0.target.name, TargetNode(project: project,
+                                        target: $0.target,
+                                        dependencies: []))
+        })
+        
+        return dependencies.map {
+            let node = nodesCache[$0.target.name]!
+            node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
+            return node
+        }
+    }
+    
+    private func createGraph(project: Project,
+                     dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
+        let targetNodes = createTargetNodes(project: project, dependencies: dependencies)
+        
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        
+        targetNodes.forEach { cache.add(targetNode: $0) }
+        
+        return graph
     }
 }

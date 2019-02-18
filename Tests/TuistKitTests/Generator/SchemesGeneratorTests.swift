@@ -18,60 +18,52 @@ final class SchemeGeneratorTests: XCTestCase {
     func test_projectBuildAction() {
         let app = Target.test(name: "App", product: .app)
         let appTests = Target.test(name: "AppTests", product: .unitTests)
-        let pbxAppTarget = PBXNativeTarget(name: "App")
-        let pbxAppTestsTarget = PBXNativeTarget(name: "AppTests")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-        
-        let targets = ["App": pbxAppTarget,
-                       "AppTests": pbxAppTestsTarget]
-        let project = Project.test(targets: [app, appTests])
-        
-        let generatedProject = GeneratedProject(path: projectPath,
-                                                targets: targets)
+        let appUITests = Target.test(name: "AppUITests", product: .uiTests)
+        let targets = [app, appTests, appUITests]
 
+        let project = Project.test(targets: targets)
         let graphCache = GraphLoaderCache()
         let graph = Graph.test(cache: graphCache)
         
         let got = subject.projectBuildAction(project: project,
-                                            generatedProject: generatedProject,
+                                            generatedProject: generatedProject(targets: targets),
                                             graph: graph)
         
         XCTAssertTrue(got.parallelizeBuild)
         XCTAssertTrue(got.buildImplicitDependencies)
-        XCTAssertEqual(got.buildActionEntries.count, 2)
+        XCTAssertEqual(got.buildActionEntries.count, 3)
         
-        let appEntry = got.buildActionEntries.first
-        let testsEntry = got.buildActionEntries.last
+        let appEntry = got.buildActionEntries[0]
+        let testsEntry = got.buildActionEntries[1]
+        let uiTestsEntry = got.buildActionEntries[2]
         
-        XCTAssertEqual(appEntry?.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
-        XCTAssertEqual(appEntry?.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
-        XCTAssertEqual(appEntry?.buildableReference.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(appEntry?.buildableReference.buildableName, app.productName)
-        XCTAssertEqual(appEntry?.buildableReference.blueprintName, app.name)
-        XCTAssertEqual(appEntry?.buildableReference.buildableIdentifier, "primary")
+        XCTAssertEqual(appEntry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        XCTAssertEqual(appEntry.buildableReference.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(appEntry.buildableReference.buildableName, app.productName)
+        XCTAssertEqual(appEntry.buildableReference.blueprintName, app.name)
+        XCTAssertEqual(appEntry.buildableReference.buildableIdentifier, "primary")
 
-        XCTAssertEqual(testsEntry?.buildFor, [.testing])
-        XCTAssertEqual(testsEntry?.buildableReference.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(testsEntry?.buildableReference.buildableName, appTests.productName)
-        XCTAssertEqual(testsEntry?.buildableReference.blueprintName, appTests.name)
-        XCTAssertEqual(testsEntry?.buildableReference.buildableIdentifier, "primary")
+        XCTAssertEqual(testsEntry.buildFor, [.testing])
+        XCTAssertEqual(testsEntry.buildableReference.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(testsEntry.buildableReference.buildableName, appTests.productName)
+        XCTAssertEqual(testsEntry.buildableReference.blueprintName, appTests.name)
+        XCTAssertEqual(testsEntry.buildableReference.buildableIdentifier, "primary")
+        
+        XCTAssertEqual(uiTestsEntry.buildFor, [.testing])
+        XCTAssertEqual(uiTestsEntry.buildableReference.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(uiTestsEntry.buildableReference.buildableName, appUITests.productName)
+        XCTAssertEqual(uiTestsEntry.buildableReference.blueprintName, appUITests.name)
+        XCTAssertEqual(uiTestsEntry.buildableReference.buildableIdentifier, "primary")
     }
     
     func test_projectTestAction() {
         let app = Target.test(name: "App", product: .app)
         let appTests = Target.test(name: "AppTests", product: .unitTests)
-        let pbxAppTarget = PBXNativeTarget(name: "App")
-        let pbxAppTestsTarget = PBXNativeTarget(name: "AppTests")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-
-        let targets = ["App": pbxAppTarget,
-                       "AppTests": pbxAppTestsTarget]
-        let project = Project.test(targets: [app, appTests])
+        let targets = [app, appTests]
+        let project = Project.test(targets: targets)
         
-        let generatedProject = GeneratedProject(path: projectPath,
-                                                targets: targets)
         let got = subject.projectTestAction(project: project,
-                                            generatedProject: generatedProject)
+                                            generatedProject: generatedProject(targets: targets))
         
         XCTAssertEqual(got.buildConfiguration, "Debug")
         XCTAssertNil(got.macroExpansion)
@@ -90,11 +82,11 @@ final class SchemeGeneratorTests: XCTestCase {
         let target = Target.test(name: "AppTests", product: .app)
         let pbxTarget = PBXNativeTarget(name: "App")
         let projectPath = AbsolutePath("/project.xcodeproj")
-
+        
         let got = subject.targetTestAction(target: target,
-                                     pbxTarget: pbxTarget,
-                                     projectPath: projectPath)
-
+                                           pbxTarget: pbxTarget,
+                                           projectPath: projectPath)
+        
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(got?.macroExpansion)
@@ -258,4 +250,13 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got.buildConfiguration, "Release")
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }
+    
+    // MARK: - Private
+    
+    private func generatedProject(targets: [Target]) -> GeneratedProject {
+        var pbxTargets: [String: PBXNativeTarget] = [:]
+        targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
+        let projectPath = AbsolutePath("/project.xcodeproj")
+        return GeneratedProject(path: projectPath, targets: pbxTargets)
+    }   
 }
