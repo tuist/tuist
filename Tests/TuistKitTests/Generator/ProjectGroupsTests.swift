@@ -42,10 +42,10 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNil(subject.project.path)
         XCTAssertEqual(subject.project.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.projectDescription))
-        XCTAssertEqual(subject.projectDescription.name, "ProjectDescription")
-        XCTAssertNil(subject.projectDescription.path)
-        XCTAssertEqual(subject.projectDescription.sourceTree, .group)
+        XCTAssertTrue(main.children.contains(subject.projectManifest))
+        XCTAssertEqual(subject.projectManifest.name, "Manifest")
+        XCTAssertNil(subject.projectManifest.path)
+        XCTAssertEqual(subject.projectManifest.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.frameworks))
         XCTAssertEqual(subject.frameworks.name, "Frameworks")
