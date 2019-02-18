@@ -18,6 +18,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Up attribute from the `Project` model https://github.com/tuist/tuist/pull/228 by @pepibumur.
 
+### Fixed
+
+- Changed default value of SWIFT_VERSION to 4.2 @ollieatkinson
+
 ## 0.11.0
 
 ### Added
