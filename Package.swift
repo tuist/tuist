@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "ProjectDescription",
                  type: .dynamic,
                  targets: ["ProjectDescription"]),
-        
+
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
@@ -28,12 +28,11 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/tuist/xcodeproj.git", .upToNextMinor(from: "6.3.0")),
         .package(url: "https://github.com/apple/swift-package-manager", .revision("a107d28d1b40491cf505799a046fee53e7c422e1")),
-        .package(url: "https://github.com/jpsim/Yams.git", .upToNextMinor(from: "1.0.1")),
     ],
     targets: [
         .target(
             name: "TuistKit",
-            dependencies: ["xcodeproj", "Utility", "TuistCore", "TuistGenerator", "Yams"]
+            dependencies: ["xcodeproj", "Utility", "TuistCore", "TuistGenerator"]
         ),
         .testTarget(
             name: "TuistKitTests",

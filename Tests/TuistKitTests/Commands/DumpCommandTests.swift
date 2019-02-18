@@ -68,49 +68,4 @@ final class DumpCommandTests: XCTestCase {
         XCTAssertEqual(printer.printArgs.first, expected)
     }
 
-    func test_prints_the_manifest_when_json_manifest() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let config = """
-        {
-            "name": "tuist",
-            "targets": []
-        }
-        """
-        try config.write(toFile: tmpDir.path.appending(component: "Project.json").asString,
-                         atomically: true,
-                         encoding: .utf8)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
-        try subject.run(with: result)
-        let expected = """
-        {
-          "name": "tuist",
-          "targets": [
-
-          ]
-        }\n
-        """
-        XCTAssertEqual(printer.printArgs.first, expected)
-    }
-
-    func test_prints_the_manifest_when_yaml_manifest() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let config = """
-        name: tuist
-        targets: []
-        """
-        try config.write(toFile: tmpDir.path.appending(component: "Project.yaml").asString,
-                         atomically: true,
-                         encoding: .utf8)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
-        try subject.run(with: result)
-        let expected = """
-        {
-          "name": "tuist",
-          "targets": [
-
-          ]
-        }\n
-        """
-        XCTAssertEqual(printer.printArgs.first, expected)
-    }
 }
