@@ -20,7 +20,9 @@ Feature: Generate a new project using Tuist
     Then I should be able to test the scheme Framework1Tests
     Then I should be able to build the scheme Framework2
     Then I should be able to test the scheme Framework2Tests
-    Then I should be able to build the scheme MyApp-Manifest
+    Then I should be able to build the scheme MainApp-Manifest
+    Then I should be able to build the scheme Framework1-Manifest
+    Then I should be able to build the scheme Framework2-Manifest
 
   Scenario: The project is a directory without valid manifest file (invalid_workspace_manifest_name)
     Given that tuist is available
