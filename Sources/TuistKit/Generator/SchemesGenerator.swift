@@ -123,12 +123,12 @@ final class SchemesGenerator: SchemesGenerating {
             testables.append(testable)
         }
         
-        scheme.buildAction.flatMap { buildAction in
-            preActions = schemeActions(actions: buildAction.preActions,
+        scheme.testAction.flatMap { testAction in
+            preActions = schemeActions(actions: testAction.preActions,
                                        project: project,
                                        generatedProject: generatedProject)
             
-            postActions = schemeActions(actions: buildAction.postActions,
+            postActions = schemeActions(actions: testAction.postActions,
                                         project: project,
                                         generatedProject: generatedProject)
         }
@@ -160,11 +160,8 @@ final class SchemesGenerator: SchemesGenerating {
         var postActions: [XCScheme.ExecutionAction] = []
 
         scheme.buildAction?.targets.forEach { name in
-            debugPrint(name)
             guard let target = project.targets.first(where: { $0.name == name }) else { return }
-            debugPrint(target)
             guard let pbxTarget = generatedProject.targets[name] else { return }
-            debugPrint(pbxTarget)
             let buildableReference = self.buildableReference(target: target,
                                                              pbxTarget: pbxTarget,
                                                              projectPath: generatedProject.path)
@@ -198,13 +195,19 @@ final class SchemesGenerator: SchemesGenerating {
     func launchAction(scheme: Scheme,
                       project: Project,
                       generatedProject: GeneratedProject) -> XCScheme.LaunchAction? {
+        
+        guard var target = project.targets.first(where: { $0.name == scheme.buildAction?.targets.first }) else { return nil }
+        
+        if let executable = scheme.runAction?.executable {
+            guard let runableTarget = project.targets.first(where: { $0.name == executable }) else { return nil }
+            target = runableTarget
+        }
+        
+        guard let pbxTarget = generatedProject.targets[target.name] else { return nil }
+        
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
-        
-        guard let executable = scheme.runAction?.executable else { return nil }
-        guard let target = project.targets.first(where: { $0.name == executable }) else { return nil }
-        guard let pbxTarget = generatedProject.targets[executable] else { return nil }
-        
+
         let buildableReference = self.buildableReference(target: target, pbxTarget: pbxTarget, projectPath: project.path)
         if target.product.runnable {
             buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
@@ -234,9 +237,14 @@ final class SchemesGenerator: SchemesGenerating {
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         
-        guard let executable = scheme.runAction?.executable else { return nil }
-        guard let target = project.targets.first(where: { $0.name == executable }) else { return nil }
-        guard let pbxTarget = generatedProject.targets[executable] else { return nil }
+        guard var target = project.targets.first(where: { $0.name == scheme.buildAction?.targets.first }) else { return nil }
+        
+        if let executable = scheme.runAction?.executable {
+            guard let runableTarget = project.targets.first(where: { $0.name == executable }) else { return nil }
+            target = runableTarget
+        }
+        
+        guard let pbxTarget = generatedProject.targets[target.name] else { return nil }
 
         let buildableReference = self.buildableReference(target: target, pbxTarget: pbxTarget, projectPath: project.path)
 

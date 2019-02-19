@@ -16,14 +16,13 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_testAction_when_notTestsTarget() {
-        let target = Target.test(name: "AppTests", product: .app)
-        let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-
-        let got = subject.testAction(target: target,
-                                     pbxTarget: pbxTarget,
-                                     projectPath: projectPath)
-
+        
+        let scheme = Scheme.test()
+        let project = Project.test()
+        let generatedProject = GeneratedProject.test()
+        
+        let got = subject.testAction(scheme: scheme, project: project, generatedProject: generatedProject)
+        
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(got?.macroExpansion)
@@ -31,35 +30,37 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_testAction_when_testsTarget() {
-        let target = Target.test(name: "AppTests", product: .unitTests)
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .uiTests)
+        let scheme = Scheme.test()
+        let project = Project.test(targets: [target, testTarget])
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
+        let pbxTestTarget = PBXNativeTarget(name: "AppTests", productType: .unitTestBundle)
+        let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget, "AppTests": pbxTestTarget])
 
-        let got = subject.testAction(target: target,
-                                     pbxTarget: pbxTarget,
-                                     projectPath: projectPath)
-
+        let got = subject.testAction(scheme: scheme, project: project, generatedProject: generatedProject)
+        
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(got?.macroExpansion)
         let testable = got?.testables.first
         let buildableReference = testable?.buildableReference
-
+        
         XCTAssertEqual(testable?.skipped, false)
         XCTAssertEqual(buildableReference?.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(buildableReference?.buildableName, "AppTests.xctest")
-        XCTAssertEqual(buildableReference?.blueprintName, "AppTests")
+        XCTAssertEqual(buildableReference?.buildableName, testTarget.productName)
+        XCTAssertEqual(buildableReference?.blueprintName, testTarget.name)
         XCTAssertEqual(buildableReference?.buildableIdentifier, "primary")
     }
 
     func test_buildAction() {
         let target = Target.test(name: "App", product: .app)
+        let scheme = Scheme.test()
+        let project = Project.test(targets: [target])
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
+        let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget])
 
-        let got = subject.buildAction(target: target,
-                                      pbxTarget: pbxTarget,
-                                      projectPath: projectPath)
+        let got = subject.buildAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         XCTAssertEqual(got?.buildActionEntries.count, 1)
         let entry = got?.buildActionEntries.first
@@ -67,8 +68,8 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(entry?.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
 
         XCTAssertEqual(buildableReference?.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(buildableReference?.buildableName, "App.app")
-        XCTAssertEqual(buildableReference?.blueprintName, "App")
+        XCTAssertEqual(buildableReference?.buildableName, target.productName)
+        XCTAssertEqual(buildableReference?.blueprintName, target.name)
         XCTAssertEqual(buildableReference?.buildableIdentifier, "primary")
 
         XCTAssertEqual(got?.parallelizeBuild, true)
@@ -77,11 +78,12 @@ final class SchemeGeneratorTests: XCTestCase {
 
     func test_launchAction_when_runnableTarget() {
         let target = Target.test(name: "App", product: .app, environment: ["a": "b"])
+        let scheme = Scheme.test()
+        let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.launchAction(target: target,
-                                       pbxTarget: pbxTarget,
-                                       projectPath: projectPath)
+        let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget])
+        
+        let got = subject.launchAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         XCTAssertNil(got?.macroExpansion)
         let buildableReference = got?.buildableProductRunnable?.buildableReference
@@ -89,39 +91,40 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.environmentVariables, [XCScheme.EnvironmentVariable(variable: "a", value: "b", enabled: true)])
         XCTAssertEqual(buildableReference?.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(buildableReference?.buildableName, "App.app")
-        XCTAssertEqual(buildableReference?.blueprintName, "App")
+        XCTAssertEqual(buildableReference?.buildableName, target.productName)
+        XCTAssertEqual(buildableReference?.blueprintName, target.name)
         XCTAssertEqual(buildableReference?.buildableIdentifier, "primary")
     }
 
     func test_launchAction_when_notRunnableTarget() {
-        let target = Target.test(name: "Library",
-                                 platform: .iOS,
-                                 product: .dynamicLibrary)
-        let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.launchAction(target: target,
-                                       pbxTarget: pbxTarget,
-                                       projectPath: projectPath)
+        let target = Target.test(name: "Library", product: .dynamicLibrary)
+        let buildAction = BuildAction.test(targets: ["Library"])
+        let testAction = TestAction.test(targets: ["Library"])
+
+        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
+        let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
+        let pbxTarget = PBXNativeTarget(name: "Library")
+        let generatedProject = GeneratedProject.test(targets: ["Library": pbxTarget])
+
+        let got = subject.launchAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         XCTAssertNil(got?.buildableProductRunnable?.buildableReference)
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.macroExpansion?.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(got?.macroExpansion?.buildableName, "libLibrary.dylib")
-        XCTAssertEqual(got?.macroExpansion?.blueprintName, "Library")
+        XCTAssertEqual(got?.macroExpansion?.buildableName, target.productName)
+        XCTAssertEqual(got?.macroExpansion?.blueprintName, target.name)
         XCTAssertEqual(got?.macroExpansion?.buildableIdentifier, "primary")
     }
 
     func test_profileAction_when_runnableTarget() {
-        let target = Target.test(name: "App",
-                                 platform: .iOS,
-                                 product: .app)
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let scheme = Scheme.test()
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.profileAction(target: target,
-                                        pbxTarget: pbxTarget,
-                                        projectPath: projectPath)
+        let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
+        let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget])
+
+        let got = subject.profileAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         let buildable = got?.buildableProductRunnable?.buildableReference
 
@@ -146,14 +149,15 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_profileAction_when_notRunnableTarget() {
-        let target = Target.test(name: "Library",
-                                 platform: .iOS,
-                                 product: .dynamicLibrary)
-        let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
-        let got = subject.profileAction(target: target,
-                                        pbxTarget: pbxTarget,
-                                        projectPath: projectPath)
+        let target = Target.test(name: "Library", product: .dynamicLibrary)
+        let buildAction = BuildAction.test(targets: ["Library"])
+        let testAction = TestAction.test(targets: ["Library"])
+        
+        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
+        let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
+        let pbxTarget = PBXNativeTarget(name: "Library")
+        let generatedProject = GeneratedProject.test(targets: ["Library": pbxTarget])
+        let got = subject.profileAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         let buildable = got?.buildableProductRunnable?.buildableReference
 
@@ -172,18 +176,22 @@ final class SchemeGeneratorTests: XCTestCase {
 
         XCTAssertEqual(got?.buildConfiguration, "Release")
         XCTAssertEqual(got?.macroExpansion?.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(got?.macroExpansion?.buildableName, "libLibrary.dylib")
-        XCTAssertEqual(got?.macroExpansion?.blueprintName, "Library")
+        XCTAssertEqual(got?.macroExpansion?.buildableName, target.productName)
+        XCTAssertEqual(got?.macroExpansion?.blueprintName, target.name)
         XCTAssertEqual(got?.macroExpansion?.buildableIdentifier, "primary")
     }
-
+    
     func test_analyzeAction() {
         let got = subject.analyzeAction()
         XCTAssertEqual(got.buildConfiguration, "Debug")
     }
 
     func test_archiveAction() {
-        let got = subject.archiveAction()
+        let scheme = Scheme.test()
+        let project = Project.test()
+        let generatedProject = GeneratedProject.test()
+
+        let got = subject.archiveAction(scheme: scheme, project: project, generatedProject: generatedProject)
         XCTAssertEqual(got.buildConfiguration, "Release")
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }
