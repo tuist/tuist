@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Integration tests for `generate` command https://github.com/tuist/tuist/pull/208 by @marciniwanicki & @kwridan
 - Frequently asked questions to the documentation https://github.com/tuist/tuist/pull/223/ by @pepibumur.
 - Generate a scheme with all the project targets https://github.com/tuist/tuist/pull/226 by @pepibumur
+- Documentation for contributors https://github.com/tuist/tuist/pull/229 by @pepibumur
 
 ### Removed
 
