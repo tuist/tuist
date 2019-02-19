@@ -25,10 +25,8 @@ final class TargetTests: XCTestCase {
                                  .target(name: "name"),
                              ],
                              settings: Settings(base: ["a": "b"],
-                                                debug: Configuration(settings: ["a": "b"],
-                                                                     xcconfig: "config"),
-                                                release: Configuration(settings: ["a": "b"],
-                                                                       xcconfig: "config")),
+                                                debug: .debug(["a": "b"], xcconfig: "config"),
+                                                release: .release(["a": "b"], xcconfig: "config")),
                              coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
                              environment: ["a": "b"])
 

@@ -69,14 +69,15 @@ class ProjectFileElements {
 
     func projectFiles(project: Project) -> Set<AbsolutePath> {
         var files = Set<AbsolutePath>()
+        
+        if let settings = project.settings {
+            
+            for case .some(let xcconfigFile) in settings.configurations.map(\.xcconfig) {
+                files.insert(xcconfigFile)
+            }
+            
+        }
 
-        /// Config files
-        if let debugConfigFile = project.settings?.debug?.xcconfig {
-            files.insert(debugConfigFile)
-        }
-        if let releaseConfigFile = project.settings?.release?.xcconfig {
-            files.insert(releaseConfigFile)
-        }
         return files
     }
 
@@ -104,14 +105,15 @@ class ProjectFileElements {
         if let entitlements = target.entitlements {
             files.insert(entitlements)
         }
+        
+        if let settings = target.settings {
+            
+            for case .some(let xcconfigFile) in settings.configurations.map(\.xcconfig) {
+                files.insert(xcconfigFile)
+            }
+            
+        }
 
-        // Config files
-        if let debugConfigFile = target.settings?.debug?.xcconfig {
-            files.insert(debugConfigFile)
-        }
-        if let releaseConfigFile = target.settings?.release?.xcconfig {
-            files.insert(releaseConfigFile)
-        }
         return files
     }
 

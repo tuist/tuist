@@ -7,16 +7,19 @@ protocol ConfigGenerating: AnyObject {
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
                                fileElements: ProjectFileElements,
+                               configurations: ConfigurationList,
                                options: GenerationOptions) throws -> XCConfigurationList
 
     func generateManifestsConfig(pbxproj: PBXProj,
                                  options: GenerationOptions,
-                                 resourceLocator: ResourceLocating) throws -> XCConfigurationList
+                                 resourceLocator: ResourceLocating,
+                                 configurations: ConfigurationList) throws -> XCConfigurationList
 
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               fileElements: ProjectFileElements,
+                              configurations: ConfigurationList,
                               options: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws
 }
@@ -32,29 +35,29 @@ final class ConfigGenerator: ConfigGenerating {
         self.fileGenerator = fileGenerator
     }
 
-    // MARK: - ConfigGenerating
-
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
                                fileElements: ProjectFileElements,
+                               configurations: ConfigurationList,
                                options _: GenerationOptions) throws -> XCConfigurationList {
         /// Configuration list
-        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let configurationList = XCConfigurationList(buildConfigurations: [ ])
+        
         pbxproj.add(object: configurationList)
+        
+        for configuration in configurations {
+            
+            try generateProjectSettingsFor(
+                buildConfiguration: configuration.type,
+                configuration: configuration,
+                project: project,
+                fileElements: fileElements,
+                pbxproj: pbxproj,
+                configurationList: configurationList
+            )
+            
+        }
 
-        try generateProjectSettingsFor(buildConfiguration: .debug,
-                                       configuration: project.settings?.debug,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       pbxproj: pbxproj,
-                                       configurationList: configurationList)
-
-        try generateProjectSettingsFor(buildConfiguration: .release,
-                                       configuration: project.settings?.release,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       pbxproj: pbxproj,
-                                       configurationList: configurationList)
         return configurationList
     }
 
@@ -62,32 +65,33 @@ final class ConfigGenerator: ConfigGenerating {
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               fileElements: ProjectFileElements,
+                              configurations: ConfigurationList,
                               options _: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
+        
+        for configuration in configurations {
+            
+            try generateTargetSettingsFor(
+                target: target,
+                buildConfiguration: configuration.type,
+                configuration: configuration,
+                fileElements: fileElements,
+                pbxproj: pbxproj,
+                configurationList: configurationList,
+                sourceRootPath: sourceRootPath
+            )
+            
+        }
 
-        try generateTargetSettingsFor(target: target,
-                                      buildConfiguration: .debug,
-                                      configuration: target.settings?.debug,
-                                      fileElements: fileElements,
-                                      pbxproj: pbxproj,
-                                      configurationList: configurationList,
-                                      sourceRootPath: sourceRootPath)
-
-        try generateTargetSettingsFor(target: target,
-                                      buildConfiguration: .release,
-                                      configuration: target.settings?.release,
-                                      fileElements: fileElements,
-                                      pbxproj: pbxproj,
-                                      configurationList: configurationList,
-                                      sourceRootPath: sourceRootPath)
     }
 
     func generateManifestsConfig(pbxproj: PBXProj,
                                  options _: GenerationOptions,
-                                 resourceLocator: ResourceLocating = ResourceLocator()) throws -> XCConfigurationList {
+                                 resourceLocator: ResourceLocating = ResourceLocator(),
+                                 configurations: ConfigurationList) throws -> XCConfigurationList {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
 
@@ -103,20 +107,17 @@ final class ConfigGenerator: ConfigGenerating {
             configuration.buildSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "SWIFT_PACKAGE"
             configuration.buildSettings["OTHER_SWIFT_FLAGS"] = "-swift-version 4 -I \(frameworkParentDirectory.asString)"
         }
-
-        // Debug configuration
-        let debugConfig = XCBuildConfiguration(name: "Debug", baseConfiguration: nil, buildSettings: [:])
-        pbxproj.add(object: debugConfig)
-        debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .debug, platform: .macOS, product: .framework, swift: true)
-        configurationList.buildConfigurations.append(debugConfig)
-        try addSettings(debugConfig)
-
-        // Release configuration
-        let releaseConfig = XCBuildConfiguration(name: "Release", baseConfiguration: nil, buildSettings: [:])
-        pbxproj.add(object: releaseConfig)
-        releaseConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .release, platform: .macOS, product: .framework, swift: true)
-        configurationList.buildConfigurations.append(releaseConfig)
-        try addSettings(releaseConfig)
+        
+        for configuration in configurations {
+            
+            // Debug configuration
+            let debugConfig = XCBuildConfiguration(name: configuration.name, baseConfiguration: nil, buildSettings: [:])
+            pbxproj.add(object: debugConfig)
+            debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: configuration.type == .debug ? .debug : .release, platform: .macOS, product: .framework, swift: true)
+            configurationList.buildConfigurations.append(debugConfig)
+            try addSettings(debugConfig)
+            
+        }
 
         return configurationList
     }
@@ -124,7 +125,7 @@ final class ConfigGenerator: ConfigGenerating {
     // MARK: - Fileprivate
 
     fileprivate func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
-                                                configuration: Configuration?,
+                                                configuration: Configuration,
                                                 project: Project,
                                                 fileElements: ProjectFileElements,
                                                 pbxproj: PBXProj,
@@ -138,16 +139,15 @@ final class ConfigGenerator: ConfigGenerating {
         extend(buildSettings: &settings, with: project.settings?.base ?? [:])
         extend(buildSettings: &settings, with: defaultConfigSettings)
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: configuration.name,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
-        if let variantConfig = configuration {
-            extend(buildSettings: &settings, with: variantConfig.settings)
-            if let xcconfig = variantConfig.xcconfig {
-                let fileReference = fileElements.file(path: xcconfig)
-                variantBuildConfiguration.baseConfiguration = fileReference
-            }
+        extend(buildSettings: &settings, with: configuration.settings)
+        if let xcconfig = configuration.xcconfig {
+            let fileReference = fileElements.file(path: xcconfig)
+            variantBuildConfiguration.baseConfiguration = fileReference
         }
+
         variantBuildConfiguration.buildSettings = settings
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
@@ -155,7 +155,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     fileprivate func generateTargetSettingsFor(target: Target,
                                                buildConfiguration: BuildConfiguration,
-                                               configuration: Configuration?,
+                                               configuration: Configuration,
                                                fileElements: ProjectFileElements,
                                                pbxproj: PBXProj,
                                                configurationList: XCConfigurationList,
@@ -168,16 +168,14 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: [String: Any] = [:]
         extend(buildSettings: &settings, with: defaultConfigSettings)
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
-        extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+        extend(buildSettings: &settings, with: configuration.settings)
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: configuration.name,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
-        if let variantConfig = configuration {
-            if let xcconfig = variantConfig.xcconfig {
-                let fileReference = fileElements.file(path: xcconfig)
-                variantBuildConfiguration.baseConfiguration = fileReference
-            }
+        if let xcconfig = configuration.xcconfig {
+            let fileReference = fileElements.file(path: xcconfig)
+            variantBuildConfiguration.baseConfiguration = fileReference
         }
 
         /// Target attributes

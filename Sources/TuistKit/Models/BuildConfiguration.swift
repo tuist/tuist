@@ -13,3 +13,19 @@ extension BuildConfiguration: XcodeRepresentable {
         }
     }
 }
+
+struct ConfigurationList: Sequence {
+    
+    typealias Element = Configuration
+    typealias Iterator = IndexingIterator<[Configuration]>
+    
+    let configurations: [Configuration]
+    init(_ configurations: [Configuration]) {
+        self.configurations = configurations
+    }
+    
+    func makeIterator() -> ConfigurationList.Iterator {
+        return configurations.makeIterator()
+    }
+    
+}

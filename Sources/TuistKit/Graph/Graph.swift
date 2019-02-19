@@ -40,6 +40,7 @@ protocol Graphing: AnyObject {
     var name: String { get }
     var entryPath: AbsolutePath { get }
     var entryNodes: [GraphNode] { get }
+    var rootProject: Project { get }
     var projects: [Project] { get }
     var frameworks: [FrameworkNode] { get }
 
@@ -69,6 +70,12 @@ class Graph: Graphing {
     let name: String
     let entryPath: AbsolutePath
     let entryNodes: [GraphNode]
+    
+    var rootProject: Project {
+        precondition(cache.projects.count > 0)
+        return cache.projects[entryPath]!
+    }
+    
     var projects: [Project] {
         return Array(cache.projects.values)
     }
