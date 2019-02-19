@@ -1,7 +1,6 @@
 import Basic
 import Foundation
 import TuistCore
-import Yams
 
 enum GraphManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
