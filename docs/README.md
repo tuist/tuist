@@ -17,5 +17,5 @@ The following list contains all the documentation for people that are interested
 - [Getting started as a contributor](contribution/getting-started.md): Are you new to contributing to the project? You'll find some recommendations to start from.
 - [Code of conduct](contribution/code-of-conduct.md): Needless to say, you should be a nice developer, have a good conduct and reject any unacceptable behavior from you or any member of the project.
 - [Changelog guidelines](contribution/changelog-guidelines.md) - Changes to the project are reflected in the project `CHANGELOG.md` file. This document contains some guidelines the file adheres to.
-- [Core team](contribution/core-team.md):
+- [Core team](contribution/core-team.md): The Tuist Core team is a group of contributors that have demonstrated a lasting enthusiasm for the project and community. You can read more about their responsibilities and get to know the team.
 - [Zen principles](contribution/zen.md): A set of principles on which maintainers and contributors base their decisions.
