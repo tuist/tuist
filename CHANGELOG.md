@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Use `FilesList` for Source and Resource paths https://github.com/tuist/tuist/pull/201 by @dangthaison91
+- Support array for `sources` and `resources` paths https://github.com/tuist/tuist/pull/201 by @dangthaison91
 
 ### Added
 

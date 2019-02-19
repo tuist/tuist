@@ -31,7 +31,7 @@ let project = Project(name: "App",
                                product: .app,
                                bundleId: "io.tuist.App",
                                infoPlist: "Info.plist",
-                               sources: FileList(globs: ["Sources/**", "OtherSources/**"]),
+                               sources: ["Sources/**", "OtherSources/**"],
                                dependencies: [
                                     /* Target dependencies can be defined here */
                                     /* .framework(path: "framework") */
@@ -41,7 +41,7 @@ let project = Project(name: "App",
                                product: .unitTests,
                                bundleId: "io.tuist.AppTests",
                                infoPlist: "Tests.plist",
-                               sources: FileList(globs: ["Tests/**"]),
+                               sources: "Tests/**",
                                dependencies: [
                                     .target(name: "App")
                                ])
