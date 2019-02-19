@@ -20,6 +20,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Removed
 
 - Up attribute from the `Project` model https://github.com/tuist/tuist/pull/228 by @pepibumur.
+- Support for YAML and JSON formats as Project specifications https://github.com/tuist/tuist/pull/230 by @ollieatkinson
 
 ### Fixed
 
