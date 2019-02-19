@@ -16,6 +16,7 @@ Note that the Tuist Core Team – and all Tuist contributors – are open source
 ## Core Team Members
 
 - [@pepibumur](https://github.com/pepibumur)
+- [@ollieatkinson](https://github.com/ollieatkinson)
 
 ## Adding new Core Team Members
 
