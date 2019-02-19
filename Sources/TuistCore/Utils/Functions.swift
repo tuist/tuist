@@ -35,13 +35,6 @@ public func or<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) ->
     return { lhs($0) || rhs($0) }
 }
 
-
-infix operator |>
-
-public func |> <Root, Value, T>(keyPath: KeyPath<Root, Value>, block: @escaping (Value) -> T) -> (Root) -> T {
-    return pipeForward(keyPath: keyPath, block: block)
-}
-
-public func pipeForward<Root, Value, T>(keyPath: KeyPath<Root, Value>, block: @escaping (Value) -> T) -> (Root) -> T {
-    return { block($0[keyPath: keyPath]) }
+public func pipe<Root, Value, T>(_ lhs: @escaping (Root) -> Value, _ rhs: @escaping (Value) -> T) -> (Root) -> T {
+    return { rhs(lhs($0)) }
 }

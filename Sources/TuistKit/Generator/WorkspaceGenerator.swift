@@ -65,21 +65,18 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
         
-        /*-----------------------------------------------------------------------------------------
-         // MARK: - Manifest Group
-         -----------------------------------------------------------------------------------------*/
+         // MARK: - Manifests
 
         let manifestFiles: [XCWorkspaceDataElement] = [ Manifest.workspace, Manifest.setup ]
             .lazy
-            .map(\.fileName |> path.appending(component:))
+            .map(pipe(get(\.fileName), path.appending))
             .filter(fileHandler.exists)
-            .map(\.workspaceFileElement)
+            .map{ $0.relative(to: path) }
+            .map(workspaceFileElement)
 
         workspace.data.children.append(contentsOf: manifestFiles)
         
-        /*-----------------------------------------------------------------------------------------
          // MARK: - Projects
-         -----------------------------------------------------------------------------------------*/
         
         try graph.projects.forEach { project in
             let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
@@ -90,7 +87,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                  sourceRootPath: sourceRootPath)
             
             let relativePath = generatedProject.path.relative(to: path)
-            workspace.data.children.append(relativePath.workspaceFileElement)
+            workspace.data.children.append(workspaceFileElement(path: relativePath))
         }
         
         try workspace.write(path: workspacePath.path, override: true)
@@ -98,25 +95,14 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         return workspacePath
     }
     
-}
-
-/*-----------------------------------------------------------------------------------------
- // MARK: - Helper for generating XCWorkspaceDataElement from AbsolutePath and RelativePath
- -----------------------------------------------------------------------------------------*/
-
-private protocol WorkspaceFileElement {
-    var asString: String { get }
-}
-
-extension WorkspaceFileElement {
-    
-    var workspaceFileElement: XCWorkspaceDataElement {
-        let location = XCWorkspaceDataElementLocationType.group(asString)
+    /// Create a XCWorkspaceDataElement.file from a path string.
+    ///
+    /// - Parameter path: The relative path to the file
+    private func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
+        let location = XCWorkspaceDataElementLocationType.group(path.asString)
         let fileRef = XCWorkspaceDataFileRef(location: location)
         return .file(fileRef)
     }
     
+    
 }
-
-extension AbsolutePath: WorkspaceFileElement { }
-extension RelativePath: WorkspaceFileElement { }
