@@ -18,7 +18,7 @@ final class SettingsTests: XCTestCase {
                 "debug": "debug"
             },
             "name": "Debug",
-            "type": "debug",
+            "buildConfiguration": "debug",
             "xcconfig": "/path/debug.xcconfig"
         },
         {
@@ -26,7 +26,7 @@ final class SettingsTests: XCTestCase {
                 "release": "release"
             },
             "name": "Release",
-            "type": "release",
+            "buildConfiguration": "release",
             "xcconfig": "/path/release.xcconfig"
         }
     ]
@@ -35,8 +35,10 @@ final class SettingsTests: XCTestCase {
         
         let subject = Settings(
             base: ["base": "base"],
-            debug: .debug(["debug": "debug"], xcconfig: "/path/debug.xcconfig"),
-            release: .release(["release": "release"], xcconfig: "/path/release.xcconfig")
+            configurations: [
+                .debug(name: "Debug", settings: ["debug": "debug"], xcconfig: "/path/debug.xcconfig"),
+                .release(name: "Release", settings: ["release": "release"], xcconfig: "/path/release.xcconfig")
+            ]
         )
 
         assertCodableEqualToJson(subject, expected)
@@ -56,7 +58,7 @@ final class SettingsTests: XCTestCase {
                 "debug": "debug"
             },
             "name": "Debug",
-            "type": "debug",
+            "buildConfiguration": "debug",
             "xcconfig": "/path/debug.xcconfig"
         },
         {
@@ -64,7 +66,7 @@ final class SettingsTests: XCTestCase {
                 "release": "release"
             },
             "name": "Release",
-            "type": "release",
+            "buildConfiguration": "release",
             "xcconfig": "/path/release.xcconfig"
         }
     ]
@@ -74,42 +76,12 @@ final class SettingsTests: XCTestCase {
         let subject = Settings(
             base: [ "base": "base" ],
             configurations: [
-                .debug([ "debug": "debug" ], xcconfig: "/path/debug.xcconfig"),
-                .release([ "release": "release" ], xcconfig: "/path/release.xcconfig")
+                .debug(name: "Debug", settings: [ "debug": "debug" ], xcconfig: "/path/debug.xcconfig"),
+                .release(name: "Release", settings: [ "release": "release" ], xcconfig: "/path/release.xcconfig")
             ]
         )
 
         assertCodableEqualToJson(subject, expected)
     }
-    
-    func test_toJSON_array_literal() {
-        
-        let expected =
-        """
-{
-    "base": { },
-    "configurations": [
-        {
-            "settings": { },
-            "name": "Debug",
-            "type": "debug",
-            "xcconfig": "/path/debug.xcconfig"
-        },
-        {
-            "settings": { },
-            "name": "Release",
-            "type": "release",
-            "xcconfig": "/path/release.xcconfig"
-        }
-    ]
-}
-"""
-        
-        let subject: Settings = [
-            .debug(xcconfig: "/path/debug.xcconfig"),
-            .release(xcconfig: "/path/release.xcconfig")
-        ]
-        
-        assertCodableEqualToJson(subject, expected)
-    }
+
 }
