@@ -16,7 +16,7 @@ extension Target {
                      headers: Headers? = nil,
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
-                     dependencies: [JSON] = []) -> Target {
+                     dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
                       platform: platform,
                       product: product,

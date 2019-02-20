@@ -13,19 +13,4 @@ final class CoreDataModelTests: XCTestCase {
         super.setUp()
         fileHandler = try! MockFileHandler()
     }
-
-    func test_init() throws {
-        let dataModelPath = fileHandler.currentPath.appending(component: "3.xcdatamodel")
-        try Data().write(to: dataModelPath.url)
-        let json = JSON([
-            "path": ".".toJSON(),
-            "current_version": "3".toJSON(),
-        ])
-
-        let subject = try CoreDataModel(dictionary: json,
-                                        projectPath: fileHandler.currentPath,
-                                        fileHandler: fileHandler)
-
-        XCTAssertEqual(subject.versions, [dataModelPath])
-    }
 }

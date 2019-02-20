@@ -45,35 +45,25 @@ class Project: Equatable, CustomStringConvertible {
     ///   - circularDetector: Utility to find circular dependencies between targets.
     /// - Returns: Initialized project.
     /// - Throws: An error if the project has an invalid format.
-    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, circularDetector: GraphCircularDetecting) throws -> Project {
+    static func at(_ path: AbsolutePath,
+                   cache: GraphLoaderCaching,
+                   circularDetector: GraphCircularDetecting,
+                   modelLoader: ModelLoading) throws -> Project {
         if let project = cache.project(path) {
             return project
         } else {
-            let project = try Project(path: path, cache: cache)
+            let project = try modelLoader.loadProject(at: path)
             cache.add(project: project)
 
             for target in project.targets {
                 if cache.targetNode(path, name: target.name) != nil { continue }
-                _ = try TargetNode.read(name: target.name, path: path, cache: cache, circularDetector: circularDetector)
+                _ = try TargetNode.read(name: target.name, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
             }
 
             return project
         }
     }
 
-    init(path: AbsolutePath,
-         cache _: GraphLoaderCaching,
-         fileHandler: FileHandling = FileHandler(),
-         manifestLoader: GraphManifestLoading = GraphManifestLoader()) throws {
-        let json = try manifestLoader.load(.project, path: path)
-        self.path = path
-        name = try json.get("name")
-        let targetsJSONs: [JSON] = try json.get("targets")
-        targets = try targetsJSONs.map({ try Target(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
-        let settingsJSON: JSON? = try? json.get("settings")
-        settings = try settingsJSON.map({ try Settings(dictionary: $0, projectPath: path, fileHandler: fileHandler) })
-    }
-    
     /// It returns the project targets sorted based on the target type and the dependencies between them.
     /// The most dependent and non-tests targets are sorted first in the list.
     ///

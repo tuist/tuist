@@ -50,15 +50,17 @@ class TargetNode: GraphNode {
     static func read(name: String,
                      path: AbsolutePath,
                      cache: GraphLoaderCaching,
-                     circularDetector: GraphCircularDetecting) throws -> TargetNode {
+                     circularDetector: GraphCircularDetecting,
+                     modelLoader: ModelLoading) throws -> TargetNode {
         if let targetNode = cache.targetNode(path, name: name) { return targetNode }
-        let project = try Project.at(path, cache: cache, circularDetector: circularDetector)
+        let project = try Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
 
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
+        
         let dependencies: [GraphNode] = try target.dependencies.map({
-            try self.readDependency(path: path, name: name, dictionary: $0, cache: cache, circularDetector: circularDetector)
+            try node(for: $0, path: path, name: name, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         })
 
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
@@ -67,41 +69,35 @@ class TargetNode: GraphNode {
         return targetNode
     }
 
-    static func readDependency(path: AbsolutePath,
-                               name: String,
-                               dictionary: JSON,
-                               cache: GraphLoaderCaching,
-                               circularDetector: GraphCircularDetecting,
-                               fileHandler: FileHandling = FileHandler()) throws -> GraphNode {
-        let type: String = try dictionary.get("type")
-        if type == "target" {
+    static func node(for dependency: Dependency,
+                     path: AbsolutePath,
+                     name: String,
+                     cache: GraphLoaderCaching,
+                     circularDetector: GraphCircularDetecting,
+                     modelLoader: ModelLoading,
+                     fileHandler: FileHandling = FileHandler()) throws -> GraphNode {
+        switch dependency {
+        case .target(let target):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
-            let name: String = try dictionary.get("name")
-            let circularTo = GraphCircularDetectorNode(path: path, name: name)
+            let circularTo = GraphCircularDetectorNode(path: path, name: target)
             try circularDetector.start(from: circularFrom, to: circularTo)
-            return try TargetNode.read(name: name, path: path, cache: cache, circularDetector: circularDetector)
-        } else if type == "project" {
+            return try TargetNode.read(name: target, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
+        case .project(let target, let projectRelativePath):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
-            let name: String = try dictionary.get("target")
-            let projectRelativePath: RelativePath = try RelativePath(dictionary.get("path"))
             let projectPath = path.appending(projectRelativePath)
-            let circularTo = GraphCircularDetectorNode(path: projectPath, name: name)
+            let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
             try circularDetector.start(from: circularFrom, to: circularTo)
-            return try TargetNode.read(name: name, path: projectPath, cache: cache, circularDetector: circularDetector)
-        } else if type == "framework" {
-            let frameworkPath: RelativePath = try RelativePath(dictionary.get("path"))
+            return try TargetNode.read(name: target, path: projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
+        case .framework(let frameworkPath):
             return try FrameworkNode.parse(projectPath: path,
                                            path: frameworkPath,
-                                           cache: cache)
-        } else if type == "library" {
-            let libraryPath: RelativePath = try RelativePath(dictionary.get("path"))
-            return try LibraryNode.parse(json: dictionary,
+                                       cache: cache)
+        case .library(let libraryPath, let publicHeaders, let swiftModuleMap):
+            return try LibraryNode.parse(publicHeaders: publicHeaders,
+                                         swiftModuleMap: swiftModuleMap,
                                          projectPath: path,
                                          path: libraryPath,
-                                         fileHandler: fileHandler,
-                                         cache: cache)
-        } else {
-            fatalError("Invalid dependency type: \(type)")
+                                         fileHandler: fileHandler, cache: cache)
         }
     }
 }
@@ -204,7 +200,8 @@ class LibraryNode: PrecompiledNode {
         super.init(path: path)
     }
 
-    static func parse(json: JSON,
+    static func parse(publicHeaders: RelativePath,
+                      swiftModuleMap: RelativePath?,
                       projectPath: AbsolutePath,
                       path: RelativePath,
                       fileHandler: FileHandling,
@@ -214,14 +211,12 @@ class LibraryNode: PrecompiledNode {
             throw GraphLoadingError.missingFile(libraryAbsolutePath)
         }
         if let libraryNode = cache.precompiledNode(libraryAbsolutePath) as? LibraryNode { return libraryNode }
-        let publicHeadersRelativePath: RelativePath = try RelativePath(json.get("public_headers"))
-        let publicHeadersPath = projectPath.appending(publicHeadersRelativePath)
+        let publicHeadersPath = projectPath.appending(publicHeaders)
         if !fileHandler.exists(publicHeadersPath) {
             throw GraphLoadingError.missingFile(publicHeadersPath)
         }
         var swiftModuleMapPath: AbsolutePath?
-        if let swiftModuleMapRelativePathString: String = json.get("swift_module_map") {
-            let swiftModuleMapRelativePath = RelativePath(swiftModuleMapRelativePathString)
+        if let swiftModuleMapRelativePath = swiftModuleMap {
             swiftModuleMapPath = projectPath.appending(swiftModuleMapRelativePath)
             if !fileHandler.exists(swiftModuleMapPath!) {
                 throw GraphLoadingError.missingFile(swiftModuleMapPath!)
