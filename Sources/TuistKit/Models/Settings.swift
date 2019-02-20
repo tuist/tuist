@@ -91,7 +91,7 @@ class TargetSettings: GraphInitiatable, Equatable {
     /// - Throws: A decoding error if an expected property is missing or has an invalid value.
     required init(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
         base = try dictionary.get("base")
-        buildSettings = try dictionary.get("buildsSettings").mapValues{ try $0.getDictionary() }
+        buildSettings = try dictionary.get("buildSettings").mapValues{ try $0.getDictionary() }
     }
     
     // MARK: - Equatable
