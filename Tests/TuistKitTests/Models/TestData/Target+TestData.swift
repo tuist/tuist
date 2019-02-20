@@ -9,7 +9,7 @@ extension Target {
                      bundleId: String = "com.test.bundle_id",
                      infoPlist: AbsolutePath = AbsolutePath("/Info.plist"),
                      entitlements: AbsolutePath? = AbsolutePath("/Test.entitlements"),
-                     settings: Settings? = Settings.test(),
+                     settings: TargetSettings? = TargetSettings.test(),
                      sources: [AbsolutePath] = [AbsolutePath("/sources/*")],
                      resources: [AbsolutePath] = [AbsolutePath("/resources/*")],
                      coreDataModels: [CoreDataModel] = [],

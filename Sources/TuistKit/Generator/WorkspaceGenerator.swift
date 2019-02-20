@@ -71,10 +71,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         if let projectConfigurations = graph.rootProject.settings?.configurations {
             configurationList = ConfigurationList(projectConfigurations)
         } else {
-            configurationList = ConfigurationList([
-                Configuration(name: "Debug", type: .debug),
-                Configuration(name: "Release", type: .release),
-            ])
+            configurationList = ConfigurationList(BuildConfiguration.allCases.map{ Configuration(name: $0.xcodeValue, buildConfiguration: $0) })
         }
         
         // MARK: - Manifests

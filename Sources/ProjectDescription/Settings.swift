@@ -2,36 +2,37 @@ import Foundation
 
 // MARK: - Configuration
 
+public typealias BuildSettings = [String: String]
+
 public class Configuration: Codable {
-    public let name: String
-    public let type: BuildConfiguration
-    public let settings: [String: String]
+    
+    public typealias Name = String
+    
+    public let name: Name
+    public let settings: BuildSettings
     public let xcconfig: String?
+    public let buildConfiguration: BuildConfiguration
 
     public enum CodingKeys: String, CodingKey {
         case name
-        case type
         case settings
         case xcconfig
+        case buildConfiguration
     }
 
-    public init(name: String, type: BuildConfiguration, settings: [String: String] = [:], xcconfig: String? = nil) {
+    public init(name: String, settings: BuildSettings = [:], xcconfig: String? = nil, buildConfiguration: BuildConfiguration) {
         self.name = name
-        self.type = type
         self.settings = settings
         self.xcconfig = xcconfig
+        self.buildConfiguration = buildConfiguration
     }
 
-    public static func debug(_ settings: [String: String] = [:], xcconfig: String? = nil) -> Configuration {
-        return Configuration(name: "Debug", type: .debug, settings: settings, xcconfig: xcconfig)
+    public static func debug(name: String, settings: BuildSettings = [:], xcconfig: String? = nil) -> Configuration {
+        return Configuration(name: name, settings: settings, xcconfig: xcconfig, buildConfiguration: .debug)
     }
     
-    public static func release(_ settings: [String: String] = [:], xcconfig: String? = nil) -> Configuration {
-        return Configuration(name: "Release", type: .release, settings: settings, xcconfig: xcconfig)
-    }
-    
-    public static func configuration(name: String, type: BuildConfiguration = .debug, settings: [String: String] = [:], xcconfig: String? = nil) -> Configuration {
-        return Configuration(name: name, type: type, settings: settings, xcconfig: xcconfig)
+    public static func release(name: String, settings: BuildSettings = [:], xcconfig: String? = nil) -> Configuration {
+        return Configuration(name: name, settings: settings, xcconfig: xcconfig, buildConfiguration: .release)
     }
     
 }
@@ -39,17 +40,25 @@ public class Configuration: Codable {
 // MARK: - Settings
 
 public class Settings: Codable {
-    public let base: [String: String]
+    
+    public let base: BuildSettings
     public let configurations: [Configuration]
 
-    public init(base: [String: String] = [:], debug: Configuration = .debug(), release: Configuration = .release()) {
-        self.base = base
-        self.configurations = [ debug, release ]
-    }
-    
-    public init(base: [String: String] = [:], configurations: [Configuration]) {
+    public init(base: BuildSettings = [:], configurations: [Configuration]) {
         self.base = base
         self.configurations = configurations
+    }
+    
+}
+
+public class TargetSettings: Codable {
+    
+    public let base: BuildSettings
+    public let buildSettings: [Configuration.Name: BuildSettings]
+    
+    public init(base: BuildSettings = [:], buildSettings: [Configuration.Name: BuildSettings] = [:]) {
+        self.base = base
+        self.buildSettings = buildSettings
     }
     
 }

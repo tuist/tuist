@@ -105,14 +105,6 @@ class ProjectFileElements {
         if let entitlements = target.entitlements {
             files.insert(entitlements)
         }
-        
-        if let settings = target.settings {
-            
-            for case .some(let xcconfigFile) in settings.configurations.map(\.xcconfig) {
-                files.insert(xcconfigFile)
-            }
-            
-        }
 
         return files
     }

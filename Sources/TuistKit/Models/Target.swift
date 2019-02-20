@@ -16,7 +16,7 @@ class Target: Equatable {
     let bundleId: String
     let infoPlist: AbsolutePath
     let entitlements: AbsolutePath?
-    let settings: Settings?
+    let settings: TargetSettings?
     let dependencies: [Dependency]
     let sources: [AbsolutePath]
     let resources: [AbsolutePath]
@@ -33,7 +33,7 @@ class Target: Equatable {
          bundleId: String,
          infoPlist: AbsolutePath,
          entitlements: AbsolutePath? = nil,
-         settings: Settings? = nil,
+         settings: TargetSettings? = nil,
          sources: [AbsolutePath] = [],
          resources: [AbsolutePath] = [],
          headers: Headers? = nil,
@@ -56,7 +56,10 @@ class Target: Equatable {
         self.environment = environment
         self.dependencies = dependencies
     }
-    
+
+    /// Return true if the target can be linked.
+    ///
+    /// - Returns: True if the target can be linked from another target.
     func isLinkable() -> Bool {
         return [ .dynamicLibrary, .staticLibrary, .framework, .staticFramework ].contains(product)
     }

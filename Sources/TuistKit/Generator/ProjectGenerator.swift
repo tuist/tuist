@@ -92,6 +92,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                                           pbxproj: pbxproj,
                                                                           fileElements: fileElements,
                                                                           configurations: configurations,
+                                                                          isRoot: graph.rootProject == project,
                                                                           options: options)
 
         /// Generate project object.
