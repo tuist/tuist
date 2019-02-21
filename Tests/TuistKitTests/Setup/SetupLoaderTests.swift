@@ -1,10 +1,9 @@
-@testable import TuistKit
-import XCTest
 import Basic
 @testable import TuistCoreTesting
+@testable import TuistKit
+import XCTest
 
 final class SetupLoaderTests: XCTestCase {
-
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
     var fileHandler: MockFileHandler!
@@ -49,9 +48,9 @@ final class SetupLoaderTests: XCTestCase {
         // given
         let projectPath = AbsolutePath("/test/test1")
         let mockUp1 = MockUp(name: "1")
-        mockUp1.isMetStub = { _, _ in return true }
+        mockUp1.isMetStub = { _, _ in true }
         let mockUp2 = MockUp(name: "2")
-        mockUp2.isMetStub = { _, _ in return false }
+        mockUp2.isMetStub = { _, _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
         graphManifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
@@ -84,13 +83,13 @@ final class SetupLoaderTests: XCTestCase {
         // given
         let projectPath = AbsolutePath("/test/test1")
         let mockUp1 = MockUp(name: "1")
-        mockUp1.isMetStub = { _, _ in return false }
+        mockUp1.isMetStub = { _, _ in false }
         let mockUp2 = MockUp(name: "2")
-        mockUp2.isMetStub = { _, _ in return false }
+        mockUp2.isMetStub = { _, _ in false }
         let mockUp3 = MockUp(name: "3")
-        mockUp3.isMetStub = { _, _ in return false }
+        mockUp3.isMetStub = { _, _ in false }
         let mockUp4 = MockUp(name: "4")
-        mockUp4.isMetStub = { _, _ in return false }
+        mockUp4.isMetStub = { _, _ in false }
         let mockUps = [mockUp1, mockUp2, mockUp3, mockUp4]
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in

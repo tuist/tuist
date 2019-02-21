@@ -15,7 +15,6 @@ final class MockGraphManifestLoader: GraphManifestLoading {
     var loadSetupCount: UInt = 0
     var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
 
-
     func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON {
         loadCount += 1
         return try loadStub?(manifest, path) ?? JSON([:])

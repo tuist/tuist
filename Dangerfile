@@ -11,8 +11,8 @@ unless git.modified_files.include?("CHANGELOG.md")
   warn(message)
 end
 
-# Swiftlint
-swiftlint.lint_files(additional_swiftlint_args: "--strict")
+# Swiftformat
+swiftformat.check_format(fail_on_error: true)
 
 # Update documentation
 if all_files.any? { |f| f =~ %r{Sources/} }

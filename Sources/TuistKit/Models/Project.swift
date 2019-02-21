@@ -73,13 +73,13 @@ class Project: Equatable, CustomStringConvertible {
     func sortedTargetsForProjectScheme(graph: Graphing) -> [Target] {
         return targets.sorted { (first, second) -> Bool in
             // First criteria: Test bundles at the end
-            if first.product.testsBundle && !second.product.testsBundle {
+            if first.product.testsBundle, !second.product.testsBundle {
                 return false
             }
-            if !first.product.testsBundle && second.product.testsBundle {
+            if !first.product.testsBundle, second.product.testsBundle {
                 return true
             }
-            
+
             // Second criteria: Most dependent targets first.
             let secondDependencies = graph.targetDependencies(path: self.path, name: second.name)
                 .filter({ $0.path == self.path })
@@ -87,23 +87,23 @@ class Project: Equatable, CustomStringConvertible {
             let firstDependencies = graph.targetDependencies(path: self.path, name: first.name)
                 .filter({ $0.path == self.path })
                 .map({ $0.target.name })
-            
+
             if secondDependencies.contains(first.name) {
                 return true
             } else if firstDependencies.contains(second.name) {
                 return false
-                
+
                 // Third criteria: Name
             } else {
                 return first.name < second.name
             }
         }
     }
-    
+
     // MARK: - CustomStringConvertible
-    
+
     var description: String {
-        return self.name
+        return name
     }
 
     // MARK: - Equatable

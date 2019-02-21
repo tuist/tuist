@@ -113,7 +113,7 @@ enum Product: String, CustomStringConvertible, CaseIterable {
             .app,
             .staticLibrary,
             .dynamicLibrary,
-            .framework
+            .framework,
         ]
 
         if platform == .iOS {

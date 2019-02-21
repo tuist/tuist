@@ -1,9 +1,8 @@
-@testable import TuistKit
 import Basic
 import Foundation
+@testable import TuistKit
 
 final class MockSetupLoader: SetupLoading {
-
     private(set) var meetCount: UInt8 = 0
     var meetStub: ((AbsolutePath) throws -> Void)?
 

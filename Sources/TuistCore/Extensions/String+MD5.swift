@@ -250,7 +250,7 @@ class MD5: HashProtocol {
                 dTemp = D
                 D = C
                 C = B
-                B = B &+ rotateLeft((A &+ F &+ sines[j] &+ M[g]), bits: shifts[j])
+                B = B &+ rotateLeft(A &+ F &+ sines[j] &+ M[g], bits: shifts[j])
                 A = dTemp
             }
 

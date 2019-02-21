@@ -10,7 +10,6 @@ final class InitCommandErrorTests: XCTestCase {
         XCTAssertEqual(InitCommandError.alreadyExists(AbsolutePath("/path")).description, "/path already exists.")
         XCTAssertEqual(InitCommandError.ungettableProjectName(AbsolutePath("/path")).description, "Couldn't infer the project name from path /path.")
         XCTAssertEqual(InitCommandError.nonEmptyDirectory(AbsolutePath("/path")).description, "Can't initialize a project in the non-empty directory at path /path.")
-
     }
 
     func test_type() {
@@ -90,13 +89,13 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(subject.pathArgument.usage, "The path to the folder where the project will be generated (Default: Current directory).")
         XCTAssertEqual(subject.pathArgument.completion, .filename)
     }
-    
+
     func test_run_when_the_directory_is_not_empty() throws {
         let path = fileHandler.currentPath
         try fileHandler.touch(path.appending(component: "dummy"))
-        
+
         let result = try parser.parse(["init", "--path", path.asString, "--name", "Test"])
-        
+
         XCTAssertThrowsError(try subject.run(with: result)) { error in
             let expected = InitCommandError.nonEmptyDirectory(path)
             XCTAssertEqual(error as? InitCommandError, expected)

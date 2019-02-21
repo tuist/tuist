@@ -115,15 +115,13 @@ class Target: Equatable {
 }
 
 extension Sequence where Element == Target {
-    
     /// Filters and returns only the targets that are test bundles.
     var testBundles: [Target] {
         return filter({ $0.product.testsBundle })
     }
-    
+
     /// Filters and returns only the targets that are apps.
     var apps: [Target] {
-        return filter({ $0.product == .app})
+        return filter({ $0.product == .app })
     }
-    
 }

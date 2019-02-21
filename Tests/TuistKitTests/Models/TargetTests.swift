@@ -21,20 +21,20 @@ final class TargetTests: XCTestCase {
         let target = Target.test(name: "Test", product: .app)
         XCTAssertEqual(target.productName, "Test.app")
     }
-    
+
     func test_sequence_testBundles() {
         let app = Target.test(product: .app)
         let tests = Target.test(product: .unitTests)
         let targets = [app, tests]
-        
+
         XCTAssertEqual(targets.testBundles, [tests])
     }
-    
+
     func test_sequence_apps() {
         let app = Target.test(product: .app)
         let tests = Target.test(product: .unitTests)
         let targets = [app, tests]
-        
+
         XCTAssertEqual(targets.apps, [app])
     }
 }

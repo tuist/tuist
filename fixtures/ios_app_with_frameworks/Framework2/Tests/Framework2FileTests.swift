@@ -2,7 +2,6 @@
 import XCTest
 
 class Framework2Tests: XCTestCase {
-
     func testHello() {
         let sut = Framework2File()
 

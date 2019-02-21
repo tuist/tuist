@@ -1,8 +1,7 @@
-@testable import TuistKit
 import Foundation
+@testable import TuistKit
 
 final class MockUpLinter: UpLinting {
-
     var lintCount: UInt = 0
     var lintStub: ((Upping) -> [LintingIssue])?
 

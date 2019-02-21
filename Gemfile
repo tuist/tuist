@@ -11,3 +11,5 @@ gem "minitest", "~> 5.11"
 gem "simctl", "~> 1.6"
 gem "rubocop", "~> 0.63.1"
 gem "danger-rubocop", "~> 0.6.1"
+
+gem "danger-swiftformat", "~> 0.4.0"

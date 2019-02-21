@@ -34,14 +34,14 @@ protocol Generating {
 enum GeneratorError: FatalError {
     
     case notImplemented
-    
+
     public var type: ErrorType {
         switch self {
         case .notImplemented:
             return .abort
         }
     }
-    
+
     public var description: String {
         switch self {
         case .notImplemented:

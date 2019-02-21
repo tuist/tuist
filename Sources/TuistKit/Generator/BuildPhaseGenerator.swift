@@ -121,7 +121,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 throw BuildPhaseGenerationError.missingFileReference(path)
             }
             let pbxBuildFile = PBXBuildFile(file: fileReference, settings: [
-                "ATTRIBUTES": [accessLevel.capitalized]
+                "ATTRIBUTES": [accessLevel.capitalized],
             ])
             pbxproj.add(object: pbxBuildFile)
             headersBuildPhase.files.append(pbxBuildFile)
