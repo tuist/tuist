@@ -41,3 +41,15 @@ Feature: Generate a new project using Tuist
     Then I should be able to test the scheme ATests
     Then I should be able to build the scheme B
     Then I should be able to test the scheme BTests
+
+  Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_frameworks)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_static_frameworks into the working directory
+    Then tuist generates the project
+    Then I should be able to build the scheme App
+    Then I should be able to test the scheme AppTests
+    Then I should be able to build the scheme A
+    Then I should be able to test the scheme ATests
+    Then I should be able to build the scheme B
+    Then I should be able to test the scheme BTests
