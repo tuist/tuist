@@ -48,7 +48,7 @@ class Project: Equatable, CustomStringConvertible {
     static func at(_ path: AbsolutePath,
                    cache: GraphLoaderCaching,
                    circularDetector: GraphCircularDetecting,
-                   modelLoader: ModelLoading) throws -> Project {
+                   modelLoader: GeneratorModelLoading) throws -> Project {
         if let project = cache.project(path) {
             return project
         } else {

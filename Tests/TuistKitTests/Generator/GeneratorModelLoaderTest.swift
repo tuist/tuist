@@ -6,7 +6,7 @@ import Foundation
 import XCTest
 
 
-class TuistGeneratorModelLoaderTest: XCTestCase {
+class GeneratorModelLoaderTest: XCTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target
@@ -26,21 +26,21 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
             XCTFail("setup failed: \(error.localizedDescription)")
         }
     }
-
+    
     override func tearDown() {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
-
+    
     func test_loadProject() throws {
         // Given
-
+        
         let manifests = [
             path: ProjectManifest.test(name: "SomeProject")
         ]
         
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                                manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader)
         
         // When
         let model = try subject.loadProject(at: path)
@@ -56,14 +56,14 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         let targetB = TargetManifest.test(name: "B")
         let manifests = [
             path: ProjectManifest.test(targets: [
-                    targetA,
-                    targetB,
+                targetA,
+                targetB,
                 ])
         ]
         
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                                manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader)
         
         // When
         let model = try subject.loadProject(at: path)
@@ -82,7 +82,7 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                                manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader)
         
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -97,11 +97,11 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         let path = AbsolutePath("/root/")
         let manifests: [AbsolutePath: Encodable] = [
             path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
-        ]
+            ]
         
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                                manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader)
         
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -147,11 +147,11 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.public, [
             publicPath.appending(component: "a.h"),
             publicPath.appending(component: "b.h")
-        ])
+            ])
         
         XCTAssertEqual(model.project, [
             projectPath.appending(component: "c.h"),
-        ])
+            ])
         
         XCTAssertEqual(model.private, [])
     }
@@ -185,6 +185,61 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.path, path.appending(RelativePath("my/path")))
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(model.arguments, ["arg1", "arg2"])
+    }
+    
+    func test_target_invalidProduct() throws {
+        // Given
+        let malformedManifest = [
+            "name": "malformed",
+            "product": "<invalid>",
+            "platform": "ios"
+        ]
+        // When / Then
+        XCTAssertThrowsError(
+            try TuistKit.Target.from(json: malformedManifest.toJSON(), path: path, fileHandler: fileHandler)
+        ) { error in
+            XCTAssertEqual(error as? GeneratorModelLoaderError,
+                           GeneratorModelLoaderError.malformedManifest("unrecognized product '<invalid>'"))
+        }
+    }
+    
+    func test_target_invalidPlatform() throws {
+        // Given
+        let malformedManifest = [
+            "name": "malformed",
+            "product": "framework",
+            "platform": "<invalid>"
+        ]
+        
+        // When / Then
+        XCTAssertThrowsError(
+            try TuistKit.Target.from(json: malformedManifest.toJSON(), path: path, fileHandler: fileHandler)
+        ) { error in
+            XCTAssertEqual(error as? GeneratorModelLoaderError,
+                           GeneratorModelLoaderError.malformedManifest("unrecognized platform '<invalid>'"))
+        }
+    }
+    
+    func test_target_invalidDependency() throws {
+        // Given
+        let malformedManifest = ["type": "<invalid>"]
+        
+        // When / Then
+        XCTAssertThrowsError(
+            try TuistKit.Dependency.from(json: malformedManifest.toJSON(), path: path, fileHandler: fileHandler)
+        ) { error in
+            XCTAssertEqual(error as? GeneratorModelLoaderError,
+                           GeneratorModelLoaderError.malformedManifest("unrecognized dependency type '<invalid>'"))
+        }
+    }
+    
+    func test_modelLoaderError_description() {
+        XCTAssertEqual(GeneratorModelLoaderError.malformedManifest("invalid product").description,
+                       "The Project manifest appears to be malformed: invalid product")
+    }
+    
+    func test_modelLoaderError_errorType() {
+        XCTAssertEqual(GeneratorModelLoaderError.malformedManifest("invalid product").type, .abort)
     }
     
     // MARK: - Helpers
@@ -224,7 +279,7 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(settings.base, manifest.base, file: file, line: line)
-
+        
         optionalAssert(settings.debug, manifest.debug, file: file, line: line) {
             assert(configuration: $0, matches: $1, at: path, file: file, line: line)
         }
@@ -255,10 +310,10 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
     }
     
     func coreDataModel(_ coreDataModel: TuistKit.CoreDataModel,
-                matches manifest: ProjectDescription.CoreDataModel,
-                at path: AbsolutePath) -> Bool{
+                       matches manifest: ProjectDescription.CoreDataModel,
+                       at path: AbsolutePath) -> Bool{
         return coreDataModel.path == path.appending(RelativePath(manifest.path))
-                && coreDataModel.currentVersion == manifest.currentVersion
+            && coreDataModel.currentVersion == manifest.currentVersion
     }
     
     func optionalAssert<A, B>(_ optionalA: A?,

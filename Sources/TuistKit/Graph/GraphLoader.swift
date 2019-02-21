@@ -13,7 +13,7 @@ class GraphLoader: GraphLoading {
     let printer: Printing
     let fileHandler: FileHandling
     let manifestLoader: GraphManifestLoading
-    let modelLoader: ModelLoading
+    let modelLoader: GeneratorModelLoading
 
     // MARK: - Init
 
@@ -21,7 +21,7 @@ class GraphLoader: GraphLoading {
          printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
          manifestLoader: GraphManifestLoading = GraphManifestLoader(),
-         modelLoader: ModelLoading) {
+         modelLoader: GeneratorModelLoading) {
         self.linter = linter
         self.printer = printer
         self.fileHandler = fileHandler

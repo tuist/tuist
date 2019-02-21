@@ -3,13 +3,13 @@ import Foundation
 import TuistCore
 import TuistGenerator
 
-enum GeneratorModelLoaderError: Error, FatalError {
+enum GeneratorModelLoaderError: Error, Equatable, FatalError {
     case malformedManifest(String)
     
     var type: ErrorType {
         switch self {
         case .malformedManifest:
-            return .bug
+            return .abort
         }
     }
     
@@ -21,7 +21,7 @@ enum GeneratorModelLoaderError: Error, FatalError {
     }
 }
 
-class GeneratorModelLoader: ModelLoading {
+class GeneratorModelLoader: GeneratorModelLoading {
     
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
@@ -74,11 +74,11 @@ extension TuistKit.Target {
         let name: String = try json.get("name")
         let platformString: String = try json.get("platform")
         guard let platform = TuistKit.Platform(rawValue: platformString) else {
-            throw GeneratorModelLoaderError.malformedManifest("unrecognized platform: \(platformString)")
+            throw GeneratorModelLoaderError.malformedManifest("unrecognized platform '\(platformString)'")
         }
         let productString: String = try json.get("product")
         guard let product = TuistKit.Product(rawValue: productString) else {
-            throw GeneratorModelLoaderError.malformedManifest("unrecognized product: \(productString)")
+            throw GeneratorModelLoaderError.malformedManifest("unrecognized product '\(productString)'")
         }
         let bundleId: String = try json.get("bundle_id")
         let dependenciesJSON: [JSON] = try json.get("dependencies")
@@ -215,7 +215,7 @@ extension TuistKit.Dependency {
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap)
         default:
-            throw GeneratorModelLoaderError.malformedManifest("unrecognized dependency type \(type)")
+            throw GeneratorModelLoaderError.malformedManifest("unrecognized dependency type '\(type)'")
         }
     }
 }

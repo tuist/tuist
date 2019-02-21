@@ -9,7 +9,7 @@ import Basic
 ///   - Each path only contains one Project
 ///   - Whenever a dependency is encountered referencing another path,
 ///     this entity is consulted again to load the model at that path
-protocol ModelLoading {
+protocol GeneratorModelLoading {
     /// Load a Project model at the specified path
     ///
     /// - Parameter path: The absolute path for the project modal to load

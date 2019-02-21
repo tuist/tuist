@@ -51,7 +51,7 @@ class TargetNode: GraphNode {
                      path: AbsolutePath,
                      cache: GraphLoaderCaching,
                      circularDetector: GraphCircularDetecting,
-                     modelLoader: ModelLoading) throws -> TargetNode {
+                     modelLoader: GeneratorModelLoading) throws -> TargetNode {
         if let targetNode = cache.targetNode(path, name: name) { return targetNode }
         let project = try Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
 
@@ -74,7 +74,7 @@ class TargetNode: GraphNode {
                      name: String,
                      cache: GraphLoaderCaching,
                      circularDetector: GraphCircularDetecting,
-                     modelLoader: ModelLoading,
+                     modelLoader: GeneratorModelLoading,
                      fileHandler: FileHandling = FileHandler()) throws -> GraphNode {
         switch dependency {
         case .target(let target):
