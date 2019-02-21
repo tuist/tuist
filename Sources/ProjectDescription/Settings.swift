@@ -44,7 +44,7 @@ public class Settings: Codable {
     public let base: BuildSettings
     public let configurations: [Configuration]
 
-    public init(base: BuildSettings = [:], configurations: [Configuration]) {
+    public init(base: BuildSettings = [:], configurations: [Configuration] = []) {
         self.base = base
         self.configurations = configurations
     }
