@@ -1,12 +1,10 @@
 import Basic
 import Foundation
 import TuistCore
-import Yams
 
 enum GraphManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
-    case invalidYaml(AbsolutePath)
     case manifestNotFound(Manifest, AbsolutePath)
     case setupNotFound(AbsolutePath)
 
@@ -16,10 +14,8 @@ enum GraphManifestLoaderError: FatalError, Equatable {
             return "Couldn't find ProjectDescription.framework at path \(path.asString)"
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.asString)"
-        case let .invalidYaml(path):
-            return "Invalid yaml at path \(path.asString). The root element should be a dictionary"
         case let .manifestNotFound(manifest, path):
-            return "\(manifest.fileName.capitalized) not found at \(path.asString)"
+            return "\(manifest.fileName) not found at \(path.asString)"
         case let .setupNotFound(path):
             return "Setup.swift not found at \(path.asString)"
         }
@@ -31,8 +27,6 @@ enum GraphManifestLoaderError: FatalError, Equatable {
             return .bug
         case .projectDescriptionNotFound:
             return .bug
-        case .invalidYaml:
-            return .abort
         case .manifestNotFound:
             return .abort
         case .setupNotFound:
@@ -48,8 +42,6 @@ enum GraphManifestLoaderError: FatalError, Equatable {
             return lhsPath == rhsPath
         case let (.unexpectedOutput(lhsPath), .unexpectedOutput(rhsPath)):
             return lhsPath == rhsPath
-        case let (.invalidYaml(lhsPath), .invalidYaml(rhsPath)):
-            return lhsPath == rhsPath
         case let (.manifestNotFound(lhsManifest, lhsPath), .manifestNotFound(rhsManifest, rhsPath)):
             return lhsManifest == rhsManifest && lhsPath == rhsPath
         case let (.setupNotFound(lhsPath), .setupNotFound(rhsPath)):
@@ -60,20 +52,22 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     }
 }
 
-enum Manifest {
+enum Manifest: CaseIterable {
     case project
     case workspace
+    case setup
 
     var fileName: String {
         switch self {
         case .project:
-            return "Project"
+            return "Project.swift"
         case .workspace:
-            return "Workspace"
+            return "Workspace.swift"
+        case .setup:
+            return "Setup.swift"
         }
     }
 
-    static var supportedExtensions: Set<String> = ["json", "swift", "yaml", "yml"]
 }
 
 protocol GraphManifestLoading {
@@ -119,46 +113,25 @@ class GraphManifestLoader: GraphManifestLoading {
 
     func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON {
         let manifestPath = try self.manifestPath(at: path, manifest: manifest)
-        if manifestPath.extension == "swift" {
-            return try loadSwiftManifest(path: manifestPath)
-        } else if manifestPath.extension == "json" {
-            deprecator.notify(deprecation: "JSON manifests", suggestion: "Swift manifests")
-            return try loadJSONManifest(path: manifestPath)
-        } else if manifestPath.extension == "yaml" || manifestPath.extension == "yml" {
-            deprecator.notify(deprecation: "YAML manifests", suggestion: "Swift manifests")
-            return try loadYamlManifest(path: manifestPath)
-        } else {
-            throw GraphManifestLoaderError.manifestNotFound(manifest, path)
-        }
+        return try loadManifest(path: manifestPath)
     }
 
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
-        let swiftPath = path.appending(component: "\(manifest.fileName).swift")
-        let jsonPath = path.appending(component: "\(manifest.fileName).json")
-        let yamlPath = path.appending(component: "\(manifest.fileName).yaml")
-        let ymlPath = path.appending(component: "\(manifest.fileName).yml")
+        
+        let filePath = path.appending(component: manifest.fileName)
 
-        if fileHandler.exists(swiftPath) {
-            return swiftPath
-        } else if fileHandler.exists(jsonPath) {
-            return jsonPath
-        } else if fileHandler.exists(yamlPath) {
-            return yamlPath
-        } else if fileHandler.exists(ymlPath) {
-            return ymlPath
+        if fileHandler.exists(filePath) {
+            return filePath
         } else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
         }
+        
     }
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        let manifests: [Manifest] = [.project, .workspace].filter { manifest in
-            let paths = Manifest.supportedExtensions.map {
-                path.appending(component: "\(manifest.fileName).\($0)")
-            }
-            return paths.contains(where: { fileHandler.exists($0) })
-        }
-        return Set(manifests)
+        return .init(Manifest.allCases.filter{
+            return fileHandler.exists(path.appending(component: $0.fileName))
+        })
     }
 
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
@@ -167,7 +140,7 @@ class GraphManifestLoader: GraphManifestLoading {
             throw GraphManifestLoaderError.setupNotFound(path)
         }
 
-        let setup = try loadSwiftManifest(path: setupPath)
+        let setup = try loadManifest(path: setupPath)
         let actionsJson: [JSON] = try setup.get("actions")
         return try actionsJson.compactMap {
             try Up.with(dictionary: $0,
@@ -177,22 +150,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     // MARK: - Fileprivate
 
-    fileprivate func loadYamlManifest(path: AbsolutePath) throws -> JSON {
-        let content = try String(contentsOf: path.url)
-        guard let object = try Yams.load(yaml: content) as? [String: Any] else {
-            throw GraphManifestLoaderError.invalidYaml(path)
-        }
-        let data = try JSONSerialization.data(withJSONObject: object, options: [])
-        let json = String(data: data, encoding: .utf8) ?? "{}"
-        return try JSON(string: json)
-    }
-
-    fileprivate func loadJSONManifest(path: AbsolutePath) throws -> JSON {
-        let content = try String(contentsOf: path.url)
-        return try JSON(string: content)
-    }
-
-    fileprivate func loadSwiftManifest(path: AbsolutePath) throws -> JSON {
+    fileprivate func loadManifest(path: AbsolutePath) throws -> JSON {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         var arguments: [String] = [
             "/usr/bin/xcrun",

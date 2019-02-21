@@ -34,3 +34,7 @@ public func and<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) -
 public func or<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) -> (T) -> Bool {
     return { lhs($0) || rhs($0) }
 }
+
+public func pipe<Root, Value, T>(_ lhs: @escaping (Root) -> Value, _ rhs: @escaping (Value) -> T) -> (Root) -> T {
+    return { rhs(lhs($0)) }
+}
