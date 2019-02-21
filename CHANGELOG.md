@@ -15,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Frequently asked questions to the documentation https://github.com/tuist/tuist/pull/223/ by @pepibumur.
 - Generate a scheme with all the project targets https://github.com/tuist/tuist/pull/226 by @pepibumur
 - Documentation for contributors https://github.com/tuist/tuist/pull/229 by @pepibumur
+- Support for Static Frameworks https://github.com/tuist/tuist/pull/194 @ollieatkinson
 
 ### Removed
 
