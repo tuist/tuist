@@ -4,7 +4,7 @@ import TuistCore
 import TuistGenerator
 
 enum GeneratorModelLoaderError: Error, FatalError {
-    case malformedManifest
+    case malformedManifest(String)
     
     var type: ErrorType {
         switch self {
@@ -15,8 +15,8 @@ enum GeneratorModelLoaderError: Error, FatalError {
     
     var description: String {
         switch self {
-        case .malformedManifest:
-            return "The Project manifest appears to be malformed"
+        case .malformedManifest(let details):
+            return "The Project manifest appears to be malformed: \(details)"
         }
     }
 }
@@ -72,8 +72,14 @@ extension TuistKit.Project {
 extension TuistKit.Target {
     static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Target {
         let name: String = try json.get("name")
-        let platform = TuistKit.Platform(rawValue: try json.get("platform"))!
-        let product = TuistKit.Product(rawValue: try json.get("product"))!
+        let platformString: String = try json.get("platform")
+        guard let platform = TuistKit.Platform(rawValue: platformString) else {
+            throw GeneratorModelLoaderError.malformedManifest("unrecognized platform: \(platformString)")
+        }
+        let productString: String = try json.get("product")
+        guard let product = TuistKit.Product(rawValue: productString) else {
+            throw GeneratorModelLoaderError.malformedManifest("unrecognized product: \(productString)")
+        }
         let bundleId: String = try json.get("bundle_id")
         let dependenciesJSON: [JSON] = try json.get("dependencies")
         let dependencies = try dependenciesJSON.map { try TuistKit.Dependency.from(json: $0, path: path, fileHandler: fileHandler) }
@@ -209,7 +215,7 @@ extension TuistKit.Dependency {
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap)
         default:
-            throw GeneratorModelLoaderError.malformedManifest
+            throw GeneratorModelLoaderError.malformedManifest("unrecognized dependency type \(type)")
         }
     }
 }
