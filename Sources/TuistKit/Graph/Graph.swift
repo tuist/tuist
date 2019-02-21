@@ -47,10 +47,10 @@ protocol Graphing: AnyObject {
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
-    func staticLibraryDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
-
-    // MARK: - Depth First Search
-
+    func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
+    
+    // MARK:- Depth First Search
+    
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
     /// and explores as far as possible along each branch before backtracking.
     ///
@@ -99,8 +99,8 @@ class Graph: Graphing {
         return targetNode.targetDependencies
             .filter { $0.path == path }
     }
-
-    func staticLibraryDependencies(path: AbsolutePath, name: String) -> [DependencyReference] {
+    
+    func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -127,7 +127,7 @@ class Graph: Graphing {
         references.append(contentsOf: precompiledLibrariesAndFrameworks)
 
         switch targetNode.target.product {
-        case .staticLibrary, .dynamicLibrary, .framework:
+        case .staticLibrary, .dynamicLibrary, .framework, .staticFramework:
             // Ignore the products, they do not want to directly link the static libraries, the top level bundles will be responsible.
             break
         case .app, .unitTests, .uiTests:
@@ -232,7 +232,7 @@ class Graph: Graphing {
 
 extension Graph {
     internal func isStaticLibrary(targetNode: TargetNode) -> Bool {
-        return targetNode.target.product == .staticLibrary
+        return targetNode.target.product.isStatic
     }
 
     internal func isDynamicLibrary(targetNode: TargetNode) -> Bool {

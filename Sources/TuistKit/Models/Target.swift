@@ -134,7 +134,7 @@ class Target: GraphInitiatable, Equatable {
     ///
     /// - Returns: True if the target can be linked from another target.
     func isLinkable() -> Bool {
-        return product == .dynamicLibrary || product == .staticLibrary || product == .framework
+        return [ .dynamicLibrary, .staticLibrary, .framework, .staticFramework ].contains(product)
     }
 
     /// Returns the product name including the extension.

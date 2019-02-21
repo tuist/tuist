@@ -97,10 +97,10 @@ final class LinkGenerator: LinkGenerating {
         // Products Dir into Products Dir" which is a nop. To be on the safe side, we're explicitly marking the
         // copy phase as only running for deployment postprocessing (i.e., "Copy only when installing") and
         // disabling deployment postprocessing (it's enabled by default for release builds).
-
-        if target.product == .staticLibrary {
-            let dependencies = graph.staticLibraryDependencies(path: path, name: target.name)
-
+        
+        if target.product.isStatic {
+            let dependencies = graph.staticDependencies(path: path, name: target.name)
+            
             try generateDependenciesBuildPhase(
                 dependencies: dependencies,
                 pbxTarget: pbxTarget,

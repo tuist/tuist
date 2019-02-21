@@ -56,3 +56,24 @@ Workspace:
 Dependencies:
   - App -> A
   - A -> B
+
+## ios_app_with_static_libraries
+
+Same as `ios_app_with_static_libraries` except using static frameworks instead of libraries.
+
+```
+Workspace:
+  - App:
+    - MainApp (iOS app)
+    - MainAppTests (iOS unit tests)
+  - A:
+    - A (static library iOS)
+    - ATests (iOS unit tests)
+  - B:
+    - B (static library iOS)
+    - BTests (iOS unit tests)
+```
+
+Dependencies:
+  - App -> A
+  - A -> B

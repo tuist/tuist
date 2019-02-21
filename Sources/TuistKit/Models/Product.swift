@@ -6,6 +6,7 @@ enum Product: String, CustomStringConvertible, CaseIterable {
     case staticLibrary = "static_library"
     case dynamicLibrary = "dynamic_library"
     case framework
+    case staticFramework
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
 //    case appExtension = "app_extension"
@@ -28,6 +29,8 @@ enum Product: String, CustomStringConvertible, CaseIterable {
             return "dynamicLibrary"
         case .framework:
             return "framework"
+        case .staticFramework:
+            return "staticFramework"
         case .unitTests:
             return "unitTests"
         case .uiTests:
@@ -63,6 +66,8 @@ enum Product: String, CustomStringConvertible, CaseIterable {
             return "dynamic library"
         case .framework:
             return "framework"
+        case .staticFramework:
+            return "staticFramework"
         case .unitTests:
             return "unit tests"
         case .uiTests:
@@ -152,6 +157,8 @@ extension Product {
             return .dynamicLibrary
         case .framework:
             return .framework
+        case .staticFramework:
+            return .framework
         case .unitTests:
             return .unitTestBundle
         case .uiTests:
@@ -176,4 +183,12 @@ extension Product {
 //            return .stickerPack
         }
     }
+}
+
+extension Product {
+    
+    var isStatic: Bool {
+        return [ .staticLibrary, .staticFramework ].contains(self)
+    }
+
 }

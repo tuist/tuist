@@ -101,14 +101,21 @@ class TargetLinter: TargetLinting {
     }
 
     fileprivate func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
-        if target.product == .dynamicLibrary {
-            return []
+        
+        let productsNotAllowingResources: [Product] = [
+            .dynamicLibrary,
+            .staticLibrary,
+            .staticFramework
+        ]
+        
+        if productsNotAllowingResources.contains(target.product) == false {
+            return [ ]
         }
-
-        if !target.resources.isEmpty {
+        
+        if target.resources.isEmpty == false {
             return [LintingIssue(reason: "Target \(target.name) cannot contain resources. Libraries don't support resources", severity: .error)]
         }
 
-        return []
+        return [ ]
     }
 }
