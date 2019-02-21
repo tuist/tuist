@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+require 'danger-swiftformat'
 
 all_files = git.modified_files + git.added_files
 
