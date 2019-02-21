@@ -169,12 +169,15 @@ final class ConfigGenerator: ConfigGenerating {
 
         var settings: [String: Any] = [:]
         extend(buildSettings: &settings, with: defaultSettingsAll)
-        extend(buildSettings: &settings, with: configuration.settings)
         extend(buildSettings: &settings, with: project.settings?.base ?? [:])
         extend(buildSettings: &settings, with: defaultConfigSettings)
         
+        let projectBuildSettings: BuildSettings
+        let xcconfig: AbsolutePath?
+        
         if isRoot {
-            variantBuildConfiguration.baseConfiguration = configuration.xcconfig.flatMap(fileElements.file)
+            projectBuildSettings = configuration.settings
+            xcconfig = configuration.xcconfig
         } else {
             
             /// If any configurations in the project match the root project configuration name, then merge the settings
@@ -183,13 +186,17 @@ final class ConfigGenerator: ConfigGenerating {
             
             let projectConfigurations = project.settings?.configurations
             let projectConfiguration = projectConfigurations?.first(where: { $0.name == configuration.name }) ?? projectConfigurations?.first(where: { $0.buildConfiguration == buildConfiguration })
-            extend(buildSettings: &settings, with: projectConfiguration?.settings ?? [:])
             
-            variantBuildConfiguration.baseConfiguration = projectConfiguration?.xcconfig.flatMap(fileElements.file)
+            projectBuildSettings = projectConfiguration?.settings ?? [:]
+            xcconfig = projectConfiguration?.xcconfig
             
         }
-
+        
+        extend(buildSettings: &settings, with: projectBuildSettings)
+        
+        variantBuildConfiguration.baseConfiguration = xcconfig.flatMap(fileElements.file)
         variantBuildConfiguration.buildSettings = settings
+        
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
@@ -212,7 +219,6 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: [String: Any] = [:]
         
         extend(buildSettings: &settings, with: defaultConfigSettings)
-        extend(buildSettings: &settings, with: configuration.settings)
 
         /// If any configurations in the project match the root project configuration name, then merge the settings
         /// else, If any of the default build configuration types (Debug, Release) match then assign using that.

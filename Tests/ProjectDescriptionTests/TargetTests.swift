@@ -16,7 +16,8 @@ final class TargetTests: XCTestCase {
             headers: Headers(
                 public: "public/*",
                 private: "private/*",
-                project: "project/*"),
+                project: "project/*"
+            ),
             entitlements: "entitlement",
             actions: [
                 TargetAction.post(path: "path", arguments: ["arg"], name: "name"),
