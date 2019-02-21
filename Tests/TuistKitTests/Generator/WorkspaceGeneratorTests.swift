@@ -43,7 +43,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
             graph = Graph.test(entryPath: path, cache: cache)
             
         } catch {
-            XCTFail()
+            XCTFail(error.localizedDescription)
         }
         
     }
