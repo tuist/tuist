@@ -1,11 +1,11 @@
 # Fixtures
 
-This folder contains sample projects we use in the integration and acceptance tests. 
+This folder contains sample projects we use in the integration and acceptance tests.
 Please keep this keep in alphabetical order.
 
 ## app_with_frameworks
 
-Slightly more complicated project consists of an iOS app and few frameworks. 
+Slightly more complicated project consists of an iOS app and few frameworks.
 
 #### Structure
 
@@ -34,3 +34,25 @@ Simple app with tests.
 ## invalid_workspace_manifest_name
 
 Contains a single file `Workspac.swift`, incorrectly named workspace manifest file.
+
+## ios_app_with_static_libraries
+
+This application provides a top level application with two static library dependencies. The first static library dependency has another static library dependency so that we are able to test how tuist handles the transitiveness of the static libraries in the linked frameworks of the main app.
+
+
+```
+Workspace:
+  - App:
+    - MainApp (iOS app)
+    - MainAppTests (iOS unit tests)
+  - A:
+    - A (static library iOS)
+    - ATests (iOS unit tests)
+  - B:
+    - B (static library iOS)
+    - BTests (iOS unit tests)
+```
+
+Dependencies:
+  - App -> A
+  - A -> B

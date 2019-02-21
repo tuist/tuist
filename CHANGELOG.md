@@ -23,6 +23,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Changed default value of SWIFT_VERSION to 4.2 @ollieatkinson
+- Added fixture tests for ios app with static libraries @ollieatkinson
 
 ## 0.11.0
 
