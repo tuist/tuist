@@ -39,7 +39,7 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         ]
         
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = TuistGeneratorModelLoader(fileHandler: fileHandler,
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                                 manifestLoader: manifestLoader)
         
         // When
@@ -62,7 +62,7 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         ]
         
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = TuistGeneratorModelLoader(fileHandler: fileHandler,
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                                 manifestLoader: manifestLoader)
         
         // When
@@ -81,7 +81,7 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         ]
         
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = TuistGeneratorModelLoader(fileHandler: fileHandler,
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                                 manifestLoader: manifestLoader)
         
         // When
@@ -100,7 +100,7 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
         ]
         
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = TuistGeneratorModelLoader(fileHandler: fileHandler,
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                                 manifestLoader: manifestLoader)
         
         // When
@@ -113,8 +113,8 @@ class TuistGeneratorModelLoaderTest: XCTestCase {
     
     func test_settings() throws {
         // Given
-        let debug = ConfigurationManifest(settings: ["Debug": "Debug"], xcconfig: "debug.xccondig")
-        let release = ConfigurationManifest(settings: ["Release": "Release"], xcconfig: "release.xccondif")
+        let debug = ConfigurationManifest(settings: ["Debug": "Debug"], xcconfig: "debug.xcconfig")
+        let release = ConfigurationManifest(settings: ["Release": "Release"], xcconfig: "release.xcconfig")
         let manifest = SettingsManifest(base: ["base": "base"], debug: debug, release: release)
         
         // When

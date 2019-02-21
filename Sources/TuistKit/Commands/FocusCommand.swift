@@ -46,7 +46,7 @@ class FocusCommand: NSObject, Command {
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
         let fileHandler = FileHandler()
-        let modelLoader = TuistGeneratorModelLoader(fileHandler: fileHandler,
+        let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
                                                     manifestLoader: GraphManifestLoader())
         self.init(parser: parser,
                   graphLoader: GraphLoader(modelLoader: modelLoader),

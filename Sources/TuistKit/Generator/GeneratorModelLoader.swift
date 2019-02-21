@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 import TuistGenerator
 
-enum TuistGeneratorModelLoaderError: Error, FatalError {
+enum GeneratorModelLoaderError: Error, FatalError {
     case malformedManifest
     
     var type: ErrorType {
@@ -21,7 +21,7 @@ enum TuistGeneratorModelLoaderError: Error, FatalError {
     }
 }
 
-class TuistGeneratorModelLoader: ModelLoading {
+class GeneratorModelLoader: ModelLoading {
     
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
@@ -209,7 +209,7 @@ extension TuistKit.Dependency {
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap)
         default:
-            throw TuistGeneratorModelLoaderError.malformedManifest
+            throw GeneratorModelLoaderError.malformedManifest
         }
     }
 }

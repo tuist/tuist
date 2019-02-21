@@ -24,7 +24,7 @@ class GenerateCommand: NSObject, Command {
     required convenience init(parser: ArgumentParser) {
         let system = System()
         let printer = Printer()
-        let modelLoader = TuistGeneratorModelLoader(fileHandler: FileHandler(),
+        let modelLoader = GeneratorModelLoader(fileHandler: FileHandler(),
                                                     manifestLoader: GraphManifestLoader())
         self.init(graphLoader: GraphLoader(modelLoader: modelLoader),
                   workspaceGenerator: WorkspaceGenerator(),
