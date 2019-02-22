@@ -45,13 +45,16 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
+        let fileHandler = FileHandler()
+        let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
+                                                    manifestLoader: GraphManifestLoader())
         self.init(parser: parser,
-                  graphLoader: GraphLoader(),
+                  graphLoader: GraphLoader(modelLoader: modelLoader),
                   workspaceGenerator: WorkspaceGenerator(),
                   printer: Printer(),
                   system: System(),
                   resourceLocator: ResourceLocator(),
-                  fileHandler: FileHandler(),
+                  fileHandler: fileHandler,
                   opener: Opener())
     }
 

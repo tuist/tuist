@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-class Target: GraphInitiatable, Equatable {
+class Target: Equatable {
     // MARK: - Static
 
     static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
@@ -17,7 +17,7 @@ class Target: GraphInitiatable, Equatable {
     let infoPlist: AbsolutePath
     let entitlements: AbsolutePath?
     let settings: Settings?
-    let dependencies: [JSON]
+    let dependencies: [Dependency]
     let sources: [AbsolutePath]
     let resources: [AbsolutePath]
     let headers: Headers?
@@ -40,7 +40,7 @@ class Target: GraphInitiatable, Equatable {
          coreDataModels: [CoreDataModel] = [],
          actions: [TargetAction] = [],
          environment: [String: String] = [:],
-         dependencies: [JSON] = []) {
+         dependencies: [Dependency] = []) {
         self.name = name
         self.product = product
         self.platform = platform
@@ -56,83 +56,7 @@ class Target: GraphInitiatable, Equatable {
         self.environment = environment
         self.dependencies = dependencies
     }
-
-    /// Default constructor of entities that are part of the manifest.
-    ///
-    /// - Parameters:
-    ///   - dictionary: Dictionary with the object representation.
-    ///   - projectPath: Absolute path to the folder that contains the manifest.
-    ///     This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
-    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
-    /// - Throws: A decoding error if an expected property is missing or has an invalid value.
-    required init(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling = FileHandler()) throws {
-        name = try dictionary.get("name")
-        platform = Platform(rawValue: try dictionary.get("platform"))!
-        product = Product(rawValue: try dictionary.get("product"))!
-        bundleId = try dictionary.get("bundle_id")
-        dependencies = try dictionary.get("dependencies")
-
-        // Info.plist
-        let infoPlistPath: String = try dictionary.get("info_plist")
-        infoPlist = projectPath.appending(RelativePath(infoPlistPath))
-
-        // Entitlements
-        let entitlementsPath: String? = try? dictionary.get("entitlements")
-        entitlements = entitlementsPath.map({ projectPath.appending(RelativePath($0)) })
-
-        // Settings
-        let settingsDictionary: [String: JSONSerializable]? = try? dictionary.get("settings")
-        settings = try settingsDictionary.map({ dictionary in
-            try Settings(dictionary: JSON(dictionary), projectPath: projectPath, fileHandler: fileHandler)
-        })
-
-        // Sources
-        let sources: String = try dictionary.get("sources")
-        self.sources = try Target.sources(projectPath: projectPath, sources: sources, fileHandler: fileHandler)
-
-        // Resources
-        if let resources: String = try? dictionary.get("resources") {
-            self.resources = try Target.resources(projectPath: projectPath, resources: resources, fileHandler: fileHandler)
-        } else {
-            resources = []
-        }
-
-        // Headers
-        if let headers: JSON = try? dictionary.get("headers") {
-            self.headers = try Headers(dictionary: headers, projectPath: projectPath, fileHandler: fileHandler)
-        } else {
-            headers = nil
-        }
-
-        // Core Data Models
-        if let coreDataModels: [JSON] = try? dictionary.get("core_data_models") {
-            self.coreDataModels = try coreDataModels.map({
-                try CoreDataModel(dictionary: $0, projectPath: projectPath, fileHandler: fileHandler)
-            })
-        } else {
-            coreDataModels = []
-        }
-
-        // Actions
-        if let actions: [JSON] = try? dictionary.get("actions") {
-            self.actions = try actions.map({
-                try TargetAction(dictionary: $0, projectPath: projectPath, fileHandler: fileHandler)
-            })
-        } else {
-            actions = []
-        }
-
-        // Environment
-        if let environment: [String: String] = try? dictionary.get("environment") {
-            self.environment = environment
-        } else {
-            environment = [:]
-        }
-    }
-
-    /// Return true if the target can be linked.
-    ///
-    /// - Returns: True if the target can be linked from another target.
+    
     func isLinkable() -> Bool {
         return [ .dynamicLibrary, .staticLibrary, .framework, .staticFramework ].contains(product)
     }
@@ -149,7 +73,7 @@ class Target: GraphInitiatable, Equatable {
 
     // MARK: - Fileprivate
 
-    fileprivate static func sources(projectPath: AbsolutePath, sources: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
+    static func sources(projectPath: AbsolutePath, sources: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
         return projectPath.glob(sources).filter { path in
             if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
                 return true
@@ -158,7 +82,7 @@ class Target: GraphInitiatable, Equatable {
         }
     }
 
-    fileprivate static func resources(projectPath: AbsolutePath, resources: String, fileHandler: FileHandling) throws -> [AbsolutePath] {
+    static func resources(projectPath: AbsolutePath, resources: String, fileHandler: FileHandling) throws -> [AbsolutePath] {
         return projectPath.glob(resources).filter { path in
             if !fileHandler.isFolder(path) {
                 return true

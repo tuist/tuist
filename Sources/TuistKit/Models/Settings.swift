@@ -28,7 +28,7 @@ class Configuration: Equatable {
     }
 }
 
-class Settings: GraphInitiatable, Equatable {
+class Settings: Equatable {
     // MARK: - Attributes
 
     let base: [String: String]
@@ -43,22 +43,6 @@ class Settings: GraphInitiatable, Equatable {
         self.base = base
         self.debug = debug
         self.release = release
-    }
-
-    /// Default constructor of entities that are part of the manifest.
-    ///
-    /// - Parameters:
-    ///   - dictionary: Dictionary with the object representation.
-    ///   - projectPath: Absolute path to the folder that contains the manifest.
-    ///     This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
-    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
-    /// - Throws: A decoding error if an expected property is missing or has an invalid value.
-    required init(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws {
-        base = try dictionary.get("base")
-        let debugJSON: JSON? = try? dictionary.get("debug")
-        debug = try debugJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, fileHandler: fileHandler) })
-        let releaseJSON: JSON? = try? dictionary.get("release")
-        release = try releaseJSON.flatMap({ try Configuration(json: $0, projectPath: projectPath, fileHandler: fileHandler) })
     }
 
     // MARK: - Equatable
