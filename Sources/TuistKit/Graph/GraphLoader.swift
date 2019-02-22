@@ -61,7 +61,7 @@ class GraphLoader: GraphLoading {
     fileprivate func loadWorkspace(path: AbsolutePath) throws -> Graph {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
-        let workspace = try Workspace.at(path)
+        let workspace = try modelLoader.loadWorkspace(at: path)
         let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
             try (projectPath, Project.at(projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader))
         }
