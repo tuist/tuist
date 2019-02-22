@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import TuistKit
 import XCTest
+@testable import TuistKit
 
 final class GraphLoadingErrorTests: XCTestCase {
     func test_description_returns_the_right_value_when_manifestNotFound() {

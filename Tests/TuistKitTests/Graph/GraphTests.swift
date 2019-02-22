@@ -1,9 +1,9 @@
 import Basic
 import Foundation
 import TuistCore
+import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
-import XCTest
 
 final class GraphErrorTests: XCTestCase {
     func test_description_when_unsupportedFileExtension() {

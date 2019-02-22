@@ -1,6 +1,6 @@
 import Basic
-@testable import TuistGenerator
 import XCTest
+@testable import TuistGenerator
 
 final class GeneratorTests: XCTestCase {
     func test_generator_generateProject() throws {

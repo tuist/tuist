@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import TuistKit
 import XCTest
+@testable import TuistKit
 
 final class GraphCircularDetectorTests: XCTestCase {
     var subject: GraphCircularDetecting!

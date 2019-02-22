@@ -1,10 +1,10 @@
 import Basic
 import Foundation
 import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistEnvKit
 import Utility
 import XCTest
+@testable import TuistCoreTesting
+@testable import TuistEnvKit
 
 final class InstallerTests: XCTestCase {
     var printer: MockPrinter!

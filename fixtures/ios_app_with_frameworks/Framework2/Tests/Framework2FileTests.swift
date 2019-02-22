@@ -1,5 +1,5 @@
-@testable import Framework2
 import XCTest
+@testable import Framework2
 
 class Framework2Tests: XCTestCase {
     func testHello() {

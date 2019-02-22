@@ -1,6 +1,6 @@
 import Foundation
-@testable import Framework
 import XCTest
+@testable import Framework
 
 final class FrameworkTests: XCTestCase {
     var subject: FrameworkClass = FrameworkClass()

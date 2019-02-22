@@ -58,7 +58,7 @@ class Target: Equatable {
     }
     
     func isLinkable() -> Bool {
-        return [ .dynamicLibrary, .staticLibrary, .framework, .staticFramework ].contains(product)
+        return [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
     }
 
     /// Returns the product name including the extension.

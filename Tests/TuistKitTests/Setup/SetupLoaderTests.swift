@@ -1,7 +1,7 @@
 import Basic
+import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
-import XCTest
 
 final class SetupLoaderTests: XCTestCase {
     var subject: SetupLoader!

@@ -71,7 +71,6 @@ enum Manifest: CaseIterable {
             return "Setup.swift"
         }
     }
-
 }
 
 protocol GraphManifestLoading {
@@ -121,7 +120,6 @@ class GraphManifestLoader: GraphManifestLoading {
     }
 
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
-        
         let filePath = path.appending(component: manifest.fileName)
 
         if fileHandler.exists(filePath) {
@@ -129,12 +127,11 @@ class GraphManifestLoader: GraphManifestLoading {
         } else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
         }
-        
     }
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        return .init(Manifest.allCases.filter{
-            return fileHandler.exists(path.appending(component: $0.fileName))
+        return .init(Manifest.allCases.filter {
+            fileHandler.exists(path.appending(component: $0.fileName))
         })
     }
 

@@ -1,7 +1,7 @@
 import Foundation
+import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
-import XCTest
 
 private struct TestError: FatalError {
     var description: String { return "Error" }

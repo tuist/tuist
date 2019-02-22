@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import TuistEnvKit
 import Utility
+@testable import TuistEnvKit
 
 extension Release {
     static func test(id: Int = 123,

@@ -1,10 +1,10 @@
 import Basic
 import Foundation
 import TuistCore
+import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 @testable import Utility
-import XCTest
 
 final class UninstallCommandTests: XCTestCase {
     var parser: ArgumentParser!

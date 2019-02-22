@@ -1,11 +1,11 @@
 import Basic
 import Foundation
 import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistKit
 import Utility
 import xcodeproj
 import XCTest
+@testable import TuistCoreTesting
+@testable import TuistKit
 
 final class GenerateCommandTests: XCTestCase {
     var subject: GenerateCommand!

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import TuistKit
 import xcodeproj
+@testable import TuistKit
 
 extension GeneratedProject {
     static func test(path: AbsolutePath = AbsolutePath("/project.xcodeproj"),

@@ -1,9 +1,9 @@
 import Basic
 import Foundation
 import TuistCoreTesting
-@testable import TuistKit
 import xcodeproj
 import XCTest
+@testable import TuistKit
 
 final class BuildPhaseGenerationErrorTests: XCTestCase {
     func test_description_when_missingFileReference() {

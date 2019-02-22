@@ -1,6 +1,6 @@
 import Foundation
-@testable import TuistKit
 import XCTest
+@testable import TuistKit
 
 final class TargetTests: XCTestCase {
     func test_validSourceExtensions() {

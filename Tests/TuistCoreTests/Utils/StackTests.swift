@@ -1,5 +1,5 @@
-@testable import TuistCore
 import XCTest
+@testable import TuistCore
 
 final class StackTests: XCTestCase {
     func testEmpty() {

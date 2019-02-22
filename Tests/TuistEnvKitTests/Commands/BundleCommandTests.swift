@@ -1,10 +1,10 @@
 import Basic
 import Foundation
+import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 @testable import Utility
-import XCTest
 
 final class BundleCommandErrorTests: XCTestCase {
     func test_type() {

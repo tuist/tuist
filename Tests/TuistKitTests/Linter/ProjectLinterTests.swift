@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import TuistKit
 import XCTest
+@testable import TuistKit
 
 final class ProjectLinterTests: XCTestCase {
     var subject: ProjectLinter!

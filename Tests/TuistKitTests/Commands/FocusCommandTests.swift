@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-@testable import TuistCoreTesting
-@testable import TuistKit
 import Utility
 import xcodeproj
 import XCTest
+@testable import TuistCoreTesting
+@testable import TuistKit
 
 final class FocusCommandTests: XCTestCase {
     var subject: FocusCommand!

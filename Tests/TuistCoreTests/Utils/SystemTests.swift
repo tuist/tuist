@@ -1,6 +1,6 @@
+import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
-import XCTest
 
 final class SystemTests: XCTestCase {
     func test_run_valid_command() {

@@ -48,9 +48,9 @@ protocol Graphing: AnyObject {
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
-    
-    // MARK:- Depth First Search
-    
+
+    // MARK: - Depth First Search
+
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
     /// and explores as far as possible along each branch before backtracking.
     ///
@@ -99,7 +99,7 @@ class Graph: Graphing {
         return targetNode.targetDependencies
             .filter { $0.path == path }
     }
-    
+
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []

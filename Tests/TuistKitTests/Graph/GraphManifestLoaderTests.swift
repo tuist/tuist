@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
-import XCTest
 
 final class GraphManifestLoaderErrorTests: XCTestCase {
     func test_description() {
@@ -72,5 +72,4 @@ final class GraphManifestLoaderTests: XCTestCase {
         XCTAssertTrue(got.contains(.project))
         XCTAssertTrue(got.contains(.workspace))
     }
-
 }

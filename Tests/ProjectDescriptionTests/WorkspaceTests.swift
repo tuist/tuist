@@ -1,6 +1,6 @@
 import Foundation
-@testable import ProjectDescription
 import XCTest
+@testable import ProjectDescription
 
 final class WorkspaceTests: XCTestCase {
     func test_toJSON() throws {
