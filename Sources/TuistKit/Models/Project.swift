@@ -37,14 +37,15 @@ class Project: Equatable, CustomStringConvertible {
 
     // MARK: - Init
 
-    /// Parses the project manifest at the given path and returns a Project instance with the representation.
+    /// Returns a project model from the cache if present, otherwise loads a new instance.
     ///
     /// - Parameters:
-    ///   - path: Path to the folder that contains the project manifest.
+    ///   - path: Path of the project
     ///   - cache: Cache instance to cache projects and dependencies.
     ///   - circularDetector: Utility to find circular dependencies between targets.
-    /// - Returns: Initialized project.
-    /// - Throws: An error if the project has an invalid format.
+    ///   - modelLoader: Entity responsible for providing new instances of project models
+    /// - Returns: Project instance.
+    /// - Throws: An error if the project can't be loaded, or if circular dependencies are detected.
     static func at(_ path: AbsolutePath,
                    cache: GraphLoaderCaching,
                    circularDetector: GraphCircularDetecting,

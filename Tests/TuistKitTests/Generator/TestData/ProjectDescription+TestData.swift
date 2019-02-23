@@ -64,3 +64,53 @@ extension TargetAction {
                             arguments: arguments)
     }
 }
+
+extension Scheme {
+    static func test(name: String = "Scheme",
+                     shared: Bool = false,
+                     buildAction: BuildAction? = nil,
+                     testAction: TestAction? = nil,
+                     runAction: RunAction? = nil) -> Scheme {
+        return Scheme(name: name,
+                      shared: shared,
+                      buildAction: buildAction,
+                      testAction: testAction,
+                      runAction: runAction)
+    }
+}
+
+extension BuildAction {
+    static func test(targets: [String] = []) -> BuildAction {
+        return BuildAction(targets: targets)
+    }
+}
+
+extension TestAction {
+    static func test(targets: [String] = [],
+                     arguments: Arguments? = nil,
+                     config: BuildConfiguration = .debug,
+                     coverage: Bool = true) -> TestAction {
+        return TestAction(targets: targets,
+                          arguments: arguments,
+                          config: config,
+                          coverage: coverage)
+    }
+}
+
+extension RunAction {
+    static func test(config: BuildConfiguration = .debug,
+                     executable: String? = nil,
+                     arguments: Arguments? = nil) -> RunAction {
+        return RunAction(config: config,
+                         executable: executable,
+                         arguments: arguments)
+    }
+}
+
+extension Arguments {
+    static func test(environment: [String: String] = [:],
+                     launch: [String: Bool] = [:]) -> Arguments {
+        return Arguments(environment: environment,
+                         launch: launch)
+    }
+}

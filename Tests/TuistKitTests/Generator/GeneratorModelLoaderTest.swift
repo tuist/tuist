@@ -13,6 +13,12 @@ class GeneratorModelLoaderTest: XCTestCase {
     typealias SettingsManifest = ProjectDescription.Settings
     typealias ConfigurationManifest = ProjectDescription.Configuration
     typealias HeadersManifest = ProjectDescription.Headers
+    typealias SchemeManifest = ProjectDescription.Scheme
+    typealias BuildActionManifest = ProjectDescription.BuildAction
+    typealias TestActionManifest = ProjectDescription.TestAction
+    typealias RunActionManifest = ProjectDescription.RunAction
+    typealias ArgumentsManifest = ProjectDescription.Arguments
+    typealias BuildConfigurationManifest = ProjectDescription.BuildConfiguration
     
     var fileHandler: MockFileHandler!
     var path: AbsolutePath {
@@ -242,6 +248,42 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(GeneratorModelLoaderError.malformedManifest("invalid product").type, .abort)
     }
     
+    func test_scheme_withoutActions() throws {
+        // Given
+        let manifest = SchemeManifest.test(name: "Scheme",
+                                           shared: false)
+        // When
+        let model = try TuistKit.Scheme.from(json: try manifest.toJSON())
+        
+        // Then
+        assert(scheme: model, matches: manifest)
+    }
+    
+    func test_scheme_withActions() throws {
+        // Given
+        let arguments = ArgumentsManifest.test(environment: ["FOO": "BAR", "FIZ": "BUZZ"],
+                                               launch: ["--help": true,
+                                                        "subcommand": false])
+        let buildAction = BuildActionManifest.test(targets: ["A", "B"])
+        let runActions = RunActionManifest.test(config: .release,
+                                                executable: "A",
+                                                arguments: arguments)
+        let testAction = TestActionManifest.test(targets: ["B"],
+                                                 arguments: arguments,
+                                                 config: .debug,
+                                                 coverage: true)
+        let manifest = SchemeManifest.test(name: "Scheme",
+                                           shared: true,
+                                           buildAction: buildAction,
+                                           testAction: testAction,
+                                           runAction: runActions)
+        // When
+        let model = try TuistKit.Scheme.from(json: try manifest.toJSON())
+        
+        // Then
+        assert(scheme: model, matches: manifest)
+    }
+    
     // MARK: - Helpers
     
     func createManifestLoader(with manifests: [AbsolutePath: Encodable]) -> GraphManifestLoading {
@@ -316,6 +358,65 @@ class GeneratorModelLoaderTest: XCTestCase {
             && coreDataModel.currentVersion == manifest.currentVersion
     }
     
+    func assert(scheme: TuistKit.Scheme,
+                matches manifest: ProjectDescription.Scheme,
+                file: StaticString = #file,
+                line: UInt = #line) {
+        XCTAssertEqual(scheme.name, manifest.name, file: file, line: line)
+        XCTAssertEqual(scheme.shared, manifest.shared, file: file, line: line)
+        optionalAssert(scheme.buildAction, manifest.buildAction) {
+            assert(buildAction: $0, matches: $1, file: file, line: line)
+        }
+        
+        optionalAssert(scheme.testAction, manifest.testAction) {
+            assert(testAction: $0, matches: $1, file: file, line: line)
+        }
+        
+        optionalAssert(scheme.runAction, manifest.runAction) {
+            assert(runAction: $0, matches: $1, file: file, line: line)
+        }
+    }
+    
+    func assert(buildAction: TuistKit.BuildAction,
+                matches manifest: ProjectDescription.BuildAction,
+                file: StaticString = #file,
+                line: UInt = #line) {
+        XCTAssertEqual(buildAction.targets, manifest.targets, file: file, line: line)
+    }
+    
+    func assert(testAction: TuistKit.TestAction,
+                matches manifest: ProjectDescription.TestAction,
+                file: StaticString = #file,
+                line: UInt = #line) {
+        XCTAssertEqual(testAction.targets, manifest.targets, file: file, line: line)
+        XCTAssertTrue(testAction.config == manifest.config, file: file, line: line)
+        XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)
+        optionalAssert(testAction.arguments, manifest.arguments) {
+            assert(arguments: $0, matches: $1, file: file, line: line)
+        }
+        
+    }
+    
+    func assert(runAction: TuistKit.RunAction,
+                matches manifest: ProjectDescription.RunAction,
+                file: StaticString = #file,
+                line: UInt = #line) {
+        XCTAssertEqual(runAction.executable, manifest.executable, file: file, line: line)
+        XCTAssertTrue(runAction.config == manifest.config, file: file, line: line)
+        optionalAssert(runAction.arguments, manifest.arguments) {
+            assert(arguments: $0, matches: $1, file: file, line: line)
+        }
+    }
+    
+    func assert(arguments: TuistKit.Arguments,
+                matches manifest: ProjectDescription.Arguments,
+                file: StaticString = #file,
+                line: UInt = #line) {
+        XCTAssertEqual(arguments.environment, manifest.environment, file: file, line: line)
+        XCTAssertEqual(arguments.launch, manifest.launch, file: file, line: line)
+    }
+    
+    
     func optionalAssert<A, B>(_ optionalA: A?,
                               _ optionalB: B?,
                               file: StaticString = #file,
@@ -350,6 +451,15 @@ private func ==(_ lhs: TuistKit.Product,
         .uiTests: .uiTests,
         .staticLibrary: .staticLibrary,
         .dynamicLibrary: .dynamicLibrary
+    ]
+    return map[lhs] != nil
+}
+
+private func ==(_ lhs: TuistKit.BuildConfiguration,
+                _ rhs: ProjectDescription.BuildConfiguration) -> Bool {
+    let map: [TuistKit.BuildConfiguration: ProjectDescription.BuildConfiguration] = [
+        .debug: .debug,
+        .release: .release
     ]
     return map[lhs] != nil
 }

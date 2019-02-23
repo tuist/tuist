@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-class Scheme: JSONMappable, Equatable {
+class Scheme: Equatable {
     // MARK: - Attributes
 
     let name: String
@@ -24,14 +24,6 @@ class Scheme: JSONMappable, Equatable {
         self.runAction = runAction
     }
 
-    required init(json: JSON) throws {
-        name = try json.get("name")
-        shared = try json.get("shared")
-        buildAction = try? json.get("build_action")
-        testAction = try? json.get("test_action")
-        runAction = try? json.get("run_action")
-    }
-
     // MARK: - Equatable
 
     static func == (lhs: Scheme, rhs: Scheme) -> Bool {
@@ -43,7 +35,7 @@ class Scheme: JSONMappable, Equatable {
     }
 }
 
-class Arguments: JSONMappable, Equatable {
+class Arguments: Equatable {
     // MARK: - Attributes
 
     let environment: [String: String]
@@ -57,11 +49,6 @@ class Arguments: JSONMappable, Equatable {
         self.launch = launch
     }
 
-    required init(json: JSON) throws {
-        environment = try json.get("environment")
-        launch = try json.get("launch")
-    }
-
     // MARK: - Equatable
 
     static func == (lhs: Arguments, rhs: Arguments) -> Bool {
@@ -70,7 +57,7 @@ class Arguments: JSONMappable, Equatable {
     }
 }
 
-class BuildAction: JSONMappable, Equatable {
+class BuildAction: Equatable {
     // MARK: - Attributes
 
     let targets: [String]
@@ -81,10 +68,6 @@ class BuildAction: JSONMappable, Equatable {
         self.targets = targets
     }
 
-    required init(json: JSON) throws {
-        targets = try json.get("targets")
-    }
-
     // MARK: - Equatable
 
     static func == (lhs: BuildAction, rhs: BuildAction) -> Bool {
@@ -92,7 +75,7 @@ class BuildAction: JSONMappable, Equatable {
     }
 }
 
-class TestAction: JSONMappable, Equatable {
+class TestAction: Equatable {
     // MARK: - Attributes
 
     let targets: [String]
@@ -112,14 +95,6 @@ class TestAction: JSONMappable, Equatable {
         self.coverage = coverage
     }
 
-    required init(json: JSON) throws {
-        targets = try json.get("targets")
-        arguments = try? json.get("arguments")
-        let configString: String = try json.get("config")
-        config = BuildConfiguration(rawValue: configString)!
-        coverage = try json.get("coverage")
-    }
-
     // MARK: - Equatable
 
     static func == (lhs: TestAction, rhs: TestAction) -> Bool {
@@ -130,7 +105,7 @@ class TestAction: JSONMappable, Equatable {
     }
 }
 
-class RunAction: JSONMappable, Equatable {
+class RunAction: Equatable {
     // MARK: - Attributes
 
     let config: BuildConfiguration
@@ -145,13 +120,6 @@ class RunAction: JSONMappable, Equatable {
         self.config = config
         self.executable = executable
         self.arguments = arguments
-    }
-
-    required init(json: JSON) throws {
-        let configString: String = try json.get("config")
-        config = BuildConfiguration(rawValue: configString)!
-        executable = try? json.get("executable")
-        arguments = try? json.get("arguments")
     }
 
     // MARK: - Equatable
