@@ -1,12 +1,12 @@
 import Basic
 import Foundation
 import TuistCore
+import ProjectDescription
 
 enum GraphManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
     case manifestNotFound(Manifest?, AbsolutePath)
-    case setupNotFound(AbsolutePath)
 
     static func manifestNotFound(_ path: AbsolutePath) -> GraphManifestLoaderError {
         return .manifestNotFound(nil, path)
@@ -20,8 +20,6 @@ enum GraphManifestLoaderError: FatalError, Equatable {
             return "Unexpected output trying to parse the manifest at path \(path.asString)"
         case let .manifestNotFound(manifest, path):
             return "\(manifest?.fileName ?? "Manifest") not found at path \(path.asString)"
-        case let .setupNotFound(path):
-            return "Setup.swift not found at path \(path.asString)"
         }
     }
 
@@ -32,8 +30,6 @@ enum GraphManifestLoaderError: FatalError, Equatable {
         case .projectDescriptionNotFound:
             return .bug
         case .manifestNotFound:
-            return .abort
-        case .setupNotFound:
             return .abort
         }
     }
@@ -48,8 +44,6 @@ enum GraphManifestLoaderError: FatalError, Equatable {
             return lhsPath == rhsPath
         case let (.manifestNotFound(lhsManifest, lhsPath), .manifestNotFound(rhsManifest, rhsPath)):
             return lhsManifest == rhsManifest && lhsPath == rhsPath
-        case let (.setupNotFound(lhsPath), .setupNotFound(rhsPath)):
-            return lhsPath == rhsPath
         default:
             return false
         }
@@ -74,10 +68,11 @@ enum Manifest: CaseIterable {
 }
 
 protocol GraphManifestLoading {
-    func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON
+    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
+    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
+    func loadSetup(at path: AbsolutePath) throws -> [Upping]
     func manifests(at path: AbsolutePath) -> Set<Manifest>
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath
-    func loadSetup(at path: AbsolutePath) throws -> [Upping]
 }
 
 class GraphManifestLoader: GraphManifestLoading {
@@ -114,11 +109,6 @@ class GraphManifestLoader: GraphManifestLoading {
         self.deprecator = deprecator
     }
 
-    func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON {
-        let manifestPath = try self.manifestPath(at: path, manifest: manifest)
-        return try loadManifest(path: manifestPath)
-    }
-
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
         let filePath = path.appending(component: manifest.fileName)
 
@@ -135,23 +125,41 @@ class GraphManifestLoader: GraphManifestLoading {
         })
     }
 
+    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
+        return try loadManifest(.project, at: path)
+    }
+    
+    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
+        return try loadManifest(.workspace, at: path)
+    }
+    
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
-        let setupPath = path.appending(component: "Setup.swift")
+        let setupPath = path.appending(component: Manifest.setup.fileName)
         guard fileHandler.exists(setupPath) else {
-            throw GraphManifestLoaderError.setupNotFound(path)
+            throw GraphManifestLoaderError.manifestNotFound(.setup, path)
         }
 
-        let setup = try loadManifest(path: setupPath)
-        let actionsJson: [JSON] = try setup.get("actions")
+        let setup = try loadManifestData(at: setupPath)
+        let setupJson = try JSON(data: setup)
+        let actionsJson: [JSON] = try setupJson.get("actions")
         return try actionsJson.compactMap {
             try Up.with(dictionary: $0,
                         projectPath: path,
                         fileHandler: fileHandler) }
     }
 
-    // MARK: - Fileprivate
+    // MARK: - Private
 
-    fileprivate func loadManifest(path: AbsolutePath) throws -> JSON {
+    private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
+        let manifestPath = path.appending(component: manifest.fileName)
+        guard fileHandler.exists(manifestPath) else {
+            throw GraphManifestLoaderError.manifestNotFound(manifest, path)
+        }
+        let data = try loadManifestData(at: manifestPath)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+    
+    private func loadManifestData(at path: AbsolutePath) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         var arguments: [String] = [
             "/usr/bin/xcrun",
@@ -166,9 +174,11 @@ class GraphManifestLoader: GraphManifestLoading {
         arguments.append(path.asString)
         arguments.append("--dump")
 
-        guard let jsonString = try system.capture(arguments).spm_chuzzle() else {
+        guard let jsonString = try system.capture(arguments).spm_chuzzle(),
+            let data = jsonString.data(using: .utf8) else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
-        return try JSON(string: jsonString)
+        
+        return data
     }
 }

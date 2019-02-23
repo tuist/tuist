@@ -71,11 +71,11 @@ final class SetupLoaderTests: XCTestCase {
     func test_meet_when_loadSetup_throws() {
         // given
         let projectPath = AbsolutePath("/test/test1")
-        graphManifestLoader.loadSetupStub = { path in throw GraphManifestLoaderError.setupNotFound(path) }
+        graphManifestLoader.loadSetupStub = { path in throw GraphManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then
         XCTAssertThrowsError(try subject.meet(at: projectPath)) { error in
-            XCTAssertEqual(error as? GraphManifestLoaderError, GraphManifestLoaderError.setupNotFound(projectPath))
+            XCTAssertEqual(error as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.setup, projectPath))
         }
     }
 

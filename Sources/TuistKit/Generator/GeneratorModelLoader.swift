@@ -2,21 +2,21 @@ import Basic
 import Foundation
 import TuistCore
 import TuistGenerator
+import ProjectDescription
 
 enum GeneratorModelLoaderError: Error, Equatable, FatalError {
-    case malformedManifest(String)
-
+    case featureNotYetSupported(String)
     var type: ErrorType {
         switch self {
-        case .malformedManifest:
+        case .featureNotYetSupported:
             return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .malformedManifest(details):
-            return "The Project manifest appears to be malformed: \(details)"
+        case .featureNotYetSupported(let details):
+            return "\(details) is not yet supported"
         }
     }
 }
@@ -31,36 +31,34 @@ class GeneratorModelLoader: GeneratorModelLoading {
     }
 
     func loadProject(at path: AbsolutePath) throws -> Project {
-        let json = try manifestLoader.load(.project, path: path)
-        let project = try TuistKit.Project.from(json: json, path: path, fileHandler: fileHandler)
+        let manifest = try manifestLoader.loadProject(at: path)
+        let project = try TuistKit.Project.from(manifest: manifest, path: path, fileHandler: fileHandler)
         return project
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
-        let json = try manifestLoader.load(.workspace, path: path)
-        let workspace = try TuistKit.Workspace.from(json: json, path: path)
+        let manifest = try manifestLoader.loadWorkspace(at: path)
+        let workspace = try TuistKit.Workspace.from(manifest: manifest, path: path)
         return workspace
     }
 }
 
 extension TuistKit.Workspace {
-    static func from(json: JSON, path: AbsolutePath) throws -> TuistKit.Workspace {
-        let projectsStrings: [String] = try json.get("projects")
-        let name: String = try json.get("name")
-        let projectsRelativePaths: [RelativePath] = projectsStrings.map { RelativePath($0) }
-        let projects = projectsRelativePaths.map { path.appending($0) }
-        return Workspace(name: name, projects: projects)
+    static func from(manifest: ProjectDescription.Workspace,
+                     path: AbsolutePath) throws -> TuistKit.Workspace {
+        return Workspace(name: manifest.name,
+                         projects: manifest.projects.map { path.appending(RelativePath($0)) })
     }
 }
 
 extension TuistKit.Project {
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Project {
-        let name: String = try json.get("name")
-        let targetsJSONs: [JSON] = try json.get("targets")
-        let targets = try targetsJSONs.map { try TuistKit.Target.from(json: $0, path: path, fileHandler: fileHandler) }
-        let settingsJSON: JSON? = try? json.get("settings")
-        let settings = try settingsJSON.map { try TuistKit.Settings.from(json: $0, path: path, fileHandler: fileHandler) }
-
+    static func from(manifest: ProjectDescription.Project,
+                     path: AbsolutePath,
+                     fileHandler: FileHandling) throws -> TuistKit.Project {
+        let name = manifest.name
+        let settings = manifest.settings.map { TuistKit.Settings.from(manifest: $0, path: path) }
+        let targets = try manifest.targets.map { try TuistKit.Target.from(manifest: $0, path: path, fileHandler: fileHandler) }
+        
         return Project(path: path,
                        name: name,
                        settings: settings,
@@ -69,57 +67,29 @@ extension TuistKit.Project {
 }
 
 extension TuistKit.Target {
-    // swiftlint:disable:next function_body_length
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Target {
-        let name: String = try json.get("name")
-        let platformString: String = try json.get("platform")
-        guard let platform = TuistKit.Platform(rawValue: platformString) else {
-            throw GeneratorModelLoaderError.malformedManifest("unrecognized platform '\(platformString)'")
-        }
-        let productString: String = try json.get("product")
-        guard let product = TuistKit.Product(rawValue: productString) else {
-            throw GeneratorModelLoaderError.malformedManifest("unrecognized product '\(productString)'")
-        }
-        let bundleId: String = try json.get("bundle_id")
-        let dependenciesJSON: [JSON] = try json.get("dependencies")
-        let dependencies = try dependenciesJSON.map { try TuistKit.Dependency.from(json: $0, path: path, fileHandler: fileHandler) }
+    static func from(manifest: ProjectDescription.Target, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Target {
+        let name = manifest.name
+        let platform = try TuistKit.Platform.from(manifest: manifest.platform)
+        let product = TuistKit.Product.from(manifest: manifest.product)
+        
+        let bundleId = manifest.bundleId
+        let dependencies = manifest.dependencies.map { TuistKit.Dependency.from(manifest: $0) }
+    
+        let infoPlist = path.appending(RelativePath(manifest.infoPlist))
+        let entitlements = manifest.entitlements.map { path.appending(RelativePath($0)) }
 
-        // Info.plist
-        let infoPlistPath: String = try json.get("info_plist")
-        let infoPlist = path.appending(RelativePath(infoPlistPath))
+        let settings = manifest.settings.map { TuistKit.Settings.from(manifest: $0, path: path) }
 
-        // Entitlements
-        let entitlementsPath: String? = try? json.get("entitlements")
-        let entitlements = entitlementsPath.map { path.appending(RelativePath($0)) }
-
-        // Settings
-        let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")
-        let settings = try settingsDictionary.map { try TuistKit.Settings.from(json: JSON($0), path: path, fileHandler: fileHandler) }
-
-        // Sources
-        let sourcesString: String = try json.get("sources")
-        let sources = try TuistKit.Target.sources(projectPath: path, sources: sourcesString, fileHandler: fileHandler)
-
-        // Resources
-        let resourcesString: String? = try? json.get("resources")
-        let resources = try resourcesString.map {
+        let sources = try TuistKit.Target.sources(projectPath: path, sources: manifest.sources, fileHandler: fileHandler)
+        let resources = try manifest.resources.map {
             try TuistKit.Target.resources(projectPath: path, resources: $0, fileHandler: fileHandler) } ?? []
-
-        // Headers
-        let headersJSON: JSON? = try? json.get("headers")
-        let headers = try headersJSON.map { try TuistKit.Headers.from(json: $0, path: path, fileHandler: fileHandler) }
-
-        // Core Data Models
-        let coreDataModelsJSON: [JSON] = (try? json.get("core_data_models")) ?? []
-        let coreDataModels = try coreDataModelsJSON.map { try TuistKit.CoreDataModel.from(json: $0, path: path, fileHandler: fileHandler) }
-
-        // Actions
-        let actionsJSON: [JSON] = (try? json.get("actions")) ?? []
-        let actions = try actionsJSON.map { try TuistKit.TargetAction.from(json: $0, path: path, fileHandler: fileHandler) }
-
-        // Environment
-        let environment: [String: String] = (try? json.get("environment")) ?? [:]
-
+        let headers = manifest.headers.map { TuistKit.Headers.from(manifest: $0, path: path, fileHandler: fileHandler) }
+        
+        let coreDataModels = try manifest.coreDataModels.map { try TuistKit.CoreDataModel.from(manifest: $0, path: path, fileHandler: fileHandler) }
+        
+        let actions = manifest.actions.map { TuistKit.TargetAction.from(manifest: $0, path: path) }
+        let environment = manifest.environment
+        
         return Target(name: name,
                       platform: platform,
                       product: product,
@@ -138,99 +108,90 @@ extension TuistKit.Target {
 }
 
 extension TuistKit.Settings {
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Settings {
-        let base: [String: String] = try json.get("base")
-        let debugJSON: JSON? = try? json.get("debug")
-        let debug = try debugJSON.flatMap { try TuistKit.Configuration.from(json: $0, path: path, fileHandler: fileHandler) }
-        let releaseJSON: JSON? = try? json.get("release")
-        let release = try releaseJSON.flatMap { try TuistKit.Configuration.from(json: $0, path: path, fileHandler: fileHandler) }
+    static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistKit.Settings {
+        let base = manifest.base
+        let debug = manifest.debug.flatMap { TuistKit.Configuration.from(manifest: $0, path: path) }
+        let release = manifest.release.flatMap { TuistKit.Configuration.from(manifest: $0, path: path) }
         return Settings(base: base, debug: debug, release: release)
     }
 }
 
 extension TuistKit.Configuration {
-    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.Configuration {
-        let settings: [String: String] = try json.get("settings")
-        let xcconfigString: String? = json.get("xcconfig")
-        let xcconfig = xcconfigString.flatMap({ path.appending(RelativePath($0)) })
+    static func from(manifest: ProjectDescription.Configuration, path: AbsolutePath) -> TuistKit.Configuration {
+        let settings = manifest.settings
+        let xcconfig = manifest.xcconfig.flatMap({ path.appending(RelativePath($0)) })
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
 
 extension TuistKit.TargetAction {
-    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.TargetAction {
-        let name: String = try json.get("name")
-        let tool: String? = try? json.get("tool")
-        let order = TuistKit.TargetAction.Order(rawValue: try json.get("order"))!
-        let pathString: String? = try? json.get("path")
-        let path = pathString.map { AbsolutePath($0, relativeTo: path) }
-        let arguments: [String] = try json.get("arguments")
+    static func from(manifest: ProjectDescription.TargetAction, path: AbsolutePath) -> TuistKit.TargetAction {
+        let name = manifest.name
+        let tool = manifest.tool
+        let order = TuistKit.TargetAction.Order.from(manifest: manifest.order)
+        let path = manifest.path.map { AbsolutePath($0, relativeTo: path) }
+        let arguments = manifest.arguments
         return TargetAction(name: name, order: order, tool: tool, path: path, arguments: arguments)
     }
 }
 
+extension TuistKit.TargetAction.Order {
+    static func from(manifest: ProjectDescription.TargetAction.Order) -> TuistKit.TargetAction.Order {
+        switch manifest {
+        case .pre:
+            return .pre
+        case .post:
+            return .post
+        }
+    }
+}
+
 extension TuistKit.CoreDataModel {
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.CoreDataModel {
-        let pathString: String = try json.get("path")
-        let modelPath = path.appending(RelativePath(pathString))
+    static func from(manifest: ProjectDescription.CoreDataModel, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.CoreDataModel {
+        let modelPath = path.appending(RelativePath(manifest.path))
         if !fileHandler.exists(modelPath) {
             throw GraphLoadingError.missingFile(modelPath)
         }
-        let versions: [AbsolutePath] = path.glob("*.xcdatamodel")
-        let currentVersion: String = try json.get("current_version")
+        let versions = modelPath.glob("*.xcdatamodel")
+        let currentVersion = manifest.currentVersion
         return CoreDataModel(path: modelPath, versions: versions, currentVersion: currentVersion)
     }
 }
 
 extension TuistKit.Headers {
-    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.Headers {
-        let publicString: String? = try? json.get("public")
-        let `public` = publicString.map { path.glob($0) } ?? []
-        let privateString: String? = try? json.get("private")
-        let `private` = privateString.map { path.glob($0) } ?? []
-        let projectString: String? = try? json.get("project")
-        let project = projectString.map { path.glob($0) } ?? []
+    static func from(manifest: ProjectDescription.Headers, path: AbsolutePath, fileHandler: FileHandling) -> TuistKit.Headers {
+        let `public` = manifest.public.map { path.glob($0) } ?? []
+        let `private` = manifest.private.map { path.glob($0) } ?? []
+        let project = manifest.project.map { path.glob($0) } ?? []
         return Headers(public: `public`, private: `private`, project: project)
     }
 }
 
 extension TuistKit.Dependency {
-    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.Dependency {
-        let type: String = try json.get("type")
-        switch type {
-        case "target":
-            return .target(name: try json.get("name"))
-        case "project":
-            let target: String = try json.get("target")
-            let path: String = try json.get("path")
-            return .project(target: target, path: RelativePath(path))
-        case "framework":
-            let path: String = try json.get("path")
-            return .framework(path: RelativePath(path))
-        case "library":
-            let path: String = try json.get("path")
-            let publicHeaders: String = try json.get("public_headers")
-            let swiftModuleMap: RelativePath? = json.get("swift_module_map").map { RelativePath($0) }
-            return .library(path: RelativePath(path),
+    static func from(manifest: ProjectDescription.TargetDependency) -> TuistKit.Dependency {
+        switch manifest {
+        case .target(let name):
+            return .target(name: name)
+        case .project(let target, let projectPath):
+            return .project(target: target, path: RelativePath(projectPath))
+        case .framework(let frameworkPath):
+            return .framework(path: RelativePath(frameworkPath))
+        case .library(let libraryPath, let publicHeaders, let swiftModuleMap):
+            return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
-                            swiftModuleMap: swiftModuleMap)
-        default:
-            throw GeneratorModelLoaderError.malformedManifest("unrecognized dependency type '\(type)'")
+                            swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
         }
     }
 }
 
 extension TuistKit.Scheme {
-    static func from(json: JSON) throws -> TuistKit.Scheme {
-        let name: String = try json.get("name")
-        let shared: Bool = try json.get("shared")
-        let buildActionJson: JSON? = try? json.get("build_action")
-        let buildAction = try buildActionJson.map { try TuistKit.BuildAction.from(json: $0) }
-        let testActionJson: JSON? = try? json.get("test_action")
-        let testAction = try testActionJson.map { try TuistKit.TestAction.from(json: $0) }
-        let runActionJson: JSON? = try? json.get("run_action")
-        let runAction = try runActionJson.map { try TuistKit.RunAction.from(json: $0) }
-
+    static func from(manifest: ProjectDescription.Scheme) -> TuistKit.Scheme {
+        let name = manifest.name
+        let shared = manifest.shared
+        let buildAction = manifest.buildAction.map { TuistKit.BuildAction.from(manifest: $0) }
+        let testAction = manifest.testAction.map { TuistKit.TestAction.from(manifest: $0) }
+        let runAction = manifest.runAction.map { TuistKit.RunAction.from(manifest: $0) }
+        
         return Scheme(name: name,
                       shared: shared,
                       buildAction: buildAction,
@@ -240,21 +201,17 @@ extension TuistKit.Scheme {
 }
 
 extension TuistKit.BuildAction {
-    static func from(json: JSON) throws -> TuistKit.BuildAction {
-        return BuildAction(targets: try json.get("targets"))
+    static func from(manifest: ProjectDescription.BuildAction) -> TuistKit.BuildAction {
+        return BuildAction(targets: manifest.targets)
     }
 }
 
 extension TuistKit.TestAction {
-    static func from(json: JSON) throws -> TuistKit.TestAction {
-        let targets: [String] = try json.get("targets")
-        let argumentsJson: JSON? = try? json.get("arguments")
-        let arguments = try argumentsJson.map { try TuistKit.Arguments.from(json: $0) }
-
-        let configString: String = try json.get("config")
-        let config = try BuildConfiguration.from(string: configString)
-
-        let coverage: Bool = try json.get("coverage")
+    static func from(manifest: ProjectDescription.TestAction) -> TuistKit.TestAction {
+        let targets = manifest.targets
+        let arguments = manifest.arguments.map { TuistKit.Arguments.from(manifest: $0) }
+        let config = BuildConfiguration.from(manifest: manifest.config)
+        let coverage = manifest.coverage
         return TestAction(targets: targets,
                           arguments: arguments,
                           config: config,
@@ -263,13 +220,11 @@ extension TuistKit.TestAction {
 }
 
 extension TuistKit.RunAction {
-    static func from(json: JSON) throws -> TuistKit.RunAction {
-        let configString: String = try json.get("config")
-        let config = try BuildConfiguration.from(string: configString)
-        let executable: String? = try? json.get("executable")
-        let argumentsJson: JSON? = try? json.get("arguments")
-        let arguments = try argumentsJson.map { try TuistKit.Arguments.from(json: $0) }
-
+    static func from(manifest: ProjectDescription.RunAction) -> TuistKit.RunAction {
+        let config = BuildConfiguration.from(manifest: manifest.config)
+        let executable = manifest.executable
+        let arguments = manifest.arguments.map { TuistKit.Arguments.from(manifest: $0) }
+        
         return RunAction(config: config,
                          executable: executable,
                          arguments: arguments)
@@ -277,17 +232,55 @@ extension TuistKit.RunAction {
 }
 
 extension TuistKit.Arguments {
-    static func from(json: JSON) throws -> TuistKit.Arguments {
-        return Arguments(environment: try json.get("environment"),
-                         launch: try json.get("launch"))
+    static func from(manifest: ProjectDescription.Arguments) -> TuistKit.Arguments {
+        return Arguments(environment: manifest.environment,
+                         launch: manifest.launch)
     }
 }
 
 extension TuistKit.BuildConfiguration {
-    static func from(string: String) throws -> TuistKit.BuildConfiguration {
-        guard let config = BuildConfiguration(rawValue: string) else {
-            throw GeneratorModelLoaderError.malformedManifest("unrecognized configuration '\(string)'")
+    static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistKit.BuildConfiguration  {
+        switch manifest {
+        case .debug:
+            return .debug
+        case .release:
+            return .release
         }
-        return config
+    }
+}
+
+extension TuistKit.Product {
+    static func from(manifest: ProjectDescription.Product) -> TuistKit.Product  {
+        switch manifest {
+        case .app:
+            return .app
+        case .staticLibrary:
+            return .staticLibrary
+        case .dynamicLibrary:
+            return .dynamicLibrary
+        case .framework:
+            return .framework
+        case .staticFramework:
+            return .staticFramework
+        case .unitTests:
+            return .unitTests
+        case .uiTests:
+            return .uiTests
+        }
+    }
+}
+
+extension TuistKit.Platform {
+    static func from(manifest: ProjectDescription.Platform) throws -> TuistKit.Platform  {
+        switch manifest {
+        case .macOS:
+            return .macOS
+        case .iOS:
+            return .iOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            throw GeneratorModelLoaderError.featureNotYetSupported("watchOS platform")
+        }
     }
 }

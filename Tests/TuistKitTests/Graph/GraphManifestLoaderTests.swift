@@ -10,14 +10,12 @@ final class GraphManifestLoaderErrorTests: XCTestCase {
         XCTAssertEqual(GraphManifestLoaderError.unexpectedOutput(AbsolutePath("/test/")).description, "Unexpected output trying to parse the manifest at path /test")
         XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).description, "Project.swift not found at path /test")
         XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(nil, AbsolutePath("/test/")).description, "Manifest not found at path /test")
-        XCTAssertEqual(GraphManifestLoaderError.setupNotFound(AbsolutePath("/test/")).description, "Setup.swift not found at path /test")
     }
 
     func test_type() {
         XCTAssertEqual(GraphManifestLoaderError.projectDescriptionNotFound(AbsolutePath("/test")).type, .bug)
         XCTAssertEqual(GraphManifestLoaderError.unexpectedOutput(AbsolutePath("/test/")).type, .bug)
         XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).type, .abort)
-        XCTAssertEqual(GraphManifestLoaderError.setupNotFound(AbsolutePath("/test/")).type, .abort)
     }
 }
 
@@ -53,8 +51,8 @@ final class GraphManifestLoaderTests: XCTestCase {
                           atomically: true,
                           encoding: .utf8)
 
-        let got = try subject.load(.project, path: fileHandler.currentPath)
-        XCTAssertEqual(try got.get("name") as String, "tuist")
+        let got = try subject.loadProject(at: fileHandler.currentPath)
+        XCTAssertEqual(got.name, "tuist")
     }
 
     func test_manifestPath_when_swift() throws {

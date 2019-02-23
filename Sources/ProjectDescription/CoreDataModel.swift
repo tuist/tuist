@@ -3,10 +3,10 @@ import Foundation
 /// Core Data model.
 public class CoreDataModel: Codable {
     /// Relative path to the model.
-    let path: String
+    public let path: String
 
     /// Current version (with or without extension)
-    let currentVersion: String
+    public let currentVersion: String
 
     public enum CodingKeys: String, CodingKey {
         case path

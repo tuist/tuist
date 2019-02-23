@@ -1,10 +1,14 @@
 import Basic
 import Foundation
 @testable import TuistKit
+import ProjectDescription
 
 final class MockGraphManifestLoader: GraphManifestLoading {
-    var loadCount: UInt = 0
-    var loadStub: ((Manifest, AbsolutePath) throws -> JSON)?
+    var loadProjectCount: UInt = 0
+    var loadProjectStub: ((AbsolutePath) throws -> ProjectDescription.Project)?
+    
+    var loadWorkspaceCount: UInt = 0
+    var loadWorkspaceStub: ((AbsolutePath) throws -> ProjectDescription.Workspace)?
 
     var manifestsAtCount: UInt = 0
     var manifestsAtStub: ((AbsolutePath) -> Set<Manifest>)?
@@ -15,9 +19,12 @@ final class MockGraphManifestLoader: GraphManifestLoading {
     var loadSetupCount: UInt = 0
     var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
 
-    func load(_ manifest: Manifest, path: AbsolutePath) throws -> JSON {
-        loadCount += 1
-        return try loadStub?(manifest, path) ?? JSON([:])
+    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
+        return try loadProjectStub?(path) ?? ProjectDescription.Project.test()
+    }
+    
+    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
+        return try loadWorkspaceStub?(path) ?? ProjectDescription.Workspace.test()
     }
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {
