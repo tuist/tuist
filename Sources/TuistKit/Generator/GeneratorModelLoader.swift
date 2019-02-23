@@ -219,3 +219,77 @@ extension TuistKit.Dependency {
         }
     }
 }
+
+extension TuistKit.Scheme {
+    static func from(json: JSON) throws -> TuistKit.Scheme {
+        let name: String = try json.get("name")
+        let shared: Bool = try json.get("shared")
+        let buildActionJson: JSON? = try? json.get("build_action")
+        let buildAction = try buildActionJson.map { try TuistKit.BuildAction.from(json: $0) }
+        let testActionJson: JSON? = try? json.get("test_action")
+        let testAction = try testActionJson.map { try TuistKit.TestAction.from(json: $0) }
+        let runActionJson: JSON? = try? json.get("run_action")
+        let runAction = try runActionJson.map { try TuistKit.RunAction.from(json: $0) }
+        
+        return Scheme(name: name,
+                      shared: shared,
+                      buildAction: buildAction,
+                      testAction: testAction,
+                      runAction: runAction)
+    }
+
+}
+
+extension TuistKit.BuildAction {
+    static func from(json: JSON) throws -> TuistKit.BuildAction {
+        return BuildAction(targets: try json.get("targets"))
+    }
+}
+
+extension TuistKit.TestAction {
+    static func from(json: JSON) throws -> TuistKit.TestAction {
+        let targets: [String] = try json.get("targets")
+        let argumentsJson: JSON? = try? json.get("arguments")
+        let arguments = try argumentsJson.map { try TuistKit.Arguments.from(json: $0) }
+        
+        let configString: String = try json.get("config")
+        let config = try BuildConfiguration.from(string: configString)
+        
+        let coverage: Bool = try json.get("coverage")
+        return TestAction(targets: targets,
+                          arguments: arguments,
+                          config: config,
+                          coverage: coverage)
+    }
+}
+
+extension TuistKit.RunAction {
+    static func from(json: JSON) throws -> TuistKit.RunAction {
+        let configString: String = try json.get("config")
+        let config = try BuildConfiguration.from(string: configString)
+        let executable: String? = try? json.get("executable")
+        let argumentsJson: JSON? = try? json.get("arguments")
+        let arguments = try argumentsJson.map { try TuistKit.Arguments.from(json: $0) }
+        
+        return RunAction(config: config,
+                         executable: executable,
+                         arguments: arguments)
+    }
+
+}
+
+extension TuistKit.Arguments {
+    static func from(json: JSON) throws -> TuistKit.Arguments {
+        return Arguments(environment: try json.get("environment"),
+                         launch: try json.get("launch"))
+    }
+}
+
+extension TuistKit.BuildConfiguration {
+    static func from(string: String) throws -> TuistKit.BuildConfiguration  {
+        guard let config = BuildConfiguration(rawValue: string) else {
+            throw GeneratorModelLoaderError.malformedManifest("unrecognized configuration '\(string)'")
+        }
+        return config
+    }
+}
