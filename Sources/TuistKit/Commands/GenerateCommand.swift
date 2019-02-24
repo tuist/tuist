@@ -11,41 +11,48 @@ class GenerateCommand: NSObject, Command {
 
     // MARK: - Attributes
 
-    fileprivate let graphLoader: GraphLoading
-    fileprivate let workspaceGenerator: WorkspaceGenerating
-    fileprivate let printer: Printing
-    fileprivate let system: Systeming
-    fileprivate let resourceLocator: ResourceLocating
+    private let generator: Generating
+    private let printer: Printing
+    private let fileHandler: FileHandling
+    private let manifestLoader: GraphManifestLoading
 
     let pathArgument: OptionArgument<String>
 
     // MARK: - Init
 
     required convenience init(parser: ArgumentParser) {
+        let fileHandler = FileHandler()
         let system = System()
         let printer = Printer()
-        let modelLoader = GeneratorModelLoader(fileHandler: FileHandler(),
-                                                    manifestLoader: GraphManifestLoader())
-        self.init(graphLoader: GraphLoader(modelLoader: modelLoader),
-                  workspaceGenerator: WorkspaceGenerator(),
-                  parser: parser,
+        let resourceLocator = ResourceLocator(fileHandler: fileHandler)
+        let manifestLoader = GraphManifestLoader(fileHandler: fileHandler,
+                                                 system: system,
+                                                 resourceLocator: resourceLocator,
+                                                 deprecator: Deprecator(printer: printer))
+        let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
+                                               manifestLoader: manifestLoader)
+        let generator = Generator(system: system,
+                                  printer: printer,
+                                  fileHandler: fileHandler,
+                                  modelLoader: modelLoader)
+        self.init(parser: parser,
                   printer: printer,
-                  system: system,
-                  resourceLocator: ResourceLocator())
+                  fileHandler: fileHandler,
+                  generator: generator,
+                  manifestLoader: manifestLoader)
     }
 
-    init(graphLoader: GraphLoading,
-         workspaceGenerator: WorkspaceGenerating,
-         parser: ArgumentParser,
+    init(parser: ArgumentParser,
          printer: Printing,
-         system: Systeming,
-         resourceLocator: ResourceLocating) {
+         fileHandler: FileHandling,
+         generator: Generating,
+         manifestLoader: GraphManifestLoading) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
-        self.graphLoader = graphLoader
-        self.workspaceGenerator = workspaceGenerator
+        self.generator = generator
         self.printer = printer
-        self.system = system
-        self.resourceLocator = resourceLocator
+        self.fileHandler = fileHandler
+        self.manifestLoader = manifestLoader
+        
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -55,11 +62,10 @@ class GenerateCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        let graph = try graphLoader.load(path: path)
-        try workspaceGenerator.generate(path: path,
-                                        graph: graph,
-                                        options: GenerationOptions(),
-                                        directory: .manifest)
+        
+        _ = try generator.generate(at: path,
+                                   config: .default,
+                                   manifestLoader: manifestLoader)
 
         printer.print(success: "Project generated.")
     }
@@ -68,9 +74,9 @@ class GenerateCommand: NSObject, Command {
 
     fileprivate func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
-            return AbsolutePath(path, relativeTo: AbsolutePath.current)
+            return AbsolutePath(path, relativeTo: fileHandler.currentPath)
         } else {
-            return AbsolutePath.current
+            return fileHandler.currentPath
         }
     }
 }

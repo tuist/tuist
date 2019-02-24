@@ -2,7 +2,7 @@ import Basic
 import TuistCore
 
 /// A component responsible for generating Xcode projects & workspaces
-public protocol Generating {
+protocol Generating {
 
     /// Generate an Xcode project at a given path.
     ///
@@ -31,7 +31,7 @@ public protocol Generating {
     func generateWorkspace(at path: AbsolutePath) throws -> AbsolutePath
 }
 
-public enum GeneratorError: FatalError {
+enum GeneratorError: FatalError {
     
     case notImplemented
     
@@ -53,12 +53,12 @@ public enum GeneratorError: FatalError {
 /// A default implementation of `Generating`
 ///
 /// - seealso: Generating
-public class Generator: Generating {
-    public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
+class Generator: Generating {
+    func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
         throw GeneratorError.notImplemented
     }
 
-    public func generateWorkspace(at path: AbsolutePath) throws -> AbsolutePath {
+    func generateWorkspace(at path: AbsolutePath) throws -> AbsolutePath {
         throw GeneratorError.notImplemented
     }
 }

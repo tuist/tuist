@@ -8,35 +8,25 @@ import XCTest
 
 final class FocusCommandTests: XCTestCase {
     var subject: FocusCommand!
-    var errorHandler: MockErrorHandler!
-    var graphLoader: MockGraphLoader!
-    var workspaceGenerator: MockWorkspaceGenerator!
+    
     var parser: ArgumentParser!
-    var printer: MockPrinter!
     var fileHandler: MockFileHandler!
     var opener: MockOpener!
-    var system: MockSystem!
-    var resourceLocator: MockResourceLocator!
-
+    var generator: MockGenerator!
+    var manifestLoader: MockGraphManifestLoader!
+    
     override func setUp() {
         super.setUp()
-        printer = MockPrinter()
-        errorHandler = MockErrorHandler()
-        graphLoader = MockGraphLoader()
-        workspaceGenerator = MockWorkspaceGenerator()
         parser = ArgumentParser.test()
         fileHandler = try! MockFileHandler()
         opener = MockOpener()
-        system = MockSystem()
-        resourceLocator = MockResourceLocator()
-
+        generator = MockGenerator()
+        manifestLoader = MockGraphManifestLoader()
+        
         subject = FocusCommand(parser: parser,
-                               graphLoader: graphLoader,
-                               workspaceGenerator: workspaceGenerator,
-                               printer: printer,
-                               system: system,
-                               resourceLocator: resourceLocator,
+                               generator: generator,
                                fileHandler: fileHandler,
+                               manifestLoader: manifestLoader,
                                opener: opener)
     }
 
@@ -49,9 +39,12 @@ final class FocusCommandTests: XCTestCase {
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
-        let result = try parser.parse([FocusCommand.command, "-c", "Debug"])
+        let result = try parser.parse([FocusCommand.command])
         let error = NSError.test()
-        workspaceGenerator.generateStub = { _, _, _, _ in
+        manifestLoader.manifestsAtStub = { _ in
+            return Set([.project])
+        }
+        generator.generateProjectStub = { _, _ in
             throw error
         }
         XCTAssertThrowsError(try subject.run(with: result)) {
@@ -60,9 +53,12 @@ final class FocusCommandTests: XCTestCase {
     }
 
     func test_run() throws {
-        let result = try parser.parse([FocusCommand.command, "-c", "Debug"])
+        let result = try parser.parse([FocusCommand.command])
         let workspacePath = AbsolutePath("/test.xcworkspace")
-        workspaceGenerator.generateStub = { _, _, _, _ in
+        manifestLoader.manifestsAtStub = { _ in
+            return Set([.project])
+        }
+        generator.generateProjectStub = { _, _ in
             workspacePath
         }
         try subject.run(with: result)
