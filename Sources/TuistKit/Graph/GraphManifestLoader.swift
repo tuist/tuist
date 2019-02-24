@@ -5,9 +5,13 @@ import TuistCore
 enum GraphManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
-    case manifestNotFound(Manifest, AbsolutePath)
+    case manifestNotFound(Manifest?, AbsolutePath)
     case setupNotFound(AbsolutePath)
 
+    static func manifestNotFound(_ path: AbsolutePath) -> GraphManifestLoaderError {
+        return .manifestNotFound(nil, path)
+    }
+    
     var description: String {
         switch self {
         case let .projectDescriptionNotFound(path):
@@ -15,9 +19,9 @@ enum GraphManifestLoaderError: FatalError, Equatable {
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.asString)"
         case let .manifestNotFound(manifest, path):
-            return "\(manifest.fileName) not found at \(path.asString)"
+            return "\(manifest?.fileName ?? "Manifest") not found at path \(path.asString)"
         case let .setupNotFound(path):
-            return "Setup.swift not found at \(path.asString)"
+            return "Setup.swift not found at path \(path.asString)"
         }
     }
 

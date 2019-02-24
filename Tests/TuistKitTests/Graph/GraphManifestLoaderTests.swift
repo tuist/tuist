@@ -8,8 +8,9 @@ final class GraphManifestLoaderErrorTests: XCTestCase {
     func test_description() {
         XCTAssertEqual(GraphManifestLoaderError.projectDescriptionNotFound(AbsolutePath("/test")).description, "Couldn't find ProjectDescription.framework at path /test")
         XCTAssertEqual(GraphManifestLoaderError.unexpectedOutput(AbsolutePath("/test/")).description, "Unexpected output trying to parse the manifest at path /test")
-        XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).description, "Project.swift not found at /test")
-        XCTAssertEqual(GraphManifestLoaderError.setupNotFound(AbsolutePath("/test/")).description, "Setup.swift not found at /test")
+        XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).description, "Project.swift not found at path /test")
+        XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(nil, AbsolutePath("/test/")).description, "Manifest not found at path /test")
+        XCTAssertEqual(GraphManifestLoaderError.setupNotFound(AbsolutePath("/test/")).description, "Setup.swift not found at path /test")
     }
 
     func test_type() {

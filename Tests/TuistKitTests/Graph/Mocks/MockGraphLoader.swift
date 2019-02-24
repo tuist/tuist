@@ -3,9 +3,13 @@ import Foundation
 @testable import TuistKit
 
 final class MockGraphLoader: GraphLoading {
-    var loadStub: ((AbsolutePath) throws -> Graph)?
-
-    func load(path: AbsolutePath) throws -> Graph {
-        return try loadStub?(path) ?? Graph.test()
+    var loadProjectStub: ((AbsolutePath) throws -> Graph)?
+    func loadProject(path: AbsolutePath) throws -> Graph {
+        return try loadProjectStub?(path) ?? Graph.test()
+    }
+    
+    var loadWorkspaceStub: ((AbsolutePath) throws -> Graph)?
+    func loadWorkspace(path: AbsolutePath) throws -> Graph {
+        return try loadWorkspaceStub?(path) ?? Graph.test()
     }
 }

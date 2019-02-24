@@ -15,29 +15,17 @@ class FocusCommand: NSObject, Command {
 
     // MARK: - Attributes
 
-    /// Graph loader instance to load the dependency graph.
-    fileprivate let graphLoader: GraphLoading
-
-    /// Workspace generator instance to generate the project workspace.
-    fileprivate let workspaceGenerator: WorkspaceGenerating
-
-    /// Printer instance to output messages to the user.
-    fileprivate let printer: Printing
-
-    /// System instance to run commands on the system.
-    fileprivate let system: Systeming
-
-    /// Resource locator instance used to find files in the system.
-    fileprivate let resourceLocator: ResourceLocating
+    /// Generator instance to generate the project workspace.
+    private let generator: Generating
 
     /// File handler instance to interact with the file system.
-    fileprivate let fileHandler: FileHandling
-
+    private let fileHandler: FileHandling
+    
+    /// Manifest loader instance that can load project maifests from disk
+    private let manifestLoader: GraphManifestLoading
+    
     /// Opener instance to run open in the system.
-    fileprivate let opener: Opening
-
-    /// Config argument that allos specifying which configuration the Xcode project should be generated with.
-    let configArgument: OptionArgument<String>
+    private let opener: Opening
 
     // MARK: - Init
 
@@ -46,15 +34,23 @@ class FocusCommand: NSObject, Command {
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
         let fileHandler = FileHandler()
+        let system = System()
+        let printer = Printer()
+        let resourceLocator = ResourceLocator(fileHandler: fileHandler)
+        let manifestLoader = GraphManifestLoader(fileHandler: fileHandler,
+                                                 system: system,
+                                                 resourceLocator: resourceLocator,
+                                                 deprecator: Deprecator(printer: printer))
         let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
-                                                    manifestLoader: GraphManifestLoader())
+                                                    manifestLoader: manifestLoader)
+        let generator = Generator(system: system,
+                                  printer: printer,
+                                  fileHandler: fileHandler,
+                                  modelLoader: modelLoader)
         self.init(parser: parser,
-                  graphLoader: GraphLoader(modelLoader: modelLoader),
-                  workspaceGenerator: WorkspaceGenerator(),
-                  printer: Printer(),
-                  system: System(),
-                  resourceLocator: ResourceLocator(),
+                  generator: generator,
                   fileHandler: fileHandler,
+                  manifestLoader: manifestLoader,
                   opener: Opener())
     }
 
@@ -62,44 +58,28 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameters:
     ///   - parser: Argument parser that parses the CLI arguments.
-    ///   - graphLoader: Graph loader instance to load the dependency graph.
-    ///   - workspaceGenerator: Workspace generator instance to generate the project workspace.
-    ///   - printer: Printer instance to output messages to the user.
-    ///   - system: System instance to run commands on the system.
-    ///   - resourceLocator: Resource locator instance used to find files in the system.
+    ///   - generator: Generator instance to generate the project workspace.
     ///   - fileHandler: File handler instance to interact with the file system.
+    ///   - manifestLoader: Manifest loader instance that can load project maifests from disk
     ///   - opener: Opener instance to run open in the system.
-    ///   - graphUp: Graph up instance to print a warning if the environment is not configured at all.
     init(parser: ArgumentParser,
-         graphLoader: GraphLoading,
-         workspaceGenerator: WorkspaceGenerating,
-         printer: Printing,
-         system: Systeming,
-         resourceLocator: ResourceLocating,
+         generator: Generating,
          fileHandler: FileHandling,
+         manifestLoader: GraphManifestLoading,
          opener: Opening) {
-        let subParser = parser.add(subparser: FocusCommand.command, overview: FocusCommand.overview)
-        self.graphLoader = graphLoader
-        self.workspaceGenerator = workspaceGenerator
-        self.printer = printer
-        self.system = system
-        self.resourceLocator = resourceLocator
+        parser.add(subparser: FocusCommand.command, overview: FocusCommand.overview)
+        self.generator = generator
         self.fileHandler = fileHandler
+        self.manifestLoader = manifestLoader
         self.opener = opener
-        configArgument = subParser.add(option: "--config",
-                                       shortName: "-c",
-                                       kind: String.self,
-                                       usage: "The configuration that will be generated.",
-                                       completion: .filename)
     }
 
     func run(with _: ArgumentParser.Result) throws {
         let path = fileHandler.currentPath
-        let graph = try graphLoader.load(path: path)
-        let workspacePath = try workspaceGenerator.generate(path: path,
-                                                            graph: graph,
-                                                            options: GenerationOptions(),
-                                                            directory: .manifest)
+        
+        let workspacePath = try generator.generate(at: path,
+                                                   config: .default,
+                                                   manifestLoader: manifestLoader)
 
         try opener.open(path: workspacePath)
     }
