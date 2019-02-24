@@ -70,7 +70,7 @@ final class GenerateCommandTests: XCTestCase {
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
     }
     
-    func test_run_withRelativePathParamter() throws {
+    func test_run_withRelativePathParameter() throws {
         // Given
         let path = fileHandler.currentPath
         let result = try parser.parse([GenerateCommand.command, "--path", "subpath"])
@@ -90,7 +90,7 @@ final class GenerateCommandTests: XCTestCase {
         XCTAssertEqual(generationPath, AbsolutePath("subpath", relativeTo: path))
     }
     
-    func test_run_withAbsoultePathParamter() throws {
+    func test_run_withAbsoultePathParameter() throws {
         // Given
         let result = try parser.parse([GenerateCommand.command, "--path", "/some/path"])
         var generationPath: AbsolutePath?
@@ -109,7 +109,7 @@ final class GenerateCommandTests: XCTestCase {
         XCTAssertEqual(generationPath, AbsolutePath("/some/path"))
     }
     
-    func test_run_withoutPathParamter() throws {
+    func test_run_withoutPathParameter() throws {
         // Given
         let result = try parser.parse([GenerateCommand.command])
         var generationPath: AbsolutePath?
