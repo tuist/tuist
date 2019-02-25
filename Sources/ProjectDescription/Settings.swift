@@ -27,11 +27,11 @@ public class Configuration: Codable {
         self.buildConfiguration = buildConfiguration
     }
 
-    public static func debug(name: String, settings: BuildSettings = [:], xcconfig: String? = nil) -> Configuration {
+    public static func debug(name: String = "Debug", settings: BuildSettings = [:], xcconfig: String? = nil) -> Configuration {
         return Configuration(name: name, settings: settings, xcconfig: xcconfig, buildConfiguration: .debug)
     }
     
-    public static func release(name: String, settings: BuildSettings = [:], xcconfig: String? = nil) -> Configuration {
+    public static func release(name: String = "Release", settings: BuildSettings = [:], xcconfig: String? = nil) -> Configuration {
         return Configuration(name: name, settings: settings, xcconfig: xcconfig, buildConfiguration: .release)
     }
     
@@ -47,18 +47,6 @@ public class Settings: Codable {
     public init(base: BuildSettings = [:], configurations: [Configuration] = []) {
         self.base = base
         self.configurations = configurations
-    }
-    
-}
-
-public class TargetSettings: Codable {
-    
-    public let base: BuildSettings
-    public let buildSettings: [Configuration.Name: BuildSettings]
-    
-    public init(base: BuildSettings = [:], buildSettings: [Configuration.Name: BuildSettings] = [:]) {
-        self.base = base
-        self.buildSettings = buildSettings
     }
     
 }

@@ -223,11 +223,20 @@ final class ConfigGenerator: ConfigGenerating {
         /// If any configurations in the project match the root project configuration name, then merge the settings
         /// else, If any of the default build configuration types (Debug, Release) match then assign using that.
         
-        let targetSettings = target.settings?.buildSettings
-        extend(buildSettings: &settings, with: targetSettings?[configuration.name] ?? targetSettings?[buildConfiguration.xcodeValue] ?? [:])
+        let targetConfigurations = target.settings?.configurations
+        let targetConfiguration = targetConfigurations?.first(where: { $0.name == configuration.name }) ?? targetConfigurations?.first(where: { $0.buildConfiguration == buildConfiguration })
+        
+        extend(buildSettings: &settings, with: targetConfiguration?.settings ?? [:])
         
         let variantBuildConfiguration = XCBuildConfiguration(name: configuration.name, baseConfiguration: nil, buildSettings: [:])
 
+        if let variantConfig = targetConfiguration {
+            if let xcconfig = variantConfig.xcconfig {
+                let fileReference = fileElements.file(path: xcconfig)
+                variantBuildConfiguration.baseConfiguration = fileReference
+            }
+        }
+        
         /// Target attributes
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
         settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(target.infoPlist.relative(to: sourceRootPath).asString)"

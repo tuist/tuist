@@ -77,6 +77,18 @@ class ProjectFileElements {
             }
             
         }
+        
+        for target in project.targets {
+            
+            guard let settings = target.settings else {
+                continue
+            }
+            
+            for case .some(let xcconfigFile) in settings.configurations.map(\.xcconfig) {
+                files.insert(xcconfigFile)
+            }
+            
+        }
 
         return files
     }

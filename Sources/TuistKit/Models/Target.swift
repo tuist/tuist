@@ -16,7 +16,7 @@ class Target: Equatable {
     let bundleId: String
     let infoPlist: AbsolutePath
     let entitlements: AbsolutePath?
-    let settings: TargetSettings?
+    let settings: Settings?
     let dependencies: [Dependency]
     let sources: [AbsolutePath]
     let resources: [AbsolutePath]
@@ -33,7 +33,7 @@ class Target: Equatable {
          bundleId: String,
          infoPlist: AbsolutePath,
          entitlements: AbsolutePath? = nil,
-         settings: TargetSettings? = nil,
+         settings: Settings? = nil,
          sources: [AbsolutePath] = [],
          resources: [AbsolutePath] = [],
          headers: Headers? = nil,
