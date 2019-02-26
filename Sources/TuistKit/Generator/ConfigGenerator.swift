@@ -219,6 +219,7 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: [String: Any] = [:]
         
         extend(buildSettings: &settings, with: defaultConfigSettings)
+        extend(buildSettings: &settings, with: target.settings?.base ?? [:])
 
         /// If any configurations in the project match the root project configuration name, then merge the settings
         /// else, If any of the default build configuration types (Debug, Release) match then assign using that.
@@ -231,10 +232,7 @@ final class ConfigGenerator: ConfigGenerating {
         let variantBuildConfiguration = XCBuildConfiguration(name: configuration.name, baseConfiguration: nil, buildSettings: [:])
 
         if let variantConfig = targetConfiguration {
-            if let xcconfig = variantConfig.xcconfig {
-                let fileReference = fileElements.file(path: xcconfig)
-                variantBuildConfiguration.baseConfiguration = fileReference
-            }
+            variantBuildConfiguration.baseConfiguration = variantConfig.xcconfig.flatMap(fileElements.file)
         }
         
         /// Target attributes

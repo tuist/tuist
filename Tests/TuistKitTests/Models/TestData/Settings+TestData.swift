@@ -16,10 +16,9 @@ extension Settings {
     ) -> Settings {
         return Settings(base: base, configurations: [debug, release])
     }
-}
-
-extension TargetSettings {
-    static func test(base: BuildSettings = [:], buildSettings: [Configuration.Name: BuildSettings] = [:]) -> TargetSettings {
-        return TargetSettings(base: base, buildSettings: buildSettings)
+    
+    static func test(base: [String: String] = [:], configurations: [Configuration] = [ ]) -> Settings {
+        return Settings(base: base, configurations: configurations)
     }
+    
 }

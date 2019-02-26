@@ -28,10 +28,13 @@ final class TargetTests: XCTestCase {
                 .project(target: "target", path: "path"),
                 .target(name: "name"),
             ],
-            settings: TargetSettings(base: ["a": "b"], buildSettings: [
-                "Debug": ["a": "b"],
-                "Release": ["a": "b"]
-            ]),
+            settings: Settings(
+                base: ["base": "base"],
+                configurations: [
+                    .debug(name: "Debug", settings: ["debug": "debug"], xcconfig: "/path/debug.xcconfig"),
+                    .release(name: "Release", settings: ["release": "release"], xcconfig: "/path/release.xcconfig")
+                ]
+            ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
             environment: ["a": "b"]
         )
@@ -65,16 +68,26 @@ final class TargetTests: XCTestCase {
     "sources": "sources/*",
     "settings": {
         "base": {
-            "a": "b"
+            "base": "base"
         },
-        "buildSettings": {
-            "Release": {
-                "a": "b"
+        "configurations": [
+            {
+                "settings": {
+                    "debug": "debug"
+                },
+                "name": "Debug",
+                "buildConfiguration": "debug",
+                "xcconfig": "/path/debug.xcconfig"
             },
-            "Debug": {
-                "a": "b"
+            {
+                "settings": {
+                    "release": "release"
+                },
+                "name": "Release",
+                "buildConfiguration": "release",
+                "xcconfig": "/path/release.xcconfig"
             }
-        }
+        ]
     },
     "resources": "resources/*",
     "platform": "ios",

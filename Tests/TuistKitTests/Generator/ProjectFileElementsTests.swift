@@ -41,15 +41,11 @@ final class ProjectFileElementsTests: XCTestCase {
 
     func test_targetFiles() {
 
-        let settings = TargetSettings.test(buildSettings: [
-            "Debug": [
-                "A": "Configuration"
-            ],
-            "Release": [
-                "B": "Configuration"
-            ]
-        ])
-        
+        let settings = Settings.test(
+            base: [:],
+            debug: .init(name: "Debug", buildConfiguration: .debug, settings: [ "Configuration": "A" ], xcconfig: "/project/debug.xcconfig"),
+            release: .init(name: "Release", buildConfiguration: .release, settings: [ "Configuration": "B" ], xcconfig: "/project/release.xcconfig")
+        )
         
         let target = Target.test(name: "name",
                                  platform: .iOS,
@@ -70,8 +66,8 @@ final class ProjectFileElementsTests: XCTestCase {
 
         let files = subject.targetFiles(target: target)
 
-//        XCTAssertTrue(files.contains(AbsolutePath("/project/debug.xcconfig")))
-//        XCTAssertTrue(files.contains(AbsolutePath("/project/release.xcconfig")))
+        XCTAssertTrue(files.contains(AbsolutePath("/project/debug.xcconfig")))
+        XCTAssertTrue(files.contains(AbsolutePath("/project/release.xcconfig")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/file.swift")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/image.png")))
         XCTAssertTrue(files.contains(AbsolutePath("/project/public.h")))

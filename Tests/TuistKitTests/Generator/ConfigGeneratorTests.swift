@@ -84,8 +84,8 @@ final class ConfigGeneratorTests: XCTestCase {
             XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
             XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
 
-//            let xcconfig: PBXFileReference? = config?.baseConfiguration
-//            XCTAssertEqual(xcconfig?.path, "\(config!.name.lowercased()).xcconfig")
+            let xcconfig: PBXFileReference? = config?.baseConfiguration
+            XCTAssertEqual(xcconfig?.path, "\(config!.name.lowercased()).xcconfig")
         }
 
         assert(config: debugConfig)
@@ -150,14 +150,9 @@ final class ConfigGeneratorTests: XCTestCase {
                           xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))
         ]
         
-        let target = Target.test(name: "Test", settings: TargetSettings.test(buildSettings: [
-            "Debug": [
-                "Base": "Base"
-            ],
-            "Release": [
-                "Base": "Base"
-            ]
-        ]))
+        let target = Target.test(name: "Test", settings: Settings.test(base: [
+            "Base": "Base"
+        ], configurations: configurations))
         
         let project = Project(path: dir.path,
                               name: "Test",

@@ -113,9 +113,9 @@ class GeneratorModelLoaderTest: XCTestCase {
     
     func test_settings() throws {
         // Given
-        let debug = ConfigurationManifest(settings: ["Debug": "Debug"], xcconfig: "debug.xcconfig")
-        let release = ConfigurationManifest(settings: ["Release": "Release"], xcconfig: "release.xcconfig")
-        let manifest = SettingsManifest(base: ["base": "base"], debug: debug, release: release)
+        let debug = ConfigurationManifest(name: "Debug", settings: ["Debug": "Debug"], xcconfig: "debug.xcconfig", buildConfiguration: .debug)
+        let release = ConfigurationManifest(name: "Release", settings: ["Release": "Release"], xcconfig: "release.xcconfig", buildConfiguration: .release)
+        let manifest = SettingsManifest(base: ["base": "base"], configurations: [ debug, release ])
         
         // When
         let model = try TuistKit.Settings.from(json: manifest.toJSON(), path: path, fileHandler: fileHandler)
@@ -280,13 +280,10 @@ class GeneratorModelLoaderTest: XCTestCase {
                 line: UInt = #line) {
         XCTAssertEqual(settings.base, manifest.base, file: file, line: line)
         
-        optionalAssert(settings.debug, manifest.debug, file: file, line: line) {
-            assert(configuration: $0, matches: $1, at: path, file: file, line: line)
+        for (configuration, manifestConfiguration) in zip(settings.configurations, manifest.configurations) {
+            assert(configuration: configuration, matches: manifestConfiguration, at: path, file: file, line: line)
         }
-        
-        optionalAssert(settings.release, manifest.release, file: file, line: line) {
-            assert(configuration: $0, matches: $1, at: path, file: file, line: line)
-        }
+
     }
     
     func assert(configuration: TuistKit.Configuration,
@@ -294,6 +291,8 @@ class GeneratorModelLoaderTest: XCTestCase {
                 at path: AbsolutePath,
                 file: StaticString = #file,
                 line: UInt = #line) {
+        XCTAssertEqual(configuration.name, manifest.name)
+        XCTAssertEqual(configuration.buildConfiguration.rawValue, manifest.buildConfiguration.rawValue)
         XCTAssertEqual(configuration.settings, manifest.settings, file: file, line: line)
         XCTAssertEqual(configuration.xcconfig, manifest.xcconfig.map { path.appending(RelativePath($0)) }, file: file, line: line)
     }

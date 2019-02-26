@@ -72,7 +72,6 @@ class Graph: Graphing {
     let entryNodes: [GraphNode]
     
     var rootProject: Project {
-        precondition(cache.projects.count > 0)
         return cache.projects[entryPath]!
     }
     

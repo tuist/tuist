@@ -28,17 +28,22 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
             let projectDirectoryHelper = ProjectDirectoryHelper(environmentController: try MockEnvironmentController(), fileHandler: fileHandler)
             
+            
+            
             subject = WorkspaceGenerator(
                 system: MockSystem(),
                 printer: MockPrinter(),
                 resourceLocator: MockResourceLocator(),
                 projectDirectoryHelper: projectDirectoryHelper,
+                projectGenerator: MockProjectGenerator(),
                 fileHandler: fileHandler
             )
             
             let targetNode = TargetNode(project: project, target: target, dependencies: [ ])
             let cache = GraphLoaderCache()
+            
             cache.add(targetNode: targetNode)
+            cache.add(project: project)
             
             graph = Graph.test(entryPath: path, cache: cache)
             
