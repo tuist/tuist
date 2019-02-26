@@ -30,7 +30,11 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
         issues.append(contentsOf: lintLibraryHasNoResources(target: target))
-
+        
+        if let settings = target.settings {
+            issues.append(contentsOf: settingsLinter.lint(settings: settings))
+        }
+        
         target.actions.forEach { action in
             issues.append(contentsOf: targetActionLinter.lint(action))
         }

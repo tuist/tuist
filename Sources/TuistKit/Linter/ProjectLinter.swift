@@ -34,16 +34,6 @@ class ProjectLinter: ProjectLinting {
             issues.append(contentsOf: settingsLinter.lint(settings: settings))
         }
         
-        for target in project.targets {
-            
-            guard let settings = target.settings else {
-                continue
-            }
-            
-            issues.append(contentsOf: settingsLinter.lint(settings: settings))
-            
-        }
-        
         return issues
     }
 
