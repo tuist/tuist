@@ -5,38 +5,37 @@ import TuistGenerator
 
 enum GeneratorModelLoaderError: Error, Equatable, FatalError {
     case malformedManifest(String)
-    
+
     var type: ErrorType {
         switch self {
         case .malformedManifest:
             return .abort
         }
     }
-    
+
     var description: String {
         switch self {
-        case .malformedManifest(let details):
+        case let .malformedManifest(details):
             return "The Project manifest appears to be malformed: \(details)"
         }
     }
 }
 
 class GeneratorModelLoader: GeneratorModelLoading {
-    
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
-    
+
     init(fileHandler: FileHandling, manifestLoader: GraphManifestLoading) {
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
     }
-    
+
     func loadProject(at path: AbsolutePath) throws -> Project {
         let json = try manifestLoader.load(.project, path: path)
         let project = try TuistKit.Project.from(json: json, path: path, fileHandler: fileHandler)
         return project
     }
-    
+
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
         let json = try manifestLoader.load(.workspace, path: path)
         let workspace = try TuistKit.Workspace.from(json: json, path: path)
@@ -61,7 +60,7 @@ extension TuistKit.Project {
         let targets = try targetsJSONs.map { try TuistKit.Target.from(json: $0, path: path, fileHandler: fileHandler) }
         let settingsJSON: JSON? = try? json.get("settings")
         let settings = try settingsJSON.map { try TuistKit.Settings.from(json: $0, path: path, fileHandler: fileHandler) }
-        
+
         return Project(path: path,
                        name: name,
                        settings: settings,
@@ -83,43 +82,43 @@ extension TuistKit.Target {
         let bundleId: String = try json.get("bundle_id")
         let dependenciesJSON: [JSON] = try json.get("dependencies")
         let dependencies = try dependenciesJSON.map { try TuistKit.Dependency.from(json: $0, path: path, fileHandler: fileHandler) }
-        
+
         // Info.plist
         let infoPlistPath: String = try json.get("info_plist")
         let infoPlist = path.appending(RelativePath(infoPlistPath))
-        
+
         // Entitlements
         let entitlementsPath: String? = try? json.get("entitlements")
         let entitlements = entitlementsPath.map { path.appending(RelativePath($0)) }
-        
+
         // Settings
         let settingsDictionary: [String: JSONSerializable]? = try? json.get("settings")
         let settings = try settingsDictionary.map { try TuistKit.Settings.from(json: JSON($0), path: path, fileHandler: fileHandler) }
-        
+
         // Sources
         let sourcesString: String = try json.get("sources")
         let sources = try TuistKit.Target.sources(projectPath: path, sources: sourcesString, fileHandler: fileHandler)
-        
+
         // Resources
         let resourcesString: String? = try? json.get("resources")
         let resources = try resourcesString.map {
             try TuistKit.Target.resources(projectPath: path, resources: $0, fileHandler: fileHandler) } ?? []
-        
+
         // Headers
         let headersJSON: JSON? = try? json.get("headers")
         let headers = try headersJSON.map { try TuistKit.Headers.from(json: $0, path: path, fileHandler: fileHandler) }
-        
+
         // Core Data Models
         let coreDataModelsJSON: [JSON] = (try? json.get("core_data_models")) ?? []
         let coreDataModels = try coreDataModelsJSON.map { try TuistKit.CoreDataModel.from(json: $0, path: path, fileHandler: fileHandler) }
-        
+
         // Actions
         let actionsJSON: [JSON] = (try? json.get("actions")) ?? []
         let actions = try actionsJSON.map { try TuistKit.TargetAction.from(json: $0, path: path, fileHandler: fileHandler) }
-        
+
         // Environment
         let environment: [String: String] = (try? json.get("environment")) ?? [:]
-        
+
         return Target(name: name,
                       platform: platform,
                       product: product,
@@ -149,7 +148,7 @@ extension TuistKit.Settings {
 }
 
 extension TuistKit.Configuration {
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Configuration {
+    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.Configuration {
         let settings: [String: String] = try json.get("settings")
         let xcconfigString: String? = json.get("xcconfig")
         let xcconfig = xcconfigString.flatMap({ path.appending(RelativePath($0)) })
@@ -158,7 +157,7 @@ extension TuistKit.Configuration {
 }
 
 extension TuistKit.TargetAction {
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.TargetAction {
+    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.TargetAction {
         let name: String = try json.get("name")
         let tool: String? = try? json.get("tool")
         let order = TuistKit.TargetAction.Order(rawValue: try json.get("order"))!
@@ -183,7 +182,7 @@ extension TuistKit.CoreDataModel {
 }
 
 extension TuistKit.Headers {
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Headers {
+    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.Headers {
         let publicString: String? = try? json.get("public")
         let `public` = publicString.map { path.glob($0) } ?? []
         let privateString: String? = try? json.get("private")
@@ -195,7 +194,7 @@ extension TuistKit.Headers {
 }
 
 extension TuistKit.Dependency {
-    static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Dependency {
+    static func from(json: JSON, path: AbsolutePath, fileHandler _: FileHandling) throws -> TuistKit.Dependency {
         let type: String = try json.get("type")
         switch type {
         case "target":
@@ -230,14 +229,13 @@ extension TuistKit.Scheme {
         let testAction = try testActionJson.map { try TuistKit.TestAction.from(json: $0) }
         let runActionJson: JSON? = try? json.get("run_action")
         let runAction = try runActionJson.map { try TuistKit.RunAction.from(json: $0) }
-        
+
         return Scheme(name: name,
                       shared: shared,
                       buildAction: buildAction,
                       testAction: testAction,
                       runAction: runAction)
     }
-
 }
 
 extension TuistKit.BuildAction {
@@ -251,10 +249,10 @@ extension TuistKit.TestAction {
         let targets: [String] = try json.get("targets")
         let argumentsJson: JSON? = try? json.get("arguments")
         let arguments = try argumentsJson.map { try TuistKit.Arguments.from(json: $0) }
-        
+
         let configString: String = try json.get("config")
         let config = try BuildConfiguration.from(string: configString)
-        
+
         let coverage: Bool = try json.get("coverage")
         return TestAction(targets: targets,
                           arguments: arguments,
@@ -270,12 +268,11 @@ extension TuistKit.RunAction {
         let executable: String? = try? json.get("executable")
         let argumentsJson: JSON? = try? json.get("arguments")
         let arguments = try argumentsJson.map { try TuistKit.Arguments.from(json: $0) }
-        
+
         return RunAction(config: config,
                          executable: executable,
                          arguments: arguments)
     }
-
 }
 
 extension TuistKit.Arguments {
@@ -286,7 +283,7 @@ extension TuistKit.Arguments {
 }
 
 extension TuistKit.BuildConfiguration {
-    static func from(string: String) throws -> TuistKit.BuildConfiguration  {
+    static func from(string: String) throws -> TuistKit.BuildConfiguration {
         guard let config = BuildConfiguration(rawValue: string) else {
             throw GeneratorModelLoaderError.malformedManifest("unrecognized configuration '\(string)'")
         }

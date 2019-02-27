@@ -11,7 +11,7 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     static func manifestNotFound(_ path: AbsolutePath) -> GraphManifestLoaderError {
         return .manifestNotFound(nil, path)
     }
-    
+
     var description: String {
         switch self {
         case let .projectDescriptionNotFound(path):

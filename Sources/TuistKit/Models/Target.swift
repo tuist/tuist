@@ -56,7 +56,7 @@ class Target: Equatable {
         self.environment = environment
         self.dependencies = dependencies
     }
-    
+
     func isLinkable() -> Bool {
         return [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
     }
