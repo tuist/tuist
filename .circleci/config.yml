@@ -15,7 +15,7 @@ jobs:
       - run:
           name: Install Dependencies
           command: |
-            brew upgrade swiftformat
+            brew install swiftformat
             bundle install
       - run:
           name: Run Danger
