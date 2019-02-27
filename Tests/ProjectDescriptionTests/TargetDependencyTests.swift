@@ -1,6 +1,6 @@
 import Foundation
-@testable import ProjectDescription
 import XCTest
+@testable import ProjectDescription
 
 final class TargetDependencyTests: XCTestCase {
     func test_toJSON_when_target() {

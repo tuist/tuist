@@ -13,7 +13,7 @@ protocol SchemesGenerating {
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateTargetSchemes(project: Project,
                                generatedProject: GeneratedProject) throws
-    
+
     /// Generates a project scheme to build & test the all the project targets.
     ///
     /// - Parameters:
@@ -27,13 +27,12 @@ protocol SchemesGenerating {
 }
 
 final class SchemesGenerator: SchemesGenerating {
-    
     /// Default last upgrade version for generated schemes.
     private static let defaultLastUpgradeVersion = "1010"
-    
+
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
-    
+
     /// Instance to interact with the file system.
     let fileHandler: FileHandling
 
@@ -59,7 +58,7 @@ final class SchemesGenerator: SchemesGenerating {
                                      projectPath: generatedProject.path)
         }
     }
-    
+
     /// Generates a project scheme to build & test the all the project targets.
     ///
     /// - Parameters:
@@ -82,10 +81,10 @@ final class SchemesGenerator: SchemesGenerating {
                                                               graph: graph),
                               testAction: projectTestAction(project: project,
                                                             generatedProject: generatedProject))
-        
+
         try scheme.write(path: path.path, override: true)
     }
-    
+
     /// Returns the build action for the project scheme.
     ///
     /// - Parameters:
@@ -96,29 +95,28 @@ final class SchemesGenerator: SchemesGenerating {
     func projectBuildAction(project: Project,
                             generatedProject: GeneratedProject,
                             graph: Graphing) -> XCScheme.BuildAction {
-        
         let targets = project.sortedTargetsForProjectScheme(graph: graph)
         let entries: [XCScheme.BuildAction.Entry] = targets.map { (target) -> XCScheme.BuildAction.Entry in
             let pbxTarget = generatedProject.targets[target.name]!
             let buildableReference = targetBuildableReference(target: target,
-                                                                   pbxTarget: pbxTarget,
-                                                                   projectPath: generatedProject.path)
+                                                              pbxTarget: pbxTarget,
+                                                              projectPath: generatedProject.path)
             var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
             if target.product.testsBundle {
                 buildFor.append(.testing)
             } else {
                 buildFor.append(contentsOf: [.analyzing, .archiving, .profiling, .running, .testing])
             }
-            
+
             return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
                                               buildFor: buildFor)
         }
-        
+
         return XCScheme.BuildAction(buildActionEntries: entries,
                                     parallelizeBuild: true,
                                     buildImplicitDependencies: true)
     }
-    
+
     /// Generates the test action for the project scheme.
     ///
     /// - Parameters:
@@ -129,8 +127,8 @@ final class SchemesGenerator: SchemesGenerating {
                            generatedProject: GeneratedProject) -> XCScheme.TestAction {
         var testables: [XCScheme.TestableReference] = []
         let testTargets = project.targets.filter({ $0.product.testsBundle })
-        
-        testTargets.forEach { (target) in
+
+        testTargets.forEach { target in
             let pbxTarget = generatedProject.targets[target.name]!
 
             let reference = targetBuildableReference(target: target,
@@ -140,7 +138,7 @@ final class SchemesGenerator: SchemesGenerating {
                                                       buildableReference: reference)
             testables.append(testable)
         }
-        
+
         return XCScheme.TestAction(buildConfiguration: "Debug",
                                    macroExpansion: nil,
                                    testables: testables)
@@ -163,17 +161,17 @@ final class SchemesGenerator: SchemesGenerating {
                               lastUpgradeVersion: SchemesGenerator.defaultLastUpgradeVersion,
                               version: SchemesGenerator.defaultVersion,
                               buildAction: targetBuildAction(target: target,
-                                                       pbxTarget: pbxTarget,
-                                                       projectPath: projectPath),
+                                                             pbxTarget: pbxTarget,
+                                                             projectPath: projectPath),
                               testAction: targetTestAction(target: target,
-                                                     pbxTarget: pbxTarget,
-                                                     projectPath: projectPath),
-                              launchAction: targetLaunchAction(target: target,
-                                                         pbxTarget: pbxTarget,
-                                                         projectPath: projectPath),
-                              profileAction: targetProfileAction(target: target,
                                                            pbxTarget: pbxTarget,
                                                            projectPath: projectPath),
+                              launchAction: targetLaunchAction(target: target,
+                                                               pbxTarget: pbxTarget,
+                                                               projectPath: projectPath),
+                              profileAction: targetProfileAction(target: target,
+                                                                 pbxTarget: pbxTarget,
+                                                                 projectPath: projectPath),
                               analyzeAction: targetAnalyzeAction(),
                               archiveAction: targetArchiveAction())
         try scheme.write(path: schemePath.path, override: true)
@@ -187,13 +185,13 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - projectPath: Path to the Xcode project.
     /// - Returns: Scheme test action.
     func targetTestAction(target: Target,
-                    pbxTarget: PBXNativeTarget,
-                    projectPath: AbsolutePath) -> XCScheme.TestAction? {
+                          pbxTarget: PBXNativeTarget,
+                          projectPath: AbsolutePath) -> XCScheme.TestAction? {
         var testables: [XCScheme.TestableReference] = []
         if target.product.testsBundle {
             let reference = targetBuildableReference(target: target,
-                                               pbxTarget: pbxTarget,
-                                               projectPath: projectPath)
+                                                     pbxTarget: pbxTarget,
+                                                     projectPath: projectPath)
             let testable = XCScheme.TestableReference(skipped: false,
                                                       buildableReference: reference)
             testables.append(testable)
@@ -211,15 +209,15 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - projectPath: Path to the Xcode project.
     /// - Returns: Scheme build action.
     func targetBuildAction(target: Target,
-                     pbxTarget: PBXNativeTarget,
-                     projectPath: AbsolutePath) -> XCScheme.BuildAction? {
+                           pbxTarget: PBXNativeTarget,
+                           projectPath: AbsolutePath) -> XCScheme.BuildAction? {
         let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
-            .analyzing, .archiving, .profiling, .running, .testing
+            .analyzing, .archiving, .profiling, .running, .testing,
         ]
 
         let buildableReference = targetBuildableReference(target: target,
-                                                         pbxTarget: pbxTarget,
-                                                         projectPath: projectPath)
+                                                          pbxTarget: pbxTarget,
+                                                          projectPath: projectPath)
         var entries: [XCScheme.BuildAction.Entry] = []
         entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
 
@@ -236,8 +234,8 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - projectPath: Path to the Xcode project.
     /// - Returns: Scheme launch action.
     func targetLaunchAction(target: Target,
-                      pbxTarget: PBXNativeTarget,
-                      projectPath: AbsolutePath) -> XCScheme.LaunchAction? {
+                            pbxTarget: PBXNativeTarget,
+                            projectPath: AbsolutePath) -> XCScheme.LaunchAction? {
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         let buildableReference = targetBuildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)
@@ -263,8 +261,8 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - projectPath: Path to the Xcode project.
     /// - Returns: Scheme profile action.
     func targetProfileAction(target: Target,
-                       pbxTarget: PBXNativeTarget,
-                       projectPath: AbsolutePath) -> XCScheme.ProfileAction? {
+                             pbxTarget: PBXNativeTarget,
+                             projectPath: AbsolutePath) -> XCScheme.ProfileAction? {
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         let buildableReference = targetBuildableReference(target: target, pbxTarget: pbxTarget, projectPath: projectPath)

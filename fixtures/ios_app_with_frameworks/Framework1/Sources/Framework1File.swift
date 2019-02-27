@@ -2,7 +2,6 @@ import Foundation
 import Framework2
 
 public class Framework1File {
-
     private let framework2File = Framework2File()
 
     public init() {}

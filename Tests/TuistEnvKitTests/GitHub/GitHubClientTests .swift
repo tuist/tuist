@@ -1,6 +1,6 @@
 import Foundation
-@testable import TuistEnvKit
 import XCTest
+@testable import TuistEnvKit
 
 final class GitHubClientErrorTests: XCTestCase {
     func test_errorDescription() {

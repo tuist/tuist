@@ -1,9 +1,9 @@
 import Basic
 import Foundation
-@testable import TuistCoreTesting
-@testable import TuistKit
 import xcodeproj
 import XCTest
+@testable import TuistCoreTesting
+@testable import TuistKit
 
 final class ProjectFileElementsTests: XCTestCase {
     var subject: ProjectFileElements!

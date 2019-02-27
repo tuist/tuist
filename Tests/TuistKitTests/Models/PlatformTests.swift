@@ -1,6 +1,6 @@
 import Foundation
-@testable import TuistKit
 import XCTest
+@testable import TuistKit
 
 final class PlatformTests: XCTestCase {
     func test_xcodeSdkRoot_returns_the_right_value() {

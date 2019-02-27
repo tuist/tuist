@@ -1,14 +1,12 @@
-import UIKit
 import Framework1
 import Framework2
+import UIKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
-
     var window: UIWindow?
 
-    func applicationDidFinishLaunching(_ application: UIApplication){
-
+    func applicationDidFinishLaunching(_: UIApplication) {
         let framework1 = Framework1File()
         let framework2 = Framework2File()
 

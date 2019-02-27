@@ -6,7 +6,6 @@ import Utility
 /// Protocol that represents an entity that knows how to get the environment status
 /// for a given project and configure it.
 protocol SetupLoading {
-
     /// It runs meet on each command if it is not met.
     ///
     /// - Parameter path: Path to the project.
@@ -15,7 +14,6 @@ protocol SetupLoading {
 }
 
 class SetupLoader: SetupLoading {
-
     /// Linter for up commands.
     fileprivate let upLinter: UpLinting
 

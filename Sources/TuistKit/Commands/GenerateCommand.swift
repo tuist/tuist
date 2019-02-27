@@ -52,7 +52,7 @@ class GenerateCommand: NSObject, Command {
         self.printer = printer
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
-        
+
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -62,7 +62,7 @@ class GenerateCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        
+
         _ = try generator.generate(at: path,
                                    config: .default,
                                    manifestLoader: manifestLoader)

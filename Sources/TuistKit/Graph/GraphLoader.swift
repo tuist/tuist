@@ -9,14 +9,14 @@ protocol GraphLoading: AnyObject {
 
 class GraphLoader: GraphLoading {
     // MARK: - Attributes
-    
+
     let linter: GraphLinting
     let printer: Printing
     let fileHandler: FileHandling
     let modelLoader: GeneratorModelLoading
-    
+
     // MARK: - Init
-    
+
     init(linter: GraphLinting = GraphLinter(),
          printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
@@ -26,7 +26,7 @@ class GraphLoader: GraphLoading {
         self.fileHandler = fileHandler
         self.modelLoader = modelLoader
     }
-    
+
     func loadProject(path: AbsolutePath) throws -> Graph {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
@@ -41,7 +41,7 @@ class GraphLoader: GraphLoading {
         try lint(graph: graph)
         return graph
     }
-    
+
     func loadWorkspace(path: AbsolutePath) throws -> Graph {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
@@ -58,11 +58,11 @@ class GraphLoader: GraphLoading {
                           entryPath: path,
                           cache: cache,
                           entryNodes: entryNodes)
-        
+
         try lint(graph: graph)
         return graph
     }
-    
+
     private func lint(graph: Graph) throws {
         try linter.lint(graph: graph).printAndThrowIfNeeded(printer: printer)
     }

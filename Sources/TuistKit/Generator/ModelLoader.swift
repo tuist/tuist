@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 /// Entity responsible for providing generator models
 ///
@@ -16,7 +16,7 @@ protocol GeneratorModelLoading {
     /// - Returns: The Project loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     func loadProject(at path: AbsolutePath) throws -> Project
-    
+
     /// Load a Workspace model at the specified path
     ///
     /// - Parameter path: The absolute path for the workspace modal to load

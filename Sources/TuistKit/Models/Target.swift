@@ -56,9 +56,9 @@ class Target: Equatable {
         self.environment = environment
         self.dependencies = dependencies
     }
-    
+
     func isLinkable() -> Bool {
-        return [ .dynamicLibrary, .staticLibrary, .framework, .staticFramework ].contains(product)
+        return [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
     }
 
     /// Returns the product name including the extension.
@@ -115,15 +115,13 @@ class Target: Equatable {
 }
 
 extension Sequence where Element == Target {
-    
     /// Filters and returns only the targets that are test bundles.
     var testBundles: [Target] {
         return filter({ $0.product.testsBundle })
     }
-    
+
     /// Filters and returns only the targets that are apps.
     var apps: [Target] {
-        return filter({ $0.product == .app})
+        return filter({ $0.product == .app })
     }
-    
 }

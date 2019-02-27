@@ -1,20 +1,20 @@
 import Basic
 import Foundation
-@testable import TuistCoreTesting
-@testable import TuistKit
 import Utility
 import xcodeproj
 import XCTest
+@testable import TuistCoreTesting
+@testable import TuistKit
 
 final class FocusCommandTests: XCTestCase {
     var subject: FocusCommand!
-    
+
     var parser: ArgumentParser!
     var fileHandler: MockFileHandler!
     var opener: MockOpener!
     var generator: MockGenerator!
     var manifestLoader: MockGraphManifestLoader!
-    
+
     override func setUp() {
         super.setUp()
         parser = ArgumentParser.test()
@@ -22,7 +22,7 @@ final class FocusCommandTests: XCTestCase {
         opener = MockOpener()
         generator = MockGenerator()
         manifestLoader = MockGraphManifestLoader()
-        
+
         subject = FocusCommand(parser: parser,
                                generator: generator,
                                fileHandler: fileHandler,
@@ -42,7 +42,7 @@ final class FocusCommandTests: XCTestCase {
         let result = try parser.parse([FocusCommand.command])
         let error = NSError.test()
         manifestLoader.manifestsAtStub = { _ in
-            return Set([.project])
+            Set([.project])
         }
         generator.generateProjectStub = { _, _ in
             throw error
@@ -56,7 +56,7 @@ final class FocusCommandTests: XCTestCase {
         let result = try parser.parse([FocusCommand.command])
         let workspacePath = AbsolutePath("/test.xcworkspace")
         manifestLoader.manifestsAtStub = { _ in
-            return Set([.project])
+            Set([.project])
         }
         generator.generateProjectStub = { _, _ in
             workspacePath

@@ -8,7 +8,7 @@ final class MockSchemesGenerator: SchemesGenerating {
     func generateTargetSchemes(project: Project, generatedProject: GeneratedProject) throws {
         generateTargetSchemesArgs.append((project: project, generatedProject: generatedProject))
     }
-    
+
     func generateProjectScheme(project: Project, generatedProject: GeneratedProject, graph: Graphing) throws {
         generateProjectSchemeArgs.append((project: project, generatedProject: generatedProject, graph: graph))
     }

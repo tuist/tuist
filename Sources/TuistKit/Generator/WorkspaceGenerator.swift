@@ -64,20 +64,20 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspacePath = workspaceRootPath.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        
-         // MARK: - Manifests
 
-        let manifestFiles: [XCWorkspaceDataElement] = [ Manifest.workspace, Manifest.setup ]
+        // MARK: - Manifests
+
+        let manifestFiles: [XCWorkspaceDataElement] = [Manifest.workspace, Manifest.setup]
             .lazy
             .map(pipe(get(\.fileName), path.appending))
             .filter(fileHandler.exists)
-            .map{ $0.relative(to: path) }
+            .map { $0.relative(to: path) }
             .map(workspaceFileElement)
 
         workspace.data.children.append(contentsOf: manifestFiles)
-        
-         // MARK: - Projects
-        
+
+        // MARK: - Projects
+
         try graph.projects.forEach { project in
             let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
                                                                                   directory: directory)
@@ -85,16 +85,16 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                  options: options,
                                                                  graph: graph,
                                                                  sourceRootPath: sourceRootPath)
-            
+
             let relativePath = generatedProject.path.relative(to: path)
             workspace.data.children.append(workspaceFileElement(path: relativePath))
         }
-        
+
         try workspace.write(path: workspacePath.path, override: true)
 
         return workspacePath
     }
-    
+
     /// Create a XCWorkspaceDataElement.file from a path string.
     ///
     /// - Parameter path: The relative path to the file
@@ -103,6 +103,4 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let fileRef = XCWorkspaceDataFileRef(location: location)
         return .file(fileRef)
     }
-    
-    
 }

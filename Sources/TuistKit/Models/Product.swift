@@ -113,7 +113,7 @@ enum Product: String, CustomStringConvertible, CaseIterable {
             .app,
             .staticLibrary,
             .dynamicLibrary,
-            .framework
+            .framework,
         ]
 
         if platform == .iOS {
@@ -186,9 +186,7 @@ extension Product {
 }
 
 extension Product {
-    
     var isStatic: Bool {
-        return [ .staticLibrary, .staticFramework ].contains(self)
+        return [.staticLibrary, .staticFramework].contains(self)
     }
-
 }

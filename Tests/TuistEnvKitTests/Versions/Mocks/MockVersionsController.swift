@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-@testable import TuistEnvKit
 import Utility
+@testable import TuistEnvKit
 
 final class MockVersionsController: VersionsControlling {
     fileprivate let tmpDir: TemporaryDirectory

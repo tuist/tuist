@@ -58,7 +58,7 @@ class TargetNode: GraphNode {
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
-        
+
         let dependencies: [GraphNode] = try target.dependencies.map({
             try node(for: $0, path: path, name: name, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         })
@@ -77,22 +77,22 @@ class TargetNode: GraphNode {
                      modelLoader: GeneratorModelLoading,
                      fileHandler: FileHandling = FileHandler()) throws -> GraphNode {
         switch dependency {
-        case .target(let target):
+        case let .target(target):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
             let circularTo = GraphCircularDetectorNode(path: path, name: target)
             try circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        case .project(let target, let projectRelativePath):
+        case let .project(target, projectRelativePath):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
             let projectPath = path.appending(projectRelativePath)
             let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
             try circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        case .framework(let frameworkPath):
+        case let .framework(frameworkPath):
             return try FrameworkNode.parse(projectPath: path,
                                            path: frameworkPath,
-                                       cache: cache)
-        case .library(let libraryPath, let publicHeaders, let swiftModuleMap):
+                                           cache: cache)
+        case let .library(libraryPath, publicHeaders, swiftModuleMap):
             return try LibraryNode.parse(publicHeaders: publicHeaders,
                                          swiftModuleMap: swiftModuleMap,
                                          projectPath: path,

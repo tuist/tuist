@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Rename manifest group to `Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
 - Rename manifest target to `Project-Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
+- Replace swiftlint with swiftformat https://github.com/tuist/tuist/pull/239 by @pepibumur.
 
 ### Added
 

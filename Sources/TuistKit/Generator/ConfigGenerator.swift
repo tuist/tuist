@@ -192,7 +192,7 @@ final class ConfigGenerator: ConfigGenerating {
         if settings["SWIFT_VERSION"] == nil {
             settings["SWIFT_VERSION"] = Constants.swiftVersion
         }
-        
+
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
         }

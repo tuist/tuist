@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-
 all_files = git.modified_files + git.added_files
 
 # Changelog
@@ -11,8 +10,9 @@ unless git.modified_files.include?("CHANGELOG.md")
   warn(message)
 end
 
-# Swiftlint
-swiftlint.lint_files(additional_swiftlint_args: "--strict")
+# Swiftformat
+swiftformat.additional_args = "--config .swiftformat"
+swiftformat.check_format(fail_on_error: true)
 
 # Update documentation
 if all_files.any? { |f| f =~ %r{Sources/} }

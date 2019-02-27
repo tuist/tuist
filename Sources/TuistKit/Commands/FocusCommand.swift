@@ -20,10 +20,10 @@ class FocusCommand: NSObject, Command {
 
     /// File handler instance to interact with the file system.
     private let fileHandler: FileHandling
-    
+
     /// Manifest loader instance that can load project maifests from disk
     private let manifestLoader: GraphManifestLoading
-    
+
     /// Opener instance to run open in the system.
     private let opener: Opening
 
@@ -42,7 +42,7 @@ class FocusCommand: NSObject, Command {
                                                  resourceLocator: resourceLocator,
                                                  deprecator: Deprecator(printer: printer))
         let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
-                                                    manifestLoader: manifestLoader)
+                                               manifestLoader: manifestLoader)
         let generator = Generator(system: system,
                                   printer: printer,
                                   fileHandler: fileHandler,
@@ -76,7 +76,7 @@ class FocusCommand: NSObject, Command {
 
     func run(with _: ArgumentParser.Result) throws {
         let path = fileHandler.currentPath
-        
+
         let workspacePath = try generator.generate(at: path,
                                                    config: .default,
                                                    manifestLoader: manifestLoader)

@@ -1,9 +1,9 @@
 import Basic
 import Foundation
-@testable import TuistCoreTesting
-@testable import TuistKit
 import Utility
 import XCTest
+@testable import TuistCoreTesting
+@testable import TuistKit
 
 final class DumpCommandTests: XCTestCase {
     var printer: MockPrinter!
@@ -67,5 +67,4 @@ final class DumpCommandTests: XCTestCase {
         let expected = "{\n  \"name\": \"tuist\",\n  \"targets\": [\n\n  ]\n}\n"
         XCTAssertEqual(printer.printArgs.first, expected)
     }
-
 }

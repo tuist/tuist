@@ -7,7 +7,7 @@ enum InitCommandError: FatalError, Equatable {
     case alreadyExists(AbsolutePath)
     case ungettableProjectName(AbsolutePath)
     case nonEmptyDirectory(AbsolutePath)
-    
+
     var type: ErrorType {
         return .abort
     }
@@ -22,8 +22,8 @@ enum InitCommandError: FatalError, Equatable {
             return "Can't initialize a project in the non-empty directory at path \(path.asString)."
         }
     }
-    
-    static func ==(lhs: InitCommandError, rhs: InitCommandError) -> Bool {
+
+    static func == (lhs: InitCommandError, rhs: InitCommandError) -> Bool {
         switch (lhs, rhs) {
         case let (.alreadyExists(lhsPath), .alreadyExists(rhsPath)):
             return lhsPath == rhsPath
@@ -35,7 +35,6 @@ enum InitCommandError: FatalError, Equatable {
             return false
         }
     }
-    
 }
 
 // swiftlint:disable:next type_body_length
@@ -75,7 +74,7 @@ class InitCommand: NSObject, Command {
                                         usage: "The product (application or framework) the generated project will build (Default: application).",
                                         completion: ShellCompletion.values([
                                             (value: "application", description: "Application"),
-                                            (value: "framework", description: "Framework")
+                                            (value: "framework", description: "Framework"),
         ]))
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
@@ -84,7 +83,7 @@ class InitCommand: NSObject, Command {
                                          completion: ShellCompletion.values([
                                              (value: "ios", description: "iOS platform"),
                                              (value: "tvos", description: "tvOS platform"),
-                                             (value: "macos", description: "macOS platform")
+                                             (value: "macos", description: "macOS platform"),
         ]))
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
@@ -118,7 +117,7 @@ class InitCommand: NSObject, Command {
     }
 
     // MARK: - Fileprivate
-    
+
     /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
     ///
     /// - Parameter path: Directory to be checked.

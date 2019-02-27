@@ -7,7 +7,6 @@ import XCTest
 @testable import TuistKit
 
 final class UpCommandTests: XCTestCase {
-
     var subject: UpCommand!
     var fileHandler: MockFileHandler!
     var parser: ArgumentParser!
