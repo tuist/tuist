@@ -11,6 +11,7 @@ unless git.modified_files.include?("CHANGELOG.md")
 end
 
 # Swiftformat
+swiftformat.additional_args = "--config .swiftformat"
 swiftformat.check_format(fail_on_error: true)
 
 # Update documentation
