@@ -6,18 +6,22 @@
 //  Adapted from https://gist.github.com/efirestone/ce01ae109e08772647eb061b3bb387c3
 import Foundation
 
+// swiftlint:disable:next identifier_name
 public let GlobBehaviorBashV3 = Glob.Behavior(
     supportsGlobstar: false,
     includesFilesFromRootOfGlobstar: false,
     includesDirectoriesInResults: true,
     includesFilesInResultsIfTrailingSlash: false
 )
+
+// swiftlint:disable:next identifier_name
 public let GlobBehaviorBashV4 = Glob.Behavior(
     supportsGlobstar: true, // Matches Bash v4 with "shopt -s globstar" option
     includesFilesFromRootOfGlobstar: true,
     includesDirectoriesInResults: true,
     includesFilesInResultsIfTrailingSlash: false
 )
+// swiftlint:disable:next identifier_name
 public let GlobBehaviorGradle = Glob.Behavior(
     supportsGlobstar: true,
     includesFilesFromRootOfGlobstar: true,

@@ -12,13 +12,17 @@ disabled_rules:
   - cyclomatic_complexity
   - file_length
   - todo
+  - function_parameter_count
 line_length:
+  ignores_interpolated_strings: true
+  ignores_comments: true
   warning: 150
   error: 170
 identifier_name:
   min_length:
     error: 1
     warning: 1
-function_parameter_count:
-  warning: 7
-  error: 8
+type_name:
+  min_length:
+    error: 1
+    warning: 1

@@ -40,9 +40,9 @@ final class URLSessionScheduler: URLSessionScheduling {
         var data: Data?
         var error: Error?
         let semaphore = DispatchSemaphore(value: 0)
-        session.dataTask(with: request) { _data, _, _error in
-            data = _data
-            error = _error
+        session.dataTask(with: request) { sessionData, _, sessionError in
+            data = sessionData
+            error = sessionError
             semaphore.signal()
         }.resume()
         _ = semaphore.wait(timeout: .now() + 3)

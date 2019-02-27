@@ -167,6 +167,7 @@ class InitCommand: NSObject, Command {
                                           product: .unitTests)
     }
 
+    // swiftlint:disable:next function_body_length
     fileprivate func generateGitIgnore(path: AbsolutePath) throws {
         let path = path.appending(component: ".gitignore")
         let content = """
@@ -237,6 +238,7 @@ class InitCommand: NSObject, Command {
         try content.write(to: path.url, atomically: true, encoding: .utf8)
     }
 
+    // swiftlint:disable:next function_body_length
     fileprivate func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
         let path = path.appending(component: "Sources")
 
