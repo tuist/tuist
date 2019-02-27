@@ -7,7 +7,6 @@ struct GraphCircularDetectorNode: Hashable {
 }
 
 protocol GraphCircularDetecting: AnyObject {
-    // swiftlint:disable:next identifier_name
     func start(from: GraphCircularDetectorNode, to: GraphCircularDetectorNode) throws
     func complete(_ node: GraphCircularDetectorNode)
 }
@@ -19,7 +18,6 @@ final class GraphCircularDetector: GraphCircularDetecting {
 
     // MARK: - Internal
 
-    // swiftlint:disable:next identifier_name
     func start(from: GraphCircularDetectorNode, to: GraphCircularDetectorNode) throws {
         if edges[to] != nil {
             throw GraphLoadingError.circularDependency(from, to)

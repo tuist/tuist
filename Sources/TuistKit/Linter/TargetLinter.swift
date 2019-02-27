@@ -76,8 +76,14 @@ class TargetLinter: TargetLinting {
         let infoPlists = files.filter({ $0.asString.contains("Info.plist") })
         let entitlements = files.filter({ $0.asString.contains(".entitlements") })
 
-        issues.append(contentsOf: infoPlists.map({ LintingIssue(reason: "Info.plist at path \($0.asString) being copied into the target \(target.name) product.", severity: .warning) }))
-        issues.append(contentsOf: entitlements.map({ LintingIssue(reason: "Entitlements file at path \($0.asString) being copied into the target \(target.name) product.", severity: .warning) }))
+        issues.append(contentsOf: infoPlists.map({
+            let reason = "Info.plist at path \($0.asString) being copied into the target \(target.name) product."
+            return LintingIssue(reason: reason, severity: .warning)
+        }))
+        issues.append(contentsOf: entitlements.map({
+            let reason = "Entitlements file at path \($0.asString) being copied into the target \(target.name) product."
+            return LintingIssue(reason: reason, severity: .warning)
+        }))
 
         issues.append(contentsOf: lintInfoplistExists(target: target))
         issues.append(contentsOf: lintEntitlementsExist(target: target))

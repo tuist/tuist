@@ -40,7 +40,6 @@ enum GraphLoadingError: FatalError, Equatable {
             return "Couldn't find file at path '\(path.asString)'"
         case let .unexpected(message):
             return message
-        // swiftlint:disable:next identifier_name
         case let .circularDependency(from, to):
             var message = ""
             message.append("Found circular dependency between the target")

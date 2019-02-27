@@ -1,0 +1,28 @@
+included:
+  - Sources
+excluded:
+  - Assets
+  - Fixtures
+  - Tests
+  - .build
+disabled_rules:
+  - trailing_whitespace
+  - trailing_comma
+  - nesting
+  - cyclomatic_complexity
+  - file_length
+  - todo
+  - function_parameter_count
+line_length:
+  ignores_interpolated_strings: true
+  ignores_comments: true
+  warning: 150
+  error: 170
+identifier_name:
+  min_length:
+    error: 1
+    warning: 1
+type_name:
+  min_length:
+    error: 1
+    warning: 1

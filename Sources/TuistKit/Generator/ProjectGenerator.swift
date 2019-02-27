@@ -85,13 +85,39 @@ final class ProjectGenerator: ProjectGenerating {
                                           pbxproj: pbxproj,
                                           sourceRootPath: sourceRootPath)
 
-        // Configuration list
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
                                                                           fileElements: fileElements,
                                                                           options: options)
 
-        /// Generate project object.
+        let pbxProject = try generatePbxproject(project: project,
+                                                configurationList: configurationList,
+                                                groups: groups,
+                                                pbxproj: pbxproj)
+
+        let nativeTargets = try generateTargets(project: project,
+                                                pbxproj: pbxproj,
+                                                pbxProject: pbxProject,
+                                                groups: groups,
+                                                fileElements: fileElements,
+                                                sourceRootPath: sourceRootPath,
+                                                options: options,
+                                                graph: graph)
+
+        return try write(xcodeprojPath: xcodeprojPath,
+                         nativeTargets: nativeTargets,
+                         workspace: workspace,
+                         pbxproj: pbxproj,
+                         project: project,
+                         graph: graph)
+    }
+
+    // MARK: - Fileprivate
+
+    fileprivate func generatePbxproject(project: Project,
+                                        configurationList: XCConfigurationList,
+                                        groups: ProjectGroups,
+                                        pbxproj: PBXProj) throws -> PBXProject {
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
@@ -106,8 +132,17 @@ final class ProjectGenerator: ProjectGenerating {
                                     targets: [])
         pbxproj.add(object: pbxProject)
         pbxproj.rootObject = pbxProject
+        return pbxProject
+    }
 
-        /// Manifests target
+    fileprivate func generateTargets(project: Project,
+                                     pbxproj: PBXProj,
+                                     pbxProject: PBXProject,
+                                     groups: ProjectGroups,
+                                     fileElements: ProjectFileElements,
+                                     sourceRootPath: AbsolutePath,
+                                     options: GenerationOptions,
+                                     graph: Graphing) throws -> [String: PBXNativeTarget] {
         try targetGenerator.generateManifestsTarget(project: project,
                                                     pbxproj: pbxproj,
                                                     pbxProject: pbxProject,
@@ -116,7 +151,6 @@ final class ProjectGenerator: ProjectGenerating {
                                                     options: options,
                                                     resourceLocator: resourceLocator)
 
-        /// Native targets
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -138,20 +172,42 @@ final class ProjectGenerator: ProjectGenerating {
                                                        targets: project.targets,
                                                        nativeTargets: nativeTargets,
                                                        graph: graph)
+        return nativeTargets
+    }
 
-        /// Write.
-        let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        try xcodeproj.write(path: xcodeprojPath.path)
-
-        /// Schemes
+    fileprivate func write(xcodeprojPath: AbsolutePath,
+                           nativeTargets: [String: PBXNativeTarget],
+                           workspace: XCWorkspace,
+                           pbxproj: PBXProj,
+                           project: Project,
+                           graph: Graphing) throws -> GeneratedProject {
         let generatedProject = GeneratedProject(path: xcodeprojPath,
                                                 targets: nativeTargets)
+
+        try writeXcodeproj(workspace: workspace,
+                           pbxproj: pbxproj,
+                           xcodeprojPath: xcodeprojPath)
+        try writeSchemes(project: project,
+                         generatedProject: generatedProject,
+                         graph: graph)
+
+        return generatedProject
+    }
+
+    fileprivate func writeXcodeproj(workspace: XCWorkspace,
+                                    pbxproj: PBXProj,
+                                    xcodeprojPath: AbsolutePath) throws {
+        let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
+        try xcodeproj.write(path: xcodeprojPath.path)
+    }
+
+    fileprivate func writeSchemes(project: Project,
+                                  generatedProject: GeneratedProject,
+                                  graph: Graphing) throws {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
         try schemesGenerator.generateProjectScheme(project: project,
                                                    generatedProject: generatedProject,
                                                    graph: graph)
-
-        return generatedProject
     }
 }

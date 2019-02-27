@@ -69,6 +69,7 @@ extension TuistKit.Project {
 }
 
 extension TuistKit.Target {
+    // swiftlint:disable:next function_body_length
     static func from(json: JSON, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Target {
         let name: String = try json.get("name")
         let platformString: String = try json.get("platform")
