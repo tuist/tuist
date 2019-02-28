@@ -89,7 +89,10 @@ class GraphManifestLoader: GraphManifestLoading {
 
     /// Depreactor to notify about deprecations.
     let deprecator: Deprecating
-
+    
+    /// A decoder instance for decoding the raw manifest data to their concrete types
+    private let decoder: JSONDecoder
+    
     // MARK: - Init
 
     /// Initializes the manifest loader with its attributes.
@@ -107,6 +110,7 @@ class GraphManifestLoader: GraphManifestLoading {
         self.system = system
         self.resourceLocator = resourceLocator
         self.deprecator = deprecator
+        self.decoder = JSONDecoder()
     }
 
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
@@ -156,7 +160,7 @@ class GraphManifestLoader: GraphManifestLoading {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
         }
         let data = try loadManifestData(at: manifestPath)
-        return try JSONDecoder().decode(T.self, from: data)
+        return try decoder.decode(T.self, from: data)
     }
     
     private func loadManifestData(at path: AbsolutePath) throws -> Data {

@@ -1,7 +1,3 @@
-//
-// Created by kwridan on 2/23/19. 
-//
-
 import Foundation
 import Basic
 
