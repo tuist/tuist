@@ -1,12 +1,12 @@
 import Basic
 import Foundation
-@testable import TuistKit
 import ProjectDescription
+@testable import TuistKit
 
 final class MockGraphManifestLoader: GraphManifestLoading {
     var loadProjectCount: UInt = 0
     var loadProjectStub: ((AbsolutePath) throws -> ProjectDescription.Project)?
-    
+
     var loadWorkspaceCount: UInt = 0
     var loadWorkspaceStub: ((AbsolutePath) throws -> ProjectDescription.Workspace)?
 
@@ -22,7 +22,7 @@ final class MockGraphManifestLoader: GraphManifestLoading {
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
         return try loadProjectStub?(path) ?? ProjectDescription.Project.test()
     }
-    
+
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
         return try loadWorkspaceStub?(path) ?? ProjectDescription.Workspace.test()
     }

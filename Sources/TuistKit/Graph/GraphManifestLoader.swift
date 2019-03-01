@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import ProjectDescription
+import TuistCore
 
 enum GraphManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
@@ -89,10 +89,10 @@ class GraphManifestLoader: GraphManifestLoading {
 
     /// Depreactor to notify about deprecations.
     let deprecator: Deprecating
-    
+
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
-    
+
     // MARK: - Init
 
     /// Initializes the manifest loader with its attributes.
@@ -110,7 +110,7 @@ class GraphManifestLoader: GraphManifestLoading {
         self.system = system
         self.resourceLocator = resourceLocator
         self.deprecator = deprecator
-        self.decoder = JSONDecoder()
+        decoder = JSONDecoder()
     }
 
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
@@ -132,11 +132,11 @@ class GraphManifestLoader: GraphManifestLoading {
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
         return try loadManifest(.project, at: path)
     }
-    
+
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
         return try loadManifest(.workspace, at: path)
     }
-    
+
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
         let setupPath = path.appending(component: Manifest.setup.fileName)
         guard fileHandler.exists(setupPath) else {
@@ -162,7 +162,7 @@ class GraphManifestLoader: GraphManifestLoading {
         let data = try loadManifestData(at: manifestPath)
         return try decoder.decode(T.self, from: data)
     }
-    
+
     private func loadManifestData(at path: AbsolutePath) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         var arguments: [String] = [
@@ -182,7 +182,7 @@ class GraphManifestLoader: GraphManifestLoading {
             let data = jsonString.data(using: .utf8) else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
-        
+
         return data
     }
 }

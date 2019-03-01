@@ -46,39 +46,39 @@ final class GraphManifestLoaderTests: XCTestCase {
         import ProjectDescription
         let project = Project(name: "tuist")
         """
-        
+
         let manifestPath = fileHandler.currentPath.appending(component: Manifest.project.fileName)
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
-        
+
         // When
         let got = try subject.loadProject(at: fileHandler.currentPath)
-        
+
         // Then
-        
+
         XCTAssertEqual(got.name, "tuist")
     }
-    
+
     func test_loadWorkspace() throws {
         // Given
         let content = """
         import ProjectDescription
         let workspace = Workspace(name: "tuist", projects: [])
         """
-        
+
         let manifestPath = fileHandler.currentPath.appending(component: Manifest.workspace.fileName)
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
-        
+
         // When
         let got = try subject.loadWorkspace(at: fileHandler.currentPath)
-        
+
         // Then
         XCTAssertEqual(got.name, "tuist")
     }
-    
+
     func test_loadSetup() throws {
         // Given
         let content = """
@@ -87,15 +87,15 @@ final class GraphManifestLoaderTests: XCTestCase {
                         .custom(name: "hello", meet: ["a", "b"], isMet: ["c"])
                     ])
         """
-        
+
         let manifestPath = fileHandler.currentPath.appending(component: Manifest.setup.fileName)
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
-        
+
         // When
         let got = try subject.loadSetup(at: fileHandler.currentPath)
-        
+
         // Then
         let customUp = got.first as? UpCustom
         XCTAssertEqual(got.count, 1)
@@ -103,25 +103,25 @@ final class GraphManifestLoaderTests: XCTestCase {
         XCTAssertEqual(customUp?.meet, ["a", "b"])
         XCTAssertEqual(customUp?.isMet, ["c"])
     }
-    
+
     func test_load_invalidFormat() throws {
         // Given
         let content = """
         import ABC
         let project
         """
-        
+
         let manifestPath = fileHandler.currentPath.appending(component: Manifest.project.fileName)
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
-        
+
         // When / Then
         XCTAssertThrowsError(
             try subject.loadProject(at: fileHandler.currentPath)
         )
     }
-    
+
     func test_load_missingManifest() throws {
         XCTAssertThrowsError(
             try subject.loadProject(at: fileHandler.currentPath)
@@ -136,7 +136,7 @@ final class GraphManifestLoaderTests: XCTestCase {
             fileHandler.currentPath.appending(component: $0.fileName)
         }
         try manifestsPaths.forEach { try fileHandler.touch($0) }
-        
+
         // When
         let got = try Manifest.allCases.map {
             try subject.manifestPath(at: fileHandler.currentPath, manifest: $0)
@@ -151,7 +151,7 @@ final class GraphManifestLoaderTests: XCTestCase {
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Workspace.swift"))
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Setup.swift"))
-        
+
         // When
         let got = subject.manifests(at: fileHandler.currentPath)
 

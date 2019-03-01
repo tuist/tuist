@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+import ProjectDescription
 import TuistCore
 import TuistGenerator
-import ProjectDescription
 
 enum GeneratorModelLoaderError: Error, Equatable, FatalError {
     case featureNotYetSupported(String)
@@ -15,7 +15,7 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
 
     var description: String {
         switch self {
-        case .featureNotYetSupported(let details):
+        case let .featureNotYetSupported(details):
             return "\(details) is not yet supported"
         }
     }
@@ -58,7 +58,7 @@ extension TuistKit.Project {
         let name = manifest.name
         let settings = manifest.settings.map { TuistKit.Settings.from(manifest: $0, path: path) }
         let targets = try manifest.targets.map { try TuistKit.Target.from(manifest: $0, path: path, fileHandler: fileHandler) }
-        
+
         return Project(path: path,
                        name: name,
                        settings: settings,
@@ -71,10 +71,10 @@ extension TuistKit.Target {
         let name = manifest.name
         let platform = try TuistKit.Platform.from(manifest: manifest.platform)
         let product = TuistKit.Product.from(manifest: manifest.product)
-        
+
         let bundleId = manifest.bundleId
         let dependencies = manifest.dependencies.map { TuistKit.Dependency.from(manifest: $0) }
-    
+
         let infoPlist = path.appending(RelativePath(manifest.infoPlist))
         let entitlements = manifest.entitlements.map { path.appending(RelativePath($0)) }
 
@@ -84,12 +84,12 @@ extension TuistKit.Target {
         let resources = try manifest.resources.map {
             try TuistKit.Target.resources(projectPath: path, resources: $0, fileHandler: fileHandler) } ?? []
         let headers = manifest.headers.map { TuistKit.Headers.from(manifest: $0, path: path, fileHandler: fileHandler) }
-        
+
         let coreDataModels = try manifest.coreDataModels.map { try TuistKit.CoreDataModel.from(manifest: $0, path: path, fileHandler: fileHandler) }
-        
+
         let actions = manifest.actions.map { TuistKit.TargetAction.from(manifest: $0, path: path) }
         let environment = manifest.environment
-        
+
         return Target(name: name,
                       platform: platform,
                       product: product,
@@ -152,7 +152,7 @@ extension TuistKit.CoreDataModel {
         if !fileHandler.exists(modelPath) {
             throw GraphLoadingError.missingFile(modelPath)
         }
-        let versions = modelPath.glob("*.xcdatamodel")
+        let versions = fileHandler.glob(modelPath, glob: "*.xcdatamodel")
         let currentVersion = manifest.currentVersion
         return CoreDataModel(path: modelPath, versions: versions, currentVersion: currentVersion)
     }
@@ -160,9 +160,9 @@ extension TuistKit.CoreDataModel {
 
 extension TuistKit.Headers {
     static func from(manifest: ProjectDescription.Headers, path: AbsolutePath, fileHandler: FileHandling) -> TuistKit.Headers {
-        let `public` = manifest.public.map { path.glob($0) } ?? []
-        let `private` = manifest.private.map { path.glob($0) } ?? []
-        let project = manifest.project.map { path.glob($0) } ?? []
+        let `public` = manifest.public.map { fileHandler.glob(path, glob: $0) } ?? []
+        let `private` = manifest.private.map { fileHandler.glob(path, glob: $0) } ?? []
+        let project = manifest.project.map { fileHandler.glob(path, glob: $0) } ?? []
         return Headers(public: `public`, private: `private`, project: project)
     }
 }
@@ -170,13 +170,13 @@ extension TuistKit.Headers {
 extension TuistKit.Dependency {
     static func from(manifest: ProjectDescription.TargetDependency) -> TuistKit.Dependency {
         switch manifest {
-        case .target(let name):
+        case let .target(name):
             return .target(name: name)
-        case .project(let target, let projectPath):
+        case let .project(target, projectPath):
             return .project(target: target, path: RelativePath(projectPath))
-        case .framework(let frameworkPath):
+        case let .framework(frameworkPath):
             return .framework(path: RelativePath(frameworkPath))
-        case .library(let libraryPath, let publicHeaders, let swiftModuleMap):
+        case let .library(libraryPath, publicHeaders, swiftModuleMap):
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
@@ -191,7 +191,7 @@ extension TuistKit.Scheme {
         let buildAction = manifest.buildAction.map { TuistKit.BuildAction.from(manifest: $0) }
         let testAction = manifest.testAction.map { TuistKit.TestAction.from(manifest: $0) }
         let runAction = manifest.runAction.map { TuistKit.RunAction.from(manifest: $0) }
-        
+
         return Scheme(name: name,
                       shared: shared,
                       buildAction: buildAction,
@@ -224,7 +224,7 @@ extension TuistKit.RunAction {
         let config = BuildConfiguration.from(manifest: manifest.config)
         let executable = manifest.executable
         let arguments = manifest.arguments.map { TuistKit.Arguments.from(manifest: $0) }
-        
+
         return RunAction(config: config,
                          executable: executable,
                          arguments: arguments)
@@ -239,7 +239,7 @@ extension TuistKit.Arguments {
 }
 
 extension TuistKit.BuildConfiguration {
-    static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistKit.BuildConfiguration  {
+    static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistKit.BuildConfiguration {
         switch manifest {
         case .debug:
             return .debug
@@ -250,7 +250,7 @@ extension TuistKit.BuildConfiguration {
 }
 
 extension TuistKit.Product {
-    static func from(manifest: ProjectDescription.Product) -> TuistKit.Product  {
+    static func from(manifest: ProjectDescription.Product) -> TuistKit.Product {
         switch manifest {
         case .app:
             return .app
@@ -271,7 +271,7 @@ extension TuistKit.Product {
 }
 
 extension TuistKit.Platform {
-    static func from(manifest: ProjectDescription.Platform) throws -> TuistKit.Platform  {
+    static func from(manifest: ProjectDescription.Platform) throws -> TuistKit.Platform {
         switch manifest {
         case .macOS:
             return .macOS

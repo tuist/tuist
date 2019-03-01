@@ -103,7 +103,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
         ]
-        
+
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader)
@@ -124,7 +124,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // When
         let model = TuistKit.Settings.from(manifest: manifest, path: path)
-        
+
         // Then
         assert(settings: model, matches: manifest, at: path)
     }
@@ -147,7 +147,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // When
         let model = TuistKit.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
-        
+
         // Then
         XCTAssertEqual(model.public, [
             publicPath.appending(component: "a.h"),
@@ -169,7 +169,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // When
         let model = try TuistKit.CoreDataModel.from(manifest: manifest, path: path, fileHandler: fileHandler)
-        
+
         // Then
         XCTAssertTrue(coreDataModel(model, matches: manifest, at: path))
     }
@@ -183,7 +183,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                             arguments: ["arg1", "arg2"])
         // When
         let model = TuistKit.TargetAction.from(manifest: manifest, path: path)
-        
+
         // Then
         XCTAssertEqual(model.name, "MyScript")
         XCTAssertEqual(model.tool, "my_tool")
@@ -191,14 +191,14 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(model.arguments, ["arg1", "arg2"])
     }
-    
+
     func test_scheme_withoutActions() throws {
         // Given
         let manifest = SchemeManifest.test(name: "Scheme",
                                            shared: false)
         // When
         let model = TuistKit.Scheme.from(manifest: manifest)
-        
+
         // Then
         assert(scheme: model, matches: manifest)
     }
@@ -223,29 +223,29 @@ class GeneratorModelLoaderTest: XCTestCase {
                                            runAction: runActions)
         // When
         let model = TuistKit.Scheme.from(manifest: manifest)
-        
+
         // Then
         assert(scheme: model, matches: manifest)
     }
-    
+
     func test_platform_watchOSNotSupported() {
         XCTAssertThrowsError(
             try TuistKit.Platform.from(manifest: .watchOS)
         ) { error in
-            XCTAssertEqual(error as? GeneratorModelLoaderError, GeneratorModelLoaderError.featureNotYetSupported("watchOS platform") )
+            XCTAssertEqual(error as? GeneratorModelLoaderError, GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
         }
     }
-    
+
     func test_generatorModelLoaderError_type() {
         XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("").type, .abort)
     }
-    
+
     func test_generatorModelLoaderError_description() {
         XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("abc").description, "abc is not yet supported")
     }
-    
+
     // MARK: - Helpers
-    
+
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project]) -> GraphManifestLoading {
         let manifestLoader = MockGraphManifestLoader()
         manifestLoader.loadProjectStub = { path in
@@ -256,7 +256,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
         return manifestLoader
     }
-    
+
     func createManifestLoader(with workspaces: [AbsolutePath: ProjectDescription.Workspace]) -> GraphManifestLoading {
         let manifestLoader = MockGraphManifestLoader()
         manifestLoader.loadWorkspaceStub = { path in
@@ -407,7 +407,7 @@ private func == (_ lhs: TuistKit.Platform,
     let map: [TuistKit.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
-        .tvOS: .tvOS
+        .tvOS: .tvOS,
     ]
     return map[lhs] != nil
 }

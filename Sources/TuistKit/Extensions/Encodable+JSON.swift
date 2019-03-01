@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 
 extension Encodable {
     func toJSON() throws -> JSON {
