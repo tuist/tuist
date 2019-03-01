@@ -15,6 +15,14 @@ public final class MockFileHandler: FileHandling {
         fileHandler = FileHandler()
     }
 
+    public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
+        try fileHandler.replace(to, with: with)
+    }
+
+    public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
+        try fileHandler.inTemporaryDirectory(closure)
+    }
+
     public func exists(_ path: AbsolutePath) -> Bool {
         return fileHandler.exists(path)
     }

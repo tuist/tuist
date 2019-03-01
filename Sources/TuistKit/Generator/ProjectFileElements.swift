@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
 
 // swiftlint:disable:next type_body_length
@@ -31,7 +32,8 @@ class ProjectFileElements {
                               graph: Graphing,
                               groups: ProjectGroups,
                               pbxproj: PBXProj,
-                              sourceRootPath: AbsolutePath) {
+                              sourceRootPath: AbsolutePath,
+                              fileHandler: FileHandling) {
         var files = Set<AbsolutePath>()
         var products = Set<String>()
         project.targets.forEach { target in
@@ -41,7 +43,7 @@ class ProjectFileElements {
         files.formUnion(projectFiles(project: project))
 
         /// Files
-        generate(files: files.sorted(by: AbsolutePath.xcodeSortener()),
+        generate(files: files.sorted(by: AbsolutePath.xcodeSortener(fileHandler: fileHandler)),
                  groups: groups,
                  pbxproj: pbxproj,
                  sourceRootPath: sourceRootPath)

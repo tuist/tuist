@@ -90,15 +90,43 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             workspace.data.children.append(workspaceFileElement(path: relativePath))
         }
 
-        try workspace.write(path: workspacePath.path, override: true)
+        try write(xcworkspace: workspace, to: workspacePath)
 
         return workspacePath
+    }
+
+    fileprivate func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
+        // If the workspace doesn't exist we can write it because there isn't any
+        // Xcode instance that might depend on it.
+        if !fileHandler.exists(to) {
+            try xcworkspace.write(path: to.path)
+            return
+        }
+
+        // If the workspace exists, we want to reduce the likeliness of causing
+        // Xcode not to be able to reload the workspace.
+        // We only replace the current one if something has changed.
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            try xcworkspace.write(path: temporaryPath.path)
+
+            let workspaceData: (AbsolutePath) throws -> Data = {
+                let dataPath = $0.appending(component: "contents.xcworkspacedata")
+                return try Data(contentsOf: dataPath.url)
+            }
+
+            let currentData = try workspaceData(to)
+            let currentWorkspaceData = try workspaceData(temporaryPath)
+
+            if currentData != currentWorkspaceData {
+                try fileHandler.replace(to, with: temporaryPath)
+            }
+        }
     }
 
     /// Create a XCWorkspaceDataElement.file from a path string.
     ///
     /// - Parameter path: The relative path to the file
-    private func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
+    fileprivate func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
         let location = XCWorkspaceDataElementLocationType.group(path.asString)
         let fileRef = XCWorkspaceDataFileRef(location: location)
         return .file(fileRef)

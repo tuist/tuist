@@ -31,6 +31,9 @@ final class ProjectGenerator: ProjectGenerating {
     /// Instance to find Tuist resources.
     let resourceLocator: ResourceLocating
 
+    /// File handler instance to interact with the system files.
+    let fileHandler: FileHandling
+
     // MARK: - Init
 
     /// Initializes the project generator with its attributes.
@@ -42,18 +45,21 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - printer: Printer instance to output messages to the user.
     ///   - system: System instance to run commands in the system.
     ///   - resourceLocator: Instance to find Tuist resources.
+    ///   - fileHandler: File handler instance to interact with the system files.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
          schemesGenerator: SchemesGenerating = SchemesGenerator(),
          printer: Printing = Printer(),
          system: Systeming = System(),
-         resourceLocator: ResourceLocating = ResourceLocator()) {
+         resourceLocator: ResourceLocating = ResourceLocator(),
+         fileHandler: FileHandling = FileHandler()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
         self.printer = printer
         self.system = system
         self.resourceLocator = resourceLocator
+        self.fileHandler = fileHandler
     }
 
     // MARK: - ProjectGenerating
@@ -83,7 +89,8 @@ final class ProjectGenerator: ProjectGenerating {
                                           graph: graph,
                                           groups: groups,
                                           pbxproj: pbxproj,
-                                          sourceRootPath: sourceRootPath)
+                                          sourceRootPath: sourceRootPath,
+                                          fileHandler: fileHandler)
 
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
@@ -184,12 +191,15 @@ final class ProjectGenerator: ProjectGenerating {
         let generatedProject = GeneratedProject(path: xcodeprojPath,
                                                 targets: nativeTargets)
 
-        try writeXcodeproj(workspace: workspace,
-                           pbxproj: pbxproj,
-                           xcodeprojPath: xcodeprojPath)
-        try writeSchemes(project: project,
-                         generatedProject: generatedProject,
-                         graph: graph)
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            try writeXcodeproj(workspace: workspace,
+                               pbxproj: pbxproj,
+                               xcodeprojPath: temporaryPath)
+            try writeSchemes(project: project,
+                             generatedProject: generatedProject,
+                             graph: graph)
+            try fileHandler.replace(xcodeprojPath, with: temporaryPath)
+        }
 
         return generatedProject
     }
