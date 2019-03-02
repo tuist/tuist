@@ -60,17 +60,8 @@
         "repositoryURL": "https://github.com/tuist/xcodeproj.git",
         "state": {
           "branch": null,
-          "revision": "23da51abd3de3bedaad59a0afbb150b48504b5b0",
-          "version": "6.3.0"
-        }
-      },
-      {
-        "package": "Yams",
-        "repositoryURL": "https://github.com/jpsim/Yams.git",
-        "state": {
-          "branch": null,
-          "revision": "26ab35f50ea891e8edefcc9d975db2f6b67e1d68",
-          "version": "1.0.1"
+          "revision": "3fe1bd763072c81050b867d34db56d11cb9085bb",
+          "version": "6.6.0"
         }
       }
     ]
