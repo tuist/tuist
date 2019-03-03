@@ -19,7 +19,11 @@ final class ProjectGroupsTests: XCTestCase {
         project = Project(path: path,
                           name: "Project",
                           settings: nil,
-                          targets: [])
+                          projectStructure: ProjectStructure(filesGroup: "Project"),
+                          targets: [
+                              .test(projectStructure: ProjectStructure(filesGroup: "Target")),
+                              .test(),
+        ])
         pbxproj = PBXProj()
     }
 
@@ -31,16 +35,23 @@ final class ProjectGroupsTests: XCTestCase {
                 return []
             }
         }
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+        subject = ProjectGroups.generate(project: project,
+                                         pbxproj: pbxproj,
+                                         sourceRootPath: sourceRootPath,
+                                         playgrounds: playgrounds)
 
         let main = subject.main
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
+        XCTAssertEqual(main.children.count, 6)
 
-        XCTAssertTrue(main.children.contains(subject.project))
-        XCTAssertEqual(subject.project.name, "Project")
-        XCTAssertNil(subject.project.path)
-        XCTAssertEqual(subject.project.sourceTree, .group)
+        XCTAssertNotNil(main.group(named: "Project"))
+        XCTAssertNil(main.group(named: "Project")?.path)
+        XCTAssertEqual(main.group(named: "Project")?.sourceTree, .group)
+
+        XCTAssertNotNil(main.group(named: "Target"))
+        XCTAssertNil(main.group(named: "Target")?.path)
+        XCTAssertEqual(main.group(named: "Target")?.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.projectManifest))
         XCTAssertEqual(subject.projectManifest.name, "Manifest")
@@ -80,5 +91,38 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(got.name, "Test")
         XCTAssertEqual(got.sourceTree, .group)
         XCTAssertTrue(subject.frameworks.children.contains(got))
+    }
+
+    func test_unknownProjectGroups() throws {
+        // Given
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+
+        // When / Then
+        XCTAssertThrowsError(try subject.projectGroup(named: "abc")) { error in
+            XCTAssertEqual(error as? ProjectGroupsError, ProjectGroupsError.missingGroup("abc"))
+        }
+    }
+
+    func test_knownProjectGroups() throws {
+        // Given
+        let target1 = Target.test(projectStructure: ProjectStructure(filesGroup: "A"))
+        let target2 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
+        let target3 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
+        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"), targets: [target1, target2, target3])
+
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+
+        // When / Then
+        XCTAssertNotNil(try? subject.projectGroup(named: "A"))
+        XCTAssertNotNil(try? subject.projectGroup(named: "B"))
+        XCTAssertNotNil(try? subject.projectGroup(named: "P"))
+    }
+
+    func test_projectGroupsError_description() {
+        XCTAssertEqual(ProjectGroupsError.missingGroup("abc").description, "Couldn't find group: abc")
+    }
+
+    func test_projectGroupsError_type() {
+        XCTAssertEqual(ProjectGroupsError.missingGroup("abc").type, .bug)
     }
 }

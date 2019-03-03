@@ -16,6 +16,7 @@ extension Target {
                      headers: Headers? = nil,
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
+                     projectStructure: ProjectStructure = .default,
                      dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
                       platform: platform,
@@ -30,6 +31,7 @@ extension Target {
                       coreDataModels: coreDataModels,
                       actions: actions,
                       environment: environment,
+                      projectStructure: projectStructure,
                       dependencies: dependencies)
     }
 }

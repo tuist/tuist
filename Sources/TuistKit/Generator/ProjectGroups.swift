@@ -1,6 +1,25 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
+
+enum ProjectGroupsError: Error, FatalError, Equatable {
+    case missingGroup(String)
+
+    var description: String {
+        switch self {
+        case let .missingGroup(group):
+            return "Couldn't find group: \(group)"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .missingGroup:
+            return .bug
+        }
+    }
+}
 
 class ProjectGroups {
     // MARK: - Attributes
@@ -8,7 +27,6 @@ class ProjectGroups {
     let main: PBXGroup
     let products: PBXGroup
     let projectManifest: PBXGroup
-    let project: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup?
     let pbxproj: PBXProj
@@ -19,14 +37,12 @@ class ProjectGroups {
          products: PBXGroup,
          projectManifest: PBXGroup,
          frameworks: PBXGroup,
-         project: PBXGroup,
          playgrounds: PBXGroup?,
          pbxproj: PBXProj) {
         self.main = main
         self.products = products
         self.projectManifest = projectManifest
         self.frameworks = frameworks
-        self.project = project
         self.playgrounds = playgrounds
         self.pbxproj = pbxproj
     }
@@ -37,6 +53,13 @@ class ProjectGroups {
         } else {
             return try frameworks.addGroup(named: target, options: .withoutFolder).last!
         }
+    }
+
+    func projectGroup(named name: String) throws -> PBXGroup {
+        guard let group = main.group(named: name) else {
+            throw ProjectGroupsError.missingGroup(name)
+        }
+        return group
     }
 
     static func generate(project: Project,
@@ -50,10 +73,15 @@ class ProjectGroups {
                                  path: (projectRelativePath != ".") ? projectRelativePath : nil)
         pbxproj.add(object: mainGroup)
 
-        /// Project
-        let projectGroup = PBXGroup(children: [], sourceTree: .group, name: "Project")
-        pbxproj.add(object: projectGroup)
-        mainGroup.children.append(projectGroup)
+        /// Project & Target Groups
+        let targetGroups = project.targets.map { $0.projectStructure.filesGroup }
+        let projectGroups = [project.projectStructure.filesGroup] + targetGroups
+        let groupsToCreate = OrderedSet(projectGroups.compactMap { $0 })
+        groupsToCreate.forEach {
+            let projectGroup = PBXGroup(children: [], sourceTree: .group, name: $0)
+            pbxproj.add(object: projectGroup)
+            mainGroup.children.append(projectGroup)
+        }
 
         /// ProjectDescription
         let projectManifestGroup = PBXGroup(children: [], sourceTree: .group, name: "Manifest")
@@ -82,7 +110,6 @@ class ProjectGroups {
                              products: productsGroup,
                              projectManifest: projectManifestGroup,
                              frameworks: frameworksGroup,
-                             project: projectGroup,
                              playgrounds: playgroundsGroup,
                              pbxproj: pbxproj)
     }

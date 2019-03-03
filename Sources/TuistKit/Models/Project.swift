@@ -17,6 +17,9 @@ class Project: Equatable, CustomStringConvertible {
     /// Project settings.
     let settings: Settings?
 
+    /// Project Structure
+    let projectStructure: ProjectStructure
+
     // MARK: - Init
 
     /// Initializes the project with its attributes.
@@ -28,11 +31,13 @@ class Project: Equatable, CustomStringConvertible {
     init(path: AbsolutePath,
          name: String,
          settings: Settings? = nil,
+         projectStructure: ProjectStructure = .default,
          targets: [Target]) {
         self.path = path
         self.name = name
         self.targets = targets
         self.settings = settings
+        self.projectStructure = projectStructure
     }
 
     // MARK: - Init

@@ -85,7 +85,7 @@ final class ProjectGenerator: ProjectGenerating {
                               classes: [:])
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
-        fileElements.generateProjectFiles(project: project,
+        try fileElements.generateProjectFiles(project: project,
                                           graph: graph,
                                           groups: groups,
                                           pbxproj: pbxproj,

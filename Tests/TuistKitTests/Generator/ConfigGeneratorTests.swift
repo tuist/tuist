@@ -140,7 +140,7 @@ final class ConfigGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: dir.path)
         let graph = Graph.test()
-        fileElements.generateProjectFiles(project: project,
+        try fileElements.generateProjectFiles(project: project,
                                           graph: graph,
                                           groups: groups,
                                           pbxproj: pbxproj,
