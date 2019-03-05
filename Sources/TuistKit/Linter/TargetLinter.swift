@@ -49,17 +49,9 @@ class TargetLinter: TargetLinting {
     fileprivate func lintBundleIdentifier(target: Target) -> [LintingIssue] {
         var bundleIdentifier = target.bundleId
 
-        let varRegex = try! NSRegularExpression(pattern: "\\$\\{.+\\}", options: [])
-        var match = varRegex.firstMatch(in: bundleIdentifier,
-                                        options: [],
-                                        range: NSRange(location: 0, length: bundleIdentifier.count))
-        while match != nil {
-            bundleIdentifier = (bundleIdentifier as NSString).replacingCharacters(in: match!.range(at: 0),
-                                                                                  with: "") as String
-            match = varRegex.firstMatch(in: bundleIdentifier,
-                                        options: [],
-                                        range: NSRange(location: 0, length: bundleIdentifier.count))
-        }
+        // Remove any interpolated variables
+        bundleIdentifier = bundleIdentifier.replacingOccurrences(of: "\\$\\{.+\\}", with: "", options: .regularExpression)
+        bundleIdentifier = bundleIdentifier.replacingOccurrences(of: "\\$\\(.+\\)", with: "", options: .regularExpression)
 
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
         allowed.formUnion(CharacterSet(charactersIn: "-."))
