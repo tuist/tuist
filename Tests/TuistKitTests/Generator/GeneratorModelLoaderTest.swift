@@ -100,7 +100,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     func test_loadWorkspace_withProjects() throws {
         // Given
         let path = AbsolutePath("/root/")
-        let manifests: [AbsolutePath: Encodable] = [
+        let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
         ]
 
@@ -123,7 +123,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifest = SettingsManifest(base: ["base": "base"], debug: debug, release: release)
 
         // When
-        let model = try TuistKit.Settings.from(json: manifest.toJSON(), path: path, fileHandler: fileHandler)
+        let model = TuistKit.Settings.from(manifest: manifest, path: path)
 
         // Then
         assert(settings: model, matches: manifest, at: path)
@@ -146,7 +146,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifest = HeadersManifest(public: "public/*.h", private: "private/*.h", project: "project/*.h")
 
         // When
-        let model = try TuistKit.Headers.from(json: manifest.toJSON(), path: path, fileHandler: fileHandler)
+        let model = TuistKit.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -168,7 +168,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistKit.CoreDataModel.from(json: manifest.toJSON(), path: path, fileHandler: fileHandler)
+        let model = try TuistKit.CoreDataModel.from(manifest: manifest, path: path, fileHandler: fileHandler)
 
         // Then
         XCTAssertTrue(coreDataModel(model, matches: manifest, at: path))
@@ -182,7 +182,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                             order: .pre,
                                                             arguments: ["arg1", "arg2"])
         // When
-        let model = try TuistKit.TargetAction.from(json: manifest.toJSON(), path: path, fileHandler: fileHandler)
+        let model = TuistKit.TargetAction.from(manifest: manifest, path: path)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -192,67 +192,12 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.arguments, ["arg1", "arg2"])
     }
 
-    func test_target_invalidProduct() throws {
-        // Given
-        let malformedManifest = [
-            "name": "malformed",
-            "product": "<invalid>",
-            "platform": "ios",
-        ]
-        // When / Then
-        XCTAssertThrowsError(
-            try TuistKit.Target.from(json: malformedManifest.toJSON(), path: path, fileHandler: fileHandler)
-        ) { error in
-            XCTAssertEqual(error as? GeneratorModelLoaderError,
-                           GeneratorModelLoaderError.malformedManifest("unrecognized product '<invalid>'"))
-        }
-    }
-
-    func test_target_invalidPlatform() throws {
-        // Given
-        let malformedManifest = [
-            "name": "malformed",
-            "product": "framework",
-            "platform": "<invalid>",
-        ]
-
-        // When / Then
-        XCTAssertThrowsError(
-            try TuistKit.Target.from(json: malformedManifest.toJSON(), path: path, fileHandler: fileHandler)
-        ) { error in
-            XCTAssertEqual(error as? GeneratorModelLoaderError,
-                           GeneratorModelLoaderError.malformedManifest("unrecognized platform '<invalid>'"))
-        }
-    }
-
-    func test_target_invalidDependency() throws {
-        // Given
-        let malformedManifest = ["type": "<invalid>"]
-
-        // When / Then
-        XCTAssertThrowsError(
-            try TuistKit.Dependency.from(json: malformedManifest.toJSON(), path: path, fileHandler: fileHandler)
-        ) { error in
-            XCTAssertEqual(error as? GeneratorModelLoaderError,
-                           GeneratorModelLoaderError.malformedManifest("unrecognized dependency type '<invalid>'"))
-        }
-    }
-
-    func test_modelLoaderError_description() {
-        XCTAssertEqual(GeneratorModelLoaderError.malformedManifest("invalid product").description,
-                       "The Project manifest appears to be malformed: invalid product")
-    }
-
-    func test_modelLoaderError_errorType() {
-        XCTAssertEqual(GeneratorModelLoaderError.malformedManifest("invalid product").type, .abort)
-    }
-
     func test_scheme_withoutActions() throws {
         // Given
         let manifest = SchemeManifest.test(name: "Scheme",
                                            shared: false)
         // When
-        let model = try TuistKit.Scheme.from(json: try manifest.toJSON())
+        let model = TuistKit.Scheme.from(manifest: manifest)
 
         // Then
         assert(scheme: model, matches: manifest)
@@ -277,21 +222,48 @@ class GeneratorModelLoaderTest: XCTestCase {
                                            testAction: testAction,
                                            runAction: runActions)
         // When
-        let model = try TuistKit.Scheme.from(json: try manifest.toJSON())
+        let model = TuistKit.Scheme.from(manifest: manifest)
 
         // Then
         assert(scheme: model, matches: manifest)
     }
 
+    func test_platform_watchOSNotSupported() {
+        XCTAssertThrowsError(
+            try TuistKit.Platform.from(manifest: .watchOS)
+        ) { error in
+            XCTAssertEqual(error as? GeneratorModelLoaderError, GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
+        }
+    }
+
+    func test_generatorModelLoaderError_type() {
+        XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("").type, .abort)
+    }
+
+    func test_generatorModelLoaderError_description() {
+        XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("abc").description, "abc is not yet supported")
+    }
+
     // MARK: - Helpers
 
-    func createManifestLoader(with manifests: [AbsolutePath: Encodable]) -> GraphManifestLoading {
+    func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project]) -> GraphManifestLoading {
         let manifestLoader = MockGraphManifestLoader()
-        manifestLoader.loadStub = { _, path in
-            guard let manifest = manifests[path] else {
+        manifestLoader.loadProjectStub = { path in
+            guard let manifest = projects[path] else {
                 throw GraphLoadingError.manifestNotFound(path)
             }
-            return try manifest.toJSON()
+            return manifest
+        }
+        return manifestLoader
+    }
+
+    func createManifestLoader(with workspaces: [AbsolutePath: ProjectDescription.Workspace]) -> GraphManifestLoading {
+        let manifestLoader = MockGraphManifestLoader()
+        manifestLoader.loadWorkspaceStub = { path in
+            guard let manifest = workspaces[path] else {
+                throw GraphLoadingError.manifestNotFound(path)
+            }
+            return manifest
         }
         return manifestLoader
     }
@@ -435,6 +407,7 @@ private func == (_ lhs: TuistKit.Platform,
     let map: [TuistKit.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
+        .tvOS: .tvOS,
     ]
     return map[lhs] != nil
 }
@@ -459,14 +432,6 @@ private func == (_ lhs: TuistKit.BuildConfiguration,
         .release: .release,
     ]
     return map[lhs] != nil
-}
-
-private extension Encodable {
-    func toJSON() throws -> JSON {
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(self)
-        return try JSON(data: data)
-    }
 }
 
 extension AbsolutePath: ExpressibleByStringLiteral {

@@ -4,46 +4,46 @@ import Foundation
 
 public class Target: Codable {
     /// Target name.
-    let name: String
+    public let name: String
 
     /// Product platform.
-    let platform: Platform
+    public let platform: Platform
 
     /// Product type.
-    let product: Product
+    public let product: Product
 
     /// Bundle identifier.
-    let bundleId: String
+    public let bundleId: String
 
     /// Relative path to the Info.plist file.
-    let infoPlist: String
+    public let infoPlist: String
 
     /// Relative path to the entitlements file.
-    let entitlements: String?
+    public let entitlements: String?
 
     /// Target settings.
-    let settings: Settings?
+    public let settings: Settings?
 
     /// Target dependencies.
-    let dependencies: [TargetDependency]
+    public let dependencies: [TargetDependency]
 
     /// Relative path to the sources directory.
-    let sources: String
+    public let sources: String
 
     /// Relative path to the resources directory.
-    let resources: String?
+    public let resources: String?
 
     /// Headers.
-    let headers: Headers?
+    public let headers: Headers?
 
     /// Target actions.
-    let actions: [TargetAction]
+    public let actions: [TargetAction]
 
     /// CoreData models.
-    let coreDataModels: [CoreDataModel]
+    public let coreDataModels: [CoreDataModel]
 
     /// Environment variables to be exposed to the target.
-    let environment: [String: String]
+    public let environment: [String: String]
 
     public enum CodingKeys: String, CodingKey {
         case name

@@ -49,7 +49,8 @@ class DumpCommand: NSObject, Command {
         } else {
             path = AbsolutePath.current
         }
-        let json: JSON = try manifestLoader.load(.project, path: path)
+        let project = try manifestLoader.loadProject(at: path)
+        let json: JSON = try project.toJSON()
         printer.print(json.toString(prettyPrint: true))
     }
 }

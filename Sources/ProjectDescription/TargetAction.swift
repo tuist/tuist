@@ -5,25 +5,25 @@ public struct TargetAction: Codable {
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
-    enum Order: String, Codable {
+    public enum Order: String, Codable {
         case pre
         case post
     }
 
     /// Name of the build phase when the project gets generated.
-    private let name: String
+    public let name: String
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    private let tool: String?
+    public let tool: String?
 
     /// Path to the script to execute.
-    private let path: String?
+    public let path: String?
 
     /// Target action order.
-    private let order: Order
+    public let order: Order
 
     /// Arguments that to be passed.
-    private let arguments: [String]
+    public let arguments: [String]
 
     public enum CodingKeys: String, CodingKey {
         case name
