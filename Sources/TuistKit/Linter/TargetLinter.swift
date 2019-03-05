@@ -47,7 +47,19 @@ class TargetLinter: TargetLinting {
     /// - Parameter target: Target whose bundle identified will be linted.
     /// - Returns: An array with a linting issue if the bundle identifier contains invalid characters.
     fileprivate func lintBundleIdentifier(target: Target) -> [LintingIssue] {
-        let bundleIdentifier = target.bundleId
+        var bundleIdentifier = target.bundleId
+
+        let varRegex = try! NSRegularExpression(pattern: "\\$\\{.+\\}", options: [])
+        var match = varRegex.firstMatch(in: bundleIdentifier,
+                                        options: [],
+                                        range: NSRange(location: 0, length: bundleIdentifier.count))
+        while match != nil {
+            bundleIdentifier = (bundleIdentifier as NSString).replacingCharacters(in: match!.range(at: 0),
+                                                                                  with: "") as String
+            match = varRegex.firstMatch(in: bundleIdentifier,
+                                        options: [],
+                                        range: NSRange(location: 0, length: bundleIdentifier.count))
+        }
 
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
         allowed.formUnion(CharacterSet(charactersIn: "-."))

@@ -16,17 +16,22 @@ final class TargetLinterTests: XCTestCase {
 
     func test_lint_when_target_has_invalid_bundle_identifier() {
         let XCTAssertInvalidBundleId: (String) -> Void = { bundleId in
-            let bundleId = "_.company.app"
             let target = Target.test(bundleId: bundleId)
             let got = self.subject.lint(target: target)
             let reason = "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
             XCTAssertTrue(got.contains(LintingIssue(reason: reason, severity: .error)))
+        }
+        let XCTAssertValidBundleId: (String) -> Void = { bundleId in
+            let target = Target.test(bundleId: bundleId)
+            let got = self.subject.lint(target: target)
+            XCTAssertNil(got.first(where: { $0.description.contains("Invalid bundle identifier") }))
         }
 
         XCTAssertInvalidBundleId("_.company.app")
         XCTAssertInvalidBundleId("com.company.◌́")
         XCTAssertInvalidBundleId("Ⅻ.company.app")
         XCTAssertInvalidBundleId("ؼ.company.app")
+        XCTAssertValidBundleId("com.company.MyModule${BUNDLE_SUFFIX}")
     }
 
     func test_lint_when_target_no_source_files() {
