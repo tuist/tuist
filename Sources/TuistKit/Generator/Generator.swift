@@ -41,13 +41,11 @@ class Generator: Generating {
 
     init(system: Systeming = System(),
          printer: Printing = Printer(),
-         resourceLocator: ResourceLocating = ResourceLocator(),
          fileHandler: FileHandling = FileHandler(),
          modelLoader: GeneratorModelLoading) {
         graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
         workspaceGenerator = WorkspaceGenerator(system: system,
                                                 printer: printer,
-                                                resourceLocator: resourceLocator,
                                                 projectDirectoryHelper: ProjectDirectoryHelper(),
                                                 fileHandler: fileHandler)
     }

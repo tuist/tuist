@@ -14,7 +14,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     let projectGenerator: ProjectGenerating
     let system: Systeming
     let printer: Printing
-    let resourceLocator: ResourceLocating
     let projectDirectoryHelper: ProjectDirectoryHelping
     let fileHandler: FileHandling
 
@@ -22,28 +21,23 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     convenience init(system: Systeming = System(),
                      printer: Printing = Printer(),
-                     resourceLocator: ResourceLocating = ResourceLocator(),
                      projectDirectoryHelper: ProjectDirectoryHelping = ProjectDirectoryHelper(),
                      fileHandler: FileHandling = FileHandler()) {
         self.init(system: system,
                   printer: printer,
-                  resourceLocator: resourceLocator,
                   projectDirectoryHelper: projectDirectoryHelper,
                   projectGenerator: ProjectGenerator(printer: printer,
-                                                     system: system,
-                                                     resourceLocator: resourceLocator),
+                                                     system: system),
                   fileHandler: fileHandler)
     }
 
     init(system: Systeming,
          printer: Printing,
-         resourceLocator: ResourceLocating,
          projectDirectoryHelper: ProjectDirectoryHelping,
          projectGenerator: ProjectGenerating,
          fileHandler: FileHandling) {
         self.system = system
         self.printer = printer
-        self.resourceLocator = resourceLocator
         self.projectDirectoryHelper = projectDirectoryHelper
         self.projectGenerator = projectGenerator
         self.fileHandler = fileHandler

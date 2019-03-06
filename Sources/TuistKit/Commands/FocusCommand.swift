@@ -41,8 +41,11 @@ class FocusCommand: NSObject, Command {
                                                  system: system,
                                                  resourceLocator: resourceLocator,
                                                  deprecator: Deprecator(printer: printer))
+        let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
+                                                              resourceLocator: resourceLocator)
         let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
-                                               manifestLoader: manifestLoader)
+                                               manifestLoader: manifestLoader,
+                                               manifestTargetGenerator: manifestTargetGenerator)
         let generator = Generator(system: system,
                                   printer: printer,
                                   fileHandler: fileHandler,

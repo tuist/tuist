@@ -123,7 +123,10 @@ class ProjectFileElements {
         }
 
         // Support files
-        files.insert(target.infoPlist)
+        if let infoPlist = target.infoPlist {
+            files.insert(infoPlist)
+        }
+
         if let entitlements = target.entitlements {
             files.insert(entitlements)
         }
