@@ -1,7 +1,9 @@
 import Basic
 import Foundation
+import PathKit
 import xcodeproj
 import XCTest
+@testable import TuistCoreTesting
 @testable import TuistKit
 
 final class ProjectGroupsTests: XCTestCase {
@@ -13,6 +15,7 @@ final class ProjectGroupsTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+
         let path = AbsolutePath("/test/")
         playgrounds = MockPlaygrounds()
         sourceRootPath = AbsolutePath("/test/")
@@ -100,12 +103,63 @@ final class ProjectGroupsTests: XCTestCase {
         subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
 
         // Then
-        let paths = subject.main.children.compactMap { $0.name ?? $0.path }
+        let paths = subject.main.children.compactMap { $0.nameOrPath }
         XCTAssertEqual(paths, [
             "P",
             "B",
             "C",
             "A",
+            "Manifest",
+            "Frameworks",
+            "Playgrounds",
+            "Products",
+        ])
+    }
+
+    func test_sort() throws {
+        // Given
+        playgrounds.pathsStub = { _ in
+            [AbsolutePath("/Playgrounds/Test.playground")]
+        }
+        let target1 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
+        let target2 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
+        let target3 = Target.test(projectStructure: ProjectStructure(filesGroup: "A"))
+        let target4 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
+        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"),
+                                   targets: [target1, target2, target3, target4])
+
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+
+        try subject.main.addGroup(named: "CustomZ")
+        try subject.main.addGroup(named: "CustomA")
+        try subject.main.addGroup(named: "CustomC")
+        addFile(file: "z", to: subject.main)
+        addFile(file: "a", to: subject.main)
+
+        // Then
+        subject.sort()
+
+        // Then
+        let paths = subject.main.children.compactMap { $0.nameOrPath }
+        XCTAssertEqual(paths, [
+            // Custom Files
+            "a",
+            "z",
+
+            // Custom groups added to main
+            "CustomA",
+            "CustomC",
+            "CustomZ",
+
+            // Project level
+            "P",
+
+            // Target level (in order of target definition)
+            "B",
+            "C",
+            "A",
+
+            // Predefined Groups
             "Manifest",
             "Frameworks",
             "Playgrounds",
@@ -154,5 +208,13 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_projectGroupsError_type() {
         XCTAssertEqual(ProjectGroupsError.missingGroup("abc").type, .bug)
+    }
+
+    // MARK: - Helpers
+
+    func addFile(file path: String, to group: PBXGroup) {
+        let fileReference = PBXFileReference(sourceTree: .group, path: path)
+        pbxproj.add(object: fileReference)
+        group.children.append(fileReference)
     }
 }

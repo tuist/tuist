@@ -111,6 +111,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                 options: options,
                                                 graph: graph)
 
+        groups.sort()
+
         return try write(xcodeprojPath: xcodeprojPath,
                          nativeTargets: nativeTargets,
                          workspace: workspace,

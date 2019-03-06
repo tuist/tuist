@@ -9,12 +9,18 @@ import XCTest
 
 final class ProjectGeneratorTests: XCTestCase {
     var subject: ProjectGenerator!
+    var targetGenerator: MockTargetGenerator!
+    var schemesGenerator: MockSchemesGenerator!
+    var configGenerator: ConfigGenerator!
     var printer: MockPrinter!
     var system: MockSystem!
     var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
+        targetGenerator = MockTargetGenerator()
+        schemesGenerator = MockSchemesGenerator()
+        configGenerator = ConfigGenerator()
         printer = MockPrinter()
         system = MockSystem()
         fileHandler = try! MockFileHandler()
@@ -48,5 +54,67 @@ final class ProjectGeneratorTests: XCTestCase {
         let targetScheme = schemesPath.appending(component: "Target.xcscheme")
         XCTAssertTrue(fileHandler.exists(projectScheme))
         XCTAssertTrue(fileHandler.exists(targetScheme))
+    }
+
+    func test_generate_defaultGroupsOrder() throws {
+        // Given
+        let project = Project.test()
+
+        // When
+        let path = try subject.generate(project: project,
+                                        options: GenerationOptions(),
+                                        graph: Graph.test(),
+                                        sourceRootPath: fileHandler.currentPath)
+
+        // Then
+        let xcodeproj = try XcodeProj(pathString: path.path.asString)
+        let mainGroup = try xcodeproj.pbxproj.rootGroup()
+        XCTAssertEqual(mainGroup?.children.map { $0.nameOrPath }, [
+            "Project",
+            "Manifest",
+            "Frameworks",
+            "Products",
+        ])
+    }
+
+    func test_generate_customGroupsOrder() throws {
+        // Given
+        let path = fileHandler.currentPath
+        let infoPlist = path.appending(component: "Info.plist")
+        let sources = [
+            path.appending(RelativePath("Sources/c.swift")),
+            path.appending(RelativePath("Mocks/d.swift")),
+            path.appending(RelativePath("Sources/component/b.swift")),
+            path.appending(RelativePath("root.swift")),
+        ]
+        let target = Target.test(infoPlist: infoPlist,
+                                 entitlements: nil,
+                                 settings: nil,
+                                 sources: sources,
+                                 resources: [],
+                                 projectStructure: ProjectStructure(filesGroup: nil))
+        let project = Project.test(path: fileHandler.currentPath,
+                                   settings: nil,
+                                   projectStructure: ProjectStructure(filesGroup: nil),
+                                   targets: [target])
+
+        // When
+        let xcodeProjectPath = try subject.generate(project: project,
+                                                    options: GenerationOptions(),
+                                                    graph: Graph.test(),
+                                                    sourceRootPath: fileHandler.currentPath)
+
+        // Then
+        let xcodeproj = try XcodeProj(pathString: xcodeProjectPath.path.asString)
+        let mainGroup = try xcodeproj.pbxproj.rootGroup()
+        XCTAssertEqual(mainGroup?.children.map { $0.nameOrPath }, [
+            "Info.plist",
+            "root.swift",
+            "Mocks",
+            "Sources",
+            "Manifest",
+            "Frameworks",
+            "Products",
+        ])
     }
 }

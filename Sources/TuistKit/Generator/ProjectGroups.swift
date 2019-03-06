@@ -29,22 +29,31 @@ class ProjectGroups {
     let projectManifest: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup?
-    let pbxproj: PBXProj
+
+    private let pbxproj: PBXProj
+    private let projectGroups: [String: PBXGroup]
+    private let knownGroups: OrderedSet<PBXGroup>
 
     // MARK: - Init
 
-    init(main: PBXGroup,
-         products: PBXGroup,
-         projectManifest: PBXGroup,
-         frameworks: PBXGroup,
-         playgrounds: PBXGroup?,
-         pbxproj: PBXProj) {
+    private init(main: PBXGroup,
+                 projectGroups: [(name: String, group: PBXGroup)],
+                 products: PBXGroup,
+                 projectManifest: PBXGroup,
+                 frameworks: PBXGroup,
+                 playgrounds: PBXGroup?,
+                 pbxproj: PBXProj) {
         self.main = main
+        self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.projectManifest = projectManifest
         self.frameworks = frameworks
         self.playgrounds = playgrounds
         self.pbxproj = pbxproj
+
+        let allProjectGroups = projectGroups.map { $0.group }
+        let predefinedGroups = [projectManifest, frameworks, playgrounds, products].compactMap { $0 }
+        knownGroups = OrderedSet(allProjectGroups + predefinedGroups)
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
@@ -56,10 +65,30 @@ class ProjectGroups {
     }
 
     func projectGroup(named name: String) throws -> PBXGroup {
-        guard let group = main.group(named: name) else {
+        guard let group = projectGroups[name] else {
             throw ProjectGroupsError.missingGroup(name)
         }
         return group
+    }
+
+    /// Sorts groups in the following order
+    ///
+    /// - Any additional groups or files added to the main group directly
+    /// - Project specified groups
+    /// - Target specified groups (in the order the targets are defined)
+    /// - Remaining predefined groups (e.g. Frameworks, Products etc...)
+    ///
+    func sort() {
+        var additionalElements = main.children.filter {
+            if let group = $0 as? PBXGroup {
+                return !knownGroups.contains(group)
+            }
+            return true
+        }
+
+        additionalElements.sort(by: PBXFileElement.filesBeforeGroupsSort)
+
+        main.children = additionalElements + Array(knownGroups)
     }
 
     static func generate(project: Project,
@@ -75,12 +104,14 @@ class ProjectGroups {
 
         /// Project & Target Groups
         let targetGroups = project.targets.map { $0.projectStructure.filesGroup }
-        let projectGroups = [project.projectStructure.filesGroup] + targetGroups
-        let groupsToCreate = OrderedSet(projectGroups.compactMap { $0 })
+        let projectGroupNames = [project.projectStructure.filesGroup] + targetGroups
+        let groupsToCreate = OrderedSet(projectGroupNames.compactMap { $0 })
+        var projectGroups = [(name: String, group: PBXGroup)]()
         groupsToCreate.forEach {
             let projectGroup = PBXGroup(children: [], sourceTree: .group, name: $0)
             pbxproj.add(object: projectGroup)
             mainGroup.children.append(projectGroup)
+            projectGroups.append(($0, projectGroup))
         }
 
         /// ProjectDescription
@@ -107,6 +138,7 @@ class ProjectGroups {
         mainGroup.children.append(productsGroup)
 
         return ProjectGroups(main: mainGroup,
+                             projectGroups: projectGroups,
                              products: productsGroup,
                              projectManifest: projectManifestGroup,
                              frameworks: frameworksGroup,
