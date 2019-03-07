@@ -32,7 +32,7 @@ class ProjectGroups {
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
-    private let knownGroups: OrderedSet<PBXGroup>
+    private let allPredefinedGroups: OrderedSet<PBXGroup>
 
     // MARK: - Init
 
@@ -53,7 +53,7 @@ class ProjectGroups {
 
         let allProjectGroups = projectGroups.map { $0.group }
         let predefinedGroups = [projectManifest, frameworks, playgrounds, products].compactMap { $0 }
-        knownGroups = OrderedSet(allProjectGroups + predefinedGroups)
+        allPredefinedGroups = OrderedSet(allProjectGroups + predefinedGroups)
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
@@ -81,14 +81,14 @@ class ProjectGroups {
     func sort() {
         var additionalElements = main.children.filter {
             if let group = $0 as? PBXGroup {
-                return !knownGroups.contains(group)
+                return !allPredefinedGroups.contains(group)
             }
             return true
         }
 
         additionalElements.sort(by: PBXFileElement.filesBeforeGroupsSort)
 
-        main.children = additionalElements + Array(knownGroups)
+        main.children = additionalElements + Array(allPredefinedGroups)
     }
 
     static func generate(project: Project,

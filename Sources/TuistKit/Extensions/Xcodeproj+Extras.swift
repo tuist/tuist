@@ -2,7 +2,7 @@ import Foundation
 import xcodeproj
 
 extension PBXFileElement {
-    public var nameOrPath: String {
+    var nameOrPath: String {
         return name ?? path ?? ""
     }
 }
