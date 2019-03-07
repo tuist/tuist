@@ -9,22 +9,22 @@ Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
 end
 
-desc("Formats the code")
-task :swiftformat do
-  abort_unless_swiftformat_installed
-  system("swiftformat", ".") || abort
+desc("Formats the code style")
+task :style_correct do
+  system("swiftformat", ".")
+  system("swiftlint", "autocorrect")
 end
 
 desc("Lints the Ruby code style")
 task :style_ruby do
-  system("bundle", "exec", "rubocop") || abort
+  system("bundle", "exec", "rubocop")
 end
 
 desc("Corrects the issues with the Ruby style")
 task :style_ruby_correct do
-  system("bundle", "exec", "rubocop", "-a") || abort
+  system("bundle", "exec", "rubocop", "-a")
 end
 
-def abort_unless_swiftformat_installed
-  abort("swiftformat not installed. Run 'brew install swiftformat'") unless find_executable('swiftformat')
+def system(*args)
+  Kernel.system(*args) || abort
 end
