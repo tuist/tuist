@@ -1,15 +1,15 @@
 module Xcode
-  def self.derived_data_path
-    File.expand_path("~/Library/Developer/Xcode/DerivedData")
-  end
-
-  def self.product_with_name(name, destination:)
+  def self.product_with_name(name, destination:, derived_data_path:)
     glob = File.join(derived_data_path, "**/Build/**/Products/#{destination}/#{name}/")
     Dir.glob(glob).max_by {|f| File.mtime(f)}
   end
 
-  def self.find_framework(product:, destination:, framework:)
-    product_path = product_with_name(product, destination: destination)
+  def self.find_framework(product:, destination:, framework:, derived_data_path:)
+    product_path = product_with_name(
+      product, 
+      destination: destination, 
+      derived_data_path: derived_data_path
+    )
 
     if product_path.nil?
       flunk("Product with name #{product} and destination #{destination} not found in DerivedData")

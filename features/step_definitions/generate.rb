@@ -2,7 +2,8 @@ Then("the product {string} with destination {string} contains the framework {str
   framework_path = Xcode.find_framework(
     product: product,
     destination: destination,
-    framework: framework
+    framework: framework,
+    derived_data_path: @derived_data_path
   )
   binary_path = File.join(framework_path, framework)
   out, err, status = Open3.capture3("file", binary_path)
@@ -14,7 +15,8 @@ Then("the product {string} with destination {string} contains the framework {str
   framework_path = Xcode.find_framework(
     product: product,
     destination: destination,
-    framework: framework
+    framework: framework,
+    derived_data_path: @derived_data_path
   )
   binary_path = File.join(framework_path, framework)
   out, err, status = Open3.capture3("file", binary_path)
