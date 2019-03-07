@@ -138,13 +138,6 @@ class Graph: Graphing {
                 .map(DependencyReference.product)
 
             references.append(contentsOf: staticLibraries)
-            
-            let transitiveFrameworks = findAll(path: path)
-                .filter(FrameworkNode.self)
-                .map(\.path)
-                .map(DependencyReference.absolute)
-            
-            references.append(contentsOf: transitiveFrameworks)
 
         }
 
