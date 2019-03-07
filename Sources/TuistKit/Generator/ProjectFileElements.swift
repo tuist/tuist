@@ -19,13 +19,16 @@ class ProjectFileElements {
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
     let playgrounds: Playgrounding
+    let filesSortener: ProjectFilesSortening
 
     // MARK: - Init
 
     init(_ elements: [AbsolutePath: PBXFileElement] = [:],
-         playgrounds: Playgrounding = Playgrounds()) {
+         playgrounds: Playgrounding = Playgrounds(),
+         filesSortener: ProjectFilesSortening = ProjectFilesSortener()) {
         self.elements = elements
         self.playgrounds = playgrounds
+        self.filesSortener = filesSortener
     }
 
     func generateProjectFiles(project: Project,
@@ -33,7 +36,7 @@ class ProjectFileElements {
                               groups: ProjectGroups,
                               pbxproj: PBXProj,
                               sourceRootPath: AbsolutePath,
-                              fileHandler: FileHandling) {
+                              fileHandler _: FileHandling) {
         var files = Set<AbsolutePath>()
         var products = Set<String>()
         project.targets.forEach { target in
@@ -43,7 +46,7 @@ class ProjectFileElements {
         files.formUnion(projectFiles(project: project))
 
         /// Files
-        generate(files: files.sorted(by: AbsolutePath.xcodeSortener(fileHandler: fileHandler)),
+        generate(files: files.sorted(by: filesSortener.sort),
                  groups: groups,
                  pbxproj: pbxproj,
                  sourceRootPath: sourceRootPath)

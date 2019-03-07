@@ -140,6 +140,9 @@ public final class FileHandler: FileHandling {
     }
 
     public func touch(_ path: AbsolutePath) throws {
+        try FileManager.default.createDirectory(at: path.removingLastComponent().url,
+                                                withIntermediateDirectories: true,
+                                                attributes: nil)
         try Data().write(to: path.url)
     }
 

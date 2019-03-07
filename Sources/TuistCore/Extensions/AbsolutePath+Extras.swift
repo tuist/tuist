@@ -32,27 +32,4 @@ extension AbsolutePath {
     public func removingLastComponent() -> AbsolutePath {
         return AbsolutePath("/\(components.dropLast().joined(separator: "/"))")
     }
-
-    /// Returns a function to sorten files for Xcode projects.
-    /// - Returns: Sortening function.
-    public static func xcodeSortener(fileHandler: FileHandling) -> ((AbsolutePath, AbsolutePath) -> Bool) {
-        return { lhs, rhs in
-            let decompose: (inout [AbsolutePath], String) -> Void = { $0.append($0.last!.appending(component: $1)) }
-            let lhsPathsSet = Set(lhs.components.dropFirst().reduce(into: [AbsolutePath("/")], decompose))
-            let rhsPathsSet = Set(rhs.components.dropFirst().reduce(into: [AbsolutePath("/")], decompose))
-
-            let commonPaths = lhsPathsSet.intersection(rhsPathsSet)
-
-            guard let lhsPathFirst = lhsPathsSet.subtracting(commonPaths).sorted().first else { return false }
-            guard let rhsPathFirst = rhsPathsSet.subtracting(commonPaths).sorted().first else { return false }
-
-            if fileHandler.isFolder(lhsPathFirst), !fileHandler.isFolder(rhsPathFirst) {
-                return false
-            } else if !fileHandler.isFolder(lhsPathFirst), fileHandler.isFolder(rhsPathFirst) {
-                return true
-            } else {
-                return lhsPathFirst < rhsPathFirst
-            }
-        }
-    }
 }
