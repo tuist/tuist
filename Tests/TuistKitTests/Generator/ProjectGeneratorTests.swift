@@ -10,7 +10,6 @@ import XCTest
 final class ProjectGeneratorTests: XCTestCase {
     var subject: ProjectGenerator!
     var targetGenerator: MockTargetGenerator!
-    var schemesGenerator: MockSchemesGenerator!
     var configGenerator: ConfigGenerator!
     var printer: MockPrinter!
     var system: MockSystem!
@@ -19,13 +18,16 @@ final class ProjectGeneratorTests: XCTestCase {
     override func setUp() {
         super.setUp()
         targetGenerator = MockTargetGenerator()
-        schemesGenerator = MockSchemesGenerator()
         configGenerator = ConfigGenerator()
         printer = MockPrinter()
         system = MockSystem()
         fileHandler = try! MockFileHandler()
-        subject = ProjectGenerator(printer: printer,
-                                   system: system)
+        subject = ProjectGenerator(targetGenerator: targetGenerator,
+                                   configGenerator: configGenerator,
+                                   printer: printer,
+                                   system: system,
+                                   resourceLocator: MockResourceLocator(),
+                                   fileHandler: fileHandler)
     }
 
     func test_generate() throws {

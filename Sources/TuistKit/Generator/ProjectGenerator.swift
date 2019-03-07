@@ -89,8 +89,7 @@ final class ProjectGenerator: ProjectGenerating {
                                           graph: graph,
                                           groups: groups,
                                           pbxproj: pbxproj,
-                                          sourceRootPath: sourceRootPath,
-                                          fileHandler: fileHandler)
+                                          sourceRootPath: sourceRootPath)
 
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,

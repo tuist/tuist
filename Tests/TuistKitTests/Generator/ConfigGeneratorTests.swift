@@ -144,8 +144,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                           graph: graph,
                                           groups: groups,
                                           pbxproj: pbxproj,
-                                          sourceRootPath: project.path,
-                                          fileHandler: fileHandler)
+                                          sourceRootPath: project.path)
         let options = GenerationOptions()
         _ = try subject.generateTargetConfig(target,
                                              pbxTarget: pbxTarget,
