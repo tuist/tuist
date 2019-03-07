@@ -9,28 +9,44 @@ import XCTest
 
 final class ProjectGeneratorTests: XCTestCase {
     var subject: ProjectGenerator!
-    var targetGenerator: TargetGenerator!
-    var schemesGenerator: MockSchemesGenerator!
-    var configGenerator: ConfigGenerator!
     var printer: MockPrinter!
     var system: MockSystem!
-    var resourceLocator: MockResourceLocator!
     var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        targetGenerator = TargetGenerator()
-        schemesGenerator = MockSchemesGenerator()
-        configGenerator = ConfigGenerator()
         printer = MockPrinter()
         system = MockSystem()
-        resourceLocator = MockResourceLocator()
         fileHandler = try! MockFileHandler()
-        subject = ProjectGenerator(targetGenerator: targetGenerator,
-                                   configGenerator: configGenerator,
-                                   schemesGenerator: schemesGenerator,
-                                   printer: printer,
-                                   system: system,
-                                   resourceLocator: resourceLocator)
+        subject = ProjectGenerator(printer: printer,
+                                   system: system)
+    }
+
+    func test_generate() throws {
+        // Given
+        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let targets = [target]
+        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets)
+        try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
+
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        let graph = Graph.test(entryPath: fileHandler.currentPath,
+                               cache: cache,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: target,
+                                                       dependencies: [])])
+
+        // When
+        let got = try subject.generate(project: project,
+                                       options: GenerationOptions(),
+                                       graph: graph)
+
+        // Then
+        let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
+        let projectScheme = schemesPath.appending(component: "Project-Project.xcscheme")
+        let targetScheme = schemesPath.appending(component: "Target.xcscheme")
+        XCTAssertTrue(fileHandler.exists(projectScheme))
+        XCTAssertTrue(fileHandler.exists(targetScheme))
     }
 }

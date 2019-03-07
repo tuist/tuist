@@ -5,7 +5,8 @@ import xcodeproj
 
 extension GeneratedProject {
     static func test(path: AbsolutePath = AbsolutePath("/project.xcodeproj"),
-                     targets: [String: PBXNativeTarget] = [:]) -> GeneratedProject {
-        return GeneratedProject(path: path, targets: targets)
+                     targets: [String: PBXNativeTarget] = [:],
+                     name: String = "project.xcodeproj") -> GeneratedProject {
+        return GeneratedProject(path: path, targets: targets, name: name)
     }
 }

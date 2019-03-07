@@ -52,8 +52,8 @@ final class ConfigGeneratorTests: XCTestCase {
         try generateManifestsConfig()
         let configurationList = pbxproj.configurationLists.first
         XCTAssertEqual(configurationList?.buildConfigurations.count, 2)
-        let debugConfig = try configurationList?.configuration(name: "Debug")
-        let releaseConfig = try configurationList?.configuration(name: "Release")
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
 
         func assert(config: XCBuildConfiguration?) {
             XCTAssertEqual(config?.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, "/test")
@@ -74,8 +74,8 @@ final class ConfigGeneratorTests: XCTestCase {
     func test_generateTargetConfig() throws {
         try generateTargetConfig(config: .release)
         let configurationList = pbxTarget.buildConfigurationList
-        let debugConfig = try configurationList?.configuration(name: "Debug")
-        let releaseConfig = try configurationList?.configuration(name: "Release")
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
 
         func assert(config: XCBuildConfiguration?) {
             XCTAssertEqual(config?.buildSettings["Base"] as? String, "Base")
