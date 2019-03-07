@@ -83,9 +83,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
                 return .group(childData)
                 
-            case .project(path: let path):
+            case .project(path: let projectPath):
                 
-                let project = graph.projects[path]!
+                let project = graph.projects[projectPath]!
                 
                 let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(
                     project: project,
@@ -106,7 +106,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             }
             
         }
-        workspaceData.children.append(contentsOf: workspaceElements.sorted(by: workspaceDataElementSort))
+
+        xcworkspace.data.children.append(contentsOf: try workspace.elements.map(recursiveAppendChildren).sorted(by: workspaceDataElementSort))
 
         try write(xcworkspace: workspace, to: workspacePath)
 
