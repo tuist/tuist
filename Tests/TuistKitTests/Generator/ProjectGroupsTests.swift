@@ -84,6 +84,35 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNil(subject.playgrounds)
     }
 
+    func test_generate_groupsOrder() throws {
+        // Given
+        playgrounds.pathsStub = { _ in
+            [AbsolutePath("/Playgrounds/Test.playground")]
+        }
+        let target1 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
+        let target2 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
+        let target3 = Target.test(projectStructure: ProjectStructure(filesGroup: "A"))
+        let target4 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
+        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"),
+                                   targets: [target1, target2, target3, target4])
+
+        // When
+        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+
+        // Then
+        let paths = subject.main.children.compactMap { $0.name ?? $0.path }
+        XCTAssertEqual(paths, [
+            "P",
+            "B",
+            "C",
+            "A",
+            "Manifest",
+            "Frameworks",
+            "Playgrounds",
+            "Products",
+        ])
+    }
+
     func test_targetFrameworks() throws {
         subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
 
@@ -93,7 +122,7 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertTrue(subject.frameworks.children.contains(got))
     }
 
-    func test_unknownProjectGroups() throws {
+    func test_projectGroup_unknownProjectGroups() throws {
         // Given
         subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
 
@@ -103,12 +132,13 @@ final class ProjectGroupsTests: XCTestCase {
         }
     }
 
-    func test_knownProjectGroups() throws {
+    func test_projectGroup_knownProjectGroups() throws {
         // Given
         let target1 = Target.test(projectStructure: ProjectStructure(filesGroup: "A"))
         let target2 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
         let target3 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
-        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"), targets: [target1, target2, target3])
+        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"),
+                                   targets: [target1, target2, target3])
 
         subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
 

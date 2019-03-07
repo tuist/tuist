@@ -57,9 +57,9 @@ class ProjectFileElements {
         }
         files.formUnion(projectFileElements)
 
-        let pathsSprt = filesSortener.sort
+        let pathsSort = filesSortener.sort
         let filesSort: (FileElement, FileElement) -> Bool = {
-            pathsSprt($0.path, $1.path)
+            pathsSort($0.path, $1.path)
         }
 
         /// Files

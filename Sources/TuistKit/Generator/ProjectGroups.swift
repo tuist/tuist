@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 import xcodeproj
 
-enum ProjectGroupsError: Error, FatalError, Equatable {
+enum ProjectGroupsError: FatalError, Equatable {
     case missingGroup(String)
 
     var description: String {
