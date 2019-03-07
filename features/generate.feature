@@ -60,4 +60,6 @@ Scenario: The project is an iOS application with a target dependency and transit
     Then I copy the fixture ios_app_with_transitive_framework into the working directory
     Then tuist generates the project
     Then I should be able to build the scheme App
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'Framework1' with architecture 'arm64'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'Framework2' without architecture 'x86'
     Then I should be able to build the scheme Framework1
