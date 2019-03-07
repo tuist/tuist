@@ -32,12 +32,4 @@ extension AbsolutePath {
     public func removingLastComponent() -> AbsolutePath {
         return AbsolutePath("/\(components.dropLast().joined(separator: "/"))")
     }
-
-    /// Returns a function to sorten files for Xcode projects.
-    /// - Returns: Sortening function.
-    public static func xcodeSortener() -> ((AbsolutePath, AbsolutePath) -> Bool) {
-        return { lhs, rhs in
-            lhs.components.count < rhs.components.count || lhs.asString < rhs.asString
-        }
-    }
 }

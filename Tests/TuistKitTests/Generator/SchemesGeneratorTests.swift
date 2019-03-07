@@ -81,11 +81,10 @@ final class SchemeGeneratorTests: XCTestCase {
     func test_targetTestAction_when_notTestsTarget() {
         let target = Target.test(name: "AppTests", product: .app)
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
 
         let got = subject.targetTestAction(target: target,
                                            pbxTarget: pbxTarget,
-                                           projectPath: projectPath)
+                                           projectName: "project.xcodeproj")
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
@@ -96,11 +95,10 @@ final class SchemeGeneratorTests: XCTestCase {
     func test_targetTestAction_when_testsTarget() {
         let target = Target.test(name: "AppTests", product: .unitTests)
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
 
         let got = subject.targetTestAction(target: target,
                                            pbxTarget: pbxTarget,
-                                           projectPath: projectPath)
+                                           projectName: "project.xcodeproj")
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
@@ -118,11 +116,10 @@ final class SchemeGeneratorTests: XCTestCase {
     func test_targetBuildAction() {
         let target = Target.test(name: "App", product: .app)
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
 
         let got = subject.targetBuildAction(target: target,
                                             pbxTarget: pbxTarget,
-                                            projectPath: projectPath)
+                                            projectName: "project.xcodeproj")
 
         XCTAssertEqual(got?.buildActionEntries.count, 1)
         let entry = got?.buildActionEntries.first
@@ -141,10 +138,10 @@ final class SchemeGeneratorTests: XCTestCase {
     func test_targetLaunchAction_when_runnableTarget() {
         let target = Target.test(name: "App", product: .app, environment: ["a": "b"])
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
+
         let got = subject.targetLaunchAction(target: target,
                                              pbxTarget: pbxTarget,
-                                             projectPath: projectPath)
+                                             projectName: "project.xcodeproj")
 
         XCTAssertNil(got?.macroExpansion)
         let buildableReference = got?.buildableProductRunnable?.buildableReference
@@ -162,10 +159,9 @@ final class SchemeGeneratorTests: XCTestCase {
                                  platform: .iOS,
                                  product: .dynamicLibrary)
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
         let got = subject.targetLaunchAction(target: target,
                                              pbxTarget: pbxTarget,
-                                             projectPath: projectPath)
+                                             projectName: "project.xcodeproj")
 
         XCTAssertNil(got?.buildableProductRunnable?.buildableReference)
 
@@ -181,10 +177,9 @@ final class SchemeGeneratorTests: XCTestCase {
                                  platform: .iOS,
                                  product: .app)
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
         let got = subject.targetProfileAction(target: target,
                                               pbxTarget: pbxTarget,
-                                              projectPath: projectPath)
+                                              projectName: "project.xcodeproj")
 
         let buildable = got?.buildableProductRunnable?.buildableReference
 
@@ -213,10 +208,10 @@ final class SchemeGeneratorTests: XCTestCase {
                                  platform: .iOS,
                                  product: .dynamicLibrary)
         let pbxTarget = PBXNativeTarget(name: "App")
-        let projectPath = AbsolutePath("/project.xcodeproj")
+
         let got = subject.targetProfileAction(target: target,
                                               pbxTarget: pbxTarget,
-                                              projectPath: projectPath)
+                                              projectName: "project.xcodeproj")
 
         let buildable = got?.buildableProductRunnable?.buildableReference
 
@@ -256,7 +251,6 @@ final class SchemeGeneratorTests: XCTestCase {
     private func generatedProject(targets: [Target]) -> GeneratedProject {
         var pbxTargets: [String: PBXNativeTarget] = [:]
         targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
-        let projectPath = AbsolutePath("/project.xcodeproj")
-        return GeneratedProject(path: projectPath, targets: pbxTargets)
+        return GeneratedProject(path: AbsolutePath("/project.xcodeproj"), targets: pbxTargets, name: "project.xcodeproj")
     }
 }

@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
 
 // swiftlint:disable:next type_body_length
@@ -18,20 +19,24 @@ class ProjectFileElements {
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
     let playgrounds: Playgrounding
+    let filesSortener: ProjectFilesSortening
 
     // MARK: - Init
 
     init(_ elements: [AbsolutePath: PBXFileElement] = [:],
-         playgrounds: Playgrounding = Playgrounds()) {
+         playgrounds: Playgrounding = Playgrounds(),
+         filesSortener: ProjectFilesSortening = ProjectFilesSortener()) {
         self.elements = elements
         self.playgrounds = playgrounds
+        self.filesSortener = filesSortener
     }
 
     func generateProjectFiles(project: Project,
                               graph: Graphing,
                               groups: ProjectGroups,
                               pbxproj: PBXProj,
-                              sourceRootPath: AbsolutePath) {
+                              sourceRootPath: AbsolutePath,
+                              fileHandler _: FileHandling) {
         var files = Set<AbsolutePath>()
         var products = Set<String>()
         project.targets.forEach { target in
@@ -41,7 +46,7 @@ class ProjectFileElements {
         files.formUnion(projectFiles(project: project))
 
         /// Files
-        generate(files: files.sorted(by: AbsolutePath.xcodeSortener()),
+        generate(files: files.sorted(by: filesSortener.sort),
                  groups: groups,
                  pbxproj: pbxproj,
                  sourceRootPath: sourceRootPath)

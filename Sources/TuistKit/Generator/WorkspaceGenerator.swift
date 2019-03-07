@@ -65,7 +65,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
 
-        // MARK: - Manifests
+        /// Manifests
 
         let manifestFiles: [XCWorkspaceDataElement] = [Manifest.workspace, Manifest.setup]
             .lazy
@@ -76,7 +76,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         workspace.data.children.append(contentsOf: manifestFiles)
 
-        // MARK: - Projects
+        /// Projects
+        var workspaceElements = [XCWorkspaceDataElement]()
 
         try graph.projects.forEach { project in
             let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
@@ -87,20 +88,97 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                  sourceRootPath: sourceRootPath)
 
             let relativePath = generatedProject.path.relative(to: path)
-            workspace.data.children.append(workspaceFileElement(path: relativePath))
+            workspaceElements.append(workspaceFileElement(path: relativePath))
         }
+        workspaceData.children.append(contentsOf: workspaceElements.sorted(by: workspaceDataElementSort))
 
-        try workspace.write(path: workspacePath.path, override: true)
+        try write(xcworkspace: workspace, to: workspacePath)
 
         return workspacePath
+    }
+
+    private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
+        // If the workspace doesn't exist we can write it because there isn't any
+        // Xcode instance that might depend on it.
+        if !fileHandler.exists(to) {
+            try xcworkspace.write(path: to.path)
+            return
+        }
+
+        // If the workspace exists, we want to reduce the likeliness of causing
+        // Xcode not to be able to reload the workspace.
+        // We only replace the current one if something has changed.
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            try xcworkspace.write(path: temporaryPath.path)
+
+            let workspaceData: (AbsolutePath) throws -> Data = {
+                let dataPath = $0.appending(component: "contents.xcworkspacedata")
+                return try Data(contentsOf: dataPath.url)
+            }
+
+            let currentData = try workspaceData(to)
+            let currentWorkspaceData = try workspaceData(temporaryPath)
+
+            if currentData != currentWorkspaceData {
+                try fileHandler.replace(to, with: temporaryPath)
+            }
+        }
     }
 
     /// Create a XCWorkspaceDataElement.file from a path string.
     ///
     /// - Parameter path: The relative path to the file
-    private func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
+    fileprivate func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
         let location = XCWorkspaceDataElementLocationType.group(path.asString)
         let fileRef = XCWorkspaceDataFileRef(location: location)
         return .file(fileRef)
+    }
+
+    /// Sorting function for workspace data elements. It applies the following sorting criteria:
+    ///  - Files sorted before groups.
+    ///  - Groups sorted by name.
+    ///  - Files sorted using the workspaceFilePathSort sort function.
+    ///
+    /// - Parameters:
+    ///   - lhs: First file to be sorted.
+    ///   - rhs: Second file to be sorted.
+    /// - Returns: True if the first workspace data element should be before the second one.
+    private func workspaceDataElementSort(lhs: XCWorkspaceDataElement, rhs: XCWorkspaceDataElement) -> Bool {
+        switch (lhs, rhs) {
+        case let (.file(lhsFile), .file(rhsFile)):
+            return workspaceFilePathSort(lhs: lhsFile.location.path,
+                                         rhs: rhsFile.location.path)
+        case let (.group(lhsGroup), .group(rhsGroup)):
+            return lhsGroup.location.path < rhsGroup.location.path
+        case (.file, .group):
+            return true
+        case (.group, .file):
+            return false
+        }
+    }
+
+    /// Sorting function for workspace data file elements. It applies the following sorting criteria:
+    ///  - Xcode projects are sorted after other files.
+    ///  - Xcode projects are sorted by name.
+    ///  - Other files are sorted by name.
+    ///
+    /// - Parameters:
+    ///   - lhs: First file path to be sorted.
+    ///   - rhs: Second file path to be sorted.
+    /// - Returns: True if the first element should be sorted before the second.
+    private func workspaceFilePathSort(lhs: String, rhs: String) -> Bool {
+        let lhsIsXcodeProject = lhs.hasSuffix(".xcodeproj")
+        let rhsIsXcodeProject = rhs.hasSuffix(".xcodeproj")
+
+        switch (lhsIsXcodeProject, rhsIsXcodeProject) {
+        case (true, true):
+            return lhs < rhs
+        case (false, false):
+            return lhs < rhs
+        case (true, false):
+            return false
+        case (false, true):
+            return true
+        }
     }
 }

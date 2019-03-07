@@ -24,6 +24,13 @@ public protocol FileHandling: AnyObject {
     /// Returns the current path.
     var currentPath: AbsolutePath { get }
 
+    /// Replaces a file/directory in a given path with another one.
+    ///
+    /// - Parameters:
+    ///   - to: The file/directory to be replaced.
+    ///   - with: The replacement file or directory.
+    func replace(_ to: AbsolutePath, with: AbsolutePath) throws
+
     /// Returns true if there's a folder or file at the given path.
     ///
     /// - Parameter path: Path to check.
@@ -45,6 +52,13 @@ public protocol FileHandling: AnyObject {
     /// - Throws: An error if the file doesn't exist or it's not a valid text file.
     func readTextFile(_ at: AbsolutePath) throws -> String
 
+    /// Runs the given closure passing a temporary directory to it. When the closure
+    /// finishes its execution, the temporary directory gets destroyed.
+    ///
+    /// - Parameter closure: Closure to be executed with the temporary directory.
+    /// - Throws: An error if the temporary directory cannot be created or the closure throws.
+    func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
+
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func createFolder(_ path: AbsolutePath) throws
     func delete(_ path: AbsolutePath) throws
@@ -58,6 +72,25 @@ public final class FileHandler: FileHandling {
     /// Returns the current path.
     public var currentPath: AbsolutePath {
         return AbsolutePath(FileManager.default.currentDirectoryPath)
+    }
+
+    /// Replaces a file/directory in a given path with another one.
+    ///
+    /// - Parameters:
+    ///   - to: The file/directory to be replaced.
+    ///   - with: The replacement file or directory.
+    public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
+        _ = try FileManager.default.replaceItemAt(to.url, withItemAt: with.url)
+    }
+
+    /// Runs the given closure passing a temporary directory to it. When the closure
+    /// finishes its execution, the temporary directory gets destroyed.
+    ///
+    /// - Parameter closure: Closure to be executed with the temporary directory.
+    /// - Throws: An error if the temporary directory cannot be created or the closure throws.
+    public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
+        let directory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        try closure(directory.path)
     }
 
     /// Returns true if there's a folder or file at the given path.
@@ -107,6 +140,9 @@ public final class FileHandler: FileHandling {
     }
 
     public func touch(_ path: AbsolutePath) throws {
+        try FileManager.default.createDirectory(at: path.removingLastComponent().url,
+                                                withIntermediateDirectories: true,
+                                                attributes: nil)
         try Data().write(to: path.url)
     }
 
