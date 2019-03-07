@@ -53,6 +53,16 @@ protocol LinkGenerating: AnyObject {
 }
 
 final class LinkGenerator: LinkGenerating {
+    /// An instance to locate tuist binaries.
+    let binaryLocator: BinaryLocating
+
+    /// Initializes the link generator with its attributes.
+    ///
+    /// - Parameter binaryLocator: An instance to locate tuist binaries.
+    init(binaryLocator: BinaryLocating = BinaryLocator()) {
+        self.binaryLocator = binaryLocator
+    }
+
     // MARK: - LinkGenerating
 
     func generateLinks(target: Target,
@@ -129,7 +139,8 @@ final class LinkGenerator: LinkGenerating {
         try dependencies.forEach { dependency in
             if case let DependencyReference.absolute(path) = dependency {
                 let relativePath = "$(SRCROOT)/\(path.relative(to: sourceRootPath).asString)"
-                script.append("tuist embed \(path.relative(to: sourceRootPath).asString)")
+                let binary = binaryLocator.copyFrameworksBinary()
+                script.append("\(binary) embed \(path.relative(to: sourceRootPath).asString)")
                 precompiledEmbedPhase.inputPaths.append(relativePath)
                 precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
 
