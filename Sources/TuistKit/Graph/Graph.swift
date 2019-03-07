@@ -138,7 +138,6 @@ class Graph: Graphing {
                 .map(DependencyReference.product)
 
             references.append(contentsOf: staticLibraries)
-
         }
 
         // Link dynamic libraries and frameworks
@@ -204,13 +203,13 @@ class Graph: Graphing {
             .map(DependencyReference.product)
 
         references.append(contentsOf: otherTargetFrameworks)
-        
+
         /// Pre-built frameworks
         let transitiveFrameworks = findAll(path: path)
             .filter(FrameworkNode.self)
             .map(\.path)
             .map(DependencyReference.absolute)
-        
+
         references.append(contentsOf: transitiveFrameworks)
 
         return references
