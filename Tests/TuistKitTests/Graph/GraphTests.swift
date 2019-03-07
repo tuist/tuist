@@ -184,4 +184,41 @@ final class GraphTests: XCTestCase {
 
         XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
     }
+    
+    func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
+        
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "Dependency", product: .framework)
+        let project = Project.test(targets: [target])
+        
+        let frameworkPath = AbsolutePath("/test/test.framework")
+        let frameworkNode = FrameworkNode(path: frameworkPath)
+        
+        let dependencyNode = TargetNode(
+            project: project,
+            target: dependency,
+            dependencies: [ frameworkNode ]
+        )
+        let targetNode = TargetNode(
+            project: project,
+            target: target,
+            dependencies: [ dependencyNode ]
+        )
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+        
+        system.succeedCommand([], output: "dynamically linked")
+        let got = try graph.embeddableFrameworks(
+            path: project.path,
+            name: target.name,
+            system: system
+        )
+        
+        XCTAssertEqual(got, [
+            DependencyReference.product("Dependency.framework"),
+            DependencyReference.absolute(frameworkPath),
+        ])
+        
+    }
 }
