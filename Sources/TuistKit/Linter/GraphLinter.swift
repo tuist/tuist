@@ -23,7 +23,7 @@ class GraphLinter: GraphLinting {
 
     func lint(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
+        issues.append(contentsOf: graph.projects.values.flatMap(projectLinter.lint))
         issues.append(contentsOf: lintDependencies(graph: graph))
         return issues
     }

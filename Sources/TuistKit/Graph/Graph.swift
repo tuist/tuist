@@ -40,7 +40,7 @@ protocol Graphing: AnyObject {
     var name: String { get }
     var entryPath: AbsolutePath { get }
     var entryNodes: [GraphNode] { get }
-    var projects: [Project] { get }
+    var projects: [AbsolutePath: Project] { get }
     var frameworks: [FrameworkNode] { get }
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
@@ -69,8 +69,9 @@ class Graph: Graphing {
     let name: String
     let entryPath: AbsolutePath
     let entryNodes: [GraphNode]
-    var projects: [Project] {
-        return Array(cache.projects.values)
+    
+    var projects: [AbsolutePath: Project] {
+        return cache.projects
     }
 
     // MARK: - Init

@@ -5,7 +5,7 @@ import xcodeproj
 
 protocol WorkspaceGenerating: AnyObject {
     @discardableResult
-    func generate(path: AbsolutePath, graph: Graphing, options: GenerationOptions, directory: GenerationDirectory) throws -> AbsolutePath
+    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing, options: GenerationOptions, directory: GenerationDirectory) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -52,43 +52,59 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - WorkspaceGenerating
 
     @discardableResult
-    func generate(path: AbsolutePath,
+    func generate(workspace: Workspace,
+                  path: AbsolutePath,
                   graph: Graphing,
                   options: GenerationOptions,
                   directory: GenerationDirectory = .manifest) throws -> AbsolutePath {
         let workspaceRootPath = try projectDirectoryHelper.setupDirectory(name: graph.name,
                                                                           path: graph.entryPath,
                                                                           directory: directory)
-        let workspaceName = "\(graph.name).xcworkspace"
+        let workspaceName = "\(workspace.name).xcworkspace"
         printer.print(section: "Generating workspace \(workspaceName)")
         let workspacePath = workspaceRootPath.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
-        let workspace = XCWorkspace(data: workspaceData)
+        let xcworkspace = XCWorkspace(data: workspaceData)
+        
+        func recursiveAppendChildren(element: Workspace.Element) throws -> XCWorkspaceDataElement {
+            
+            switch element {
+            case .file(path: let filePath):
+                return workspaceFileElement(path: filePath.relative(to: path))
+                
+            case .group(name: let name, contents: let contents):
 
-        /// Manifests
+                let location = XCWorkspaceDataElementLocationType.container("")
+                let childData = XCWorkspaceDataGroup(
+                    location: location,
+                    name: name,
+                    children: try contents.map(recursiveAppendChildren)
+                )
 
-        let manifestFiles: [XCWorkspaceDataElement] = [Manifest.workspace, Manifest.setup]
-            .lazy
-            .map(pipe(get(\.fileName), path.appending))
-            .filter(fileHandler.exists)
-            .map { $0.relative(to: path) }
-            .map(workspaceFileElement)
+                return .group(childData)
+                
+            case .project(path: let path):
+                
+                let project = graph.projects[path]!
+                
+                let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(
+                    project: project,
+                    directory: directory
+                )
+                
+                let generatedProject = try projectGenerator.generate(
+                    project: project,
+                    options: options,
+                    graph: graph,
+                    sourceRootPath: sourceRootPath
+                )
+                
+                let relativePath = generatedProject.path.relative(to: path)
+                
+                return workspaceFileElement(path: relativePath)
 
-        workspace.data.children.append(contentsOf: manifestFiles)
-
-        /// Projects
-        var workspaceElements = [XCWorkspaceDataElement]()
-
-        try graph.projects.forEach { project in
-            let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
-                                                                                  directory: directory)
-            let generatedProject = try projectGenerator.generate(project: project,
-                                                                 options: options,
-                                                                 graph: graph,
-                                                                 sourceRootPath: sourceRootPath)
-
-            let relativePath = generatedProject.path.relative(to: path)
-            workspaceElements.append(workspaceFileElement(path: relativePath))
+            }
+            
         }
         workspaceData.children.append(contentsOf: workspaceElements.sorted(by: workspaceDataElementSort))
 
