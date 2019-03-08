@@ -158,12 +158,4 @@ final class ProjectGroupsTests: XCTestCase {
     func test_projectGroupsError_type() {
         XCTAssertEqual(ProjectGroupsError.missingGroup("abc").type, .bug)
     }
-
-    // MARK: - Helpers
-
-    func addFile(file path: String, to group: PBXGroup) {
-        let fileReference = PBXFileReference(sourceTree: .group, path: path)
-        pbxproj.add(object: fileReference)
-        group.children.append(fileReference)
-    }
 }
