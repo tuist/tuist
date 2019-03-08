@@ -132,7 +132,6 @@ final class WorkspaceGeneratorTests: XCTestCase {
     }
 
     func test_generate_withNestedGroups() throws {
-        
         // Given the workspace specifies groups
         // When generating the workspace
         // I expect the nested groups to be in the correct order (Outer -> Inner -> Project)
