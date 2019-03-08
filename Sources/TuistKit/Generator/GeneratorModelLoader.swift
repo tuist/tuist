@@ -83,7 +83,8 @@ extension TuistKit.Target {
 
         let sources = try TuistKit.Target.sources(projectPath: path, sources: manifest.sources, fileHandler: fileHandler)
         let resources = try manifest.resources.map {
-            try TuistKit.Target.resources(projectPath: path, resources: $0, fileHandler: fileHandler) } ?? []
+            try TuistKit.Target.resources(projectPath: path, resources: $0, fileHandler: fileHandler)
+        } ?? []
         let headers = manifest.headers.map { TuistKit.Headers.from(manifest: $0, path: path, fileHandler: fileHandler) }
 
         let coreDataModels = try manifest.coreDataModels.map { try TuistKit.CoreDataModel.from(manifest: $0, path: path, fileHandler: fileHandler) }
