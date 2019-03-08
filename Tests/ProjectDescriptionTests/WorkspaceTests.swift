@@ -10,7 +10,7 @@ final class WorkspaceTests: XCTestCase {
             """
             {
                "name":"name",
-               "elements":[
+               "contents":[
                   {
                      "value":{
                         "path":"/path/to/project"
@@ -36,7 +36,7 @@ final class WorkspaceTests: XCTestCase {
             """
             {
                "name":"name",
-               "elements":[
+               "contents":[
                   {
                      "value":{
                         "path":"/path/to/file"
