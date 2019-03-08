@@ -20,6 +20,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Generate a scheme with all the project targets https://github.com/tuist/tuist/pull/226 by @pepibumur
 - Documentation for contributors https://github.com/tuist/tuist/pull/229 by @pepibumur
 - Support for Static Frameworks https://github.com/tuist/tuist/pull/194 @ollieatkinson
+- Support for additional types inside of Workspace.swift https://github.com/tuist/tuist/pull/262 @ollieatkinson
 
 ### Removed
 
