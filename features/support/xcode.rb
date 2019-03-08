@@ -26,7 +26,7 @@ module Xcode
     framework_path
   end
 
-  def self.find_resource(product:, destination:, framework:, derived_data_path:)
+  def self.find_resource(product:, destination:, resource:, derived_data_path:)
     product_path = product_with_name(
       product,
       destination: destination,
@@ -34,17 +34,11 @@ module Xcode
     )
 
     if product_path.nil?
-      flunk("Product with name #{product} and destination #{destination} not found in DerivedData")
+        flunk("Product with name #{product} and destination #{destination} not found in DerivedData")
     end
 
     resource_glob = File.join(product_path, "**/#{resource}")
     # /path/to/product/resource.png
-    resource_path = Dir.glob(framework_glob).first
-
-    if resource_path.nil?
-      flunk("resource #{framework} not found in product #{product_path}")
-    end
-
-    resource_path
+    Dir.glob(resource_glob).first
   end
 end

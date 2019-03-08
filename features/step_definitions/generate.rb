@@ -32,7 +32,7 @@ Then("the product {string} with destination {string} contains resource {string}"
     derived_data_path: @derived_data_path
   )
 
-  assert(status.success?, resource_path.nil?)
+  assert(resource_path.nil? == false)
 end
 
 Then("the product {string} with destination {string} does not contain resource {string}") do |product, destination, resource|
@@ -43,5 +43,5 @@ Then("the product {string} with destination {string} does not contain resource {
     derived_data_path: @derived_data_path
   )
 
-  assert(status.success?, resource_path.nil? == true)
+  assert(resource_path.nil? == true)
 end

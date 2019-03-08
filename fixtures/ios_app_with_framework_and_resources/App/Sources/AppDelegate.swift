@@ -10,7 +10,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         print(hello())
         print("AppDelegate -> \(framework1.hello())")
-        print("Image: \(framework1.image)")
+        print("Image: \(UIImage(named: "tuist"))")
     }
 
     func hello() -> String {

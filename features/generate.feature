@@ -70,6 +70,5 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then I copy the fixture ios_app_with_framework_and_resources into the working directory
     Then tuist generates the project
     Then I should be able to build the scheme App
-    Then I should be able to build the scheme Framework1
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'tuist.png'
-    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'd'o_not_include.dat'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
