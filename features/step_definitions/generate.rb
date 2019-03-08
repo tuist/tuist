@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Then("the product {string} with destination {string} contains the framework {string} with architecture {string}") do |product, destination, framework, architecture|
   framework_path = Xcode.find_framework(
     product: product,

@@ -7,6 +7,6 @@ And(/I have a working directory/) do
   @dir = Dir.mktmpdir
 end
 
-After do |scenario|
+After do |_scenario|
   FileUtils.rm_r(@dir) unless @dir.nil?
 end
