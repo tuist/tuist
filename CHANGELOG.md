@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Replace swiftlint with swiftformat https://github.com/tuist/tuist/pull/239 by @pepibumur.
 - Bump xcodeproj version to 6.6.0 https://github.com/tuist/tuist/pull/248 by @pepibumur.
 - Fix an issue with Xcode not being able to reload the projects when they are open https://github.com/tuist/tuist/pull/247
+- Support array for `sources` and `resources` paths https://github.com/tuist/tuist/pull/201 by @dangthaison91
 
 ### Added
 

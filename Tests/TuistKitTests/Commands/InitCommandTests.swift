@@ -7,13 +7,11 @@ import XCTest
 
 final class InitCommandErrorTests: XCTestCase {
     func test_description() {
-        XCTAssertEqual(InitCommandError.alreadyExists(AbsolutePath("/path")).description, "/path already exists.")
         XCTAssertEqual(InitCommandError.ungettableProjectName(AbsolutePath("/path")).description, "Couldn't infer the project name from path /path.")
         XCTAssertEqual(InitCommandError.nonEmptyDirectory(AbsolutePath("/path")).description, "Can't initialize a project in the non-empty directory at path /path.")
     }
 
     func test_type() {
-        XCTAssertEqual(InitCommandError.alreadyExists(AbsolutePath("/path")).type, .abort)
         XCTAssertEqual(InitCommandError.ungettableProjectName(AbsolutePath("/path")).type, .abort)
         XCTAssertEqual(InitCommandError.nonEmptyDirectory(AbsolutePath("/path")).type, .abort)
     }

@@ -4,7 +4,6 @@ import TuistCore
 import Utility
 
 enum InitCommandError: FatalError, Equatable {
-    case alreadyExists(AbsolutePath)
     case ungettableProjectName(AbsolutePath)
     case nonEmptyDirectory(AbsolutePath)
 
@@ -14,8 +13,6 @@ enum InitCommandError: FatalError, Equatable {
 
     var description: String {
         switch self {
-        case let .alreadyExists(path):
-            return "\(path.asString) already exists."
         case let .ungettableProjectName(path):
             return "Couldn't infer the project name from path \(path.asString)."
         case let .nonEmptyDirectory(path):
@@ -25,8 +22,6 @@ enum InitCommandError: FatalError, Equatable {
 
     static func == (lhs: InitCommandError, rhs: InitCommandError) -> Bool {
         switch (lhs, rhs) {
-        case let (.alreadyExists(lhsPath), .alreadyExists(rhsPath)):
-            return lhsPath == rhsPath
         case let (.ungettableProjectName(lhsPath), .ungettableProjectName(rhsPath)):
             return lhsPath == rhsPath
         case let (.nonEmptyDirectory(lhsPath), .nonEmptyDirectory(rhsPath)):
@@ -139,7 +134,8 @@ class InitCommand: NSObject, Command {
                                        product: .\(product.caseValue),
                                        bundleId: "io.tuist.\(name)",
                                        infoPlist: "Info.plist",
-                                       sources: "Sources/**",
+                                       sources: ["Sources/**"],
+                                       resources: ["Resources/**"],
                                        dependencies: [
                                             /* Target dependencies can be defined here */
                                             /* .framework(path: "framework") */
@@ -242,9 +238,6 @@ class InitCommand: NSObject, Command {
     fileprivate func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
         let path = path.appending(component: "Sources")
 
-        if fileHandler.exists(path) {
-            throw InitCommandError.alreadyExists(path)
-        }
         try fileHandler.createFolder(path)
 
         var content: String!
@@ -310,9 +303,6 @@ class InitCommand: NSObject, Command {
     fileprivate func generateTests(name: String, path: AbsolutePath) throws {
         let path = path.appending(component: "Tests")
 
-        if fileHandler.exists(path) {
-            throw InitCommandError.alreadyExists(path)
-        }
         try fileHandler.createFolder(path)
 
         let content = """
