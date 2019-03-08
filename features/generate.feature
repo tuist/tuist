@@ -54,7 +54,7 @@ Feature: Generate a new project using Tuist
     Then I should be able to build the scheme B
     Then I should be able to test the scheme BTests
 
-Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_framework)
+  Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_framework)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_transitive_framework into the working directory
@@ -64,7 +64,7 @@ Scenario: The project is an iOS application with a target dependency and transit
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'Framework2' without architecture 'x86'
     Then I should be able to build the scheme Framework1
 
-Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)
+  Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_framework_and_resources into the working directory
@@ -72,3 +72,18 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then I should be able to build the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'tuist.png'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
+
+  Scenario: The project is an iOS application that has an app and multiple frameworks setup inside of a custom workspace (ios_app_with_custom_workspace)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_custom_workspace into the working directory
+    Then tuist generates the project
+    Then I should be able to build the scheme App
+    Then I should be able to test the scheme AppTests
+    Then I should be able to build the scheme Framework1
+    Then I should be able to test the scheme Framework1Tests
+    Then I should be able to build the scheme Framework2
+    Then I should be able to test the scheme Framework2Tests
+    Then I should be able to build the scheme MainApp-Manifest
+    Then I should be able to build the scheme Framework1-Manifest
+    Then I should be able to build the scheme Framework2-Manifest
