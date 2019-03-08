@@ -12,11 +12,12 @@ let project = Project(name: "MyProject",
                                  product: .app,
                                  bundleId: "io.tuist.App",
                                  infoPlist: "Config/App-Info.plist",
-                                 sources: "Sources/**",
+                                 sources: ["Sources/**"],
+                                 resources: ["Resources/**"],
                                  dependencies: [
                                      .project(target: "Framework1", path: "../Framework1"),
                                      .project(target: "Framework2", path: "../Framework2"),
-                          ])
+                                 ])
 ])
 ```
 
