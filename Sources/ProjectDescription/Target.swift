@@ -29,7 +29,7 @@ public class Target: Codable {
 
     /// Relative paths to the sources directory.
     public let sources: FileList?
-    
+
     /// Relative paths to the resources directory.
     public let resources: FileList?
 

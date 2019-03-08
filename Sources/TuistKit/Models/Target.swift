@@ -74,8 +74,8 @@ class Target: Equatable {
     // MARK: - Fileprivate
 
     static func sources(projectPath: AbsolutePath, sources: [String], fileHandler _: FileHandling) throws -> [AbsolutePath] {
-        return sources.flatMap{ source in
-            return projectPath.glob(source).filter { path in
+        return sources.flatMap { source in
+            projectPath.glob(source).filter { path in
                 if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
                     return true
                 }
@@ -85,8 +85,8 @@ class Target: Equatable {
     }
 
     static func resources(projectPath: AbsolutePath, resources: [String], fileHandler: FileHandling) throws -> [AbsolutePath] {
-        return resources.flatMap{ source in
-            return projectPath.glob(source).filter { path in
+        return resources.flatMap { source in
+            projectPath.glob(source).filter { path in
                 if !fileHandler.isFolder(path) {
                     return true
                     // We filter out folders that are not Xcode supported bundles such as .app or .framework.

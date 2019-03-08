@@ -5,9 +5,9 @@ public final class FileList: Codable {
     public enum CodingKeys: String, CodingKey {
         case globs
     }
-    
+
     public let globs: [String]
-    
+
     public init(globs: [String]) {
         self.globs = globs
     }
@@ -21,7 +21,6 @@ extension FileList: ExpressibleByStringLiteral {
 }
 
 extension FileList: ExpressibleByArrayLiteral {
-    
     public convenience init(arrayLiteral elements: String...) {
         self.init(globs: elements)
     }

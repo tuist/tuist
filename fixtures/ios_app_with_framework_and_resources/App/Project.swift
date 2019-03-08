@@ -10,7 +10,7 @@ let project = Project(
             bundleId: "io.tuist.App",
             infoPlist: "Config/App-Info.plist",
             sources: "Sources/**",
-            resources: [ "Resources/*.png" ],
+            resources: ["Resources/*.png"],
             dependencies: [
                 .project(target: "Framework1", path: "../Framework1"),
             ]
