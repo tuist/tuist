@@ -4,6 +4,4 @@ import XCTest
 
 @testable import TuistCore
 
-final class AbsolutePathExtrasTests: XCTestCase {
-   
-}
+final class AbsolutePathExtrasTests: XCTestCase {}

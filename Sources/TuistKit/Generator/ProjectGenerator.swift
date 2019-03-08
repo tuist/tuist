@@ -86,10 +86,10 @@ final class ProjectGenerator: ProjectGenerating {
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
-                                          graph: graph,
-                                          groups: groups,
-                                          pbxproj: pbxproj,
-                                          sourceRootPath: sourceRootPath)
+                                              graph: graph,
+                                              groups: groups,
+                                              pbxproj: pbxproj,
+                                              sourceRootPath: sourceRootPath)
 
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
@@ -109,7 +109,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 sourceRootPath: sourceRootPath,
                                                 options: options,
                                                 graph: graph)
-        
+
         return try write(xcodeprojPath: xcodeprojPath,
                          nativeTargets: nativeTargets,
                          workspace: workspace,
