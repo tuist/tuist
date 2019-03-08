@@ -65,14 +65,13 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspacePath = workspaceRootPath.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcworkspace = XCWorkspace(data: workspaceData)
-        
+
         func recursiveChildElement(element: Workspace.Element) throws -> XCWorkspaceDataElement {
-            
             switch element {
-            case .file(path: let filePath):
+            case let .file(path: filePath):
                 return workspaceFileElement(path: filePath.relative(to: path))
-                
-            case .group(name: let name, contents: let contents):
+
+            case let .group(name: name, contents: contents):
 
                 let location = XCWorkspaceDataElementLocationType.container("")
                 let childData = XCWorkspaceDataGroup(
@@ -82,36 +81,32 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 )
 
                 return .group(childData)
-                
-            case .project(path: let projectPath):
-                
+
+            case let .project(path: projectPath):
+
                 let project = graph.projects[projectPath]!
-                
+
                 let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(
                     project: project,
                     directory: directory
                 )
-                
+
                 let generatedProject = try projectGenerator.generate(
                     project: project,
                     options: options,
                     graph: graph,
                     sourceRootPath: sourceRootPath
                 )
-                
-                let relativePath = generatedProject.path.relative(to: path)
-                
-                return workspaceFileElement(path: relativePath)
 
+                let relativePath = generatedProject.path.relative(to: path)
+
+                return workspaceFileElement(path: relativePath)
             }
-            
         }
 
-        xcworkspace.data.children.append(contentsOf: try workspace.elements.map(recursiveChildElement))
+        xcworkspace.data.children.append(contentsOf: try workspace.contents.map(recursiveChildElement))
 
-        xcworkspace.data.children.append(contentsOf: try workspace.elements.map(recursiveAppendChildren).sorted(by: workspaceDataElementSort))
-
-        try write(xcworkspace: workspace, to: workspacePath)
+        try write(xcworkspace: xcworkspace, to: workspacePath)
 
         return workspacePath
     }

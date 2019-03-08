@@ -69,7 +69,7 @@ class Graph: Graphing {
     let name: String
     let entryPath: AbsolutePath
     let entryNodes: [GraphNode]
-    
+
     var projects: [AbsolutePath: Project] {
         return cache.projects
     }

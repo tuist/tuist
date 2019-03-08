@@ -38,6 +38,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
             let targetNode = TargetNode(project: project, target: target, dependencies: [])
             let cache = GraphLoaderCache()
             cache.add(targetNode: targetNode)
+            cache.add(project: project)
 
             graph = Graph.test(entryPath: path, cache: cache)
 
@@ -53,8 +54,15 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
         try fileHandler.touch(path.appending(component: "Workspace.swift"))
         try fileHandler.touch(path.appending(component: "Setup.swift"))
+        try fileHandler.touch(path.appending(component: "Project.swift"))
 
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
+        let testWorkspace = Workspace.test(name: "test", contents: [
+            .file(path: path.appending(component: "Workspace.swift")),
+            .file(path: path.appending(component: "Setup.swift")),
+            .project(path: path),
+        ])
+
+        try subject.generate(workspace: testWorkspace, path: path, graph: graph, options: GenerationOptions())
 
         let workspace = try readWorkspace(at: path)
 
@@ -68,8 +76,14 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // I expect Setup.swift to be added to the workspace and Workspace.swift to not be added
 
         try fileHandler.touch(path.appending(component: "Setup.swift"))
+        try fileHandler.touch(path.appending(component: "Project.swift"))
 
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
+        let testWorkspace = Workspace.test(name: "test", contents: [
+            .file(path: path.appending(component: "Setup.swift")),
+            .project(path: path),
+        ])
+
+        try subject.generate(workspace: testWorkspace, path: path, graph: graph, options: GenerationOptions())
 
         let workspace = try readWorkspace(at: path)
 
@@ -82,7 +96,13 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // When generating the workspace
         // I do not expect Setup.swift or Workspace.swift to be added
 
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
+        try fileHandler.touch(path.appending(component: "Project.swift"))
+
+        let testWorkspace = Workspace.test(name: "test", contents: [
+            .project(path: path),
+        ])
+
+        try subject.generate(workspace: testWorkspace, path: path, graph: graph, options: GenerationOptions())
 
         let workspace = try readWorkspace(at: path)
 
@@ -91,17 +111,44 @@ final class WorkspaceGeneratorTests: XCTestCase {
     }
 
     func test_generate_relativeToGroup() throws {
-        try fileHandler.touch(path.appending(component: "Workspace.swift"))
-
         // Given the workspace manifest file exists
         // When generating the workspace
         // I expect the file to be relative to the workspace
 
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
+        try fileHandler.touch(path.appending(component: "Workspace.swift"))
+        try fileHandler.touch(path.appending(component: "Project.swift"))
+
+        let testWorkspace = Workspace.test(name: "test", contents: [
+            .file(path: path.appending(component: "Workspace.swift")),
+            .file(path: path.appending(component: "Setup.swift")),
+            .project(path: path),
+        ])
+
+        try subject.generate(workspace: testWorkspace, path: path, graph: graph, options: GenerationOptions())
 
         let workspace = try readWorkspace(at: path)
 
         XCTAssertTrue(workspace.contains("location = \"group:Workspace.swift\">"))
+    }
+
+    func test_generate_withNestedGroups() throws {
+        
+        // Given the workspace specifies groups
+        // When generating the workspace
+        // I expect the nested groups to be in the correct order (Outer -> Inner -> Project)
+
+        let testWorkspace = Workspace.test(name: "test", contents: [
+            .group(name: "Outer", contents: [.group(name: "Inner", contents: [.project(path: path)])]),
+        ])
+
+        try fileHandler.touch(path.appending(component: "Workspace.swift"))
+        try fileHandler.touch(path.appending(component: "Project.swift"))
+
+        try subject.generate(workspace: testWorkspace, path: path, graph: graph, options: GenerationOptions())
+
+        let workspace = try readWorkspace(at: path)
+
+        XCTAssertTrue(workspace.contains("<Group\n      location = \"container:\"\n      name = \"Outer\">\n      <Group\n         location = \"container:\"\n         name = \"Inner\">\n         <FileRef\n            location = \"group:Project.xcodeproj\">"))
     }
 
     func readWorkspace(at path: AbsolutePath) throws -> String {

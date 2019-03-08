@@ -54,13 +54,13 @@ class Generator: Generating {
 
     func generateProject(at path: AbsolutePath, config: GeneratorConfig) throws -> AbsolutePath {
         let graph = try graphLoader.loadProject(path: path)
-        
-        let elements: [Workspace.Element] = graph.projects.map{ key, _ in
-            return .project(path: key)
+
+        let contents: [Workspace.Element] = graph.projects.map { key, _ in
+            .project(path: key)
         }
 
         return try workspaceGenerator.generate(
-            workspace: .init(name: graph.name, elements: elements),
+            workspace: .init(name: graph.name, contents: contents),
             path: path,
             graph: graph,
             options: config.options,
@@ -69,7 +69,6 @@ class Generator: Generating {
     }
 
     func generateWorkspace(at path: AbsolutePath, config: GeneratorConfig) throws -> AbsolutePath {
-        
         let (workspace, graph) = try graphLoader.loadWorkspace(path: path)
 
         return try workspaceGenerator.generate(
@@ -79,6 +78,5 @@ class Generator: Generating {
             options: config.options,
             directory: config.directory
         )
-        
     }
 }

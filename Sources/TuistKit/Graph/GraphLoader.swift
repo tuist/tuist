@@ -43,27 +43,24 @@ class GraphLoader: GraphLoading {
     }
 
     func loadWorkspace(path: AbsolutePath) throws -> (Workspace, Graph) {
-        
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let workspace = try modelLoader.loadWorkspace(at: path)
-        
+
         func traverseProjects(element: Workspace.Element) throws -> [(AbsolutePath, Project)] {
-            
             switch element {
             case .file(path: _):
                 break
             case .group(name: _, contents: let contents):
                 return try contents.flatMap(traverseProjects)
-            case .project(path: let path):
-                return [ try (path, Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)) ]
+            case let .project(path: path):
+                return [try (path, Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader))]
             }
-            
-            return [ ]
-            
+
+            return []
         }
-        
-        let projects = try workspace.elements.flatMap(traverseProjects)
+
+        let projects = try workspace.contents.flatMap(traverseProjects)
 
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
             try project.1.targets.map({ $0.name }).map { targetName in
@@ -76,12 +73,11 @@ class GraphLoader: GraphLoading {
                           entryNodes: entryNodes)
 
         try lint(graph: graph)
-        
+
         return (workspace, graph)
     }
 
     private func lint(graph: Graph) throws {
         try linter.lint(graph: graph).printAndThrowIfNeeded(printer: printer)
     }
-    
 }

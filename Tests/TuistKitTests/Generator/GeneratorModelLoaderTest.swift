@@ -94,7 +94,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-        XCTAssertEqual(model.projects, [])
+        XCTAssertEqual(model.contents, [])
     }
 
     func test_loadWorkspace_withProjects() throws {
@@ -113,7 +113,18 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-        XCTAssertEqual(model.projects, ["/root/A", "/root/B"])
+
+        let projects: [String] = model.contents.compactMap { element in
+
+            switch element {
+            case let .project(name):
+                return name.asString
+            case _:
+                return nil
+            }
+        }
+
+        XCTAssertEqual(projects, ["/root/A", "/root/B"])
     }
 
     func test_settings() throws {
