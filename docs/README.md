@@ -5,6 +5,7 @@
 If Tuist caught your attention and you'd like to explore it further, the following resources will help you configure and get the most out of the tool:
 
 - [Getting started](usage/getting-started.md): Learn how to install the tool on your environment and generate your first project.
+- [Manifest files](usage/manifest.md): Projects are defined in manifest files. This page describes all the attributes that are available.
 - [Dependencies](usage/dependencies.md): Learn how to define dependencies between targets and with pre-compiled libraries and frameworks.
 - [Setup](usage/up.md): Learn about the `up` command which handles the configuration of the environment for your projects to run.
 - [Managing versions](usage/managing-versions.md): It dives into how Tuist ensures rep
