@@ -24,7 +24,7 @@ class Target: Equatable {
     let coreDataModels: [CoreDataModel]
     let actions: [TargetAction]
     let environment: [String: String]
-    let projectStructure: ProjectStructure
+    let filesGroup: ProjectGroup
 
     // MARK: - Init
 
@@ -41,7 +41,7 @@ class Target: Equatable {
          coreDataModels: [CoreDataModel] = [],
          actions: [TargetAction] = [],
          environment: [String: String] = [:],
-         projectStructure: ProjectStructure = .default,
+         filesGroup: ProjectGroup,
          dependencies: [Dependency] = []) {
         self.name = name
         self.product = product
@@ -56,7 +56,7 @@ class Target: Equatable {
         self.coreDataModels = coreDataModels
         self.actions = actions
         self.environment = environment
-        self.projectStructure = projectStructure
+        self.filesGroup = filesGroup
         self.dependencies = dependencies
     }
 

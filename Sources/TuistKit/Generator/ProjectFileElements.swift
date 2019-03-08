@@ -7,7 +7,7 @@ import xcodeproj
 class ProjectFileElements {
     struct FileElement: Hashable {
         var path: AbsolutePath
-        var group: String?
+        var group: ProjectGroup
     }
 
     // MARK: - Static
@@ -46,14 +46,14 @@ class ProjectFileElements {
         project.targets.forEach { target in
             let targetFilePaths = targetFiles(target: target)
             let targetFileElements = targetFilePaths.map {
-                FileElement(path: $0, group: target.projectStructure.filesGroup)
+                FileElement(path: $0, group: target.filesGroup)
             }
             files.formUnion(targetFileElements)
             products.formUnion(targetProducts(target: target))
         }
         let projectFilePaths = projectFiles(project: project)
         let projectFileElements = projectFilePaths.map {
-            FileElement(path: $0, group: project.projectStructure.filesGroup)
+            FileElement(path: $0, group: project.filesGroup)
         }
         files.formUnion(projectFileElements)
 
@@ -87,7 +87,7 @@ class ProjectFileElements {
                      groups: groups,
                      pbxproj: pbxproj,
                      sourceRootPath: sourceRootPath,
-                     projectStructure: project.projectStructure)
+                     filesGroup: project.filesGroup)
     }
 
     func projectFiles(project: Project) -> Set<AbsolutePath> {
@@ -187,7 +187,7 @@ class ProjectFileElements {
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath,
-                  projectStructure: ProjectStructure) throws {
+                  filesGroup: ProjectGroup) throws {
         try dependencies.forEach { node in
             if let targetNode = node as? TargetNode {
                 // Product name
@@ -210,7 +210,7 @@ class ProjectFileElements {
 
             } else if let precompiledNode = node as? PrecompiledNode {
                 let fileElement = FileElement(path: precompiledNode.path,
-                                              group: projectStructure.filesGroup)
+                                              group: filesGroup)
                 try generate(fileElement: fileElement,
                              groups: groups,
                              pbxproj: pbxproj,
@@ -230,7 +230,11 @@ class ProjectFileElements {
         let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
 
         // Add the first relative element.
-        let group = try fileElement.group.map { try groups.projectGroup(named: $0) } ?? groups.main
+        let group: PBXGroup
+        switch fileElement.group {
+        case let .group(name: groupName):
+            group = try groups.projectGroup(named: groupName)
+        }
         guard let firstElement = addElement(relativePath: closestRelativeRelativePath,
                                             from: sourceRootPath,
                                             toGroup: group,

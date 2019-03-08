@@ -78,45 +78,4 @@ final class ProjectGeneratorTests: XCTestCase {
             "Products",
         ])
     }
-
-    func test_generate_customGroupsOrder() throws {
-        // Given
-        let path = fileHandler.currentPath
-        let infoPlist = path.appending(component: "Info.plist")
-        let sources = [
-            path.appending(RelativePath("Sources/c.swift")),
-            path.appending(RelativePath("Mocks/d.swift")),
-            path.appending(RelativePath("Sources/component/b.swift")),
-            path.appending(RelativePath("root.swift")),
-        ]
-        let target = Target.test(infoPlist: infoPlist,
-                                 entitlements: nil,
-                                 settings: nil,
-                                 sources: sources,
-                                 resources: [],
-                                 projectStructure: ProjectStructure(filesGroup: nil))
-        let project = Project.test(path: fileHandler.currentPath,
-                                   settings: nil,
-                                   projectStructure: ProjectStructure(filesGroup: nil),
-                                   targets: [target])
-
-        // When
-        let xcodeProjectPath = try subject.generate(project: project,
-                                                    options: GenerationOptions(),
-                                                    graph: Graph.test(),
-                                                    sourceRootPath: fileHandler.currentPath)
-
-        // Then
-        let xcodeproj = try XcodeProj(pathString: xcodeProjectPath.path.asString)
-        let mainGroup = try xcodeproj.pbxproj.rootGroup()
-        XCTAssertEqual(mainGroup?.children.map { $0.nameOrPath }, [
-            "Info.plist",
-            "root.swift",
-            "Mocks",
-            "Sources",
-            "Manifest",
-            "Frameworks",
-            "Products",
-        ])
-    }
 }

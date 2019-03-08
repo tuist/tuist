@@ -6,12 +6,12 @@ extension Project {
     static func test(path: AbsolutePath = AbsolutePath("/test/"),
                      name: String = "Project",
                      settings: Settings? = Settings.test(),
-                     projectStructure: ProjectStructure = .default,
+                     filesGroup: ProjectGroup = .group(name: "Project"),
                      targets: [Target] = [Target.test()]) -> Project {
         return Project(path: path,
                        name: name,
                        settings: settings,
-                       projectStructure: projectStructure,
+                       filesGroup: filesGroup,
                        targets: targets)
     }
 }

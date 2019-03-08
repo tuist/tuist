@@ -98,7 +98,7 @@ final class ConfigGeneratorTests: XCTestCase {
         try fileHandler.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
-        let project = Project(path: dir.path,
+        let project = Project.test(path: dir.path,
                               name: "Test",
                               settings: Settings(base: ["Base": "Base"],
                                                  debug: Configuration(settings: ["Debug": "Debug"],
@@ -133,7 +133,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                                                          xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
                                                     release: Configuration(settings: ["Release": "Release"],
                                                                            xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))))
-        let project = Project(path: dir.path,
+        let project = Project.test(path: dir.path,
                               name: "Test",
                               settings: nil,
                               targets: [target])

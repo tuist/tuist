@@ -17,8 +17,8 @@ class Project: Equatable, CustomStringConvertible {
     /// Project settings.
     let settings: Settings?
 
-    /// Project Structure
-    let projectStructure: ProjectStructure
+    /// The group to place project files within
+    let filesGroup: ProjectGroup
 
     // MARK: - Init
 
@@ -31,13 +31,13 @@ class Project: Equatable, CustomStringConvertible {
     init(path: AbsolutePath,
          name: String,
          settings: Settings? = nil,
-         projectStructure: ProjectStructure = .default,
+         filesGroup: ProjectGroup,
          targets: [Target]) {
         self.path = path
         self.name = name
         self.targets = targets
         self.settings = settings
-        self.projectStructure = projectStructure
+        self.filesGroup = filesGroup
     }
 
     // MARK: - Init

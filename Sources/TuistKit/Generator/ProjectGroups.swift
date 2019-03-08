@@ -32,7 +32,6 @@ class ProjectGroups {
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
-    private let allPredefinedGroups: OrderedSet<PBXGroup>
 
     // MARK: - Init
 
@@ -50,10 +49,6 @@ class ProjectGroups {
         self.frameworks = frameworks
         self.playgrounds = playgrounds
         self.pbxproj = pbxproj
-
-        let allProjectGroups = projectGroups.map { $0.group }
-        let predefinedGroups = [projectManifest, frameworks, playgrounds, products].compactMap { $0 }
-        allPredefinedGroups = OrderedSet(allProjectGroups + predefinedGroups)
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
@@ -71,26 +66,6 @@ class ProjectGroups {
         return group
     }
 
-    /// Sorts groups in the following order
-    ///
-    /// - Any additional groups or files added to the main group directly
-    /// - Project specified groups
-    /// - Target specified groups (in the order the targets are defined)
-    /// - Remaining predefined groups (e.g. Frameworks, Products etc...)
-    ///
-    func sort() {
-        var additionalElements = main.children.filter {
-            if let group = $0 as? PBXGroup {
-                return !allPredefinedGroups.contains(group)
-            }
-            return true
-        }
-
-        additionalElements.sort(by: PBXFileElement.filesBeforeGroupsSort)
-
-        main.children = additionalElements + Array(allPredefinedGroups)
-    }
-
     static func generate(project: Project,
                          pbxproj: PBXProj,
                          sourceRootPath: AbsolutePath,
@@ -103,9 +78,8 @@ class ProjectGroups {
         pbxproj.add(object: mainGroup)
 
         /// Project & Target Groups
-        let targetGroups = project.targets.map { $0.projectStructure.filesGroup }
-        let projectGroupNames = [project.projectStructure.filesGroup] + targetGroups
-        let groupsToCreate = OrderedSet(projectGroupNames.compactMap { $0 })
+        let projectGroupNames = extractProjectGroupNames(from: project)
+        let groupsToCreate = OrderedSet(projectGroupNames)
         var projectGroups = [(name: String, group: PBXGroup)]()
         groupsToCreate.forEach {
             let projectGroup = PBXGroup(children: [], sourceTree: .group, name: $0)
@@ -144,5 +118,16 @@ class ProjectGroups {
                              frameworks: frameworksGroup,
                              playgrounds: playgroundsGroup,
                              pbxproj: pbxproj)
+    }
+    
+    private static func extractProjectGroupNames(from project: Project) -> [String] {
+        let groups = [project.filesGroup] + project.targets.map { $0.filesGroup }
+        let groupNames: [String] = groups.compactMap {
+            switch ($0) {
+            case let .group(name: groupName):
+                return groupName
+            }
+        }
+        return groupNames
     }
 }

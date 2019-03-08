@@ -22,9 +22,9 @@ final class ProjectGroupsTests: XCTestCase {
         project = Project(path: path,
                           name: "Project",
                           settings: nil,
-                          projectStructure: ProjectStructure(filesGroup: "Project"),
+                          filesGroup: .group(name: "Project"),
                           targets: [
-                              .test(projectStructure: ProjectStructure(filesGroup: "Target")),
+                              .test(filesGroup:.group(name: "Target")),
                               .test(),
         ])
         pbxproj = PBXProj()
@@ -92,11 +92,11 @@ final class ProjectGroupsTests: XCTestCase {
         playgrounds.pathsStub = { _ in
             [AbsolutePath("/Playgrounds/Test.playground")]
         }
-        let target1 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
-        let target2 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
-        let target3 = Target.test(projectStructure: ProjectStructure(filesGroup: "A"))
-        let target4 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
-        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"),
+        let target1 = Target.test(filesGroup: .group(name: "B"))
+        let target2 = Target.test(filesGroup: .group(name: "C"))
+        let target3 = Target.test(filesGroup: .group(name: "A"))
+        let target4 = Target.test(filesGroup: .group(name: "C"))
+        let project = Project.test(filesGroup: .group(name: "P"),
                                    targets: [target1, target2, target3, target4])
 
         // When
@@ -109,57 +109,6 @@ final class ProjectGroupsTests: XCTestCase {
             "B",
             "C",
             "A",
-            "Manifest",
-            "Frameworks",
-            "Playgrounds",
-            "Products",
-        ])
-    }
-
-    func test_sort() throws {
-        // Given
-        playgrounds.pathsStub = { _ in
-            [AbsolutePath("/Playgrounds/Test.playground")]
-        }
-        let target1 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
-        let target2 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
-        let target3 = Target.test(projectStructure: ProjectStructure(filesGroup: "A"))
-        let target4 = Target.test(projectStructure: ProjectStructure(filesGroup: "C"))
-        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"),
-                                   targets: [target1, target2, target3, target4])
-
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
-
-        try subject.main.addGroup(named: "CustomZ")
-        try subject.main.addGroup(named: "CustomA")
-        try subject.main.addGroup(named: "CustomC")
-        addFile(file: "z", to: subject.main)
-        addFile(file: "a", to: subject.main)
-
-        // Then
-        subject.sort()
-
-        // Then
-        let paths = subject.main.children.compactMap { $0.nameOrPath }
-        XCTAssertEqual(paths, [
-            // Custom Files
-            "a",
-            "z",
-
-            // Custom groups added to main
-            "CustomA",
-            "CustomC",
-            "CustomZ",
-
-            // Project level
-            "P",
-
-            // Target level (in order of target definition)
-            "B",
-            "C",
-            "A",
-
-            // Predefined Groups
             "Manifest",
             "Frameworks",
             "Playgrounds",
@@ -188,10 +137,10 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_projectGroup_knownProjectGroups() throws {
         // Given
-        let target1 = Target.test(projectStructure: ProjectStructure(filesGroup: "A"))
-        let target2 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
-        let target3 = Target.test(projectStructure: ProjectStructure(filesGroup: "B"))
-        let project = Project.test(projectStructure: ProjectStructure(filesGroup: "P"),
+        let target1 = Target.test(filesGroup: .group(name: "A"))
+        let target2 = Target.test(filesGroup: .group(name: "B"))
+        let target3 = Target.test(filesGroup: .group(name: "B"))
+        let project = Project.test(filesGroup: .group(name: "P"),
                                    targets: [target1, target2, target3])
 
         subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
