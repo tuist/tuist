@@ -66,7 +66,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspaceData = XCWorkspaceData(children: [])
         let xcworkspace = XCWorkspace(data: workspaceData)
         
-        func recursiveAppendChildren(element: Workspace.Element) throws -> XCWorkspaceDataElement {
+        func recursiveChildElement(element: Workspace.Element) throws -> XCWorkspaceDataElement {
             
             switch element {
             case .file(path: let filePath):
@@ -78,7 +78,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 let childData = XCWorkspaceDataGroup(
                     location: location,
                     name: name,
-                    children: try contents.map(recursiveAppendChildren)
+                    children: try contents.map(recursiveChildElement)
                 )
 
                 return .group(childData)
@@ -106,6 +106,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             }
             
         }
+
+        xcworkspace.data.children.append(contentsOf: try workspace.elements.map(recursiveChildElement))
 
         xcworkspace.data.children.append(contentsOf: try workspace.elements.map(recursiveAppendChildren).sorted(by: workspaceDataElementSort))
 
