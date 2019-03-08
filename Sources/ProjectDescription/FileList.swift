@@ -1,4 +1,3 @@
-
 // MARK: - FileList
 
 public final class FileList: Codable {
