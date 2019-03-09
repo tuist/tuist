@@ -46,18 +46,18 @@ class GeneratorModelLoader: GeneratorModelLoading {
 extension TuistKit.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath) throws -> TuistKit.Workspace {
-        func mapContents(element: ProjectDescription.Workspace.Element) -> TuistKit.Workspace.Element {
-            switch element {
-            case let .file(path: filePath):
-                return .file(path: path.appending(RelativePath(filePath)))
-            case let .group(name: name, contents: contents):
-                return .group(name: name, contents: contents.map(mapContents))
-            case let .project(path: projectPath):
-                return .project(path: path.appending(RelativePath(projectPath)))
-            }
-        }
+//        func mapContents(element: ProjectDescription.Workspace.Element) -> TuistKit.Workspace.Element {
+//            switch element {
+//            case let .file(path: filePath):
+//                return .file(path: path.appending(RelativePath(filePath)))
+//            case let .group(name: name, contents: contents):
+//                return .group(name: name, contents: contents.map(mapContents))
+//            case let .project(path: projectPath):
+//                return .project(path: path.appending(RelativePath(projectPath)))
+//            }
+//        }
 
-        return Workspace(name: manifest.name, contents: manifest.contents.map(mapContents))
+        return Workspace(name: manifest.name/*, contents: manifest.contents.map(mapContents)*/)
     }
 }
 

@@ -5,7 +5,7 @@ import xcodeproj
 
 protocol WorkspaceGenerating: AnyObject {
     @discardableResult
-    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing, options: GenerationOptions, directory: GenerationDirectory) throws -> AbsolutePath
+    func generate(workspace: WorkspaceStructure, path: AbsolutePath, graph: Graphing, options: GenerationOptions, directory: GenerationDirectory) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -52,7 +52,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - WorkspaceGenerating
 
     @discardableResult
-    func generate(workspace: Workspace,
+    func generate(workspace: WorkspaceStructure,
                   path: AbsolutePath,
                   graph: Graphing,
                   options: GenerationOptions,
@@ -66,7 +66,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspaceData = XCWorkspaceData(children: [])
         let xcworkspace = XCWorkspace(data: workspaceData)
 
-        func recursiveChildElement(element: Workspace.Element) throws -> XCWorkspaceDataElement {
+        func recursiveChildElement(element: WorkspaceStructure.Element) throws -> XCWorkspaceDataElement {
             switch element {
             case let .file(path: filePath):
                 return workspaceFileElement(path: filePath.relative(to: path))
@@ -103,7 +103,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 return workspaceFileElement(path: relativePath)
             }
         }
-
+        
         xcworkspace.data.children.append(contentsOf: try workspace.contents.map(recursiveChildElement))
 
         try write(xcworkspace: xcworkspace, to: workspacePath)

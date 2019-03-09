@@ -64,6 +64,7 @@ public protocol FileHandling: AnyObject {
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
+    func ls(_ path: AbsolutePath) throws -> [AbsolutePath]
 }
 
 public final class FileHandler: FileHandling {
@@ -109,6 +110,10 @@ public final class FileHandler: FileHandling {
     /// - Throws: An error if from doesn't exist or to does.
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try FileManager.default.copyItem(atPath: from.asString, toPath: to.asString)
+    }
+    
+    public func ls(_ path: AbsolutePath) throws -> [AbsolutePath] {
+        return try FileManager.default.contentsOfDirectory(atPath: path.asString).map(path.appending)
     }
 
     /// Reads a text file at the given path and returns it.
