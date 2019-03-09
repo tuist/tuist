@@ -70,17 +70,21 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             switch element {
             case let .file(path: filePath):
                 return workspaceFileElement(path: filePath.relative(to: path))
+                
+            case let .folderReference(path: folderPath):
+                return .file(XCWorkspaceDataFileRef(location: .group(folderPath.relative(to: path).asString)))
 
             case let .group(name: name, contents: contents):
 
                 let location = XCWorkspaceDataElementLocationType.container("")
-                let childData = XCWorkspaceDataGroup(
+                
+                let groupReference = XCWorkspaceDataGroup(
                     location: location,
                     name: name,
                     children: try contents.map(recursiveChildElement)
                 )
 
-                return .group(childData)
+                return .group(groupReference)
 
             case let .project(path: projectPath):
 

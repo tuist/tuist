@@ -53,7 +53,7 @@ class GraphLoader: GraphLoading {
         
         func traverseProjects(element: WorkspaceStructure.Element) throws -> [(AbsolutePath, Project)] {
             switch element {
-            case .file(path: _):
+            case .file, .folderReference:
                 break
             case .group(name: _, contents: let contents):
                 return try contents.flatMap(traverseProjects)
@@ -92,6 +92,7 @@ struct WorkspaceStructure {
     
     indirect enum Element: Equatable {
         case file(path: AbsolutePath)
+        case folderReference(path: AbsolutePath)
         case group(name: String, contents: [Element])
         case project(path: AbsolutePath)
     }
@@ -169,8 +170,10 @@ struct WorkspaceStructureFactory {
             return .file(path: path)
         case .directory(let path, let contents) where contents.files().contains(basename: "Project.swift"):
             return .project(path: path)
-        case .directory(let path, let contents):
+        case .directory(let path, let contents) where contents.containsAnyProjectManifestWholeGraphTree():
             return .group(name: path.basename, contents: contents.compactMap(contentToWorkspaceStructureElement))
+        case .directory(let path, _):
+            return .folderReference(path: path)
         }
         
     }
@@ -199,6 +202,23 @@ extension Sequence where Element == DirectoryStructure.Node {
             case .directory: return nil
             }
         }
+    }
+    
+    func containsAnyProjectManifestWholeGraphTree() -> Bool {
+        
+        return first{ node in
+            
+            switch node {
+            case .file(let path) where path.basename == "Project.swift":
+                return true
+            case .directory(_, let graph):
+                return graph.containsAnyProjectManifestWholeGraphTree()
+            case _:
+                return false
+            }
+            
+        } != nil
+        
     }
     
 }
