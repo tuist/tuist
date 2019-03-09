@@ -2,7 +2,7 @@
 
 ## Project.swift
 
-Projects are defined in `Project.swift` which we refer to as manifest files. Manifests need to import the framework `ProjectDescription` which contains all the classes and enums that are available for you to describe your projects. The snippet below shows an example project manifest:
+Projects are defined in `Project.swift` files, which we refer to as manifest files. Manifests need to import the framework `ProjectDescription` which contains all the classes and enums that are available for you to describe your projects. The snippet below shows an example project manifest:
 
 ```swift
 let project = Project(name: "MyProject",
@@ -23,7 +23,7 @@ let project = Project(name: "MyProject",
 
 ### Project
 
-A `Project.swift` should initialize a variable of type `Project.swift`. It can take any name, although we recommend to stick to `project`. A project accepts the following attributes:
+A `Project.swift` should initialize a variable of type `Project`. It can take any name, although we recommend to stick to `project`. A project accepts the following attributes:
 
 - **Name:** Name of the project. It's used to determine the name of the generated Xcode project.
 - **Targets:** It contains the list of targets that belong to the project. Read more [about targets](#target)
@@ -36,11 +36,12 @@ A `Project.swift` should initialize a variable of type `Project.swift`. It can t
 Each target in the list of project targets can be initialized with the following attributes:
 
 - **Name:** The name of the target. The Xcode project target and the derivated product take the same name.
-- **Platform:** The platform the target product is build for. The following products are supported:
+- **Platform:** The platform the target product is built for. The following products are supported:
   - **.app:** An application
   - **.staticLibrary:** A static library.
   - **.dynamicLibrary:** A dynamic library.
   - **.framework:** A dynamic framework.
+  - **.staticFramework:** A static framework. This is a regular framework product however is configured to be statically linked.
   - **.unitTests:** A unit tests bundle.
   - **.uiTests:** A UI tests bundle.
 - **BundleID:** The product bundle identifier.
@@ -58,14 +59,23 @@ Each target in the list of project targets can be initialized with the following
   - **Project:** Relative path to the folder that contains the project headers.
 
 - **Entitlements (optional):** Relative path to the entitlements file.
-- **Actions (optional):** Target actions allow defining extra script build phases. It's an array of `TargetAction` objects that can be initialized with any of the following static functions:
+- **Actions (optional):** Target actions allow defining extra script build phases. It's an array of `TargetAction` objects that that can be of type `pre` and `post`:
 
-  - **pre(tool:):** Runs the binary with the given name before the default target build phases.
-  - **pre(path:):** Runs the binary at the given path before the default target build phases.
-  - **post(tool:):** Runs the binary with the given name after the default target build phases.
-  - **post(path:):** Runs the binary at the given path after the default target build phases.
+  - **pre:** Executed before the target-specific build phases.
+  - **post:** Executed after the target-specific build phases.
 
-> Note that Tuist verifies whether the launch path is valid and fail otherwise.
+  - Actions of both types can be initialized with:
+
+    - **tool (optional):** The binary to use to execute the build phase.
+    - **path (optional):** Path to the script to execute.
+    - **arguments:** Path to the script to execute.
+    - **name:** The name of the build phase
+
+```swift
+.pre(path: "my_custom_script.sh", arguments: ["hello"], name: "My Custom Script Phase")
+```
+
+> Note: Either the tool or the path need to be defined. Moreover, Tuist verifies whether the launch path is valid and fail otherwise.
 
 - **Dependencies (optional):** You can read more about dependencies [here](./dependencies.md)
 - **Settings (optional):** Read more about [settings](#settings)
