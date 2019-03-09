@@ -81,7 +81,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 let groupReference = XCWorkspaceDataGroup(
                     location: location,
                     name: name,
-                    children: try contents.map(recursiveChildElement)
+                    children: try contents.map(recursiveChildElement).sorted(by: workspaceDataElementSort)
                 )
 
                 return .group(groupReference)
@@ -108,7 +108,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             }
         }
         
-        xcworkspace.data.children.append(contentsOf: try workspace.contents.map(recursiveChildElement))
+        xcworkspace.data.children.append(contentsOf: try workspace.contents.map(recursiveChildElement).sorted(by: workspaceDataElementSort))
 
         try write(xcworkspace: xcworkspace, to: workspacePath)
 

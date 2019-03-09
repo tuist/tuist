@@ -159,7 +159,7 @@ struct WorkspaceStructureFactory {
     let path: AbsolutePath
     let workspace: Workspace
     
-    func contentToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
+    private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
         
         switch content {
         case .file(let file):
@@ -168,10 +168,10 @@ struct WorkspaceStructureFactory {
             return nil
         case .directory(let path, _) where path.suffix == ".playground":
             return .file(path: path)
-        case .directory(let path, let contents) where contents.files().contains(basename: "Project.swift"):
+        case .directory(let path, let contents) where contents.files().contains(basename: Manifest.project.fileName):
             return .project(path: path)
-        case .directory(let path, let contents) where contents.containsAnyProjectManifestWholeGraphTree():
-            return .group(name: path.basename, contents: contents.compactMap(contentToWorkspaceStructureElement))
+        case .directory(let path, let contents) where contents.containsAnyProjectManifestWholeGraph():
+            return .group(name: path.basename, contents: contents.compactMap(directoryGraphToWorkspaceStructureElement))
         case .directory(let path, _):
             return .folderReference(path: path)
         }
@@ -180,7 +180,7 @@ struct WorkspaceStructureFactory {
     
     func makeWorkspaceStructure() throws -> WorkspaceStructure {
         let graph = try DirectoryStructure(path: path).buildGraph()
-        return WorkspaceStructure(name: workspace.name, contents: graph.compactMap(contentToWorkspaceStructureElement))
+        return WorkspaceStructure(name: workspace.name, contents: graph.compactMap(directoryGraphToWorkspaceStructureElement))
     }
     
 }
@@ -204,15 +204,15 @@ extension Sequence where Element == DirectoryStructure.Node {
         }
     }
     
-    func containsAnyProjectManifestWholeGraphTree() -> Bool {
+    func containsAnyProjectManifestWholeGraph() -> Bool {
         
         return first{ node in
             
             switch node {
-            case .file(let path) where path.basename == "Project.swift":
+            case .file(let path) where path.basename == Manifest.project.fileName:
                 return true
             case .directory(_, let graph):
-                return graph.containsAnyProjectManifestWholeGraphTree()
+                return graph.containsAnyProjectManifestWholeGraph()
             case _:
                 return false
             }
