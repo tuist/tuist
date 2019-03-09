@@ -134,7 +134,7 @@ struct DirectoryStructure {
         
         return try fileHandler.ls(path).compactMap { path in
             
-            if includeDotFiles == false && path.basename.hasPrefix(".") {
+            guard includeDotFiles && path.basename.hasPrefix(".") == false else {
                 return nil
             }
             
