@@ -53,7 +53,8 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
         if product == .app {
             base["CFBundleVersion"] = "1"
             base["CFBundlePackageType"] = "APPL"
-
+            base["UIMainStoryboardFile"] = "$(PRODUCT_NAME)"
+            
             // Framework
         } else if product == .framework || product == .staticFramework {
             base["CFBundleVersion"] = "$(CURRENT_PROJECT_VERSION)"
@@ -94,6 +95,11 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
         if product == .app, platform == .tvOS {
             base["LSRequiresIPhoneOS"] = true
             base["UIRequiredDeviceCapabilities"] = ["arm64"]
+        }
+
+        // Launch screen storyboard
+        if platform.supportsLaunchScreen {
+            base["UILaunchStoryboardName"] = "Launch Screen"
         }
 
         return base

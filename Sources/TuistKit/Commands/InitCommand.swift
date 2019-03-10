@@ -46,6 +46,7 @@ class InitCommand: NSObject, Command {
     let printer: Printing
     let infoplistProvisioner: InfoPlistProvisioning
     let playgroundGenerator: PlaygroundGenerating
+    let storyboardGenerator: StoryboardGenerating
 
     // MARK: - Init
 
@@ -54,14 +55,16 @@ class InitCommand: NSObject, Command {
                   fileHandler: FileHandler(),
                   printer: Printer(),
                   infoplistProvisioner: InfoPlistProvisioner(),
-                  playgroundGenerator: PlaygroundGenerator())
-    }
+                  playgroundGenerator: PlaygroundGenerator(),
+                  storyboardGenerator: StoryboardGenerator()
+    )}
 
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
          printer: Printing,
          infoplistProvisioner: InfoPlistProvisioning,
-         playgroundGenerator: PlaygroundGenerating) {
+         playgroundGenerator: PlaygroundGenerating,
+         storyboardGenerator: StoryboardGenerating) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         productArgument = subParser.add(option: "--product",
                                         shortName: nil,
@@ -94,6 +97,7 @@ class InitCommand: NSObject, Command {
         self.printer = printer
         self.infoplistProvisioner = infoplistProvisioner
         self.playgroundGenerator = playgroundGenerator
+        self.storyboardGenerator = storyboardGenerator
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
@@ -107,6 +111,7 @@ class InitCommand: NSObject, Command {
         try generateTests(name: name, path: path)
         try generatePlists(platform: platform, product: product, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
+        try generateStoryboards(name: name, path: path, platform: platform)
         try generateGitIgnore(path: path)
         printer.print(success: "Project generated at path \(path.asString).")
     }
@@ -274,16 +279,6 @@ class InitCommand: NSObject, Command {
             
                 var window: UIWindow?
             
-                func application(_ application: UIApplication,
-                                   didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
-                    window = UIWindow(frame: UIScreen.main.bounds)
-                    let viewController = UIViewController()
-                    viewController.view.backgroundColor = .white
-                    window?.rootViewController = viewController
-                    window?.makeKeyAndVisible()
-                    return true
-                }
-            
             }
             """
         } else {
@@ -325,6 +320,22 @@ class InitCommand: NSObject, Command {
                                          name: name,
                                          platform: platform,
                                          content: PlaygroundGenerator.defaultContent())
+    }
+
+    fileprivate func generateStoryboards(name: String, path: AbsolutePath, platform: Platform) throws {
+        let sourcesPath = path.appending(component: "Sources")
+
+        if platform.supportsLaunchScreen {
+            try storyboardGenerator.generate(path: sourcesPath,
+                                             name: "Launch Screen",
+                                             platform: platform,
+                                             isLaunchScreen: true)
+        }
+
+        try storyboardGenerator.generate(path: sourcesPath,
+                                         name: name,
+                                         platform: platform,
+                                         isLaunchScreen: false)
     }
 
     fileprivate func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {

@@ -24,6 +24,7 @@ final class InitCommandTests: XCTestCase {
     var printer: MockPrinter!
     var infoplistProvisioner: InfoPlistProvisioning!
     var playgroundGenerator: MockPlaygroundGenerator!
+    var storyboardGenerator: MockStoryboardGenerator!
 
     override func setUp() {
         super.setUp()
@@ -32,11 +33,14 @@ final class InitCommandTests: XCTestCase {
         printer = MockPrinter()
         infoplistProvisioner = InfoPlistProvisioner()
         playgroundGenerator = MockPlaygroundGenerator()
+        storyboardGenerator = MockStoryboardGenerator()
+        
         subject = InitCommand(parser: parser,
                               fileHandler: fileHandler,
                               printer: printer,
                               infoplistProvisioner: infoplistProvisioner,
-                              playgroundGenerator: playgroundGenerator)
+                              playgroundGenerator: playgroundGenerator,
+                              storyboardGenerator: storyboardGenerator)
     }
 
     func test_command() {
@@ -119,6 +123,17 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
+
+        let storyboardsPath = fileHandler.currentPath.appending(component: "Storyboards")
+        XCTAssertTrue(fileHandler.exists(storyboardsPath))
+        XCTAssertNil(storyboardGenerator.generateStub)
+
+        let launchScreenStoryboard = MockStoryboardGenerator.Storyboard(storyboardsPath, "Launch Screen", .iOS, true)
+        let mainStoryboard = MockStoryboardGenerator.Storyboard(storyboardsPath, name, .iOS, false)
+        XCTAssertTrue(storyboardGenerator.hasPreviouslyGenerated(launchScreenStoryboard))
+        XCTAssertTrue(storyboardGenerator.hasPreviouslyGenerated(mainStoryboard))
+
+        XCTAssertEqual(storyboardGenerator.generatedStoryboards.count, 2)
     }
 
     func test_run_when_tvos_application() throws {

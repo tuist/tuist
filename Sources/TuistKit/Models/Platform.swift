@@ -43,3 +43,14 @@ extension Platform {
         }
     }
 }
+
+extension Platform {
+    var supportsLaunchScreen: Bool {
+        switch self {
+        case .iOS:
+            return true
+        default:
+            return false
+        }
+    }
+}
