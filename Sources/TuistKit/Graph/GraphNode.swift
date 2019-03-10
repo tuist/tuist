@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import ProjectDescription
+import enum ProjectDescription.SDKStatus
 import TuistCore
 
 class GraphNode: Equatable, Hashable {
