@@ -3,7 +3,6 @@ import Foundation
 @testable import TuistKit
 
 final class MockStoryboardGenerator: StoryboardGenerating {
-
     struct GeneratedStoryboard: Equatable {
         let path: AbsolutePath
         let name: String
