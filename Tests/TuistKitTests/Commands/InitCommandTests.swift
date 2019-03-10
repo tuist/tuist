@@ -34,7 +34,7 @@ final class InitCommandTests: XCTestCase {
         infoplistProvisioner = InfoPlistProvisioner()
         playgroundGenerator = MockPlaygroundGenerator()
         storyboardGenerator = MockStoryboardGenerator()
-        
+
         subject = InitCommand(parser: parser,
                               fileHandler: fileHandler,
                               printer: printer,

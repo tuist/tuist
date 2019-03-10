@@ -30,12 +30,12 @@ final class StoryboardGeneratorTests: XCTestCase {
         let storyboardPath = fileHandler.currentPath.appending(component: "Test.storyboard")
         let expectedError = StoryboardGenerationError.alreadyExisting(storyboardPath)
         try fileHandler.touch(storyboardPath)
-        
+
         XCTAssertThrowsError(try subject.generate(path: fileHandler.currentPath,
                                                   name: "Test",
                                                   platform: .iOS,
                                                   isLaunchScreen: true)) {
-                                                    XCTAssertEqual($0 as? StoryboardGenerationError, expectedError)
+            XCTAssertEqual($0 as? StoryboardGenerationError, expectedError)
         }
     }
 
@@ -46,7 +46,7 @@ final class StoryboardGeneratorTests: XCTestCase {
                                                   name: "Test",
                                                   platform: .tvOS,
                                                   isLaunchScreen: true)) {
-                                                    XCTAssertEqual($0 as? StoryboardGenerationError, expectedError)
+            XCTAssertEqual($0 as? StoryboardGenerationError, expectedError)
         }
     }
 

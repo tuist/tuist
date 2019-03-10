@@ -54,7 +54,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
             base["CFBundleVersion"] = "1"
             base["CFBundlePackageType"] = "APPL"
             base["UIMainStoryboardFile"] = "$(PRODUCT_NAME)"
-            
+
             // Framework
         } else if product == .framework || product == .staticFramework {
             base["CFBundleVersion"] = "$(CURRENT_PROJECT_VERSION)"

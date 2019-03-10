@@ -42,7 +42,6 @@ protocol StoryboardGenerating: AnyObject {
 }
 
 final class StoryboardGenerator: StoryboardGenerating {
-
     // MARK: - Attributes
 
     private let fileHandler: FileHandling
@@ -54,11 +53,10 @@ final class StoryboardGenerator: StoryboardGenerating {
     }
 
     func generate(path: AbsolutePath, name: String, platform: Platform, isLaunchScreen: Bool) throws {
-
-        if isLaunchScreen && !platform.supportsLaunchScreen {
+        if isLaunchScreen, !platform.supportsLaunchScreen {
             throw StoryboardGenerationError.launchScreenUnsupported(platform)
         }
-        
+
         let storyboardPath = path.appending(component: "\(name).storyboard")
 
         if fileHandler.exists(storyboardPath) {
@@ -71,7 +69,7 @@ final class StoryboardGenerator: StoryboardGenerating {
                    encoding: .utf8)
     }
 
-    static func xcstoarybaordContent(platform: Platform, isLaunchScreen: Bool) -> String {
+    static func xcstoarybaordContent(platform _: Platform, isLaunchScreen: Bool) -> String {
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14460.31" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="\(isLaunchScreen ? "YES" : "NO")" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">

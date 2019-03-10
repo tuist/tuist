@@ -56,8 +56,8 @@ class InitCommand: NSObject, Command {
                   printer: Printer(),
                   infoplistProvisioner: InfoPlistProvisioner(),
                   playgroundGenerator: PlaygroundGenerator(),
-                  storyboardGenerator: StoryboardGenerator()
-    )}
+                  storyboardGenerator: StoryboardGenerator())
+    }
 
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
