@@ -124,12 +124,12 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
 
-        let storyboardsPath = fileHandler.currentPath.appending(component: "Storyboards")
-        XCTAssertTrue(fileHandler.exists(storyboardsPath))
+        let sourcesPath = fileHandler.currentPath.appending(component: "Sources")
+        XCTAssertTrue(fileHandler.exists(sourcesPath))
         XCTAssertNil(storyboardGenerator.generateStub)
 
-        let launchScreenStoryboard = MockStoryboardGenerator.Storyboard(storyboardsPath, "Launch Screen", .iOS, true)
-        let mainStoryboard = MockStoryboardGenerator.Storyboard(storyboardsPath, name, .iOS, false)
+        let launchScreenStoryboard = MockStoryboardGenerator.Storyboard(sourcesPath, "Launch Screen", .iOS, true)
+        let mainStoryboard = MockStoryboardGenerator.Storyboard(sourcesPath, name, .iOS, false)
         XCTAssertTrue(storyboardGenerator.hasPreviouslyGenerated(launchScreenStoryboard))
         XCTAssertTrue(storyboardGenerator.hasPreviouslyGenerated(mainStoryboard))
 

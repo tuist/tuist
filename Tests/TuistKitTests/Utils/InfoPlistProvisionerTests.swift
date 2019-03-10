@@ -40,6 +40,8 @@ final class InfoPlistProvisionerTests: XCTestCase {
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
             ],
+            "UILaunchStoryboardName": "Launch Screen",
+            "UIMainStoryboardFile": "$(PRODUCT_NAME)",
         ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
@@ -59,6 +61,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "CFBundlePackageType": "APPL",
             "LSRequiresIPhoneOS": true,
             "UIRequiredDeviceCapabilities": ["arm64"],
+            "UIMainStoryboardFile": "$(PRODUCT_NAME)",
         ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
@@ -79,6 +82,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
             "NSPrincipalClass": "NSApplication",
             "CFBundleIconFile": "",
+            "UIMainStoryboardFile": "$(PRODUCT_NAME)",
         ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
