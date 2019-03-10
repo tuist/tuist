@@ -21,11 +21,11 @@ final class MockStoryboardGenerator: StoryboardGenerating {
                                              product: product,
                                              isLaunchScreen: isLaunchScreen)
 
-        if !generatedStoryboards.contains(storyboard) {
-            generatedStoryboards.append(storyboard)
-        } else {
-            generateStub = "A\(storyboard.isLaunchScreen ? " Launch Screen storyboard" : "") with the name \(storyboard.name).storyboard for \(platform) was generated more than once."
+        if generatedStoryboards.contains(storyboard) {
+            generateStub = "A\(storyboard.isLaunchScreen ? " launch screen" : "") storyboard with the name \(storyboard.name).storyboard for \(platform) was generated more than once."
         }
+
+        generatedStoryboards.append(storyboard)
 
         if let generateStub = generateStub {
             throw generateStub
