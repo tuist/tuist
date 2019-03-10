@@ -21,17 +21,6 @@ enum StoryboardGenerationError: FatalError, Equatable {
         case .launchScreenUnsupported: return .abort
         }
     }
-
-    static func == (lhs: StoryboardGenerationError, rhs: StoryboardGenerationError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.alreadyExisting(lhsPath), .alreadyExisting(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.launchScreenUnsupported(lhsPlatform), .launchScreenUnsupported(rhsPlatform)):
-            return lhsPlatform == rhsPlatform
-        default:
-            return false
-        }
-    }
 }
 
 protocol StoryboardGenerating: AnyObject {
