@@ -149,7 +149,8 @@ class GraphManifestLoader: GraphManifestLoading {
         return try actionsJson.compactMap {
             try Up.with(dictionary: $0,
                         projectPath: path,
-                        fileHandler: fileHandler) }
+                        fileHandler: fileHandler)
+        }
     }
 
     // MARK: - Private

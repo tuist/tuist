@@ -1,6 +1,25 @@
 import Basic
 import Foundation
+import TuistCore
 import xcodeproj
+
+enum ProjectGroupsError: FatalError, Equatable {
+    case missingGroup(String)
+
+    var description: String {
+        switch self {
+        case let .missingGroup(group):
+            return "Couldn't find group: \(group)"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .missingGroup:
+            return .bug
+        }
+    }
+}
 
 class ProjectGroups {
     // MARK: - Attributes
@@ -8,25 +27,26 @@ class ProjectGroups {
     let main: PBXGroup
     let products: PBXGroup
     let projectManifest: PBXGroup
-    let project: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup?
-    let pbxproj: PBXProj
+
+    private let pbxproj: PBXProj
+    private let projectGroups: [String: PBXGroup]
 
     // MARK: - Init
 
-    init(main: PBXGroup,
-         products: PBXGroup,
-         projectManifest: PBXGroup,
-         frameworks: PBXGroup,
-         project: PBXGroup,
-         playgrounds: PBXGroup?,
-         pbxproj: PBXProj) {
+    private init(main: PBXGroup,
+                 projectGroups: [(name: String, group: PBXGroup)],
+                 products: PBXGroup,
+                 projectManifest: PBXGroup,
+                 frameworks: PBXGroup,
+                 playgrounds: PBXGroup?,
+                 pbxproj: PBXProj) {
         self.main = main
+        self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.projectManifest = projectManifest
         self.frameworks = frameworks
-        self.project = project
         self.playgrounds = playgrounds
         self.pbxproj = pbxproj
     }
@@ -37,6 +57,13 @@ class ProjectGroups {
         } else {
             return try frameworks.addGroup(named: target, options: .withoutFolder).last!
         }
+    }
+
+    func projectGroup(named name: String) throws -> PBXGroup {
+        guard let group = projectGroups[name] else {
+            throw ProjectGroupsError.missingGroup(name)
+        }
+        return group
     }
 
     static func generate(project: Project,
@@ -50,10 +77,16 @@ class ProjectGroups {
                                  path: (projectRelativePath != ".") ? projectRelativePath : nil)
         pbxproj.add(object: mainGroup)
 
-        /// Project
-        let projectGroup = PBXGroup(children: [], sourceTree: .group, name: "Project")
-        pbxproj.add(object: projectGroup)
-        mainGroup.children.append(projectGroup)
+        /// Project & Target Groups
+        let projectGroupNames = extractProjectGroupNames(from: project)
+        let groupsToCreate = OrderedSet(projectGroupNames)
+        var projectGroups = [(name: String, group: PBXGroup)]()
+        groupsToCreate.forEach {
+            let projectGroup = PBXGroup(children: [], sourceTree: .group, name: $0)
+            pbxproj.add(object: projectGroup)
+            mainGroup.children.append(projectGroup)
+            projectGroups.append(($0, projectGroup))
+        }
 
         /// ProjectDescription
         let projectManifestGroup = PBXGroup(children: [], sourceTree: .group, name: "Manifest")
@@ -79,11 +112,22 @@ class ProjectGroups {
         mainGroup.children.append(productsGroup)
 
         return ProjectGroups(main: mainGroup,
+                             projectGroups: projectGroups,
                              products: productsGroup,
                              projectManifest: projectManifestGroup,
                              frameworks: frameworksGroup,
-                             project: projectGroup,
                              playgrounds: playgroundsGroup,
                              pbxproj: pbxproj)
+    }
+
+    private static func extractProjectGroupNames(from project: Project) -> [String] {
+        let groups = [project.filesGroup] + project.targets.map { $0.filesGroup }
+        let groupNames: [String] = groups.compactMap {
+            switch $0 {
+            case let .group(name: groupName):
+                return groupName
+            }
+        }
+        return groupNames
     }
 }

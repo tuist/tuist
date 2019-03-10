@@ -62,6 +62,7 @@ extension TuistKit.Project {
         return Project(path: path,
                        name: name,
                        settings: settings,
+                       filesGroup: .group(name: "Project"),
                        targets: targets)
     }
 }
@@ -102,6 +103,7 @@ extension TuistKit.Target {
                       coreDataModels: coreDataModels,
                       actions: actions,
                       environment: environment,
+                      filesGroup: .group(name: "Project"),
                       dependencies: dependencies)
     }
 }

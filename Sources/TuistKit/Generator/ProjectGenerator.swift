@@ -85,12 +85,11 @@ final class ProjectGenerator: ProjectGenerating {
                               classes: [:])
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
-        fileElements.generateProjectFiles(project: project,
-                                          graph: graph,
-                                          groups: groups,
-                                          pbxproj: pbxproj,
-                                          sourceRootPath: sourceRootPath,
-                                          fileHandler: fileHandler)
+        try fileElements.generateProjectFiles(project: project,
+                                              graph: graph,
+                                              groups: groups,
+                                              pbxproj: pbxproj,
+                                              sourceRootPath: sourceRootPath)
 
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
