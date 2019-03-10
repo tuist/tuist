@@ -3,13 +3,13 @@ import Foundation
 @testable import TuistKit
 
 final class MockStoryboardGenerator: StoryboardGenerating {
-    typealias Storyboard = (path: AbsolutePath, name: String, platform: Platform, isLaunchScreen: Bool)
+    typealias Storyboard = (path: AbsolutePath, name: String, platform: Platform, product: Product, isLaunchScreen: Bool)
 
     var generatedStoryboards: [Storyboard] = []
     var generateStub: Error?
 
-    func generate(path: AbsolutePath, name: String, platform: Platform, isLaunchScreen: Bool) throws {
-        let storyboard = Storyboard(path, name, platform, isLaunchScreen)
+    func generate(path: AbsolutePath, name: String, platform: Platform, product: Product, isLaunchScreen: Bool) throws {
+        let storyboard = Storyboard(path, name, platform, product, isLaunchScreen)
 
         if !hasPreviouslyGenerated(storyboard) {
             generatedStoryboards.append(storyboard)

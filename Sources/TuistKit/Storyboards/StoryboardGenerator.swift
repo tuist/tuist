@@ -4,14 +4,14 @@ import TuistCore
 
 enum StoryboardGenerationError: FatalError, Equatable {
     case alreadyExisting(AbsolutePath)
-    case launchScreenUnsupported(Platform)
+    case launchScreenUnsupported(Platform, Product)
 
     var description: String {
         switch self {
         case let .alreadyExisting(path):
             return "A storyboard already exists at path \(path.asString)"
-        case let .launchScreenUnsupported(platform):
-            return "\(platform) does not support a launch screen storyboard"
+        case let .launchScreenUnsupported(platform, product):
+            return "A \(platform) \(product) does not support a launch screen storyboard"
         }
     }
 
@@ -38,6 +38,7 @@ protocol StoryboardGenerating: AnyObject {
     func generate(path: AbsolutePath,
                   name: String,
                   platform: Platform,
+                  product: Product,
                   isLaunchScreen: Bool) throws
 }
 
@@ -52,9 +53,9 @@ final class StoryboardGenerator: StoryboardGenerating {
         self.fileHandler = fileHandler
     }
 
-    func generate(path: AbsolutePath, name: String, platform: Platform, isLaunchScreen: Bool) throws {
-        if isLaunchScreen, !platform.supportsLaunchScreen {
-            throw StoryboardGenerationError.launchScreenUnsupported(platform)
+    func generate(path: AbsolutePath, name: String, platform: Platform, product: Product, isLaunchScreen: Bool) throws {
+        if isLaunchScreen, product == .app, !platform.supportsLaunchScreen {
+            throw StoryboardGenerationError.launchScreenUnsupported(platform, product)
         }
 
         let storyboardPath = path.appending(component: "\(name).storyboard")

@@ -7,12 +7,12 @@ import XCTest
 final class StoryboardGenerationErrorTests: XCTestCase {
     func test_description() {
         XCTAssertEqual(StoryboardGenerationError.alreadyExisting(AbsolutePath("/Launch Screen.storyboard")).description, "A storyboard already exists at path /Launch Screen.storyboard")
-        XCTAssertEqual(StoryboardGenerationError.launchScreenUnsupported(.macOS).description, "macOS does not support a launch screen storyboard")
+        XCTAssertEqual(StoryboardGenerationError.launchScreenUnsupported(.macOS, .framework).description, "A macOS framework does not support a launch screen storyboard")
     }
 
     func test_type() {
         XCTAssertEqual(StoryboardGenerationError.alreadyExisting(AbsolutePath("/Launch Screen.storyboard")).type, .abort)
-        XCTAssertEqual(StoryboardGenerationError.launchScreenUnsupported(.macOS).type, .abort)
+        XCTAssertEqual(StoryboardGenerationError.launchScreenUnsupported(.macOS, .framework).type, .abort)
     }
 }
 
@@ -34,17 +34,19 @@ final class StoryboardGeneratorTests: XCTestCase {
         XCTAssertThrowsError(try subject.generate(path: fileHandler.currentPath,
                                                   name: "Test",
                                                   platform: .iOS,
+                                                  product: .app,
                                                   isLaunchScreen: true)) {
             XCTAssertEqual($0 as? StoryboardGenerationError, expectedError)
         }
     }
 
     func test_generate_throws_when_launch_screen_unsupported_by_platform() throws {
-        let expectedError = StoryboardGenerationError.launchScreenUnsupported(.tvOS)
+        let expectedError = StoryboardGenerationError.launchScreenUnsupported(.tvOS, .app)
 
         XCTAssertThrowsError(try subject.generate(path: fileHandler.currentPath,
                                                   name: "Test",
                                                   platform: .tvOS,
+                                                  product: .app,
                                                   isLaunchScreen: true)) {
             XCTAssertEqual($0 as? StoryboardGenerationError, expectedError)
         }
@@ -55,6 +57,7 @@ final class StoryboardGeneratorTests: XCTestCase {
         try subject.generate(path: fileHandler.currentPath,
                              name: "Test",
                              platform: .iOS,
+                             product: .app,
                              isLaunchScreen: true)
 
         let xcstoryboard = try String(contentsOf: storyboardPath.url, encoding: .utf8)

@@ -329,12 +329,14 @@ class InitCommand: NSObject, Command {
             try storyboardGenerator.generate(path: sourcesPath,
                                              name: "Launch Screen",
                                              platform: platform,
+                                             product: product,
                                              isLaunchScreen: true)
         }
 
         try storyboardGenerator.generate(path: sourcesPath,
                                          name: name,
                                          platform: platform,
+                                         product: product,
                                          isLaunchScreen: false)
     }
 
