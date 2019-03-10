@@ -53,7 +53,6 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
         if product == .app {
             base["CFBundleVersion"] = "1"
             base["CFBundlePackageType"] = "APPL"
-            base["UIMainStoryboardFile"] = "$(PRODUCT_NAME)"
 
             // Framework
         } else if product == .framework || product == .staticFramework {
@@ -72,6 +71,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
             base["LSMinimumSystemVersion"] = "$(MACOSX_DEPLOYMENT_TARGET)"
             base["NSPrincipalClass"] = "NSApplication"
             base["CFBundleIconFile"] = ""
+            base["NSMainStoryboardFile"] = "$(PRODUCT_NAME)"
         }
 
         // iOS application
@@ -89,12 +89,14 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
             ]
+            base["UIMainStoryboardFile"] = "$(PRODUCT_NAME)"
         }
 
         // tvOS application
         if product == .app, platform == .tvOS {
             base["LSRequiresIPhoneOS"] = true
             base["UIRequiredDeviceCapabilities"] = ["arm64"]
+            base["UIMainStoryboardFile"] = "$(PRODUCT_NAME)"
         }
 
         // Launch screen storyboard

@@ -82,7 +82,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
             "NSPrincipalClass": "NSApplication",
             "CFBundleIconFile": "",
-            "UIMainStoryboardFile": "$(PRODUCT_NAME)",
+            "NSMainStoryboardFile": "$(PRODUCT_NAME)",
         ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
