@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import ProjectDescription
 
 class GraphNode: Equatable, Hashable {
     // MARK: - Attributes
@@ -98,6 +99,8 @@ class TargetNode: GraphNode {
                                          projectPath: path,
                                          path: libraryPath,
                                          fileHandler: fileHandler, cache: cache)
+        case let .sdk(name, status):
+            return try SDKNode(name: name, status: status)
         }
     }
 }
@@ -128,6 +131,50 @@ enum PrecompiledNodeError: FatalError, Equatable {
         case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
             return lhsPath == rhsPath
         }
+    }
+}
+
+class SDKNode: GraphNode {
+
+    enum Error: Swift.Error {
+        case invalidExtension(String?)
+    }
+
+    enum `Type`: String {
+        case framework, library
+
+        init(from string: String) throws {
+            guard let type = Type(rawValue: string)
+                else { throw Error.invalidExtension(string) }
+
+            self = type
+        }
+    }
+
+    let name: String
+    let status: SDKStatus
+    let type: Type
+
+    init(name: String, status: SDKStatus) throws {
+        let sdk = AbsolutePath("/\(name)")
+
+        guard let string = sdk.extension
+            else { throw Error.invalidExtension(sdk.extension)}
+
+        self.name = name
+        self.status = status
+        self.type = try Type(from: string)
+
+        let path: AbsolutePath
+
+        switch type {
+        case .framework:
+            path = AbsolutePath("/System/Library/Frameworks").appending(component: name)
+        case .library:
+            path = AbsolutePath("/usr/lib").appending(component: name)
+        }
+
+        super.init(path: path)
     }
 }
 

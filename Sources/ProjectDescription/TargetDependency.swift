@@ -2,11 +2,16 @@ import Foundation
 
 // MARK: - TargetDependency
 
+public enum SDKStatus: String {
+    case required, optional
+}
+
 public enum TargetDependency: Codable {
     case target(name: String)
     case project(target: String, path: String)
     case framework(path: String)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
+    case sdk(name: String, status: SDKStatus)
 
     public var typeName: String {
         switch self {
@@ -18,9 +23,15 @@ public enum TargetDependency: Codable {
             return "framework"
         case .library:
             return "library"
+        case .sdk:
+            return "sdk"
         }
     }
 }
+
+// MARK: - SDKStatus (Coding)
+
+extension SDKStatus: Codable { }
 
 // MARK: - TargetDependency (Coding)
 
@@ -36,6 +47,7 @@ extension TargetDependency {
         case path
         case publicHeaders = "public_headers"
         case swiftModuleMap = "swift_module_map"
+        case status
     }
 
     public init(from decoder: Decoder) throws {
@@ -63,6 +75,10 @@ extension TargetDependency {
                 swiftModuleMap: try container.decodeIfPresent(String.self, forKey: .swiftModuleMap)
             )
 
+        case "sdk":
+            self = .sdk(name: try container.decode(String.self, forKey: .name),
+                        status: try container.decode(SDKStatus.self, forKey: .status))
+
         default:
             throw CodingError.unknownType(type)
         }
@@ -85,6 +101,9 @@ extension TargetDependency {
             try container.encode(path, forKey: .path)
             try container.encode(publicHeaders, forKey: .publicHeaders)
             try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
+        case let .sdk(name, status):
+            try container.encode(name, forKey: .name)
+            try container.encode(status, forKey: .status)
         }
     }
 }
