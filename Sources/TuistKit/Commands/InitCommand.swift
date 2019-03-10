@@ -111,7 +111,7 @@ class InitCommand: NSObject, Command {
         try generateTests(name: name, path: path)
         try generatePlists(platform: platform, product: product, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
-        try generateStoryboards(name: name, path: path, platform: platform)
+        try generateStoryboards(name: name, path: path, platform: platform, product: product)
         try generateGitIgnore(path: path)
         printer.print(success: "Project generated at path \(path.asString).")
     }
@@ -322,10 +322,10 @@ class InitCommand: NSObject, Command {
                                          content: PlaygroundGenerator.defaultContent())
     }
 
-    fileprivate func generateStoryboards(name: String, path: AbsolutePath, platform: Platform) throws {
+    fileprivate func generateStoryboards(name: String, path: AbsolutePath, platform: Platform, product: Product) throws {
         let sourcesPath = path.appending(component: "Sources")
 
-        if platform.supportsLaunchScreen {
+        if product == .app, platform.supportsLaunchScreen {
             try storyboardGenerator.generate(path: sourcesPath,
                                              name: "Launch Screen",
                                              platform: platform,

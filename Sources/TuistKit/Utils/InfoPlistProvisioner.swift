@@ -98,7 +98,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
         }
 
         // Launch screen storyboard
-        if platform.supportsLaunchScreen {
+        if product == .app, platform.supportsLaunchScreen {
             base["UILaunchStoryboardName"] = "Launch Screen"
         }
 
