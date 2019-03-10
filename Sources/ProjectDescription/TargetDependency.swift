@@ -31,7 +31,7 @@ public enum TargetDependency: Codable {
 
 // MARK: - SDKStatus (Coding)
 
-extension SDKStatus: Codable { }
+extension SDKStatus: Codable {}
 
 // MARK: - TargetDependency (Coding)
 

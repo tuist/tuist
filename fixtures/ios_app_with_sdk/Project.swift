@@ -11,7 +11,7 @@ let project = Project(name: "App",
                                  dependencies: [
                                      /* Target dependencies can be defined here */
                                      /* .framework(path: "framework") */
-                                    .sdk(name: "StoreKit.framework", status: .required)
+                                     .sdk(name: "StoreKit.framework", status: .required),
                                  ],
                                  settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"])),

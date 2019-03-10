@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import ProjectDescription
+import TuistCore
 
 class GraphNode: Equatable, Hashable {
     // MARK: - Attributes
@@ -135,7 +135,6 @@ enum PrecompiledNodeError: FatalError, Equatable {
 }
 
 class SDKNode: GraphNode {
-
     enum Error: Swift.Error {
         case invalidExtension(String?)
     }
@@ -145,7 +144,7 @@ class SDKNode: GraphNode {
 
         init(from string: String) throws {
             guard let type = Type(rawValue: string)
-                else { throw Error.invalidExtension(string) }
+            else { throw Error.invalidExtension(string) }
 
             self = type
         }
@@ -159,11 +158,11 @@ class SDKNode: GraphNode {
         let sdk = AbsolutePath("/\(name)")
 
         guard let string = sdk.extension
-            else { throw Error.invalidExtension(sdk.extension)}
+        else { throw Error.invalidExtension(sdk.extension) }
 
         self.name = name
         self.status = status
-        self.type = try Type(from: string)
+        type = try Type(from: string)
 
         let path: AbsolutePath
 
