@@ -6,7 +6,7 @@ class Target: Equatable {
     // MARK: - Static
 
     static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
-    static let validFolderExtensions: [String] = ["framework", "bundle", "app", "appiconset"]
+    static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset"]
 
     // MARK: - Attributes
 
@@ -76,24 +76,28 @@ class Target: Equatable {
 
     // MARK: - Fileprivate
 
-    static func sources(projectPath: AbsolutePath, sources: String, fileHandler _: FileHandling) throws -> [AbsolutePath] {
-        return projectPath.glob(sources).filter { path in
-            if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
-                return true
+    static func sources(projectPath: AbsolutePath, sources: [String], fileHandler _: FileHandling) throws -> [AbsolutePath] {
+        return sources.flatMap { source in
+            projectPath.glob(source).filter { path in
+                if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
+                    return true
+                }
+                return false
             }
-            return false
         }
     }
 
-    static func resources(projectPath: AbsolutePath, resources: String, fileHandler: FileHandling) throws -> [AbsolutePath] {
-        return projectPath.glob(resources).filter { path in
-            if !fileHandler.isFolder(path) {
-                return true
-                // We filter out folders that are not Xcode supported bundles such as .app or .framework.
-            } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
-                return true
-            } else {
-                return false
+    static func resources(projectPath: AbsolutePath, resources: [String], fileHandler: FileHandling) throws -> [AbsolutePath] {
+        return resources.flatMap { source in
+            projectPath.glob(source).filter { path in
+                if !fileHandler.isFolder(path) {
+                    return true
+                    // We filter out folders that are not Xcode supported bundles such as .app or .framework.
+                } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
+                    return true
+                } else {
+                    return false
+                }
             }
         }
     }

@@ -3,9 +3,12 @@
 require 'simctl'
 
 Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
+  @derived_data_path = File.join(@dir, "DerivedData")
+
   args = [
     "-scheme", scheme,
     "-workspace", @workspace_path,
+    "-derivedDataPath", @derived_data_path,
     "clean", action
   ]
 
