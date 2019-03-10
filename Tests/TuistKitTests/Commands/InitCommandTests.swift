@@ -128,11 +128,20 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(sourcesPath))
         XCTAssertNil(storyboardGenerator.generateStub)
 
-        let launchScreenStoryboard = MockStoryboardGenerator.Storyboard(sourcesPath, "Launch Screen", .iOS, .app, true)
-        let mainStoryboard = MockStoryboardGenerator.Storyboard(sourcesPath, name, .iOS, .app, false)
-        XCTAssertTrue(storyboardGenerator.hasPreviouslyGenerated(launchScreenStoryboard))
-        XCTAssertTrue(storyboardGenerator.hasPreviouslyGenerated(mainStoryboard))
+        typealias Storyboard = MockStoryboardGenerator.GeneratedStoryboard
+        let launchScreenStoryboard = Storyboard(path: sourcesPath,
+                                                name: "Launch Screen",
+                                                platform: .iOS,
+                                                product: .app,
+                                                isLaunchScreen: true)
 
+        let mainStoryboard = Storyboard(path: sourcesPath,
+                                                name: name,
+                                                platform: .iOS,
+                                                product: .app,
+                                                isLaunchScreen: false)
+
+        XCTAssertEqual(storyboardGenerator.generatedStoryboards, [launchScreenStoryboard, mainStoryboard])
         XCTAssertEqual(storyboardGenerator.generatedStoryboards.count, 2)
     }
 
