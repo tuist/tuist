@@ -155,8 +155,6 @@ struct WorkspaceStructureFactory {
     private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
         
         switch content {
-        case .file(let file) where file.basename == Manifest.project.fileName:
-            return nil
         case .file(let file):
             return .file(path: file)
         case .directory(let path, _) where path.suffix == ".playground":
