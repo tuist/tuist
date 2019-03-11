@@ -31,55 +31,50 @@ class GraphLoader: GraphLoading {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         
-        let workspace = try WorkspaceStructureFactory(path: path, workspace: try modelLoader.loadWorkspace(at: path)).makeWorkspaceStructure()
-        
         let project = try Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        let entryNodes: [GraphNode] = try project.targets.map({ $0.name }).map { targetName in
+        let entryNodes: [GraphNode] = try project.targets.map(\.name).map { targetName in
             try TargetNode.read(name: targetName, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         }
         let graph = Graph(name: project.name,
                           entryPath: path,
                           cache: cache,
                           entryNodes: entryNodes)
+                
         try lint(graph: graph)
-        return (workspace, graph)
+        
+        let dependencies = graph.projects.keys.filter{ $0 != path }.map(WorkspaceStructure.Element.project)
+        
+        let workspaceStructure = WorkspaceStructure(name: "Workspace", contents: [
+            .project(path: path),
+            .group(name: "Dependencies", contents: dependencies)
+        ])
+        
+        return (workspaceStructure, graph)
     }
 
     func loadWorkspace(path: AbsolutePath) throws -> (WorkspaceStructure, Graph) {
         
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
-        let workspace = try WorkspaceStructureFactory(path: path, workspace: try modelLoader.loadWorkspace(at: path)).makeWorkspaceStructure()
-        
-        func traverseProjects(element: WorkspaceStructure.Element) throws -> [(AbsolutePath, Project)] {
-            switch element {
-            case .file, .folderReference:
-                break
-            case .group(name: _, contents: let contents):
-                return try contents.flatMap(traverseProjects)
-            case let .project(path: path):
-                return [try (path, Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader))]
-            }
-            
-            return []
+        let workspaceDescription = try modelLoader.loadWorkspace(at: path)
+
+        let projects = try workspaceDescription.projects.map {
+            return ($0, try Project.at($0, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader))
         }
 
-
-        let projects = try workspace.contents.flatMap(traverseProjects)
-
-        let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
-            try project.1.targets.map({ $0.name }).map { targetName in
-                try TargetNode.read(name: targetName, path: project.0, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
+        let entryNodes = try projects.flatMap { projectPath, project -> [TargetNode] in
+            try project.targets.map(\.name).map { targetName in
+                try TargetNode.read(name: targetName, path: projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
             }
         }
-        let graph = Graph(name: workspace.name,
+        let graph = Graph(name: workspaceDescription.name,
                           entryPath: path,
                           cache: cache,
                           entryNodes: entryNodes)
-
+        
         try lint(graph: graph)
 
-        return (workspace, graph)
+        return (try WorkspaceStructureFactory(path: path, workspace: workspaceDescription).makeWorkspaceStructure(), graph)
     }
 
     private func lint(graph: Graph) throws {
@@ -109,18 +104,15 @@ struct DirectoryStructure {
     let path: AbsolutePath
     let git: Git
     let fileHandler: FileHandling
-    let workspace: Workspace
+    let files: [AbsolutePath]
     
-    init(path: AbsolutePath, fileHandler: FileHandling = FileHandler(), workspace: Workspace) {
+    init(path: AbsolutePath, fileHandler: FileHandling = FileHandler(), files: [AbsolutePath]) {
         self.path = path
         self.git = GitClient(directory: path)
         self.fileHandler = fileHandler
-        self.workspace = workspace
+        self.files = files
     }
-    
-    let includeDotFiles = false
-    let includeUntrackedFiles = false
-    
+
     indirect enum Node {
         case file(AbsolutePath)
         case directory(AbsolutePath, Graph)
@@ -134,7 +126,7 @@ struct DirectoryStructure {
         
         return try fileHandler.ls(path).compactMap { path in
 
-            guard workspace.additionalFiles.contains(path) || workspace.projects.contains(path) else {
+            guard files.matches(path: path) else {
                 return nil
             }
             
@@ -160,13 +152,11 @@ struct WorkspaceStructureFactory {
         switch content {
         case .file(let file):
             return .file(path: file)
-        case .directory(let path, _) where path.suffix == ".xcworkspace":
-            return nil
         case .directory(let path, _) where path.suffix == ".playground":
             return .file(path: path)
-        case .directory(let path, let contents) where contents.files().contains(basename: Manifest.project.fileName):
+        case .directory(let path, let contents) where contents.contains(fileName: Manifest.project.fileName):
             return .project(path: path)
-        case .directory(let path, let contents) where contents.containsAnyProjectManifestWholeGraph():
+        case .directory(let path, let contents) where contents.containsInGraph(fileName: Manifest.project.fileName):
             return .group(name: path.basename, contents: contents.compactMap(directoryGraphToWorkspaceStructureElement))
         case .directory(let path, _):
             return .folderReference(path: path)
@@ -175,7 +165,7 @@ struct WorkspaceStructureFactory {
     }
     
     func makeWorkspaceStructure() throws -> WorkspaceStructure {
-        let graph = try DirectoryStructure(path: path, workspace: workspace).buildGraph()
+        let graph = try DirectoryStructure(path: path, files: workspace.projects + workspace.additionalFiles).buildGraph()
         return WorkspaceStructure(name: workspace.name, contents: graph.compactMap(directoryGraphToWorkspaceStructureElement))
     }
     
@@ -183,8 +173,12 @@ struct WorkspaceStructureFactory {
 
 extension Sequence where Element == AbsolutePath {
     
-    func contains(basename: String) -> Bool {
-        return self.contains(where: { $0.basename == basename })
+    func contains(fileName: String) -> Bool {
+        return contains(where: { $0.basename == fileName })
+    }
+    
+    func matches(path: AbsolutePath) -> Bool {
+        return contains(where: { $0.contains(path) || path.contains($0) })
     }
     
 }
@@ -200,15 +194,19 @@ extension Sequence where Element == DirectoryStructure.Node {
         }
     }
     
-    func containsAnyProjectManifestWholeGraph() -> Bool {
+    func contains(fileName: String) -> Bool {
+        return files().contains(fileName: fileName)
+    }
+    
+    func containsInGraph(fileName: String) -> Bool {
         
         return first{ node in
             
             switch node {
-            case .file(let path) where path.basename == Manifest.project.fileName:
+            case .file(let path) where path.basename == fileName:
                 return true
             case .directory(_, let graph):
-                return graph.containsAnyProjectManifestWholeGraph()
+                return graph.containsInGraph(fileName: fileName)
             case _:
                 return false
             }
