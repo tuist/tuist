@@ -16,19 +16,17 @@ It’s a tedious process that can break without you noticing it. Moreover, each 
 
 The good news is that Tuist offers a command, **tuist up** that helps you define your project dependencies and then takes care of the configuration process for you.
 
-To define your project dependencies, we need to pass an **up** attribute to our project manifest:
+To define your project dependencies, we need to create a new `Setup.swift` manifest file:
 
 ```swift
-let project = Project(
-  up: [
+
+let setup = Setup([
     .homebrew(packages: ["swiftlint"]),
     .carthage(platforms: [.iOS])
-  ]
-  // The other manifest attributes
-)
+  ])
 ```
 
-We have turned the markdown steps that we saw before into up commands in the project manifest. When you run `tuist up`, Tuist translates those declarations into actual commands that are executed in your system.
+We have turned the markdown steps that we saw before into up commands in the setup manifest. When you run `tuist up`, Tuist translates those declarations into actual commands that are executed in your system.
 
 Moreover, it assesses whether those dependencies are already met in the environment, and if they are, it skips them. For instance, if the Carthage dependencies exist and are up to date, it doesn’t run the Carthage update command.
 
