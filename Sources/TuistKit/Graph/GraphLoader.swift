@@ -109,21 +109,21 @@ struct DirectoryStructure {
     let path: AbsolutePath
     let git: Git
     let fileHandler: FileHandling
+    let workspace: Workspace
     
-    init(path: AbsolutePath, fileHandler: FileHandling = FileHandler()) {
+    init(path: AbsolutePath, fileHandler: FileHandling = FileHandler(), workspace: Workspace) {
         self.path = path
         self.git = GitClient(directory: path)
         self.fileHandler = fileHandler
+        self.workspace = workspace
     }
     
     let includeDotFiles = false
     let includeUntrackedFiles = false
     
     indirect enum Node {
-        
         case file(AbsolutePath)
         case directory(AbsolutePath, Graph)
-        
     }
     
     internal func buildGraph() throws -> Graph {
@@ -133,12 +133,8 @@ struct DirectoryStructure {
     private func buildGraph(path: AbsolutePath) throws -> Graph {
         
         return try fileHandler.ls(path).compactMap { path in
-            
-            guard includeDotFiles && path.basename.hasPrefix(".") == false else {
-                return nil
-            }
-            
-            guard includeUntrackedFiles == false && git.isFileBeingTracked(path: path) else {
+
+            guard workspace.additionalFiles.contains(path) || workspace.projects.contains(path) else {
                 return nil
             }
             
@@ -179,7 +175,7 @@ struct WorkspaceStructureFactory {
     }
     
     func makeWorkspaceStructure() throws -> WorkspaceStructure {
-        let graph = try DirectoryStructure(path: path).buildGraph()
+        let graph = try DirectoryStructure(path: path, workspace: workspace).buildGraph()
         return WorkspaceStructure(name: workspace.name, contents: graph.compactMap(directoryGraphToWorkspaceStructureElement))
     }
     
