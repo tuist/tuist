@@ -102,14 +102,15 @@ struct DirectoryStructure {
     typealias Graph = [Node]
     
     let path: AbsolutePath
-    let git: Git
     let fileHandler: FileHandling
-    let files: [AbsolutePath]
     
-    init(path: AbsolutePath, fileHandler: FileHandling = FileHandler(), files: [AbsolutePath]) {
+    let projects: [AbsolutePath]
+    let files: [AbsolutePath]
+
+    init(path: AbsolutePath, fileHandler: FileHandling = FileHandler(), projects: [AbsolutePath], files: [AbsolutePath]) {
         self.path = path
-        self.git = GitClient(directory: path)
         self.fileHandler = fileHandler
+        self.projects = projects
         self.files = files
     }
 
@@ -122,11 +123,15 @@ struct DirectoryStructure {
         return try buildGraph(path: path)
     }
     
-    private func buildGraph(path: AbsolutePath) throws -> Graph {
+    private func buildGraph(path: AbsolutePath, test: () -> Bool = { true }) throws -> Graph {
         
         return try fileHandler.ls(path).compactMap { path in
+            
+            let isProjectDirectory = projects.contains(where: { $0.contains(path) })
+            let isManifestFile = path.basename == Manifest.project.fileName
+            let isAdditionalFile = files.matches(path: path)
 
-            guard files.matches(path: path) else {
+            guard isProjectDirectory || isManifestFile || isAdditionalFile else {
                 return nil
             }
             
@@ -150,6 +155,8 @@ struct WorkspaceStructureFactory {
     private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
         
         switch content {
+        case .file(let file) where file.basename == Manifest.project.fileName:
+            return nil
         case .file(let file):
             return .file(path: file)
         case .directory(let path, _) where path.suffix == ".playground":
@@ -165,7 +172,7 @@ struct WorkspaceStructureFactory {
     }
     
     func makeWorkspaceStructure() throws -> WorkspaceStructure {
-        let graph = try DirectoryStructure(path: path, files: workspace.projects + workspace.additionalFiles).buildGraph()
+        let graph = try DirectoryStructure(path: path, projects: workspace.projects, files: workspace.additionalFiles).buildGraph()
         return WorkspaceStructure(name: workspace.name, contents: graph.compactMap(directoryGraphToWorkspaceStructureElement))
     }
     
