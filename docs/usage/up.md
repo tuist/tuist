@@ -19,6 +19,7 @@ The good news is that Tuist offers a command, **tuist up** that helps you define
 To define your project dependencies, we need to create a new `Setup.swift` manifest file:
 
 ```swift
+import ProjectDescription
 
 let setup = Setup([
     .homebrew(packages: ["swiftlint"]),
