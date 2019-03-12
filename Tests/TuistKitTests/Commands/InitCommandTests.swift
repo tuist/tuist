@@ -106,6 +106,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
@@ -127,6 +128,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
@@ -148,6 +150,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
@@ -169,6 +172,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
@@ -191,6 +195,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
 
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
@@ -212,6 +217,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))

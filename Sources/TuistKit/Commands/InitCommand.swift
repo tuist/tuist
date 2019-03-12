@@ -108,6 +108,7 @@ class InitCommand: NSObject, Command {
         try generatePlists(platform: platform, product: product, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateGitIgnore(path: path)
+        try generateSetup(path: path)
         printer.print(success: "Project generated at path \(path.asString).")
     }
 
@@ -232,6 +233,22 @@ class InitCommand: NSObject, Command {
         *.xcworkspace
         """
         try content.write(to: path.url, atomically: true, encoding: .utf8)
+    }
+
+    /// Generates a Setup.swift file in the given directory.
+    ///
+    /// - Parameter path: Path where the Setup.swift file will be created.
+    /// - Throws: An error if the file cannot be created.
+    fileprivate func generateSetup(path: AbsolutePath) throws {
+        let content = """
+        import ProjectDescription
+
+        let setup = Setup([
+            // .carthage()
+        ])
+        """
+        let setupPath = path.appending(component: "Setup.swift")
+        try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
     }
 
     // swiftlint:disable:next function_body_length
