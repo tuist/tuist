@@ -95,12 +95,14 @@ final class Installer: Installing {
         try verifySwiftVersion(version: version)
 
         var bundleURL: URL?
+        var envBundleURL: URL?
         do {
-            bundleURL = try self.bundleURL(version: version)
+            (bundleURL, envBundleURL) = try self.bundleURL(version: version)
         } catch {}
 
-        if let bundleURL = bundleURL {
+        if let bundleURL = bundleURL, let envBundleURL = envBundleURL {
             try installFromBundle(bundleURL: bundleURL,
+                                  envBundleURL: envBundleURL,
                                   version: version,
                                   temporaryDirectory: temporaryDirectory)
         } else {
@@ -123,34 +125,46 @@ final class Installer: Installing {
         }
     }
 
-    func bundleURL(version: String) throws -> URL? {
+    func bundleURL(version: String) throws -> (bundleURL: URL?, envBundleURL: URL?) {
         guard let release = try? githubClient.release(tag: version) else {
             printer.print(warning: "The release \(version) couldn't be obtained from GitHub")
-            return nil
+            return (bundleURL: nil, envBundleURL: nil)
         }
         guard let bundleAsset = release.assets.first(where: { $0.name == Constants.bundleName }) else {
             printer.print(warning: "The release \(version) is not bundled")
-            return nil
+            return (bundleURL: nil, envBundleURL: nil)
         }
-        return bundleAsset.downloadURL
+        guard let envBundleAsset = release.assets.first(where: { $0.name == Constants.envBundleName }) else {
+            printer.print(warning: "The release \(version) is not bundled")
+            return (bundleURL: nil, envBundleURL: nil)
+        }
+
+        return (bundleURL: bundleAsset.downloadURL, envBundleURL: envBundleAsset.downloadURL)
     }
 
     func installFromBundle(bundleURL: URL,
+                           envBundleURL: URL,
                            version: String,
                            temporaryDirectory: TemporaryDirectory) throws {
         try versionsController.install(version: version, installation: { installationDirectory in
-
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
+            let envDownloadPath = temporaryDirectory.path.appending(component: Constants.envBundleName)
             try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString)
+            try system.run("/usr/bin/curl", "-LSs", "--output", envDownloadPath.asString, envBundleURL.absoluteString)
 
             // Unzip
             printer.print("Installing...")
             try system.run("/usr/bin/unzip", downloadPath.asString, "-d", installationDirectory.asString)
+            try system.run("/usr/bin/unzip", envDownloadPath.asString, "-d", temporaryDirectory.path.asString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
+
+            // Copy tuistenv
+            try system.async(["/bin/cp", "-f", temporaryDirectory.path.appending(component: "tuistenv").asString, "/usr/local/bin/tuist"])
+            try system.async(["/bin/chmod", "+x", "/usr/local/bin/tuist"])
         })
     }
 
@@ -196,6 +210,10 @@ final class Installer: Installing {
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
+
+            // Copy tuistenv
+            try system.async(["/bin/cp", "-f", buildDirectory.appending(component: "tuistenv").asString, "/usr/local/bin/tuist"])
+            try system.async(["/bin/chmod", "+x", "/usr/local/bin/tuist"])
         }
     }
 

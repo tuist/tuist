@@ -28,6 +28,20 @@ public final class MockSystem: Systeming {
         stubs[arguments.joined(separator: " ")] = (stderror: nil, stdout: output, exitstatus: 0)
     }
 
+    public func async(_ arguments: [String]) throws {
+        try self.async(arguments, environment: [:])
+    }
+
+    public func async(_ arguments: [String], environment _: [String: String]) throws {
+        let command = arguments.joined(separator: " ")
+        guard let stub = self.stubs[command] else {
+            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+        }
+        if stub.exitstatus != 0 {
+            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
+        }
+    }
+
     public func run(_ arguments: [String]) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {

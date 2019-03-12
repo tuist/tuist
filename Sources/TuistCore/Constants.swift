@@ -8,4 +8,5 @@ public class Constants {
     public static let version = "0.12.0"
     public static let swiftVersion: String = "4.2"
     public static let bundleName: String = "tuist.zip"
+    public static let envBundleName: String = "tuistenv.zip"
 }

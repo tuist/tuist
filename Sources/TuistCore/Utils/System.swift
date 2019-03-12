@@ -53,6 +53,21 @@ public protocol Systeming {
     /// - Throws: An error if the command fails.
     func capture(_ arguments: [String], verbose: Bool, environment: [String: String]) throws -> String
 
+    /// Runs a task asynchronously. If the process that triggers the task terminates, the task continues to execute.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command arguments
+    /// - Throws: An error if the command fails.
+    func async(_ arguments: [String]) throws
+
+    /// Runs a task asynchronously. If the process that triggers the task terminates, the task continues to execute.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command arguments
+    ///   - environment: Environment that should be used when running the task.
+    /// - Throws: An error if the command fails.
+    func async(_ arguments: [String], environment: [String: String]) throws
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -295,6 +310,30 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
         try process.launch()
         try process.waitUntilExit()
+    }
+
+    /// Runs a task asynchronously. If the process that triggers the task terminates, the task continues to execute.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command arguments
+    /// - Throws: An error if the command fails.
+    public func async(_ arguments: [String]) throws {
+        try async(arguments, environment: env)
+    }
+
+    /// Runs a task asynchronously. If the process that triggers the task terminates, the task continues to execute.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command arguments
+    ///   - environment: Environment that should be used when running the task.
+    /// - Throws: An error if the command fails.
+    public func async(_ arguments: [String], environment: [String: String]) throws {
+        let process = Process(arguments: arguments,
+                              environment: environment,
+                              outputRedirection: .none,
+                              verbose: false,
+                              startNewProcessGroup: true)
+        try process.launch()
     }
 
     /// Returns the Swift version.
