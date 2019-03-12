@@ -8,6 +8,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add Homebrew tap up https://github.com/tuist/tuist/pull/281 by @pepibumur
+
 ### Removed
 
 ### Fixed
