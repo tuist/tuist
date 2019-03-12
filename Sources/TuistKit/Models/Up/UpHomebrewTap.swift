@@ -45,13 +45,9 @@ class UpHomebrewTap: Up, GraphInitiatable {
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
     override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
-        if try !upHomebrew.isMet(system: system, projectPath: projectPath) { return false }
+        guard try upHomebrew.isMet(system: system, projectPath: projectPath) else { return false }
         let taps = try self.taps(system: system)
-        for repository in repositories {
-            if !isTapConfigured(repository, taps: taps) {
-                return false
-            }
-        }
+        guard repositories.first(where: { !isTapConfigured($0, taps: taps) }) == nil else { return false }
         return true
     }
 
