@@ -122,11 +122,11 @@ final class ConfigGenerator: ConfigGenerating {
                                                sourceRootPath: AbsolutePath) throws {
         let product = settingsProviderProduct(target)
         let platform = settingsProviderPlatform(target)
-
-        let defaultConfigSettings = BuildSettingsProvider.targetDefault(platform: platform, product: product)
+        let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
 
         var settings: [String: Any] = [:]
-        extend(buildSettings: &settings, with: defaultConfigSettings)
+        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: .all, platform: platform, product: product, swift: true))
+        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: variant, platform: platform, product: product, swift: true))
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
