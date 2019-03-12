@@ -20,9 +20,18 @@ enum GraphError: FatalError {
     }
 }
 
-enum DependencyReference: Equatable {
+enum DependencyReference: Equatable, Hashable {
     case absolute(AbsolutePath)
     case product(String)
+
+    public func hash(into hasher: inout Hasher) {
+        switch self {
+        case let .absolute(path):
+            hasher.combine(path)
+        case let .product(product):
+            hasher.combine(product)
+        }
+    }
 
     static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
@@ -45,7 +54,7 @@ protocol Graphing: AnyObject {
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
+    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> Set<DependencyReference>
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
 
@@ -163,7 +172,7 @@ class Graph: Graphing {
 
     func embeddableFrameworks(path: AbsolutePath,
                               name: String,
-                              system: Systeming) throws -> [DependencyReference] {
+                              system: Systeming) throws -> Set<DependencyReference> {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -172,14 +181,6 @@ class Graph: Graphing {
             .app,
             .unitTests,
             .uiTests,
-//            .tvExtension,
-//            .appExtension,
-//            .watchExtension,
-//            .watch2Extension,
-//            .messagesExtension,
-//            .watchApp,
-//            .watch2App,
-//            .messagesApplication,
         ]
 
         if validProducts.contains(targetNode.target.product) == false {
@@ -212,7 +213,7 @@ class Graph: Graphing {
 
         references.append(contentsOf: transitiveFrameworks)
 
-        return references
+        return Set(references)
     }
 
     // MARK: - Fileprivate

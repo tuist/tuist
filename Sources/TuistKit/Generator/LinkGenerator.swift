@@ -120,7 +120,7 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    func generateEmbedPhase(dependencies: [DependencyReference],
+    func generateEmbedPhase(dependencies: Set<DependencyReference>,
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
