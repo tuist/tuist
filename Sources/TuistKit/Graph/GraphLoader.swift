@@ -116,6 +116,7 @@ struct DirectoryStructure {
 
     indirect enum Node {
         case file(AbsolutePath)
+        case project(AbsolutePath)
         case directory(AbsolutePath, Graph)
     }
     
@@ -123,15 +124,22 @@ struct DirectoryStructure {
         return try buildGraph(path: path)
     }
     
-    private func buildGraph(path: AbsolutePath, test: () -> Bool = { true }) throws -> Graph {
+    private func buildGraph(path: AbsolutePath) throws -> Graph {
         
-        return try fileHandler.ls(path).compactMap { path in
+        let isProjectDirectory = projects.contains(path)
+        
+        let ls = try fileHandler.ls(path)
+        
+        if isProjectDirectory && ls.contains(fileName: Manifest.project.fileName) {
+            return [ .project(path) ]
+        }
+        
+        return try ls.compactMap { path in
             
-            let isProjectDirectory = projects.contains(where: { $0.contains(path) })
-            let isManifestFile = path.basename == Manifest.project.fileName
+            let containsProjectDirectory = projects.contains(where: { $0.contains(path) })
             let isAdditionalFile = files.matches(path: path)
 
-            guard isProjectDirectory || isManifestFile || isAdditionalFile else {
+            guard containsProjectDirectory || isAdditionalFile else {
                 return nil
             }
             
@@ -155,16 +163,19 @@ struct WorkspaceStructureFactory {
     private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
         
         switch content {
-        case .file(let file):
-            return .file(path: file)
-        case .directory(let path, _) where path.suffix == ".playground":
-            return .file(path: path)
-        case .directory(let path, let contents) where contents.contains(fileName: Manifest.project.fileName):
-            return .project(path: path)
-        case .directory(let path, let contents) where contents.containsInGraph(fileName: Manifest.project.fileName):
-            return .group(name: path.basename, contents: contents.compactMap(directoryGraphToWorkspaceStructureElement))
-        case .directory(let path, _):
-            return .folderReference(path: path)
+        case .file(let file): return .file(path: file)
+        case .directory(let path, _) where path.suffix == ".playground": return .file(path: path)
+        case .project(let path): return .project(path: path)
+        case .directory(let path, let contents):
+            
+            if case let .project(path)? = contents.first, contents.count == 1 {
+                return .project(path: path)
+            } else if contents.containsProjectInGraph() {
+                return .group(name: path.basename, contents: contents.compactMap(directoryGraphToWorkspaceStructureElement))
+            } else {
+                return .folderReference(path: path)
+            }
+            
         }
         
     }
@@ -194,7 +205,7 @@ extension Sequence where Element == DirectoryStructure.Node {
         return compactMap{ content in
             switch content {
             case .file(let path): return path
-            case .directory: return nil
+            case .directory, .project: return nil
             }
         }
     }
@@ -203,19 +214,14 @@ extension Sequence where Element == DirectoryStructure.Node {
         return files().contains(fileName: fileName)
     }
     
-    func containsInGraph(fileName: String) -> Bool {
+    func containsProjectInGraph() -> Bool {
         
         return first{ node in
-            
             switch node {
-            case .file(let path) where path.basename == fileName:
-                return true
-            case .directory(_, let graph):
-                return graph.containsInGraph(fileName: fileName)
-            case _:
-                return false
+            case .project: return true
+            case .directory(_, let graph): return graph.containsProjectInGraph()
+            case _: return false
             }
-            
         } != nil
         
     }
