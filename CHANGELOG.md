@@ -5,9 +5,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next version
 
 ### Changed
+
 ### Added
+
 ### Removed
+
 ### Fixed
+
+- Fix duplicated embedded frameworks https://github.com/tuist/tuist/pull/280 by @pepibumur
 
 ## 0.12.0
 
