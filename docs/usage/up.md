@@ -47,6 +47,14 @@ Tuist offers the following set of commands.
 
 It installs the given [Homebrew](https://brew.sh) packages if they don’t exist in the system.
 
+#### Homebrew tap
+
+```swift
+.homebrewTap(repositories: ["peripheryapp/periphery"])
+```
+
+Configures Homebrew tap repositories. It also installs Homebrew if it's not available in the system.
+
 #### Carthage dependencies
 
 ```swift
