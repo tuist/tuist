@@ -25,7 +25,7 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
         return Target(name: "\(project)-Manifest",
                       platform: .macOS,
                       product: .framework,
-                      bundleId: "",
+                      bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
                       settings: settings,
                       sources: [manifest],
                       filesGroup: .group(name: "Manifest"))
