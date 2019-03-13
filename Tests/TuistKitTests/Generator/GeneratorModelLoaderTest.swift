@@ -19,6 +19,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     typealias ArgumentsManifest = ProjectDescription.Arguments
     typealias BuildConfigurationManifest = ProjectDescription.BuildConfiguration
 
+    var manifestTargetGenerator: MockManifestTargetGenerator!
     var fileHandler: MockFileHandler!
     var path: AbsolutePath {
         return fileHandler.currentPath
@@ -27,6 +28,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     override func setUp() {
         do {
             fileHandler = try MockFileHandler()
+            manifestTargetGenerator = MockManifestTargetGenerator()
         } catch {
             XCTFail("setup failed: \(error.localizedDescription)")
         }
@@ -45,14 +47,15 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
 
         // When
         let model = try subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(model.name, "SomeProject")
-        XCTAssertEqual(model.targets, [])
+        XCTAssertEqual(model.targets.map { $0.name }, ["SomeProject-Manifest"])
     }
 
     func test_loadProject_withTargets() throws {
@@ -60,23 +63,26 @@ class GeneratorModelLoaderTest: XCTestCase {
         let targetA = TargetManifest.test(name: "A")
         let targetB = TargetManifest.test(name: "B")
         let manifests = [
-            path: ProjectManifest.test(targets: [
-                targetA,
-                targetB,
+            path: ProjectManifest.test(name: "Project",
+                                       targets: [
+                                           targetA,
+                                           targetB,
             ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
 
         // When
         let model = try subject.loadProject(at: path)
 
         // Then
-        XCTAssertEqual(model.targets.count, 2)
+        XCTAssertEqual(model.targets.count, 3)
         assert(target: model.targets[0], matches: targetA, at: path)
         assert(target: model.targets[1], matches: targetB, at: path)
+        XCTAssertEqual(model.targets[2].name, "Project-Manifest")
     }
 
     func test_loadWorkspace() throws {
@@ -87,7 +93,8 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
 
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -106,7 +113,8 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader)
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
 
         // When
         let model = try subject.loadWorkspace(at: path)

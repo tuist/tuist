@@ -24,16 +24,24 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
 class GeneratorModelLoader: GeneratorModelLoading {
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
+    private let manifestTargetGenerator: ManifestTargetGenerating
 
-    init(fileHandler: FileHandling, manifestLoader: GraphManifestLoading) {
+    init(fileHandler: FileHandling,
+         manifestLoader: GraphManifestLoading,
+         manifestTargetGenerator: ManifestTargetGenerating) {
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
+        self.manifestTargetGenerator = manifestTargetGenerator
     }
 
     func loadProject(at path: AbsolutePath) throws -> Project {
         let manifest = try manifestLoader.loadProject(at: path)
         let project = try TuistKit.Project.from(manifest: manifest, path: path, fileHandler: fileHandler)
-        return project
+
+        let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
+                                                                                at: path)
+
+        return project.adding(target: manifestTarget)
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
@@ -64,6 +72,14 @@ extension TuistKit.Project {
                        settings: settings,
                        filesGroup: .group(name: "Project"),
                        targets: targets)
+    }
+
+    func adding(target: Target) -> Project {
+        return Project(path: path,
+                       name: name,
+                       settings: settings,
+                       filesGroup: filesGroup,
+                       targets: targets + [target])
     }
 }
 

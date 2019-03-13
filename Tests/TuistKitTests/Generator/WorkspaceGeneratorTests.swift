@@ -30,7 +30,6 @@ final class WorkspaceGeneratorTests: XCTestCase {
             subject = WorkspaceGenerator(
                 system: MockSystem(),
                 printer: MockPrinter(),
-                resourceLocator: MockResourceLocator(),
                 projectDirectoryHelper: projectDirectoryHelper,
                 fileHandler: fileHandler
             )

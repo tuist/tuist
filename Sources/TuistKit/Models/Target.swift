@@ -14,7 +14,10 @@ class Target: Equatable {
     let platform: Platform
     let product: Product
     let bundleId: String
-    let infoPlist: AbsolutePath
+
+    // An info.plist file is needed for (dynamic) frameworks, applications and executables
+    // however is not needed for other products such as static libraries.
+    let infoPlist: AbsolutePath?
     let entitlements: AbsolutePath?
     let settings: Settings?
     let dependencies: [Dependency]
@@ -32,7 +35,7 @@ class Target: Equatable {
          platform: Platform,
          product: Product,
          bundleId: String,
-         infoPlist: AbsolutePath,
+         infoPlist: AbsolutePath? = nil,
          entitlements: AbsolutePath? = nil,
          settings: Settings? = nil,
          sources: [AbsolutePath] = [],
