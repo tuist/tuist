@@ -192,7 +192,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     fileprivate func extend(buildSettings: inout [String: Any], with other: [String: Any]) {
         other.forEach { key, value in
-            if buildSettings[key] == nil {
+            if buildSettings[key] == nil || (value as? String)?.contains("$(inherited)") == false {
                 buildSettings[key] = value
             } else {
                 let previousValue: Any = buildSettings[key]!
