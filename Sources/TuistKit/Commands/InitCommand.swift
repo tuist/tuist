@@ -244,6 +244,7 @@ class InitCommand: NSObject, Command {
         import ProjectDescription
 
         let setup = Setup([
+            // .homebrew(packages: ["swiftlint", "carthage"]),
             // .carthage()
         ])
         """
