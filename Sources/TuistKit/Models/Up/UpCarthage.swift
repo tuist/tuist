@@ -17,7 +17,7 @@ class UpCarthage: Up, GraphInitiatable {
     ///
     /// - Parameters:
     ///   - platforms: The platforms Carthage dependencies should be updated for.
-    ///   - upHomebrew: Up homebrew for installing Carthge.
+    ///   - upHomebrew: Up homebrew for installing Carthage.
     ///   - carthage: Carthage instace to interact with the project Carthage setup.
     init(platforms: [Platform],
          upHomebrew: Upping = UpHomebrew(packages: ["carthage"]),

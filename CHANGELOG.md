@@ -6,6 +6,21 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+### Added
+
+- Add Homebrew tap up https://github.com/tuist/tuist/pull/281 by @pepibumur
+- Create a Setup.swift file when running the init command https://github.com/tuist/tuist/pull/283 by @pepibumur
+
+### Removed
+
+### Fixed
+
+- Fix duplicated embedded frameworks https://github.com/tuist/tuist/pull/280 by @pepibumur
+
+## 0.12.0
+
+### Changed
+
 - Rename manifest group to `Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
 - Rename manifest target to `Project-Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
 - Replace swiftlint with swiftformat https://github.com/tuist/tuist/pull/239 by @pepibumur.

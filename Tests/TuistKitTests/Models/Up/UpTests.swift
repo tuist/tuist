@@ -41,6 +41,18 @@ final class UpTests: XCTestCase {
         XCTAssertEqual(got?.packages, ["swiftlint"])
     }
 
+    func test_with_when_homebrewTap() throws {
+        let dictionary = JSON([
+            "type": "homebrew-tap",
+            "repositories": JSON.array([JSON.string("repository")]),
+        ])
+        let got = try Up.with(dictionary: dictionary,
+                              projectPath: fileHandler.currentPath,
+                              fileHandler: fileHandler) as? UpHomebrewTap
+        XCTAssertEqual(got?.name, "Homebrew tap")
+        XCTAssertEqual(got?.repositories, ["repository"])
+    }
+
     func test_with_when_carthage() throws {
         let dictionary = JSON([
             "type": "carthage",
