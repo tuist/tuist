@@ -50,6 +50,6 @@ public class Opener: Opening {
         if !fileHandler.exists(path) {
             throw OpeningError.notFound(path)
         }
-        try system.popen("/usr/bin/open", path.asString)
+        try system.runAndPrint("/usr/bin/open", path.asString)
     }
 }
