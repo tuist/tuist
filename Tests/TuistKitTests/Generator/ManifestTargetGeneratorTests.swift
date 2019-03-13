@@ -24,6 +24,7 @@ final class ManifestTargetGeneratorTests: XCTestCase {
 
         // Then
         XCTAssertEqual(target.name, "MyProject-Manifest")
+        XCTAssertEqual(target.product, .staticFramework)
         XCTAssertEqual(target.sources.map { $0.asString }, ["/test/Project.swift"])
         XCTAssertNil(target.infoPlist)
         assertValidManifestBuildSettings(for: target,
@@ -41,12 +42,7 @@ final class ManifestTargetGeneratorTests: XCTestCase {
 
         XCTAssertEqual(settings.base["FRAMEWORK_SEARCH_PATHS"], expectedSearchPath)
         XCTAssertEqual(settings.base["LIBRARY_SEARCH_PATHS"], expectedSearchPath)
-        XCTAssertEqual(settings.base["SWIFT_FORCE_DYNAMIC_LINK_STDLIB"], "YES")
-        XCTAssertEqual(settings.base["SWIFT_FORCE_STATIC_LINK_STDLIB"], "NO")
         XCTAssertEqual(settings.base["SWIFT_INCLUDE_PATHS"], expectedSearchPath)
         XCTAssertEqual(settings.base["SWIFT_VERSION"], Constants.swiftVersion)
-        XCTAssertEqual(settings.base["LD"], "/usr/bin/true")
-        XCTAssertEqual(settings.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"], "SWIFT_PACKAGE")
-        XCTAssertEqual(settings.base["OTHER_SWIFT_FLAGS"], "-swift-version 4 -I \(expectedSearchPath)")
     }
 }
