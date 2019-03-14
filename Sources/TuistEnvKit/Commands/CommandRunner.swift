@@ -118,7 +118,7 @@ class CommandRunner: CommandRunning {
         var args = [path.appending(component: Constants.binName).asString]
         args.append(contentsOf: Array(arguments().dropFirst()))
 
-        try system.popen(args, verbose: false, environment: ProcessInfo.processInfo.environment)
+        try system.runAndPrint(args, verbose: false, environment: ProcessInfo.processInfo.environment)
     }
 
     // MARK: - Static

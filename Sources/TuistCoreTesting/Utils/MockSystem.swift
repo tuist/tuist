@@ -65,19 +65,33 @@ public final class MockSystem: Systeming {
         return stub.stdout ?? ""
     }
 
-    public func popen(_ arguments: String...) throws {
-        try self.popen(arguments)
+    public func runAndPrint(_ arguments: String...) throws {
+        try self.runAndPrint(arguments)
     }
 
-    public func popen(_ arguments: [String]) throws {
-        try self.popen(arguments, verbose: false, environment: [:])
+    public func runAndPrint(_ arguments: [String]) throws {
+        try self.runAndPrint(arguments, verbose: false, environment: [:])
     }
 
-    public func popen(_ arguments: String..., verbose: Bool, environment: [String: String]) throws {
-        try self.popen(arguments, verbose: verbose, environment: environment)
+    public func runAndPrint(_ arguments: String..., verbose: Bool, environment: [String: String]) throws {
+        try self.runAndPrint(arguments, verbose: verbose, environment: environment)
     }
 
-    public func popen(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
+    public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
+        let command = arguments.joined(separator: " ")
+        guard let stub = self.stubs[command] else {
+            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+        }
+        if stub.exitstatus != 0 {
+            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
+        }
+    }
+
+    public func async(_ arguments: [String]) throws {
+        try self.async(arguments, verbose: false, environment: [:])
+    }
+
+    public func async(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {
             throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")

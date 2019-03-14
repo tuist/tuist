@@ -58,23 +58,14 @@ public protocol Systeming {
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
-    func popen(_ arguments: String...) throws
+    func runAndPrint(_ arguments: String...) throws
 
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
-    func popen(_ arguments: [String]) throws
-
-    /// Runs a command in the shell printing its output.
-    ///
-    /// - Parameters:
-    ///   - arguments: Command.
-    ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - environment: Environment that should be used when running the task.
-    /// - Throws: An error if the command fails.
-    func popen(_ arguments: String..., verbose: Bool, environment: [String: String]) throws
+    func runAndPrint(_ arguments: [String]) throws
 
     /// Runs a command in the shell printing its output.
     ///
@@ -83,7 +74,34 @@ public protocol Systeming {
     ///   - verbose: When true it prints the command that will be executed before executing it.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    func popen(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
+    func runAndPrint(_ arguments: String..., verbose: Bool, environment: [String: String]) throws
+
+    /// Runs a command in the shell printing its output.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the task.
+    /// - Throws: An error if the command fails.
+    func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
+
+    /// Runs a command in the shell asynchronously.
+    /// When the process that triggers the command gets killed, the command continues its execution.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    /// - Throws: An error if the command fails.
+    func async(_ arguments: [String]) throws
+
+    /// Runs a command in the shell asynchronously.
+    /// When the process that triggers the command gets killed, the command continues its execution.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the command.
+    /// - Throws: An error if the command fails.
+    func async(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
 
     /// Returns the Swift version.
     ///
@@ -246,8 +264,8 @@ public final class System: Systeming {
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
-    public func popen(_ arguments: String...) throws {
-        try popen(arguments)
+    public func runAndPrint(_ arguments: String...) throws {
+        try runAndPrint(arguments)
     }
 
     /// Runs a command in the shell printing its output.
@@ -255,8 +273,8 @@ public final class System: Systeming {
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
-    public func popen(_ arguments: [String]) throws {
-        try popen(arguments, verbose: false, environment: env)
+    public func runAndPrint(_ arguments: [String]) throws {
+        try runAndPrint(arguments, verbose: false, environment: env)
     }
 
     /// Runs a command in the shell printing its output.
@@ -267,12 +285,12 @@ public final class System: Systeming {
     ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    public func popen(_ arguments: String...,
-                      verbose: Bool,
-                      environment: [String: String]) throws {
-        try popen(arguments,
-                  verbose: verbose,
-                  environment: environment)
+    public func runAndPrint(_ arguments: String...,
+                            verbose: Bool,
+                            environment: [String: String]) throws {
+        try runAndPrint(arguments,
+                        verbose: verbose,
+                        environment: environment)
     }
 
     /// Runs a command in the shell printing its output.
@@ -282,9 +300,9 @@ public final class System: Systeming {
     ///   - verbose: When true it prints the command that will be executed before executing it.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
-    public func popen(_ arguments: [String],
-                      verbose: Bool,
-                      environment: [String: String]) throws {
+    public func runAndPrint(_ arguments: [String],
+                            verbose: Bool,
+                            environment: [String: String]) throws {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in
@@ -295,6 +313,33 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
         try process.launch()
         try process.waitUntilExit()
+    }
+
+    /// Runs a command in the shell asynchronously.
+    /// When the process that triggers the command gets killed, the command continues its execution.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    /// - Throws: An error if the command fails.
+    public func async(_ arguments: [String]) throws {
+        try async(arguments, verbose: false, environment: env)
+    }
+
+    /// Runs a command in the shell asynchronously.
+    /// When the process that triggers the command gets killed, the command continues its execution.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the command.
+    /// - Throws: An error if the command fails.
+    public func async(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
+        let process = Process(arguments: arguments,
+                              environment: environment,
+                              outputRedirection: .none,
+                              verbose: verbose,
+                              startNewProcessGroup: true)
+        try process.launch()
     }
 
     /// Returns the Swift version.
