@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix duplicated embedded frameworks https://github.com/tuist/tuist/pull/280 by @pepibumur
+- Fix manifest target linker errors https://github.com/tuist/tuist/pull/287 by @kwridan
 
 ## 0.12.0
 
