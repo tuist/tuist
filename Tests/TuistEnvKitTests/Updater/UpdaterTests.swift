@@ -9,6 +9,7 @@ final class UpdaterTests: XCTestCase {
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
     var printer: MockPrinter!
+    var envUpdater: MockEnvUpdater!
     var subject: Updater!
 
     override func setUp() {
@@ -16,16 +17,19 @@ final class UpdaterTests: XCTestCase {
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         printer = MockPrinter()
+        envUpdater = MockEnvUpdater()
         subject = Updater(githubClient: githubClient,
                           versionsController: versionsController,
                           installer: installer,
-                          printer: printer)
+                          printer: printer,
+                          envUpdater: envUpdater)
     }
 
     func test_update_when_no_remote_releases() throws {
         githubClient.releasesStub = { [] }
         try subject.update(force: false)
         XCTAssertEqual(printer.printArgs, ["No remote versions found"])
+        XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 
     func test_update_when_force() throws {
@@ -39,6 +43,7 @@ final class UpdaterTests: XCTestCase {
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
         XCTAssertEqual(installArgs.first?.force, true)
+        XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 
     func test_update_when_there_are_no_updates() throws {
@@ -48,6 +53,7 @@ final class UpdaterTests: XCTestCase {
         try subject.update(force: false)
 
         XCTAssertEqual(printer.printArgs, ["There are no updates available"])
+        XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 
     func test_update_when_there_are_updates() throws {
@@ -62,6 +68,7 @@ final class UpdaterTests: XCTestCase {
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
         XCTAssertEqual(installArgs.first?.force, false)
+        XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 
     func test_update_when_no_local_versions_available() throws {
@@ -76,5 +83,6 @@ final class UpdaterTests: XCTestCase {
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
         XCTAssertEqual(installArgs.first?.force, false)
+        XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 }

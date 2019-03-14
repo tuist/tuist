@@ -20,7 +20,7 @@ public final class MockFileHandler: FileHandling {
     }
 
     public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
-        try fileHandler.inTemporaryDirectory(closure)
+        try closure(currentPath)
     }
 
     public func exists(_ path: AbsolutePath) -> Bool {
