@@ -42,12 +42,7 @@ class GraphLoader: GraphLoading {
                 
         try lint(graph: graph)
         
-        let dependencies = graph.projects.keys.filter{ $0 != path }.map(WorkspaceStructure.Element.project)
-        
-        let workspaceStructure = WorkspaceStructure(name: "Workspace", contents: [
-            .project(path: path),
-            .group(name: "Dependencies", contents: dependencies)
-        ])
+        let workspaceStructure = WorkspaceStructure(name: "Workspace", contents: graph.projects.keys.map(WorkspaceStructure.Element.project))
         
         return (workspaceStructure, graph)
     }
@@ -73,6 +68,8 @@ class GraphLoader: GraphLoading {
                           entryNodes: entryNodes)
         
         try lint(graph: graph)
+        
+        workspaceDescription.projects = Array(graph.projects.keys)
 
         return (try WorkspaceStructureFactory(path: path, workspace: workspaceDescription).makeWorkspaceStructure(), graph)
     }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:Documentation">
+   </FileRef>
+   <FileRef
+      location = "group:Playground.playground">
+   </FileRef>
+   <FileRef
+      location = "group:Workspace.swift">
+   </FileRef>
+   <FileRef
+      location = "group:App/iOSAppWithTransistiveStaticFrameworks.xcodeproj">
+   </FileRef>
+   <Group
+      location = "container:"
+      name = "Modules">
+      <FileRef
+         location = "group:Modules/A/A.xcodeproj">
+      </FileRef>
+      <Group
+         location = "container:"
+         name = "Some">
+         <Group
+            location = "container:"
+            name = "Directory">
+            <Group
+               location = "container:"
+               name = "Structure">
+               <FileRef
+                  location = "group:Modules/Some/Directory/Structure/B/B.xcodeproj">
+               </FileRef>
+            </Group>
+         </Group>
+      </Group>
+   </Group>
+</Workspace>

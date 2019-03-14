@@ -6,7 +6,7 @@ class Workspace: Equatable {
     // MARK: - Attributes
 
     let name: String
-    let projects: [AbsolutePath]
+    var projects: [AbsolutePath]
     let additionalFiles: [AbsolutePath]
 
     // MARK: - Init

@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let project = Project(name: "iOSAppWithTransistiveStaticFrameworks",
+let project = Project(name: "App",
                       targets: [
                           Target(name: "App",
                                  platform: .iOS,
@@ -9,7 +9,7 @@ let project = Project(name: "iOSAppWithTransistiveStaticFrameworks",
                                  infoPlist: "Info.plist",
                                  sources: "Sources/**",
                                  dependencies: [
-                                     .project(target: "A", path: "Modules/A"),
+                                     .project(target: "A", path: "../Modules/A"),
                           ]),
                           Target(name: "AppTests",
                                  platform: .iOS,

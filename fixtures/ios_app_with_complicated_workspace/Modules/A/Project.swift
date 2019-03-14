@@ -9,7 +9,7 @@ let project = Project(name: "A",
                                  infoPlist: "Info.plist",
                                  sources: "Sources/**",
                                  dependencies: [
-                                     .project(target: "B", path: "../B"),
+                                     .project(target: "B", path: "../Some/Directory/Structure/B"),
                           ]),
                           Target(name: "ATests",
                                  platform: .iOS,

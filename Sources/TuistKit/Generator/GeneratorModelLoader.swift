@@ -48,13 +48,21 @@ extension TuistKit.Workspace {
                      path: AbsolutePath,
                      fileHandler: FileHandling) throws -> TuistKit.Workspace {
 
-        func glob(_ string: String) -> [AbsolutePath] {
+        func globFiles(_ string: String) -> [AbsolutePath] {
             return fileHandler.glob(path, glob: string)
+        }
+        
+        func globProjects(_ string: String) throws -> [AbsolutePath] {
+            return try fileHandler.glob(path, glob: string)
+                .filter(fileHandler.isFolder)
+                .filter{
+                    try fileHandler.ls($0).contains(fileName: Manifest.project.fileName)
+            }
         }
 
         return TuistKit.Workspace(name: manifest.name,
-                         projects: manifest.projects.flatMap(glob),
-                         additionalFiles: manifest.additionalFiles.flatMap(glob))
+                         projects: try manifest.projects.flatMap(globProjects),
+                         additionalFiles: manifest.additionalFiles.flatMap(globFiles))
     }
 }
 
