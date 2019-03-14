@@ -101,14 +101,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                               options: options)
     }
 
-    private func generateManifestsConfig() throws {
-        let options = GenerationOptions()
-        _ = try subject.generateManifestsConfig(pbxproj: pbxproj,
-                                                options: options,
-                                                resourceLocator: resourceLocator)
-    }
-
-    private func generateTargetConfig(config _: BuildConfiguration) throws {
+    private func generateTargetConfig() throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try fileHandler.createFolder(xcconfigsDir)
