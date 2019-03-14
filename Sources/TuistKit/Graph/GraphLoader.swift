@@ -160,12 +160,20 @@ struct WorkspaceStructureFactory {
     let path: AbsolutePath
     let workspace: Workspace
     
+    let containers: [String] = [
+        ".playground",
+        ".xcodeproj"
+    ]
+    
     private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
         
         switch content {
-        case .file(let file): return .file(path: file)
-        case .directory(let path, _) where path.suffix == ".playground": return .file(path: path)
-        case .project(let path): return .project(path: path)
+        case .file(let file):
+            return .file(path: file)
+        case .directory(let path, _) where path.suffix.map(containers.contains) ?? false:
+            return .file(path: path)
+        case .project(let path):
+            return .project(path: path)
         case .directory(let path, let contents):
             
             if case let .project(path)? = contents.first, contents.count == 1 {

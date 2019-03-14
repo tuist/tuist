@@ -94,12 +94,20 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-        XCTAssertEqual(model.contents, [])
+        XCTAssertEqual(model.projects, [])
     }
 
     func test_loadWorkspace_withProjects() throws {
+        
         // Given
-        let path = AbsolutePath("/root/")
+        let path = fileHandler.currentPath
+        
+        let projectA = path.appending(component: "A")
+        let projectB = path.appending(component: "B")
+        
+        try fileHandler.touch(projectA)
+        try fileHandler.touch(projectB)
+        
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
         ]
@@ -113,18 +121,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-
-        let projects: [String] = model.contents.compactMap { element in
-
-            switch element {
-            case let .project(name):
-                return name.asString
-            case _:
-                return nil
-            }
-        }
-
-        XCTAssertEqual(projects, ["/root/A", "/root/B"])
+        XCTAssertEqual(model.projects, [projectA, projectB])
     }
 
     func test_settings() throws {

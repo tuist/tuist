@@ -3,6 +3,7 @@ import Foundation
 import TuistCore
 
 public final class MockFileHandler: FileHandling {
+    
     private let fileHandler: FileHandling
     private let currentDirectory: TemporaryDirectory
 
@@ -53,5 +54,9 @@ public final class MockFileHandler: FileHandling {
 
     public func isFolder(_ path: AbsolutePath) -> Bool {
         return fileHandler.isFolder(path)
+    }
+    
+    public func ls(_ path: AbsolutePath) throws -> [AbsolutePath] {
+        return try fileHandler.ls(path)
     }
 }

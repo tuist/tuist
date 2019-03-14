@@ -1,14 +1,5 @@
 import ProjectDescription
 
-let workspace = Workspace(
-    name: "Workspace",
-    contents: [
-        .group(name: "Application", contents: [
-            .project(path: "App"),
-        ]),
-        .group(name: "Frameworks", contents: [
-            .project(path: "Framework1"),
-            .project(path: "Framework2"),
-        ]),
-    ]
-)
+let workspace = Workspace(name: "Workspace",
+                          projects: ["App", "Framework1", "Framework2"]
+                          additionalFiles: ["Workspace.swift"])
