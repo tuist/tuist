@@ -46,24 +46,37 @@ final class ConfigGeneratorTests: XCTestCase {
     }
 
     func test_generateTargetConfig() throws {
-        try generateTargetConfig(config: .release)
+        // Given / When
+        try generateTargetConfig()
+
+        // Then
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        func assert(config: XCBuildConfiguration?) {
-            XCTAssertEqual(config?.buildSettings["Base"] as? String, "Base")
-            XCTAssertEqual(config?.buildSettings["INFOPLIST_FILE"] as? String, "$(SRCROOT)/Info.plist")
-            XCTAssertEqual(config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String, "com.test.bundle_id")
-            XCTAssertEqual(config?.buildSettings["CODE_SIGN_ENTITLEMENTS"] as? String, "$(SRCROOT)/Test.entitlements")
-            XCTAssertEqual(config?.buildSettings["SWIFT_VERSION"] as? String, Constants.swiftVersion)
+        let commonSettings = [
+            "Base": "Base",
+            "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
+            "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
+            "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
+            "SWIFT_VERSION": Constants.swiftVersion,
+        ]
 
-            let xcconfig: PBXFileReference? = config?.baseConfiguration
-            XCTAssertEqual(xcconfig?.path, "\(config!.name.lowercased()).xcconfig")
-        }
+        let debugSettings = [
+            "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
+        ]
 
-        assert(config: debugConfig)
-        assert(config: releaseConfig)
+        let releaseSettings = [
+            "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+        ]
+
+        assert(config: debugConfig, contains: commonSettings)
+        assert(config: debugConfig, contains: debugSettings)
+        assert(config: debugConfig, hasXcconfig: "debug.xcconfig")
+
+        assert(config: releaseConfig, contains: commonSettings)
+        assert(config: releaseConfig, contains: releaseSettings)
+        assert(config: releaseConfig, hasXcconfig: "release.xcconfig")
     }
 
     private func generateProjectConfig(config _: BuildConfiguration) throws {
@@ -88,7 +101,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                               options: options)
     }
 
-    private func generateTargetConfig(config _: BuildConfiguration) throws {
+    private func generateTargetConfig() throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try fileHandler.createFolder(xcconfigsDir)
@@ -119,5 +132,33 @@ final class ConfigGeneratorTests: XCTestCase {
                                              fileElements: fileElements,
                                              options: options,
                                              sourceRootPath: AbsolutePath("/"))
+    }
+
+    // MARK: - Helpers
+
+    func assert(config: XCBuildConfiguration?,
+                contains settings: [String: String],
+                file: StaticString = #file,
+                line: UInt = #line) {
+        let matches = settings.filter {
+            config?.buildSettings[$0.key] as? String == $0.value
+        }
+
+        XCTAssertEqual(matches.count,
+                       settings.count,
+                       "Settings \(String(describing: config?.buildSettings)) do not contain expected settings \(settings)",
+                       file: file,
+                       line: line)
+    }
+
+    func assert(config: XCBuildConfiguration?,
+                hasXcconfig xconfigPath: String,
+                file: StaticString = #file,
+                line: UInt = #line) {
+        let xcconfig: PBXFileReference? = config?.baseConfiguration
+        XCTAssertEqual(xcconfig?.path,
+                       xconfigPath,
+                       file: file,
+                       line: line)
     }
 }
