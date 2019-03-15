@@ -105,14 +105,14 @@ class GeneratorModelLoaderTest: XCTestCase {
         let projectA = path.appending(component: "A")
         let projectB = path.appending(component: "B")
         
-        try fileHandler.touch(projectA)
-        try fileHandler.touch(projectB)
+        try fileHandler.createFolder(projectA)
+        try fileHandler.createFolder(projectB)
         
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
         ]
 
-        let manifestLoader = createManifestLoader(with: manifests)
+        let manifestLoader = createManifestLoader(with: manifests, projects: [projectA, projectB])
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader)
 
@@ -265,13 +265,17 @@ class GeneratorModelLoaderTest: XCTestCase {
         return manifestLoader
     }
 
-    func createManifestLoader(with workspaces: [AbsolutePath: ProjectDescription.Workspace]) -> GraphManifestLoading {
+    func createManifestLoader(with workspaces: [AbsolutePath: ProjectDescription.Workspace],
+                              projects: [AbsolutePath] = []) -> GraphManifestLoading {
         let manifestLoader = MockGraphManifestLoader()
         manifestLoader.loadWorkspaceStub = { path in
             guard let manifest = workspaces[path] else {
                 throw GraphLoadingError.manifestNotFound(path)
             }
             return manifest
+        }
+        manifestLoader.manifestsAtStub = { path in
+            return projects.contains(path) ? Set([.project]) : Set([])
         }
         return manifestLoader
     }
