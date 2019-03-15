@@ -38,13 +38,17 @@ class GeneratorModelLoader: GeneratorModelLoading {
 
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
-        let workspace = try TuistKit.Workspace.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let workspace = try TuistKit.Workspace.from(manifest: manifest,
+                                                    manifestLoader: manifestLoader,
+                                                    path: path,
+                                                    fileHandler: fileHandler)
         return workspace
     }
 }
 
 extension TuistKit.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
+                     manifestLoader: GraphManifestLoading,
                      path: AbsolutePath,
                      fileHandler: FileHandling) throws -> TuistKit.Workspace {
 
@@ -52,16 +56,16 @@ extension TuistKit.Workspace {
             return fileHandler.glob(path, glob: string)
         }
         
-        func globProjects(_ string: String) throws -> [AbsolutePath] {
-            return try fileHandler.glob(path, glob: string)
+        func globProjects(_ string: String) -> [AbsolutePath] {
+            return fileHandler.glob(path, glob: string)
                 .filter(fileHandler.isFolder)
-                .filter{
-                    try fileHandler.ls($0).contains(fileName: Manifest.project.fileName)
+                .filter {
+                    manifestLoader.manifests(at: $0).contains(.project)
             }
         }
 
         return TuistKit.Workspace(name: manifest.name,
-                         projects: try manifest.projects.flatMap(globProjects),
+                         projects: manifest.projects.flatMap(globProjects),
                          additionalFiles: manifest.additionalFiles.flatMap(globFiles))
     }
 }
