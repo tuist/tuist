@@ -111,7 +111,7 @@ public class Glob: Collection {
     private var globalFlags = GLOB_TILDE | GLOB_BRACE | GLOB_MARK
 
     private func executeGlob(pattern: UnsafePointer<CChar>, gt: UnsafeMutablePointer<glob_t>) -> Bool {
-        return 0 == glob(pattern, globalFlags, nil, gt)
+        return glob(pattern, globalFlags, nil, gt) == 0
     }
 
     private func expandGlobstar(pattern: String) -> [String] {

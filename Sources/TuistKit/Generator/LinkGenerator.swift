@@ -167,9 +167,9 @@ final class LinkGenerator: LinkGenerating {
             if case let .absolute(path) = dependency { return path }
             return nil
         }
-        .map({ $0.removingLastComponent() })
-        .map({ $0.relative(to: sourceRootPath).asString })
-        .map({ "$(SRCROOT)/\($0)" })
+        .map { $0.removingLastComponent() }
+        .map { $0.relative(to: sourceRootPath).asString }
+        .map { "$(SRCROOT)/\($0)" }
 
         if paths.isEmpty { return }
 
@@ -192,8 +192,8 @@ final class LinkGenerator: LinkGenerating {
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws {
         let relativePaths = headersFolders
-            .map({ $0.relative(to: sourceRootPath).asString })
-            .map({ "$(SRCROOT)/\($0)" })
+            .map { $0.relative(to: sourceRootPath).asString }
+            .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }

@@ -41,7 +41,7 @@ final class UninstallCommand: Command {
 
     func run(with result: ArgumentParser.Result) throws {
         let version = result.get(versionArgument)!
-        let versions = versionsController.versions().map({ $0.description })
+        let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {
             try versionsController.uninstall(version: version)
             printer.print(success: "Version \(version) uninstalled")

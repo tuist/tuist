@@ -127,7 +127,7 @@ final class SchemesGenerator: SchemesGenerating {
     func projectTestAction(project: Project,
                            generatedProject: GeneratedProject) -> XCScheme.TestAction {
         var testables: [XCScheme.TestableReference] = []
-        let testTargets = project.targets.filter({ $0.product.testsBundle })
+        let testTargets = project.targets.filter { $0.product.testsBundle }
 
         testTargets.forEach { target in
             let pbxTarget = generatedProject.targets[target.name]!
@@ -247,9 +247,9 @@ final class SchemesGenerator: SchemesGenerating {
         } else {
             macroExpansion = buildableReference
         }
-        let environmentVariables: [XCScheme.EnvironmentVariable] = target.environment.map({ variable, value in
+        let environmentVariables: [XCScheme.EnvironmentVariable] = target.environment.map { variable, value in
             XCScheme.EnvironmentVariable(variable: variable, value: value, enabled: true)
-        })
+        }
         return XCScheme.LaunchAction(buildableProductRunnable: buildableProductRunnable,
                                      buildConfiguration: "Debug",
                                      macroExpansion: macroExpansion,

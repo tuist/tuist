@@ -168,7 +168,7 @@ public final class System: Systeming {
 
     /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.
     public var env: [String: String] {
-        return ProcessInfo.processInfo.environment.filter({ System.acceptedEnvironmentVariables.contains($0.key) })
+        return ProcessInfo.processInfo.environment.filter { System.acceptedEnvironmentVariables.contains($0.key) }
     }
 
     // MARK: - Init

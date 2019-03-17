@@ -31,7 +31,7 @@ class GraphLoader: GraphLoading {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let project = try Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        let entryNodes: [GraphNode] = try project.targets.map({ $0.name }).map { targetName in
+        let entryNodes: [GraphNode] = try project.targets.map { $0.name }.map { targetName in
             try TargetNode.read(name: targetName, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         }
         let graph = Graph(name: project.name,
@@ -50,7 +50,7 @@ class GraphLoader: GraphLoading {
             try (projectPath, Project.at(projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader))
         }
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
-            try project.1.targets.map({ $0.name }).map { targetName in
+            try project.1.targets.map { $0.name }.map { targetName in
                 try TargetNode.read(name: targetName, path: project.0, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
             }
         }

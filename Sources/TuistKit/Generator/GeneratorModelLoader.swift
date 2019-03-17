@@ -136,7 +136,7 @@ extension TuistKit.Settings {
 extension TuistKit.Configuration {
     static func from(manifest: ProjectDescription.Configuration, path: AbsolutePath) -> TuistKit.Configuration {
         let settings = manifest.settings
-        let xcconfig = manifest.xcconfig.flatMap({ path.appending(RelativePath($0)) })
+        let xcconfig = manifest.xcconfig.flatMap { path.appending(RelativePath($0)) }
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }

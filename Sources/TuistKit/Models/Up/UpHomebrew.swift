@@ -36,7 +36,7 @@ class UpHomebrew: Up, GraphInitiatable {
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
     override func isMet(system: Systeming, projectPath _: AbsolutePath) throws -> Bool {
-        let packagesInstalled = packages.reduce(true, { $0 && toolInstalled($1, system: system) })
+        let packagesInstalled = packages.reduce(true) { $0 && toolInstalled($1, system: system) }
         return toolInstalled("brew", system: system) && packagesInstalled
     }
 
@@ -54,7 +54,7 @@ class UpHomebrew: Up, GraphInitiatable {
                                    verbose: true,
                                    environment: system.env)
         }
-        let nonInstalledPackages = packages.filter({ !toolInstalled($0, system: system) })
+        let nonInstalledPackages = packages.filter { !toolInstalled($0, system: system) }
         try nonInstalledPackages.forEach { package in
             printer.print("Installing Homebrew package: \(package)")
             try system.runAndPrint("/usr/local/bin/brew", "install", package,

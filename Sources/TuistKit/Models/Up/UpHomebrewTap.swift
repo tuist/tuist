@@ -64,7 +64,7 @@ class UpHomebrewTap: Up, GraphInitiatable {
 
         // Taps
         let taps = try self.taps(system: system)
-        let notConfigured = repositories.filter({ !isTapConfigured($0, taps: taps) })
+        let notConfigured = repositories.filter { !isTapConfigured($0, taps: taps) }
         for repository in notConfigured {
             printer.print("Adding repository tap: \(repository)")
             try system.run(["brew", "tap", repository])

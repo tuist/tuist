@@ -24,7 +24,7 @@ final class ProjectFilesSortenerTests: XCTestCase {
         let file3 = basePath.appending(RelativePath("path/to/tuist.swift"))
         let file4 = basePath.appending(RelativePath("path/to/waka.swift"))
         let files = [file1, file2, file3, file4]
-        try files.forEach({ try fileHandler.touch($0) })
+        try files.forEach { try fileHandler.touch($0) }
 
         // When
         let got = files.sorted(by: subject.sort)

@@ -18,7 +18,7 @@ class Configuration: Equatable {
     init(json: JSON, projectPath: AbsolutePath, fileHandler _: FileHandling) throws {
         settings = try json.get("settings")
         let xcconfigString: String? = json.get("xcconfig")
-        xcconfig = xcconfigString.flatMap({ projectPath.appending(RelativePath($0)) })
+        xcconfig = xcconfigString.flatMap { projectPath.appending(RelativePath($0)) }
     }
 
     // MARK: - Equatable

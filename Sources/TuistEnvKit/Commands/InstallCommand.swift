@@ -64,7 +64,7 @@ final class InstallCommand: Command {
     func run(with result: ArgumentParser.Result) throws {
         let force = result.get(forceArgument) ?? false
         let version = result.get(versionArgument)!
-        let versions = versionsController.versions().map({ $0.description })
+        let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {
             printer.print(warning: "Version \(version) already installed, skipping")
             return

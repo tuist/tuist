@@ -22,7 +22,7 @@ public final class CommandRegistry {
                       UpdateCommand.self,
                       InstallCommand.self,
                       UninstallCommand.self,
-        ])
+                  ])
     }
 
     init(processArguments: @escaping () -> [String],

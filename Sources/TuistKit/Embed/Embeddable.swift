@@ -159,12 +159,12 @@ final class Embeddable {
 
     fileprivate func stripArchitectures(keepingArchitectures: [String]) throws {
         let architecturesInPackage = try architectures()
-        let architecturesToStrip = architecturesInPackage.filter({ !keepingArchitectures.contains($0) })
-        try architecturesToStrip.forEach({
+        let architecturesToStrip = architecturesInPackage.filter { !keepingArchitectures.contains($0) }
+        try architecturesToStrip.forEach {
             if let binaryPath = try binaryPath() {
                 try stripArchitecture(packagePath: binaryPath, architecture: $0)
             }
-        })
+        }
     }
 
     fileprivate func stripArchitecture(packagePath: AbsolutePath,
@@ -246,6 +246,6 @@ final class Embeddable {
 
     func bcSymbolMapsForFramework() throws -> [AbsolutePath] {
         let frameworkUUIDs = try uuids()
-        return frameworkUUIDs.map({ path.parentDirectory.appending(RelativePath("\($0.uuidString).bcsymbolmap")) })
+        return frameworkUUIDs.map { path.parentDirectory.appending(RelativePath("\($0.uuidString).bcsymbolmap")) }
     }
 }

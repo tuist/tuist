@@ -38,9 +38,9 @@ class UpCarthage: Up, GraphInitiatable {
     required convenience init(dictionary: JSON, projectPath _: AbsolutePath, fileHandler _: FileHandling) throws {
         var platforms: [Platform] = []
         if let platformStrings: [String] = try? dictionary.get("platforms") {
-            platforms = platformStrings.compactMap({
+            platforms = platformStrings.compactMap {
                 Platform(rawValue: $0)
-            })
+            }
         }
         self.init(platforms: platforms)
     }

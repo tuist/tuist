@@ -67,7 +67,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        targets: [
                                            targetA,
                                            targetB,
-            ]),
+                                       ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)

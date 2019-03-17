@@ -127,9 +127,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             headersBuildPhase.files.append(pbxBuildFile)
         }
 
-        try headers.private.forEach({ try addHeader($0, "private") })
-        try headers.public.forEach({ try addHeader($0, "public") })
-        try headers.project.forEach({ try addHeader($0, "project") })
+        try headers.private.forEach { try addHeader($0, "private") }
+        try headers.public.forEach { try addHeader($0, "public") }
+        try headers.project.forEach { try addHeader($0, "project") }
     }
 
     func generateResourcesBuildPhase(files: [AbsolutePath] = [],

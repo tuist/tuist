@@ -59,9 +59,9 @@ class TargetNode: GraphNode {
             throw GraphLoadingError.targetNotFound(name, path)
         }
 
-        let dependencies: [GraphNode] = try target.dependencies.map({
+        let dependencies: [GraphNode] = try target.dependencies.map {
             try node(for: $0, path: path, name: name, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        })
+        }
 
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
         circularDetector.complete(GraphCircularDetectorNode(path: path, name: name))
