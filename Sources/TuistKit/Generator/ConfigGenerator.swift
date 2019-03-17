@@ -125,8 +125,14 @@ final class ConfigGenerator: ConfigGenerating {
         let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
 
         var settings: [String: Any] = [:]
-        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: .all, platform: platform, product: product, swift: true))
-        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: variant, platform: platform, product: product, swift: true))
+        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: .all,
+                                                                                   platform: platform,
+                                                                                   product: product,
+                                                                                   swift: true))
+        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: variant,
+                                                                                   platform: platform,
+                                                                                   product: product,
+                                                                                   swift: true))
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
