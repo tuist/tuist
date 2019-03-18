@@ -98,7 +98,9 @@ A `Settings` object contains an optional dictionary with build settings and rela
 
 ## Workspace.swift
 
-In addition to Project manifests, Tuist allows defining Workspace manifests within a `Workspace.swift` file. Workspace manifests allow specifying a list of Projects that don't necessarily have to depend on one another for generation. The snippet below shows an example workspace manifest:
+By default, `tuist generate`  generates an Xcode workspace that has the same name as the current project. It includes the project and all its dependencies.  Tuist allows customizing this behaviour by defining a workspace manifest within a `Workspace.swift` file.
+
+Workspace manifests allow specifying a list of projects to generate and include in an Xcode workspace. Those projects don't necessarily have to depend on one another. The snippet below shows an example workspace manifest:
 
 ```swift
 import ProjectDescription
@@ -106,6 +108,9 @@ import ProjectDescription
 let workspace = Workspace(name: "CustomWorkspace",
                           projects: ["App1", "App2", "Modules/SharedFramework"])
 ```
+
+A `Workspace.swift` file can reside in any directory (including a project directory).  
+
 
 ### Workspace
 
