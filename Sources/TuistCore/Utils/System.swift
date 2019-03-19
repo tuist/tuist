@@ -185,7 +185,8 @@ public final class System: Systeming {
     public func run(_ arguments: [String]) throws {
         let process = Process(arguments: arguments,
                               environment: env,
-                              outputRedirection: .none,
+                              outputRedirection: .stream(stdout: { _ in },
+                                                         stderr: { _ in }),
                               verbose: false,
                               startNewProcessGroup: false)
         try process.launch()
