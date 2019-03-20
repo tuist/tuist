@@ -25,13 +25,15 @@ class GeneratorModelLoader: GeneratorModelLoading {
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
     private let manifestTargetGenerator: ManifestTargetGenerating
-
+    private let printer: Printing
     init(fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
-         manifestTargetGenerator: ManifestTargetGenerating) {
+         manifestTargetGenerator: ManifestTargetGenerating,
+         printer: Printing = Printer()) {
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
         self.manifestTargetGenerator = manifestTargetGenerator
+        self.printer = printer
     }
 
     func loadProject(at path: AbsolutePath) throws -> Project {
@@ -46,16 +48,74 @@ class GeneratorModelLoader: GeneratorModelLoading {
 
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
-        let workspace = try TuistKit.Workspace.from(manifest: manifest, path: path)
+        let workspace = try TuistKit.Workspace.from(manifest: manifest,
+                                                    path: path,
+                                                    fileHandler: fileHandler,
+                                                    manifestLoader: manifestLoader,
+                                                    printer: printer)
         return workspace
     }
 }
 
 extension TuistKit.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
-                     path: AbsolutePath) throws -> TuistKit.Workspace {
-        return Workspace(name: manifest.name,
-                         projects: manifest.projects.map { path.appending(RelativePath($0)) })
+                     path: AbsolutePath,
+                     fileHandler: FileHandling,
+                     manifestLoader: GraphManifestLoading,
+                     printer: Printing) throws -> TuistKit.Workspace {
+        
+        func globFiles(_ string: String) -> [AbsolutePath] {
+            let files = fileHandler.glob(path, glob: string)
+            
+            if files.isEmpty {
+                printer.print(warning: "No files found at: \(string)")
+            }
+            
+            return files
+        }
+        
+        func globProjects(_ string: String) -> [AbsolutePath] {
+            let projects = fileHandler.glob(path, glob: string)
+                .filter(fileHandler.isFolder)
+                .filter {
+                    manifestLoader.manifests(at: $0).contains(.project)
+            }
+            
+            if projects.isEmpty {
+                printer.print(warning: "No projects found at: \(string)")
+            }
+            
+            return projects
+        }
+        
+        func folderReferences(_ relativePath: String) -> [AbsolutePath] {
+            let folderReferencePath = path.appending(RelativePath(relativePath))
+            
+            guard fileHandler.exists(folderReferencePath) else {
+                printer.print(warning: "\(relativePath) does not exist")
+                return []
+            }
+            
+            guard fileHandler.isFolder(folderReferencePath) else {
+                printer.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
+                return []
+            }
+            
+            return [folderReferencePath]
+        }
+        
+        func workspaceElement(from element: ProjectDescription.Workspace.Element) -> [Workspace.Element] {
+            switch element {
+            case let .glob(pattern: pattern):
+                return globFiles(pattern).map { .file(path: $0) }
+            case let .folderReference(path: folderReferencePath):
+                return folderReferences(folderReferencePath).map { .folderReference(path: $0) }
+            }
+        }
+        
+        return TuistKit.Workspace(name: manifest.name,
+                                  projects: manifest.projects.flatMap(globProjects),
+                                  additionalFiles: manifest.additionalFiles.flatMap(workspaceElement))
     }
 }
 
