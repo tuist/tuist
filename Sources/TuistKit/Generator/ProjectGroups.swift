@@ -26,7 +26,6 @@ class ProjectGroups {
 
     let main: PBXGroup
     let products: PBXGroup
-    let projectManifest: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup?
 
@@ -38,14 +37,12 @@ class ProjectGroups {
     private init(main: PBXGroup,
                  projectGroups: [(name: String, group: PBXGroup)],
                  products: PBXGroup,
-                 projectManifest: PBXGroup,
                  frameworks: PBXGroup,
                  playgrounds: PBXGroup?,
                  pbxproj: PBXProj) {
         self.main = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
-        self.projectManifest = projectManifest
         self.frameworks = frameworks
         self.playgrounds = playgrounds
         self.pbxproj = pbxproj
@@ -88,11 +85,6 @@ class ProjectGroups {
             projectGroups.append(($0, projectGroup))
         }
 
-        /// ProjectDescription
-        let projectManifestGroup = PBXGroup(children: [], sourceTree: .group, name: "Manifest")
-        pbxproj.add(object: projectManifestGroup)
-        mainGroup.children.append(projectManifestGroup)
-
         /// Frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
         pbxproj.add(object: frameworksGroup)
@@ -114,7 +106,6 @@ class ProjectGroups {
         return ProjectGroups(main: mainGroup,
                              projectGroups: projectGroups,
                              products: productsGroup,
-                             projectManifest: projectManifestGroup,
                              frameworks: frameworksGroup,
                              playgrounds: playgroundsGroup,
                              pbxproj: pbxproj)

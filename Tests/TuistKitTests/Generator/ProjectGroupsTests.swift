@@ -46,7 +46,7 @@ final class ProjectGroupsTests: XCTestCase {
         let main = subject.main
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
-        XCTAssertEqual(main.children.count, 6)
+        XCTAssertEqual(main.children.count, 5)
 
         XCTAssertNotNil(main.group(named: "Project"))
         XCTAssertNil(main.group(named: "Project")?.path)
@@ -55,11 +55,6 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNotNil(main.group(named: "Target"))
         XCTAssertNil(main.group(named: "Target")?.path)
         XCTAssertEqual(main.group(named: "Target")?.sourceTree, .group)
-
-        XCTAssertTrue(main.children.contains(subject.projectManifest))
-        XCTAssertEqual(subject.projectManifest.name, "Manifest")
-        XCTAssertNil(subject.projectManifest.path)
-        XCTAssertEqual(subject.projectManifest.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.frameworks))
         XCTAssertEqual(subject.frameworks.name, "Frameworks")
@@ -109,7 +104,6 @@ final class ProjectGroupsTests: XCTestCase {
             "B",
             "C",
             "A",
-            "Manifest",
             "Frameworks",
             "Playgrounds",
             "Products",
