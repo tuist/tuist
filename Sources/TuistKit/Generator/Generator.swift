@@ -60,7 +60,7 @@ class Generator: Generating {
     }
 
     func generateWorkspace(at path: AbsolutePath, config: GeneratorConfig) throws -> AbsolutePath {
-        let graph = try graphLoader.loadWorkspace(path: path)
+        let (graph, _) = try graphLoader.loadWorkspace(path: path)
 
         return try workspaceGenerator.generate(path: path,
                                                graph: graph,

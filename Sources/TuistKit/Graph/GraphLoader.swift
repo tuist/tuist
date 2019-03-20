@@ -4,7 +4,7 @@ import TuistCore
 
 protocol GraphLoading: AnyObject {
     func loadProject(path: AbsolutePath) throws -> Graph
-    func loadWorkspace(path: AbsolutePath) throws -> Graph
+    func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace)
 }
 
 class GraphLoader: GraphLoading {
@@ -42,7 +42,7 @@ class GraphLoader: GraphLoading {
         return graph
     }
 
-    func loadWorkspace(path: AbsolutePath) throws -> Graph {
+    func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace) {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let workspace = try modelLoader.loadWorkspace(at: path)
@@ -60,7 +60,7 @@ class GraphLoader: GraphLoading {
                           entryNodes: entryNodes)
 
         try lint(graph: graph)
-        return graph
+        return (graph, workspace)
     }
 
     private func lint(graph: Graph) throws {
