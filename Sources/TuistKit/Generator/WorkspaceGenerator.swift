@@ -3,6 +3,23 @@ import Foundation
 import TuistCore
 import xcodeproj
 
+enum WorkspaceGeneratorError: FatalError {
+    case projectNotFound(path: AbsolutePath)
+    var type: ErrorType {
+        switch self {
+        case .projectNotFound:
+            return .abort
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case let .projectNotFound(path: path):
+            return "Project not found at path: \(path)"
+        }
+    }
+}
+
 protocol WorkspaceGenerating: AnyObject {
     @discardableResult
     func generate(workspace: Workspace,
@@ -87,10 +104,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspacePath = workspaceRootPath.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
-        workspaceData.children = structure.contents.map {
-            recursiveChildElement(generatedProjects: generatedProjects,
-                                  element: $0,
-                                  path: path)
+        try workspaceData.children = structure.contents.map {
+            try recursiveChildElement(generatedProjects: generatedProjects,
+                                      element: $0,
+                                      path: path)
         }
 
         try write(xcworkspace: xcWorkspace, to: workspacePath)
@@ -185,7 +202,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     
     private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
                                        element: WorkspaceStructure.Element,
-                                       path: AbsolutePath) -> XCWorkspaceDataElement {
+                                       path: AbsolutePath) throws -> XCWorkspaceDataElement {
         switch element {
         case let .file(path: filePath):
             return workspaceFileElement(path: filePath.relative(to: path))
@@ -199,17 +216,19 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             let groupReference = XCWorkspaceDataGroup(
                 location: location,
                 name: name,
-                children: contents.map {
-                    recursiveChildElement(generatedProjects: generatedProjects,
-                                          element: $0,
-                                          path: groupPath)
+                children: try contents.map {
+                    try recursiveChildElement(generatedProjects: generatedProjects,
+                                              element: $0,
+                                              path: groupPath)
                     }.sorted(by: workspaceDataElementSort)
             )
             
             return .group(groupReference)
             
         case let .project(path: projectPath):
-            let generatedProject = generatedProjects[projectPath]!
+            guard let generatedProject = generatedProjects[projectPath] else {
+                throw WorkspaceGeneratorError.projectNotFound(path: projectPath)
+            }
             let relativePath = generatedProject.path.relative(to: path)
             return workspaceFileElement(path: relativePath)
         }

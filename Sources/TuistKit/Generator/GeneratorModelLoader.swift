@@ -76,6 +76,7 @@ extension TuistKit.Workspace {
         
         func globProjects(_ string: String) -> [AbsolutePath] {
             let projects = fileHandler.glob(path, glob: string)
+                .lazy
                 .filter(fileHandler.isFolder)
                 .filter {
                     manifestLoader.manifests(at: $0).contains(.project)
@@ -85,7 +86,7 @@ extension TuistKit.Workspace {
                 printer.print(warning: "No projects found at: \(string)")
             }
             
-            return projects
+            return Array(projects)
         }
         
         func folderReferences(_ relativePath: String) -> [AbsolutePath] {
@@ -107,9 +108,9 @@ extension TuistKit.Workspace {
         func workspaceElement(from element: ProjectDescription.Workspace.Element) -> [Workspace.Element] {
             switch element {
             case let .glob(pattern: pattern):
-                return globFiles(pattern).map { .file(path: $0) }
+                return globFiles(pattern).map(Workspace.Element.file)
             case let .folderReference(path: folderReferencePath):
-                return folderReferences(folderReferencePath).map { .folderReference(path: $0) }
+                return folderReferences(folderReferencePath).map(Workspace.Element.folderReference)
             }
         }
         

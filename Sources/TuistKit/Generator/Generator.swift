@@ -60,7 +60,7 @@ class Generator: Generating {
         
         let workspace = Workspace(name: project.name,
                                   projects: graph.projects.map(\.path),
-                                  additionalFiles: workspaceFiles.map { .file(path: $0) })
+                                  additionalFiles: workspaceFiles.map(Workspace.Element.file))
         
         return try workspaceGenerator.generate(workspace: workspace,
                                                path: path,

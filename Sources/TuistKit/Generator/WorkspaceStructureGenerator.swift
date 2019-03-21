@@ -148,7 +148,7 @@ extension DirectoryStructure {
         @discardableResult
         func add(_ node: Node) -> Graph {
             switch node {
-            case .file(_), .project(_), .folderReference(_):
+            case .file, .project, .folderReference:
                 nodes.append(node)
                 return self
             case let .directory(path, _):
