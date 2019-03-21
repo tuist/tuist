@@ -28,20 +28,17 @@ final class TargetGenerator: TargetGenerating {
     let buildPhaseGenerator: BuildPhaseGenerating
     let linkGenerator: LinkGenerating
     let fileGenerator: FileGenerating
-    let manifestLoader: GraphManifestLoading
 
     // MARK: - Init
 
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-         linkGenerator: LinkGenerating = LinkGenerator(),
-         manifestLoader: GraphManifestLoading = GraphManifestLoader()) {
+         linkGenerator: LinkGenerating = LinkGenerator()) {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.linkGenerator = linkGenerator
-        self.manifestLoader = manifestLoader
     }
 
     // MARK: - TargetGenerating
