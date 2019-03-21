@@ -26,7 +26,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     }
 
     var printer: MockPrinter!
-    
+
     override func setUp() {
         do {
             printer = MockPrinter()
@@ -70,7 +70,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        targets: [
                                            targetA,
                                            targetB,
-                                       ]),
+            ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -131,84 +131,84 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.projects, projects)
     }
-    
+
     func test_loadWorkspace_withAdditionalFiles() throws {
         let path = fileHandler.currentPath
         let files = try createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
-            "Playground.playground"
+            "Playground.playground",
         ])
-        
+
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace",
                                          projects: [],
                                          additionalFiles: [
-                                            "Documentation/**/*.md",
-                                            "*.playground",
-                                         ]),
+                                             "Documentation/**/*.md",
+                                             "*.playground",
+            ]),
         ]
-        
+
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
                                            manifestTargetGenerator: manifestTargetGenerator)
-        
+
         // When
         let model = try subject.loadWorkspace(at: path)
-        
+
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
     }
-    
+
     func test_loadWorkspace_withFolderReferences() throws {
         let path = fileHandler.currentPath
         try createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
         ])
-        
+
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace",
                                          projects: [],
                                          additionalFiles: [
-                                            .folderReference(path: "Documentation"),
-                                        ]),
-            ]
-        
+                                             .folderReference(path: "Documentation"),
+            ]),
+        ]
+
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
                                            manifestTargetGenerator: manifestTargetGenerator)
-        
+
         // When
         let model = try subject.loadWorkspace(at: path)
-        
+
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.additionalFiles, [
-            .folderReference(path: path.appending(RelativePath("Documentation")))
+            .folderReference(path: path.appending(RelativePath("Documentation"))),
         ])
     }
-    
+
     func test_loadWorkspace_withInvalidProjectsPaths() throws {
         // Given
         let path = fileHandler.currentPath
-        
+
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
         ]
-        
+
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
                                            manifestTargetGenerator: manifestTargetGenerator,
                                            printer: printer)
-        
+
         // When
         let model = try subject.loadWorkspace(at: path)
-        
+
         // Then
         XCTAssertEqual(printer.printWarningArgs, [
             "No projects found at: A",
@@ -216,63 +216,63 @@ class GeneratorModelLoaderTest: XCTestCase {
         ])
         XCTAssertEqual(model.projects, [])
     }
-    
+
     func test_loadWorkspace_withInvalidFilePaths() throws {
         // Given
         let path = fileHandler.currentPath
         try createFolders([
-            "Documentation"
+            "Documentation",
         ])
-        
+
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace",
                                          projects: [],
                                          additionalFiles: [
-                                            "Documentation/**/*.md",
-                                        ]),
-            ]
-        
+                                             "Documentation/**/*.md",
+            ]),
+        ]
+
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
                                            manifestTargetGenerator: manifestTargetGenerator,
                                            printer: printer)
-        
+
         // When
         let model = try subject.loadWorkspace(at: path)
-        
+
         // Then
         XCTAssertEqual(printer.printWarningArgs, [
             "No files found at: Documentation/**/*.md",
         ])
         XCTAssertEqual(model.additionalFiles, [])
     }
-    
+
     func test_loadWorkspace_withInvalidFolderReferencePaths() throws {
         // Given
         let path = fileHandler.currentPath
         try createFiles([
-            "README.md"
+            "README.md",
         ])
-        
+
         let manifests = [
             path: WorkspaceManifest.test(name: "SomeWorkspace",
                                          projects: [],
                                          additionalFiles: [
-                                            .folderReference(path: "Documentation"),
-                                            .folderReference(path: "README.md"),
-                                        ]),
-            ]
-        
+                                             .folderReference(path: "Documentation"),
+                                             .folderReference(path: "README.md"),
+            ]),
+        ]
+
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
                                            manifestTargetGenerator: manifestTargetGenerator,
                                            printer: printer)
-        
+
         // When
         let model = try subject.loadWorkspace(at: path)
-        
+
         // Then
         XCTAssertEqual(printer.printWarningArgs, [
             "Documentation does not exist",
@@ -584,7 +584,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
         return paths
     }
-    
+
     @discardableResult
     func createFiles(_ files: [String]) throws -> [AbsolutePath] {
         let paths = files.map { fileHandler.currentPath.appending(RelativePath($0)) }

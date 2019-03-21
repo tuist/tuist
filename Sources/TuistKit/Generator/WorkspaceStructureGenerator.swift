@@ -1,16 +1,15 @@
-import Foundation
 import Basic
+import Foundation
 import TuistCore
 
 struct WorkspaceStructure {
-    
     enum Element: Equatable {
         case file(path: AbsolutePath)
         case folderReference(path: AbsolutePath)
         indirect case group(name: String, path: AbsolutePath, contents: [Element])
         case project(path: AbsolutePath)
     }
-    
+
     let name: String
     let contents: [Element]
 }
@@ -21,11 +20,11 @@ protocol WorkspaceStructureGenerating {
 
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
     private let fileHandler: FileHandling
-    
+
     init(fileHandler: FileHandling) {
         self.fileHandler = fileHandler
     }
-    
+
     func generateStructure(path: AbsolutePath, workspace: Workspace) -> WorkspaceStructure {
         let graph = DirectoryStructure(path: path,
                                        fileHandler: fileHandler,
@@ -34,14 +33,14 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
         return WorkspaceStructure(name: workspace.name,
                                   contents: graph.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
     }
-    
+
     private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
         switch content {
-        case .file(let file):
+        case let .file(file):
             return .file(path: file)
-        case .project(let path):
+        case let .project(path):
             return .project(path: path)
-        case .directory(let path, let contents):
+        case let .directory(path, contents):
             return .group(name: path.basename,
                           path: path,
                           contents: contents.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
@@ -54,15 +53,15 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
 private class DirectoryStructure {
     let path: AbsolutePath
     let fileHandler: FileHandling
-    
+
     let projects: [AbsolutePath]
     let files: [Workspace.Element]
-    
+
     private let containers: [String] = [
         ".playground",
-        ".xcodeproj"
+        ".xcodeproj",
     ]
-    
+
     init(path: AbsolutePath,
          fileHandler: FileHandling,
          projects: [AbsolutePath],
@@ -72,19 +71,19 @@ private class DirectoryStructure {
         self.projects = projects
         self.files = files
     }
-    
+
     func buildGraph() -> Graph {
         return buildGraph(path: path)
     }
-    
+
     private func buildGraph(path: AbsolutePath) -> Graph {
         let root = Graph()
-        
+
         let filesIncludingContainers = files.filter(isFileOrFolderReference)
         let fileNodes = filesIncludingContainers.map(fileNode)
         let projectNodes = projects.map(projectNode)
         let allNodes = (projectNodes + fileNodes).sorted(by: { $0.path < $1.path })
-        
+
         let commonAncestor = allNodes.reduce(path) { $0.commonAncestor(with: $1.path) }
         for node in allNodes {
             let relativePath = node.path.relative(to: commonAncestor)
@@ -94,13 +93,13 @@ private class DirectoryStructure {
                 absolutePath = absolutePath.appending(component: component)
                 currentNode = currentNode.add(.directory(absolutePath))
             }
-            
+
             currentNode.add(node)
         }
-        
+
         return root
     }
-    
+
     private func fileNode(from element: Workspace.Element) -> Node {
         switch element {
         case let .file(path: path):
@@ -109,11 +108,11 @@ private class DirectoryStructure {
             return .folderReference(path)
         }
     }
-    
+
     private func projectNode(from path: AbsolutePath) -> Node {
         return .project(path)
     }
-    
+
     private func isFileOrFolderReference(element: Workspace.Element) -> Bool {
         switch element {
         case .folderReference:
@@ -125,14 +124,13 @@ private class DirectoryStructure {
             return true
         }
     }
-    
 }
 
 extension DirectoryStructure {
     class Graph: Equatable, ExpressibleByArrayLiteral, CustomDebugStringConvertible {
         var nodes: [Node] = []
         private var directoryCache: [AbsolutePath: Graph] = [:]
-        
+
         required init(arrayLiteral elements: DirectoryStructure.Node...) {
             nodes = elements
             directoryCache = Dictionary(uniqueKeysWithValues: nodes.compactMap {
@@ -144,7 +142,7 @@ extension DirectoryStructure {
                 }
             })
         }
-        
+
         @discardableResult
         func add(_ node: Node) -> Graph {
             switch node {
@@ -162,11 +160,11 @@ extension DirectoryStructure {
                 }
             }
         }
-        
+
         var debugDescription: String {
             return nodes.debugDescription
         }
-        
+
         static func == (lhs: DirectoryStructure.Graph,
                         rhs: DirectoryStructure.Graph) -> Bool {
             return lhs.nodes == rhs.nodes
@@ -180,11 +178,11 @@ extension DirectoryStructure {
         case project(AbsolutePath)
         case directory(AbsolutePath, DirectoryStructure.Graph)
         case folderReference(AbsolutePath)
-        
+
         static func directory(_ path: AbsolutePath) -> Node {
             return .directory(path, Graph())
         }
-        
+
         var path: AbsolutePath {
             switch self {
             case let .file(path):

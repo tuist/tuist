@@ -57,11 +57,11 @@ class Generator: Generating {
                          config: GeneratorConfig,
                          workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let (graph, project) = try graphLoader.loadProject(path: path)
-        
+
         let workspace = Workspace(name: project.name,
                                   projects: graph.projects.map(\.path),
                                   additionalFiles: workspaceFiles.map(Workspace.Element.file))
-        
+
         return try workspaceGenerator.generate(workspace: workspace,
                                                path: path,
                                                graph: graph,
@@ -73,9 +73,9 @@ class Generator: Generating {
                            config: GeneratorConfig,
                            workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
-        
+
         let updatedWorkspace = workspace.adding(files: workspaceFiles)
-        
+
         return try workspaceGenerator.generate(workspace: updatedWorkspace,
                                                path: path,
                                                graph: graph,

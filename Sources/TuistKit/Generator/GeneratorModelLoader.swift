@@ -63,48 +63,47 @@ extension TuistKit.Workspace {
                      fileHandler: FileHandling,
                      manifestLoader: GraphManifestLoading,
                      printer: Printing) throws -> TuistKit.Workspace {
-        
         func globFiles(_ string: String) -> [AbsolutePath] {
             let files = fileHandler.glob(path, glob: string)
-            
+
             if files.isEmpty {
                 printer.print(warning: "No files found at: \(string)")
             }
-            
+
             return files
         }
-        
+
         func globProjects(_ string: String) -> [AbsolutePath] {
             let projects = fileHandler.glob(path, glob: string)
                 .lazy
                 .filter(fileHandler.isFolder)
                 .filter {
                     manifestLoader.manifests(at: $0).contains(.project)
-            }
-            
+                }
+
             if projects.isEmpty {
                 printer.print(warning: "No projects found at: \(string)")
             }
-            
+
             return Array(projects)
         }
-        
+
         func folderReferences(_ relativePath: String) -> [AbsolutePath] {
             let folderReferencePath = path.appending(RelativePath(relativePath))
-            
+
             guard fileHandler.exists(folderReferencePath) else {
                 printer.print(warning: "\(relativePath) does not exist")
                 return []
             }
-            
+
             guard fileHandler.isFolder(folderReferencePath) else {
                 printer.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
                 return []
             }
-            
+
             return [folderReferencePath]
         }
-        
+
         func workspaceElement(from element: ProjectDescription.Workspace.Element) -> [Workspace.Element] {
             switch element {
             case let .glob(pattern: pattern):
@@ -113,7 +112,7 @@ extension TuistKit.Workspace {
                 return folderReferences(folderReferencePath).map(Workspace.Element.folderReference)
             }
         }
-        
+
         return TuistKit.Workspace(name: manifest.name,
                                   projects: manifest.projects.flatMap(globProjects),
                                   additionalFiles: manifest.additionalFiles.flatMap(workspaceElement))

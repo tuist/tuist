@@ -11,7 +11,7 @@ enum WorkspaceGeneratorError: FatalError {
             return .abort
         }
     }
-    
+
     var description: String {
         switch self {
         case let .projectNotFound(path: path):
@@ -81,9 +81,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                           directory: directory)
         let workspaceName = "\(graph.name).xcworkspace"
         printer.print(section: "Generating workspace \(workspaceName)")
-        
+
         /// Projects
-        
+
         var generatedProjects = [AbsolutePath: GeneratedProject]()
         try graph.projects.forEach { project in
             let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
@@ -95,12 +95,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
             generatedProjects[project.path] = generatedProject
         }
-        
+
         // Workspace structure
-        
+
         let structure = workspaceStructureGenerator.generateStructure(path: path,
                                                                       workspace: workspace)
-        
+
         let workspacePath = workspaceRootPath.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
@@ -199,20 +199,20 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             return true
         }
     }
-    
+
     private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
                                        element: WorkspaceStructure.Element,
                                        path: AbsolutePath) throws -> XCWorkspaceDataElement {
         switch element {
         case let .file(path: filePath):
             return workspaceFileElement(path: filePath.relative(to: path))
-            
+
         case let .folderReference(path: folderPath):
             return workspaceFileElement(path: folderPath.relative(to: path))
-            
+
         case let .group(name: name, path: groupPath, contents: contents):
             let location = XCWorkspaceDataElementLocationType.group(groupPath.relative(to: path).asString)
-            
+
             let groupReference = XCWorkspaceDataGroup(
                 location: location,
                 name: name,
@@ -220,11 +220,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                     try recursiveChildElement(generatedProjects: generatedProjects,
                                               element: $0,
                                               path: groupPath)
-                    }.sorted(by: workspaceDataElementSort)
+                }.sorted(by: workspaceDataElementSort)
             )
-            
+
             return .group(groupReference)
-            
+
         case let .project(path: projectPath):
             guard let generatedProject = generatedProjects[projectPath] else {
                 throw WorkspaceGeneratorError.projectNotFound(path: projectPath)

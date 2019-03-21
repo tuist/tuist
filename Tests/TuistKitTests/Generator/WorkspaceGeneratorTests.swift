@@ -6,7 +6,6 @@ import XCTest
 @testable import TuistKit
 
 final class WorkspaceGeneratorTests: XCTestCase {
-    
     var subject: WorkspaceGenerator!
     var path: AbsolutePath!
     var fileHandler: MockFileHandler!
@@ -32,9 +31,9 @@ final class WorkspaceGeneratorTests: XCTestCase {
             XCTFail(error.localizedDescription)
         }
     }
-    
+
     // MARK: - Tests
-    
+
     func test_generate_workspaceStructure() throws {
         // Given
         try createFiles([
@@ -43,33 +42,33 @@ final class WorkspaceGeneratorTests: XCTestCase {
             "Website/index.html",
             "Website/about.html",
         ])
-        
+
         let additionalFiles: [Workspace.Element] = [
             .file(path: path.appending(RelativePath("README.md"))),
             .file(path: path.appending(RelativePath("Documentation/README.md"))),
-            .folderReference(path: path.appending(RelativePath("Website")))
+            .folderReference(path: path.appending(RelativePath("Website"))),
         ]
 
         let graph = Graph.test(entryPath: path)
         let workspace = Workspace.test(additionalFiles: additionalFiles)
-        
+
         // When
         let workspacePath = try subject.generate(workspace: workspace,
-                                             path: path,
-                                             graph: graph,
-                                             options: GenerationOptions())
-        
+                                                 path: path,
+                                                 graph: graph,
+                                                 options: GenerationOptions())
+
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
         XCTAssertEqual(xcworkspace.data.children, [
             .group(.init(location: .group("Documentation"), name: "Documentation", children: [
-                .file(.init(location: .group("README.md")))
+                .file(.init(location: .group("README.md"))),
             ])),
             .file(.init(location: .group("README.md"))),
-            .file(.init(location: .group("Website")))
+            .file(.init(location: .group("Website"))),
         ])
     }
-    
+
     func test_generate_workspaceStructureWithProjects() throws {
         // Given
         let target = anyTarget()
@@ -80,28 +79,28 @@ final class WorkspaceGeneratorTests: XCTestCase {
         let graph = createGraph(project: project,
                                 dependencies: [(target, [])])
         let workspace = Workspace.test(projects: [project.path])
-        
+
         // When
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
                                                  graph: graph,
                                                  options: GenerationOptions())
-        
+
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
         XCTAssertEqual(xcworkspace.data.children, [
-            .file(.init(location: .group("Test.xcodeproj")))
+            .file(.init(location: .group("Test.xcodeproj"))),
         ])
     }
-    
+
     // MARK: - Helpers
-    
+
     func anyTarget() -> Target {
         return Target.test(infoPlist: nil,
                            entitlements: nil,
                            settings: nil)
     }
-    
+
     @discardableResult
     func createFiles(_ files: [String]) throws -> [AbsolutePath] {
         let paths = files.map { fileHandler.currentPath.appending(RelativePath($0)) }
@@ -110,7 +109,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         }
         return paths
     }
-    
+
     private func createTargetNodes(project: Project,
                                    dependencies: [(target: Target, dependencies: [Target])]) -> [TargetNode] {
         let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
@@ -118,27 +117,27 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                         target: $0.target,
                                         dependencies: []))
         })
-        
+
         return dependencies.map {
             let node = nodesCache[$0.target.name]!
             node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
             return node
         }
     }
-    
+
     private func createGraph(project: Project,
                              dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
         let targetNodes = createTargetNodes(project: project, dependencies: dependencies)
-        
+
         let cache = GraphLoaderCache()
         let graph = Graph.test(name: project.name,
                                entryPath: project.path,
                                cache: cache,
                                entryNodes: targetNodes)
-        
+
         targetNodes.forEach { cache.add(targetNode: $0) }
         cache.add(project: project)
-        
+
         return graph
     }
 }
