@@ -7,7 +7,7 @@ extension Target {
                      platform: Platform = .iOS,
                      product: Product = .app,
                      bundleId: String = "com.test.bundle_id",
-                     infoPlist: AbsolutePath = AbsolutePath("/Info.plist"),
+                     infoPlist: AbsolutePath? = AbsolutePath("/Info.plist"),
                      entitlements: AbsolutePath? = AbsolutePath("/Test.entitlements"),
                      settings: Settings? = Settings.test(),
                      sources: [AbsolutePath] = [],

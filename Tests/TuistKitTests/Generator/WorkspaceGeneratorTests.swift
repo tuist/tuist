@@ -70,7 +70,37 @@ final class WorkspaceGeneratorTests: XCTestCase {
         ])
     }
     
+    func test_generate_workspaceStructureWithProjects() throws {
+        // Given
+        let target = anyTarget()
+        let project = Project.test(path: path,
+                                   name: "Test",
+                                   settings: nil,
+                                   targets: [target])
+        let graph = createGraph(project: project,
+                                dependencies: [(target, [])])
+        let workspace = Workspace.test(projects: [project.path])
+        
+        // When
+        let workspacePath = try subject.generate(workspace: workspace,
+                                                 path: path,
+                                                 graph: graph,
+                                                 options: GenerationOptions())
+        
+        // Then
+        let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
+        XCTAssertEqual(xcworkspace.data.children, [
+            .file(.init(location: .group("Test.xcodeproj")))
+        ])
+    }
+    
     // MARK: - Helpers
+    
+    func anyTarget() -> Target {
+        return Target.test(infoPlist: nil,
+                           entitlements: nil,
+                           settings: nil)
+    }
     
     @discardableResult
     func createFiles(_ files: [String]) throws -> [AbsolutePath] {
@@ -79,6 +109,37 @@ final class WorkspaceGeneratorTests: XCTestCase {
             try fileHandler.touch($0)
         }
         return paths
+    }
+    
+    private func createTargetNodes(project: Project,
+                                   dependencies: [(target: Target, dependencies: [Target])]) -> [TargetNode] {
+        let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
+            ($0.target.name, TargetNode(project: project,
+                                        target: $0.target,
+                                        dependencies: []))
+        })
+        
+        return dependencies.map {
+            let node = nodesCache[$0.target.name]!
+            node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
+            return node
+        }
+    }
+    
+    private func createGraph(project: Project,
+                             dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
+        let targetNodes = createTargetNodes(project: project, dependencies: dependencies)
+        
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(name: project.name,
+                               entryPath: project.path,
+                               cache: cache,
+                               entryNodes: targetNodes)
+        
+        targetNodes.forEach { cache.add(targetNode: $0) }
+        cache.add(project: project)
+        
+        return graph
     }
 }
 
