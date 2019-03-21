@@ -97,7 +97,10 @@ final class SchemesGenerator: SchemesGenerating {
                             generatedProject: GeneratedProject,
                             graph: Graphing) -> XCScheme.BuildAction {
         let targets = project.sortedTargetsForProjectScheme(graph: graph)
-        let entries: [XCScheme.BuildAction.Entry] = targets.map { (target) -> XCScheme.BuildAction.Entry in
+        let entries: [XCScheme.BuildAction.Entry] = targets
+            .filter(\.includeInProjectScheme)
+            .map { (target) -> XCScheme.BuildAction.Entry in
+
             let pbxTarget = generatedProject.targets[target.name]!
             let buildableReference = targetBuildableReference(target: target,
                                                               pbxTarget: pbxTarget,
