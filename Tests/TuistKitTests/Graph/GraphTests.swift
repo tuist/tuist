@@ -88,19 +88,39 @@ final class GraphTests: XCTestCase {
     func test_linkableDependencies_whenAFrameworkTarget() throws {
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .framework)
+        let staticDependency1 = Target.test(name: "StaticDependency1", product: .staticLibrary)
+        let staticDependency2 = Target.test(name: "StaticDependency2", product: .staticLibrary)
         let project = Project.test(targets: [target])
+        
+        let staticDependencyNode1 = TargetNode(project: project,
+                                              target: staticDependency1,
+                                              dependencies: [])
+        let staticDependencyNode2 = TargetNode(project: project,
+                                        target: staticDependency2,
+                                        dependencies: [staticDependencyNode1])
         let dependencyNode = TargetNode(project: project,
                                         target: dependency,
-                                        dependencies: [])
+                                        dependencies: [staticDependencyNode2])
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
+        cache.add(targetNode: dependencyNode)
+        cache.add(targetNode: staticDependencyNode1)
+        cache.add(targetNode: staticDependencyNode2)
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
                                                  name: target.name)
+        XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product("Dependency.framework"))
+        
+        let frameworkGot = try graph.linkableDependencies(path: project.path,
+                                                          name: dependency.name)
+        
+        XCTAssertEqual(frameworkGot.count, 2)
+        XCTAssertTrue(frameworkGot.contains(.product("libStaticDependency1.a")))
+        XCTAssertTrue(frameworkGot.contains(.product("libStaticDependency2.a")))
     }
 
     func test_librariesPublicHeaders() throws {
