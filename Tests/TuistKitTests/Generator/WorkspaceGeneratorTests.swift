@@ -1,18 +1,14 @@
 import Basic
 import Foundation
-import ProjectDescription
 import xcodeproj
 import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
 final class WorkspaceGeneratorTests: XCTestCase {
+    
     var subject: WorkspaceGenerator!
-
     var path: AbsolutePath!
-    var target: TuistKit.Target!
-    var project: TuistKit.Project!
-    var graph: Graph!
     var fileHandler: MockFileHandler!
 
     override func setUp() {
@@ -22,10 +18,8 @@ final class WorkspaceGeneratorTests: XCTestCase {
             fileHandler = try MockFileHandler()
             path = fileHandler.currentPath
 
-            target = Target.test(name: "App")
-            project = Project.test(path: path)
-
-            let projectDirectoryHelper = ProjectDirectoryHelper(environmentController: try MockEnvironmentController(), fileHandler: fileHandler)
+            let projectDirectoryHelper = ProjectDirectoryHelper(environmentController: try MockEnvironmentController(),
+                                                                fileHandler: fileHandler)
 
             subject = WorkspaceGenerator(
                 system: MockSystem(),
@@ -34,76 +28,73 @@ final class WorkspaceGeneratorTests: XCTestCase {
                 fileHandler: fileHandler
             )
 
-            let targetNode = TargetNode(project: project, target: target, dependencies: [])
-            let cache = GraphLoaderCache()
-            cache.add(targetNode: targetNode)
-
-            graph = Graph.test(entryPath: path, cache: cache)
-
         } catch {
             XCTFail(error.localizedDescription)
         }
     }
+    
+    // MARK: - Tests
+    
+    func test_generate_workspaceStructure() throws {
+        // Given
+        try createFiles([
+            "README.md",
+            "Documentation/README.md",
+            "Website/index.html",
+            "Website/about.html",
+        ])
+        
+        let additionalFiles: [Workspace.Element] = [
+            .file(path: path.appending(RelativePath("README.md"))),
+            .file(path: path.appending(RelativePath("Documentation/README.md"))),
+            .folderReference(path: path.appending(RelativePath("Website")))
+        ]
 
-    func test_generate_includesManifests_bothFilesExist() throws {
-        // Given both files are available
-        // When generating the workspace
-        // I expect both files to be added to the workspace
-
-        try fileHandler.touch(path.appending(component: "Workspace.swift"))
-        try fileHandler.touch(path.appending(component: "Setup.swift"))
-
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
-
-        let workspace = try readWorkspace(at: path)
-
-        XCTAssertTrue(workspace.contains("Setup.swift"))
-        XCTAssertTrue(workspace.contains("Workspace.swift"))
+        let graph = Graph.test(entryPath: path)
+        let workspace = Workspace.test(additionalFiles: additionalFiles)
+        
+        // When
+        let workspacePath = try subject.generate(workspace: workspace,
+                                             path: path,
+                                             graph: graph,
+                                             options: GenerationOptions())
+        
+        // Then
+        let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
+        XCTAssertEqual(xcworkspace.data.children, [
+            .group(.init(location: .group("Documentation"), name: "Documentation", children: [
+                .file(.init(location: .group("README.md")))
+            ])),
+            .file(.init(location: .group("README.md"))),
+            .file(.init(location: .group("Website")))
+        ])
     }
-
-    func test_generate_includesManifests_oneFilesExists() throws {
-        // Given only Setup.swift is available
-        // When generating the workspace
-        // I expect Setup.swift to be added to the workspace and Workspace.swift to not be added
-
-        try fileHandler.touch(path.appending(component: "Setup.swift"))
-
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
-
-        let workspace = try readWorkspace(at: path)
-
-        XCTAssertTrue(workspace.contains("Setup.swift"))
-        XCTAssertFalse(workspace.contains("Workspace.swift"))
+    
+    // MARK: - Helpers
+    
+    @discardableResult
+    func createFiles(_ files: [String]) throws -> [AbsolutePath] {
+        let paths = files.map { fileHandler.currentPath.appending(RelativePath($0)) }
+        try paths.forEach {
+            try fileHandler.touch($0)
+        }
+        return paths
     }
+}
 
-    func test_generate_includesManifests_noFilesExists() throws {
-        // Given no manifest files exist
-        // When generating the workspace
-        // I do not expect Setup.swift or Workspace.swift to be added
-
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
-
-        let workspace = try readWorkspace(at: path)
-
-        XCTAssertFalse(workspace.contains("Setup.swift"))
-        XCTAssertFalse(workspace.contains("Workspace.swift"))
+extension XCWorkspaceDataElement: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        switch self {
+        case let .file(file):
+            return file.location.path
+        case let .group(group):
+            return group.debugDescription
+        }
     }
+}
 
-    func test_generate_relativeToGroup() throws {
-        try fileHandler.touch(path.appending(component: "Workspace.swift"))
-
-        // Given the workspace manifest file exists
-        // When generating the workspace
-        // I expect the file to be relative to the workspace
-
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
-
-        let workspace = try readWorkspace(at: path)
-
-        XCTAssertTrue(workspace.contains("location = \"group:Workspace.swift\">"))
-    }
-
-    func readWorkspace(at path: AbsolutePath) throws -> String {
-        return try fileHandler.readTextFile(path.appending(component: "test.xcworkspace").appending(component: "contents.xcworkspacedata"))
+extension XCWorkspaceDataGroup: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return children.debugDescription
     }
 }

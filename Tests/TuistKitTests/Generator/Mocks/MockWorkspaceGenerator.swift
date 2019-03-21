@@ -4,9 +4,13 @@ import TuistCore
 @testable import TuistKit
 
 final class MockWorkspaceGenerator: WorkspaceGenerating {
-    var generateStub: ((AbsolutePath, Graphing, GenerationOptions, GenerationDirectory) throws -> AbsolutePath)?
+    var generateStub: ((Workspace, AbsolutePath, Graphing, GenerationOptions, GenerationDirectory) throws -> AbsolutePath)?
 
-    func generate(path: AbsolutePath, graph: Graphing, options: GenerationOptions, directory: GenerationDirectory) throws -> AbsolutePath {
-        return (try generateStub?(path, graph, options, directory)) ?? AbsolutePath("/test")
+    func generate(workspace: Workspace,
+                  path: AbsolutePath,
+                  graph: Graphing,
+                  options: GenerationOptions,
+                  directory: GenerationDirectory) throws -> AbsolutePath {
+        return (try generateStub?(workspace, path, graph, options, directory)) ?? AbsolutePath("/test")
     }
 }

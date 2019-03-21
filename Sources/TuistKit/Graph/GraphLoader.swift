@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 protocol GraphLoading: AnyObject {
-    func loadProject(path: AbsolutePath) throws -> Graph
+    func loadProject(path: AbsolutePath) throws -> (Graph, Project)
     func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace)
 }
 
@@ -27,7 +27,7 @@ class GraphLoader: GraphLoading {
         self.modelLoader = modelLoader
     }
 
-    func loadProject(path: AbsolutePath) throws -> Graph {
+    func loadProject(path: AbsolutePath) throws -> (Graph, Project) {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let project = try Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
@@ -39,7 +39,7 @@ class GraphLoader: GraphLoading {
                           cache: cache,
                           entryNodes: entryNodes)
         try lint(graph: graph)
-        return graph
+        return (graph, project)
     }
 
     func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace) {

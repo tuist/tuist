@@ -5,17 +5,22 @@ import xcodeproj
 
 protocol WorkspaceGenerating: AnyObject {
     @discardableResult
-    func generate(path: AbsolutePath, graph: Graphing, options: GenerationOptions, directory: GenerationDirectory) throws -> AbsolutePath
+    func generate(workspace: Workspace,
+                  path: AbsolutePath,
+                  graph: Graphing,
+                  options: GenerationOptions,
+                  directory: GenerationDirectory) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - Attributes
 
-    let projectGenerator: ProjectGenerating
-    let system: Systeming
-    let printer: Printing
-    let projectDirectoryHelper: ProjectDirectoryHelping
-    let fileHandler: FileHandling
+    private let projectGenerator: ProjectGenerating
+    private let system: Systeming
+    private let printer: Printing
+    private let projectDirectoryHelper: ProjectDirectoryHelping
+    private let fileHandler: FileHandling
+    private let workspaceStructureGenerator: WorkspaceStructureGenerating
 
     // MARK: - Init
 
@@ -28,25 +33,29 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   projectDirectoryHelper: projectDirectoryHelper,
                   projectGenerator: ProjectGenerator(printer: printer,
                                                      system: system),
-                  fileHandler: fileHandler)
+                  fileHandler: fileHandler,
+                  workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler))
     }
 
     init(system: Systeming,
          printer: Printing,
          projectDirectoryHelper: ProjectDirectoryHelping,
          projectGenerator: ProjectGenerating,
-         fileHandler: FileHandling) {
+         fileHandler: FileHandling,
+         workspaceStructureGenerator: WorkspaceStructureGenerating) {
         self.system = system
         self.printer = printer
         self.projectDirectoryHelper = projectDirectoryHelper
         self.projectGenerator = projectGenerator
         self.fileHandler = fileHandler
+        self.workspaceStructureGenerator = workspaceStructureGenerator
     }
 
     // MARK: - WorkspaceGenerating
 
     @discardableResult
-    func generate(path: AbsolutePath,
+    func generate(workspace: Workspace,
+                  path: AbsolutePath,
                   graph: Graphing,
                   options: GenerationOptions,
                   directory: GenerationDirectory = .manifest) throws -> AbsolutePath {
@@ -55,24 +64,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                           directory: directory)
         let workspaceName = "\(graph.name).xcworkspace"
         printer.print(section: "Generating workspace \(workspaceName)")
-        let workspacePath = workspaceRootPath.appending(component: workspaceName)
-        let workspaceData = XCWorkspaceData(children: [])
-        let workspace = XCWorkspace(data: workspaceData)
-
-        /// Manifests
-
-        let manifestFiles: [XCWorkspaceDataElement] = [Manifest.workspace, Manifest.setup]
-            .lazy
-            .map(pipe(get(\.fileName), path.appending))
-            .filter(fileHandler.exists)
-            .map { $0.relative(to: path) }
-            .map(workspaceFileElement)
-
-        workspace.data.children.append(contentsOf: manifestFiles)
-
+        
         /// Projects
-        var workspaceElements = [XCWorkspaceDataElement]()
-
+        
+        var generatedProjects = [AbsolutePath: GeneratedProject]()
         try graph.projects.forEach { project in
             let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
                                                                                   directory: directory)
@@ -81,12 +76,24 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                  graph: graph,
                                                                  sourceRootPath: sourceRootPath)
 
-            let relativePath = generatedProject.path.relative(to: path)
-            workspaceElements.append(workspaceFileElement(path: relativePath))
+            generatedProjects[project.path] = generatedProject
         }
-        workspaceData.children.append(contentsOf: workspaceElements.sorted(by: workspaceDataElementSort))
+        
+        // Workspace structure
+        
+        let structure = workspaceStructureGenerator.generateStructure(path: path,
+                                                                      workspace: workspace)
+        
+        let workspacePath = workspaceRootPath.appending(component: workspaceName)
+        let workspaceData = XCWorkspaceData(children: [])
+        let xcWorkspace = XCWorkspace(data: workspaceData)
+        workspaceData.children = structure.contents.map {
+            recursiveChildElement(generatedProjects: generatedProjects,
+                                  element: $0,
+                                  path: path)
+        }
 
-        try write(xcworkspace: workspace, to: workspacePath)
+        try write(xcworkspace: xcWorkspace, to: workspacePath)
 
         return workspacePath
     }
@@ -173,6 +180,38 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             return false
         case (false, true):
             return true
+        }
+    }
+    
+    private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
+                                       element: WorkspaceStructure.Element,
+                                       path: AbsolutePath) -> XCWorkspaceDataElement {
+        switch element {
+        case let .file(path: filePath):
+            return workspaceFileElement(path: filePath.relative(to: path))
+            
+        case let .folderReference(path: folderPath):
+            return workspaceFileElement(path: folderPath.relative(to: path))
+            
+        case let .group(name: name, path: groupPath, contents: contents):
+            let location = XCWorkspaceDataElementLocationType.group(groupPath.relative(to: path).asString)
+            
+            let groupReference = XCWorkspaceDataGroup(
+                location: location,
+                name: name,
+                children: contents.map {
+                    recursiveChildElement(generatedProjects: generatedProjects,
+                                          element: $0,
+                                          path: groupPath)
+                    }.sorted(by: workspaceDataElementSort)
+            )
+            
+            return .group(groupReference)
+            
+        case let .project(path: projectPath):
+            let generatedProject = generatedProjects[projectPath]!
+            let relativePath = generatedProject.path.relative(to: path)
+            return workspaceFileElement(path: relativePath)
         }
     }
 }
