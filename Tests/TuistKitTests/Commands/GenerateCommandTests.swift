@@ -78,7 +78,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _ in
+        generator.generateProjectStub = { path, _, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
         }
@@ -97,7 +97,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _ in
+        generator.generateProjectStub = { path, _, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
         }
@@ -116,7 +116,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _ in
+        generator.generateProjectStub = { path, _, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
         }
@@ -149,7 +149,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { _, _ in
+        generator.generateProjectStub = { _, _, _ in
             throw error
         }
 

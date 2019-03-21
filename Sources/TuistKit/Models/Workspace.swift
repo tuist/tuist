@@ -25,6 +25,14 @@ class Workspace: Equatable {
 }
 
 extension Workspace {
+    func adding(files: [AbsolutePath]) -> Workspace {
+        return Workspace(name: name,
+                         projects: projects,
+                         additionalFiles: additionalFiles + files.map { .file(path: $0) })
+    }
+}
+
+extension Workspace {
     enum Element: Equatable {
         case file(path: AbsolutePath)
         case folderReference(path: AbsolutePath)
