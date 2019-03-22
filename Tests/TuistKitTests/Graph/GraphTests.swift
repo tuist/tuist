@@ -92,20 +92,20 @@ final class GraphTests: XCTestCase {
         let project = Project.test(targets: [target])
 
         let staticDependencyNode = TargetNode(project: project,
-                                               target: staticDependency,
-                                               dependencies: [])
+                                              target: staticDependency,
+                                              dependencies: [])
         let dependencyNode = TargetNode(project: project,
                                         target: dependency,
                                         dependencies: [staticDependencyNode])
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        
+
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         cache.add(targetNode: dependencyNode)
         cache.add(targetNode: staticDependencyNode)
-        
+
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
                                                  name: target.name)
