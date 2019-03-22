@@ -41,10 +41,14 @@ class TargetNode: GraphNode {
         self.dependencies = dependencies
         super.init(path: project.path)
     }
-
+    
     override func hash(into hasher: inout Hasher) {
         hasher.combine(path)
         hasher.combine(target.name)
+    }
+    
+    static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
+        return lhs.path == rhs.path && lhs.target == rhs.target
     }
 
     static func read(name: String,
@@ -198,6 +202,16 @@ class LibraryNode: PrecompiledNode {
         self.publicHeaders = publicHeaders
         self.swiftModuleMap = swiftModuleMap
         super.init(path: path)
+    }
+    
+    override func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+        hasher.combine(swiftModuleMap)
+        hasher.combine(publicHeaders)
+    }
+    
+    static func == (lhs: LibraryNode, rhs: LibraryNode) -> Bool {
+        return lhs.path == rhs.path && lhs.swiftModuleMap == rhs.swiftModuleMap && lhs.publicHeaders == rhs.publicHeaders
     }
 
     static func parse(publicHeaders: RelativePath,

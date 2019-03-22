@@ -141,7 +141,7 @@ class Graph: Graphing {
             break
         case .app, .unitTests, .uiTests, .framework:
 
-            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, doNotTraverseWhen: isFramework)
+            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
                 .lazy
                 .map(\.target.productName)
                 .map(DependencyReference.product)
@@ -311,7 +311,7 @@ extension Graph {
     }
 
     // Traverse the graph from the target node using DFS and return all results passing the test.
-    internal func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, doNotTraverseWhen: (T) -> Bool = { _ in false }) -> Set<T> {
+    internal func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         for node in targetNode.dependencies where node is T {
@@ -339,7 +339,7 @@ extension Graph {
                 references.insert(node as! T)
             }
 
-            if node is T, doNotTraverseWhen(node as! T) {
+            if node is T, skip(node as! T) {
                 continue
             } else if let targetNode = node as? TargetNode {
                 for child in targetNode.dependencies where !visited.contains(child) {
