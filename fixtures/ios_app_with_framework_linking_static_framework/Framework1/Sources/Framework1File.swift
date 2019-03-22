@@ -5,7 +5,7 @@ import Framework4
 
 public class Framework1File {
     private let framework2File = Framework2File()
-    private let framework3File = Framework2File()
+    private let framework3File = Framework3File()
     private let framework4File = Framework4File()
 
     public init() {}
