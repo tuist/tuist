@@ -1,6 +1,6 @@
 /// Implements a Stack - helper class for push/pop that uses an array internally.
 public struct Stack<T> {
-    fileprivate var array = [T]()
+    private var array = [T]()
 
     public init() {}
 

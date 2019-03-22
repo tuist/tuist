@@ -72,3 +72,23 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then I should be able to build the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'tuist.png'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
+
+Scenario: The project is an iOS application with frameworks and tests (ios_app_with_framework_linking_static_framework)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_framework_linking_static_framework into the working directory
+    Then tuist generates the project
+    Then I should be able to build the scheme App
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Frameworks/Framework1.framework/Framework1'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework2.framework/Framework2'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework3.framework/Framework3'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework4.framework/Framework4'
+    Then I should be able to test the scheme AppTests
+    Then I should be able to build the scheme Framework1
+    Then I should be able to test the scheme Framework1Tests
+    Then I should be able to build the scheme Framework2
+    Then I should be able to test the scheme Framework2Tests
+    Then I should be able to build the scheme Framework3
+    Then I should be able to test the scheme Framework3Tests
+    Then I should be able to build the scheme Framework4
+    Then I should be able to test the scheme Framework4Tests
