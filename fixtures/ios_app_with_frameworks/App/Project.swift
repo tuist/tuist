@@ -1,6 +1,10 @@
 import ProjectDescription
 
+let settings = Settings(base: [
+    "HEADER_SEARCH_PATHS": "path/to/lib/include",
+])
 let project = Project(name: "MainApp",
+                      settings: settings,
                       targets: [
                           Target(name: "App",
                                  platform: .iOS,

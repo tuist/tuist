@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix manifest target linker errors https://github.com/tuist/tuist/pull/287 by @kwridan
 - Build settings not being generated properly https://github.com/tuist/tuist/pull/282 by @pepibumur
 - Fix `instance method nearly matches optional requirements` warning in generated `AppDelegate.swift` in iOS projects https://github.com/tuist/tuist/pull/291 by @BalestraPatrick
+- Fix Header & Framework search paths override project or xcconfig settings TBC by @ollieatkinson
 
 ## 0.12.0
 
