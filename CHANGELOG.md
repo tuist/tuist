@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add Homebrew tap up https://github.com/tuist/tuist/pull/281 by @pepibumur
 - Create a Setup.swift file when running the init command https://github.com/tuist/tuist/pull/283 by @pepibumur
 - Update `tuistenv` when running `tuist update` https://github.com/tuist/tuist/pull/288 by @pepibumur.
+- Allow linking of static products into dynamic frameworks https://github.com/tuist/tuist/pull/299 by @ollieatkinson
 
 ### Removed
 
