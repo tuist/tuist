@@ -101,18 +101,18 @@ public final class CommandRegistry {
         return arguments[1]
     }
 
-    fileprivate func parse() throws -> ArgumentParser.Result {
+    private func parse() throws -> ArgumentParser.Result {
         let arguments = Array(processArguments().dropFirst())
         return try parser.parse(arguments)
     }
 
-    fileprivate func hiddenCommand() -> HiddenCommand? {
+    private func hiddenCommand() -> HiddenCommand? {
         let arguments = Array(processArguments().dropFirst())
         guard let commandName = arguments.first else { return nil }
         return hiddenCommands[commandName]
     }
 
-    fileprivate func process(arguments: ArgumentParser.Result) throws {
+    private func process(arguments: ArgumentParser.Result) throws {
         guard let subparser = arguments.subparser(parser) else {
             parser.printUsage(on: stdoutStream)
             return

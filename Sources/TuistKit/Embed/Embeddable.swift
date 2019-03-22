@@ -146,18 +146,18 @@ final class Embeddable {
         }
     }
 
-    fileprivate func stripFramework(keepingArchitectures: [String]) throws {
+    private func stripFramework(keepingArchitectures: [String]) throws {
         try stripArchitectures(keepingArchitectures: keepingArchitectures)
         try stripHeaders(frameworkPath: path)
         try stripPrivateHeaders(frameworkPath: path)
         try stripModulesDirectory(frameworkPath: path)
     }
 
-    fileprivate func stripDSYM(keepingArchitectures: [String]) throws {
+    private func stripDSYM(keepingArchitectures: [String]) throws {
         try stripArchitectures(keepingArchitectures: keepingArchitectures)
     }
 
-    fileprivate func stripArchitectures(keepingArchitectures: [String]) throws {
+    private func stripArchitectures(keepingArchitectures: [String]) throws {
         let architecturesInPackage = try architectures()
         let architecturesToStrip = architecturesInPackage.filter { !keepingArchitectures.contains($0) }
         try architecturesToStrip.forEach {
@@ -167,25 +167,25 @@ final class Embeddable {
         }
     }
 
-    fileprivate func stripArchitecture(packagePath: AbsolutePath,
-                                       architecture: String,
-                                       system: Systeming = System()) throws {
+    private func stripArchitecture(packagePath: AbsolutePath,
+                                   architecture: String,
+                                   system: Systeming = System()) throws {
         try system.run("/usr/bin/lipo", "-remove", architecture, "-output", packagePath.asString, packagePath.asString)
     }
 
-    fileprivate func stripHeaders(frameworkPath: AbsolutePath) throws {
+    private func stripHeaders(frameworkPath: AbsolutePath) throws {
         try stripDirectory(name: "Headers", from: frameworkPath)
     }
 
-    fileprivate func stripPrivateHeaders(frameworkPath: AbsolutePath) throws {
+    private func stripPrivateHeaders(frameworkPath: AbsolutePath) throws {
         try stripDirectory(name: "PrivateHeaders", from: frameworkPath)
     }
 
-    fileprivate func stripModulesDirectory(frameworkPath: AbsolutePath) throws {
+    private func stripModulesDirectory(frameworkPath: AbsolutePath) throws {
         try stripDirectory(name: "Modules", from: frameworkPath)
     }
 
-    fileprivate func stripDirectory(name: String, from frameworkPath: AbsolutePath) throws {
+    private func stripDirectory(name: String, from frameworkPath: AbsolutePath) throws {
         let fileHandler = FileHandler()
         let path = frameworkPath.appending(RelativePath(name))
         if fileHandler.exists(path) {
@@ -206,17 +206,17 @@ final class Embeddable {
         }
     }
 
-    fileprivate func uuidsForFramework() throws -> Set<UUID> {
+    private func uuidsForFramework() throws -> Set<UUID> {
         guard let binaryPath = try binaryPath() else { return Set() }
         return try uuidsFromDwarfdump(path: binaryPath)
     }
 
-    fileprivate func uuidsForDSYM() throws -> Set<UUID> {
+    private func uuidsForDSYM() throws -> Set<UUID> {
         return try uuidsFromDwarfdump(path: path)
     }
 
-    fileprivate func uuidsFromDwarfdump(path: AbsolutePath,
-                                        system: Systeming = System()) throws -> Set<UUID> {
+    private func uuidsFromDwarfdump(path: AbsolutePath,
+                                    system: Systeming = System()) throws -> Set<UUID> {
         let result = try system.capture("/usr/bin/dwarfdump", "--uuid", path.asString).spm_chuzzle() ?? ""
         var uuidCharacterSet = CharacterSet()
         uuidCharacterSet.formUnion(.letters)

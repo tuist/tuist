@@ -58,7 +58,7 @@ public final class CommandRegistry {
 
     // MARK: - Fileprivate
 
-    fileprivate func parse() throws -> ArgumentParser.Result? {
+    private func parse() throws -> ArgumentParser.Result? {
         let arguments = Array(processArguments().dropFirst())
         guard let firstArgument = arguments.first else { return nil }
         if commands.map({ type(of: $0).command }).contains(firstArgument) {
@@ -67,11 +67,11 @@ public final class CommandRegistry {
         return nil
     }
 
-    fileprivate func register(command: Command.Type) {
+    private func register(command: Command.Type) {
         commands.append(command.init(parser: parser))
     }
 
-    fileprivate func process(arguments: ArgumentParser.Result) throws {
+    private func process(arguments: ArgumentParser.Result) throws {
         let subparser = arguments.subparser(parser)!
         let command = commands.first(where: { type(of: $0).command == subparser })!
         try command.run(with: arguments)

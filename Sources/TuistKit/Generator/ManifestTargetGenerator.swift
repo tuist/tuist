@@ -28,7 +28,8 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
                       bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
                       settings: settings,
                       sources: [manifest],
-                      filesGroup: .group(name: "Manifest"))
+                      filesGroup: .group(name: "Manifest"),
+                      includeInProjectScheme: false)
     }
 
     func manifestTargetBuildSettings() throws -> [String: String] {

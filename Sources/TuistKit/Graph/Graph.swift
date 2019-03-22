@@ -136,12 +136,12 @@ class Graph: Graphing {
         references.append(contentsOf: precompiledLibrariesAndFrameworks)
 
         switch targetNode.target.product {
-        case .staticLibrary, .dynamicLibrary, .framework, .staticFramework:
+        case .staticLibrary, .dynamicLibrary, .staticFramework:
             // Ignore the products, they do not want to directly link the static libraries, the top level bundles will be responsible.
             break
-        case .app, .unitTests, .uiTests:
+        case .app, .unitTests, .uiTests, .framework:
 
-            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary)
+            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
                 .lazy
                 .map(\.target.productName)
                 .map(DependencyReference.product)
@@ -311,7 +311,7 @@ extension Graph {
     }
 
     // Traverse the graph from the target node using DFS and return all results passing the test.
-    internal func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool) -> Set<T> {
+    internal func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         for node in targetNode.dependencies where node is T {
@@ -339,7 +339,9 @@ extension Graph {
                 references.insert(node as! T)
             }
 
-            if let targetNode = node as? TargetNode {
+            if node is T, skip(node as! T) {
+                continue
+            } else if let targetNode = node as? TargetNode {
                 for child in targetNode.dependencies where !visited.contains(child) {
                     stack.push(child)
                 }
