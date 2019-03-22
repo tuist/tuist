@@ -245,29 +245,28 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got.buildConfiguration, "Release")
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }
-    
+
     func test_projectBuildAction_includeInProjectScheme_false() {
         let app = Target.test(name: "App", product: .app)
         let excluded = Target.test(name: "Excluded", product: .framework, includeInProjectScheme: false)
-       
+
         let targets = [app, excluded]
-        
+
         let project = Project.test(targets: targets)
         let graphCache = GraphLoaderCache()
         let graph = Graph.test(cache: graphCache)
-        
+
         let got = subject.projectBuildAction(project: project,
                                              generatedProject: generatedProject(targets: targets),
                                              graph: graph)
-        
+
         XCTAssertTrue(got.parallelizeBuild)
         XCTAssertEqual(got.buildActionEntries.count, 1)
-        
+
         let appEntry = got.buildActionEntries[0]
 
         XCTAssertEqual(appEntry.buildableReference.buildableName, app.productName)
         XCTAssertEqual(appEntry.buildableReference.blueprintName, app.name)
-        
     }
 
     // MARK: - Private
