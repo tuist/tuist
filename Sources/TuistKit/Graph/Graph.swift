@@ -82,6 +82,10 @@ class Graph: Graphing {
         return Array(cache.projects.values)
     }
 
+    var projectPaths: [AbsolutePath] {
+        return Array(cache.projects.keys)
+    }
+
     // MARK: - Init
 
     init(name: String,
@@ -218,7 +222,7 @@ class Graph: Graphing {
 
     // MARK: - Fileprivate
 
-    fileprivate func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
+    private func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
         func isPathAndNameEqual(node: TargetNode) -> Bool {
             return node.path == path && node.target.name == name
         }

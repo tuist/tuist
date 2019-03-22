@@ -42,15 +42,23 @@ class Generator: Generating {
     private let graphLoader: GraphLoading
     private let workspaceGenerator: WorkspaceGenerating
 
-    init(system: Systeming = System(),
-         printer: Printing = Printer(),
-         fileHandler: FileHandling = FileHandler(),
-         modelLoader: GeneratorModelLoading) {
-        graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
-        workspaceGenerator = WorkspaceGenerator(system: system,
-                                                printer: printer,
-                                                projectDirectoryHelper: ProjectDirectoryHelper(),
-                                                fileHandler: fileHandler)
+    convenience init(system: Systeming = System(),
+                     printer: Printing = Printer(),
+                     fileHandler: FileHandling = FileHandler(),
+                     modelLoader: GeneratorModelLoading) {
+        let graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
+        let workspaceGenerator = WorkspaceGenerator(system: system,
+                                                    printer: printer,
+                                                    projectDirectoryHelper: ProjectDirectoryHelper(),
+                                                    fileHandler: fileHandler)
+        self.init(graphLoader: graphLoader,
+                  workspaceGenerator: workspaceGenerator)
+    }
+
+    init(graphLoader: GraphLoading,
+         workspaceGenerator: WorkspaceGenerating) {
+        self.graphLoader = graphLoader
+        self.workspaceGenerator = workspaceGenerator
     }
 
     func generateProject(at path: AbsolutePath,
@@ -59,7 +67,7 @@ class Generator: Generating {
         let (graph, project) = try graphLoader.loadProject(path: path)
 
         let workspace = Workspace(name: project.name,
-                                  projects: graph.projects.map(\.path),
+                                  projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(Workspace.Element.file))
 
         return try workspaceGenerator.generate(workspace: workspace,
@@ -74,7 +82,9 @@ class Generator: Generating {
                            workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
 
-        let updatedWorkspace = workspace.adding(files: workspaceFiles)
+        let updatedWorkspace = workspace
+            .merging(projects: graph.projectPaths)
+            .adding(files: workspaceFiles)
 
         return try workspaceGenerator.generate(workspace: updatedWorkspace,
                                                path: path,
