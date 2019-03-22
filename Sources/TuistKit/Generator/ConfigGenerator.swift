@@ -169,18 +169,16 @@ final class ConfigGenerator: ConfigGenerating {
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
         }
-        
+
         if target.product.isTest {
-            
             let appDependencies = graph.targetDependencies(path: sourceRootPath, name: target.name).filter { targetNode in
                 targetNode.target.product == .app
             }
-            
+
             if let app = appDependencies.first {
                 settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productName)/\(app.target.name)"
                 settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
             }
-            
         }
 
         variantBuildConfiguration.buildSettings = settings

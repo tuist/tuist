@@ -186,13 +186,11 @@ extension Product {
 }
 
 extension Product {
-    
     var isStatic: Bool {
         return [.staticLibrary, .staticFramework].contains(self)
     }
-    
+
     var isTest: Bool {
         return [.unitTests, .uiTests].contains(self)
     }
-    
 }

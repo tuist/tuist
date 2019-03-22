@@ -69,7 +69,7 @@ final class ConfigGeneratorTests: XCTestCase {
         let releaseSettings = [
             "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
         ]
-        
+
         assert(config: debugConfig, contains: commonSettings)
         assert(config: debugConfig, contains: debugSettings)
         assert(config: debugConfig, hasXcconfig: "debug.xcconfig")
@@ -78,24 +78,22 @@ final class ConfigGeneratorTests: XCTestCase {
         assert(config: releaseConfig, contains: releaseSettings)
         assert(config: releaseConfig, hasXcconfig: "release.xcconfig")
     }
-    
+
     func test_generateTestTargetConfiguration() throws {
-        
         // Given / When
         try generateTestTargetConfig()
-        
+
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
-        
+
         let testHostSettings = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/App",
-            "BUNDLE_LOADER": "$(TEST_HOST)"
+            "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
-        
+
         assert(config: debugConfig, contains: testHostSettings)
         assert(config: releaseConfig, contains: testHostSettings)
-
     }
 
     private func generateProjectConfig(config _: BuildConfiguration) throws {
@@ -153,20 +151,19 @@ final class ConfigGeneratorTests: XCTestCase {
                                              options: options,
                                              sourceRootPath: AbsolutePath("/"))
     }
-    
+
     private func generateTestTargetConfig() throws {
-        
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        
+
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
-        
+
         let target = Target.test(name: "Test", product: .unitTests)
         let project = Project.test(path: dir.path, name: "Project", targets: [target])
-        
-        let appTargetNode = TargetNode(project: project, target: appTarget, dependencies: [ ])
-        let testTargetNode = TargetNode(project: project, target: target, dependencies: [ appTargetNode ])
-        
-        let graph = Graph.test(entryNodes: [ appTargetNode, testTargetNode ])
+
+        let appTargetNode = TargetNode(project: project, target: appTarget, dependencies: [])
+        let testTargetNode = TargetNode(project: project, target: target, dependencies: [appTargetNode])
+
+        let graph = Graph.test(entryNodes: [appTargetNode, testTargetNode])
 
         _ = try subject.generateTargetConfig(target,
                                              pbxTarget: pbxTarget,
