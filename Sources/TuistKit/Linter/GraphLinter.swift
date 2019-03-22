@@ -18,22 +18,20 @@ class GraphLinter: GraphLinting {
         self.projectLinter = projectLinter
         self.fileHandler = fileHandler
     }
-    
+
     struct StaticDepedencyWarning: Hashable {
-        
         let targetNode: TargetNode
         let linkingStaticTargetNode: TargetNode
-        
+
         var hashValue: Int {
             return linkingStaticTargetNode.hashValue
         }
-        
+
         static func == (lhs: StaticDepedencyWarning, rhs: StaticDepedencyWarning) -> Bool {
             return lhs.linkingStaticTargetNode == rhs.linkingStaticTargetNode
         }
-        
     }
-    
+
     var linkedStaticProducts = Set<StaticDepedencyWarning>()
 
     // MARK: - GraphLinting
@@ -87,18 +85,16 @@ class GraphLinter: GraphLinting {
 
         targetNode.dependencies.forEach { toNode in
             if let toTargetNode = toNode as? TargetNode {
-                
                 if toTargetNode.target.product.isStatic {
                     let (inserted, oldMember) = linkedStaticProducts.insert(StaticDepedencyWarning(targetNode: targetNode, linkingStaticTargetNode: toTargetNode))
-                    
+
                     if inserted == false {
                         let reason = "Target \(toTargetNode.target.name) has been linked against \(oldMember.targetNode.target.name) and \(targetNode.target.name), it is a static product so may introduce unwanted side effects."
                         let issue = LintingIssue(reason: reason, severity: .warning)
                         issues.append(issue)
                     }
-                    
                 }
-                
+
                 issues.append(contentsOf: lintDependency(from: targetNode, to: toTargetNode))
             }
             issues.append(contentsOf: lintGraphNode(node: toNode, evaluatedNodes: &evaluatedNodes))

@@ -91,13 +91,13 @@ final class GraphTests: XCTestCase {
         let staticDependency1 = Target.test(name: "StaticDependency1", product: .staticLibrary)
         let staticDependency2 = Target.test(name: "StaticDependency2", product: .staticLibrary)
         let project = Project.test(targets: [target])
-        
+
         let staticDependencyNode1 = TargetNode(project: project,
-                                              target: staticDependency1,
-                                              dependencies: [])
+                                               target: staticDependency1,
+                                               dependencies: [])
         let staticDependencyNode2 = TargetNode(project: project,
-                                        target: staticDependency2,
-                                        dependencies: [staticDependencyNode1])
+                                               target: staticDependency2,
+                                               dependencies: [staticDependencyNode1])
         let dependencyNode = TargetNode(project: project,
                                         target: dependency,
                                         dependencies: [staticDependencyNode2])
@@ -114,10 +114,10 @@ final class GraphTests: XCTestCase {
                                                  name: target.name)
         XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product("Dependency.framework"))
-        
+
         let frameworkGot = try graph.linkableDependencies(path: project.path,
                                                           name: dependency.name)
-        
+
         XCTAssertEqual(frameworkGot.count, 2)
         XCTAssertTrue(frameworkGot.contains(.product("libStaticDependency1.a")))
         XCTAssertTrue(frameworkGot.contains(.product("libStaticDependency2.a")))

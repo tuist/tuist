@@ -335,10 +335,8 @@ extension Graph {
 
             // swiftlint:disable:next force_cast
             if node is T, test(node as! T) {
-
                 // swiftlint:disable:next force_cast
                 references.insert(node as! T)
-                
             }
 
             if node is T, doNotTraverseWhen(node as! T) {
