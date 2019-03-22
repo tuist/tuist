@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 /// Protocol that defines the interface of an up command.
-protocol Upping: class {
+protocol Upping: AnyObject {
     /// Name of the command.
     var name: String { get }
 

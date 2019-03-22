@@ -41,7 +41,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                  actions: [
                                      TargetAction(name: "post", order: .post, path: tmpDir.path.appending(component: "script.sh"), arguments: ["arg"]),
                                      TargetAction(name: "pre", order: .pre, path: tmpDir.path.appending(component: "script.sh"), arguments: ["arg"]),
-        ])
+                                 ])
 
         try subject.generateBuildPhases(target: target,
                                         pbxTarget: pbxTarget,
