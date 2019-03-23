@@ -103,7 +103,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 sourceRootPath: sourceRootPath,
                                                 options: options,
                                                 graph: graph)
-        
+
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
@@ -170,38 +170,33 @@ final class ProjectGenerator: ProjectGenerating {
                                                        graph: graph)
         return nativeTargets
     }
-    
-    fileprivate func generateTestTargetIdentity(project: Project,
+
+    fileprivate func generateTestTargetIdentity(project _: Project,
                                                 pbxproj: PBXProj,
                                                 pbxProject: PBXProject) {
-        
         func testTargetName(_ target: PBXTarget) -> String? {
-            
             guard let buildConfigurations = target.buildConfigurationList?.buildConfigurations else {
                 return nil
             }
-            
+
             return buildConfigurations
                 .compactMap { $0.buildSettings["TEST_TARGET_NAME"] as? String }
                 .first
         }
-        
-        let testTargets = pbxproj.nativeTargets.filter{ $0.productType == .uiTestBundle || $0.productType == .unitTestBundle }
-        
+
+        let testTargets = pbxproj.nativeTargets.filter { $0.productType == .uiTestBundle || $0.productType == .unitTestBundle }
+
         for testTarget in testTargets {
-            
             guard let name = testTargetName(testTarget) else {
                 continue
             }
-            
+
             guard let target = pbxproj.targets(named: name).first else {
                 continue
             }
-            
-            pbxProject.setTargetAttributes([ "TestTargetID": target ], target: testTarget)
-            
+
+            pbxProject.setTargetAttributes(["TestTargetID": target], target: testTarget)
         }
-        
     }
 
     fileprivate func write(xcodeprojPath: AbsolutePath,

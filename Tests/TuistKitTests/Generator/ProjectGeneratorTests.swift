@@ -48,6 +48,5 @@ final class ProjectGeneratorTests: XCTestCase {
         let targetScheme = schemesPath.appending(component: "Target.xcscheme")
         XCTAssertTrue(fileHandler.exists(projectScheme))
         XCTAssertTrue(fileHandler.exists(targetScheme))
-                
     }
 }
