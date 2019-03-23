@@ -71,7 +71,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
             base["LSMinimumSystemVersion"] = "$(MACOSX_DEPLOYMENT_TARGET)"
             base["NSPrincipalClass"] = "NSApplication"
             base["CFBundleIconFile"] = ""
-            base["NSMainStoryboardFile"] = "$(PRODUCT_NAME)"
+            base["NSMainStoryboardFile"] = "Main"
         }
 
         // iOS application
@@ -96,7 +96,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
         if product == .app, platform == .tvOS {
             base["LSRequiresIPhoneOS"] = true
             base["UIRequiredDeviceCapabilities"] = ["arm64"]
-            base["UIMainStoryboardFile"] = "$(PRODUCT_NAME)"
+            base["UIMainStoryboardFile"] = "Main"
         }
 
         // Launch screen storyboard

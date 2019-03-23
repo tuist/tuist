@@ -61,7 +61,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "CFBundlePackageType": "APPL",
             "LSRequiresIPhoneOS": true,
             "UIRequiredDeviceCapabilities": ["arm64"],
-            "UIMainStoryboardFile": "$(PRODUCT_NAME)",
+            "UIMainStoryboardFile": "Main",
         ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
@@ -82,7 +82,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
             "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
             "NSPrincipalClass": "NSApplication",
             "CFBundleIconFile": "",
-            "NSMainStoryboardFile": "$(PRODUCT_NAME)",
+            "NSMainStoryboardFile": "Main",
         ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))
