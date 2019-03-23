@@ -113,7 +113,7 @@ class GeneratorTests: XCTestCase {
                                            .file(path: "/path/to/a"),
                                            .file(path: "/path/to/b"),
                                            .file(path: "/path/to//c"),
-                                       ])
+        ])
         let graph = createGraph(with: [])
         graphLoader.loadWorkspaceStub = { _ in
             (graph, workpsace)
@@ -125,7 +125,7 @@ class GeneratorTests: XCTestCase {
                                           workspaceFiles: [
                                               "/path/to/D",
                                               "/path/to/E",
-                                          ])
+        ])
 
         // Then
         let additionalFiles = workspaceGenerator.generateWorkspaces.flatMap {

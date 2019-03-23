@@ -73,7 +73,7 @@ class InitCommand: NSObject, Command {
                                         completion: ShellCompletion.values([
                                             (value: "application", description: "Application"),
                                             (value: "framework", description: "Framework"),
-                                        ]))
+        ]))
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
                                          kind: String.self,
@@ -82,7 +82,7 @@ class InitCommand: NSObject, Command {
                                              (value: "ios", description: "iOS platform"),
                                              (value: "tvos", description: "tvOS platform"),
                                              (value: "macos", description: "macOS platform"),
-                                         ]))
+        ]))
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,

@@ -70,7 +70,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        targets: [
                                            targetA,
                                            targetB,
-                                       ]),
+            ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -146,7 +146,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                          additionalFiles: [
                                              "Documentation/**/*.md",
                                              "*.playground",
-                                         ]),
+            ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -174,7 +174,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                          projects: [],
                                          additionalFiles: [
                                              .folderReference(path: "Documentation"),
-                                         ]),
+            ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -229,7 +229,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                          projects: [],
                                          additionalFiles: [
                                              "Documentation/**/*.md",
-                                         ]),
+            ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -261,7 +261,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                          additionalFiles: [
                                              .folderReference(path: "Documentation"),
                                              .folderReference(path: "README.md"),
-                                         ]),
+            ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)

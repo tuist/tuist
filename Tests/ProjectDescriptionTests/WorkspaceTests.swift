@@ -26,7 +26,7 @@ final class WorkspaceTests: XCTestCase {
                                 projects: ["ProjectA"],
                                 additionalFiles: [
                                     .glob(pattern: "Documentation/**"),
-                                ])
+        ])
 
         let expected =
             """
