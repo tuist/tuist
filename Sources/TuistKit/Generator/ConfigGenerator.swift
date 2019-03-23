@@ -176,14 +176,12 @@ final class ConfigGenerator: ConfigGenerating {
             }
 
             if let app = appDependency {
-                
                 settings["TEST_TARGET_NAME"] = "\(app.target.name)"
-                
+
                 if target.product == .unitTests {
                     settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productName)/\(app.target.name)"
                     settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
                 }
-                
             }
         }
 

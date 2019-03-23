@@ -4,7 +4,6 @@ import PathKit
 import xcodeproj
 
 final class GeneratedProject {
-    
     /// A reference to the .xcodeproj which was generated.
     let pbxproj: PBXProj
 
