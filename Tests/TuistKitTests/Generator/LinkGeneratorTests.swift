@@ -96,7 +96,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                              pbxTarget: pbxTarget,
                                              sourceRootPath: sourceRootPath)
 
-        let expected = "$(SRCROOT)/Dependencies $(SRCROOT)/Dependencies/C"
+        let expected = "$(inherited) $(SRCROOT)/Dependencies $(SRCROOT)/Dependencies/C"
         XCTAssertEqual(debugConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
         XCTAssertEqual(releaseConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
     }
@@ -122,7 +122,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                            pbxTarget: pbxTarget,
                                            sourceRootPath: sourceRootPath)
 
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? String, " $(SRCROOT)/headers")
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? String, "$(inherited) $(SRCROOT)/headers")
     }
 
     func test_setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {

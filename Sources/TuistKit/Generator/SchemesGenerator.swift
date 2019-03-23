@@ -101,20 +101,20 @@ final class SchemesGenerator: SchemesGenerating {
             .filter(\.includeInProjectScheme)
             .map { (target) -> XCScheme.BuildAction.Entry in
 
-            let pbxTarget = generatedProject.targets[target.name]!
-            let buildableReference = targetBuildableReference(target: target,
-                                                              pbxTarget: pbxTarget,
-                                                              projectName: generatedProject.name)
-            var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
-            if target.product.testsBundle {
-                buildFor.append(.testing)
-            } else {
-                buildFor.append(contentsOf: [.analyzing, .archiving, .profiling, .running, .testing])
-            }
+                let pbxTarget = generatedProject.targets[target.name]!
+                let buildableReference = targetBuildableReference(target: target,
+                                                                  pbxTarget: pbxTarget,
+                                                                  projectName: generatedProject.name)
+                var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
+                if target.product.testsBundle {
+                    buildFor.append(.testing)
+                } else {
+                    buildFor.append(contentsOf: [.analyzing, .archiving, .profiling, .running, .testing])
+                }
 
-            return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
-                                              buildFor: buildFor)
-        }
+                return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
+                                                  buildFor: buildFor)
+            }
 
         return XCScheme.BuildAction(buildActionEntries: entries,
                                     parallelizeBuild: true,

@@ -178,7 +178,7 @@ final class LinkGenerator: LinkGenerating {
 
         let pathsValue = Set(paths).sorted().joined(separator: " ")
         buildConfigurations?.forEach { buildConfiguration in
-            var frameworkSearchPaths = (buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String) ?? ""
+            var frameworkSearchPaths = (buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String) ?? "$(inherited)"
             if frameworkSearchPaths.isEmpty {
                 frameworkSearchPaths = pathsValue
             } else {
@@ -198,7 +198,7 @@ final class LinkGenerator: LinkGenerating {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
         configurationList.buildConfigurations.forEach {
-            var headers = ($0.buildSettings["HEADER_SEARCH_PATHS"] as? String) ?? ""
+            var headers = ($0.buildSettings["HEADER_SEARCH_PATHS"] as? String) ?? "$(inherited)"
             headers.append(" \(relativePaths.joined(separator: " "))")
             $0.buildSettings["HEADER_SEARCH_PATHS"] = headers
         }
