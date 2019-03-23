@@ -203,8 +203,5 @@ final class ProjectGenerator: ProjectGenerating {
                                   graph: Graphing) throws {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
-        try schemesGenerator.generateProjectScheme(project: project,
-                                                   generatedProject: generatedProject,
-                                                   graph: graph)
     }
 }

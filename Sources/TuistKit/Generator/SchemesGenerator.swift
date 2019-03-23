@@ -14,16 +14,6 @@ protocol SchemesGenerating {
     func generateTargetSchemes(project: Project,
                                generatedProject: GeneratedProject) throws
 
-    /// Generates a project scheme to build & test the all the project targets.
-    ///
-    /// - Parameters:
-    ///   - project: Project manifest.
-    ///   - generatedProject: Generated Xcode project.
-    ///   - graph: Dependencies graph.
-    /// - Throws: An error if the generation of the scheme fails.
-    func generateProjectScheme(project: Project,
-                               generatedProject: GeneratedProject,
-                               graph: Graphing) throws
 }
 
 final class SchemesGenerator: SchemesGenerating {
@@ -58,32 +48,6 @@ final class SchemesGenerator: SchemesGenerating {
                                      projectName: generatedProject.name,
                                      projectPath: generatedProject.path)
         }
-    }
-
-    /// Generates a project scheme to build & test the all the project targets.
-    ///
-    /// - Parameters:
-    ///   - project: Project manifest.
-    ///   - generatedProject: Generated Xcode project.
-    ///   - graph: Dependencies graph.
-    /// - Throws: An error if the generation of the scheme fails.
-    func generateProjectScheme(project: Project,
-                               generatedProject: GeneratedProject,
-                               graph: Graphing) throws {
-        let name = "\(project.name)-Project"
-        let schemesDirectory = try createSchemesDirectory(projectPath: generatedProject.path)
-        let path = schemesDirectory.appending(component: "\(name).xcscheme")
-
-        let scheme = XCScheme(name: name,
-                              lastUpgradeVersion: SchemesGenerator.defaultLastUpgradeVersion,
-                              version: SchemesGenerator.defaultVersion,
-                              buildAction: projectBuildAction(project: project,
-                                                              generatedProject: generatedProject,
-                                                              graph: graph),
-                              testAction: projectTestAction(project: project,
-                                                            generatedProject: generatedProject))
-
-        try scheme.write(path: path.path, override: true)
     }
 
     /// Returns the build action for the project scheme.
