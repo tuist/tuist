@@ -1,8 +1,13 @@
 import Basic
 import Foundation
+import PathKit
 import xcodeproj
 
 final class GeneratedProject {
+    
+    /// A reference to the .xcodeproj which was generated.
+    let pbxproj: PBXProj
+
     /// Path to the project .xcodeproj directory
     let path: AbsolutePath
 
@@ -18,9 +23,11 @@ final class GeneratedProject {
     ///   - path: Dictionary whose keys are the target names and the value the Xcode targets.
     ///   - targets: Dictionary whose keys are the target names and the value the Xcode targets.
     ///   - name: Project name with .xcodeproj extension
-    init(path: AbsolutePath,
+    init(pbxproj: PBXProj,
+         path: AbsolutePath,
          targets: [String: PBXNativeTarget],
          name: String) {
+        self.pbxproj = pbxproj
         self.path = path
         self.targets = targets
         self.name = name
@@ -30,8 +37,11 @@ final class GeneratedProject {
     ///
     /// - Parameter path: Path to the project (.xcodeproj)
     /// - Returns: GeneratedProject instance.
-    func at(path: AbsolutePath) -> GeneratedProject {
-        return GeneratedProject(path: path,
+    func at(path: AbsolutePath) throws -> GeneratedProject {
+        let xcode = try XcodeProj(pathString: path.asString)
+
+        return GeneratedProject(pbxproj: xcode.pbxproj,
+                                path: path,
                                 targets: targets,
                                 name: name)
     }

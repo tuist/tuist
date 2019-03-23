@@ -96,6 +96,22 @@ final class ConfigGeneratorTests: XCTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
+    func test_generateUITestTargetConfiguration() throws {
+        // Given / When
+        try generateTestTargetConfig(uiTest: true)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_TARGET_NAME": "App",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
     private func generateProjectConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
@@ -152,12 +168,12 @@ final class ConfigGeneratorTests: XCTestCase {
                                              sourceRootPath: AbsolutePath("/"))
     }
 
-    private func generateTestTargetConfig() throws {
+    private func generateTestTargetConfig(uiTest: Bool = false) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
 
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
 
-        let target = Target.test(name: "Test", product: .unitTests)
+        let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir.path, name: "Project", targets: [target])
 
         let appTargetNode = TargetNode(project: project, target: appTarget, dependencies: [])

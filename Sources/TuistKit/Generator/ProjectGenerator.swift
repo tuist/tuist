@@ -195,7 +195,11 @@ final class ProjectGenerator: ProjectGenerating {
                 continue
             }
 
-            pbxProject.setTargetAttributes(["TestTargetID": target], target: testTarget)
+            var attributes = pbxProject.targetAttributes[testTarget] ?? [:]
+
+            attributes["TestTargetID"] = target
+
+            pbxProject.setTargetAttributes(attributes, target: testTarget)
         }
     }
 
@@ -212,7 +216,8 @@ final class ProjectGenerator: ProjectGenerating {
             try writeXcodeproj(workspace: workspace,
                                pbxproj: pbxproj,
                                xcodeprojPath: temporaryPath)
-            generatedProject = GeneratedProject(path: temporaryPath,
+            generatedProject = GeneratedProject(pbxproj: pbxproj,
+                                                path: temporaryPath,
                                                 targets: nativeTargets,
                                                 name: xcodeprojPath.components.last!)
             try writeSchemes(project: project,
@@ -221,7 +226,7 @@ final class ProjectGenerator: ProjectGenerating {
             try fileHandler.replace(xcodeprojPath, with: temporaryPath)
         }
 
-        return generatedProject.at(path: xcodeprojPath)
+        return try generatedProject.at(path: xcodeprojPath)
     }
 
     fileprivate func writeXcodeproj(workspace: XCWorkspace,
