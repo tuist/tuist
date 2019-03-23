@@ -89,7 +89,7 @@ class UpCustom: Up, GraphInitiatable {
     ///   - system: System instance used to run commands in the system.
     /// - Returns: Launch path.
     /// - Throws: A system error if the path can't be obtained running which in the system.
-    fileprivate func launchPath(command: [String], projectPath: AbsolutePath, system: Systeming) throws -> AbsolutePath {
+    private func launchPath(command: [String], projectPath: AbsolutePath, system: Systeming) throws -> AbsolutePath {
         // It's safe to unwrap the first argument here.
         // There's a linter in place that prevents this code from running if the command is empty.
         let launchArgument = command.first!

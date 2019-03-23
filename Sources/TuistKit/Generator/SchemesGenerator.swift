@@ -320,7 +320,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - projectPath: Path to the Xcode project.
     /// - Returns: Path to the schemes directory.
     /// - Throws: A FatalError if the creation of the directory fails.
-    fileprivate func createSchemesDirectory(projectPath: AbsolutePath) throws -> AbsolutePath {
+    private func createSchemesDirectory(projectPath: AbsolutePath) throws -> AbsolutePath {
         let path = projectPath.appending(RelativePath("xcshareddata/xcschemes"))
         if !fileHandler.exists(path) {
             try fileHandler.createFolder(path)

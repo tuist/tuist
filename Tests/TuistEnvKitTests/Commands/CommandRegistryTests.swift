@@ -42,7 +42,7 @@ final class CommandRegistryTests: XCTestCase {
         XCTAssertTrue(type(of: errorHandler.fatalErrorArgs.first!) == UnhandledError.self)
     }
 
-    fileprivate func setupSubject(arguments: [String], commands: [Command.Type]) {
+    private func setupSubject(arguments: [String], commands: [Command.Type]) {
         subject = CommandRegistry(processArguments: { arguments },
                                   errorHandler: errorHandler,
                                   commandRunner: commandRunner,

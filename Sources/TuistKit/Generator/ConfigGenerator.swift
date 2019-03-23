@@ -83,12 +83,12 @@ final class ConfigGenerator: ConfigGenerating {
 
     // MARK: - Fileprivate
 
-    fileprivate func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
-                                                configuration: Configuration?,
-                                                project: Project,
-                                                fileElements: ProjectFileElements,
-                                                pbxproj: PBXProj,
-                                                configurationList: XCConfigurationList) throws {
+    private func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
+                                            configuration: Configuration?,
+                                            project: Project,
+                                            fileElements: ProjectFileElements,
+                                            pbxproj: PBXProj,
+                                            configurationList: XCConfigurationList) throws {
         let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
         let defaultConfigSettings = BuildSettingsProvider.projectDefault(variant: variant)
         let defaultSettingsAll = BuildSettingsProvider.projectDefault(variant: .all)
@@ -113,13 +113,13 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
 
-    fileprivate func generateTargetSettingsFor(target: Target,
-                                               buildConfiguration: BuildConfiguration,
-                                               configuration: Configuration?,
-                                               fileElements: ProjectFileElements,
-                                               pbxproj: PBXProj,
-                                               configurationList: XCConfigurationList,
-                                               sourceRootPath: AbsolutePath) throws {
+    private func generateTargetSettingsFor(target: Target,
+                                           buildConfiguration: BuildConfiguration,
+                                           configuration: Configuration?,
+                                           fileElements: ProjectFileElements,
+                                           pbxproj: PBXProj,
+                                           configurationList: XCConfigurationList,
+                                           sourceRootPath: AbsolutePath) throws {
         let product = settingsProviderProduct(target)
         let platform = settingsProviderPlatform(target)
         let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
@@ -170,7 +170,7 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
 
-    fileprivate func settingsProviderPlatform(_ target: Target) -> BuildSettingsProvider.Platform? {
+    private func settingsProviderPlatform(_ target: Target) -> BuildSettingsProvider.Platform? {
         var platform: BuildSettingsProvider.Platform?
         switch target.platform {
         case .iOS: platform = .iOS
@@ -181,7 +181,7 @@ final class ConfigGenerator: ConfigGenerating {
         return platform
     }
 
-    fileprivate func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
+    private func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
         switch target.product {
         case .app:
             return .application
@@ -196,7 +196,7 @@ final class ConfigGenerator: ConfigGenerating {
         }
     }
 
-    fileprivate func extend(buildSettings: inout [String: Any], with other: [String: Any]) {
+    private func extend(buildSettings: inout [String: Any], with other: [String: Any]) {
         other.forEach { key, value in
             if buildSettings[key] == nil || (value as? String)?.contains("$(inherited)") == false {
                 buildSettings[key] = value

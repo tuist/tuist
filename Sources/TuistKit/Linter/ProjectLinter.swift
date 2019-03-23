@@ -33,14 +33,14 @@ class ProjectLinter: ProjectLinting {
 
     // MARK: - Fileprivate
 
-    fileprivate func lintTargets(project: Project) -> [LintingIssue] {
+    private func lintTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: project.targets.flatMap(targetLinter.lint))
         issues.append(contentsOf: lintNotDuplicatedTargets(project: project))
         return issues
     }
 
-    fileprivate func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
+    private func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let duplicatedTargets = project.targets.map { $0.name }
             .reduce(into: [String: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }

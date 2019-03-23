@@ -27,7 +27,7 @@ final class SettingsLinter: SettingsLinting {
 
     // MARK: - Fileprivate
 
-    fileprivate func lintConfigFilesExist(settings: Settings) -> [LintingIssue] {
+    private func lintConfigFilesExist(settings: Settings) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let lintPath: (AbsolutePath) -> Void = { path in

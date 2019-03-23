@@ -75,7 +75,7 @@ class GenerateCommand: NSObject, Command {
 
     // MARK: - Fileprivate
 
-    fileprivate func path(arguments: ArgumentParser.Result) -> AbsolutePath {
+    private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
             return AbsolutePath(path, relativeTo: fileHandler.currentPath)
         } else {

@@ -15,19 +15,19 @@ protocol SetupLoading {
 
 class SetupLoader: SetupLoading {
     /// Linter for up commands.
-    fileprivate let upLinter: UpLinting
+    private let upLinter: UpLinting
 
     /// File handler instance to interact with the file system.
-    fileprivate let fileHandler: FileHandling
+    private let fileHandler: FileHandling
 
     /// Printer instance to output information to the user.
-    fileprivate let printer: Printing
+    private let printer: Printing
 
     /// Graph manifset loader instance to load the setup.
-    fileprivate let graphManifestLoader: GraphManifestLoading
+    private let graphManifestLoader: GraphManifestLoading
 
     /// System instance to run commands on the system.
-    fileprivate let system: Systeming
+    private let system: Systeming
 
     convenience init(fileHandler: FileHandling = FileHandler()) {
         let upLinter = UpLinter()

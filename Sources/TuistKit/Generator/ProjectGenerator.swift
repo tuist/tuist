@@ -114,10 +114,10 @@ final class ProjectGenerator: ProjectGenerating {
 
     // MARK: - Fileprivate
 
-    fileprivate func generatePbxproject(project: Project,
-                                        configurationList: XCConfigurationList,
-                                        groups: ProjectGroups,
-                                        pbxproj: PBXProj) throws -> PBXProject {
+    private func generatePbxproject(project: Project,
+                                    configurationList: XCConfigurationList,
+                                    groups: ProjectGroups,
+                                    pbxproj: PBXProj) throws -> PBXProject {
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
@@ -135,14 +135,14 @@ final class ProjectGenerator: ProjectGenerating {
         return pbxProject
     }
 
-    fileprivate func generateTargets(project: Project,
-                                     pbxproj: PBXProj,
-                                     pbxProject: PBXProject,
-                                     groups: ProjectGroups,
-                                     fileElements: ProjectFileElements,
-                                     sourceRootPath: AbsolutePath,
-                                     options: GenerationOptions,
-                                     graph: Graphing) throws -> [String: PBXNativeTarget] {
+    private func generateTargets(project: Project,
+                                 pbxproj: PBXProj,
+                                 pbxProject: PBXProject,
+                                 groups: ProjectGroups,
+                                 fileElements: ProjectFileElements,
+                                 sourceRootPath: AbsolutePath,
+                                 options: GenerationOptions,
+                                 graph: Graphing) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -166,12 +166,12 @@ final class ProjectGenerator: ProjectGenerating {
         return nativeTargets
     }
 
-    fileprivate func write(xcodeprojPath: AbsolutePath,
-                           nativeTargets: [String: PBXNativeTarget],
-                           workspace: XCWorkspace,
-                           pbxproj: PBXProj,
-                           project: Project,
-                           graph: Graphing) throws -> GeneratedProject {
+    private func write(xcodeprojPath: AbsolutePath,
+                       nativeTargets: [String: PBXNativeTarget],
+                       workspace: XCWorkspace,
+                       pbxproj: PBXProj,
+                       project: Project,
+                       graph: Graphing) throws -> GeneratedProject {
         var generatedProject: GeneratedProject!
 
         try fileHandler.inTemporaryDirectory { temporaryPath in
@@ -191,16 +191,16 @@ final class ProjectGenerator: ProjectGenerating {
         return generatedProject.at(path: xcodeprojPath)
     }
 
-    fileprivate func writeXcodeproj(workspace: XCWorkspace,
-                                    pbxproj: PBXProj,
-                                    xcodeprojPath: AbsolutePath) throws {
+    private func writeXcodeproj(workspace: XCWorkspace,
+                                pbxproj: PBXProj,
+                                xcodeprojPath: AbsolutePath) throws {
         let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         try xcodeproj.write(path: xcodeprojPath.path)
     }
 
-    fileprivate func writeSchemes(project: Project,
-                                  generatedProject: GeneratedProject,
-                                  graph: Graphing) throws {
+    private func writeSchemes(project: Project,
+                              generatedProject: GeneratedProject,
+                              graph: Graphing) throws {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
         try schemesGenerator.generateProjectScheme(project: project,

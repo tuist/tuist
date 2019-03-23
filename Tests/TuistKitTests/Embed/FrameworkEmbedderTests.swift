@@ -41,13 +41,13 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
         }
     }
 
-    fileprivate func universalFrameworkPath() -> AbsolutePath {
+    private func universalFrameworkPath() -> AbsolutePath {
         let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory.parentDirectory
         return testsPath.appending(RelativePath("Fixtures/xpm.framework"))
     }
 
-    fileprivate func withEnvironment(action: XcodeBuild.Action = .install,
-                                     assert: (AbsolutePath, XcodeBuild.Environment) throws -> Void) throws {
+    private func withEnvironment(action: XcodeBuild.Action = .install,
+                                 assert: (AbsolutePath, XcodeBuild.Environment) throws -> Void) throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let frameworksPath = "frameworks"
         let srcRootPath = tmpDir.path
