@@ -130,12 +130,12 @@ final class InitCommandTests: XCTestCase {
 
         typealias Storyboard = MockStoryboardGenerator.GeneratedStoryboard
         let launchScreenStoryboard = Storyboard(path: sourcesPath,
-                                                name: "Launch Screen",
+                                                name: "Launch Screen.storyboard",
                                                 platform: .iOS,
                                                 product: .app)
 
         let mainStoryboard = Storyboard(path: sourcesPath,
-                                        name: name,
+                                        name: "Main.storyboard",
                                         platform: .iOS,
                                         product: nil)
 

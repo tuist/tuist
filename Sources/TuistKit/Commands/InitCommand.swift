@@ -322,18 +322,16 @@ class InitCommand: NSObject, Command {
                                          content: PlaygroundGenerator.defaultContent())
     }
 
-    fileprivate func generateStoryboards(name: String, path: AbsolutePath, platform: Platform, product: Product) throws {
+    fileprivate func generateStoryboards(name _: String, path: AbsolutePath, platform: Platform, product: Product) throws {
         let sourcesPath = path.appending(component: "Sources")
 
         if product == .app, platform.supportsLaunchScreen {
             try storyboardGenerator.generateLaunchScreen(path: sourcesPath,
-                                                         name: "Launch Screen",
                                                          platform: platform,
                                                          product: product)
         }
 
         try storyboardGenerator.generateMain(path: sourcesPath,
-                                             name: name,
                                              platform: platform)
     }
 

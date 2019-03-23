@@ -89,7 +89,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
             ]
-            base["UIMainStoryboardFile"] = "$(PRODUCT_NAME)"
+            base["UIMainStoryboardFile"] = "Main"
         }
 
         // tvOS application

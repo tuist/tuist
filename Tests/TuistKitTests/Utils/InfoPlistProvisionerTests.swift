@@ -41,7 +41,7 @@ final class InfoPlistProvisionerTests: XCTestCase {
                 "UIInterfaceOrientationLandscapeRight",
             ],
             "UILaunchStoryboardName": "Launch Screen",
-            "UIMainStoryboardFile": "$(PRODUCT_NAME)",
+            "UIMainStoryboardFile": "Main",
         ]
         XCTAssertEqual(NSDictionary(dictionary: got),
                        NSDictionary(dictionary: expected))

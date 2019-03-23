@@ -25,11 +25,9 @@ enum StoryboardGenerationError: FatalError, Equatable {
 
 protocol StoryboardGenerating: AnyObject {
     func generateMain(path: AbsolutePath,
-                      name: String,
                       platform: Platform) throws
 
     func generateLaunchScreen(path: AbsolutePath,
-                              name: String,
                               platform: Platform,
                               product: Product) throws
 }
@@ -45,8 +43,8 @@ final class StoryboardGenerator: StoryboardGenerating {
         self.fileHandler = fileHandler
     }
 
-    func generateMain(path: AbsolutePath, name: String, platform: Platform) throws {
-        let storyboardPath = path.appending(component: "\(name).storyboard")
+    func generateMain(path: AbsolutePath, platform: Platform) throws {
+        let storyboardPath = path.appending(component: "Main.storyboard")
 
         if fileHandler.exists(storyboardPath) {
             throw StoryboardGenerationError.alreadyExisting(storyboardPath)
@@ -58,12 +56,12 @@ final class StoryboardGenerator: StoryboardGenerating {
                    encoding: .utf8)
     }
 
-    func generateLaunchScreen(path: AbsolutePath, name: String, platform: Platform, product: Product) throws {
+    func generateLaunchScreen(path: AbsolutePath, platform: Platform, product: Product) throws {
         if product == .app, !platform.supportsLaunchScreen {
             throw StoryboardGenerationError.launchScreenUnsupported(platform, product)
         }
 
-        let storyboardPath = path.appending(component: "\(name).storyboard")
+        let storyboardPath = path.appending(component: "Launch Screen.storyboard")
 
         if fileHandler.exists(storyboardPath) {
             throw StoryboardGenerationError.alreadyExisting(storyboardPath)
