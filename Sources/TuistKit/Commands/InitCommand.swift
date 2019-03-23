@@ -141,7 +141,7 @@ class InitCommand: NSObject, Command {
                                        bundleId: "io.tuist.\(name)",
                                        infoPlist: "Info.plist",
                                        sources: ["Sources/**"],
-                                       resources: ["Resources/**"],
+                                       resources: ["Resources/**", "Sources/**/*.storyboard"],
                                        dependencies: [
                                             /* Target dependencies can be defined here */
                                             /* .framework(path: "framework") */

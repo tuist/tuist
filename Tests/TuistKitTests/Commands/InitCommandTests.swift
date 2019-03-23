@@ -24,7 +24,7 @@ final class InitCommandTests: XCTestCase {
     var printer: MockPrinter!
     var infoplistProvisioner: InfoPlistProvisioning!
     var playgroundGenerator: MockPlaygroundGenerator!
-    var storyboardGenerator: MockStoryboardGenerator!
+    var storyboardGenerator: StoryboardGenerator!
 
     override func setUp() {
         super.setUp()
@@ -33,7 +33,7 @@ final class InitCommandTests: XCTestCase {
         printer = MockPrinter()
         infoplistProvisioner = InfoPlistProvisioner()
         playgroundGenerator = MockPlaygroundGenerator()
-        storyboardGenerator = MockStoryboardGenerator()
+        storyboardGenerator = StoryboardGenerator()
 
         subject = InitCommand(parser: parser,
                               fileHandler: fileHandler,
@@ -114,6 +114,8 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/Main.storyboard"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/Launch Screen.storyboard"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
 
@@ -124,24 +126,6 @@ final class InitCommandTests: XCTestCase {
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.1, name)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.2, .iOS)
         XCTAssertEqual(playgroundGenerator.generateArgs.first?.3, PlaygroundGenerator.defaultContent())
-
-        let sourcesPath = fileHandler.currentPath.appending(component: "Sources")
-        XCTAssertTrue(fileHandler.exists(sourcesPath))
-        XCTAssertNil(storyboardGenerator.generateStub)
-
-        typealias Storyboard = MockStoryboardGenerator.GeneratedStoryboard
-        let launchScreenStoryboard = Storyboard(path: sourcesPath,
-                                                name: "Launch Screen.storyboard",
-                                                platform: .iOS,
-                                                product: .app)
-
-        let mainStoryboard = Storyboard(path: sourcesPath,
-                                        name: "Main.storyboard",
-                                        platform: .iOS,
-                                        product: nil)
-
-        XCTAssertEqual(storyboardGenerator.generatedStoryboards, [launchScreenStoryboard, mainStoryboard])
-        XCTAssertEqual(storyboardGenerator.generatedStoryboards.count, 2)
     }
 
     func test_run_when_tvos_application() throws {
@@ -154,6 +138,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/Main.storyboard"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
 
@@ -176,6 +161,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/Main.storyboard"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
 
