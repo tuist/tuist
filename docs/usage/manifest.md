@@ -100,23 +100,37 @@ A `Settings` object contains an optional dictionary with build settings and rela
 
 By default, `tuist generate`  generates an Xcode workspace that has the same name as the current project. It includes the project and all its dependencies.  Tuist allows customizing this behaviour by defining a workspace manifest within a `Workspace.swift` file.
 
-Workspace manifests allow specifying a list of projects to generate and include in an Xcode workspace. Those projects don't necessarily have to depend on one another. The snippet below shows an example workspace manifest:
+Workspace manifests allow specifying a list of projects to generate and include in an Xcode workspace. Those projects don’t necessarily have to depend on one another. 
+
+Additionally, files and folder references (such as documentation files) can be included in a workspace manifest.
+
+The snippet below shows an example workspace manifest:
 
 ```swift
 import ProjectDescription
 
 let workspace = Workspace(name: "CustomWorkspace",
-                          projects: ["App1", "App2", "Modules/SharedFramework"])
+                          projects: [
+                            "App",
+                            "Modules/**"
+                          ],
+                          additionalFiles: [
+                            "Documentation/**",
+                            .folderReference(path: "Website")
+                          ])
 ```
 
 A `Workspace.swift` file can reside in any directory (including a project directory).  
-
 
 ### Workspace
 
 A `Workspace.swift` should initialize a variable of type `Workspace`. It can take any name, although we recommend to stick to `workspace`. A workspace accepts the following attributes:
 
-- **Name:** Name of the workspace. It's used to determine the name of the generated Xcode workspace.
-- **Projects:** List of paths to projects to generate and include within the generated Xcode workspace.
+- **Name:** Name of the workspace. It’s used to determine the name of the generated Xcode workspace.
+- **Projects:** List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.
+- **AdditionalFiles:**: List of one of the following options
+- `.glob(pattern: String)`: A file path (or glob pattern) to include in the workspace. 
+    - *For convenience, a string literal can be used as an alternate way to specify this option.*
+- `.folderReference(path: String)`: A directory path to include as a folder reference in the workspace.
 
-> **Note:** All the relative paths in the workspace manifest are relative to the folder that contains the manifest file.
+>***Note:***All the relative paths in the workspace manifest are relative to the folder that contains the manifest file.*

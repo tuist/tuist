@@ -44,7 +44,7 @@ final class FocusCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { _, _ in
+        generator.generateProjectStub = { _, _, _ in
             throw error
         }
         XCTAssertThrowsError(try subject.run(with: result)) {
@@ -58,7 +58,7 @@ final class FocusCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { _, _ in
+        generator.generateProjectStub = { _, _, _ in
             workspacePath
         }
         try subject.run(with: result)

@@ -1,6 +1,5 @@
 import Basic
 import Foundation
-import ProjectDescription
 import xcodeproj
 import XCTest
 @testable import TuistCoreTesting
@@ -8,11 +7,7 @@ import XCTest
 
 final class WorkspaceGeneratorTests: XCTestCase {
     var subject: WorkspaceGenerator!
-
     var path: AbsolutePath!
-    var target: TuistKit.Target!
-    var project: TuistKit.Project!
-    var graph: Graph!
     var fileHandler: MockFileHandler!
 
     override func setUp() {
@@ -22,10 +17,8 @@ final class WorkspaceGeneratorTests: XCTestCase {
             fileHandler = try MockFileHandler()
             path = fileHandler.currentPath
 
-            target = Target.test(name: "App")
-            project = Project.test(path: path)
-
-            let projectDirectoryHelper = ProjectDirectoryHelper(environmentController: try MockEnvironmentController(), fileHandler: fileHandler)
+            let projectDirectoryHelper = ProjectDirectoryHelper(environmentController: try MockEnvironmentController(),
+                                                                fileHandler: fileHandler)
 
             subject = WorkspaceGenerator(
                 system: MockSystem(),
@@ -34,76 +27,134 @@ final class WorkspaceGeneratorTests: XCTestCase {
                 fileHandler: fileHandler
             )
 
-            let targetNode = TargetNode(project: project, target: target, dependencies: [])
-            let cache = GraphLoaderCache()
-            cache.add(targetNode: targetNode)
-
-            graph = Graph.test(entryPath: path, cache: cache)
-
         } catch {
             XCTFail(error.localizedDescription)
         }
     }
 
-    func test_generate_includesManifests_bothFilesExist() throws {
-        // Given both files are available
-        // When generating the workspace
-        // I expect both files to be added to the workspace
+    // MARK: - Tests
 
-        try fileHandler.touch(path.appending(component: "Workspace.swift"))
-        try fileHandler.touch(path.appending(component: "Setup.swift"))
+    func test_generate_workspaceStructure() throws {
+        // Given
+        try createFiles([
+            "README.md",
+            "Documentation/README.md",
+            "Website/index.html",
+            "Website/about.html",
+        ])
 
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
+        let additionalFiles: [Workspace.Element] = [
+            .file(path: path.appending(RelativePath("README.md"))),
+            .file(path: path.appending(RelativePath("Documentation/README.md"))),
+            .folderReference(path: path.appending(RelativePath("Website"))),
+        ]
 
-        let workspace = try readWorkspace(at: path)
+        let graph = Graph.test(entryPath: path)
+        let workspace = Workspace.test(additionalFiles: additionalFiles)
 
-        XCTAssertTrue(workspace.contains("Setup.swift"))
-        XCTAssertTrue(workspace.contains("Workspace.swift"))
+        // When
+        let workspacePath = try subject.generate(workspace: workspace,
+                                                 path: path,
+                                                 graph: graph,
+                                                 options: GenerationOptions())
+
+        // Then
+        let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
+        XCTAssertEqual(xcworkspace.data.children, [
+            .group(.init(location: .group("Documentation"), name: "Documentation", children: [
+                .file(.init(location: .group("README.md"))),
+            ])),
+            .file(.init(location: .group("README.md"))),
+            .file(.init(location: .group("Website"))),
+        ])
     }
 
-    func test_generate_includesManifests_oneFilesExists() throws {
-        // Given only Setup.swift is available
-        // When generating the workspace
-        // I expect Setup.swift to be added to the workspace and Workspace.swift to not be added
+    func test_generate_workspaceStructureWithProjects() throws {
+        // Given
+        let target = anyTarget()
+        let project = Project.test(path: path,
+                                   name: "Test",
+                                   settings: nil,
+                                   targets: [target])
+        let graph = createGraph(project: project,
+                                dependencies: [(target, [])])
+        let workspace = Workspace.test(projects: [project.path])
 
-        try fileHandler.touch(path.appending(component: "Setup.swift"))
+        // When
+        let workspacePath = try subject.generate(workspace: workspace,
+                                                 path: path,
+                                                 graph: graph,
+                                                 options: GenerationOptions())
 
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
-
-        let workspace = try readWorkspace(at: path)
-
-        XCTAssertTrue(workspace.contains("Setup.swift"))
-        XCTAssertFalse(workspace.contains("Workspace.swift"))
+        // Then
+        let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
+        XCTAssertEqual(xcworkspace.data.children, [
+            .file(.init(location: .group("Test.xcodeproj"))),
+        ])
     }
 
-    func test_generate_includesManifests_noFilesExists() throws {
-        // Given no manifest files exist
-        // When generating the workspace
-        // I do not expect Setup.swift or Workspace.swift to be added
+    // MARK: - Helpers
 
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
-
-        let workspace = try readWorkspace(at: path)
-
-        XCTAssertFalse(workspace.contains("Setup.swift"))
-        XCTAssertFalse(workspace.contains("Workspace.swift"))
+    func anyTarget() -> Target {
+        return Target.test(infoPlist: nil,
+                           entitlements: nil,
+                           settings: nil)
     }
 
-    func test_generate_relativeToGroup() throws {
-        try fileHandler.touch(path.appending(component: "Workspace.swift"))
-
-        // Given the workspace manifest file exists
-        // When generating the workspace
-        // I expect the file to be relative to the workspace
-
-        try subject.generate(path: path, graph: graph, options: GenerationOptions())
-
-        let workspace = try readWorkspace(at: path)
-
-        XCTAssertTrue(workspace.contains("location = \"group:Workspace.swift\">"))
+    @discardableResult
+    func createFiles(_ files: [String]) throws -> [AbsolutePath] {
+        let paths = files.map { fileHandler.currentPath.appending(RelativePath($0)) }
+        try paths.forEach {
+            try fileHandler.touch($0)
+        }
+        return paths
     }
 
-    func readWorkspace(at path: AbsolutePath) throws -> String {
-        return try fileHandler.readTextFile(path.appending(component: "test.xcworkspace").appending(component: "contents.xcworkspacedata"))
+    private func createTargetNodes(project: Project,
+                                   dependencies: [(target: Target, dependencies: [Target])]) -> [TargetNode] {
+        let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
+            ($0.target.name, TargetNode(project: project,
+                                        target: $0.target,
+                                        dependencies: []))
+        })
+
+        return dependencies.map {
+            let node = nodesCache[$0.target.name]!
+            node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
+            return node
+        }
+    }
+
+    private func createGraph(project: Project,
+                             dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
+        let targetNodes = createTargetNodes(project: project, dependencies: dependencies)
+
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(name: project.name,
+                               entryPath: project.path,
+                               cache: cache,
+                               entryNodes: targetNodes)
+
+        targetNodes.forEach { cache.add(targetNode: $0) }
+        cache.add(project: project)
+
+        return graph
+    }
+}
+
+extension XCWorkspaceDataElement: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        switch self {
+        case let .file(file):
+            return file.location.path
+        case let .group(group):
+            return group.debugDescription
+        }
+    }
+}
+
+extension XCWorkspaceDataGroup: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return children.debugDescription
     }
 }

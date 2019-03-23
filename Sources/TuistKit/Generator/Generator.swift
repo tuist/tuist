@@ -16,8 +16,8 @@ struct GeneratorConfig {
 }
 
 protocol Generating {
-    func generateProject(at path: AbsolutePath, config: GeneratorConfig) throws -> AbsolutePath
-    func generateWorkspace(at path: AbsolutePath, config: GeneratorConfig) throws -> AbsolutePath
+    func generateProject(at path: AbsolutePath, config: GeneratorConfig, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath
+    func generateWorkspace(at path: AbsolutePath, config: GeneratorConfig, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath
 }
 
 extension Generating {
@@ -25,10 +25,13 @@ extension Generating {
                   config: GeneratorConfig,
                   manifestLoader: GraphManifestLoading) throws -> AbsolutePath {
         let manifests = manifestLoader.manifests(at: path)
+        let workspaceFiles: [AbsolutePath] = [Manifest.workspace, Manifest.setup]
+            .compactMap { try? manifestLoader.manifestPath(at: path, manifest: $0) }
+
         if manifests.contains(.workspace) {
-            return try generateWorkspace(at: path, config: config)
+            return try generateWorkspace(at: path, config: config, workspaceFiles: workspaceFiles)
         } else if manifests.contains(.project) {
-            return try generateProject(at: path, config: config)
+            return try generateProject(at: path, config: config, workspaceFiles: workspaceFiles)
         } else {
             throw GraphManifestLoaderError.manifestNotFound(path)
         }
@@ -39,30 +42,52 @@ class Generator: Generating {
     private let graphLoader: GraphLoading
     private let workspaceGenerator: WorkspaceGenerating
 
-    init(system: Systeming = System(),
-         printer: Printing = Printer(),
-         fileHandler: FileHandling = FileHandler(),
-         modelLoader: GeneratorModelLoading) {
-        graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
-        workspaceGenerator = WorkspaceGenerator(system: system,
-                                                printer: printer,
-                                                projectDirectoryHelper: ProjectDirectoryHelper(),
-                                                fileHandler: fileHandler)
+    convenience init(system: Systeming = System(),
+                     printer: Printing = Printer(),
+                     fileHandler: FileHandling = FileHandler(),
+                     modelLoader: GeneratorModelLoading) {
+        let graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
+        let workspaceGenerator = WorkspaceGenerator(system: system,
+                                                    printer: printer,
+                                                    projectDirectoryHelper: ProjectDirectoryHelper(),
+                                                    fileHandler: fileHandler)
+        self.init(graphLoader: graphLoader,
+                  workspaceGenerator: workspaceGenerator)
     }
 
-    func generateProject(at path: AbsolutePath, config: GeneratorConfig) throws -> AbsolutePath {
-        let graph = try graphLoader.loadProject(path: path)
+    init(graphLoader: GraphLoading,
+         workspaceGenerator: WorkspaceGenerating) {
+        self.graphLoader = graphLoader
+        self.workspaceGenerator = workspaceGenerator
+    }
 
-        return try workspaceGenerator.generate(path: path,
+    func generateProject(at path: AbsolutePath,
+                         config: GeneratorConfig,
+                         workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+        let (graph, project) = try graphLoader.loadProject(path: path)
+
+        let workspace = Workspace(name: project.name,
+                                  projects: graph.projectPaths,
+                                  additionalFiles: workspaceFiles.map(Workspace.Element.file))
+
+        return try workspaceGenerator.generate(workspace: workspace,
+                                               path: path,
                                                graph: graph,
                                                options: config.options,
                                                directory: config.directory)
     }
 
-    func generateWorkspace(at path: AbsolutePath, config: GeneratorConfig) throws -> AbsolutePath {
-        let graph = try graphLoader.loadWorkspace(path: path)
+    func generateWorkspace(at path: AbsolutePath,
+                           config: GeneratorConfig,
+                           workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+        let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
 
-        return try workspaceGenerator.generate(path: path,
+        let updatedWorkspace = workspace
+            .merging(projects: graph.projectPaths)
+            .adding(files: workspaceFiles)
+
+        return try workspaceGenerator.generate(workspace: updatedWorkspace,
+                                               path: path,
                                                graph: graph,
                                                options: config.options,
                                                directory: config.directory)
