@@ -208,7 +208,7 @@ final class ProjectGenerator: ProjectGenerating {
                            workspace: XCWorkspace,
                            pbxproj: PBXProj,
                            project: Project,
-                           graph: Graphing) throws -> GeneratedProject {
+                           graph _: Graphing) throws -> GeneratedProject {
         var generatedProject: GeneratedProject!
 
         try fileHandler.inTemporaryDirectory { temporaryPath in
@@ -221,8 +221,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 targets: nativeTargets,
                                                 name: xcodeprojPath.components.last!)
             try writeSchemes(project: project,
-                             generatedProject: generatedProject,
-                             graph: graph)
+                             generatedProject: generatedProject)
             try fileHandler.replace(xcodeprojPath, with: temporaryPath)
         }
 
@@ -237,12 +236,8 @@ final class ProjectGenerator: ProjectGenerating {
     }
 
     fileprivate func writeSchemes(project: Project,
-                                  generatedProject: GeneratedProject,
-                                  graph: Graphing) throws {
+                                  generatedProject: GeneratedProject) throws {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
-        try schemesGenerator.generateProjectScheme(project: project,
-                                                   generatedProject: generatedProject,
-                                                   graph: graph)
     }
 }
