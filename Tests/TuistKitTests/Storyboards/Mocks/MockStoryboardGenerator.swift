@@ -7,22 +7,31 @@ final class MockStoryboardGenerator: StoryboardGenerating {
         let path: AbsolutePath
         let name: String
         let platform: Platform
-        let product: Product
-        let isLaunchScreen: Bool
+        let product: Product?
     }
 
     var generatedStoryboards: [GeneratedStoryboard] = []
     var generateStub: Error?
 
-    func generate(path: AbsolutePath, name: String, platform: Platform, product: Product, isLaunchScreen: Bool) throws {
+    func generateMain(path: AbsolutePath, name: String, platform: Platform) throws {
         let storyboard = GeneratedStoryboard(path: path,
                                              name: name,
                                              platform: platform,
-                                             product: product,
-                                             isLaunchScreen: isLaunchScreen)
+                                             product: nil)
+        try check(for: storyboard)
+    }
 
+    func generateLaunchScreen(path: AbsolutePath, name: String, platform: Platform, product: Product) throws {
+        let storyboard = GeneratedStoryboard(path: path,
+                                             name: name,
+                                             platform: platform,
+                                             product: product)
+        try check(for: storyboard)
+    }
+
+    private func check(for storyboard: GeneratedStoryboard) throws {
         if generatedStoryboards.contains(storyboard) {
-            generateStub = "A\(storyboard.isLaunchScreen ? " launch screen" : "") storyboard with the name \(storyboard.name).storyboard for \(platform) was generated more than once."
+            generateStub = "A storyboard with the name \(storyboard.name).storyboard for \(storyboard.platform) was generated more than once."
         }
 
         generatedStoryboards.append(storyboard)

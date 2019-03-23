@@ -326,18 +326,15 @@ class InitCommand: NSObject, Command {
         let sourcesPath = path.appending(component: "Sources")
 
         if product == .app, platform.supportsLaunchScreen {
-            try storyboardGenerator.generate(path: sourcesPath,
-                                             name: "Launch Screen",
-                                             platform: platform,
-                                             product: product,
-                                             isLaunchScreen: true)
+            try storyboardGenerator.generateLaunchScreen(path: sourcesPath,
+                                                         name: "Launch Screen",
+                                                         platform: platform,
+                                                         product: product)
         }
 
-        try storyboardGenerator.generate(path: sourcesPath,
-                                         name: name,
-                                         platform: platform,
-                                         product: product,
-                                         isLaunchScreen: false)
+        try storyboardGenerator.generateMain(path: sourcesPath,
+                                             name: name,
+                                             platform: platform)
     }
 
     fileprivate func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {

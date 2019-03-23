@@ -24,11 +24,14 @@ enum StoryboardGenerationError: FatalError, Equatable {
 }
 
 protocol StoryboardGenerating: AnyObject {
-    func generate(path: AbsolutePath,
-                  name: String,
-                  platform: Platform,
-                  product: Product,
-                  isLaunchScreen: Bool) throws
+    func generateMain(path: AbsolutePath,
+                      name: String,
+                      platform: Platform) throws
+
+    func generateLaunchScreen(path: AbsolutePath,
+                              name: String,
+                              platform: Platform,
+                              product: Product) throws
 }
 
 final class StoryboardGenerator: StoryboardGenerating {
@@ -42,8 +45,21 @@ final class StoryboardGenerator: StoryboardGenerating {
         self.fileHandler = fileHandler
     }
 
-    func generate(path: AbsolutePath, name: String, platform: Platform, product: Product, isLaunchScreen: Bool) throws {
-        if isLaunchScreen, product == .app, !platform.supportsLaunchScreen {
+    func generateMain(path: AbsolutePath, name: String, platform: Platform) throws {
+        let storyboardPath = path.appending(component: "\(name).storyboard")
+
+        if fileHandler.exists(storyboardPath) {
+            throw StoryboardGenerationError.alreadyExisting(storyboardPath)
+        }
+
+        try StoryboardGenerator.xcstoarybaordContent(platform: platform)
+            .write(to: storyboardPath.url,
+                   atomically: true,
+                   encoding: .utf8)
+    }
+
+    func generateLaunchScreen(path: AbsolutePath, name: String, platform: Platform, product: Product) throws {
+        if product == .app, !platform.supportsLaunchScreen {
             throw StoryboardGenerationError.launchScreenUnsupported(platform, product)
         }
 
@@ -53,35 +69,29 @@ final class StoryboardGenerator: StoryboardGenerating {
             throw StoryboardGenerationError.alreadyExisting(storyboardPath)
         }
 
-        try StoryboardGenerator.xcstoarybaordContent(platform: platform, isLaunchScreen: isLaunchScreen)
+        try StoryboardGenerator.xcstoarybaordContent(platform: platform)
+            .replacingOccurrences(of: "launchScreen=\"NO\"", with: "launchScreen=\"YES\"")
+            .replacingOccurrences(of: "STE-27-s1a", with: "STE-27-s1b")
             .write(to: storyboardPath.url,
                    atomically: true,
                    encoding: .utf8)
     }
 
-    static func xcstoarybaordContent(platform: Platform, isLaunchScreen: Bool) -> String {
-        return StoryboardContent.generate(for: platform, isLaunchScreen: isLaunchScreen)
+    static func xcstoarybaordContent(platform: Platform) -> String {
+        return StoryboardContent.generate(for: platform)
     }
 }
 
 private extension StoryboardGenerator {
     enum StoryboardContent {
-        static func generate(for platform: Platform, isLaunchScreen: Bool) -> String {
-            var content = """
+        static func generate(for platform: Platform) -> String {
+            return """
             \(header(for: platform))
             \(document(for: platform))
             \(dependencies(for: platform))
             \(scenes(for: platform))
             </document>
             """
-
-            if isLaunchScreen {
-                content = content
-                    .replacingOccurrences(of: "launchScreen=\"NO\"", with: "launchScreen=\"YES\"")
-                    .replacingOccurrences(of: "BYZ-38-t0a", with: "BYZ-38-t0b")
-            }
-
-            return content
         }
 
         private static func header(for platform: Platform) -> String {
@@ -97,7 +107,7 @@ private extension StoryboardGenerator {
             switch platform {
             case .iOS:
                 return """
-                <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="BYZ-38-t0a" launchScreen="NO">
+                <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="STE-27-s1a" launchScreen="NO">
                 """
             case .macOS:
                 return """
@@ -105,7 +115,7 @@ private extension StoryboardGenerator {
                 """
             case .tvOS:
                 return """
-                <document type="com.apple.InterfaceBuilder.AppleTV.Storyboard" version="3.0" toolsVersion="13122.16" targetRuntime="AppleTV" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="BYZ-38-t0a">
+                <document type="com.apple.InterfaceBuilder.AppleTV.Storyboard" version="3.0" toolsVersion="13122.16" targetRuntime="AppleTV" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="STE-27-s1a">
                 """
             }
         }
@@ -137,7 +147,7 @@ private extension StoryboardGenerator {
                 <!--View Controller-->
                 <scene sceneID="tne-QT-ifu">
                 <objects>
-                <viewController id="BYZ-38-t0a" customModuleProvider="target" sceneMemberID="viewController">
+                <viewController id="STE-27-s1a" customModuleProvider="target" sceneMemberID="viewController">
                 <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
                 <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -870,7 +880,7 @@ private extension StoryboardGenerator {
                 <!--View Controller-->
                 <scene sceneID="tne-QT-ifu">
                 <objects>
-                <viewController id="BYZ-38-t0a" customModuleProvider="target" sceneMemberID="viewController">
+                <viewController id="STE-27-s1a" customModuleProvider="target" sceneMemberID="viewController">
                 <layoutGuides>
                 <viewControllerLayoutGuide type="top" id="y3c-jy-aDJ"/>
                 <viewControllerLayoutGuide type="bottom" id="wfy-db-euE"/>

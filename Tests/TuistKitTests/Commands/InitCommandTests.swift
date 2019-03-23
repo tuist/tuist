@@ -132,14 +132,12 @@ final class InitCommandTests: XCTestCase {
         let launchScreenStoryboard = Storyboard(path: sourcesPath,
                                                 name: "Launch Screen",
                                                 platform: .iOS,
-                                                product: .app,
-                                                isLaunchScreen: true)
+                                                product: .app)
 
         let mainStoryboard = Storyboard(path: sourcesPath,
                                         name: name,
                                         platform: .iOS,
-                                        product: .app,
-                                        isLaunchScreen: false)
+                                        product: nil)
 
         XCTAssertEqual(storyboardGenerator.generatedStoryboards, [launchScreenStoryboard, mainStoryboard])
         XCTAssertEqual(storyboardGenerator.generatedStoryboards.count, 2)
