@@ -6,6 +6,28 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+### Added
+
+- Add Homebrew tap up https://github.com/tuist/tuist/pull/281 by @pepibumur
+- Create a Setup.swift file when running the init command https://github.com/tuist/tuist/pull/283 by @pepibumur
+- Update `tuistenv` when running `tuist update` https://github.com/tuist/tuist/pull/288 by @pepibumur.
+- Allow linking of static products into dynamic frameworks https://github.com/tuist/tuist/pull/299 by @ollieatkinson
+- Workspace improvements https://github.com/tuist/tuist/pull/298 by @ollieatkinson & @kwridan.
+
+### Removed
+
+### Fixed
+
+- Fix duplicated embedded frameworks https://github.com/tuist/tuist/pull/280 by @pepibumur
+- Fix manifest target linker errors https://github.com/tuist/tuist/pull/287 by @kwridan
+- Build settings not being generated properly https://github.com/tuist/tuist/pull/282 by @pepibumur
+- Fix `instance method nearly matches optional requirements` warning in generated `AppDelegate.swift` in iOS projects https://github.com/tuist/tuist/pull/291 by @BalestraPatrick
+- Fix Header & Framework search paths override project or xcconfig settings https://github.com/tuist/tuist/pull/301 by @ollieatkinson
+
+## 0.12.0
+
+### Changed
+
 - Rename manifest group to `Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
 - Rename manifest target to `Project-Manifest` https://github.com/tuist/tuist/pull/227 by @pepibumur.
 - Replace swiftlint with swiftformat https://github.com/tuist/tuist/pull/239 by @pepibumur.

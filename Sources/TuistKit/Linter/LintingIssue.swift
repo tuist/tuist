@@ -45,19 +45,19 @@ extension Array where Element == LintingIssue {
     func printAndThrowIfNeeded(printer: Printing) throws {
         if count == 0 { return }
 
-        let errorIssues = filter({ $0.severity == .error })
-        let warningIssues = filter({ $0.severity == .warning })
+        let errorIssues = filter { $0.severity == .error }
+        let warningIssues = filter { $0.severity == .warning }
 
         if !warningIssues.isEmpty {
             printer.print("The following issues have been found:", color: .yellow)
-            let message = warningIssues.map({ "  - \($0.description)" }).joined(separator: "\n")
+            let message = warningIssues.map { "  - \($0.description)" }.joined(separator: "\n")
             printer.print(message)
         }
 
         if !errorIssues.isEmpty {
             let prefix = !warningIssues.isEmpty ? "\n" : ""
             printer.print("\(prefix)The following critical issues have been found:", color: .red)
-            let message = errorIssues.map({ "  - \($0.description)" }).joined(separator: "\n")
+            let message = errorIssues.map { "  - \($0.description)" }.joined(separator: "\n")
             printer.print(message)
 
             throw LintingError()

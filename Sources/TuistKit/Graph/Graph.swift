@@ -20,9 +20,18 @@ enum GraphError: FatalError {
     }
 }
 
-enum DependencyReference: Equatable {
+enum DependencyReference: Equatable, Hashable {
     case absolute(AbsolutePath)
     case product(String)
+
+    public func hash(into hasher: inout Hasher) {
+        switch self {
+        case let .absolute(path):
+            hasher.combine(path)
+        case let .product(product):
+            hasher.combine(product)
+        }
+    }
 
     static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
@@ -45,7 +54,7 @@ protocol Graphing: AnyObject {
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
+    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> Set<DependencyReference>
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
 
@@ -71,6 +80,10 @@ class Graph: Graphing {
     let entryNodes: [GraphNode]
     var projects: [Project] {
         return Array(cache.projects.values)
+    }
+
+    var projectPaths: [AbsolutePath] {
+        return Array(cache.projects.keys)
     }
 
     // MARK: - Init
@@ -127,12 +140,12 @@ class Graph: Graphing {
         references.append(contentsOf: precompiledLibrariesAndFrameworks)
 
         switch targetNode.target.product {
-        case .staticLibrary, .dynamicLibrary, .framework, .staticFramework:
+        case .staticLibrary, .dynamicLibrary, .staticFramework:
             // Ignore the products, they do not want to directly link the static libraries, the top level bundles will be responsible.
             break
-        case .app, .unitTests, .uiTests:
+        case .app, .unitTests, .uiTests, .framework:
 
-            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary)
+            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
                 .lazy
                 .map(\.target.productName)
                 .map(DependencyReference.product)
@@ -163,7 +176,7 @@ class Graph: Graphing {
 
     func embeddableFrameworks(path: AbsolutePath,
                               name: String,
-                              system: Systeming) throws -> [DependencyReference] {
+                              system: Systeming) throws -> Set<DependencyReference> {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -172,14 +185,6 @@ class Graph: Graphing {
             .app,
             .unitTests,
             .uiTests,
-//            .tvExtension,
-//            .appExtension,
-//            .watchExtension,
-//            .watch2Extension,
-//            .messagesExtension,
-//            .watchApp,
-//            .watch2App,
-//            .messagesApplication,
         ]
 
         if validProducts.contains(targetNode.target.product) == false {
@@ -212,12 +217,12 @@ class Graph: Graphing {
 
         references.append(contentsOf: transitiveFrameworks)
 
-        return references
+        return Set(references)
     }
 
     // MARK: - Fileprivate
 
-    fileprivate func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
+    private func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
         func isPathAndNameEqual(node: TargetNode) -> Bool {
             return node.path == path && node.target.name == name
         }
@@ -310,7 +315,7 @@ extension Graph {
     }
 
     // Traverse the graph from the target node using DFS and return all results passing the test.
-    internal func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool) -> Set<T> {
+    internal func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         for node in targetNode.dependencies where node is T {
@@ -338,7 +343,9 @@ extension Graph {
                 references.insert(node as! T)
             }
 
-            if let targetNode = node as? TargetNode {
+            if node is T, skip(node as! T) {
+                continue
+            } else if let targetNode = node as? TargetNode {
                 for child in targetNode.dependencies where !visited.contains(child) {
                     stack.push(child)
                 }

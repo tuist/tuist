@@ -51,7 +51,7 @@ class UpCustom: Up, GraphInitiatable {
         var arguments = [launchPath.asString]
         arguments.append(contentsOf: Array(meet.dropFirst()))
 
-        try system.popen(arguments)
+        try system.runAndPrint(arguments)
     }
 
     /// Returns true when the command doesn't need to be run.

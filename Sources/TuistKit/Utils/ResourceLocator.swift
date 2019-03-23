@@ -58,7 +58,7 @@ final class ResourceLocator: ResourceLocating {
         let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
         let paths = [bundlePath, bundlePath.parentDirectory]
         let candidates = paths.flatMap { path in
-            frameworkNames.map({ path.appending(component: $0) })
+            frameworkNames.map { path.appending(component: $0) }
         }
         guard let frameworkPath = candidates.first(where: { fileHandler.exists($0) }) else {
             throw ResourceLocatingError.notFound(name)

@@ -12,23 +12,30 @@ final class Updater: Updating {
     let versionsController: VersionsControlling
     let installer: Installing
     let printer: Printing
+    let envUpdater: EnvUpdating
 
     // MARK: - Init
 
     init(githubClient: GitHubClienting = GitHubClient(),
          versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
-         printer: Printing = Printer()) {
+         printer: Printing = Printer(),
+         envUpdater: EnvUpdating = EnvUpdater()) {
         self.githubClient = githubClient
         self.versionsController = versionsController
         self.installer = installer
         self.printer = printer
+        self.envUpdater = envUpdater
     }
 
     // MARK: - Internal
 
     func update(force: Bool) throws {
         let releases = try githubClient.releases()
+
+        defer {
+            try? self.envUpdater.update()
+        }
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
             printer.print("No remote versions found")

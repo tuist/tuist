@@ -17,6 +17,9 @@ class Project: Equatable, CustomStringConvertible {
     /// Project settings.
     let settings: Settings?
 
+    /// The group to place project files within
+    let filesGroup: ProjectGroup
+
     // MARK: - Init
 
     /// Initializes the project with its attributes.
@@ -28,11 +31,13 @@ class Project: Equatable, CustomStringConvertible {
     init(path: AbsolutePath,
          name: String,
          settings: Settings? = nil,
+         filesGroup: ProjectGroup,
          targets: [Target]) {
         self.path = path
         self.name = name
         self.targets = targets
         self.settings = settings
+        self.filesGroup = filesGroup
     }
 
     // MARK: - Init
@@ -82,11 +87,11 @@ class Project: Equatable, CustomStringConvertible {
 
             // Second criteria: Most dependent targets first.
             let secondDependencies = graph.targetDependencies(path: self.path, name: second.name)
-                .filter({ $0.path == self.path })
-                .map({ $0.target.name })
+                .filter { $0.path == self.path }
+                .map { $0.target.name }
             let firstDependencies = graph.targetDependencies(path: self.path, name: first.name)
-                .filter({ $0.path == self.path })
-                .map({ $0.target.name })
+                .filter { $0.path == self.path }
+                .map { $0.target.name }
 
             if secondDependencies.contains(first.name) {
                 return true

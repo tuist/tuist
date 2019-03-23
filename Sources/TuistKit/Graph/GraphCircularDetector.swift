@@ -32,6 +32,6 @@ final class GraphCircularDetector: GraphCircularDetecting {
     func complete(_ node: GraphCircularDetectorNode) {
         let nodes = edges[node]
         edges.removeValue(forKey: node)
-        nodes?.forEach({ complete($0) })
+        nodes?.forEach { complete($0) }
     }
 }

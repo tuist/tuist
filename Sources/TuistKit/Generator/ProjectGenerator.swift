@@ -28,9 +28,6 @@ final class ProjectGenerator: ProjectGenerating {
     /// System instance to run commands in the system.
     let system: Systeming
 
-    /// Instance to find Tuist resources.
-    let resourceLocator: ResourceLocating
-
     /// File handler instance to interact with the system files.
     let fileHandler: FileHandling
 
@@ -44,21 +41,18 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - schemesGenerator: Generator for the project schemes.
     ///   - printer: Printer instance to output messages to the user.
     ///   - system: System instance to run commands in the system.
-    ///   - resourceLocator: Instance to find Tuist resources.
     ///   - fileHandler: File handler instance to interact with the system files.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
          schemesGenerator: SchemesGenerating = SchemesGenerator(),
          printer: Printing = Printer(),
          system: Systeming = System(),
-         resourceLocator: ResourceLocating = ResourceLocator(),
          fileHandler: FileHandling = FileHandler()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
         self.printer = printer
         self.system = system
-        self.resourceLocator = resourceLocator
         self.fileHandler = fileHandler
     }
 
@@ -85,12 +79,11 @@ final class ProjectGenerator: ProjectGenerating {
                               classes: [:])
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
-        fileElements.generateProjectFiles(project: project,
-                                          graph: graph,
-                                          groups: groups,
-                                          pbxproj: pbxproj,
-                                          sourceRootPath: sourceRootPath,
-                                          fileHandler: fileHandler)
+        try fileElements.generateProjectFiles(project: project,
+                                              graph: graph,
+                                              groups: groups,
+                                              pbxproj: pbxproj,
+                                              sourceRootPath: sourceRootPath)
 
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
@@ -150,14 +143,6 @@ final class ProjectGenerator: ProjectGenerating {
                                      sourceRootPath: AbsolutePath,
                                      options: GenerationOptions,
                                      graph: Graphing) throws -> [String: PBXNativeTarget] {
-        try targetGenerator.generateManifestsTarget(project: project,
-                                                    pbxproj: pbxproj,
-                                                    pbxProject: pbxProject,
-                                                    groups: groups,
-                                                    sourceRootPath: sourceRootPath,
-                                                    options: options,
-                                                    resourceLocator: resourceLocator)
-
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -169,7 +154,6 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   sourceRootPath: sourceRootPath,
                                                                   options: options,
                                                                   graph: graph,
-                                                                  resourceLocator: resourceLocator,
                                                                   system: system)
             nativeTargets[target.name] = nativeTarget
         }

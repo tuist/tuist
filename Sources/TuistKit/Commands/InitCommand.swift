@@ -73,7 +73,7 @@ class InitCommand: NSObject, Command {
                                         completion: ShellCompletion.values([
                                             (value: "application", description: "Application"),
                                             (value: "framework", description: "Framework"),
-        ]))
+                                        ]))
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
                                          kind: String.self,
@@ -82,7 +82,7 @@ class InitCommand: NSObject, Command {
                                              (value: "ios", description: "iOS platform"),
                                              (value: "tvos", description: "tvOS platform"),
                                              (value: "macos", description: "macOS platform"),
-        ]))
+                                         ]))
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -113,6 +113,7 @@ class InitCommand: NSObject, Command {
         try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateStoryboards(name: name, path: path, platform: platform, product: product)
         try generateGitIgnore(path: path)
+        try generateSetup(path: path)
         printer.print(success: "Project generated at path \(path.asString).")
     }
 
@@ -237,6 +238,23 @@ class InitCommand: NSObject, Command {
         *.xcworkspace
         """
         try content.write(to: path.url, atomically: true, encoding: .utf8)
+    }
+
+    /// Generates a Setup.swift file in the given directory.
+    ///
+    /// - Parameter path: Path where the Setup.swift file will be created.
+    /// - Throws: An error if the file cannot be created.
+    fileprivate func generateSetup(path: AbsolutePath) throws {
+        let content = """
+        import ProjectDescription
+
+        let setup = Setup([
+            // .homebrew(packages: ["swiftlint", "carthage"]),
+            // .carthage()
+        ])
+        """
+        let setupPath = path.appending(component: "Setup.swift")
+        try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
     }
 
     // swiftlint:disable:next function_body_length

@@ -7,7 +7,7 @@ extension Target {
                      platform: Platform = .iOS,
                      product: Product = .app,
                      bundleId: String = "com.test.bundle_id",
-                     infoPlist: AbsolutePath = AbsolutePath("/Info.plist"),
+                     infoPlist: AbsolutePath? = AbsolutePath("/Info.plist"),
                      entitlements: AbsolutePath? = AbsolutePath("/Test.entitlements"),
                      settings: Settings? = Settings.test(),
                      sources: [AbsolutePath] = [],
@@ -16,7 +16,9 @@ extension Target {
                      headers: Headers? = nil,
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
-                     dependencies: [Dependency] = []) -> Target {
+                     filesGroup: ProjectGroup = .group(name: "Project"),
+                     dependencies: [Dependency] = [],
+                     includeInProjectScheme: Bool = true) -> Target {
         return Target(name: name,
                       platform: platform,
                       product: product,
@@ -30,6 +32,8 @@ extension Target {
                       coreDataModels: coreDataModels,
                       actions: actions,
                       environment: environment,
-                      dependencies: dependencies)
+                      filesGroup: filesGroup,
+                      dependencies: dependencies,
+                      includeInProjectScheme: includeInProjectScheme)
     }
 }

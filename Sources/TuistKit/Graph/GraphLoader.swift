@@ -3,8 +3,8 @@ import Foundation
 import TuistCore
 
 protocol GraphLoading: AnyObject {
-    func loadProject(path: AbsolutePath) throws -> Graph
-    func loadWorkspace(path: AbsolutePath) throws -> Graph
+    func loadProject(path: AbsolutePath) throws -> (Graph, Project)
+    func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace)
 }
 
 class GraphLoader: GraphLoading {
@@ -27,11 +27,11 @@ class GraphLoader: GraphLoading {
         self.modelLoader = modelLoader
     }
 
-    func loadProject(path: AbsolutePath) throws -> Graph {
+    func loadProject(path: AbsolutePath) throws -> (Graph, Project) {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let project = try Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        let entryNodes: [GraphNode] = try project.targets.map({ $0.name }).map { targetName in
+        let entryNodes: [GraphNode] = try project.targets.map { $0.name }.map { targetName in
             try TargetNode.read(name: targetName, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         }
         let graph = Graph(name: project.name,
@@ -39,10 +39,10 @@ class GraphLoader: GraphLoading {
                           cache: cache,
                           entryNodes: entryNodes)
         try lint(graph: graph)
-        return graph
+        return (graph, project)
     }
 
-    func loadWorkspace(path: AbsolutePath) throws -> Graph {
+    func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace) {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let workspace = try modelLoader.loadWorkspace(at: path)
@@ -50,7 +50,7 @@ class GraphLoader: GraphLoading {
             try (projectPath, Project.at(projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader))
         }
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
-            try project.1.targets.map({ $0.name }).map { targetName in
+            try project.1.targets.map { $0.name }.map { targetName in
                 try TargetNode.read(name: targetName, path: project.0, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
             }
         }
@@ -60,7 +60,7 @@ class GraphLoader: GraphLoading {
                           entryNodes: entryNodes)
 
         try lint(graph: graph)
-        return graph
+        return (graph, workspace)
     }
 
     private func lint(graph: Graph) throws {

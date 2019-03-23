@@ -97,21 +97,24 @@ final class SchemesGenerator: SchemesGenerating {
                             generatedProject: GeneratedProject,
                             graph: Graphing) -> XCScheme.BuildAction {
         let targets = project.sortedTargetsForProjectScheme(graph: graph)
-        let entries: [XCScheme.BuildAction.Entry] = targets.map { (target) -> XCScheme.BuildAction.Entry in
-            let pbxTarget = generatedProject.targets[target.name]!
-            let buildableReference = targetBuildableReference(target: target,
-                                                              pbxTarget: pbxTarget,
-                                                              projectName: generatedProject.name)
-            var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
-            if target.product.testsBundle {
-                buildFor.append(.testing)
-            } else {
-                buildFor.append(contentsOf: [.analyzing, .archiving, .profiling, .running, .testing])
-            }
+        let entries: [XCScheme.BuildAction.Entry] = targets
+            .filter(\.includeInProjectScheme)
+            .map { (target) -> XCScheme.BuildAction.Entry in
 
-            return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
-                                              buildFor: buildFor)
-        }
+                let pbxTarget = generatedProject.targets[target.name]!
+                let buildableReference = targetBuildableReference(target: target,
+                                                                  pbxTarget: pbxTarget,
+                                                                  projectName: generatedProject.name)
+                var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
+                if target.product.testsBundle {
+                    buildFor.append(.testing)
+                } else {
+                    buildFor.append(contentsOf: [.analyzing, .archiving, .profiling, .running, .testing])
+                }
+
+                return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
+                                                  buildFor: buildFor)
+            }
 
         return XCScheme.BuildAction(buildActionEntries: entries,
                                     parallelizeBuild: true,
@@ -127,7 +130,7 @@ final class SchemesGenerator: SchemesGenerating {
     func projectTestAction(project: Project,
                            generatedProject: GeneratedProject) -> XCScheme.TestAction {
         var testables: [XCScheme.TestableReference] = []
-        let testTargets = project.targets.filter({ $0.product.testsBundle })
+        let testTargets = project.targets.filter { $0.product.testsBundle }
 
         testTargets.forEach { target in
             let pbxTarget = generatedProject.targets[target.name]!
@@ -247,9 +250,9 @@ final class SchemesGenerator: SchemesGenerating {
         } else {
             macroExpansion = buildableReference
         }
-        let environmentVariables: [XCScheme.EnvironmentVariable] = target.environment.map({ variable, value in
+        let environmentVariables: [XCScheme.EnvironmentVariable] = target.environment.map { variable, value in
             XCScheme.EnvironmentVariable(variable: variable, value: value, enabled: true)
-        })
+        }
         return XCScheme.LaunchAction(buildableProductRunnable: buildableProductRunnable,
                                      buildConfiguration: "Debug",
                                      macroExpansion: macroExpansion,

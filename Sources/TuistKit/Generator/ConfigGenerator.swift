@@ -9,10 +9,6 @@ protocol ConfigGenerating: AnyObject {
                                fileElements: ProjectFileElements,
                                options: GenerationOptions) throws -> XCConfigurationList
 
-    func generateManifestsConfig(pbxproj: PBXProj,
-                                 options: GenerationOptions,
-                                 resourceLocator: ResourceLocating) throws -> XCConfigurationList
-
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
@@ -85,42 +81,6 @@ final class ConfigGenerator: ConfigGenerating {
                                       sourceRootPath: sourceRootPath)
     }
 
-    func generateManifestsConfig(pbxproj: PBXProj,
-                                 options _: GenerationOptions,
-                                 resourceLocator: ResourceLocating = ResourceLocator()) throws -> XCConfigurationList {
-        let configurationList = XCConfigurationList(buildConfigurations: [])
-        pbxproj.add(object: configurationList)
-
-        let addSettings: (XCBuildConfiguration) throws -> Void = { configuration in
-            let frameworkParentDirectory = try resourceLocator.projectDescription().parentDirectory
-            configuration.buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkParentDirectory.asString
-            configuration.buildSettings["LIBRARY_SEARCH_PATHS"] = frameworkParentDirectory.asString
-            configuration.buildSettings["SWIFT_FORCE_DYNAMIC_LINK_STDLIB"] = true
-            configuration.buildSettings["SWIFT_FORCE_STATIC_LINK_STDLIB"] = false
-            configuration.buildSettings["SWIFT_INCLUDE_PATHS"] = frameworkParentDirectory.asString
-            configuration.buildSettings["SWIFT_VERSION"] = Constants.swiftVersion
-            configuration.buildSettings["LD"] = "/usr/bin/true"
-            configuration.buildSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "SWIFT_PACKAGE"
-            configuration.buildSettings["OTHER_SWIFT_FLAGS"] = "-swift-version 4 -I \(frameworkParentDirectory.asString)"
-        }
-
-        // Debug configuration
-        let debugConfig = XCBuildConfiguration(name: "Debug", baseConfiguration: nil, buildSettings: [:])
-        pbxproj.add(object: debugConfig)
-        debugConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .debug, platform: .macOS, product: .framework, swift: true)
-        configurationList.buildConfigurations.append(debugConfig)
-        try addSettings(debugConfig)
-
-        // Release configuration
-        let releaseConfig = XCBuildConfiguration(name: "Release", baseConfiguration: nil, buildSettings: [:])
-        pbxproj.add(object: releaseConfig)
-        releaseConfig.buildSettings = BuildSettingsProvider.targetDefault(variant: .release, platform: .macOS, product: .framework, swift: true)
-        configurationList.buildConfigurations.append(releaseConfig)
-        try addSettings(releaseConfig)
-
-        return configurationList
-    }
-
     // MARK: - Fileprivate
 
     fileprivate func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
@@ -162,11 +122,17 @@ final class ConfigGenerator: ConfigGenerating {
                                                sourceRootPath: AbsolutePath) throws {
         let product = settingsProviderProduct(target)
         let platform = settingsProviderPlatform(target)
-
-        let defaultConfigSettings = BuildSettingsProvider.targetDefault(platform: platform, product: product)
+        let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
 
         var settings: [String: Any] = [:]
-        extend(buildSettings: &settings, with: defaultConfigSettings)
+        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: .all,
+                                                                                   platform: platform,
+                                                                                   product: product,
+                                                                                   swift: true))
+        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: variant,
+                                                                                   platform: platform,
+                                                                                   product: product,
+                                                                                   swift: true))
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
@@ -182,7 +148,9 @@ final class ConfigGenerator: ConfigGenerating {
 
         /// Target attributes
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
-        settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(target.infoPlist.relative(to: sourceRootPath).asString)"
+        if let infoPlist = target.infoPlist {
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).asString)"
+        }
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).asString)"
         }
@@ -230,7 +198,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     fileprivate func extend(buildSettings: inout [String: Any], with other: [String: Any]) {
         other.forEach { key, value in
-            if buildSettings[key] == nil {
+            if buildSettings[key] == nil || (value as? String)?.contains("$(inherited)") == false {
                 buildSettings[key] = value
             } else {
                 let previousValue: Any = buildSettings[key]!

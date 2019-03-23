@@ -88,19 +88,35 @@ final class GraphTests: XCTestCase {
     func test_linkableDependencies_whenAFrameworkTarget() throws {
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .framework)
+        let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let project = Project.test(targets: [target])
+
+        let staticDependencyNode = TargetNode(project: project,
+                                              target: staticDependency,
+                                              dependencies: [])
         let dependencyNode = TargetNode(project: project,
                                         target: dependency,
-                                        dependencies: [])
+                                        dependencies: [staticDependencyNode])
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
+
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
+        cache.add(targetNode: dependencyNode)
+        cache.add(targetNode: staticDependencyNode)
+
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
                                                  name: target.name)
+        XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product("Dependency.framework"))
+
+        let frameworkGot = try graph.linkableDependencies(path: project.path,
+                                                          name: dependency.name)
+
+        XCTAssertEqual(frameworkGot.count, 1)
+        XCTAssertTrue(frameworkGot.contains(.product("libStaticDependency.a")))
     }
 
     func test_librariesPublicHeaders() throws {

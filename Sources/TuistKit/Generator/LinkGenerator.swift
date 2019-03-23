@@ -120,7 +120,7 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    func generateEmbedPhase(dependencies: [DependencyReference],
+    func generateEmbedPhase(dependencies: Set<DependencyReference>,
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
@@ -167,9 +167,9 @@ final class LinkGenerator: LinkGenerating {
             if case let .absolute(path) = dependency { return path }
             return nil
         }
-        .map({ $0.removingLastComponent() })
-        .map({ $0.relative(to: sourceRootPath).asString })
-        .map({ "$(SRCROOT)/\($0)" })
+        .map { $0.removingLastComponent() }
+        .map { $0.relative(to: sourceRootPath).asString }
+        .map { "$(SRCROOT)/\($0)" }
 
         if paths.isEmpty { return }
 
@@ -178,7 +178,7 @@ final class LinkGenerator: LinkGenerating {
 
         let pathsValue = Set(paths).sorted().joined(separator: " ")
         buildConfigurations?.forEach { buildConfiguration in
-            var frameworkSearchPaths = (buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String) ?? ""
+            var frameworkSearchPaths = (buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String) ?? "$(inherited)"
             if frameworkSearchPaths.isEmpty {
                 frameworkSearchPaths = pathsValue
             } else {
@@ -192,13 +192,13 @@ final class LinkGenerator: LinkGenerating {
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws {
         let relativePaths = headersFolders
-            .map({ $0.relative(to: sourceRootPath).asString })
-            .map({ "$(SRCROOT)/\($0)" })
+            .map { $0.relative(to: sourceRootPath).asString }
+            .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
         configurationList.buildConfigurations.forEach {
-            var headers = ($0.buildSettings["HEADER_SEARCH_PATHS"] as? String) ?? ""
+            var headers = ($0.buildSettings["HEADER_SEARCH_PATHS"] as? String) ?? "$(inherited)"
             headers.append(" \(relativePaths.joined(separator: " "))")
             $0.buildSettings["HEADER_SEARCH_PATHS"] = headers
         }

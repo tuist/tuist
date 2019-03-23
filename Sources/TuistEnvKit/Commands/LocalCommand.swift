@@ -56,7 +56,7 @@ class LocalCommand: Command {
     private func printLocalVersions() throws {
         printer.print(section: "The following versions are available in the local environment:")
         let versions = versionController.semverVersions()
-        let output = versions.sorted().reversed().map({ "- \($0)" }).joined(separator: "\n")
+        let output = versions.sorted().reversed().map { "- \($0)" }.joined(separator: "\n")
         printer.print(output)
     }
 

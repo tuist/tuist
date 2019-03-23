@@ -3,9 +3,11 @@ import Foundation
 
 extension Workspace {
     static func test(name: String = "Workspace",
-                     projects: [String] = []) -> Workspace {
+                     projects: [String] = [],
+                     additionalFiles: [Element] = []) -> Workspace {
         return Workspace(name: name,
-                         projects: projects)
+                         projects: projects,
+                         additionalFiles: additionalFiles)
     }
 }
 

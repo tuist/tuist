@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 /// Protocol that defines the interface of an up command.
-protocol Upping: class {
+protocol Upping: AnyObject {
     /// Name of the command.
     var name: String { get }
 
@@ -77,6 +77,8 @@ class Up: Upping {
             return try UpCustom(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
         } else if type == "homebrew" {
             return try UpHomebrew(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+        } else if type == "homebrew-tap" {
+            return try UpHomebrewTap(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
         } else if type == "carthage" {
             return try UpCarthage(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
         }

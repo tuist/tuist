@@ -47,6 +47,10 @@ class TargetNode: GraphNode {
         hasher.combine(target.name)
     }
 
+    static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
+        return lhs.path == rhs.path && lhs.target == rhs.target
+    }
+
     static func read(name: String,
                      path: AbsolutePath,
                      cache: GraphLoaderCaching,
@@ -59,9 +63,9 @@ class TargetNode: GraphNode {
             throw GraphLoadingError.targetNotFound(name, path)
         }
 
-        let dependencies: [GraphNode] = try target.dependencies.map({
+        let dependencies: [GraphNode] = try target.dependencies.map {
             try node(for: $0, path: path, name: name, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        })
+        }
 
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
         circularDetector.complete(GraphCircularDetectorNode(path: path, name: name))
@@ -198,6 +202,16 @@ class LibraryNode: PrecompiledNode {
         self.publicHeaders = publicHeaders
         self.swiftModuleMap = swiftModuleMap
         super.init(path: path)
+    }
+
+    override func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+        hasher.combine(swiftModuleMap)
+        hasher.combine(publicHeaders)
+    }
+
+    static func == (lhs: LibraryNode, rhs: LibraryNode) -> Bool {
+        return lhs.path == rhs.path && lhs.swiftModuleMap == rhs.swiftModuleMap && lhs.publicHeaders == rhs.publicHeaders
     }
 
     static func parse(publicHeaders: RelativePath,

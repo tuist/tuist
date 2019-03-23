@@ -42,9 +42,9 @@ class ProjectLinter: ProjectLinting {
 
     fileprivate func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        let duplicatedTargets = project.targets.map({ $0.name })
+        let duplicatedTargets = project.targets.map { $0.name }
             .reduce(into: [String: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
-            .filter({ $0.value > 1 })
+            .filter { $0.value > 1 }
             .keys
         if !duplicatedTargets.isEmpty {
             let issue = LintingIssue(reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.asString) have duplicates.",
