@@ -57,8 +57,7 @@ final class ProjectGeneratorTests: XCTestCase {
                               product: .app)
         let test = Target.test(name: "Tests",
                                platform: .iOS,
-                               product: .unitTests,
-                               settings: Settings.test(base: ["TEST_TARGET_NAME": "App"], debug: nil, release: nil))
+                               product: .unitTests)
         let project = Project.test(path: fileHandler.currentPath,
                                    name: "Project",
                                    targets: [app, test])
