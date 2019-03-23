@@ -14,4 +14,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.makeKeyAndVisible()
         return true
     }
+    
+    func hello() -> String {
+        return "AppDelegate.hello()"
+    }
+    
 }

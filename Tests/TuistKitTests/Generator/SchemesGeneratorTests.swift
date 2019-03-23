@@ -274,6 +274,6 @@ final class SchemeGeneratorTests: XCTestCase {
     private func generatedProject(targets: [Target]) -> GeneratedProject {
         var pbxTargets: [String: PBXNativeTarget] = [:]
         targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
-        return GeneratedProject(path: AbsolutePath("/project.xcodeproj"), targets: pbxTargets, name: "project.xcodeproj")
+        return GeneratedProject(pbxproj: .init(), path: AbsolutePath("/project.xcodeproj"), targets: pbxTargets, name: "project.xcodeproj")
     }
 }

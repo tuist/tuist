@@ -23,6 +23,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Build settings not being generated properly https://github.com/tuist/tuist/pull/282 by @pepibumur
 - Fix `instance method nearly matches optional requirements` warning in generated `AppDelegate.swift` in iOS projects https://github.com/tuist/tuist/pull/291 by @BalestraPatrick
 - Fix Header & Framework search paths override project or xcconfig settings https://github.com/tuist/tuist/pull/301 by @ollieatkinson
+- Unit tests bundle for an app target compile & run https://github.com/tuist/tuist/pull/300 by @ollieatkinson
 
 ## 0.12.0
 

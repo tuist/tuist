@@ -25,4 +25,13 @@ let project = Project(name: "App",
                                  ],
                                  settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"])),
+                          Target(name: "AppUITests",
+                                 platform: .iOS,
+                                 product: .uiTests,
+                                 bundleId: "io.tuist.AppUITests",
+                                 infoPlist: "Tests.plist",
+                                 sources: "UITests/**",
+                                 dependencies: [
+                                    .target(name: "App"),
+                                    ])
 ])

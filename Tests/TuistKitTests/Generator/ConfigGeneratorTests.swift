@@ -79,6 +79,39 @@ final class ConfigGeneratorTests: XCTestCase {
         assert(config: releaseConfig, hasXcconfig: "release.xcconfig")
     }
 
+    func test_generateTestTargetConfiguration() throws {
+        // Given / When
+        try generateTestTargetConfig()
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/App",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    func test_generateUITestTargetConfiguration() throws {
+        // Given / When
+        try generateTestTargetConfig(uiTest: true)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_TARGET_NAME": "App",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
     private func generateProjectConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
@@ -130,8 +163,31 @@ final class ConfigGeneratorTests: XCTestCase {
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
                                              fileElements: fileElements,
+                                             graph: graph,
                                              options: options,
                                              sourceRootPath: AbsolutePath("/"))
+    }
+
+    private func generateTestTargetConfig(uiTest: Bool = false) throws {
+        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
+
+        let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
+
+        let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
+        let project = Project.test(path: dir.path, name: "Project", targets: [target])
+
+        let appTargetNode = TargetNode(project: project, target: appTarget, dependencies: [])
+        let testTargetNode = TargetNode(project: project, target: target, dependencies: [appTargetNode])
+
+        let graph = Graph.test(entryNodes: [appTargetNode, testTargetNode])
+
+        _ = try subject.generateTargetConfig(target,
+                                             pbxTarget: pbxTarget,
+                                             pbxproj: pbxproj,
+                                             fileElements: .init(),
+                                             graph: graph,
+                                             options: .init(),
+                                             sourceRootPath: dir.path)
     }
 
     // MARK: - Helpers

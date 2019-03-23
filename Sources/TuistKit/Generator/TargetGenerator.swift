@@ -74,6 +74,7 @@ final class TargetGenerator: TargetGenerating {
                                                  pbxTarget: pbxTarget,
                                                  pbxproj: pbxproj,
                                                  fileElements: fileElements,
+                                                 graph: graph,
                                                  options: options,
                                                  sourceRootPath: sourceRootPath)
 
