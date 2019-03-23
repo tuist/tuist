@@ -45,6 +45,10 @@ extension Platform {
 }
 
 extension Platform {
+    /**
+     Not all platforms support launch screens.
+     This check will `return true` if the platform supports launch screen storyboards.
+     */
     var supportsLaunchScreen: Bool {
         switch self {
         case .iOS:
