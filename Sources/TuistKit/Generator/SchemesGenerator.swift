@@ -13,7 +13,6 @@ protocol SchemesGenerating {
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateTargetSchemes(project: Project,
                                generatedProject: GeneratedProject) throws
-
 }
 
 final class SchemesGenerator: SchemesGenerating {
@@ -63,20 +62,20 @@ final class SchemesGenerator: SchemesGenerating {
         let targets = project.sortedTargetsForProjectScheme(graph: graph)
         let entries: [XCScheme.BuildAction.Entry] = targets.map { (target) -> XCScheme.BuildAction.Entry in
 
-                let pbxTarget = generatedProject.targets[target.name]!
-                let buildableReference = targetBuildableReference(target: target,
-                                                                  pbxTarget: pbxTarget,
-                                                                  projectName: generatedProject.name)
-                var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
-                if target.product.testsBundle {
-                    buildFor.append(.testing)
-                } else {
-                    buildFor.append(contentsOf: [.analyzing, .archiving, .profiling, .running, .testing])
-                }
-
-                return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
-                                                  buildFor: buildFor)
+            let pbxTarget = generatedProject.targets[target.name]!
+            let buildableReference = targetBuildableReference(target: target,
+                                                              pbxTarget: pbxTarget,
+                                                              projectName: generatedProject.name)
+            var buildFor: [XCScheme.BuildAction.Entry.BuildFor] = []
+            if target.product.testsBundle {
+                buildFor.append(.testing)
+            } else {
+                buildFor.append(contentsOf: [.analyzing, .archiving, .profiling, .running, .testing])
             }
+
+            return XCScheme.BuildAction.Entry(buildableReference: buildableReference,
+                                              buildFor: buildFor)
+        }
 
         return XCScheme.BuildAction(buildActionEntries: entries,
                                     parallelizeBuild: true,
