@@ -70,7 +70,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
 
     // MARK: - Fileprivate
 
-    fileprivate func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws {
+    private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
         if fileHandler.exists(frameworkOutputPath) {
             try fileHandler.delete(frameworkOutputPath)
@@ -83,9 +83,9 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         }
     }
 
-    fileprivate func copyBCSymbolMaps(action: XcodeBuild.Action,
-                                      frameworkAbsolutePath: AbsolutePath,
-                                      builtProductsDir: AbsolutePath) throws {
+    private func copyBCSymbolMaps(action: XcodeBuild.Action,
+                                  frameworkAbsolutePath: AbsolutePath,
+                                  builtProductsDir: AbsolutePath) throws {
         // A BCSymbolMap is a lot like a dSYM for bitcode.
         // Xcode builds it as part of creating the app binary, and also for every dynamic framework.
         // It's required for re-symbolicating function/method names to understand crashers.
@@ -112,9 +112,9 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         }
     }
 
-    fileprivate func copySymbols(frameworkDsymPath: AbsolutePath,
-                                 destinationPath: AbsolutePath!,
-                                 validArchs: [String]) throws {
+    private func copySymbols(frameworkDsymPath: AbsolutePath,
+                             destinationPath: AbsolutePath!,
+                             validArchs: [String]) throws {
         if fileHandler.exists(frameworkDsymPath) {
             let frameworkDsymOutputPath = destinationPath.appending(component: frameworkDsymPath.components.last!)
             if fileHandler.exists(frameworkDsymOutputPath) {

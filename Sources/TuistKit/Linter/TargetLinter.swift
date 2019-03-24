@@ -46,7 +46,7 @@ class TargetLinter: TargetLinting {
     ///
     /// - Parameter target: Target whose bundle identified will be linted.
     /// - Returns: An array with a linting issue if the bundle identifier contains invalid characters.
-    fileprivate func lintBundleIdentifier(target: Target) -> [LintingIssue] {
+    private func lintBundleIdentifier(target: Target) -> [LintingIssue] {
         var bundleIdentifier = target.bundleId
 
         // Remove any interpolated variables
@@ -64,7 +64,7 @@ class TargetLinter: TargetLinting {
         return []
     }
 
-    fileprivate func lintHasSourceFiles(target: Target) -> [LintingIssue] {
+    private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
         let files = target.sources
         var issues: [LintingIssue] = []
         if files.isEmpty {
@@ -73,7 +73,7 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    fileprivate func lintCopiedFiles(target: Target) -> [LintingIssue] {
+    private func lintCopiedFiles(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let files = target.resources
@@ -94,7 +94,7 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    fileprivate func lintInfoplistExists(target: Target) -> [LintingIssue] {
+    private func lintInfoplistExists(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist, !fileHandler.exists(infoPlist) {
             issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.asString)", severity: .error))
@@ -102,7 +102,7 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    fileprivate func lintEntitlementsExist(target: Target) -> [LintingIssue] {
+    private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let path = target.entitlements, !fileHandler.exists(path) {
             issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.asString)", severity: .error))
@@ -110,7 +110,7 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    fileprivate func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
+    private func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
         let productsNotAllowingResources: [Product] = [
             .dynamicLibrary,
             .staticLibrary,

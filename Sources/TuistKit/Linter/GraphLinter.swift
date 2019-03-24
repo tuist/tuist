@@ -23,8 +23,8 @@ class GraphLinter: GraphLinting {
         let targetNode: TargetNode
         let linkingStaticTargetNode: TargetNode
 
-        var hashValue: Int {
-            return linkingStaticTargetNode.hashValue
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(linkingStaticTargetNode)
         }
 
         static func == (lhs: StaticDepedencyWarning, rhs: StaticDepedencyWarning) -> Bool {
@@ -45,7 +45,7 @@ class GraphLinter: GraphLinting {
 
     // MARK: - Fileprivate
 
-    fileprivate func lintDependencies(graph: Graphing) -> [LintingIssue] {
+    private func lintDependencies(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         var evaluatedNodes: [GraphNode] = []
         graph.entryNodes.forEach {
@@ -57,7 +57,7 @@ class GraphLinter: GraphLinting {
         return issues
     }
 
-    fileprivate func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
+    private func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
         let frameworks = graph.frameworks
         let carthageFrameworks = frameworks.filter { $0.isCarthage }
         let nonCarthageFrameworks = frameworks.filter { !$0.isCarthage }
@@ -76,7 +76,7 @@ class GraphLinter: GraphLinting {
         return issues
     }
 
-    fileprivate func lintGraphNode(node: GraphNode, evaluatedNodes: inout [GraphNode]) -> [LintingIssue] {
+    private func lintGraphNode(node: GraphNode, evaluatedNodes: inout [GraphNode]) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         defer { evaluatedNodes.append(node) }
 
@@ -86,7 +86,9 @@ class GraphLinter: GraphLinting {
         targetNode.dependencies.forEach { toNode in
             if let toTargetNode = toNode as? TargetNode {
                 if toTargetNode.target.product.isStatic {
-                    let (inserted, oldMember) = linkedStaticProducts.insert(StaticDepedencyWarning(targetNode: targetNode, linkingStaticTargetNode: toTargetNode))
+                    let warning = StaticDepedencyWarning(targetNode: targetNode,
+                                                         linkingStaticTargetNode: toTargetNode)
+                    let (inserted, oldMember) = linkedStaticProducts.insert(warning)
 
                     if inserted == false {
                         let reason = "Target \(toTargetNode.target.name) has been linked against \(oldMember.targetNode.target.name) and \(targetNode.target.name), it is a static product so may introduce unwanted side effects."
@@ -103,7 +105,7 @@ class GraphLinter: GraphLinting {
         return issues
     }
 
-    fileprivate func lintDependency(from: TargetNode, to: TargetNode) -> [LintingIssue] {
+    private func lintDependency(from: TargetNode, to: TargetNode) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let fromTarget = LintableTarget(platform: from.target.platform,

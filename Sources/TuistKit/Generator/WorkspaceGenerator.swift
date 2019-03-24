@@ -146,7 +146,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     /// Create a XCWorkspaceDataElement.file from a path string.
     ///
     /// - Parameter path: The relative path to the file
-    fileprivate func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
+    private func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
         let location = XCWorkspaceDataElementLocationType.group(path.asString)
         let fileRef = XCWorkspaceDataFileRef(location: location)
         return .file(fileRef)

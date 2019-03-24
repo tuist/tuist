@@ -11,9 +11,9 @@ class DumpCommand: NSObject, Command {
 
     // MARK: - Attributes
 
-    fileprivate let fileHandler: FileHandling
-    fileprivate let manifestLoader: GraphManifestLoading
-    fileprivate let printer: Printing
+    private let fileHandler: FileHandling
+    private let manifestLoader: GraphManifestLoading
+    private let printer: Printing
     let pathArgument: OptionArgument<String>
 
     // MARK: - Init
