@@ -17,8 +17,7 @@ extension Target {
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
-                     dependencies: [Dependency] = [],
-                     includeInProjectScheme: Bool = true) -> Target {
+                     dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
                       platform: platform,
                       product: product,
@@ -33,7 +32,6 @@ extension Target {
                       actions: actions,
                       environment: environment,
                       filesGroup: filesGroup,
-                      dependencies: dependencies,
-                      includeInProjectScheme: includeInProjectScheme)
+                      dependencies: dependencies)
     }
 }

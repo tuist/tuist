@@ -7,6 +7,7 @@ Feature: Generate a new project using Tuist
     Then tuist generates the project
     Then I should be able to build the scheme App
     Then I should be able to test the scheme AppTests
+    Then I should be able to test the scheme AppUITests
     Then I should be able to build the scheme App-Manifest
 
   Scenario: The project is an iOS application with frameworks and tests (ios_app_with_frameworks)

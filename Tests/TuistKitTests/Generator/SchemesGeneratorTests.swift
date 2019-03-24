@@ -246,34 +246,11 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }
 
-    func test_projectBuildAction_includeInProjectScheme_false() {
-        let app = Target.test(name: "App", product: .app)
-        let excluded = Target.test(name: "Excluded", product: .framework, includeInProjectScheme: false)
-
-        let targets = [app, excluded]
-
-        let project = Project.test(targets: targets)
-        let graphCache = GraphLoaderCache()
-        let graph = Graph.test(cache: graphCache)
-
-        let got = subject.projectBuildAction(project: project,
-                                             generatedProject: generatedProject(targets: targets),
-                                             graph: graph)
-
-        XCTAssertTrue(got.parallelizeBuild)
-        XCTAssertEqual(got.buildActionEntries.count, 1)
-
-        let appEntry = got.buildActionEntries[0]
-
-        XCTAssertEqual(appEntry.buildableReference.buildableName, app.productName)
-        XCTAssertEqual(appEntry.buildableReference.blueprintName, app.name)
-    }
-
     // MARK: - Private
 
     private func generatedProject(targets: [Target]) -> GeneratedProject {
         var pbxTargets: [String: PBXNativeTarget] = [:]
         targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
-        return GeneratedProject(path: AbsolutePath("/project.xcodeproj"), targets: pbxTargets, name: "project.xcodeproj")
+        return GeneratedProject(pbxproj: .init(), path: AbsolutePath("/project.xcodeproj"), targets: pbxTargets, name: "project.xcodeproj")
     }
 }

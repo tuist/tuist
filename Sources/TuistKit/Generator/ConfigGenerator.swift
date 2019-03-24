@@ -13,6 +13,7 @@ protocol ConfigGenerating: AnyObject {
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               fileElements: ProjectFileElements,
+                              graph: Graphing,
                               options: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws
 }
@@ -58,6 +59,7 @@ final class ConfigGenerator: ConfigGenerating {
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               fileElements: ProjectFileElements,
+                              graph: Graphing,
                               options _: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws {
         let configurationList = XCConfigurationList(buildConfigurations: [])
@@ -68,6 +70,7 @@ final class ConfigGenerator: ConfigGenerating {
                                       buildConfiguration: .debug,
                                       configuration: target.settings?.debug,
                                       fileElements: fileElements,
+                                      graph: graph,
                                       pbxproj: pbxproj,
                                       configurationList: configurationList,
                                       sourceRootPath: sourceRootPath)
@@ -76,6 +79,7 @@ final class ConfigGenerator: ConfigGenerating {
                                       buildConfiguration: .release,
                                       configuration: target.settings?.release,
                                       fileElements: fileElements,
+                                      graph: graph,
                                       pbxproj: pbxproj,
                                       configurationList: configurationList,
                                       sourceRootPath: sourceRootPath)
@@ -117,6 +121,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            buildConfiguration: BuildConfiguration,
                                            configuration: Configuration?,
                                            fileElements: ProjectFileElements,
+                                           graph: Graphing,
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            sourceRootPath: AbsolutePath) throws {
@@ -163,6 +168,21 @@ final class ConfigGenerator: ConfigGenerating {
 
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
+        }
+
+        if target.product.testsBundle {
+            let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
+                targetNode.target.product == .app
+            }
+
+            if let app = appDependency {
+                settings["TEST_TARGET_NAME"] = "\(app.target.name)"
+
+                if target.product == .unitTests {
+                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productName)/\(app.target.name)"
+                    settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
+                }
+            }
         }
 
         variantBuildConfiguration.buildSettings = settings
