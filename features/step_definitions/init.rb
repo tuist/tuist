@@ -5,6 +5,6 @@ When(/I initialize a (.+) (.+) named (.+)/) do |platform, product, name|
 end
 
 Then(/I should have a file named (.+)/) do |file_name|
-    file = Dir.glob(File.join(@dir, "**/#{file_name}**")).first
-    assert(false, "File `#{file_name}` not found") unless File.exist?(file)
+  file = Dir.glob(File.join(@dir, "**/#{file_name}**")).first
+  assert(false, "File `#{file_name}` not found") unless File.exist?(file)
 end
