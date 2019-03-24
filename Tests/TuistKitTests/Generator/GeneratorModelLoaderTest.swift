@@ -404,10 +404,12 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_generatorModelLoaderError_type() {
         XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("").type, .abort)
+        XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").type, .abort)
     }
 
     func test_generatorModelLoaderError_description() {
         XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("abc").description, "abc is not yet supported")
+        XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").description, "Couldn't find file at path '/missing/path'")
     }
 
     // MARK: - Helpers
