@@ -1,39 +1,38 @@
 import Foundation
-import TuistCore
 
-struct LintingError: FatalError, Equatable {
-    var description: String = "Fatal linting issues found"
-    var type: ErrorType = .abort
+public struct LintingError: FatalError, Equatable {
+    public var description: String = "Fatal linting issues found"
+    public var type: ErrorType = .abort
 }
 
 /// Linting issue.
-struct LintingIssue: CustomStringConvertible, Equatable {
-    enum Severity: String {
+public struct LintingIssue: CustomStringConvertible, Equatable {
+    public enum Severity: String {
         case warning
         case error
     }
 
     // MARK: - Attributes
 
-    let reason: String
-    let severity: Severity
+    public let reason: String
+    public let severity: Severity
 
     // MARK: - Init
 
-    init(reason: String, severity: Severity) {
+    public init(reason: String, severity: Severity) {
         self.reason = reason
         self.severity = severity
     }
 
     // MARK: - CustomStringConvertible
 
-    var description: String {
+    public var description: String {
         return reason
     }
 
     // MARK: - Equatable
 
-    static func == (lhs: LintingIssue, rhs: LintingIssue) -> Bool {
+    public static func == (lhs: LintingIssue, rhs: LintingIssue) -> Bool {
         return lhs.severity == rhs.severity &&
             lhs.reason == rhs.reason
     }
@@ -41,7 +40,7 @@ struct LintingIssue: CustomStringConvertible, Equatable {
 
 // MARK: - Array Extension (Linting issues)
 
-extension Array where Element == LintingIssue {
+public extension Array where Element == LintingIssue {
     func printAndThrowIfNeeded(printer: Printing) throws {
         if count == 0 { return }
 

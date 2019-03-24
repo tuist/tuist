@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import XCTest
+@testable import TuistCore
 @testable import TuistCoreTesting
-@testable import TuistKit
 
 final class LintingIssueTests: XCTestCase {
     func test_description() {
