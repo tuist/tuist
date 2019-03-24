@@ -18,6 +18,12 @@ public class Target: Codable {
     /// Relative path to the Info.plist file.
     public let infoPlist: String
 
+    /// Name of the storyboard to be used for the main storyboard
+    public let mainStoryboard: String?
+
+    /// Name of the storybiard to be used for the launch screen
+    public let launchScreenStoryboard: String?
+
     /// Relative path to the entitlements file.
     public let entitlements: String?
 
@@ -51,6 +57,8 @@ public class Target: Codable {
         case product
         case bundleId = "bundle_id"
         case infoPlist = "info_plist"
+        case mainStoryboard = "main_storyboard"
+        case launchScreenStoryboard = "launch_screen_storyboard"
         case entitlements
         case settings
         case dependencies
@@ -84,6 +92,8 @@ public class Target: Codable {
                 product: Product,
                 bundleId: String,
                 infoPlist: String,
+                mainStoryboard: String? = nil,
+                launchScreenStoryboard: String? = nil,
                 sources: FileList? = nil,
                 resources: FileList? = nil,
                 headers: Headers? = nil,
@@ -98,6 +108,8 @@ public class Target: Codable {
         self.bundleId = bundleId
         self.product = product
         self.infoPlist = infoPlist
+        self.mainStoryboard = mainStoryboard
+        self.launchScreenStoryboard = launchScreenStoryboard
         self.entitlements = entitlements
         self.dependencies = dependencies
         self.settings = settings

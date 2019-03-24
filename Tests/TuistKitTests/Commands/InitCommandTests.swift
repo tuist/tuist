@@ -108,6 +108,7 @@ final class InitCommandTests: XCTestCase {
         let result = try parser.parse(["init", "--product", "application", "--platform", "ios"])
         try subject.run(with: result)
         let name = fileHandler.currentPath.components.last!
+
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
@@ -118,6 +119,11 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/Launch Screen.storyboard"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+
+        let projectContents = try fileHandler.readTextFile(fileHandler.currentPath.appending(component: "Project.swift"))
+        XCTAssertTrue(projectContents.contains("mainStoryboard:"))
+        XCTAssertTrue(projectContents.contains("launchScreenStoryboard:"))
+        XCTAssertTrue(projectContents.contains("\"Sources/**/*.storyboard\""))
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
@@ -142,6 +148,11 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
 
+        let projectContents = try fileHandler.readTextFile(fileHandler.currentPath.appending(component: "Project.swift"))
+        XCTAssertTrue(projectContents.contains("mainStoryboard:"))
+        XCTAssertTrue(projectContents.contains("\"Sources/**/*.storyboard\""))
+        XCTAssertFalse(projectContents.contains("launchScreenStoryboard:"))
+
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
         XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
@@ -165,6 +176,11 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
 
+        let projectContents = try fileHandler.readTextFile(fileHandler.currentPath.appending(component: "Project.swift"))
+        XCTAssertTrue(projectContents.contains("mainStoryboard:"))
+        XCTAssertTrue(projectContents.contains("\"Sources/**/*.storyboard\""))
+        XCTAssertFalse(projectContents.contains("launchScreenStoryboard:"))
+
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
         XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
@@ -186,6 +202,11 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+
+        let projectContents = try fileHandler.readTextFile(fileHandler.currentPath.appending(component: "Project.swift"))
+        XCTAssertFalse(projectContents.contains("mainStoryboard:"))
+        XCTAssertFalse(projectContents.contains("\"Sources/**/*.storyboard\""))
+        XCTAssertFalse(projectContents.contains("launchScreenStoryboard:"))
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
@@ -210,6 +231,11 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
 
+        let projectContents = try fileHandler.readTextFile(fileHandler.currentPath.appending(component: "Project.swift"))
+        XCTAssertFalse(projectContents.contains("mainStoryboard:"))
+        XCTAssertFalse(projectContents.contains("\"Sources/**/*.storyboard\""))
+        XCTAssertFalse(projectContents.contains("launchScreenStoryboard:"))
+
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
         XCTAssertEqual(playgroundGenerator.generateCallCount, 1)
@@ -231,6 +257,11 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.asString).")
+
+        let projectContents = try fileHandler.readTextFile(fileHandler.currentPath.appending(component: "Project.swift"))
+        XCTAssertFalse(projectContents.contains("mainStoryboard:"))
+        XCTAssertFalse(projectContents.contains("\"Sources/**/*.storyboard\""))
+        XCTAssertFalse(projectContents.contains("launchScreenStoryboard:"))
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))

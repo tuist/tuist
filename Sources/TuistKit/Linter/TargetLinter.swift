@@ -30,7 +30,9 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
         issues.append(contentsOf: lintLibraryHasNoResources(target: target))
-
+        issues.append(contentsOf: lintMainStoryboardHasNoFileExtension(target: target))
+        issues.append(contentsOf: lintLaunchScreenStoryboardIsSupported(target: target))
+        issues.append(contentsOf: lintLaunchScreenStoryboardHasNoFileExtension(target: target))
         if let settings = target.settings {
             issues.append(contentsOf: settingsLinter.lint(settings: settings))
         }
@@ -123,6 +125,35 @@ class TargetLinter: TargetLinting {
 
         if target.resources.isEmpty == false {
             return [LintingIssue(reason: "Target \(target.name) cannot contain resources. Libraries don't support resources", severity: .error)]
+        }
+
+        return []
+    }
+
+    private func lintMainStoryboardHasNoFileExtension(target: Target) -> [LintingIssue] {
+        if let mainStoryboard = target.mainStoryboard,
+            mainStoryboard.contains(".storyboard") {
+            return [LintingIssue(reason: "mainStoryboard value should not inculed the .storyboard extension", severity: .error)]
+        }
+
+        return []
+    }
+
+    private func lintLaunchScreenStoryboardIsSupported(target: Target) -> [LintingIssue] {
+        if target.launchScreenStoryboard != nil,
+            !target.platform.supportsLaunchScreen {
+            return [LintingIssue(reason: "\(target.platform) does not support launch screens so the launchScreenStoryboard property will be ignored", severity: .warning)]
+        }
+
+        return []
+    }
+
+    private func lintLaunchScreenStoryboardHasNoFileExtension(target: Target) -> [LintingIssue] {
+        guard let launchScreenStoryboard = target.launchScreenStoryboard
+        else { return [] }
+
+        if launchScreenStoryboard.contains(".storyboard") {
+            return [LintingIssue(reason: "launchScreenStoryboard value should not inculed the .storyboard extension", severity: .error)]
         }
 
         return []

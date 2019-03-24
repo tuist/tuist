@@ -18,6 +18,8 @@ class Target: Equatable {
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
     let infoPlist: AbsolutePath?
+    let mainStoryboard: String?
+    let launchScreenStoryboard: String?
     let entitlements: AbsolutePath?
     let settings: Settings?
     let dependencies: [Dependency]
@@ -36,6 +38,8 @@ class Target: Equatable {
          product: Product,
          bundleId: String,
          infoPlist: AbsolutePath? = nil,
+         mainStoryboard: String? = nil,
+         launchScreenStoryboard: String? = nil,
          entitlements: AbsolutePath? = nil,
          settings: Settings? = nil,
          sources: [AbsolutePath] = [],
@@ -51,6 +55,8 @@ class Target: Equatable {
         self.platform = platform
         self.bundleId = bundleId
         self.infoPlist = infoPlist
+        self.mainStoryboard = mainStoryboard
+        self.launchScreenStoryboard = launchScreenStoryboard
         self.entitlements = entitlements
         self.settings = settings
         self.sources = sources
@@ -113,6 +119,8 @@ class Target: Equatable {
             lhs.product == rhs.product &&
             lhs.bundleId == rhs.bundleId &&
             lhs.infoPlist == rhs.infoPlist &&
+            lhs.mainStoryboard == rhs.mainStoryboard &&
+            lhs.launchScreenStoryboard == rhs.launchScreenStoryboard &&
             lhs.entitlements == rhs.entitlements &&
             lhs.settings == rhs.settings &&
             lhs.sources == rhs.sources &&

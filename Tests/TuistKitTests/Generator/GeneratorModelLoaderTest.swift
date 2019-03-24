@@ -88,6 +88,34 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.targets[2].name, "Project-Manifest")
     }
 
+    func test_loadProject_with_storyboards() throws {
+        // Given
+        let mainStoryboard = "Test Main"
+        let launchScreenStoryboard = "Test Launch Screen"
+
+        let target = TargetManifest.test(mainStoryboard: mainStoryboard,
+                                         launchScreenStoryboard: launchScreenStoryboard)
+        let manifests = [
+            path: ProjectManifest.test(name: "Project",
+                                       targets: [
+                                           target,
+            ]),
+        ]
+
+        let manifestLoader = createManifestLoader(with: manifests)
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
+
+        // When
+        let model = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(model.targets.count, 2)
+        assert(target: model.targets[0], matches: target, at: path)
+        XCTAssertEqual(model.targets[1].name, "Project-Manifest")
+    }
+
     func test_loadWorkspace() throws {
         // Given
         let manifests = [

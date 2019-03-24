@@ -156,6 +156,16 @@ final class ConfigGenerator: ConfigGenerating {
         if let infoPlist = target.infoPlist {
             settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).asString)"
         }
+        if let mainStoryboard = target.mainStoryboard,
+            target.product == .app {
+            settings[target.platform.mainStoryboardKey] = mainStoryboard
+        }
+        if let launchScreenStoryboard = target.launchScreenStoryboard,
+            let launchScreenStoryboardKey = target.platform.launchScreenStoryboardKey,
+            target.product == .app,
+            target.platform.supportsLaunchScreen {
+            settings[launchScreenStoryboardKey] = launchScreenStoryboard
+        }
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).asString)"
         }

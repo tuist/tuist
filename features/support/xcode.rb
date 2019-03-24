@@ -8,6 +8,15 @@ module Xcode
     Dir.glob(glob).max_by { |f| File.mtime(f) }
   end
 
+def self.info_plist_for_product_with_name(product:, destination:, derived_data_path:)
+    product_path = product_with_name(
+                                 product,
+                                 destination: destination,
+                                 derived_data_path: derived_data_path
+                                 )
+    File.join(product_path, "Info.plist")
+  end
+
   def self.find_framework(product:, destination:, framework:, derived_data_path:)
     product_path = product_with_name(
       product,
@@ -42,6 +51,7 @@ module Xcode
     end
 
     resource_glob = File.join(product_path, "**/#{resource}")
+
     # /path/to/product/resource.png
     Dir.glob(resource_glob).first
   end

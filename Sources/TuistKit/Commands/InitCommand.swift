@@ -139,9 +139,9 @@ class InitCommand: NSObject, Command {
                                        platform: .\(platform.caseValue),
                                        product: .\(product.caseValue),
                                        bundleId: "io.tuist.\(name)",
-                                       infoPlist: "Info.plist",
+                                       infoPlist: "Info.plist",\(Content.storyboardContent(for: product, platform: platform))
                                        sources: ["Sources/**"],
-                                       resources: ["Resources/**", "Sources/**/*.storyboard"],
+                                       \(Content.resourcesContent(for: product))
                                        dependencies: [
                                             /* Target dependencies can be defined here */
                                             /* .framework(path: "framework") */
@@ -157,6 +157,7 @@ class InitCommand: NSObject, Command {
                                        ])
                               ])
         """
+
         try content.write(to: path.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
     }
 
@@ -349,8 +350,10 @@ class InitCommand: NSObject, Command {
                                                          product: product)
         }
 
-        try storyboardGenerator.generateMain(path: sourcesPath,
-                                             platform: platform)
+        if product == .app {
+            try storyboardGenerator.generateMain(path: sourcesPath,
+                                                 platform: platform)
+        }
     }
 
     private func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
@@ -393,6 +396,41 @@ class InitCommand: NSObject, Command {
             }
         } else {
             return .iOS
+        }
+    }
+
+    // MARK: - Content
+
+    private struct Content {
+        static func storyboardContent(for product: Product, platform: Platform) -> String {
+            if product == .app {
+                if platform.supportsLaunchScreen {
+                    return """
+
+                    mainStoryboard: "Main",
+                    launchScreenStoryboard: "Launch Screen",
+                    """
+                } else {
+                    return """
+
+                    mainStoryboard: "Main",
+                    """
+                }
+            }
+
+            return ""
+        }
+
+        static func resourcesContent(for product: Product) -> String {
+            if product == .app {
+                return """
+                resources: ["Resources/**", "Sources/**/*.storyboard"],
+                """
+            } else {
+                return """
+                resources: ["Resources/**"],
+                """
+            }
         }
     }
 }

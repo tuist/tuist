@@ -49,11 +49,6 @@ final class ConfigGeneratorTests: XCTestCase {
         // Given / When
         try generateTargetConfig()
 
-        // Then
-        let configurationList = pbxTarget.buildConfigurationList
-        let debugConfig = configurationList?.configuration(name: "Debug")
-        let releaseConfig = configurationList?.configuration(name: "Release")
-
         let commonSettings = [
             "Base": "Base",
             "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
@@ -70,13 +65,74 @@ final class ConfigGeneratorTests: XCTestCase {
             "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
         ]
 
-        assert(config: debugConfig, contains: commonSettings)
-        assert(config: debugConfig, contains: debugSettings)
-        assert(config: debugConfig, hasXcconfig: "debug.xcconfig")
+        // Then
+        assertTargetSettings(debugSettings: debugSettings,
+                             releaseSettings: releaseSettings,
+                             commonSettings: commonSettings)
+    }
 
-        assert(config: releaseConfig, contains: commonSettings)
-        assert(config: releaseConfig, contains: releaseSettings)
-        assert(config: releaseConfig, hasXcconfig: "release.xcconfig")
+    func test_generateTargetConfig_ios_app() throws {
+        // Given / When
+        let product: Product = .app
+        let platform: Platform = .iOS
+        let mainStoryboard = "Test Main"
+        let launchScreenStoryboard = "Test Launch Screen"
+        let commonSettings = [
+            platform.mainStoryboardKey: mainStoryboard,
+            platform.launchScreenStoryboardKey!: launchScreenStoryboard,
+        ]
+
+        try generateTargetConfig(product: product,
+                                 platform: platform,
+                                 mainStoryboard: mainStoryboard,
+                                 launchScreenStoryboard: launchScreenStoryboard)
+
+        // Then
+        assertTargetSettings(commonSettings: commonSettings,
+                             product: product,
+                             platform: platform,
+                             mainStoryboard: mainStoryboard,
+                             launchScreenStoryboard: launchScreenStoryboard)
+    }
+
+    func test_generateTargetConfig_tvOS_app() throws {
+        // Given / When
+        let product: Product = .app
+        let platform: Platform = .tvOS
+        let mainStoryboard = "Test Main"
+        let commonSettings = [
+            platform.mainStoryboardKey: mainStoryboard,
+        ]
+
+        try generateTargetConfig(product: product,
+                                 platform: platform,
+                                 mainStoryboard: mainStoryboard)
+
+        // Then
+        assertTargetSettings(commonSettings: commonSettings,
+                             product: product,
+                             platform: platform,
+                             mainStoryboard: mainStoryboard)
+    }
+
+    func test_generateTargetConfig_macOS_app() throws {
+        // Given / When
+        let product: Product = .app
+        let platform: Platform = .macOS
+        let mainStoryboard = "Test Main"
+        let commonSettings = [
+            platform.mainStoryboardKey: mainStoryboard,
+        ]
+
+        try generateTargetConfig(product: product,
+                                 platform: platform,
+                                 mainStoryboard: mainStoryboard)
+
+        // Then
+        assertTargetSettings(commonSettings: commonSettings,
+                             product: product,
+                             platform: platform,
+                             mainStoryboard: mainStoryboard)
     }
 
     func test_generateTestTargetConfiguration() throws {
@@ -134,13 +190,17 @@ final class ConfigGeneratorTests: XCTestCase {
                                               options: options)
     }
 
-    private func generateTargetConfig() throws {
+    private func generateTargetConfig(product: Product = .app, platform: Platform = .iOS, mainStoryboard: String = "Main", launchScreenStoryboard: String? = nil) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try fileHandler.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
         let target = Target.test(name: "Test",
+                                 platform: platform,
+                                 product: product,
+                                 mainStoryboard: mainStoryboard,
+                                 launchScreenStoryboard: launchScreenStoryboard,
                                  settings: Settings(base: ["Base": "Base"],
                                                     debug: Configuration(settings: ["Debug": "Debug"],
                                                                          xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
@@ -168,10 +228,10 @@ final class ConfigGeneratorTests: XCTestCase {
                                              sourceRootPath: AbsolutePath("/"))
     }
 
-    private func generateTestTargetConfig(uiTest: Bool = false) throws {
+    private func generateTestTargetConfig(product: Product = .app, platform: Platform = .iOS, uiTest: Bool = false) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
 
-        let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
+        let appTarget = Target.test(name: "App", platform: platform, product: product)
 
         let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir.path, name: "Project", targets: [target])
@@ -216,5 +276,25 @@ final class ConfigGeneratorTests: XCTestCase {
                        xconfigPath,
                        file: file,
                        line: line)
+    }
+
+    func assertTargetSettings(debugSettings: [String: String] = [:],
+                              releaseSettings: [String: String] = [:],
+                              commonSettings: [String: String] = [:],
+                              product _: Product = .app,
+                              platform _: Platform = .iOS,
+                              mainStoryboard _: String = "Main",
+                              launchScreenStoryboard _: String? = nil) {
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        assert(config: debugConfig, contains: commonSettings)
+        assert(config: debugConfig, contains: debugSettings)
+        assert(config: debugConfig, hasXcconfig: "debug.xcconfig")
+
+        assert(config: releaseConfig, contains: commonSettings)
+        assert(config: releaseConfig, contains: releaseSettings)
+        assert(config: releaseConfig, hasXcconfig: "release.xcconfig")
     }
 }

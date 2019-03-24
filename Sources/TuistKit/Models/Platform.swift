@@ -57,4 +57,22 @@ extension Platform {
             return false
         }
     }
+
+    var mainStoryboardKey: String {
+        switch self {
+        case .iOS, .tvOS:
+            return "UIMainStoryboardFile"
+        case .macOS:
+            return "NSMainStoryboardFile"
+        }
+    }
+
+    var launchScreenStoryboardKey: String? {
+        switch self {
+        case .iOS:
+            return "UILaunchStoryboardName"
+        case .macOS, .tvOS:
+            return nil
+        }
+    }
 }

@@ -66,6 +66,7 @@ final class TargetGenerator: TargetGenerating {
                                         productName: target.productName,
                                         product: productFileReference,
                                         productType: target.product.xcodeValue)
+
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 

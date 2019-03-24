@@ -88,4 +88,29 @@ final class TargetLinterTests: XCTestCase {
         let dynamicResult = subject.lint(target: staticLibrary)
         XCTAssertTrue(dynamicResult.contains(LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), dynamicResult.description)
     }
+
+    func test_lint_when_main_storyboard_contains_file_extension() {
+        let target = Target.test(mainStoryboard: "Main.storyboard")
+
+        let got = subject.lint(target: target)
+
+        XCTAssertTrue(got.contains(LintingIssue(reason: "mainStoryboard value should not inculed the .storyboard extension", severity: .error)))
+    }
+
+    func test_lint_when_launch_screen_storyboard_contains_file_extension() {
+        let target = Target.test(launchScreenStoryboard: "Launch Screen.storyboard")
+
+        let got = subject.lint(target: target)
+
+        XCTAssertTrue(got.contains(LintingIssue(reason: "launchScreenStoryboard value should not inculed the .storyboard extension", severity: .error)))
+    }
+
+    func test_lint_when_launch_screen_storyboard_is_not_supported_by_platform() {
+        let target = Target.test(platform: .macOS,
+                                 launchScreenStoryboard: "Launch Screen.storyboard")
+
+        let got = subject.lint(target: target)
+
+        XCTAssertTrue(got.contains(LintingIssue(reason: "\(target.platform) does not support launch screens so the launchScreenStoryboard property will be ignored", severity: .warning)))
+    }
 }

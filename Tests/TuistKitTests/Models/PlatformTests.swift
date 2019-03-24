@@ -16,4 +16,25 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(Platform.tvOS.xcodeSupportedPlatforms, "appletvsimulator appletvos")
 //        XCTAssertEqual(Platform.watchOS.xcodeSupportedPlatforms, "watchsimulator watchos")
     }
+
+    func test_supportsLaunchScreen() {
+        XCTAssertFalse(Platform.macOS.supportsLaunchScreen)
+        XCTAssertTrue(Platform.iOS.supportsLaunchScreen)
+        XCTAssertFalse(Platform.tvOS.supportsLaunchScreen)
+//        XCTAssertFalse(Platform.watchOS.supportsLaunchScreen)
+    }
+
+    func test_mainStoryboardKey() {
+        XCTAssertEqual(Platform.macOS.mainStoryboardKey, "NSMainStoryboardFile")
+        XCTAssertEqual(Platform.iOS.mainStoryboardKey, "UIMainStoryboardFile")
+        XCTAssertEqual(Platform.tvOS.mainStoryboardKey, "UIMainStoryboardFile")
+//        XCTAssertEqual(Platform.watchOS.mainStoryboardKey, "UIMainStoryboardFile")
+    }
+
+    func test_launchScreenStoryboardKey() {
+        XCTAssertNil(Platform.macOS.launchScreenStoryboardKey)
+        XCTAssertEqual(Platform.iOS.launchScreenStoryboardKey, "UILaunchStoryboardName")
+        XCTAssertNil(Platform.tvOS.launchScreenStoryboardKey)
+//        XCTAssertNil(Platform.watchOS.launchScreenStoryboardKey)
+    }
 }

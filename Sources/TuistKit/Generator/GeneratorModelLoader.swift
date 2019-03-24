@@ -153,6 +153,8 @@ extension TuistKit.Target {
         let dependencies = manifest.dependencies.map { TuistKit.Dependency.from(manifest: $0) }
 
         let infoPlist = path.appending(RelativePath(manifest.infoPlist))
+        let mainStoryboard = manifest.mainStoryboard
+        let launchScreenStoryboard = manifest.launchScreenStoryboard
         let entitlements = manifest.entitlements.map { path.appending(RelativePath($0)) }
 
         let settings = manifest.settings.map { TuistKit.Settings.from(manifest: $0, path: path) }
@@ -171,6 +173,8 @@ extension TuistKit.Target {
                       product: product,
                       bundleId: bundleId,
                       infoPlist: infoPlist,
+                      mainStoryboard: mainStoryboard,
+                      launchScreenStoryboard: launchScreenStoryboard,
                       entitlements: entitlements,
                       settings: settings,
                       sources: sources,
