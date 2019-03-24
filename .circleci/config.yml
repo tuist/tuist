@@ -19,6 +19,7 @@ jobs:
           command: |
             HOMEBREW_NO_AUTO_UPDATE=1 brew install swiftformat
             bundle install --local || bundle package
+            ./.circleci/setup-brew-dependencies.sh
       - run:
           name: Run Danger
           command: bundle exec danger
