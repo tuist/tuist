@@ -16,7 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Removed
 
-- Removed "-Project" shared scheme from being generated https://github.com/tuist/tuist/pull/303 by @ollieatkinson
+- **Breaking** Removed "-Project" shared scheme from being generated https://github.com/tuist/tuist/pull/303 by @ollieatkinson
 
 ### Fixed
 
