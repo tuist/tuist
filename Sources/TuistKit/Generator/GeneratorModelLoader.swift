@@ -166,7 +166,9 @@ extension TuistGenerator.Target {
         let resources = try TuistGenerator.Target.resources(projectPath: path, resources: manifest.resources?.globs ?? [], fileHandler: fileHandler)
         let headers = manifest.headers.map { TuistGenerator.Headers.from(manifest: $0, path: path, fileHandler: fileHandler) }
 
-        let coreDataModels = try manifest.coreDataModels.map { try TuistGenerator.CoreDataModel.from(manifest: $0, path: path, fileHandler: fileHandler) }
+        let coreDataModels = try manifest.coreDataModels.map {
+            try TuistGenerator.CoreDataModel.from(manifest: $0, path: path, fileHandler: fileHandler)
+        }
 
         let actions = manifest.actions.map { TuistGenerator.TargetAction.from(manifest: $0, path: path) }
         let environment = manifest.environment
@@ -229,7 +231,9 @@ extension TuistGenerator.TargetAction.Order {
 }
 
 extension TuistGenerator.CoreDataModel {
-    static func from(manifest: ProjectDescription.CoreDataModel, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistGenerator.CoreDataModel {
+    static func from(manifest: ProjectDescription.CoreDataModel,
+                     path: AbsolutePath,
+                     fileHandler: FileHandling) throws -> TuistGenerator.CoreDataModel {
         let modelPath = path.appending(RelativePath(manifest.path))
         if !fileHandler.exists(modelPath) {
             throw GeneratorModelLoaderError.missingFile(modelPath)
