@@ -14,7 +14,7 @@ class UpCommand: NSObject, Command {
     static let overview = "Configures the environment for the project."
 
     /// File handler instance to interact with the file system.
-    fileprivate let fileHandler: FileHandling
+    private let fileHandler: FileHandling
 
     /// Path to the project directory.
     let pathArgument: OptionArgument<String>
@@ -65,7 +65,7 @@ class UpCommand: NSObject, Command {
     ///
     /// - Parameter arguments: Result from parsing the command line arguments.
     /// - Returns: Path to be used for the up command.
-    fileprivate func path(arguments: ArgumentParser.Result) -> AbsolutePath {
+    private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         guard let path = arguments.get(pathArgument) else {
             return fileHandler.currentPath
         }

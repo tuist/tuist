@@ -12,11 +12,14 @@ jobs:
       xcode: '10.1.0'
     steps:
       - checkout
+      - restore_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
       - run:
           name: Install Dependencies
           command: |
-            brew install swiftformat
-            bundle install
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install swiftformat
+            bundle install --local || bundle package
+            ./.circleci/setup-brew-dependencies.sh
       - run:
           name: Run Danger
           command: bundle exec danger
@@ -37,3 +40,7 @@ jobs:
       - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)
+      - save_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
+          paths:
+            - "vendor"

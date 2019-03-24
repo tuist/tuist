@@ -44,9 +44,49 @@ final class ProjectGeneratorTests: XCTestCase {
 
         // Then
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
-        let projectScheme = schemesPath.appending(component: "Project-Project.xcscheme")
         let targetScheme = schemesPath.appending(component: "Target.xcscheme")
-        XCTAssertTrue(fileHandler.exists(projectScheme))
         XCTAssertTrue(fileHandler.exists(targetScheme))
+    }
+
+    func test_generate_testTargetIdentity() throws {
+        // Given
+        let app = Target.test(name: "App",
+                              platform: .iOS,
+                              product: .app)
+        let test = Target.test(name: "Tests",
+                               platform: .iOS,
+                               product: .unitTests)
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Project",
+                                   targets: [app, test])
+
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        let graph = Graph.test(entryPath: fileHandler.currentPath,
+                               cache: cache,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: test,
+                                                       dependencies: [
+                                                           TargetNode(project: project, target: app, dependencies: []),
+                                                       ])])
+
+        // When
+        let generatedProject = try subject.generate(project: project,
+                                                    options: GenerationOptions(),
+                                                    graph: graph)
+
+        // Then
+        let pbxproject = try generatedProject.pbxproj.rootProject()
+        let nativeTargets = generatedProject.targets
+        let attributes = pbxproject?.targetAttributes ?? [:]
+        XCTAssertTrue(attributes.contains { attribute in
+
+            guard let appUUID = nativeTargets["App"]?.uuid, let testTargetID = attribute.value["TestTargetID"] as? String else {
+                return false
+            }
+
+            return attribute.key.name == "Tests" && testTargetID == appUUID
+
+        }, "Test target is missing from target attributes.")
     }
 }

@@ -128,7 +128,7 @@ final class EmbeddableTests: XCTestCase {
         }
     }
 
-    fileprivate func withUniversalFramework(action: (Embeddable) throws -> Void) throws {
+    private func withUniversalFramework(action: (Embeddable) throws -> Void) throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory.parentDirectory
         let frameworkPath = testsPath.appending(RelativePath("Fixtures/xpm.framework"))
@@ -139,7 +139,7 @@ final class EmbeddableTests: XCTestCase {
         try action(embeddable)
     }
 
-    fileprivate func withDSYM(action: (Embeddable) throws -> Void) throws {
+    private func withDSYM(action: (Embeddable) throws -> Void) throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory.parentDirectory
         let frameworkPath = testsPath.appending(RelativePath("Fixtures/xpm.framework.dSYM"))

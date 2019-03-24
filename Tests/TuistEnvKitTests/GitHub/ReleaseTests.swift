@@ -36,7 +36,7 @@ final class ReleaseTests: XCTestCase {
 
     // MARK: - Fileprivate
 
-    fileprivate func json() -> [String: Any] {
+    private func json() -> [String: Any] {
         return [
             "tag_name": "3.2.1",
             "id": 333,

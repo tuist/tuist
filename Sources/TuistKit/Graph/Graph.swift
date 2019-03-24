@@ -343,7 +343,7 @@ extension Graph {
                 references.insert(node as! T)
             }
 
-            if node is T, skip(node as! T) {
+            if let node = node as? T, skip(node) {
                 continue
             } else if let targetNode = node as? TargetNode {
                 for child in targetNode.dependencies where !visited.contains(child) {

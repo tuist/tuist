@@ -123,13 +123,13 @@ class InitCommand: NSObject, Command {
     ///
     /// - Parameter path: Directory to be checked.
     /// - Throws: An InitCommandError.nonEmptyDirectory error when the directory is not empty.
-    fileprivate func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
+    private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
         if !path.glob("*").isEmpty {
             throw InitCommandError.nonEmptyDirectory(path)
         }
     }
 
-    fileprivate func generateProjectSwift(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
+    private func generateProjectSwift(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
         let content = """
         import ProjectDescription
         
@@ -160,7 +160,7 @@ class InitCommand: NSObject, Command {
         try content.write(to: path.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
     }
 
-    fileprivate func generatePlists(platform: Platform, product: Product, path: AbsolutePath) throws {
+    private func generatePlists(platform: Platform, product: Product, path: AbsolutePath) throws {
         try infoplistProvisioner.generate(path: path.appending(component: "Info.plist"),
                                           platform: platform,
                                           product: product)
@@ -170,7 +170,7 @@ class InitCommand: NSObject, Command {
     }
 
     // swiftlint:disable:next function_body_length
-    fileprivate func generateGitIgnore(path: AbsolutePath) throws {
+    private func generateGitIgnore(path: AbsolutePath) throws {
         let path = path.appending(component: ".gitignore")
         let content = """
         ### macOS ###
@@ -244,7 +244,7 @@ class InitCommand: NSObject, Command {
     ///
     /// - Parameter path: Path where the Setup.swift file will be created.
     /// - Throws: An error if the file cannot be created.
-    fileprivate func generateSetup(path: AbsolutePath) throws {
+    private func generateSetup(path: AbsolutePath) throws {
         let content = """
         import ProjectDescription
 
@@ -258,7 +258,7 @@ class InitCommand: NSObject, Command {
     }
 
     // swiftlint:disable:next function_body_length
-    fileprivate func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
+    private func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
         let path = path.appending(component: "Sources")
 
         try fileHandler.createFolder(path)
@@ -313,7 +313,7 @@ class InitCommand: NSObject, Command {
         try content.write(to: path.appending(component: filename).url, atomically: true, encoding: .utf8)
     }
 
-    fileprivate func generateTests(name: String, path: AbsolutePath) throws {
+    private func generateTests(name: String, path: AbsolutePath) throws {
         let path = path.appending(component: "Tests")
 
         try fileHandler.createFolder(path)
@@ -331,7 +331,7 @@ class InitCommand: NSObject, Command {
         try content.write(to: path.appending(component: "\(name)Tests.swift").url, atomically: true, encoding: .utf8)
     }
 
-    fileprivate func generatePlaygrounds(name: String, path: AbsolutePath, platform: Platform) throws {
+    private func generatePlaygrounds(name: String, path: AbsolutePath, platform: Platform) throws {
         let playgroundsPath = path.appending(component: "Playgrounds")
         try fileHandler.createFolder(playgroundsPath)
         try playgroundGenerator.generate(path: playgroundsPath,
@@ -353,7 +353,7 @@ class InitCommand: NSObject, Command {
                                              platform: platform)
     }
 
-    fileprivate func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
+    private func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
         if let name = arguments.get(nameArgument) {
             return name
         } else if let name = path.components.last {
@@ -363,7 +363,7 @@ class InitCommand: NSObject, Command {
         }
     }
 
-    fileprivate func path(arguments: ArgumentParser.Result) throws -> AbsolutePath {
+    private func path(arguments: ArgumentParser.Result) throws -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
             return AbsolutePath(path, relativeTo: fileHandler.currentPath)
         } else {
@@ -371,7 +371,7 @@ class InitCommand: NSObject, Command {
         }
     }
 
-    fileprivate func product(arguments: ArgumentParser.Result) throws -> Product {
+    private func product(arguments: ArgumentParser.Result) throws -> Product {
         if let productString = arguments.get(self.productArgument) {
             let valid = ["application", "framework"]
             if valid.contains(productString) {
@@ -384,7 +384,7 @@ class InitCommand: NSObject, Command {
         }
     }
 
-    fileprivate func platform(arguments: ArgumentParser.Result) throws -> Platform {
+    private func platform(arguments: ArgumentParser.Result) throws -> Platform {
         if let platformString = arguments.get(self.platformArgument) {
             if let platform = Platform(rawValue: platformString) {
                 return platform

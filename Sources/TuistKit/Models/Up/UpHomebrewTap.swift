@@ -79,7 +79,7 @@ class UpHomebrewTap: Up, GraphInitiatable {
     ///   - repository: Tap repository.
     ///   - taps: The list of system taps.
     /// - Returns: True if the tap repository is configured in the system.
-    fileprivate func isTapConfigured(_ repository: String, taps: [String]) -> Bool {
+    private func isTapConfigured(_ repository: String, taps: [String]) -> Bool {
         return taps.first(where: { $0.contains(repository) }) != nil
     }
 
@@ -88,7 +88,7 @@ class UpHomebrewTap: Up, GraphInitiatable {
     ///   - system: System instance to run commands on the shell.
     /// - Returns: The list of taps available in the system.
     /// - Throws: An error if the 'brew tap' command errors.
-    fileprivate func taps(system: Systeming) throws -> [String] {
+    private func taps(system: Systeming) throws -> [String] {
         return try system.capture(["brew", "tap"]).spm_chomp().split(separator: "\n").map(String.init)
     }
 }

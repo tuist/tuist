@@ -28,7 +28,6 @@ class Target: Equatable {
     let actions: [TargetAction]
     let environment: [String: String]
     let filesGroup: ProjectGroup
-    let includeInProjectScheme: Bool
 
     // MARK: - Init
 
@@ -46,8 +45,7 @@ class Target: Equatable {
          actions: [TargetAction] = [],
          environment: [String: String] = [:],
          filesGroup: ProjectGroup,
-         dependencies: [Dependency] = [],
-         includeInProjectScheme: Bool = true) {
+         dependencies: [Dependency] = []) {
         self.name = name
         self.product = product
         self.platform = platform
@@ -63,7 +61,6 @@ class Target: Equatable {
         self.environment = environment
         self.filesGroup = filesGroup
         self.dependencies = dependencies
-        self.includeInProjectScheme = includeInProjectScheme
     }
 
     func isLinkable() -> Bool {

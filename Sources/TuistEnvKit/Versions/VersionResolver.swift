@@ -70,7 +70,7 @@ class VersionResolver: VersionResolving {
 
     // MARK: - Fileprivate
 
-    fileprivate func resolveTraversing(from path: AbsolutePath) throws -> ResolvedVersion {
+    private func resolveTraversing(from path: AbsolutePath) throws -> ResolvedVersion {
         let versionPath = path.appending(component: Constants.versionFileName)
         let binPath = path.appending(component: Constants.binFolderName)
         if fileManager.fileExists(atPath: binPath.asString) {
@@ -84,7 +84,7 @@ class VersionResolver: VersionResolving {
         return .undefined
     }
 
-    fileprivate func resolveVersionFile(path: AbsolutePath) throws -> ResolvedVersion {
+    private func resolveVersionFile(path: AbsolutePath) throws -> ResolvedVersion {
         var value: String!
         do {
             value = try String(contentsOf: URL(fileURLWithPath: path.asString))

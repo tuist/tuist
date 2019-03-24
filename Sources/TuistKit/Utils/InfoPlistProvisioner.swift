@@ -39,7 +39,7 @@ class InfoPlistProvisioner: InfoPlistProvisioning {
     ///   - platform: platform of the target the Info.plist file will be generated for.
     ///   - product: type of product of the target the Info.plist will be generated for.
     /// - Returns: base Info.plist content.
-    fileprivate func base(platform: Platform, product: Product) -> [String: Any] {
+    private func base(platform: Platform, product: Product) -> [String: Any] {
         var base: [String: Any] = [:]
         base["CFBundleDevelopmentRegion"] = "$(DEVELOPMENT_LANGUAGE)"
         base["CFBundleExecutable"] = "$(EXECUTABLE_NAME)"

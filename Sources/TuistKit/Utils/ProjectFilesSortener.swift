@@ -67,7 +67,7 @@ class ProjectFilesSortener: ProjectFilesSortening {
     ///
     /// - Parameter path: Path to be checked.
     /// - Returns: True if the path points to a directory.
-    fileprivate func isDirectory(_ path: AbsolutePath) -> Bool {
+    private func isDirectory(_ path: AbsolutePath) -> Bool {
         if let isPathDirectory = isDirectory[path] {
             return isPathDirectory
         }

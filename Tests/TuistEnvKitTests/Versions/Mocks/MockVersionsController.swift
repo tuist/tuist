@@ -4,7 +4,7 @@ import Utility
 @testable import TuistEnvKit
 
 final class MockVersionsController: VersionsControlling {
-    fileprivate let tmpDir: TemporaryDirectory
+    private let tmpDir: TemporaryDirectory
     var path: AbsolutePath { return tmpDir.path }
     var pathCallCount: UInt = 0
     var pathStub: ((String) -> AbsolutePath)?
