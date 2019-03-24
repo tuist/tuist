@@ -4,7 +4,6 @@ import Foundation
 import TuistGenerator
 @testable import TuistKit
 
-
 final class MockManifestTargetGenerator: ManifestTargetGenerating {
     var generateManifestTargetStub: ((String, AbsolutePath) throws -> Target)?
     func generateManifestTarget(for project: String, at path: AbsolutePath) throws -> Target {

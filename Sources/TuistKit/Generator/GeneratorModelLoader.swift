@@ -54,10 +54,10 @@ class GeneratorModelLoader: GeneratorModelLoading {
     func loadWorkspace(at path: AbsolutePath) throws -> TuistGenerator.Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
         let workspace = try TuistGenerator.Workspace.from(manifest: manifest,
-                                                    path: path,
-                                                    fileHandler: fileHandler,
-                                                    manifestLoader: manifestLoader,
-                                                    printer: printer)
+                                                          path: path,
+                                                          fileHandler: fileHandler,
+                                                          manifestLoader: manifestLoader,
+                                                          printer: printer)
         return workspace
     }
 }
@@ -119,8 +119,8 @@ extension TuistGenerator.Workspace {
         }
 
         return TuistGenerator.Workspace(name: manifest.name,
-                                  projects: manifest.projects.flatMap(globProjects),
-                                  additionalFiles: manifest.additionalFiles.flatMap(workspaceElement))
+                                        projects: manifest.projects.flatMap(globProjects),
+                                        additionalFiles: manifest.additionalFiles.flatMap(workspaceElement))
     }
 }
 

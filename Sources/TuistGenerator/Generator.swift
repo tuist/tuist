@@ -9,7 +9,7 @@ public struct GeneratorConfig {
     public var directory: GenerationDirectory
 
     public init(options: GenerationOptions = GenerationOptions(),
-         directory: GenerationDirectory = .manifest) {
+                directory: GenerationDirectory = .manifest) {
         self.options = options
         self.directory = directory
     }
@@ -56,9 +56,9 @@ public class Generator: Generating {
     private let workspaceGenerator: WorkspaceGenerating
 
     public convenience init(system: Systeming = System(),
-                     printer: Printing = Printer(),
-                     fileHandler: FileHandling = FileHandler(),
-                     modelLoader: GeneratorModelLoading) {
+                            printer: Printing = Printer(),
+                            fileHandler: FileHandling = FileHandler(),
+                            modelLoader: GeneratorModelLoading) {
         let graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
         let workspaceGenerator = WorkspaceGenerator(system: system,
                                                     printer: printer,
@@ -75,8 +75,8 @@ public class Generator: Generating {
     }
 
     public func generateProject(at path: AbsolutePath,
-                         config: GeneratorConfig,
-                         workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+                                config: GeneratorConfig,
+                                workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let (graph, project) = try graphLoader.loadProject(path: path)
 
         let workspace = Workspace(name: project.name,
@@ -91,8 +91,8 @@ public class Generator: Generating {
     }
 
     public func generateWorkspace(at path: AbsolutePath,
-                           config: GeneratorConfig,
-                           workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+                                  config: GeneratorConfig,
+                                  workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
 
         let updatedWorkspace = workspace
@@ -106,4 +106,3 @@ public class Generator: Generating {
                                                directory: config.directory)
     }
 }
-

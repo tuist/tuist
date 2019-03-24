@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import TuistCore
-import XCTest
 import TuistGenerator
+import XCTest
 @testable import TuistKit
 
 final class ManifestTargetGeneratorTests: XCTestCase {

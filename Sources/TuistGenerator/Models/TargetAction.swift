@@ -37,10 +37,10 @@ public struct TargetAction {
     ///   - path: Path to the script to execute
     ///   - arguments: Arguments that to be passed
     public init(name: String,
-         order: Order,
-         tool: String? = nil,
-         path: AbsolutePath? = nil,
-         arguments: [String] = []) {
+                order: Order,
+                tool: String? = nil,
+                path: AbsolutePath? = nil,
+                arguments: [String] = []) {
         self.name = name
         self.order = order
         self.tool = tool

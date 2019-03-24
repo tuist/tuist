@@ -38,8 +38,8 @@ public class Settings: Equatable {
     // MARK: - Init
 
     public init(base: [String: String] = [:],
-         debug: Configuration?,
-         release: Configuration?) {
+                debug: Configuration?,
+                release: Configuration?) {
         self.base = base
         self.debug = debug
         self.release = release

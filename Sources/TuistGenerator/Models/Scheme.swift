@@ -13,10 +13,10 @@ public class Scheme: Equatable {
     // MARK: - Init
 
     public init(name: String,
-         shared: Bool = false,
-         buildAction: BuildAction? = nil,
-         testAction: TestAction? = nil,
-         runAction: RunAction? = nil) {
+                shared: Bool = false,
+                buildAction: BuildAction? = nil,
+                testAction: TestAction? = nil,
+                runAction: RunAction? = nil) {
         self.name = name
         self.shared = shared
         self.buildAction = buildAction
@@ -44,7 +44,7 @@ public class Arguments: Equatable {
     // MARK: - Init
 
     public init(environment: [String: String] = [:],
-         launch: [String: Bool] = [:]) {
+                launch: [String: Bool] = [:]) {
         self.environment = environment
         self.launch = launch
     }
@@ -86,9 +86,9 @@ public class TestAction: Equatable {
     // MARK: - Init
 
     public init(targets: [String] = [],
-         arguments: Arguments? = nil,
-         config: BuildConfiguration = .debug,
-         coverage: Bool = false) {
+                arguments: Arguments? = nil,
+                config: BuildConfiguration = .debug,
+                coverage: Bool = false) {
         self.targets = targets
         self.arguments = arguments
         self.config = config
@@ -115,8 +115,8 @@ public class RunAction: Equatable {
     // MARK: - Init
 
     public init(config: BuildConfiguration,
-         executable: String? = nil,
-         arguments: Arguments? = nil) {
+                executable: String? = nil,
+                arguments: Arguments? = nil) {
         self.config = config
         self.executable = executable
         self.arguments = arguments

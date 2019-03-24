@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistGenerator
 import TuistCore
+import TuistGenerator
 
 protocol ManifestTargetGenerating {
     func generateManifestTarget(for project: String, at path: AbsolutePath) throws -> Target

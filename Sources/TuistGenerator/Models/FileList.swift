@@ -9,7 +9,7 @@ public class FileList: JSONMappable, Equatable {
 
     // MARK: - Init
 
-    required public init(json: JSON) throws {
+    public required init(json: JSON) throws {
         if let globs: [String] = try? json.get("globs") {
             self.globs = globs
         } else {

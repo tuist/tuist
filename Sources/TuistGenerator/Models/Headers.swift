@@ -14,8 +14,8 @@ public class Headers: Equatable {
     // MARK: - Init
 
     public init(public: [AbsolutePath],
-         private: [AbsolutePath],
-         project: [AbsolutePath]) {
+                private: [AbsolutePath],
+                project: [AbsolutePath]) {
         self.public = `public`
         self.private = `private`
         self.project = project

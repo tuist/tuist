@@ -29,10 +29,10 @@ public class Project: Equatable, CustomStringConvertible {
     ///   - name: Project name.
     ///   - targets: Project settings.
     public init(path: AbsolutePath,
-         name: String,
-         settings: Settings? = nil,
-         filesGroup: ProjectGroup,
-         targets: [Target]) {
+                name: String,
+                settings: Settings? = nil,
+                filesGroup: ProjectGroup,
+                targets: [Target]) {
         self.path = path
         self.name = name
         self.targets = targets

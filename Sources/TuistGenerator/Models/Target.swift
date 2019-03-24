@@ -32,20 +32,20 @@ public class Target: Equatable {
     // MARK: - Init
 
     public init(name: String,
-         platform: Platform,
-         product: Product,
-         bundleId: String,
-         infoPlist: AbsolutePath? = nil,
-         entitlements: AbsolutePath? = nil,
-         settings: Settings? = nil,
-         sources: [AbsolutePath] = [],
-         resources: [AbsolutePath] = [],
-         headers: Headers? = nil,
-         coreDataModels: [CoreDataModel] = [],
-         actions: [TargetAction] = [],
-         environment: [String: String] = [:],
-         filesGroup: ProjectGroup,
-         dependencies: [Dependency] = []) {
+                platform: Platform,
+                product: Product,
+                bundleId: String,
+                infoPlist: AbsolutePath? = nil,
+                entitlements: AbsolutePath? = nil,
+                settings: Settings? = nil,
+                sources: [AbsolutePath] = [],
+                resources: [AbsolutePath] = [],
+                headers: Headers? = nil,
+                coreDataModels: [CoreDataModel] = [],
+                actions: [TargetAction] = [],
+                environment: [String: String] = [:],
+                filesGroup: ProjectGroup,
+                dependencies: [Dependency] = []) {
         self.name = name
         self.product = product
         self.platform = platform
