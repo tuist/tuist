@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import XCTest
+import TuistGenerator
 @testable import TuistKit
 
 final class InfoPlistProvisionerTests: XCTestCase {

@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistGenerator
 @testable import TuistKit
 
 final class MockPlaygroundGenerator: PlaygroundGenerating {

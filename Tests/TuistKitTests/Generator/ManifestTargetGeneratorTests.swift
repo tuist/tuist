@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 import XCTest
+import TuistGenerator
 @testable import TuistKit
 
 final class ManifestTargetGeneratorTests: XCTestCase {

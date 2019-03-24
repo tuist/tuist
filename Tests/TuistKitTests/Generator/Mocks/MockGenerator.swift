@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-@testable import TuistKit
+import TuistGenerator
 
 class MockGenerator: Generating {
     var generateProjectStub: ((AbsolutePath, GeneratorConfig, [AbsolutePath]) throws -> AbsolutePath)?
