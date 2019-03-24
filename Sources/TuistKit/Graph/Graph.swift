@@ -54,6 +54,8 @@ protocol Graphing: AnyObject {
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
+    func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
+    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> Set<DependencyReference>
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
@@ -172,6 +174,24 @@ class Graph: Graphing {
 
         return targetNode.libraryDependencies
             .map(\.publicHeaders)
+    }
+
+    func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        return targetNode.libraryDependencies
+            .map { $0.path.removingLastComponent() }
+    }
+
+    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        return targetNode.libraryDependencies
+            .compactMap { $0.swiftModuleMap?.removingLastComponent() }
     }
 
     func embeddableFrameworks(path: AbsolutePath,

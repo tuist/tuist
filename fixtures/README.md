@@ -95,9 +95,17 @@ Workspace:
     - BTests (iOS unit tests)
 ```
 
+A standalone C project is used to generate a prebuilt static library:
+```
+  - C:
+    - C (static library iOS)
+    - CTests (iOS unit tests)
+```
+
 Dependencies:
   - App -> A
   - A -> B
+  - A -> prebuild C (libC.a)
 
 ## ios_app_with_static_frameworks
 
