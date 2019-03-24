@@ -111,13 +111,13 @@ class InitCommand: NSObject, Command {
         try generateTests(name: name, path: path)
         try generatePlists(platform: platform, product: product, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
-        try generateStoryboards(name: name, path: path, platform: platform, product: product)
+        try generateStoryboards(path: path, platform: platform, product: product)
         try generateGitIgnore(path: path)
         try generateSetup(path: path)
         printer.print(success: "Project generated at path \(path.asString).")
     }
 
-    // MARK: - Fileprivate
+    // MARK: - Private
 
     /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
     ///
@@ -340,7 +340,7 @@ class InitCommand: NSObject, Command {
                                          content: PlaygroundGenerator.defaultContent())
     }
 
-    fileprivate func generateStoryboards(name _: String, path: AbsolutePath, platform: Platform, product: Product) throws {
+    private func generateStoryboards(path: AbsolutePath, platform: Platform, product: Product) throws {
         let sourcesPath = path.appending(component: "Sources")
 
         if product == .app, platform.supportsLaunchScreen {
