@@ -2,16 +2,16 @@ import Basic
 import Foundation
 import TuistCore
 
-class Workspace: Equatable {
+public class Workspace: Equatable {
     // MARK: - Attributes
 
-    let name: String
-    let projects: [AbsolutePath]
-    let additionalFiles: [Element]
+    public let name: String
+    public let projects: [AbsolutePath]
+    public let additionalFiles: [Element]
 
     // MARK: - Init
 
-    init(name: String, projects: [AbsolutePath], additionalFiles: [Element] = []) {
+    public init(name: String, projects: [AbsolutePath], additionalFiles: [Element] = []) {
         self.name = name
         self.projects = projects
         self.additionalFiles = additionalFiles
@@ -19,7 +19,7 @@ class Workspace: Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: Workspace, rhs: Workspace) -> Bool {
+    public static func == (lhs: Workspace, rhs: Workspace) -> Bool {
         return lhs.projects == rhs.projects
     }
 }
@@ -45,7 +45,7 @@ extension Workspace {
 }
 
 extension Workspace {
-    enum Element: Equatable {
+    public enum Element: Equatable {
         case file(path: AbsolutePath)
         case folderReference(path: AbsolutePath)
 

@@ -2,23 +2,23 @@ import Basic
 import Foundation
 import TuistCore
 
-class Project: Equatable, CustomStringConvertible {
+public class Project: Equatable, CustomStringConvertible {
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
-    let path: AbsolutePath
+    public let path: AbsolutePath
 
     /// Project name.
-    let name: String
+    public let name: String
 
     /// Project targets.
-    let targets: [Target]
+    public let targets: [Target]
 
     /// Project settings.
-    let settings: Settings?
+    public let settings: Settings?
 
     /// The group to place project files within
-    let filesGroup: ProjectGroup
+    public let filesGroup: ProjectGroup
 
     // MARK: - Init
 
@@ -28,7 +28,7 @@ class Project: Equatable, CustomStringConvertible {
     ///   - path: Path to the folder that contains the project manifest.
     ///   - name: Project name.
     ///   - targets: Project settings.
-    init(path: AbsolutePath,
+    public init(path: AbsolutePath,
          name: String,
          settings: Settings? = nil,
          filesGroup: ProjectGroup,
@@ -107,13 +107,13 @@ class Project: Equatable, CustomStringConvertible {
 
     // MARK: - CustomStringConvertible
 
-    var description: String {
+    public var description: String {
         return name
     }
 
     // MARK: - Equatable
 
-    static func == (lhs: Project, rhs: Project) -> Bool {
+    public static func == (lhs: Project, rhs: Project) -> Bool {
         return lhs.path == rhs.path &&
             lhs.name == rhs.name &&
             lhs.targets == rhs.targets &&

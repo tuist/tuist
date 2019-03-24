@@ -1,7 +1,7 @@
 import Foundation
 import xcodeproj
 
-enum Product: String, CustomStringConvertible, CaseIterable {
+public enum Product: String, CustomStringConvertible, CaseIterable {
     case app
     case staticLibrary = "static_library"
     case dynamicLibrary = "dynamic_library"
@@ -19,7 +19,7 @@ enum Product: String, CustomStringConvertible, CaseIterable {
 //    case messagesExtension = "messages_extension"
 //    case stickerPack = "sticker_pack"
 
-    var caseValue: String {
+    public var caseValue: String {
         switch self {
         case .app:
             return "app"
@@ -56,7 +56,7 @@ enum Product: String, CustomStringConvertible, CaseIterable {
         }
     }
 
-    var description: String {
+    public var description: String {
         switch self {
         case .app:
             return "application"

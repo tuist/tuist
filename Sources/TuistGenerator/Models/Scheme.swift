@@ -1,18 +1,18 @@
 import Basic
 import Foundation
 
-class Scheme: Equatable {
+public class Scheme: Equatable {
     // MARK: - Attributes
 
-    let name: String
-    let shared: Bool
-    let buildAction: BuildAction?
-    let testAction: TestAction?
-    let runAction: RunAction?
+    public let name: String
+    public let shared: Bool
+    public let buildAction: BuildAction?
+    public let testAction: TestAction?
+    public let runAction: RunAction?
 
     // MARK: - Init
 
-    init(name: String,
+    public init(name: String,
          shared: Bool = false,
          buildAction: BuildAction? = nil,
          testAction: TestAction? = nil,
@@ -26,7 +26,7 @@ class Scheme: Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: Scheme, rhs: Scheme) -> Bool {
+    public static func == (lhs: Scheme, rhs: Scheme) -> Bool {
         return lhs.name == rhs.name &&
             lhs.shared == rhs.shared &&
             lhs.buildAction == rhs.buildAction &&
@@ -35,15 +35,15 @@ class Scheme: Equatable {
     }
 }
 
-class Arguments: Equatable {
+public class Arguments: Equatable {
     // MARK: - Attributes
 
-    let environment: [String: String]
-    let launch: [String: Bool]
+    public let environment: [String: String]
+    public let launch: [String: Bool]
 
     // MARK: - Init
 
-    init(environment: [String: String] = [:],
+    public init(environment: [String: String] = [:],
          launch: [String: Bool] = [:]) {
         self.environment = environment
         self.launch = launch
@@ -51,41 +51,41 @@ class Arguments: Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: Arguments, rhs: Arguments) -> Bool {
+    public static func == (lhs: Arguments, rhs: Arguments) -> Bool {
         return lhs.environment == rhs.environment &&
             lhs.launch == rhs.launch
     }
 }
 
-class BuildAction: Equatable {
+public class BuildAction: Equatable {
     // MARK: - Attributes
 
-    let targets: [String]
+    public let targets: [String]
 
     // MARK: - Init
 
-    init(targets: [String] = []) {
+    public init(targets: [String] = []) {
         self.targets = targets
     }
 
     // MARK: - Equatable
 
-    static func == (lhs: BuildAction, rhs: BuildAction) -> Bool {
+    public static func == (lhs: BuildAction, rhs: BuildAction) -> Bool {
         return lhs.targets == rhs.targets
     }
 }
 
-class TestAction: Equatable {
+public class TestAction: Equatable {
     // MARK: - Attributes
 
-    let targets: [String]
-    let arguments: Arguments?
-    let config: BuildConfiguration
-    let coverage: Bool
+    public let targets: [String]
+    public let arguments: Arguments?
+    public let config: BuildConfiguration
+    public let coverage: Bool
 
     // MARK: - Init
 
-    init(targets: [String] = [],
+    public init(targets: [String] = [],
          arguments: Arguments? = nil,
          config: BuildConfiguration = .debug,
          coverage: Bool = false) {
@@ -97,7 +97,7 @@ class TestAction: Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: TestAction, rhs: TestAction) -> Bool {
+    public static func == (lhs: TestAction, rhs: TestAction) -> Bool {
         return lhs.targets == rhs.targets &&
             lhs.arguments == rhs.arguments &&
             lhs.config == rhs.config &&
@@ -105,16 +105,16 @@ class TestAction: Equatable {
     }
 }
 
-class RunAction: Equatable {
+public class RunAction: Equatable {
     // MARK: - Attributes
 
-    let config: BuildConfiguration
-    let executable: String?
-    let arguments: Arguments?
+    public let config: BuildConfiguration
+    public let executable: String?
+    public let arguments: Arguments?
 
     // MARK: - Init
 
-    init(config: BuildConfiguration,
+    public init(config: BuildConfiguration,
          executable: String? = nil,
          arguments: Arguments? = nil) {
         self.config = config
@@ -124,7 +124,7 @@ class RunAction: Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: RunAction, rhs: RunAction) -> Bool {
+    public static func == (lhs: RunAction, rhs: RunAction) -> Bool {
         return lhs.config == rhs.config &&
             lhs.executable == rhs.executable &&
             lhs.arguments == rhs.arguments

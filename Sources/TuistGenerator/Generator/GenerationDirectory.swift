@@ -4,7 +4,7 @@ import Foundation
 ///
 /// - manifest: Generates the workspace and the project in the same folder where the project manifest is.
 /// - derivedProjects: Generates the workspace and the project in the ~/.tuist/DerivedProjects directory.
-enum GenerationDirectory {
+public enum GenerationDirectory {
     case manifest
     case derivedProjects
 }

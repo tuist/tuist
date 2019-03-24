@@ -1,6 +1,6 @@
 import Foundation
 
-enum BuildConfiguration: String {
+public enum BuildConfiguration: String {
     case debug
     case release
 }

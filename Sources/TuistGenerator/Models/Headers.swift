@@ -4,16 +4,16 @@ import TuistCore
 import xcodeproj
 
 /// Headers
-class Headers: Equatable {
+public class Headers: Equatable {
     // MARK: - Attributes
 
-    let `public`: [AbsolutePath]
-    let `private`: [AbsolutePath]
-    let project: [AbsolutePath]
+    public let `public`: [AbsolutePath]
+    public let `private`: [AbsolutePath]
+    public let project: [AbsolutePath]
 
     // MARK: - Init
 
-    init(public: [AbsolutePath],
+    public init(public: [AbsolutePath],
          private: [AbsolutePath],
          project: [AbsolutePath]) {
         self.public = `public`
@@ -23,7 +23,7 @@ class Headers: Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: Headers, rhs: Headers) -> Bool {
+    public static func == (lhs: Headers, rhs: Headers) -> Bool {
         return lhs.public == rhs.public &&
             lhs.private == rhs.private &&
             lhs.project == rhs.project

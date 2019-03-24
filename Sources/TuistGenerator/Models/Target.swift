@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-class Target: Equatable {
+public class Target: Equatable {
     // MARK: - Static
 
     static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
@@ -10,28 +10,28 @@ class Target: Equatable {
 
     // MARK: - Attributes
 
-    let name: String
-    let platform: Platform
-    let product: Product
-    let bundleId: String
+    public let name: String
+    public let platform: Platform
+    public let product: Product
+    public let bundleId: String
 
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
-    let infoPlist: AbsolutePath?
-    let entitlements: AbsolutePath?
-    let settings: Settings?
-    let dependencies: [Dependency]
-    let sources: [AbsolutePath]
-    let resources: [AbsolutePath]
-    let headers: Headers?
-    let coreDataModels: [CoreDataModel]
-    let actions: [TargetAction]
-    let environment: [String: String]
-    let filesGroup: ProjectGroup
+    public let infoPlist: AbsolutePath?
+    public let entitlements: AbsolutePath?
+    public let settings: Settings?
+    public let dependencies: [Dependency]
+    public let sources: [AbsolutePath]
+    public let resources: [AbsolutePath]
+    public let headers: Headers?
+    public let coreDataModels: [CoreDataModel]
+    public let actions: [TargetAction]
+    public let environment: [String: String]
+    public let filesGroup: ProjectGroup
 
     // MARK: - Init
 
-    init(name: String,
+    public init(name: String,
          platform: Platform,
          product: Product,
          bundleId: String,
@@ -79,7 +79,7 @@ class Target: Equatable {
 
     // MARK: - Fileprivate
 
-    static func sources(projectPath: AbsolutePath, sources: [String], fileHandler _: FileHandling) throws -> [AbsolutePath] {
+    public static func sources(projectPath: AbsolutePath, sources: [String], fileHandler _: FileHandling) throws -> [AbsolutePath] {
         return sources.flatMap { source in
             projectPath.glob(source).filter { path in
                 if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
@@ -90,7 +90,7 @@ class Target: Equatable {
         }
     }
 
-    static func resources(projectPath: AbsolutePath, resources: [String], fileHandler: FileHandling) throws -> [AbsolutePath] {
+    public static func resources(projectPath: AbsolutePath, resources: [String], fileHandler: FileHandling) throws -> [AbsolutePath] {
         return resources.flatMap { source in
             projectPath.glob(source).filter { path in
                 if !fileHandler.isFolder(path) {
@@ -107,7 +107,7 @@ class Target: Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: Target, rhs: Target) -> Bool {
+    public static func == (lhs: Target, rhs: Target) -> Bool {
         return lhs.name == rhs.name &&
             lhs.platform == rhs.platform &&
             lhs.product == rhs.product &&

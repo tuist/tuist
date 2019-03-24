@@ -8,25 +8,25 @@ public struct TargetAction {
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
-    enum Order: String {
+    public enum Order: String {
         case pre
         case post
     }
 
     /// Name of the build phase when the project gets generated
-    let name: String
+    public let name: String
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH
-    let tool: String?
+    public let tool: String?
 
     /// Path to the script to execute
-    let path: AbsolutePath?
+    public let path: AbsolutePath?
 
     /// Target action order
-    let order: Order
+    public let order: Order
 
     /// Arguments that to be passed
-    let arguments: [String]
+    public let arguments: [String]
 
     /// Initializes a new target action with its attributes.
     ///
@@ -36,7 +36,7 @@ public struct TargetAction {
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH
     ///   - path: Path to the script to execute
     ///   - arguments: Arguments that to be passed
-    init(name: String,
+    public init(name: String,
          order: Order,
          tool: String? = nil,
          path: AbsolutePath? = nil,

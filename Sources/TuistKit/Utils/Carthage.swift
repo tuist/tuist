@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistGenerator
 
 /// Model that represents the content of the file that Carthage
 /// generates for each resolved dependency.

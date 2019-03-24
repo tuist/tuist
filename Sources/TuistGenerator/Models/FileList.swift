@@ -2,14 +2,14 @@ import Basic
 import Foundation
 import TuistCore
 
-class FileList: JSONMappable, Equatable {
+public class FileList: JSONMappable, Equatable {
     // MARK: - Attributes
 
-    let globs: [String]
+    public let globs: [String]
 
     // MARK: - Init
 
-    required init(json: JSON) throws {
+    required public init(json: JSON) throws {
         if let globs: [String] = try? json.get("globs") {
             self.globs = globs
         } else {
@@ -17,7 +17,7 @@ class FileList: JSONMappable, Equatable {
         }
     }
 
-    static func == (lhs: FileList, rhs: FileList) -> Bool {
+    public static func == (lhs: FileList, rhs: FileList) -> Bool {
         return lhs.globs == rhs.globs
     }
 }

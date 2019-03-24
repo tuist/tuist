@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistGenerator
 import Utility
 
 class GenerateCommand: NSObject, Command {

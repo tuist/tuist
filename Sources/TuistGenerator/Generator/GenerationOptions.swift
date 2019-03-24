@@ -2,7 +2,7 @@ import Basic
 import Foundation
 
 /// Generation options.
-class GenerationOptions {
+public class GenerationOptions {
     /// Initializes the options with its attributes.
-    init() {}
+    public init() {}
 }

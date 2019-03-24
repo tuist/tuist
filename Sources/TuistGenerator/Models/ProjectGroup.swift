@@ -1,5 +1,5 @@
 import Foundation
 
-enum ProjectGroup: Hashable {
+public enum ProjectGroup: Hashable {
     case group(name: String)
 }
