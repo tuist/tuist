@@ -68,7 +68,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        target: test,
                                                        dependencies: [
                                                            TargetNode(project: project, target: app, dependencies: []),
-                                                       ])])
+        ])])
 
         // When
         let generatedProject = try subject.generate(project: project,
