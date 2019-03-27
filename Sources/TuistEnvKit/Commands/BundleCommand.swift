@@ -74,7 +74,7 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.asString)")
+        printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.pathString)")
 
         let versionPath = versionsController.path(version: version)
 
@@ -90,6 +90,6 @@ final class BundleCommand: Command {
         }
         try fileHandler.copy(from: versionPath, to: binFolderPath)
 
-        printer.print(success: "tuist bundled successfully at \(binFolderPath.asString)")
+        printer.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
     }
 }

@@ -73,9 +73,9 @@ class VersionResolver: VersionResolving {
     private func resolveTraversing(from path: AbsolutePath) throws -> ResolvedVersion {
         let versionPath = path.appending(component: Constants.versionFileName)
         let binPath = path.appending(component: Constants.binFolderName)
-        if fileManager.fileExists(atPath: binPath.asString) {
+        if fileManager.fileExists(atPath: binPath.pathString) {
             return .bin(binPath)
-        } else if fileManager.fileExists(atPath: versionPath.asString) {
+        } else if fileManager.fileExists(atPath: versionPath.pathString) {
             return try resolveVersionFile(path: versionPath)
         }
         if path.components.count > 1 {

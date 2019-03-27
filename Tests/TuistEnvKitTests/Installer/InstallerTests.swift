@@ -73,10 +73,10 @@ final class InstallerTests: XCTestCase {
             .path
             .appending(component: Constants.bundleName)
         system.succeedCommand("/usr/bin/curl", "-LSs",
-                              "--output", downloadPath.asString,
+                              "--output", downloadPath.pathString,
                               downloadURL.absoluteString)
-        system.succeedCommand("/usr/bin/unzip", downloadPath.asString,
-                              "-d", fileHandler.currentPath.asString)
+        system.succeedCommand("/usr/bin/unzip", downloadPath.pathString,
+                              "-d", fileHandler.currentPath.pathString)
 
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
@@ -110,7 +110,7 @@ final class InstallerTests: XCTestCase {
             .path
             .appending(component: Constants.bundleName)
         system.errorCommand("/usr/bin/curl", "-LSs",
-                            "--output", downloadPath.asString,
+                            "--output", downloadPath.pathString,
                             downloadURL.absoluteString,
                             error: "download_error")
 
@@ -137,10 +137,10 @@ final class InstallerTests: XCTestCase {
             .path
             .appending(component: Constants.bundleName)
         system.succeedCommand("/usr/bin/curl", "-LSs",
-                              "--output", downloadPath.asString,
+                              "--output", downloadPath.pathString,
                               downloadURL.absoluteString)
-        system.errorCommand("/usr/bin/unzip", downloadPath.asString,
-                            "-d", fileHandler.currentPath.asString,
+        system.errorCommand("/usr/bin/unzip", downloadPath.pathString,
+                            "-d", fileHandler.currentPath.pathString,
                             error: "unzip_error")
 
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory))
@@ -157,19 +157,19 @@ final class InstallerTests: XCTestCase {
 
         system.succeedCommand("/usr/bin/env", "git",
                               "clone", Constants.gitRepositoryURL,
-                              temporaryDirectory.path.asString)
-        system.succeedCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
+                              temporaryDirectory.path.pathString)
+        system.succeedCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString,
                               "checkout", version)
         system.succeedCommand("/usr/bin/xcrun", "-f", "swift", output: "/path/to/swift")
 
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "tuist",
-                              "--package-path", temporaryDirectory.path.asString,
+                              "--package-path", temporaryDirectory.path.pathString,
                               "--configuration", "release",
                               "-Xswiftc", "-static-stdlib")
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
-                              "--package-path", temporaryDirectory.path.asString,
+                              "--package-path", temporaryDirectory.path.pathString,
                               "--configuration", "release")
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
@@ -197,19 +197,19 @@ final class InstallerTests: XCTestCase {
 
         system.succeedCommand("/usr/bin/env", "git",
                               "clone", Constants.gitRepositoryURL,
-                              temporaryDirectory.path.asString)
-        system.succeedCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
+                              temporaryDirectory.path.pathString)
+        system.succeedCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString,
                               "checkout", version)
         system.succeedCommand("/usr/bin/xcrun", "-f", "swift",
                               output: "/path/to/swift")
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "tuist",
-                              "--package-path", temporaryDirectory.path.asString,
+                              "--package-path", temporaryDirectory.path.pathString,
                               "--configuration", "release",
                               "-Xswiftc", "-static-stdlib")
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
-                              "--package-path", temporaryDirectory.path.asString,
+                              "--package-path", temporaryDirectory.path.pathString,
                               "--configuration", "release")
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
@@ -234,8 +234,8 @@ final class InstallerTests: XCTestCase {
         }
         system.succeedCommand("/usr/bin/env", "git",
                               "clone", Constants.gitRepositoryURL,
-                              temporaryDirectory.path.asString)
-        system.errorCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString,
+                              temporaryDirectory.path.pathString)
+        system.errorCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString,
                             "checkout", version,
                             error: "did not match any file(s) known to git ")
 

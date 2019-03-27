@@ -23,7 +23,7 @@ final class SettingsLinterTests: XCTestCase {
 
         let got = subject.lint(settings: settings)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Configuration file not found at path \(debugPath.asString)", severity: .error)))
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Configuration file not found at path \(releasePath.asString)", severity: .error)))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error)))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Configuration file not found at path \(releasePath.pathString)", severity: .error)))
     }
 }

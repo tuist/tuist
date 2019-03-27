@@ -143,11 +143,11 @@ final class Installer: Installing {
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString)
+            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 
             // Unzip
             printer.print("Installing...")
-            try system.run("/usr/bin/unzip", downloadPath.asString, "-d", installationDirectory.asString)
+            try system.run("/usr/bin/unzip", downloadPath.pathString, "-d", installationDirectory.pathString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")

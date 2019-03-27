@@ -35,7 +35,7 @@ final class DumpCommandTests: XCTestCase {
 
     func test_run_throws_when_file_doesnt_exist() throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
         XCTAssertThrowsError(try subject.run(with: result)) {
             XCTAssertEqual($0 as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.project, tmpDir.path))
         }
@@ -43,10 +43,10 @@ final class DumpCommandTests: XCTestCase {
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try "invalid config".write(toFile: tmpDir.path.appending(component: "Project.swift").asString,
+        try "invalid config".write(toFile: tmpDir.path.appending(component: "Project.swift").pathString,
                                    atomically: true,
                                    encoding: .utf8)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
         XCTAssertThrowsError(try subject.run(with: result))
     }
 
@@ -59,10 +59,10 @@ final class DumpCommandTests: XCTestCase {
               settings: nil,
               targets: [])
         """
-        try config.write(toFile: tmpDir.path.appending(component: "Project.swift").asString,
+        try config.write(toFile: tmpDir.path.appending(component: "Project.swift").pathString,
                          atomically: true,
                          encoding: .utf8)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.asString])
+        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
         try subject.run(with: result)
         let expected = "{\n  \"name\": \"tuist\",\n  \"targets\": [\n\n  ]\n}\n"
         XCTAssertEqual(printer.printArgs.first, expected)

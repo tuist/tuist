@@ -58,7 +58,7 @@ final class LocalCommandTests: XCTestCase {
         XCTAssertEqual(printer.printSectionArgs.first, "Generating \(Constants.versionFileName) file with version 3.2.1")
 
         XCTAssertEqual(printer.printSuccessArgs.count, 1)
-        XCTAssertEqual(printer.printSuccessArgs.last, "File generated at path \(versionPath.asString)")
+        XCTAssertEqual(printer.printSuccessArgs.last, "File generated at path \(versionPath.pathString)")
     }
 
     func test_run_prints_when_no_argument_is_passed() throws {

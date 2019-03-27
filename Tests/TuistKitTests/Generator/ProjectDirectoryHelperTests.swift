@@ -21,7 +21,7 @@ final class ProjectDirectoryHelperTests: XCTestCase {
         let got = try subject.setupDirectory(name: "MyApp",
                                              path: path,
                                              directory: .derivedProjects)
-        let expected = environmentController.derivedProjectsDirectory.appending(component: "MyApp-\(path.asString.md5)")
+        let expected = environmentController.derivedProjectsDirectory.appending(component: "MyApp-\(path.pathString.md5)")
 
         XCTAssertEqual(got, expected)
         XCTAssertTrue(fileHandler.exists(expected))

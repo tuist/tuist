@@ -14,7 +14,7 @@ final class BundleCommandErrorTests: XCTestCase {
 
     func test_description() {
         let path = AbsolutePath("/test")
-        XCTAssertEqual(BundleCommandError.missingVersionFile(path).description, "Couldn't find a .tuist-version file in the directory \(path.asString)")
+        XCTAssertEqual(BundleCommandError.missingVersionFile(path).description, "Couldn't find a .tuist-version file in the directory \(path.pathString)")
     }
 }
 
@@ -111,12 +111,12 @@ final class BundleCommandTests: XCTestCase {
         try subject.run(with: result)
 
         XCTAssertEqual(printer.printSectionArgs.count, 1)
-        XCTAssertEqual(printer.printSectionArgs.first, "Bundling the version 3.2.1 in the directory \(binPath.asString)")
+        XCTAssertEqual(printer.printSectionArgs.first, "Bundling the version 3.2.1 in the directory \(binPath.pathString)")
 
         XCTAssertEqual(printer.printArgs.count, 1)
         XCTAssertEqual(printer.printArgs.first, "Version 3.2.1 not available locally. Installing...")
 
         XCTAssertEqual(printer.printSuccessArgs.count, 1)
-        XCTAssertEqual(printer.printSuccessArgs.first, "tuist bundled successfully at \(binPath.asString)")
+        XCTAssertEqual(printer.printSuccessArgs.first, "tuist bundled successfully at \(binPath.pathString)")
     }
 }

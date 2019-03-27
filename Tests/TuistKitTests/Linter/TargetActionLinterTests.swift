@@ -35,7 +35,7 @@ final class TargetActionLinterTests: XCTestCase {
                                   path: fileHandler.currentPath.appending(component: "invalid.sh"))
         let got = subject.lint(action)
 
-        let expected = LintingIssue(reason: "The action path \(action.path!.asString) doesn't exist",
+        let expected = LintingIssue(reason: "The action path \(action.path!.pathString) doesn't exist",
                                     severity: .error)
         XCTAssertTrue(got.contains(expected))
     }

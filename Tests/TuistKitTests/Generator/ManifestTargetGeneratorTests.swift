@@ -25,7 +25,7 @@ final class ManifestTargetGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(target.name, "MyProject-Manifest")
         XCTAssertEqual(target.product, .staticFramework)
-        XCTAssertEqual(target.sources.map { $0.asString }, ["/test/Project.swift"])
+        XCTAssertEqual(target.sources.map { $0.pathString }, ["/test/Project.swift"])
         XCTAssertNil(target.infoPlist)
         assertValidManifestBuildSettings(for: target,
                                          expectedSearchPath: "/test")

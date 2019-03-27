@@ -115,7 +115,7 @@ class CommandRunner: CommandRunning {
     }
 
     func runAtPath(_ path: AbsolutePath) throws {
-        var args = [path.appending(component: Constants.binName).asString]
+        var args = [path.appending(component: Constants.binName).pathString]
         args.append(contentsOf: Array(arguments().dropFirst()))
 
         try system.runAndPrint(args, verbose: false, environment: ProcessInfo.processInfo.environment)

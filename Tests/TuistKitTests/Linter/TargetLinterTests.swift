@@ -46,7 +46,7 @@ final class TargetLinterTests: XCTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist at path \(path.asString) being copied into the target \(target.name) product.", severity: .warning)))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning)))
     }
 
     func test_lint_when_a_entitlements_file_is_being_copied() {
@@ -55,7 +55,7 @@ final class TargetLinterTests: XCTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file at path \(path.asString) being copied into the target \(target.name) product.", severity: .warning)))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning)))
     }
 
     func test_lint_when_entitlements_not_missing() {
@@ -64,7 +64,7 @@ final class TargetLinterTests: XCTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist file not found at path \(path.asString)", severity: .error)))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist file not found at path \(path.pathString)", severity: .error)))
     }
 
     func test_lint_when_infoplist_not_found() {
@@ -73,7 +73,7 @@ final class TargetLinterTests: XCTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file not found at path \(path.asString)", severity: .error)))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error)))
     }
 
     func test_lint_when_library_has_resources() {

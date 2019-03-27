@@ -53,7 +53,7 @@ final class CommandRunnerTests: XCTestCase {
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.bin(self.fileHandler.currentPath) }
-        system.succeedCommand(binaryPath.asString, "--help", output: "output")
+        system.succeedCommand(binaryPath.pathString, "--help", output: "output")
         try subject.run()
     }
 
@@ -62,7 +62,7 @@ final class CommandRunnerTests: XCTestCase {
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.bin(self.fileHandler.currentPath) }
-        system.errorCommand(binaryPath.asString, "--help", error: "error")
+        system.errorCommand(binaryPath.pathString, "--help", error: "error")
 
         XCTAssertThrowsError(try subject.run())
     }
@@ -80,12 +80,12 @@ final class CommandRunnerTests: XCTestCase {
 
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
-        system.succeedCommand(binaryPath.asString, "--help", output: "")
+        system.succeedCommand(binaryPath.pathString, "--help", output: "")
 
         try subject.run()
 
         XCTAssertEqual(printer.printArgs.count, 2)
-        XCTAssertEqual(printer.printArgs.first, "Using version 3.2.1 defined at \(fileHandler.currentPath.asString)")
+        XCTAssertEqual(printer.printArgs.first, "Using version 3.2.1 defined at \(fileHandler.currentPath.pathString)")
         XCTAssertEqual(printer.printArgs.last, "Version 3.2.1 not found locally. Installing...")
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
@@ -116,7 +116,7 @@ final class CommandRunnerTests: XCTestCase {
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(self.fileHandler.currentPath, "3.2.1")
         }
 
-        system.errorCommand(binaryPath.asString, "--help", error: "error")
+        system.errorCommand(binaryPath.pathString, "--help", error: "error")
 
         XCTAssertThrowsError(try subject.run())
     }
@@ -132,7 +132,7 @@ final class CommandRunnerTests: XCTestCase {
             $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
         }
 
-        system.succeedCommand(binaryPath.asString, "--help", output: "")
+        system.succeedCommand(binaryPath.pathString, "--help", output: "")
 
         try subject.run()
     }
@@ -152,7 +152,7 @@ final class CommandRunnerTests: XCTestCase {
             $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
         }
 
-        system.succeedCommand(binaryPath.asString, "--help", output: "")
+        system.succeedCommand(binaryPath.pathString, "--help", output: "")
 
         try subject.run()
     }
@@ -186,7 +186,7 @@ final class CommandRunnerTests: XCTestCase {
             $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
         }
 
-        system.errorCommand(binaryPath.asString, "--help", error: "error")
+        system.errorCommand(binaryPath.pathString, "--help", error: "error")
 
         XCTAssertThrowsError(try subject.run())
     }

@@ -59,7 +59,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                                  options: GenerationOptions())
 
         // Then
-        let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
+        let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
         XCTAssertEqual(xcworkspace.data.children, [
             .group(.init(location: .group("Documentation"), name: "Documentation", children: [
                 .file(.init(location: .group("README.md"))),
@@ -87,7 +87,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                                  options: GenerationOptions())
 
         // Then
-        let xcworkspace = try XCWorkspace(pathString: workspacePath.asString)
+        let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
         XCTAssertEqual(xcworkspace.data.children, [
             .file(.init(location: .group("Test.xcodeproj"))),
         ])

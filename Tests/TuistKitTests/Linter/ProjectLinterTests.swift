@@ -15,6 +15,6 @@ final class ProjectLinterTests: XCTestCase {
         let target = Target.test(name: "A")
         let project = Project.test(targets: [target, target])
         let got = subject.lint(project)
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Targets A from project at \(project.path.asString) have duplicates.", severity: .error)))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Targets A from project at \(project.path.pathString) have duplicates.", severity: .error)))
     }
 }

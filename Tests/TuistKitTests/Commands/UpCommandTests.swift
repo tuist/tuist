@@ -33,11 +33,11 @@ final class UpCommandTests: XCTestCase {
 
     func test_run_configures_the_environment() throws {
         // given
-        let currentPath = fileHandler.currentPath.asString
+        let currentPath = fileHandler.currentPath.pathString
         let result = try parser.parse([UpCommand.command])
         var receivedPaths = [String]()
         setupLoader.meetStub = { path in
-            receivedPaths.append(path.asString)
+            receivedPaths.append(path.pathString)
         }
 
         // when
@@ -51,10 +51,10 @@ final class UpCommandTests: XCTestCase {
     func test_run_uses_the_given_path() throws {
         // given
         let path = AbsolutePath("/path")
-        let result = try parser.parse([UpCommand.command, "-p", path.asString])
+        let result = try parser.parse([UpCommand.command, "-p", path.pathString])
         var receivedPaths = [String]()
         setupLoader.meetStub = { path in
-            receivedPaths.append(path.asString)
+            receivedPaths.append(path.pathString)
         }
 
         // when
