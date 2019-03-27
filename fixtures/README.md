@@ -107,6 +107,8 @@ Dependencies:
   - A -> B
   - A -> prebuild C (libC.a)
 
+  Note: to re-create `libC.a` run `fixtures/ios_app_with_static_libraries/Modules/C/build.sh` and copy the contents of `fixtures/ios_app_with_static_libraries/Modules/C/prebuilt` 
+
 ## ios_app_with_static_frameworks
 
 Same as `ios_app_with_static_libraries` except using static frameworks instead of libraries.
