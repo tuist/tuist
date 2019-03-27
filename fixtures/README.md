@@ -95,9 +95,19 @@ Workspace:
     - BTests (iOS unit tests)
 ```
 
+A standalone C project is used to generate a prebuilt static library:
+```
+  - C:
+    - C (static library iOS)
+    - CTests (iOS unit tests)
+```
+
 Dependencies:
   - App -> A
   - A -> B
+  - A -> prebuild C (libC.a)
+
+  Note: to re-create `libC.a` run `fixtures/ios_app_with_static_libraries/Modules/C/build.sh` and copy the contents of `fixtures/ios_app_with_static_libraries/Modules/C/prebuilt` 
 
 ## ios_app_with_static_frameworks
 

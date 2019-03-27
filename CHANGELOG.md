@@ -26,6 +26,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix `instance method nearly matches optional requirements` warning in generated `AppDelegate.swift` in iOS projects https://github.com/tuist/tuist/pull/291 by @BalestraPatrick
 - Fix Header & Framework search paths override project or xcconfig settings https://github.com/tuist/tuist/pull/301 by @ollieatkinson
 - Unit tests bundle for an app target compile & run https://github.com/tuist/tuist/pull/300 by @ollieatkinson
+- `LIBRARY_SEARCH_PATHS` and `SWIFT_INCLUDE_PATHS` are now set https://github.com/tuist/tuist/pull/308 by @kwridan
 
 ## 0.12.0
 

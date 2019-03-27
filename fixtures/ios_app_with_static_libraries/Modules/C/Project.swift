@@ -1,26 +1,24 @@
 import ProjectDescription
 
-let project = Project(name: "A",
+let project = Project(name: "C",
                       targets: [
-                          Target(name: "A",
+                          Target(name: "C",
                                  platform: .iOS,
                                  product: .staticLibrary,
-                                 bundleId: "io.tuist.A",
+                                 bundleId: "io.tuist.C",
                                  infoPlist: "Info.plist",
                                  sources: "Sources/**",
                                  dependencies: [
-                                     .project(target: "B", path: "../B"),
-                                     .library(path: "../prebuilt/C/libC.a",
-                                             publicHeaders: "../prebuilt/C",
-                                             swiftModuleMap: "../prebuilt/C/C.swiftmodule")
+                                     /* Target dependencies can be defined here */
+                                     /* .framework(path: "framework") */
                           ]),
-                          Target(name: "ATests",
+                          Target(name: "CTests",
                                  platform: .iOS,
                                  product: .unitTests,
-                                 bundleId: "io.tuist.ATests",
+                                 bundleId: "io.tuist.BTests",
                                  infoPlist: "Tests.plist",
                                  sources: "Tests/**",
                                  dependencies: [
-                                     .target(name: "A"),
+                                     .target(name: "C"),
                           ]),
 ])
