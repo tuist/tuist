@@ -8,7 +8,7 @@ enum PlaygroundGenerationError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .alreadyExisting(path):
-            return "A playground already exists at path \(path.asString)"
+            return "A playground already exists at path \(path.pathString)"
         }
     }
 

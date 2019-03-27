@@ -1,6 +1,6 @@
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 enum CommandCheckError: FatalError, Equatable {
     case swiftVersionNotFound

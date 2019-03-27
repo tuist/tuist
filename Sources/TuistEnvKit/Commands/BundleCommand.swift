@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 enum BundleCommandError: FatalError, Equatable {
     case missingVersionFile(AbsolutePath)
@@ -16,7 +16,7 @@ enum BundleCommandError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingVersionFile(path):
-            return "Couldn't find a .tuist-version file in the directory \(path.asString)"
+            return "Couldn't find a .tuist-version file in the directory \(path.pathString)"
         }
     }
 

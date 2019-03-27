@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 enum InitCommandError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)
@@ -14,9 +14,9 @@ enum InitCommandError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .ungettableProjectName(path):
-            return "Couldn't infer the project name from path \(path.asString)."
+            return "Couldn't infer the project name from path \(path.pathString)."
         case let .nonEmptyDirectory(path):
-            return "Can't initialize a project in the non-empty directory at path \(path.asString)."
+            return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
         }
     }
 
@@ -109,7 +109,7 @@ class InitCommand: NSObject, Command {
         try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateGitIgnore(path: path)
         try generateSetup(path: path)
-        printer.print(success: "Project generated at path \(path.asString).")
+        printer.print(success: "Project generated at path \(path.pathString).")
     }
 
     // MARK: - Fileprivate

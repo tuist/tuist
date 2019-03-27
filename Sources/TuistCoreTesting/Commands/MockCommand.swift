@@ -1,6 +1,6 @@
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 public final class MockCommand: Command {
     public static let command: String = "command"

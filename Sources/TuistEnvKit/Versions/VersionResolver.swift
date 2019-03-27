@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 enum ResolvedVersion: Equatable {
     case bin(AbsolutePath)
@@ -38,7 +38,7 @@ enum VersionResolverError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .readError(path):
-            return "Cannot read the version file at path \(path.asString)."
+            return "Cannot read the version file at path \(path.pathString)."
         }
     }
 
@@ -87,7 +87,7 @@ class VersionResolver: VersionResolving {
     private func resolveVersionFile(path: AbsolutePath) throws -> ResolvedVersion {
         var value: String!
         do {
-            value = try String(contentsOf: URL(fileURLWithPath: path.asString))
+            value = try String(contentsOf: URL(fileURLWithPath: path.pathString))
         } catch {
             throw VersionResolverError.readError(path: path)
         }

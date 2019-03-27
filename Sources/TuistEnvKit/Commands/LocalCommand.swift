@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 class LocalCommand: Command {
     // MARK: - Command

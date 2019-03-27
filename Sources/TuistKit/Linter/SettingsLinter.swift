@@ -32,7 +32,7 @@ final class SettingsLinter: SettingsLinting {
 
         let lintPath: (AbsolutePath) -> Void = { path in
             if !self.fileHandler.exists(path) {
-                issues.append(LintingIssue(reason: "Configuration file not found at path \(path.asString)", severity: .error))
+                issues.append(LintingIssue(reason: "Configuration file not found at path \(path.pathString)", severity: .error))
             }
         }
 

@@ -69,9 +69,9 @@ class CommandRunner: CommandRunning {
 
         switch resolvedVersion {
         case let .bin(path):
-            printer.print("Using bundled version at path \(path.asString)")
+            printer.print("Using bundled version at path \(path.pathString)")
         case let .versionFile(path, value):
-            printer.print("Using version \(value) defined at \(path.asString)")
+            printer.print("Using version \(value) defined at \(path.pathString)")
         default:
             break
         }

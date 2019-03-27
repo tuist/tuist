@@ -154,10 +154,10 @@ final class ConfigGenerator: ConfigGenerating {
         /// Target attributes
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
         if let infoPlist = target.infoPlist {
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).asString)"
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).pathString)"
         }
         if let entitlements = target.entitlements {
-            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).asString)"
+            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
         }
         settings["SDKROOT"] = target.platform.xcodeSdkRoot
         settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms

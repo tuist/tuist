@@ -58,7 +58,7 @@ public struct TargetAction {
     func shellScript(sourceRootPath: AbsolutePath,
                      system: Systeming = System()) throws -> String {
         if let path = path {
-            return "\(path.relative(to: sourceRootPath).asString) \(arguments.joined(separator: " "))"
+            return "\(path.relative(to: sourceRootPath).pathString) \(arguments.joined(separator: " "))"
         } else {
             return try "\(system.which(tool!).spm_chomp().spm_chuzzle()!) \(arguments.joined(separator: " "))"
         }

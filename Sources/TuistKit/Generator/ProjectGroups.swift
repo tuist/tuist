@@ -68,7 +68,7 @@ class ProjectGroups {
                          sourceRootPath: AbsolutePath,
                          playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
         /// Main
-        let projectRelativePath = project.path.relative(to: sourceRootPath).asString
+        let projectRelativePath = project.path.relative(to: sourceRootPath).pathString
         let mainGroup = PBXGroup(children: [],
                                  sourceTree: .group,
                                  path: (projectRelativePath != ".") ? projectRelativePath : nil)

@@ -114,7 +114,7 @@ enum PrecompiledNodeError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .architecturesNotFound(path):
-            return "Couldn't find architectures for binary at path \(path.asString)"
+            return "Couldn't find architectures for binary at path \(path.pathString)"
         }
     }
 
@@ -152,7 +152,7 @@ class PrecompiledNode: GraphNode {
     }
 
     func architectures(system: Systeming = System()) throws -> [Architecture] {
-        let result = try system.capture("/usr/bin/lipo", "-info", binaryPath.asString).spm_chuzzle() ?? ""
+        let result = try system.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
         let regex = try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: [])
         guard let match = regex.firstMatch(in: result, options: [], range: NSRange(location: 0, length: result.count)) else {
             throw PrecompiledNodeError.architecturesNotFound(binaryPath)
@@ -162,7 +162,7 @@ class PrecompiledNode: GraphNode {
     }
 
     func linking(system: Systeming = System()) throws -> Linking {
-        let result = try system.capture("/usr/bin/file", binaryPath.asString).spm_chuzzle() ?? ""
+        let result = try system.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static
     }
 }
@@ -179,7 +179,7 @@ class FrameworkNode: PrecompiledNode {
     }
 
     var isCarthage: Bool {
-        return path.asString.contains("Carthage/Build")
+        return path.pathString.contains("Carthage/Build")
     }
 
     override var binaryPath: AbsolutePath {

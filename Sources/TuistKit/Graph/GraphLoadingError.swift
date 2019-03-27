@@ -33,18 +33,18 @@ enum GraphLoadingError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .manifestNotFound(path):
-            return "Couldn't find manifest at path: '\(path.asString)'"
+            return "Couldn't find manifest at path: '\(path.pathString)'"
         case let .targetNotFound(targetName, path):
-            return "Couldn't find target '\(targetName)' at '\(path.asString)'"
+            return "Couldn't find target '\(targetName)' at '\(path.pathString)'"
         case let .missingFile(path):
-            return "Couldn't find file at path '\(path.asString)'"
+            return "Couldn't find file at path '\(path.pathString)'"
         case let .unexpected(message):
             return message
         case let .circularDependency(from, to):
             var message = ""
             message.append("Found circular dependency between the target")
-            message.append(" '\(from.name)' at '\(from.path.asString)'")
-            message.append(" and the target '\(to.name)' at '\(to.path.asString)'")
+            message.append(" '\(from.name)' at '\(from.path.pathString)'")
+            message.append(" and the target '\(to.name)' at '\(to.path.pathString)'")
             return message
         }
     }
