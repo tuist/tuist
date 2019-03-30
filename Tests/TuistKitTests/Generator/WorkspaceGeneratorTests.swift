@@ -69,6 +69,31 @@ final class WorkspaceGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generate_workspaceStructure_noWorkspaceData() throws {
+        let name = "test"
+
+        // Given
+        try fileHandler.createFolder(fileHandler.currentPath.appending(component: "\(name).xcworkspace"))
+
+        let graph = Graph.test(entryPath: path)
+        let workspace = Workspace.test(name: name)
+
+        let workspacePath: AbsolutePath?
+
+        // When
+        do {
+            workspacePath = try subject.generate(workspace: workspace,
+                                                 path: path,
+                                                 graph: graph,
+                                                 options: GenerationOptions())
+        } catch {
+            workspacePath = nil
+            XCTFail(error.localizedDescription)
+        }
+
+        XCTAssertNotNil(workspacePath)
+    }
+
     func test_generate_workspaceStructureWithProjects() throws {
         // Given
         let target = anyTarget()
