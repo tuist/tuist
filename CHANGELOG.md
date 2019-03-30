@@ -5,6 +5,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next version
 
 ### Changed
+### Added
+### Removed
+### Fixed
+
+## 0.13.0
 
 ### Added
 
@@ -27,6 +32,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix Header & Framework search paths override project or xcconfig settings https://github.com/tuist/tuist/pull/301 by @ollieatkinson
 - Unit tests bundle for an app target compile & run https://github.com/tuist/tuist/pull/300 by @ollieatkinson
 - `LIBRARY_SEARCH_PATHS` and `SWIFT_INCLUDE_PATHS` are now set https://github.com/tuist/tuist/pull/308 by @kwridan
+- Fix Generation fails in the event an empty .xcworkspace directory exists https://github.com/tuist/tuist/pull/312 by @ollieatkinson
 
 ## 0.12.0
 

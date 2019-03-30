@@ -118,7 +118,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
         // If the workspace doesn't exist we can write it because there isn't any
         // Xcode instance that might depend on it.
-        if !fileHandler.exists(to) {
+        if !fileHandler.exists(to.appending(component: "contents.xcworkspacedata")) {
             try xcworkspace.write(path: to.path)
             return
         }
