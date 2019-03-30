@@ -235,4 +235,50 @@ final class GraphTests: XCTestCase {
             DependencyReference.absolute(frameworkPath),
         ])
     }
+
+    func test_librariesSearchPaths() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let precompiledNode = LibraryNode(path: AbsolutePath("/test/test.a"),
+                                          publicHeaders: AbsolutePath("/test/public/"))
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledNode])
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+
+        // When
+        let got = graph.librariesSearchPaths(path: project.path,
+                                             name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [AbsolutePath("/test")])
+    }
+
+    func test_librariesSwiftIncludePaths() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let precompiledNodeA = LibraryNode(path: AbsolutePath("/test/test.a"),
+                                           publicHeaders: AbsolutePath("/test/public/"),
+                                           swiftModuleMap: AbsolutePath("/test/modules/test.swiftmodulemap"))
+        let precompiledNodeB = LibraryNode(path: AbsolutePath("/test/another.a"),
+                                           publicHeaders: AbsolutePath("/test/public/"),
+                                           swiftModuleMap: nil)
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledNodeA, precompiledNodeB])
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+
+        // When
+        let got = graph.librariesSwiftIncludePaths(path: project.path,
+                                                   name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [AbsolutePath("/test/modules")])
+    }
 }

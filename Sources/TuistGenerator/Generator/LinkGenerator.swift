@@ -76,6 +76,8 @@ final class LinkGenerator: LinkGenerating {
                        system: Systeming = System()) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
+        let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
+        let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
@@ -89,6 +91,14 @@ final class LinkGenerator: LinkGenerating {
                                      sourceRootPath: sourceRootPath)
 
         try setupHeadersSearchPath(headersSearchPaths,
+                                   pbxTarget: pbxTarget,
+                                   sourceRootPath: sourceRootPath)
+
+        try setupLibrarySearchPaths(librarySearchPaths,
+                                    pbxTarget: pbxTarget,
+                                    sourceRootPath: sourceRootPath)
+
+        try setupSwiftIncludePaths(swiftIncludePaths,
                                    pbxTarget: pbxTarget,
                                    sourceRootPath: sourceRootPath)
 
@@ -168,39 +178,55 @@ final class LinkGenerator: LinkGenerating {
             return nil
         }
         .map { $0.removingLastComponent() }
-        .map { $0.relative(to: sourceRootPath).asString }
-        .map { "$(SRCROOT)/\($0)" }
 
-        if paths.isEmpty { return }
-
-        let configurationList = pbxTarget.buildConfigurationList
-        let buildConfigurations = configurationList?.buildConfigurations
-
-        let pathsValue = Set(paths).sorted().joined(separator: " ")
-        buildConfigurations?.forEach { buildConfiguration in
-            var frameworkSearchPaths = (buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String) ?? "$(inherited)"
-            if frameworkSearchPaths.isEmpty {
-                frameworkSearchPaths = pathsValue
-            } else {
-                frameworkSearchPaths.append(" \(pathsValue)")
-            }
-            buildConfiguration.buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkSearchPaths
-        }
+        let uniquePaths = Array(Set(paths)).sorted()
+        try setup(setting: "FRAMEWORK_SEARCH_PATHS",
+                  paths: uniquePaths,
+                  pbxTarget: pbxTarget,
+                  sourceRootPath: sourceRootPath)
     }
 
-    func setupHeadersSearchPath(_ headersFolders: [AbsolutePath],
+    func setupHeadersSearchPath(_ paths: [AbsolutePath],
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws {
-        let relativePaths = headersFolders
+        try setup(setting: "HEADER_SEARCH_PATHS",
+                  paths: paths,
+                  pbxTarget: pbxTarget,
+                  sourceRootPath: sourceRootPath)
+    }
+
+    func setupLibrarySearchPaths(_ paths: [AbsolutePath],
+                                 pbxTarget: PBXTarget,
+                                 sourceRootPath: AbsolutePath) throws {
+        try setup(setting: "LIBRARY_SEARCH_PATHS",
+                  paths: paths,
+                  pbxTarget: pbxTarget,
+                  sourceRootPath: sourceRootPath)
+    }
+
+    func setupSwiftIncludePaths(_ paths: [AbsolutePath],
+                                pbxTarget: PBXTarget,
+                                sourceRootPath: AbsolutePath) throws {
+        try setup(setting: "SWIFT_INCLUDE_PATHS",
+                  paths: paths,
+                  pbxTarget: pbxTarget,
+                  sourceRootPath: sourceRootPath)
+    }
+
+    private func setup(setting: String,
+                       paths: [AbsolutePath],
+                       pbxTarget: PBXTarget,
+                       sourceRootPath: AbsolutePath) throws {
+        let relativePaths = paths
             .map { $0.relative(to: sourceRootPath).asString }
             .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
+
+        let pathsValue = relativePaths.joined(separator: " ")
         configurationList.buildConfigurations.forEach {
-            var headers = ($0.buildSettings["HEADER_SEARCH_PATHS"] as? String) ?? "$(inherited)"
-            headers.append(" \(relativePaths.joined(separator: " "))")
-            $0.buildSettings["HEADER_SEARCH_PATHS"] = headers
+            $0.append(setting: setting, value: pathsValue)
         }
     }
 
@@ -264,5 +290,15 @@ final class LinkGenerator: LinkGenerating {
 
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
+    }
+}
+
+private extension XCBuildConfiguration {
+    func append(setting name: String, value: String) {
+        guard !value.isEmpty else {
+            return
+        }
+        let existing = (buildSettings[name] as? String) ?? "$(inherited)"
+        buildSettings[name] = [existing, value].joined(separator: " ")
     }
 }

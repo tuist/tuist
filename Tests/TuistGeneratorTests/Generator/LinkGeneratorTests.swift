@@ -140,6 +140,78 @@ final class LinkGeneratorErrorTests: XCTestCase {
         }
     }
 
+    func test_setupLibrarySearchPaths_multiplePaths() throws {
+        // Given
+        let searchPaths = [
+            AbsolutePath("/path/to/libraries"),
+            AbsolutePath("/path/to/other/libraries"),
+        ]
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+
+        // When
+        try subject.setupLibrarySearchPaths(searchPaths,
+                                            pbxTarget: xcodeprojElements.pbxTarget,
+                                            sourceRootPath: sourceRootPath)
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"] as? String,
+                       "$(inherited) $(SRCROOT)/to/libraries $(SRCROOT)/to/other/libraries")
+    }
+
+    func test_setupLibrarySearchPaths_noPaths() throws {
+        // Given
+        let searchPaths: [AbsolutePath] = []
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+
+        // When
+        try subject.setupLibrarySearchPaths(searchPaths,
+                                            pbxTarget: xcodeprojElements.pbxTarget,
+                                            sourceRootPath: sourceRootPath)
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertNil(config.buildSettings["LIBRARY_SEARCH_PATHS"])
+    }
+
+    func test_setupSwiftIncludePaths_multiplePaths() throws {
+        // Given
+        let searchPaths = [
+            AbsolutePath("/path/to/libraries"),
+            AbsolutePath("/path/to/other/libraries"),
+        ]
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+
+        // When
+        try subject.setupSwiftIncludePaths(searchPaths,
+                                           pbxTarget: xcodeprojElements.pbxTarget,
+                                           sourceRootPath: sourceRootPath)
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"] as? String,
+                       "$(inherited) $(SRCROOT)/to/libraries $(SRCROOT)/to/other/libraries")
+    }
+
+    func test_setupSwiftIncludePaths_noPaths() throws {
+        // Given
+        let searchPaths: [AbsolutePath] = []
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+
+        // When
+        try subject.setupSwiftIncludePaths(searchPaths,
+                                           pbxTarget: xcodeprojElements.pbxTarget,
+                                           sourceRootPath: sourceRootPath)
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertNil(config.buildSettings["SWIFT_INCLUDE_PATHS"])
+    }
+
     func test_generateLinkingPhase() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
@@ -196,5 +268,31 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                                               fileElements: fileElements)) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
         }
+    }
+
+    // MARK: - Helpers
+
+    struct XcodeprojElements {
+        var pbxproj: PBXProj
+        var pbxTarget: PBXNativeTarget
+        var config: XCBuildConfiguration
+    }
+
+    func createXcodeprojElements() -> XcodeprojElements {
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        pbxproj.add(object: pbxTarget)
+
+        let configurationList = XCConfigurationList(buildConfigurations: [])
+        pbxproj.add(object: configurationList)
+        pbxTarget.buildConfigurationList = configurationList
+
+        let config = XCBuildConfiguration(name: "Debug")
+        pbxproj.add(object: config)
+        configurationList.buildConfigurations.append(config)
+
+        return XcodeprojElements(pbxproj: pbxproj,
+                                 pbxTarget: pbxTarget,
+                                 config: config)
     }
 }
