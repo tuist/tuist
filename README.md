@@ -48,8 +48,6 @@ let project = Project(name: "App",
                       ])
 ```
 
-Although we encourage defining the manifests in Swift, Tuist also supports JSON and Yaml formats.
-
 ### Interacting with your projects 🙇‍♀️
 
 Tuist leverages project generation to provide a **simple and convenient set of commands, standard across all the projects**. The commands infer most of the necessary information from your projects, requiring you to pass only the arguments that are strictly necessary.
