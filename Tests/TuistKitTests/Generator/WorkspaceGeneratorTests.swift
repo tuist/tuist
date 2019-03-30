@@ -78,20 +78,13 @@ final class WorkspaceGeneratorTests: XCTestCase {
         let graph = Graph.test(entryPath: path)
         let workspace = Workspace.test(name: name)
 
-        let workspacePath: AbsolutePath?
-
         // When
-        do {
-            workspacePath = try subject.generate(workspace: workspace,
-                                                 path: path,
-                                                 graph: graph,
-                                                 options: GenerationOptions())
-        } catch {
-            workspacePath = nil
-            XCTFail(error.localizedDescription)
-        }
-
-        XCTAssertNotNil(workspacePath)
+        XCTAssertNoThrow(
+            try subject.generate(workspace: workspace,
+                                 path: path,
+                                 graph: graph,
+                                 options: GenerationOptions())
+        )
     }
 
     func test_generate_workspaceStructureWithProjects() throws {
