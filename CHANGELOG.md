@@ -5,6 +5,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next version
 
 ### Changed
+### Added
+### Removed
+### Fixed
+
+## 0.13.0
 
 ### Added
 
