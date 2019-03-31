@@ -20,5 +20,7 @@ let project = Project(name: "MainApp",
                                  sources: "Tests/**",
                                  dependencies: [
                                      .target(name: "App"),
-                          ]),
+                          ])],
+                           additionalFiles: [
+                                .folderReference(path: "Server")
 ])
