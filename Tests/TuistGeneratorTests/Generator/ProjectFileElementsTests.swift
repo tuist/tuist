@@ -28,8 +28,8 @@ final class ProjectFileElementsTests: XCTestCase {
 
         let project = Project.test(path: AbsolutePath("/project/"), settings: settings)
         let files = subject.projectFiles(project: project)
-        XCTAssertTrue(files.contains(AbsolutePath("/project/debug.xcconfig")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/release.xcconfig")))
+        XCTAssertTrue(files.contains(FileElement(path: "/project/debug.xcconfig", group: project.filesGroup)))
+        XCTAssertTrue(files.contains(FileElement(path: "/project/release.xcconfig", group: project.filesGroup)))
     }
 
     func test_targetProducts() {
