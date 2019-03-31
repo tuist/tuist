@@ -20,6 +20,9 @@ public class Project: Equatable, CustomStringConvertible {
     /// The group to place project files within
     public let filesGroup: ProjectGroup
 
+    /// Additional files to include in the project
+    public let additionalFiles: [WorkspaceElement]
+
     // MARK: - Init
 
     /// Initializes the project with its attributes.
@@ -27,17 +30,23 @@ public class Project: Equatable, CustomStringConvertible {
     /// - Parameters:
     ///   - path: Path to the folder that contains the project manifest.
     ///   - name: Project name.
-    ///   - targets: Project settings.
+    ///   - settings: The settings to apply at the project level
+    ///   - filesGroup: The root group to place project files within
+    ///   - targets: The project targets
+    ///   - additionalFiles: The additional files to include in the project
+    ///                      *(Those won't be included in any build phases)*
     public init(path: AbsolutePath,
                 name: String,
                 settings: Settings? = nil,
                 filesGroup: ProjectGroup,
-                targets: [Target]) {
+                targets: [Target],
+                additionalFiles: [WorkspaceElement] = []) {
         self.path = path
         self.name = name
         self.targets = targets
         self.settings = settings
         self.filesGroup = filesGroup
+        self.additionalFiles = additionalFiles
     }
 
     // MARK: - Init

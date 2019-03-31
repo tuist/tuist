@@ -94,7 +94,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/README.md",
         ])
 
-        let additionalFiles: [Workspace.Element] = [
+        let additionalFiles: [WorkspaceElement] = [
             .folderReference(path: "/path/to/workspace/Documentation/Guides"),
             .folderReference(path: "/path/to/workspace/Documentation/Proposals"),
             .file(path: "/path/to/workspace/README.md"),
@@ -200,7 +200,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/Modules/A",
         ])
 
-        let files: [Workspace.Element] = [
+        let files: [WorkspaceElement] = [
             .folderReference(path: "/path/to/workspace/Modules/A"),
         ]
         let workspace = Workspace.test(projects: projects,

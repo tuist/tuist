@@ -55,7 +55,7 @@ private class DirectoryStructure {
     let fileHandler: FileHandling
 
     let projects: [AbsolutePath]
-    let files: [Workspace.Element]
+    let files: [WorkspaceElement]
 
     private let containers: [String] = [
         ".playground",
@@ -65,7 +65,7 @@ private class DirectoryStructure {
     init(path: AbsolutePath,
          fileHandler: FileHandling,
          projects: [AbsolutePath],
-         files: [Workspace.Element]) {
+         files: [WorkspaceElement]) {
         self.path = path
         self.fileHandler = fileHandler
         self.projects = projects
@@ -100,7 +100,7 @@ private class DirectoryStructure {
         return root
     }
 
-    private func fileNode(from element: Workspace.Element) -> Node {
+    private func fileNode(from element: WorkspaceElement) -> Node {
         switch element {
         case let .file(path: path):
             return .file(path)
@@ -113,7 +113,7 @@ private class DirectoryStructure {
         return .project(path)
     }
 
-    private func isFileOrFolderReference(element: Workspace.Element) -> Bool {
+    private func isFileOrFolderReference(element: WorkspaceElement) -> Bool {
         switch element {
         case .folderReference:
             return true
