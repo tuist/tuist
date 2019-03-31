@@ -1,7 +1,11 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistGenerator
 import Utility
+
+private typealias Platform = TuistGenerator.Platform
+private typealias Product = TuistGenerator.Product
 
 enum InitCommandError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)

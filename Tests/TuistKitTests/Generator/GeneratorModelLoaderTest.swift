@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistGenerator
 import XCTest
 @testable import ProjectDescription
 @testable import TuistCoreTesting
@@ -288,7 +289,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifest = SettingsManifest(base: ["base": "base"], debug: debug, release: release)
 
         // When
-        let model = TuistKit.Settings.from(manifest: manifest, path: path)
+        let model = TuistGenerator.Settings.from(manifest: manifest, path: path)
 
         // Then
         assert(settings: model, matches: manifest, at: path)
@@ -311,7 +312,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifest = HeadersManifest(public: "public/*.h", private: "private/*.h", project: "project/*.h")
 
         // When
-        let model = TuistKit.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -333,7 +334,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistKit.CoreDataModel.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: path, fileHandler: fileHandler)
 
         // Then
         XCTAssertTrue(coreDataModel(model, matches: manifest, at: path))
@@ -347,7 +348,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                             order: .pre,
                                                             arguments: ["arg1", "arg2"])
         // When
-        let model = TuistKit.TargetAction.from(manifest: manifest, path: path)
+        let model = TuistGenerator.TargetAction.from(manifest: manifest, path: path)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -362,7 +363,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifest = SchemeManifest.test(name: "Scheme",
                                            shared: false)
         // When
-        let model = TuistKit.Scheme.from(manifest: manifest)
+        let model = TuistGenerator.Scheme.from(manifest: manifest)
 
         // Then
         assert(scheme: model, matches: manifest)
@@ -387,7 +388,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                            testAction: testAction,
                                            runAction: runActions)
         // When
-        let model = TuistKit.Scheme.from(manifest: manifest)
+        let model = TuistGenerator.Scheme.from(manifest: manifest)
 
         // Then
         assert(scheme: model, matches: manifest)
@@ -395,7 +396,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_platform_watchOSNotSupported() {
         XCTAssertThrowsError(
-            try TuistKit.Platform.from(manifest: .watchOS)
+            try TuistGenerator.Platform.from(manifest: .watchOS)
         ) { error in
             XCTAssertEqual(error as? GeneratorModelLoaderError, GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
         }
@@ -403,10 +404,12 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_generatorModelLoaderError_type() {
         XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("").type, .abort)
+        XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").type, .abort)
     }
 
     func test_generatorModelLoaderError_description() {
         XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("abc").description, "abc is not yet supported")
+        XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").description, "Couldn't find file at path '/missing/path'")
     }
 
     // MARK: - Helpers
@@ -415,7 +418,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifestLoader = MockGraphManifestLoader()
         manifestLoader.loadProjectStub = { path in
             guard let manifest = projects[path] else {
-                throw GraphLoadingError.manifestNotFound(path)
+                throw GraphManifestLoaderError.manifestNotFound(path)
             }
             return manifest
         }
@@ -433,7 +436,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifestLoader = MockGraphManifestLoader()
         manifestLoader.loadWorkspaceStub = { path in
             guard let manifest = workspaces[path] else {
-                throw GraphLoadingError.manifestNotFound(path)
+                throw GraphManifestLoaderError.manifestNotFound(path)
             }
             return manifest
         }
@@ -443,7 +446,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         return manifestLoader
     }
 
-    func assert(target: TuistKit.Target,
+    func assert(target: TuistGenerator.Target,
                 matches manifest: ProjectDescription.Target,
                 at path: AbsolutePath,
                 file: StaticString = #file,
@@ -461,7 +464,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
     }
 
-    func assert(settings: TuistKit.Settings,
+    func assert(settings: TuistGenerator.Settings,
                 matches manifest: ProjectDescription.Settings,
                 at path: AbsolutePath,
                 file: StaticString = #file,
@@ -477,7 +480,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
     }
 
-    func assert(configuration: TuistKit.Configuration,
+    func assert(configuration: TuistGenerator.Configuration,
                 matches manifest: ProjectDescription.Configuration,
                 at path: AbsolutePath,
                 file: StaticString = #file,
@@ -486,7 +489,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(configuration.xcconfig, manifest.xcconfig.map { path.appending(RelativePath($0)) }, file: file, line: line)
     }
 
-    func assert(coreDataModels: [TuistKit.CoreDataModel],
+    func assert(coreDataModels: [TuistGenerator.CoreDataModel],
                 matches manifests: [ProjectDescription.CoreDataModel],
                 at path: AbsolutePath,
                 file: StaticString = #file,
@@ -497,14 +500,14 @@ class GeneratorModelLoaderTest: XCTestCase {
                       line: line)
     }
 
-    func coreDataModel(_ coreDataModel: TuistKit.CoreDataModel,
+    func coreDataModel(_ coreDataModel: TuistGenerator.CoreDataModel,
                        matches manifest: ProjectDescription.CoreDataModel,
                        at path: AbsolutePath) -> Bool {
         return coreDataModel.path == path.appending(RelativePath(manifest.path))
             && coreDataModel.currentVersion == manifest.currentVersion
     }
 
-    func assert(scheme: TuistKit.Scheme,
+    func assert(scheme: TuistGenerator.Scheme,
                 matches manifest: ProjectDescription.Scheme,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -523,14 +526,14 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
     }
 
-    func assert(buildAction: TuistKit.BuildAction,
+    func assert(buildAction: TuistGenerator.BuildAction,
                 matches manifest: ProjectDescription.BuildAction,
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(buildAction.targets, manifest.targets, file: file, line: line)
     }
 
-    func assert(testAction: TuistKit.TestAction,
+    func assert(testAction: TuistGenerator.TestAction,
                 matches manifest: ProjectDescription.TestAction,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -542,7 +545,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
     }
 
-    func assert(runAction: TuistKit.RunAction,
+    func assert(runAction: TuistGenerator.RunAction,
                 matches manifest: ProjectDescription.RunAction,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -553,7 +556,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
     }
 
-    func assert(arguments: TuistKit.Arguments,
+    func assert(arguments: TuistGenerator.Arguments,
                 matches manifest: ProjectDescription.Arguments,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -595,9 +598,9 @@ class GeneratorModelLoaderTest: XCTestCase {
     }
 }
 
-private func == (_ lhs: TuistKit.Platform,
+private func == (_ lhs: TuistGenerator.Platform,
                  _: ProjectDescription.Platform) -> Bool {
-    let map: [TuistKit.Platform: ProjectDescription.Platform] = [
+    let map: [TuistGenerator.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
         .tvOS: .tvOS,
@@ -605,9 +608,9 @@ private func == (_ lhs: TuistKit.Platform,
     return map[lhs] != nil
 }
 
-private func == (_ lhs: TuistKit.Product,
+private func == (_ lhs: TuistGenerator.Product,
                  _: ProjectDescription.Product) -> Bool {
-    let map: [TuistKit.Product: ProjectDescription.Product] = [
+    let map: [TuistGenerator.Product: ProjectDescription.Product] = [
         .app: .app,
         .framework: .framework,
         .unitTests: .unitTests,
@@ -618,9 +621,9 @@ private func == (_ lhs: TuistKit.Product,
     return map[lhs] != nil
 }
 
-private func == (_ lhs: TuistKit.BuildConfiguration,
+private func == (_ lhs: TuistGenerator.BuildConfiguration,
                  _: ProjectDescription.BuildConfiguration) -> Bool {
-    let map: [TuistKit.BuildConfiguration: ProjectDescription.BuildConfiguration] = [
+    let map: [TuistGenerator.BuildConfiguration: ProjectDescription.BuildConfiguration] = [
         .debug: .debug,
         .release: .release,
     ]

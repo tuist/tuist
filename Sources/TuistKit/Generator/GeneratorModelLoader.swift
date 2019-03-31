@@ -6,9 +6,12 @@ import TuistGenerator
 
 enum GeneratorModelLoaderError: Error, Equatable, FatalError {
     case featureNotYetSupported(String)
+    case missingFile(AbsolutePath)
     var type: ErrorType {
         switch self {
         case .featureNotYetSupported:
+            return .abort
+        case .missingFile:
             return .abort
         }
     }
@@ -17,6 +20,8 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
         switch self {
         case let .featureNotYetSupported(details):
             return "\(details) is not yet supported"
+        case let .missingFile(path):
+            return "Couldn't find file at path '\(path.asString)'"
         }
     }
 }
@@ -36,9 +41,9 @@ class GeneratorModelLoader: GeneratorModelLoading {
         self.printer = printer
     }
 
-    func loadProject(at path: AbsolutePath) throws -> Project {
+    func loadProject(at path: AbsolutePath) throws -> TuistGenerator.Project {
         let manifest = try manifestLoader.loadProject(at: path)
-        let project = try TuistKit.Project.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let project = try TuistGenerator.Project.from(manifest: manifest, path: path, fileHandler: fileHandler)
 
         let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
                                                                                 at: path)
@@ -46,23 +51,23 @@ class GeneratorModelLoader: GeneratorModelLoading {
         return project.adding(target: manifestTarget)
     }
 
-    func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
+    func loadWorkspace(at path: AbsolutePath) throws -> TuistGenerator.Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
-        let workspace = try TuistKit.Workspace.from(manifest: manifest,
-                                                    path: path,
-                                                    fileHandler: fileHandler,
-                                                    manifestLoader: manifestLoader,
-                                                    printer: printer)
+        let workspace = try TuistGenerator.Workspace.from(manifest: manifest,
+                                                          path: path,
+                                                          fileHandler: fileHandler,
+                                                          manifestLoader: manifestLoader,
+                                                          printer: printer)
         return workspace
     }
 }
 
-extension TuistKit.Workspace {
+extension TuistGenerator.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
                      manifestLoader: GraphManifestLoading,
-                     printer: Printing) throws -> TuistKit.Workspace {
+                     printer: Printing) throws -> TuistGenerator.Workspace {
         func globFiles(_ string: String) -> [AbsolutePath] {
             let files = fileHandler.glob(path, glob: string)
 
@@ -104,7 +109,7 @@ extension TuistKit.Workspace {
             return [folderReferencePath]
         }
 
-        func workspaceElement(from element: ProjectDescription.Workspace.Element) -> [Workspace.Element] {
+        func workspaceElement(from element: ProjectDescription.Workspace.Element) -> [TuistGenerator.Workspace.Element] {
             switch element {
             case let .glob(pattern: pattern):
                 return globFiles(pattern).map(Workspace.Element.file)
@@ -113,19 +118,19 @@ extension TuistKit.Workspace {
             }
         }
 
-        return TuistKit.Workspace(name: manifest.name,
-                                  projects: manifest.projects.flatMap(globProjects),
-                                  additionalFiles: manifest.additionalFiles.flatMap(workspaceElement))
+        return TuistGenerator.Workspace(name: manifest.name,
+                                        projects: manifest.projects.flatMap(globProjects),
+                                        additionalFiles: manifest.additionalFiles.flatMap(workspaceElement))
     }
 }
 
-extension TuistKit.Project {
+extension TuistGenerator.Project {
     static func from(manifest: ProjectDescription.Project,
                      path: AbsolutePath,
-                     fileHandler: FileHandling) throws -> TuistKit.Project {
+                     fileHandler: FileHandling) throws -> TuistGenerator.Project {
         let name = manifest.name
-        let settings = manifest.settings.map { TuistKit.Settings.from(manifest: $0, path: path) }
-        let targets = try manifest.targets.map { try TuistKit.Target.from(manifest: $0, path: path, fileHandler: fileHandler) }
+        let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
+        let targets = try manifest.targets.map { try TuistGenerator.Target.from(manifest: $0, path: path, fileHandler: fileHandler) }
 
         return Project(path: path,
                        name: name,
@@ -134,7 +139,7 @@ extension TuistKit.Project {
                        targets: targets)
     }
 
-    func adding(target: Target) -> Project {
+    func adding(target: TuistGenerator.Target) -> TuistGenerator.Project {
         return Project(path: path,
                        name: name,
                        settings: settings,
@@ -143,27 +148,29 @@ extension TuistKit.Project {
     }
 }
 
-extension TuistKit.Target {
-    static func from(manifest: ProjectDescription.Target, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.Target {
+extension TuistGenerator.Target {
+    static func from(manifest: ProjectDescription.Target, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistGenerator.Target {
         let name = manifest.name
-        let platform = try TuistKit.Platform.from(manifest: manifest.platform)
-        let product = TuistKit.Product.from(manifest: manifest.product)
+        let platform = try TuistGenerator.Platform.from(manifest: manifest.platform)
+        let product = TuistGenerator.Product.from(manifest: manifest.product)
 
         let bundleId = manifest.bundleId
-        let dependencies = manifest.dependencies.map { TuistKit.Dependency.from(manifest: $0) }
+        let dependencies = manifest.dependencies.map { TuistGenerator.Dependency.from(manifest: $0) }
 
         let infoPlist = path.appending(RelativePath(manifest.infoPlist))
         let entitlements = manifest.entitlements.map { path.appending(RelativePath($0)) }
 
-        let settings = manifest.settings.map { TuistKit.Settings.from(manifest: $0, path: path) }
+        let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
 
-        let sources = try TuistKit.Target.sources(projectPath: path, sources: manifest.sources?.globs ?? [], fileHandler: fileHandler)
-        let resources = try TuistKit.Target.resources(projectPath: path, resources: manifest.resources?.globs ?? [], fileHandler: fileHandler)
-        let headers = manifest.headers.map { TuistKit.Headers.from(manifest: $0, path: path, fileHandler: fileHandler) }
+        let sources = try TuistGenerator.Target.sources(projectPath: path, sources: manifest.sources?.globs ?? [], fileHandler: fileHandler)
+        let resources = try TuistGenerator.Target.resources(projectPath: path, resources: manifest.resources?.globs ?? [], fileHandler: fileHandler)
+        let headers = manifest.headers.map { TuistGenerator.Headers.from(manifest: $0, path: path, fileHandler: fileHandler) }
 
-        let coreDataModels = try manifest.coreDataModels.map { try TuistKit.CoreDataModel.from(manifest: $0, path: path, fileHandler: fileHandler) }
+        let coreDataModels = try manifest.coreDataModels.map {
+            try TuistGenerator.CoreDataModel.from(manifest: $0, path: path, fileHandler: fileHandler)
+        }
 
-        let actions = manifest.actions.map { TuistKit.TargetAction.from(manifest: $0, path: path) }
+        let actions = manifest.actions.map { TuistGenerator.TargetAction.from(manifest: $0, path: path) }
         let environment = manifest.environment
 
         return Target(name: name,
@@ -184,36 +191,36 @@ extension TuistKit.Target {
     }
 }
 
-extension TuistKit.Settings {
-    static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistKit.Settings {
+extension TuistGenerator.Settings {
+    static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistGenerator.Settings {
         let base = manifest.base
-        let debug = manifest.debug.flatMap { TuistKit.Configuration.from(manifest: $0, path: path) }
-        let release = manifest.release.flatMap { TuistKit.Configuration.from(manifest: $0, path: path) }
+        let debug = manifest.debug.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
+        let release = manifest.release.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
         return Settings(base: base, debug: debug, release: release)
     }
 }
 
-extension TuistKit.Configuration {
-    static func from(manifest: ProjectDescription.Configuration, path: AbsolutePath) -> TuistKit.Configuration {
+extension TuistGenerator.Configuration {
+    static func from(manifest: ProjectDescription.Configuration, path: AbsolutePath) -> TuistGenerator.Configuration {
         let settings = manifest.settings
         let xcconfig = manifest.xcconfig.flatMap { path.appending(RelativePath($0)) }
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
 
-extension TuistKit.TargetAction {
-    static func from(manifest: ProjectDescription.TargetAction, path: AbsolutePath) -> TuistKit.TargetAction {
+extension TuistGenerator.TargetAction {
+    static func from(manifest: ProjectDescription.TargetAction, path: AbsolutePath) -> TuistGenerator.TargetAction {
         let name = manifest.name
         let tool = manifest.tool
-        let order = TuistKit.TargetAction.Order.from(manifest: manifest.order)
+        let order = TuistGenerator.TargetAction.Order.from(manifest: manifest.order)
         let path = manifest.path.map { AbsolutePath($0, relativeTo: path) }
         let arguments = manifest.arguments
         return TargetAction(name: name, order: order, tool: tool, path: path, arguments: arguments)
     }
 }
 
-extension TuistKit.TargetAction.Order {
-    static func from(manifest: ProjectDescription.TargetAction.Order) -> TuistKit.TargetAction.Order {
+extension TuistGenerator.TargetAction.Order {
+    static func from(manifest: ProjectDescription.TargetAction.Order) -> TuistGenerator.TargetAction.Order {
         switch manifest {
         case .pre:
             return .pre
@@ -223,11 +230,13 @@ extension TuistKit.TargetAction.Order {
     }
 }
 
-extension TuistKit.CoreDataModel {
-    static func from(manifest: ProjectDescription.CoreDataModel, path: AbsolutePath, fileHandler: FileHandling) throws -> TuistKit.CoreDataModel {
+extension TuistGenerator.CoreDataModel {
+    static func from(manifest: ProjectDescription.CoreDataModel,
+                     path: AbsolutePath,
+                     fileHandler: FileHandling) throws -> TuistGenerator.CoreDataModel {
         let modelPath = path.appending(RelativePath(manifest.path))
         if !fileHandler.exists(modelPath) {
-            throw GraphLoadingError.missingFile(modelPath)
+            throw GeneratorModelLoaderError.missingFile(modelPath)
         }
         let versions = fileHandler.glob(modelPath, glob: "*.xcdatamodel")
         let currentVersion = manifest.currentVersion
@@ -235,8 +244,8 @@ extension TuistKit.CoreDataModel {
     }
 }
 
-extension TuistKit.Headers {
-    static func from(manifest: ProjectDescription.Headers, path: AbsolutePath, fileHandler: FileHandling) -> TuistKit.Headers {
+extension TuistGenerator.Headers {
+    static func from(manifest: ProjectDescription.Headers, path: AbsolutePath, fileHandler: FileHandling) -> TuistGenerator.Headers {
         let `public` = manifest.public.map { fileHandler.glob(path, glob: $0) } ?? []
         let `private` = manifest.private.map { fileHandler.glob(path, glob: $0) } ?? []
         let project = manifest.project.map { fileHandler.glob(path, glob: $0) } ?? []
@@ -244,8 +253,8 @@ extension TuistKit.Headers {
     }
 }
 
-extension TuistKit.Dependency {
-    static func from(manifest: ProjectDescription.TargetDependency) -> TuistKit.Dependency {
+extension TuistGenerator.Dependency {
+    static func from(manifest: ProjectDescription.TargetDependency) -> TuistGenerator.Dependency {
         switch manifest {
         case let .target(name):
             return .target(name: name)
@@ -261,13 +270,13 @@ extension TuistKit.Dependency {
     }
 }
 
-extension TuistKit.Scheme {
-    static func from(manifest: ProjectDescription.Scheme) -> TuistKit.Scheme {
+extension TuistGenerator.Scheme {
+    static func from(manifest: ProjectDescription.Scheme) -> TuistGenerator.Scheme {
         let name = manifest.name
         let shared = manifest.shared
-        let buildAction = manifest.buildAction.map { TuistKit.BuildAction.from(manifest: $0) }
-        let testAction = manifest.testAction.map { TuistKit.TestAction.from(manifest: $0) }
-        let runAction = manifest.runAction.map { TuistKit.RunAction.from(manifest: $0) }
+        let buildAction = manifest.buildAction.map { TuistGenerator.BuildAction.from(manifest: $0) }
+        let testAction = manifest.testAction.map { TuistGenerator.TestAction.from(manifest: $0) }
+        let runAction = manifest.runAction.map { TuistGenerator.RunAction.from(manifest: $0) }
 
         return Scheme(name: name,
                       shared: shared,
@@ -277,16 +286,16 @@ extension TuistKit.Scheme {
     }
 }
 
-extension TuistKit.BuildAction {
-    static func from(manifest: ProjectDescription.BuildAction) -> TuistKit.BuildAction {
+extension TuistGenerator.BuildAction {
+    static func from(manifest: ProjectDescription.BuildAction) -> TuistGenerator.BuildAction {
         return BuildAction(targets: manifest.targets)
     }
 }
 
-extension TuistKit.TestAction {
-    static func from(manifest: ProjectDescription.TestAction) -> TuistKit.TestAction {
+extension TuistGenerator.TestAction {
+    static func from(manifest: ProjectDescription.TestAction) -> TuistGenerator.TestAction {
         let targets = manifest.targets
-        let arguments = manifest.arguments.map { TuistKit.Arguments.from(manifest: $0) }
+        let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
         let config = BuildConfiguration.from(manifest: manifest.config)
         let coverage = manifest.coverage
         return TestAction(targets: targets,
@@ -296,11 +305,11 @@ extension TuistKit.TestAction {
     }
 }
 
-extension TuistKit.RunAction {
-    static func from(manifest: ProjectDescription.RunAction) -> TuistKit.RunAction {
+extension TuistGenerator.RunAction {
+    static func from(manifest: ProjectDescription.RunAction) -> TuistGenerator.RunAction {
         let config = BuildConfiguration.from(manifest: manifest.config)
         let executable = manifest.executable
-        let arguments = manifest.arguments.map { TuistKit.Arguments.from(manifest: $0) }
+        let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
 
         return RunAction(config: config,
                          executable: executable,
@@ -308,15 +317,15 @@ extension TuistKit.RunAction {
     }
 }
 
-extension TuistKit.Arguments {
-    static func from(manifest: ProjectDescription.Arguments) -> TuistKit.Arguments {
+extension TuistGenerator.Arguments {
+    static func from(manifest: ProjectDescription.Arguments) -> TuistGenerator.Arguments {
         return Arguments(environment: manifest.environment,
                          launch: manifest.launch)
     }
 }
 
-extension TuistKit.BuildConfiguration {
-    static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistKit.BuildConfiguration {
+extension TuistGenerator.BuildConfiguration {
+    static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistGenerator.BuildConfiguration {
         switch manifest {
         case .debug:
             return .debug
@@ -326,8 +335,8 @@ extension TuistKit.BuildConfiguration {
     }
 }
 
-extension TuistKit.Product {
-    static func from(manifest: ProjectDescription.Product) -> TuistKit.Product {
+extension TuistGenerator.Product {
+    static func from(manifest: ProjectDescription.Product) -> TuistGenerator.Product {
         switch manifest {
         case .app:
             return .app
@@ -347,8 +356,8 @@ extension TuistKit.Product {
     }
 }
 
-extension TuistKit.Platform {
-    static func from(manifest: ProjectDescription.Platform) throws -> TuistKit.Platform {
+extension TuistGenerator.Platform {
+    static func from(manifest: ProjectDescription.Platform) throws -> TuistGenerator.Platform {
         switch manifest {
         case .macOS:
             return .macOS

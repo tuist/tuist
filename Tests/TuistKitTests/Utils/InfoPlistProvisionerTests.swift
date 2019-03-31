@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistGenerator
 import XCTest
 @testable import TuistKit
 

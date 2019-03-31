@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistGenerator
 
 enum PlaygroundGenerationError: FatalError, Equatable {
     case alreadyExisting(AbsolutePath)

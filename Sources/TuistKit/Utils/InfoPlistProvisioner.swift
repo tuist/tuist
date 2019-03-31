@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistGenerator
 
 protocol InfoPlistProvisioning: AnyObject {
     func generate(path: AbsolutePath, platform: Platform, product: Product) throws

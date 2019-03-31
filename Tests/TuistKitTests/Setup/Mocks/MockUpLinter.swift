@@ -1,4 +1,5 @@
 import Foundation
+import TuistCore
 @testable import TuistKit
 
 final class MockUpLinter: UpLinting {
