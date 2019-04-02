@@ -21,7 +21,7 @@ public class Project: Equatable, CustomStringConvertible {
     public let filesGroup: ProjectGroup
 
     /// Additional files to include in the project
-    public let additionalFiles: [WorkspaceElement]
+    public let additionalFiles: [FileElement]
 
     // MARK: - Init
 
@@ -40,7 +40,7 @@ public class Project: Equatable, CustomStringConvertible {
                 settings: Settings? = nil,
                 filesGroup: ProjectGroup,
                 targets: [Target],
-                additionalFiles: [WorkspaceElement] = []) {
+                additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
         self.targets = targets

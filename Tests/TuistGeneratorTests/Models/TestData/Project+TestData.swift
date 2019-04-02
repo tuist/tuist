@@ -8,7 +8,7 @@ extension Project {
                      settings: Settings? = Settings.test(),
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      targets: [Target] = [Target.test()],
-                     additionalFiles: [WorkspaceElement] = []) -> Project {
+                     additionalFiles: [FileElement] = []) -> Project {
         return Project(path: path,
                        name: name,
                        settings: settings,

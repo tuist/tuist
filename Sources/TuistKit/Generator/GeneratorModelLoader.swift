@@ -87,10 +87,10 @@ extension TuistGenerator.Workspace {
         }
 
         let additionalFiles = manifest.additionalFiles.flatMap {
-            TuistGenerator.WorkspaceElement.from(manifest: $0,
-                                                 path: path,
-                                                 fileHandler: fileHandler,
-                                                 printer: printer)
+            TuistGenerator.FileElement.from(manifest: $0,
+                                            path: path,
+                                            fileHandler: fileHandler,
+                                            printer: printer)
         }
 
         return TuistGenerator.Workspace(name: manifest.name,
@@ -99,11 +99,11 @@ extension TuistGenerator.Workspace {
     }
 }
 
-extension TuistGenerator.WorkspaceElement {
-    static func from(manifest: ProjectDescription.WorkspaceElement,
+extension TuistGenerator.FileElement {
+    static func from(manifest: ProjectDescription.FileElement,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
-                     printer: Printing) -> [TuistGenerator.WorkspaceElement] {
+                     printer: Printing) -> [TuistGenerator.FileElement] {
         func globFiles(_ string: String) -> [AbsolutePath] {
             let files = fileHandler.glob(path, glob: string)
 
@@ -132,9 +132,9 @@ extension TuistGenerator.WorkspaceElement {
 
         switch manifest {
         case let .glob(pattern: pattern):
-            return globFiles(pattern).map(WorkspaceElement.file)
+            return globFiles(pattern).map(FileElement.file)
         case let .folderReference(path: folderReferencePath):
-            return folderReferences(folderReferencePath).map(WorkspaceElement.folderReference)
+            return folderReferences(folderReferencePath).map(FileElement.folderReference)
         }
     }
 }
@@ -149,10 +149,10 @@ extension TuistGenerator.Project {
         let targets = try manifest.targets.map { try TuistGenerator.Target.from(manifest: $0, path: path, fileHandler: fileHandler) }
 
         let additionalFiles = manifest.additionalFiles.flatMap {
-            TuistGenerator.WorkspaceElement.from(manifest: $0,
-                                                 path: path,
-                                                 fileHandler: fileHandler,
-                                                 printer: printer)
+            TuistGenerator.FileElement.from(manifest: $0,
+                                            path: path,
+                                            fileHandler: fileHandler,
+                                            printer: printer)
         }
 
         return Project(path: path,

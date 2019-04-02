@@ -5,7 +5,7 @@ import xcodeproj
 
 // swiftlint:disable:next type_body_length
 class ProjectFileElements {
-    struct FileElement: Hashable {
+    struct GroupFileElement: Hashable {
         var path: AbsolutePath
         var group: ProjectGroup
         var isReference: Bool
@@ -48,12 +48,12 @@ class ProjectFileElements {
                               groups: ProjectGroups,
                               pbxproj: PBXProj,
                               sourceRootPath: AbsolutePath) throws {
-        var files = Set<FileElement>()
+        var files = Set<GroupFileElement>()
         var products = Set<String>()
         project.targets.forEach { target in
             let targetFilePaths = targetFiles(target: target)
             let targetFileElements = targetFilePaths.map {
-                FileElement(path: $0, group: target.filesGroup)
+                GroupFileElement(path: $0, group: target.filesGroup)
             }
             files.formUnion(targetFileElements)
             products.formUnion(targetProducts(target: target))
@@ -62,7 +62,7 @@ class ProjectFileElements {
         files.formUnion(projectFileElements)
 
         let pathsSort = filesSortener.sort
-        let filesSort: (FileElement, FileElement) -> Bool = {
+        let filesSort: (GroupFileElement, GroupFileElement) -> Bool = {
             pathsSort($0.path, $1.path)
         }
 
@@ -94,8 +94,8 @@ class ProjectFileElements {
                      filesGroup: project.filesGroup)
     }
 
-    func projectFiles(project: Project) -> Set<FileElement> {
-        var fileElements = Set<FileElement>()
+    func projectFiles(project: Project) -> Set<GroupFileElement> {
+        var fileElements = Set<GroupFileElement>()
 
         /// Config files
         let configFiles = [
@@ -104,14 +104,14 @@ class ProjectFileElements {
         ].compactMap { $0 }
 
         fileElements.formUnion(configFiles.map {
-            FileElement(path: $0, group: project.filesGroup)
+            GroupFileElement(path: $0, group: project.filesGroup)
         })
 
         // Additional files
         fileElements.formUnion(project.additionalFiles.map {
-            FileElement(path: $0.path,
-                        group: project.filesGroup,
-                        isReference: $0.isReference)
+            GroupFileElement(path: $0.path,
+                             group: project.filesGroup,
+                             isReference: $0.isReference)
         })
 
         return fileElements
@@ -155,7 +155,7 @@ class ProjectFileElements {
         return files
     }
 
-    func generate(files: [FileElement],
+    func generate(files: [GroupFileElement],
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath) throws {
@@ -226,8 +226,8 @@ class ProjectFileElements {
                 self.products[productName] = fileReference
 
             } else if let precompiledNode = node as? PrecompiledNode {
-                let fileElement = FileElement(path: precompiledNode.path,
-                                              group: filesGroup)
+                let fileElement = GroupFileElement(path: precompiledNode.path,
+                                                   group: filesGroup)
                 try generate(fileElement: fileElement,
                              groups: groups,
                              pbxproj: pbxproj,
@@ -236,7 +236,7 @@ class ProjectFileElements {
         }
     }
 
-    func generate(fileElement: FileElement,
+    func generate(fileElement: GroupFileElement,
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath) throws {

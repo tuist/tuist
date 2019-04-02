@@ -10,7 +10,7 @@ public class Workspace: Codable {
     public let projects: [String]
 
     /// List of files to include in the workspace (e.g. Documentation)
-    public let additionalFiles: [WorkspaceElement]
+    public let additionalFiles: [FileElement]
 
     /// Workspace
     ///
@@ -20,7 +20,7 @@ public class Workspace: Codable {
     ///   - name: Name of the workspace.
     ///   - projects: List of project relative paths (or glob patterns) to generate and include.
     ///   - additionalFiles: List of files to include in the workspace (e.g. Documentation)
-    public init(name: String, projects: [String], additionalFiles: [WorkspaceElement] = []) {
+    public init(name: String, projects: [String], additionalFiles: [FileElement] = []) {
         self.name = name
         self.projects = projects
         self.additionalFiles = additionalFiles

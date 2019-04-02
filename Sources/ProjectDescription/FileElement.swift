@@ -1,13 +1,13 @@
 import Foundation
 
-/// Workspace element
+/// File element
 ///
 /// - glob: a glob pattern for files to include
 /// - folderReference: a single path to a directory
 ///
 /// Note: For convenience, an element can be represented as a string literal
-///       `"some/pattern/**"` is the equivalent of `WorkspaceElement.glob(pattern: "some/pattern/**")`
-public enum WorkspaceElement: Codable {
+///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
+public enum FileElement: Codable {
     /// A glob pattern of files to include
     case glob(pattern: String)
 
@@ -60,7 +60,7 @@ public enum WorkspaceElement: Codable {
     }
 }
 
-extension WorkspaceElement: ExpressibleByStringLiteral {
+extension FileElement: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = .glob(pattern: value)
     }

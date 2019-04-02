@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-public enum WorkspaceElement: Equatable {
+public enum FileElement: Equatable {
     case file(path: AbsolutePath)
     case folderReference(path: AbsolutePath)
 

@@ -4,7 +4,7 @@ import Foundation
 extension Workspace {
     static func test(name: String = "Workspace",
                      projects: [String] = [],
-                     additionalFiles: [WorkspaceElement] = []) -> Workspace {
+                     additionalFiles: [FileElement] = []) -> Workspace {
         return Workspace(name: name,
                          projects: projects,
                          additionalFiles: additionalFiles)
@@ -15,7 +15,7 @@ extension Project {
     static func test(name: String = "Project",
                      settings: Settings? = nil,
                      targets: [Target] = [],
-                     additionalFiles: [WorkspaceElement] = []) -> Project {
+                     additionalFiles: [FileElement] = []) -> Project {
         return Project(name: name,
                        settings: settings,
                        targets: targets,

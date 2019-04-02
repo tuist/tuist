@@ -7,11 +7,11 @@ public class Workspace: Equatable {
 
     public let name: String
     public let projects: [AbsolutePath]
-    public let additionalFiles: [WorkspaceElement]
+    public let additionalFiles: [FileElement]
 
     // MARK: - Init
 
-    public init(name: String, projects: [AbsolutePath], additionalFiles: [WorkspaceElement] = []) {
+    public init(name: String, projects: [AbsolutePath], additionalFiles: [FileElement] = []) {
         self.name = name
         self.projects = projects
         self.additionalFiles = additionalFiles
