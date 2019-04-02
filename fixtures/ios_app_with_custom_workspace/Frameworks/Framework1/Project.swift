@@ -20,8 +20,5 @@ let project = Project(name: "Framework1",
                                  sources: "Tests/**",
                                  dependencies: [
                                      .target(name: "Framework1"),
-                          ])],
-                          additionalFiles: [
-                            "Documentation/**/*.md"
-                          ]
-                        )
+                          ])
+    ])

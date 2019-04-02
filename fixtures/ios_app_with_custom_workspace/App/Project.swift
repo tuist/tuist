@@ -21,7 +21,8 @@ let project = Project(name: "MainApp",
                                  dependencies: [
                                      .target(name: "App"),
                           ])],
-                           additionalFiles: [
-                                .folderReference(path: "Server"),
-                                "Dangerfile.swift"
-])
+                          additionalFiles: [
+                                "Dangerfile.swift",
+                                "Documentation/**",
+                                .folderReference(path: "Responses"), 
+                          ])
