@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import xcodeproj
+import XcodeProj
 
 // swiftlint:disable:next type_body_length
 class ProjectFileElements {

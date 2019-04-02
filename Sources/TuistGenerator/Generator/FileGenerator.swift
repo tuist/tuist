@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import xcodeproj
+import XcodeProj
 
 protocol FileGenerating: AnyObject {
     func generateFile(path: AbsolutePath,

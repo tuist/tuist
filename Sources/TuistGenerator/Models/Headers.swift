@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import xcodeproj
+import XcodeProj
 
 /// Headers
 public class Headers: Equatable {

@@ -1,4 +1,4 @@
-import xcodeproj
+import XcodeProj
 import XCTest
 @testable import TuistGenerator
 

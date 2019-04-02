@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import xcodeproj
+import XcodeProj
 
 enum WorkspaceGeneratorError: FatalError {
     case projectNotFound(path: AbsolutePath)

@@ -1,5 +1,5 @@
 import Foundation
-import xcodeproj
+import XcodeProj
 
 public enum Product: String, CustomStringConvertible, CaseIterable {
     case app

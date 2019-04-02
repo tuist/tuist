@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import xcodeproj
+import XcodeProj
 
 enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)
@@ -104,7 +104,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
             let pbxBuildFile = PBXBuildFile(file: fileReference, settings: [:])
             pbxproj.add(object: pbxBuildFile)
-            sourcesBuildPhase.files.append(pbxBuildFile)
+            sourcesBuildPhase.files?.append(pbxBuildFile)
         }
     }
 
@@ -124,7 +124,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 "ATTRIBUTES": [accessLevel.capitalized],
             ])
             pbxproj.add(object: pbxBuildFile)
-            headersBuildPhase.files.append(pbxBuildFile)
+            headersBuildPhase.files?.append(pbxBuildFile)
         }
 
         try headers.private.forEach { try addHeader($0, "private") }
@@ -191,7 +191,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             if let element = element {
                 let pbxBuildFile = PBXBuildFile(file: element)
                 pbxproj.add(object: pbxBuildFile)
-                resourcesBuildPhase.files.append(pbxBuildFile)
+                resourcesBuildPhase.files?.append(pbxBuildFile)
             }
         }
     }
@@ -210,6 +210,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         let pbxBuildFile = PBXBuildFile(file: modelReference)
         pbxproj.add(object: pbxBuildFile)
-        resourcesBuildPhase.files.append(pbxBuildFile)
+        resourcesBuildPhase.files?.append(pbxBuildFile)
     }
 }

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import xcodeproj
+import XcodeProj
 
 protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
