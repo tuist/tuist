@@ -5,8 +5,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next version
 
 ### Changed
+
 ### Added
+
+- **Breaking** Swift 5 support https://github.com/tuist/tuist/pull/317 by @pepibumur.
+
 ### Removed
+
 ### Fixed
 
 ## 0.13.0

@@ -110,16 +110,25 @@ final class Installer: Installing {
     }
 
     func verifySwiftVersion(version: String) throws {
-        guard let localVersion = try system.swiftVersion() else { return }
-        printer.print("Verifying the Swift version is compatible with your version \(localVersion)")
-        var remoteVersion: String!
+        guard let localVersionString = try system.swiftVersion() else { return }
+        printer.print("Verifying the Swift version is compatible with your version \(localVersionString)")
+        var remoteVersionString: String!
         do {
-            remoteVersion = try githubClient.getContent(ref: version, path: ".swift-version").spm_chomp()
+            remoteVersionString = try githubClient.getContent(ref: version, path: ".swift-version").spm_chomp()
         } catch is GitHubClientError {
             printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
         }
-        if remoteVersion != nil, localVersion != remoteVersion {
-            throw InstallerError.incompatibleSwiftVersion(local: localVersion, expected: remoteVersion)
+
+        let localVersion = SwiftVersion(localVersionString)
+        let remoteVersion = SwiftVersion(remoteVersionString)
+        let versionFive = SwiftVersion("5")
+
+        if localVersion >= versionFive, remoteVersion >= versionFive {
+            return
+        } else if localVersion == remoteVersion {
+            return
+        } else {
+            throw InstallerError.incompatibleSwiftVersion(local: localVersionString, expected: remoteVersionString)
         }
     }
 
