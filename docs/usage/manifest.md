@@ -21,7 +21,12 @@ let project = Project(name: "MyProject",
                                      .project(target: "Framework1", path: "../Framework1"),
                                      .project(target: "Framework2", path: "../Framework2"),
                                  ])
-])
+                        ],
+                        additionalFiles: [
+                                 "Dangerfile.swift",
+                                 "Documentation/**",
+                                 .folderReference(path: "Website")
+                        ])
 ```
 
 ### Project
@@ -31,6 +36,7 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 - **Name:** Name of the project. It's used to determine the name of the generated Xcode project.
 - **Targets:** It contains the list of targets that belong to the project. Read more [about targets](#target)
 - **Settings (optional):** Read more about [settings](#settings)
+- **AdditionalFiles (optional):**: List of [FileElement](#FileElement)s to include in the project - these won't be included in any of the build phases.
 
 > **Note:** All the relative paths in the project manifest are relative to the folder that contains the manifest file.
 
@@ -96,6 +102,15 @@ A `Settings` object contains an optional dictionary with build settings and rela
 - **Debug (optional):** The debug configuration settings. The settings are initialized with `.settings([String: String], xcconfig: String)` where the first argument are the build settings and the second a relative path to an xcconfig file. Both arguments are optionals.
 - **Release (optional):** Same as debug but for the release configuration.
 
+### FileElement
+
+A `FileElement` can be one of the following options:
+
+- `.glob(pattern: String)`: A file path (or glob pattern) to include. 
+    - *For convenience, a string literal can be used as an alternate way to specify this option.*
+- `.folderReference(path: String)`: A directory path to include as a folder reference.
+
+
 ## Workspace.swift
 
 By default, `tuist generate`  generates an Xcode workspace that has the same name as the current project. It includes the project and all its dependencies.  Tuist allows customizing this behaviour by defining a workspace manifest within a `Workspace.swift` file.
@@ -128,9 +143,6 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
 
 - **Name:** Name of the workspace. It’s used to determine the name of the generated Xcode workspace.
 - **Projects:** List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.
-- **AdditionalFiles:**: List of one of the following options
-- `.glob(pattern: String)`: A file path (or glob pattern) to include in the workspace. 
-    - *For convenience, a string literal can be used as an alternate way to specify this option.*
-- `.folderReference(path: String)`: A directory path to include as a folder reference in the workspace.
+- **AdditionalFiles (optional):**: List of [FileElement](#FileElement)s to include in the workspace - these won't be included in any of the projects or their build phases.
 
 >***Note:***All the relative paths in the workspace manifest are relative to the folder that contains the manifest file.*
