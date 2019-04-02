@@ -50,7 +50,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         let copyBuildPhase: PBXCopyFilesBuildPhase? = pbxTarget.buildPhases.last as? PBXCopyFilesBuildPhase
         XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")
-        let wakaBuildFile: PBXBuildFile? = copyBuildPhase?.files.first
+        let wakaBuildFile: PBXBuildFile? = copyBuildPhase?.files?.first
         XCTAssertEqual(wakaBuildFile?.file, wakaFile)
     }
 
@@ -233,8 +233,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         let buildPhase: PBXFrameworksBuildPhase? = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
 
-        let testBuildFile: PBXBuildFile? = buildPhase?.files.first
-        let wakaBuildFile: PBXBuildFile? = buildPhase?.files.last
+        let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
+        let wakaBuildFile: PBXBuildFile? = buildPhase?.files?.last
 
         XCTAssertEqual(testBuildFile?.file, testFile)
         XCTAssertEqual(wakaBuildFile?.file, wakaFile)
