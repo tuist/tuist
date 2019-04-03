@@ -14,8 +14,14 @@ Contains a few projects and a `Workspace.swift` manifest file.
 The workspace manifest defines:
 
 - glob patterns to list projects
-- glob patterns to list additional files
-- folder references
+- glob patterns to include documentation files
+- folder reference to directory with html files
+
+The App's project manifest leverages `additionalFiles` tha defines:
+
+- glob patterns to include documentation files
+- Includes a swift `Danger.swift` file that shouldn't get included in any buid phase 
+- folder references to a directory with json files
 
 ## ios_app_with_tests
 

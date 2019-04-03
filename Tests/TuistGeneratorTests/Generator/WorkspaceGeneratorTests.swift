@@ -43,7 +43,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
             "Website/about.html",
         ])
 
-        let additionalFiles: [Workspace.Element] = [
+        let additionalFiles: [FileElement] = [
             .file(path: path.appending(RelativePath("README.md"))),
             .file(path: path.appending(RelativePath("Documentation/README.md"))),
             .folderReference(path: path.appending(RelativePath("Website"))),

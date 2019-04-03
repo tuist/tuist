@@ -7,11 +7,13 @@ extension Project {
                      name: String = "Project",
                      settings: Settings? = Settings.test(),
                      filesGroup: ProjectGroup = .group(name: "Project"),
-                     targets: [Target] = [Target.test()]) -> Project {
+                     targets: [Target] = [Target.test()],
+                     additionalFiles: [FileElement] = []) -> Project {
         return Project(path: path,
                        name: name,
                        settings: settings,
                        filesGroup: filesGroup,
-                       targets: targets)
+                       targets: targets,
+                       additionalFiles: additionalFiles)
     }
 }

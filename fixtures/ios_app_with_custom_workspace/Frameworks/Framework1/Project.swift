@@ -20,5 +20,5 @@ let project = Project(name: "Framework1",
                                  sources: "Tests/**",
                                  dependencies: [
                                      .target(name: "Framework1"),
-                          ]),
-])
+                          ])
+    ])
