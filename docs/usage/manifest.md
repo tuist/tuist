@@ -16,10 +16,13 @@ let project = Project(name: "MyProject",
                                  bundleId: "io.tuist.App",
                                  infoPlist: "Config/App-Info.plist",
                                  sources: ["Sources/**"],
-                                 resources: ["Resources/**"],
+                                 resources: [
+                                   "Resources/**",
+                                   .folderReference(path: "Stubs")
+                                  ],
                                  dependencies: [
                                      .project(target: "Framework1", path: "../Framework1"),
-                                     .project(target: "Framework2", path: "../Framework2"),
+                                     .project(target: "Framework2", path: "../Framework2")
                                  ])
                         ],
                         additionalFiles: [
@@ -60,7 +63,7 @@ Each target in the list of project targets can be initialized with the following
   - **String:** A file or glob pattern _(e.g. `Sources/**`)_
   - **[String]:** A list of files or list of glob patterns _(e.g. `["Sources/**"]`)_
 
-- **Resources (optional):** List of resources to be included in the product bundle. The types that it can take are the same as the `sources` attribute.
+- **Resources (optional):** List of [FileElement](#FileElement)s to include in the resource build phase.
 - **Headers (optional):** Target headers. It accepts a `Header` type that is initialized with the following attributes:
 
   - **Public:** Relative path to the folder that contains the public headers.
