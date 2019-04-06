@@ -80,7 +80,7 @@ final class TargetLinterTests: XCTestCase {
     func test_lint_when_library_has_resources() {
         let path = fileHandler.currentPath.appending(component: "Image.png")
         let element = FileElement.file(path: path)
-        
+
         let staticLibrary = Target.test(product: .staticLibrary, resources: [element])
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])
 

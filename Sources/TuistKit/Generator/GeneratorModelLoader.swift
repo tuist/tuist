@@ -107,7 +107,7 @@ extension TuistGenerator.FileElement {
                      includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) -> [TuistGenerator.FileElement] {
         func globFiles(_ string: String) -> [AbsolutePath] {
             let files = fileHandler.glob(path, glob: string)
-                                   .filter(includeFiles)
+                .filter(includeFiles)
 
             if files.isEmpty {
                 printer.print(warning: "No files found at: \(string)")
@@ -198,7 +198,7 @@ extension TuistGenerator.Target {
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
 
         let sources = try TuistGenerator.Target.sources(projectPath: path, sources: manifest.sources?.globs ?? [], fileHandler: fileHandler)
-        
+
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             TuistGenerator.Target.isResource(path: path, fileHandler: fileHandler)
         }

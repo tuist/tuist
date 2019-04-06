@@ -65,7 +65,7 @@ extension MockFileHandler {
         }
         return paths
     }
-    
+
     @discardableResult
     func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
         let paths = folders.map { currentPath.appending(RelativePath($0)) }

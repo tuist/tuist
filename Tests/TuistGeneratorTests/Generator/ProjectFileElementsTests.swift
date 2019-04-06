@@ -64,8 +64,8 @@ final class ProjectFileElementsTests: XCTestCase {
                                  settings: settings,
                                  sources: [AbsolutePath("/project/file.swift")],
                                  resources: [
-                                    .file(path: AbsolutePath("/project/image.png")),
-                                    .folderReference(path: AbsolutePath("/project/reference")),
+                                     .file(path: AbsolutePath("/project/image.png")),
+                                     .folderReference(path: AbsolutePath("/project/reference")),
                                  ],
                                  coreDataModels: [CoreDataModel(path: AbsolutePath("/project/model.xcdatamodeld"),
                                                                 versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],

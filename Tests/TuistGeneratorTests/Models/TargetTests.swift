@@ -1,10 +1,9 @@
 import Foundation
 import XCTest
-@testable import TuistGenerator
 @testable import TuistCoreTesting
+@testable import TuistGenerator
 
 final class TargetTests: XCTestCase {
-    
     var fileHandler: MockFileHandler!
     override func setUp() {
         do {
@@ -13,7 +12,7 @@ final class TargetTests: XCTestCase {
             XCTFail(error.localizedDescription)
         }
     }
-    
+
     func test_validSourceExtensions() {
         XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c"])
     }
@@ -48,7 +47,7 @@ final class TargetTests: XCTestCase {
 
         XCTAssertEqual(targets.apps, [app])
     }
-    
+
     func test_sources() throws {
         // Given
         try fileHandler.createFiles([
@@ -60,12 +59,12 @@ final class TargetTests: XCTestCase {
             "sources/e.cpp",
             "sources/k.kt",
         ])
-        
+
         // When
         let sources = try Target.sources(projectPath: fileHandler.currentPath,
-                                     sources: ["sources/**"],
-                                     fileHandler: fileHandler)
-        
+                                         sources: ["sources/**"],
+                                         fileHandler: fileHandler)
+
         // Then
         let relativeSources = sources.map { $0.relative(to: fileHandler.currentPath).asString }
         XCTAssertEqual(relativeSources, [
@@ -76,14 +75,14 @@ final class TargetTests: XCTestCase {
             "sources/e.cpp",
         ])
     }
-    
+
     func test_resources() throws {
         // Given
         let folders = try fileHandler.createFolders([
             "resources/d.xcassets",
-            "resources/g.bundle"
+            "resources/g.bundle",
         ])
-        
+
         let files = try fileHandler.createFiles([
             "resources/a.png",
             "resources/b.jpg",
@@ -92,12 +91,12 @@ final class TargetTests: XCTestCase {
             "resources/e.ttf",
             "resources/f.otf",
         ])
-        
+
         let paths = folders + files
-        
+
         // When
         let resources = paths.filter { Target.isResource(path: $0, fileHandler: fileHandler) }
-        
+
         // Then
         let relativeResources = resources.map { $0.relative(to: fileHandler.currentPath).asString }
         XCTAssertEqual(relativeResources, [
@@ -111,7 +110,6 @@ final class TargetTests: XCTestCase {
             "resources/f.otf",
         ])
     }
-    
+
     // MARK: - Helpers
-    
 }

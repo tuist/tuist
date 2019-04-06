@@ -76,7 +76,7 @@ extension Array: ExpressibleByExtendedGraphemeClusterLiteral where Element == Fi
 
 extension Array: ExpressibleByStringLiteral where Element == FileElement {
     public typealias StringLiteralType = String
-    
+
     public init(stringLiteral value: String) {
         self = [.glob(pattern: value)]
     }

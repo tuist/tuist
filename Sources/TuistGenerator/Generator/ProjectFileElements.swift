@@ -147,7 +147,7 @@ class ProjectFileElements {
         if let releaseConfigFile = target.settings?.release?.xcconfig {
             files.insert(releaseConfigFile)
         }
-        
+
         // Elements
         var elements = Set<GroupFileElement>()
         elements.formUnion(files.map { GroupFileElement(path: $0, group: target.filesGroup) })
@@ -156,7 +156,7 @@ class ProjectFileElements {
                              group: target.filesGroup,
                              isReference: $0.isReference)
         })
-        
+
         return elements
     }
 

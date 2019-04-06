@@ -89,7 +89,7 @@ public class Target: Equatable {
             }
         }
     }
-    
+
     public static func isResource(path: AbsolutePath, fileHandler: FileHandling) -> Bool {
         if !fileHandler.isFolder(path) {
             return true
