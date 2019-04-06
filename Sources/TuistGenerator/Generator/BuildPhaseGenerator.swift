@@ -54,7 +54,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                       fileElements: fileElements,
                                       pbxproj: pbxproj)
 
-        try generateResourcesBuildPhase(files: target.resources,
+        try generateResourcesBuildPhase(files: target.resources.map(\.path),
                                         coreDataModels: target.coreDataModels,
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,

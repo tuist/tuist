@@ -51,11 +51,7 @@ class ProjectFileElements {
         var files = Set<GroupFileElement>()
         var products = Set<String>()
         project.targets.forEach { target in
-            let targetFilePaths = targetFiles(target: target)
-            let targetFileElements = targetFilePaths.map {
-                GroupFileElement(path: $0, group: target.filesGroup)
-            }
-            files.formUnion(targetFileElements)
+            files.formUnion(targetFiles(target: target))
             products.formUnion(targetProducts(target: target))
         }
         let projectFileElements = projectFiles(project: project)
@@ -123,10 +119,9 @@ class ProjectFileElements {
         return products
     }
 
-    func targetFiles(target: Target) -> Set<AbsolutePath> {
+    func targetFiles(target: Target) -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources)
-        files.formUnion(target.resources)
         files.formUnion(target.coreDataModels.map { $0.path })
         files.formUnion(target.coreDataModels.flatMap { $0.versions })
 
@@ -152,7 +147,17 @@ class ProjectFileElements {
         if let releaseConfigFile = target.settings?.release?.xcconfig {
             files.insert(releaseConfigFile)
         }
-        return files
+        
+        // Elements
+        var elements = Set<GroupFileElement>()
+        elements.formUnion(files.map { GroupFileElement(path: $0, group: target.filesGroup) })
+        elements.formUnion(target.resources.map {
+            GroupFileElement(path: $0.path,
+                             group: target.filesGroup,
+                             isReference: $0.isReference)
+        })
+        
+        return elements
     }
 
     func generate(files: [GroupFileElement],
