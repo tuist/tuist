@@ -10,9 +10,9 @@ let project = Project(name: "A",
                                  sources: "Sources/**",
                                  dependencies: [
                                      .project(target: "B", path: "../B"),
-                                     .library(path: "../prebuilt/C/libC.a",
-                                             publicHeaders: "../prebuilt/C",
-                                             swiftModuleMap: "../prebuilt/C/C.swiftmodule")
+                                     .library(path: "../C/prebuilt/C/libC.a",
+                                             publicHeaders: "../C/prebuilt/C",
+                                             swiftModuleMap: "../C/prebuilt/C/C.swiftmodule")
                           ]),
                           Target(name: "ATests",
                                  platform: .iOS,

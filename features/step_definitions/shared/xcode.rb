@@ -17,7 +17,6 @@ Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
     args << "-destination 'id=#{device.udid}'" unless device.nil?
   end
 
-  args << "CODE_SIGN_IDENTITY="
-  args << "CODE_SIGNING_REQUIRED=NO"
+  args << "CODE_SIGNING_ALLOWED=NO"
   xcodebuild(*args)
 end
