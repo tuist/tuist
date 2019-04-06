@@ -32,7 +32,7 @@ final class TargetTests: XCTestCase {
                              coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
                              environment: ["a": "b"])
 
-        let expected = "{\"bundle_id\": \"bundle_id\", \"core_data_models\": [{\"current_version\": \"version\", \"path\": \"pat\"}], \"dependencies\": [{\"path\": \"path\", \"type\": \"framework\"}, {\"path\": \"path\", \"public_headers\": \"public\", \"swift_module_map\": \"module\", \"type\": \"library\"}, {\"path\": \"path\", \"target\": \"target\", \"type\": \"project\"}, {\"name\": \"name\", \"type\": \"target\"}], \"entitlements\": \"entitlement\", \"headers\": {\"private\": \"private/*\", \"project\": \"project/*\", \"public\": \"public/*\"}, \"info_plist\": \"info.plist\", \"name\": \"name\", \"platform\": \"ios\", \"product\": \"app\", \"resources\": {\"globs\": [\"resources/*\"]}, \"settings\": {\"base\": {\"a\": \"b\"}, \"debug\": {\"settings\": {\"a\": \"b\"}, \"xcconfig\": \"config\"}, \"release\": {\"settings\": {\"a\": \"b\"}, \"xcconfig\": \"config\"}}, \"sources\": {\"globs\": [\"sources/*\"]}, \"actions\": [ { \"path\": \"path\", \"arguments\": [\"arg\"], \"name\": \"name\", \"order\": \"post\"}], \"environment\": {\"a\": \"b\"}}"
+        let expected = "{\"headers\":{\"public\":\"public\\/*\",\"private\":\"private\\/*\",\"project\":\"project\\/*\"},\"bundle_id\":\"bundle_id\",\"core_data_models\":[{\"path\":\"pat\",\"current_version\":\"version\"}],\"actions\":[{\"arguments\":[\"arg\"],\"path\":\"path\",\"order\":\"post\",\"name\":\"name\"}],\"product\":\"app\",\"sources\":{\"globs\":[\"sources\\/*\"]},\"settings\":{\"base\":{\"a\":\"b\"},\"debug\":{\"xcconfig\":\"config\",\"settings\":{\"a\":\"b\"}},\"release\":{\"xcconfig\":\"config\",\"settings\":{\"a\":\"b\"}}},\"resources\":[{\"type\":\"glob\",\"pattern\":\"resources\\/*\"}],\"platform\":\"ios\",\"entitlements\":\"entitlement\",\"info_plist\":\"info.plist\",\"dependencies\":[{\"type\":\"framework\",\"path\":\"path\"},{\"path\":\"path\",\"public_headers\":\"public\",\"swift_module_map\":\"module\",\"type\":\"library\"},{\"type\":\"project\",\"target\":\"target\",\"path\":\"path\"},{\"type\":\"target\",\"name\":\"name\"}],\"environment\":{\"a\":\"b\"},\"name\":\"name\"}"
         assertCodableEqualToJson(subject, expected)
     }
 
@@ -43,7 +43,7 @@ final class TargetTests: XCTestCase {
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
                              sources: FileList(globs: ["sources/*"]),
-                             resources: FileList(globs: ["resources/*"]),
+                             resources: ["resources/*"],
                              headers: Headers(public: "public/*",
                                               private: "private/*",
                                               project: "project/*"),
@@ -65,7 +65,7 @@ final class TargetTests: XCTestCase {
                              coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
                              environment: ["a": "b"])
 
-        let expected = "{\"bundle_id\": \"bundle_id\", \"core_data_models\": [{\"current_version\": \"version\", \"path\": \"pat\"}], \"dependencies\": [{\"path\": \"path\", \"type\": \"framework\"}, {\"path\": \"path\", \"public_headers\": \"public\", \"swift_module_map\": \"module\", \"type\": \"library\"}, {\"path\": \"path\", \"target\": \"target\", \"type\": \"project\"}, {\"name\": \"name\", \"type\": \"target\"}], \"entitlements\": \"entitlement\", \"headers\": {\"private\": \"private/*\", \"project\": \"project/*\", \"public\": \"public/*\"}, \"info_plist\": \"info.plist\", \"name\": \"name\", \"platform\": \"ios\", \"product\": \"app\", \"resources\": {\"globs\": [\"resources/*\"]}, \"settings\": {\"base\": {\"a\": \"b\"}, \"debug\": {\"settings\": {\"a\": \"b\"}, \"xcconfig\": \"config\"}, \"release\": {\"settings\": {\"a\": \"b\"}, \"xcconfig\": \"config\"}}, \"sources\": {\"globs\": [\"sources/*\"]}, \"actions\": [ { \"path\": \"path\", \"arguments\": [\"arg\"], \"name\": \"name\", \"order\": \"post\"}], \"environment\": {\"a\": \"b\"}}"
+        let expected = "{\"headers\":{\"public\":\"public\\/*\",\"private\":\"private\\/*\",\"project\":\"project\\/*\"},\"bundle_id\":\"bundle_id\",\"core_data_models\":[{\"path\":\"pat\",\"current_version\":\"version\"}],\"actions\":[{\"arguments\":[\"arg\"],\"path\":\"path\",\"order\":\"post\",\"name\":\"name\"}],\"product\":\"app\",\"sources\":{\"globs\":[\"sources\\/*\"]},\"settings\":{\"base\":{\"a\":\"b\"},\"debug\":{\"xcconfig\":\"config\",\"settings\":{\"a\":\"b\"}},\"release\":{\"xcconfig\":\"config\",\"settings\":{\"a\":\"b\"}}},\"resources\":[{\"type\":\"glob\",\"pattern\":\"resources\\/*\"}],\"platform\":\"ios\",\"entitlements\":\"entitlement\",\"info_plist\":\"info.plist\",\"dependencies\":[{\"type\":\"framework\",\"path\":\"path\"},{\"path\":\"path\",\"public_headers\":\"public\",\"swift_module_map\":\"module\",\"type\":\"library\"},{\"type\":\"project\",\"target\":\"target\",\"path\":\"path\"},{\"type\":\"target\",\"name\":\"name\"}],\"environment\":{\"a\":\"b\"},\"name\":\"name\"}"
         assertCodableEqualToJson(subject, expected)
     }
 }

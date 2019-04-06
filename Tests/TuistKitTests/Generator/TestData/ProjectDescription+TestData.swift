@@ -30,7 +30,7 @@ extension Target {
                      bundleId: String = "com.some.bundle.id",
                      infoPlist: String = "Info.plist",
                      sources: FileList = "Sources/**",
-                     resources: FileList = "Resources/**",
+                     resources: [FileElement] = "Resources/**",
                      headers: Headers? = nil,
                      entitlements: String? = "app.entitlements",
                      actions: [TargetAction] = [],
