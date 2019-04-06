@@ -7,11 +7,11 @@ public class Workspace: Equatable {
 
     public let name: String
     public let projects: [AbsolutePath]
-    public let additionalFiles: [Element]
+    public let additionalFiles: [FileElement]
 
     // MARK: - Init
 
-    public init(name: String, projects: [AbsolutePath], additionalFiles: [Element] = []) {
+    public init(name: String, projects: [AbsolutePath], additionalFiles: [FileElement] = []) {
         self.name = name
         self.projects = projects
         self.additionalFiles = additionalFiles
@@ -41,21 +41,5 @@ extension Workspace {
         return Workspace(name: name,
                          projects: Array(Set(projects + otherProjects)),
                          additionalFiles: additionalFiles)
-    }
-}
-
-extension Workspace {
-    public enum Element: Equatable {
-        case file(path: AbsolutePath)
-        case folderReference(path: AbsolutePath)
-
-        var path: AbsolutePath {
-            switch self {
-            case let .file(path):
-                return path
-            case let .folderReference(path):
-                return path
-            }
-        }
     }
 }

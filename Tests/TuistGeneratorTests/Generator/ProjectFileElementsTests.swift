@@ -6,7 +6,7 @@ import XCTest
 @testable import TuistGenerator
 
 final class ProjectFileElementsTests: XCTestCase {
-    typealias FileElement = ProjectFileElements.FileElement
+    typealias FileElement = ProjectFileElements.GroupFileElement
 
     var subject: ProjectFileElements!
     var fileHandler: MockFileHandler!
@@ -20,16 +20,27 @@ final class ProjectFileElementsTests: XCTestCase {
     }
 
     func test_projectFiles() {
-        let settings = Settings(base: [:],
-                                debug: Configuration(settings: [:],
-                                                     xcconfig: AbsolutePath("/project/debug.xcconfig")),
-                                release: Configuration(settings: [:],
-                                                       xcconfig: AbsolutePath("/project/release.xcconfig")))
+        // Given
+        let settings = Settings(debug: Configuration(xcconfig: AbsolutePath("/project/debug.xcconfig")),
+                                release: Configuration(xcconfig: AbsolutePath("/project/release.xcconfig")))
 
-        let project = Project.test(path: AbsolutePath("/project/"), settings: settings)
+        let project = Project.test(path: AbsolutePath("/project/"),
+                                   settings: settings,
+                                   additionalFiles: [
+                                       .file(path: "/path/to/file"),
+                                       .folderReference(path: "/path/to/folder"),
+                                   ])
+
+        // When
         let files = subject.projectFiles(project: project)
-        XCTAssertTrue(files.contains(AbsolutePath("/project/debug.xcconfig")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/release.xcconfig")))
+
+        // Then
+        XCTAssertTrue(files.isSuperset(of: [
+            FileElement(path: "/project/debug.xcconfig", group: project.filesGroup),
+            FileElement(path: "/project/release.xcconfig", group: project.filesGroup),
+            FileElement(path: "/path/to/file", group: project.filesGroup),
+            FileElement(path: "/path/to/folder", group: project.filesGroup, isReference: true),
+        ]))
     }
 
     func test_targetProducts() {

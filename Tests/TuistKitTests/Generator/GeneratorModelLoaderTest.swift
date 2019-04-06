@@ -89,6 +89,57 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.targets[2].name, "Project-Manifest")
     }
 
+    func test_loadProject_withAdditionalFiles() throws {
+        // Given
+        let files = try createFiles([
+            "Documentation/README.md",
+            "Documentation/guide.md",
+        ])
+
+        let manifests = [
+            path: ProjectManifest.test(name: "SomeProject",
+                                       additionalFiles: [
+                                           "Documentation/**/*.md",
+                                       ]),
+        ]
+
+        let manifestLoader = createManifestLoader(with: manifests)
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
+
+        // When
+        let model = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
+    }
+
+    func test_loadProject_withFolderReferences() throws {
+        // Given
+        let files = try createFolders([
+            "Stubs",
+        ])
+
+        let manifests = [
+            path: ProjectManifest.test(name: "SomeProject",
+                                       additionalFiles: [
+                                           .folderReference(path: "Stubs"),
+                                       ]),
+        ]
+
+        let manifestLoader = createManifestLoader(with: manifests)
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
+
+        // When
+        let model = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
+    }
+
     func test_loadWorkspace() throws {
         // Given
         let manifests = [

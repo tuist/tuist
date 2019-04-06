@@ -5,9 +5,16 @@ import XcodeProj
 
 // swiftlint:disable:next type_body_length
 class ProjectFileElements {
-    struct FileElement: Hashable {
+    struct GroupFileElement: Hashable {
         var path: AbsolutePath
         var group: ProjectGroup
+        var isReference: Bool
+
+        init(path: AbsolutePath, group: ProjectGroup, isReference: Bool = false) {
+            self.path = path
+            self.group = group
+            self.isReference = isReference
+        }
     }
 
     // MARK: - Static
@@ -41,24 +48,21 @@ class ProjectFileElements {
                               groups: ProjectGroups,
                               pbxproj: PBXProj,
                               sourceRootPath: AbsolutePath) throws {
-        var files = Set<FileElement>()
+        var files = Set<GroupFileElement>()
         var products = Set<String>()
         project.targets.forEach { target in
             let targetFilePaths = targetFiles(target: target)
             let targetFileElements = targetFilePaths.map {
-                FileElement(path: $0, group: target.filesGroup)
+                GroupFileElement(path: $0, group: target.filesGroup)
             }
             files.formUnion(targetFileElements)
             products.formUnion(targetProducts(target: target))
         }
-        let projectFilePaths = projectFiles(project: project)
-        let projectFileElements = projectFilePaths.map {
-            FileElement(path: $0, group: project.filesGroup)
-        }
+        let projectFileElements = projectFiles(project: project)
         files.formUnion(projectFileElements)
 
         let pathsSort = filesSortener.sort
-        let filesSort: (FileElement, FileElement) -> Bool = {
+        let filesSort: (GroupFileElement, GroupFileElement) -> Bool = {
             pathsSort($0.path, $1.path)
         }
 
@@ -90,17 +94,27 @@ class ProjectFileElements {
                      filesGroup: project.filesGroup)
     }
 
-    func projectFiles(project: Project) -> Set<AbsolutePath> {
-        var files = Set<AbsolutePath>()
+    func projectFiles(project: Project) -> Set<GroupFileElement> {
+        var fileElements = Set<GroupFileElement>()
 
         /// Config files
-        if let debugConfigFile = project.settings?.debug?.xcconfig {
-            files.insert(debugConfigFile)
-        }
-        if let releaseConfigFile = project.settings?.release?.xcconfig {
-            files.insert(releaseConfigFile)
-        }
-        return files
+        let configFiles = [
+            project.settings?.debug?.xcconfig,
+            project.settings?.release?.xcconfig,
+        ].compactMap { $0 }
+
+        fileElements.formUnion(configFiles.map {
+            GroupFileElement(path: $0, group: project.filesGroup)
+        })
+
+        // Additional files
+        fileElements.formUnion(project.additionalFiles.map {
+            GroupFileElement(path: $0.path,
+                             group: project.filesGroup,
+                             isReference: $0.isReference)
+        })
+
+        return fileElements
     }
 
     func targetProducts(target: Target) -> Set<String> {
@@ -141,7 +155,7 @@ class ProjectFileElements {
         return files
     }
 
-    func generate(files: [FileElement],
+    func generate(files: [GroupFileElement],
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath) throws {
@@ -212,8 +226,8 @@ class ProjectFileElements {
                 self.products[productName] = fileReference
 
             } else if let precompiledNode = node as? PrecompiledNode {
-                let fileElement = FileElement(path: precompiledNode.path,
-                                              group: filesGroup)
+                let fileElement = GroupFileElement(path: precompiledNode.path,
+                                                   group: filesGroup)
                 try generate(fileElement: fileElement,
                              groups: groups,
                              pbxproj: pbxproj,
@@ -222,7 +236,7 @@ class ProjectFileElements {
         }
     }
 
-    func generate(fileElement: FileElement,
+    func generate(fileElement: GroupFileElement,
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath) throws {
@@ -239,6 +253,7 @@ class ProjectFileElements {
             group = try groups.projectGroup(named: groupName)
         }
         guard let firstElement = addElement(relativePath: closestRelativeRelativePath,
+                                            isReference: fileElement.isReference,
                                             from: sourceRootPath,
                                             toGroup: group,
                                             pbxproj: pbxproj) else {
@@ -256,6 +271,7 @@ class ProjectFileElements {
         for component in fileElement.path.relative(to: lastPath).components {
             if lastGroup == nil { return }
             guard let element = addElement(relativePath: RelativePath(component),
+                                           isReference: fileElement.isReference,
                                            from: lastPath,
                                            toGroup: lastGroup!,
                                            pbxproj: pbxproj) else {
@@ -269,6 +285,7 @@ class ProjectFileElements {
     // MARK: - Internal
 
     @discardableResult func addElement(relativePath: RelativePath,
+                                       isReference: Bool,
                                        from: AbsolutePath,
                                        toGroup: PBXGroup,
                                        pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath)? {
@@ -300,7 +317,7 @@ class ProjectFileElements {
                                           name: name,
                                           toGroup: toGroup,
                                           pbxproj: pbxproj)
-        } else if isGroup(path: absolutePath) {
+        } else if isGroup(path: absolutePath), !isReference {
             return addGroupElement(from: from,
                                    folderAbsolutePath: absolutePath,
                                    folderRelativePath: relativePath,
@@ -387,7 +404,7 @@ class ProjectFileElements {
                         name: String?,
                         toGroup: PBXGroup,
                         pbxproj: PBXProj) {
-        let lastKnownFileType = Xcode.filetype(extension: fileAbsolutePath.extension!)
+        let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(sourceTree: .group, name: name, lastKnownFileType: lastKnownFileType, path: fileRelativePath.asString)
         pbxproj.add(object: file)
         toGroup.children.append(file)
