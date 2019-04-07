@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Adding support for project additional files https://github.com/tuist/tuist/pull/314 by @kwridan
+- Adding support for resource folder references https://github.com/tuist/tuist/pull/318 by @kwridan
 
 ### Removed
 ### Fixed
