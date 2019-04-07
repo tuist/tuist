@@ -18,6 +18,6 @@ Then(/tuist generates reports error "(.+)"/) do |error|
   expected_msg = error.sub!("${ARG_PATH}", @dir)
   _, _, stderr, wait_thr = Open3.popen3("swift", "run", "tuist", "generate", "--path", @dir)
   actual_msg = stderr.gets.to_s.strip
-  assert_equal(expected_msg, actual_msg)
+  assert(actual_msg.include?(expected_msg))
   assert_equal(wait_thr.value.exitstatus, 1)
 end
