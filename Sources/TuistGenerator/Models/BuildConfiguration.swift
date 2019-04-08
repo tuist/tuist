@@ -3,7 +3,7 @@ import Foundation
 public struct BuildConfiguration {
 
     public enum Variant: String {
-        case all, debug, release
+        case debug, release
     }
 
     public static let debug = BuildConfiguration(name: "Debug", predefined: true, variant: .debug)
@@ -27,7 +27,7 @@ public struct BuildConfiguration {
 
 extension BuildConfiguration: Equatable {
 
-    public static func ==(lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
+    public static func == (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
         return lhs.name.caseInsensitiveCompare(rhs.name) == .orderedSame && lhs.variant == rhs.variant
     }
 }

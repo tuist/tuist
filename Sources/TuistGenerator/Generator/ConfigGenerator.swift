@@ -148,46 +148,15 @@ final class ConfigGenerator: ConfigGenerating {
         let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
-        if let variantConfig = configuration {
-            if let xcconfig = variantConfig.xcconfig {
-                let fileReference = fileElements.file(path: xcconfig)
-                variantBuildConfiguration.baseConfiguration = fileReference
-            }
+        if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
+            let fileReference = fileElements.file(path: xcconfig)
+            variantBuildConfiguration.baseConfiguration = fileReference
         }
 
-        /// Target attributes
-        settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
-        if let infoPlist = target.infoPlist {
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).pathString)"
-        }
-        if let entitlements = target.entitlements {
-            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
-        }
-        settings["SDKROOT"] = target.platform.xcodeSdkRoot
-        settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms
-        // TODO: We should show a warning here
-        if settings["SWIFT_VERSION"] == nil {
-            settings["SWIFT_VERSION"] = Constants.swiftVersion
-        }
-
-        if target.product == .staticFramework {
-            settings["MACH_O_TYPE"] = "staticlib"
-        }
-
-        if target.product.testsBundle {
-            let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
-                targetNode.target.product == .app
-            }
-
-            if let app = appDependency {
-                settings["TEST_TARGET_NAME"] = "\(app.target.name)"
-
-                if target.product == .unitTests {
-                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.name)"
-                    settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
-                }
-            }
-        }
+        updateTargetDerived(buildSettings: &settings,
+                            target: target,
+                            graph: graph,
+                            sourceRootPath: sourceRootPath)
 
         variantBuildConfiguration.buildSettings = settings
         pbxproj.add(object: variantBuildConfiguration)
@@ -230,6 +199,44 @@ final class ConfigGenerator: ConfigGenerating {
                     buildSettings[key] = "\(previousValueString) \(newValueString)"
                 } else {
                     buildSettings[key] = value
+                }
+            }
+        }
+    }
+
+    private func updateTargetDerived(buildSettings settings: inout [String: Any],
+                                     target: Target,
+                                     graph: Graphing,
+                                     sourceRootPath: AbsolutePath) {
+        settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
+        if let infoPlist = target.infoPlist {
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).asString)"
+        }
+        if let entitlements = target.entitlements {
+            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).asString)"
+        }
+        settings["SDKROOT"] = target.platform.xcodeSdkRoot
+        settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms
+        // TODO: We should show a warning here
+        if settings["SWIFT_VERSION"] == nil {
+            settings["SWIFT_VERSION"] = Constants.swiftVersion
+        }
+
+        if target.product == .staticFramework {
+            settings["MACH_O_TYPE"] = "staticlib"
+        }
+
+        if target.product.testsBundle {
+            let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
+                targetNode.target.product == .app
+            }
+
+            if let app = appDependency {
+                settings["TEST_TARGET_NAME"] = "\(app.target.name)"
+
+                if target.product == .unitTests {
+                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.name)"
+                    settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
                 }
             }
         }
