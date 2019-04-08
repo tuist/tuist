@@ -12,13 +12,13 @@ public struct BuildConfiguration {
     public let name: String
     public let variant: Variant
 
-    let predefined: Bool
+    private let predefined: Bool
 
     public init(name: String, variant: Variant) {
         self.init(name: name, predefined: false, variant: variant)
     }
 
-    init(name: String, predefined: Bool, variant: Variant) {
+    private init(name: String, predefined: Bool, variant: Variant) {
         self.name = name
         self.predefined = predefined
         self.variant = variant
