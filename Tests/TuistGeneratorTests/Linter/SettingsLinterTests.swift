@@ -22,7 +22,7 @@ final class SettingsLinterTests: XCTestCase {
         let settings = Settings(configurations: [
             .debug: Configuration(xcconfig: debugPath),
             .release: Configuration(xcconfig: releasePath),
-            ])
+        ])
 
         let got = subject.lint(settings: settings)
 

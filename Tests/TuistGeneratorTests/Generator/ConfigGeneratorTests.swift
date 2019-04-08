@@ -122,7 +122,8 @@ final class ConfigGeneratorTests: XCTestCase {
             .debug: Configuration(settings: ["Debug": "Debug"],
                                   xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
             .release: Configuration(settings: ["Release": "Release"],
-                                    xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))]
+                                    xcconfig: xcconfigsDir.appending(component: "release.xcconfig")),
+        ]
         let project = Project.test(path: dir.path,
                                    name: "Test",
                                    settings: Settings(base: ["Base": "Base"], configurations: configurations),
@@ -145,7 +146,8 @@ final class ConfigGeneratorTests: XCTestCase {
             .debug: Configuration(settings: ["Debug": "Debug"],
                                   xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
             .release: Configuration(settings: ["Release": "Release"],
-                                    xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))]
+                                    xcconfig: xcconfigsDir.appending(component: "release.xcconfig")),
+        ]
         let target = Target.test(name: "Test",
                                  settings: Settings(base: ["Base": "Base"], configurations: configurations))
         let project = Project.test(path: dir.path,

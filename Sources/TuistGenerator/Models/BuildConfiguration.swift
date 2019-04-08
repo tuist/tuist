@@ -1,7 +1,6 @@
 import Foundation
 
 public struct BuildConfiguration {
-
     public enum Variant: String {
         case debug, release
     }
@@ -26,14 +25,12 @@ public struct BuildConfiguration {
 }
 
 extension BuildConfiguration: Equatable {
-
     public static func == (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
         return lhs.name.caseInsensitiveCompare(rhs.name) == .orderedSame && lhs.variant == rhs.variant
     }
 }
 
 extension BuildConfiguration: Hashable {
-
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name.lowercased())
         hasher.combine(variant)
