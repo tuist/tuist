@@ -7,7 +7,7 @@ import XcodeProj
 class MockTargetGenerator: TargetGenerating {
     var generateTargetStub: (() -> PBXNativeTarget)?
 
-    func generateTarget(target: Target, pbxproj: PBXProj, pbxProject: PBXProject, groups _: ProjectGroups, fileElements: ProjectFileElements, path: AbsolutePath, sourceRootPath: AbsolutePath, options: GenerationOptions, graph: Graphing, system: Systeming) throws -> PBXNativeTarget {
+    func generateTarget(target: Target, pbxproj: PBXProj, pbxProject: PBXProject, projectSettings: Settings, groups _: ProjectGroups, fileElements: ProjectFileElements, path: AbsolutePath, sourceRootPath: AbsolutePath, options: GenerationOptions, graph: Graphing, system: Systeming) throws -> PBXNativeTarget {
         return generateTargetStub?() ?? PBXNativeTarget(name: target.name)
     }
 

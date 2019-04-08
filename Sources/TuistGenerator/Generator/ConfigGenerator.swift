@@ -12,6 +12,7 @@ protocol ConfigGenerating: AnyObject {
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
+                              projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
                               options: GenerationOptions,
@@ -39,25 +40,22 @@ final class ConfigGenerator: ConfigGenerating {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
 
-        try generateProjectSettingsFor(buildConfiguration: .debug,
-                                       configuration: project.settings?.debug,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       pbxproj: pbxproj,
-                                       configurationList: configurationList)
+        try project.settings.orderedConfigurations().forEach {
+            try generateProjectSettingsFor(buildConfiguration: $0.key,
+                                           configuration: $0.value,
+                                           project: project,
+                                           fileElements: fileElements,
+                                           pbxproj: pbxproj,
+                                           configurationList: configurationList)
+        }
 
-        try generateProjectSettingsFor(buildConfiguration: .release,
-                                       configuration: project.settings?.release,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       pbxproj: pbxproj,
-                                       configurationList: configurationList)
         return configurationList
     }
 
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
+                              projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
                               options _: GenerationOptions,
@@ -66,23 +64,29 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
 
-        try generateTargetSettingsFor(target: target,
-                                      buildConfiguration: .debug,
-                                      configuration: target.settings?.debug,
-                                      fileElements: fileElements,
-                                      graph: graph,
-                                      pbxproj: pbxproj,
-                                      configurationList: configurationList,
-                                      sourceRootPath: sourceRootPath)
-
-        try generateTargetSettingsFor(target: target,
-                                      buildConfiguration: .release,
-                                      configuration: target.settings?.release,
-                                      fileElements: fileElements,
-                                      graph: graph,
-                                      pbxproj: pbxproj,
-                                      configurationList: configurationList,
-                                      sourceRootPath: sourceRootPath)
+        let projectBuildConfigurations = projectSettings.configurations.keys
+        let targetConfigurations = target.settings?.configurations ?? [:]
+        let targetBuildConfigurations = targetConfigurations.keys
+        let buildConfigurations = Set(projectBuildConfigurations).union(targetBuildConfigurations)
+        let configurationsTuples: [(BuildConfiguration, Configuration?)] = buildConfigurations.map {
+            if let configuration = target.settings?.configurations[$0] {
+                return ($0, configuration)
+            }
+            return ($0, nil)
+        }
+        let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
+        let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
+        let orderedConfigurations = Settings.ordered(configurations: nonEmptyConfigurations)
+        try orderedConfigurations.forEach {
+            try generateTargetSettingsFor(target: target,
+                                          buildConfiguration: $0.key,
+                                          configuration: $0.value,
+                                          fileElements: fileElements,
+                                          graph: graph,
+                                          pbxproj: pbxproj,
+                                          configurationList: configurationList,
+                                          sourceRootPath: sourceRootPath)
+        }
     }
 
     // MARK: - Fileprivate
@@ -99,10 +103,10 @@ final class ConfigGenerator: ConfigGenerating {
 
         var settings: [String: Any] = [:]
         extend(buildSettings: &settings, with: defaultSettingsAll)
-        extend(buildSettings: &settings, with: project.settings?.base ?? [:])
+        extend(buildSettings: &settings, with: project.settings.base)
         extend(buildSettings: &settings, with: defaultConfigSettings)
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.name.capitalized,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
         if let variantConfig = configuration {
@@ -141,7 +145,7 @@ final class ConfigGenerator: ConfigGenerating {
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.name.capitalized,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
         if let variantConfig = configuration {

@@ -21,7 +21,7 @@ final class ProjectGroupsTests: XCTestCase {
         sourceRootPath = AbsolutePath("/test/")
         project = Project(path: path,
                           name: "Project",
-                          settings: nil,
+                          settings: Settings.default,
                           filesGroup: .group(name: "Project"),
                           targets: [
                               .test(filesGroup: .group(name: "Target")),

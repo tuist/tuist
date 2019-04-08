@@ -3,12 +3,12 @@ import XCTest
 @testable import TuistGenerator
 
 final class BuildConfigurationTests: XCTestCase {
-    func test_rawValue_returnsTheRightValue_whenDebug() {
-        XCTAssertEqual(BuildConfiguration.debug.rawValue, "debug")
+    func test_name_returnsTheRightValue_whenDebug() {
+        XCTAssertEqual(BuildConfiguration.debug.name, "Debug")
     }
 
-    func test_rawValue_returnsTheRightValue_whenRelease() {
-        XCTAssertEqual(BuildConfiguration.release.rawValue, "release")
+    func test_name_returnsTheRightValue_whenRelease() {
+        XCTAssertEqual(BuildConfiguration.release.name, "Release")
     }
 
     func test_xcodeValue_returnsTheRightValue_whenDebug() {

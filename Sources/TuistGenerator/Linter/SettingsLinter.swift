@@ -36,11 +36,8 @@ final class SettingsLinter: SettingsLinting {
             }
         }
 
-        if let debugConfigFilePath = settings.debug?.xcconfig {
-            lintPath(debugConfigFilePath)
-        }
-        if let releaseConfigFilePath = settings.release?.xcconfig {
-            lintPath(releaseConfigFilePath)
+        settings.xcconfigs().forEach { configFilePath in
+            lintPath(configFilePath)
         }
 
         return issues

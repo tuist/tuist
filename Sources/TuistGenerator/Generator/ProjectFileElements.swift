@@ -94,10 +94,7 @@ class ProjectFileElements {
         var fileElements = Set<GroupFileElement>()
 
         /// Config files
-        let configFiles = [
-            project.settings?.debug?.xcconfig,
-            project.settings?.release?.xcconfig,
-        ].compactMap { $0 }
+        let configFiles = project.settings.configurations.values.compactMap { $0?.xcconfig }
 
         fileElements.formUnion(configFiles.map {
             GroupFileElement(path: $0, group: project.filesGroup)
@@ -141,11 +138,8 @@ class ProjectFileElements {
         }
 
         // Config files
-        if let debugConfigFile = target.settings?.debug?.xcconfig {
-            files.insert(debugConfigFile)
-        }
-        if let releaseConfigFile = target.settings?.release?.xcconfig {
-            files.insert(releaseConfigFile)
+        target.settings?.xcconfigs().forEach { configFilePath in
+            files.insert(configFilePath)
         }
 
         // Elements

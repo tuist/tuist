@@ -5,7 +5,7 @@ import Foundation
 extension Project {
     static func test(path: AbsolutePath = AbsolutePath("/test/"),
                      name: String = "Project",
-                     settings: Settings? = Settings.test(),
+                     settings: Settings = Settings.test(),
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      targets: [Target] = [Target.test()],
                      additionalFiles: [FileElement] = []) -> Project {
