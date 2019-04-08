@@ -11,7 +11,7 @@ extension Target {
                      entitlements: AbsolutePath? = AbsolutePath("/Test.entitlements"),
                      settings: Settings? = Settings.test(),
                      sources: [AbsolutePath] = [],
-                     resources: [AbsolutePath] = [],
+                     resources: [FileElement] = [],
                      coreDataModels: [CoreDataModel] = [],
                      headers: Headers? = nil,
                      actions: [TargetAction] = [],

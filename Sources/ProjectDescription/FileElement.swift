@@ -65,3 +65,19 @@ extension FileElement: ExpressibleByStringLiteral {
         self = .glob(pattern: value)
     }
 }
+
+extension Array: ExpressibleByUnicodeScalarLiteral where Element == FileElement {
+    public typealias UnicodeScalarLiteralType = String
+}
+
+extension Array: ExpressibleByExtendedGraphemeClusterLiteral where Element == FileElement {
+    public typealias ExtendedGraphemeClusterLiteralType = String
+}
+
+extension Array: ExpressibleByStringLiteral where Element == FileElement {
+    public typealias StringLiteralType = String
+
+    public init(stringLiteral value: String) {
+        self = [.glob(pattern: value)]
+    }
+}

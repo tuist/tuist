@@ -31,7 +31,7 @@ public class Target: Codable {
     public let sources: FileList?
 
     /// Relative paths to the resources directory.
-    public let resources: FileList?
+    public let resources: [FileElement]?
 
     /// Headers.
     public let headers: Headers?
@@ -85,7 +85,7 @@ public class Target: Codable {
                 bundleId: String,
                 infoPlist: String,
                 sources: FileList? = nil,
-                resources: FileList? = nil,
+                resources: [FileElement]? = nil,
                 headers: Headers? = nil,
                 entitlements: String? = nil,
                 actions: [TargetAction] = [],

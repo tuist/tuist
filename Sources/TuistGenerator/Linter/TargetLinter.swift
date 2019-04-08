@@ -76,7 +76,7 @@ class TargetLinter: TargetLinting {
     private func lintCopiedFiles(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let files = target.resources
+        let files = target.resources.map(\.path)
         let infoPlists = files.filter { $0.asString.contains("Info.plist") }
         let entitlements = files.filter { $0.asString.contains(".entitlements") }
 

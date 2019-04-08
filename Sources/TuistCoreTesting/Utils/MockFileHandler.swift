@@ -55,3 +55,23 @@ public final class MockFileHandler: FileHandling {
         return fileHandler.isFolder(path)
     }
 }
+
+extension MockFileHandler {
+    @discardableResult
+    func createFiles(_ files: [String]) throws -> [AbsolutePath] {
+        let paths = files.map { currentPath.appending(RelativePath($0)) }
+        try paths.forEach {
+            try touch($0)
+        }
+        return paths
+    }
+
+    @discardableResult
+    func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
+        let paths = folders.map { currentPath.appending(RelativePath($0)) }
+        try paths.forEach {
+            try createFolder($0)
+        }
+        return paths
+    }
+}

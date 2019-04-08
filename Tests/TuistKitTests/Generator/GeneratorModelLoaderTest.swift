@@ -91,7 +91,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadProject_withAdditionalFiles() throws {
         // Given
-        let files = try createFiles([
+        let files = try fileHandler.createFiles([
             "Documentation/README.md",
             "Documentation/guide.md",
         ])
@@ -117,7 +117,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadProject_withFolderReferences() throws {
         // Given
-        let files = try createFolders([
+        let files = try fileHandler.createFolders([
             "Stubs",
         ])
 
@@ -162,7 +162,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     func test_loadWorkspace_withProjects() throws {
         // Given
         let path = fileHandler.currentPath
-        let projects = try createFolders([
+        let projects = try fileHandler.createFolders([
             "A",
             "B",
         ])
@@ -186,7 +186,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadWorkspace_withAdditionalFiles() throws {
         let path = fileHandler.currentPath
-        let files = try createFiles([
+        let files = try fileHandler.createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
             "Playground.playground",
@@ -216,7 +216,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadWorkspace_withFolderReferences() throws {
         let path = fileHandler.currentPath
-        try createFiles([
+        try fileHandler.createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
         ])
@@ -272,7 +272,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     func test_loadWorkspace_withInvalidFilePaths() throws {
         // Given
         let path = fileHandler.currentPath
-        try createFolders([
+        try fileHandler.createFolders([
             "Documentation",
         ])
 
@@ -303,7 +303,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     func test_loadWorkspace_withInvalidFolderReferencePaths() throws {
         // Given
         let path = fileHandler.currentPath
-        try createFiles([
+        try fileHandler.createFiles([
             "README.md",
         ])
 
@@ -628,24 +628,6 @@ class GeneratorModelLoaderTest: XCTestCase {
         default:
             XCTFail("mismatch of optionals", file: file, line: line)
         }
-    }
-
-    @discardableResult
-    func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
-        let paths = folders.map { fileHandler.currentPath.appending(RelativePath($0)) }
-        try paths.forEach {
-            try fileHandler.createFolder($0)
-        }
-        return paths
-    }
-
-    @discardableResult
-    func createFiles(_ files: [String]) throws -> [AbsolutePath] {
-        let paths = files.map { fileHandler.currentPath.appending(RelativePath($0)) }
-        try paths.forEach {
-            try fileHandler.touch($0)
-        }
-        return paths
     }
 }
 
