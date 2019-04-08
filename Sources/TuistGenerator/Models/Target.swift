@@ -22,7 +22,7 @@ public class Target: Equatable {
     public let settings: Settings?
     public let dependencies: [Dependency]
     public let sources: [AbsolutePath]
-    public let resources: [AbsolutePath]
+    public let resources: [FileElement]
     public let headers: Headers?
     public let coreDataModels: [CoreDataModel]
     public let actions: [TargetAction]
@@ -39,7 +39,7 @@ public class Target: Equatable {
                 entitlements: AbsolutePath? = nil,
                 settings: Settings? = nil,
                 sources: [AbsolutePath] = [],
-                resources: [AbsolutePath] = [],
+                resources: [FileElement] = [],
                 headers: Headers? = nil,
                 coreDataModels: [CoreDataModel] = [],
                 actions: [TargetAction] = [],
@@ -90,18 +90,14 @@ public class Target: Equatable {
         }
     }
 
-    public static func resources(projectPath: AbsolutePath, resources: [String], fileHandler: FileHandling) throws -> [AbsolutePath] {
-        return resources.flatMap { source in
-            projectPath.glob(source).filter { path in
-                if !fileHandler.isFolder(path) {
-                    return true
-                    // We filter out folders that are not Xcode supported bundles such as .app or .framework.
-                } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
-                    return true
-                } else {
-                    return false
-                }
-            }
+    public static func isResource(path: AbsolutePath, fileHandler: FileHandling) -> Bool {
+        if !fileHandler.isFolder(path) {
+            return true
+            // We filter out folders that are not Xcode supported bundles such as .app or .framework.
+        } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
+            return true
+        } else {
+            return false
         }
     }
 

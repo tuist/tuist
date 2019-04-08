@@ -72,6 +72,8 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then tuist generates the project
     Then I should be able to build the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'tuist.png'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Examples/item.json'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Examples/list.json'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
 
 Scenario: The project is an iOS application with frameworks and tests (ios_app_with_framework_linking_static_framework)

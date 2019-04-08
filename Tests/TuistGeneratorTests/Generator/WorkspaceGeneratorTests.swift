@@ -36,7 +36,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
     func test_generate_workspaceStructure() throws {
         // Given
-        try createFiles([
+        try fileHandler.createFiles([
             "README.md",
             "Documentation/README.md",
             "Website/index.html",
@@ -117,15 +117,6 @@ final class WorkspaceGeneratorTests: XCTestCase {
         return Target.test(infoPlist: nil,
                            entitlements: nil,
                            settings: nil)
-    }
-
-    @discardableResult
-    func createFiles(_ files: [String]) throws -> [AbsolutePath] {
-        let paths = files.map { fileHandler.currentPath.appending(RelativePath($0)) }
-        try paths.forEach {
-            try fileHandler.touch($0)
-        }
-        return paths
     }
 
     private func createTargetNodes(project: Project,

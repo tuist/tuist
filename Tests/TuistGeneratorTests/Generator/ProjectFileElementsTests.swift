@@ -6,7 +6,7 @@ import XCTest
 @testable import TuistGenerator
 
 final class ProjectFileElementsTests: XCTestCase {
-    typealias FileElement = ProjectFileElements.GroupFileElement
+    typealias GroupFileElement = ProjectFileElements.GroupFileElement
 
     var subject: ProjectFileElements!
     var fileHandler: MockFileHandler!
@@ -36,10 +36,10 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         XCTAssertTrue(files.isSuperset(of: [
-            FileElement(path: "/project/debug.xcconfig", group: project.filesGroup),
-            FileElement(path: "/project/release.xcconfig", group: project.filesGroup),
-            FileElement(path: "/path/to/file", group: project.filesGroup),
-            FileElement(path: "/path/to/folder", group: project.filesGroup, isReference: true),
+            GroupFileElement(path: "/project/debug.xcconfig", group: project.filesGroup),
+            GroupFileElement(path: "/project/release.xcconfig", group: project.filesGroup),
+            GroupFileElement(path: "/path/to/file", group: project.filesGroup),
+            GroupFileElement(path: "/path/to/folder", group: project.filesGroup, isReference: true),
         ]))
     }
 
@@ -63,7 +63,10 @@ final class ProjectFileElementsTests: XCTestCase {
                                  entitlements: AbsolutePath("/project/app.entitlements"),
                                  settings: settings,
                                  sources: [AbsolutePath("/project/file.swift")],
-                                 resources: [AbsolutePath("/project/image.png")],
+                                 resources: [
+                                     .file(path: AbsolutePath("/project/image.png")),
+                                     .folderReference(path: AbsolutePath("/project/reference")),
+                                 ],
                                  coreDataModels: [CoreDataModel(path: AbsolutePath("/project/model.xcdatamodeld"),
                                                                 versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],
                                                                 currentVersion: "1")],
@@ -73,16 +76,18 @@ final class ProjectFileElementsTests: XCTestCase {
                                  dependencies: [])
 
         let files = subject.targetFiles(target: target)
-
-        XCTAssertTrue(files.contains(AbsolutePath("/project/debug.xcconfig")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/release.xcconfig")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/file.swift")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/image.png")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/public.h")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/project.h")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/private.h")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")))
-        XCTAssertTrue(files.contains(AbsolutePath("/project/model.xcdatamodeld")))
+        XCTAssertTrue(files.isSuperset(of: [
+            GroupFileElement(path: "/project/debug.xcconfig", group: target.filesGroup),
+            GroupFileElement(path: "/project/release.xcconfig", group: target.filesGroup),
+            GroupFileElement(path: "/project/file.swift", group: target.filesGroup),
+            GroupFileElement(path: "/project/image.png", group: target.filesGroup),
+            GroupFileElement(path: "/project/reference", group: target.filesGroup, isReference: true),
+            GroupFileElement(path: "/project/public.h", group: target.filesGroup),
+            GroupFileElement(path: "/project/project.h", group: target.filesGroup),
+            GroupFileElement(path: "/project/private.h", group: target.filesGroup),
+            GroupFileElement(path: "/project/model.xcdatamodeld/1.xcdatamodel", group: target.filesGroup),
+            GroupFileElement(path: "/project/model.xcdatamodeld", group: target.filesGroup),
+        ]))
     }
 
     func test_generateProduct() {
@@ -190,7 +195,7 @@ final class ProjectFileElementsTests: XCTestCase {
         // Given
         let pbxproj = PBXProj()
         let path = AbsolutePath("/a/b/c/file.swift")
-        let fileElement = FileElement(path: path, group: .group(name: "SomeGroup"))
+        let fileElement = GroupFileElement(path: path, group: .group(name: "SomeGroup"))
         let project = Project.test(filesGroup: .group(name: "SomeGroup"))
         let sourceRootPath = AbsolutePath("/a/project/")
         let groups = ProjectGroups.generate(project: project,

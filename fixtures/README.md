@@ -52,6 +52,22 @@ Dependencies:
   - App -> Framework1
   - App -> Framework2
   - Framework1 -> Framework2
+
+# ios_app_with_framework_and_resources
+
+A workspace with an application that includes resources.
+
+```
+Workspace:
+  - App:
+    - MainApp (iOS app)
+    - MainAppTests (iOS unit tests)
+  - Framework1:
+    - Framework1 (dynamic iOS framework)
+```
+
+Dependencies:
+  - App -> Framework1
   
 ## ios_app_with_framework_linking_static_framework
 

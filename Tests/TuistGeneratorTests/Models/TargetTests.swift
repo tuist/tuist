@@ -1,8 +1,18 @@
 import Foundation
 import XCTest
+@testable import TuistCoreTesting
 @testable import TuistGenerator
 
 final class TargetTests: XCTestCase {
+    var fileHandler: MockFileHandler!
+    override func setUp() {
+        do {
+            fileHandler = try MockFileHandler()
+        } catch {
+            XCTFail(error.localizedDescription)
+        }
+    }
+
     func test_validSourceExtensions() {
         XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c"])
     }
@@ -37,4 +47,69 @@ final class TargetTests: XCTestCase {
 
         XCTAssertEqual(targets.apps, [app])
     }
+
+    func test_sources() throws {
+        // Given
+        try fileHandler.createFiles([
+            "sources/a.swift",
+            "sources/b.h",
+            "sources/b.m",
+            "sources/c.mm",
+            "sources/d.c",
+            "sources/e.cpp",
+            "sources/k.kt",
+        ])
+
+        // When
+        let sources = try Target.sources(projectPath: fileHandler.currentPath,
+                                         sources: ["sources/**"],
+                                         fileHandler: fileHandler)
+
+        // Then
+        let relativeSources = sources.map { $0.relative(to: fileHandler.currentPath).asString }
+        XCTAssertEqual(relativeSources, [
+            "sources/a.swift",
+            "sources/b.m",
+            "sources/c.mm",
+            "sources/d.c",
+            "sources/e.cpp",
+        ])
+    }
+
+    func test_resources() throws {
+        // Given
+        let folders = try fileHandler.createFolders([
+            "resources/d.xcassets",
+            "resources/g.bundle",
+        ])
+
+        let files = try fileHandler.createFiles([
+            "resources/a.png",
+            "resources/b.jpg",
+            "resources/b.jpeg",
+            "resources/c.pdf",
+            "resources/e.ttf",
+            "resources/f.otf",
+        ])
+
+        let paths = folders + files
+
+        // When
+        let resources = paths.filter { Target.isResource(path: $0, fileHandler: fileHandler) }
+
+        // Then
+        let relativeResources = resources.map { $0.relative(to: fileHandler.currentPath).asString }
+        XCTAssertEqual(relativeResources, [
+            "resources/d.xcassets",
+            "resources/g.bundle",
+            "resources/a.png",
+            "resources/b.jpg",
+            "resources/b.jpeg",
+            "resources/c.pdf",
+            "resources/e.ttf",
+            "resources/f.otf",
+        ])
+    }
+
+    // MARK: - Helpers
 }
