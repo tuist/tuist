@@ -9,6 +9,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable {
     case staticFramework
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
+    case bundle
 //    case appExtension = "app_extension"
 //    case watchApp = "watch_app"
 //    case watch2App = "watch_2_app"
@@ -35,6 +36,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable {
             return "unitTests"
         case .uiTests:
             return "uiTests"
+        case .bundle:
+            return "bundle"
 //        case .appExtension:
 //            return "appExtension"
 //        case .watchApp:
@@ -72,6 +75,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable {
             return "unit tests"
         case .uiTests:
             return "ui tests"
+        case .bundle:
+            return "bundle"
 //        case .appExtension:
 //            return "app extension"
 //        case .watchApp:
@@ -163,6 +168,8 @@ extension Product {
             return .unitTestBundle
         case .uiTests:
             return .uiTestBundle
+        case .bundle:
+            return .bundle
 //        case .appExtension:
 //            return .appExtension
 //        case .watchApp:

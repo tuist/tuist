@@ -142,7 +142,7 @@ class Graph: Graphing {
         references.append(contentsOf: precompiledLibrariesAndFrameworks)
 
         switch targetNode.target.product {
-        case .staticLibrary, .dynamicLibrary, .staticFramework:
+        case .staticLibrary, .dynamicLibrary, .staticFramework, .bundle:
             // Ignore the products, they do not want to directly link the static libraries, the top level bundles will be responsible.
             break
         case .app, .unitTests, .uiTests, .framework:
