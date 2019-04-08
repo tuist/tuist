@@ -81,4 +81,80 @@ final class GraphLinterTests: XCTestCase {
 
         XCTAssertTrue(result.contains(LintingIssue(reason: "Target staticFramework has been linked against AppTarget and frameworkA, it is a static product so may introduce unwanted side effects.", severity: .warning)))
     }
+    
+    func test_lint_frameworkDependsOnBundle() throws {
+        // Given
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let framework = Target.empty(name: "framework", product: .framework)
+        let graph = Graph.create(project: .empty(),
+                                dependencies: [
+                                    (target: bundle, dependencies: []),
+                                    (target: framework, dependencies: [bundle]),
+            ])
+        
+        // When
+        let result = subject.lint(graph: graph)
+        
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+    
+    func test_lint_applicationDependsOnBundle() throws {
+        // Given
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let application = Target.empty(name: "application", product: .app)
+        let graph = Graph.create(project: .empty(),
+                                dependencies: [
+                                    (target: bundle, dependencies: []),
+                                    (target: application, dependencies: [bundle]),
+            ])
+        
+        // When
+        let result = subject.lint(graph: graph)
+        
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+    
+    func test_lint_testTargetsDependsOnBundle() throws {
+        // Given
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let unitTests = Target.empty(name: "unitTests", product: .unitTests)
+        let uiTests = Target.empty(name: "uiTests", product: .unitTests)
+        let graph = Graph.create(project: .empty(),
+                                dependencies: [
+                                    (target: bundle, dependencies: []),
+                                    (target: unitTests, dependencies: [bundle]),
+                                    (target: uiTests, dependencies: [bundle]),
+                    ])
+        
+        // When
+        let result = subject.lint(graph: graph)
+        
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+    
+    func test_lint_staticTargetDependsOnBundle() throws {
+        // Given
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let staticFramework = Target.empty(name: "staticFramework", product: .staticFramework)
+        let staticLibrary = Target.empty(name: "staticLibrary", product: .staticLibrary)
+        let graph = Graph.create(project: .empty(),
+                                dependencies: [
+                                    (target: bundle, dependencies: []),
+                                    (target: staticFramework, dependencies: [bundle]),
+                                    (target: staticLibrary, dependencies: [bundle]),
+                    ])
+        
+        // When
+        let result = subject.lint(graph: graph)
+        
+        // Then
+        let sortedResults = result.sorted { $0.reason < $1.reason }
+        XCTAssertEqual(sortedResults, [
+            LintingIssue(reason: "Target staticFramework has a dependency with target bundle of type bundle for platform 'iOS' which is invalid or not supported yet.", severity: .error),
+            LintingIssue(reason: "Target staticLibrary has a dependency with target bundle of type bundle for platform 'iOS' which is invalid or not supported yet.", severity: .error),
+        ])
+    }
 }

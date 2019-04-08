@@ -87,7 +87,42 @@ final class TargetLinterTests: XCTestCase {
         let staticResult = subject.lint(target: staticLibrary)
         XCTAssertTrue(staticResult.contains(LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), staticResult.description)
 
-        let dynamicResult = subject.lint(target: staticLibrary)
+        let dynamicResult = subject.lint(target: dynamicLibrary)
         XCTAssertTrue(dynamicResult.contains(LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), dynamicResult.description)
     }
+    
+    func test_lint_when_ios_bundle_has_sources() {
+        // Given
+        let bundle = Target.empty(platform: .iOS,
+                                 product: .bundle,
+                                 sources: [
+                                    "/path/to/some/source.swift"
+                                 ],
+                                 resources: [])
+        
+        // When
+        let result = subject.lint(target: bundle)
+        
+        // Then
+        let sortedResults = result.sorted(by: { $0.reason < $1.reason })
+        XCTAssertEqual(sortedResults, [
+            LintingIssue(reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files", severity: .error)
+        ])
+    }
+    
+    func test_lint_valid_ios_bundle() {
+        // Given
+        let bundle = Target.empty(platform: .iOS,
+                                  product: .bundle,
+                                  resources: [
+                                    .file(path: "/path/to/some/asset.png")
+            ])
+        
+        // When
+        let result = subject.lint(target: bundle)
+        
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
 }

@@ -141,6 +141,7 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .iOS, product: .bundle),
 //            LintableTarget(platform: .iOS, product: .appExtension),
 //            LintableTarget(platform: .iOS, product: .messagesExtension),
 //            LintableTarget(platform: .iOS, product: .stickerPack),
@@ -162,6 +163,7 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .iOS, product: .bundle),
         ],
         LintableTarget(platform: .iOS, product: .unitTests): [
             LintableTarget(platform: .iOS, product: .app),
@@ -169,6 +171,7 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .iOS, product: .bundle),
         ],
         LintableTarget(platform: .iOS, product: .uiTests): [
             LintableTarget(platform: .iOS, product: .app),
@@ -176,6 +179,7 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .iOS, product: .bundle),
         ],
         //        LintableTarget(platform: .iOS, product: .appExtension): [
 //            LintableTarget(platform: .iOS, product: .staticLibrary),
