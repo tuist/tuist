@@ -18,7 +18,7 @@ class GraphNode: Equatable, Hashable {
     static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
         return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
-    
+
     func isEqual(to otherNode: GraphNode) -> Bool {
         return path == otherNode.path
     }
@@ -54,13 +54,13 @@ class TargetNode: GraphNode {
     static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
         return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
-    
+
     override func isEqual(to otherNode: GraphNode) -> Bool {
         guard let otherTagetNode = otherNode as? TargetNode else {
             return false
         }
         return path == otherTagetNode.path
-                && target == otherTagetNode.target
+            && target == otherTagetNode.target
     }
 
     static func read(name: String,
@@ -225,14 +225,14 @@ class LibraryNode: PrecompiledNode {
     static func == (lhs: LibraryNode, rhs: LibraryNode) -> Bool {
         return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
-    
+
     override func isEqual(to otherNode: GraphNode) -> Bool {
         guard let otherLibraryNode = otherNode as? LibraryNode else {
             return false
         }
         return path == otherLibraryNode.path
-                && swiftModuleMap == otherLibraryNode.swiftModuleMap
-                && publicHeaders == otherLibraryNode.publicHeaders
+            && swiftModuleMap == otherLibraryNode.swiftModuleMap
+            && publicHeaders == otherLibraryNode.publicHeaders
     }
 
     static func parse(publicHeaders: RelativePath,
