@@ -4,6 +4,110 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
+final class GraphNodeTests: XCTestCase {
+    func test_set() {
+        // Given
+        let a = GraphNode(path: "/path/a")
+        let b = GraphNode(path: "/path/b")
+        let c1 = TargetNode(project: .test(path: "/path/c"),
+                            target: .test(name: "c1"),
+                            dependencies: [])
+        let c2 = TargetNode(project: .test(path: "/path/c"),
+                           target: .test(name: "c2"),
+                           dependencies: [])
+        let d = LibraryNode(path: "/path/a", publicHeaders: "/path/to/headers")
+        let e = LibraryNode(path: "/path/c", publicHeaders: "/path/to/headers")
+        
+        // When
+        var set = Set<GraphNode>()
+        set.insert(a)
+        set.insert(b)
+        set.insert(c1)
+        set.insert(c2)
+        set.insert(d)
+        set.insert(e)
+        
+        // Then
+        XCTAssertEqual(set.count, 6)
+    }
+    
+    func test_equality() {
+        // Given
+        let a1 = GraphNode(path: "/a")
+        let a2 = GraphNode(path: "/a")
+        let b = GraphNode(path: "/b")
+        
+        // When / Then
+        XCTAssertEqual(a1, a2)
+        XCTAssertNotEqual(a2, b)
+        XCTAssertEqual(b, b)
+    }
+    
+    func test_subclass_equality() {
+        // Given
+        let a = GraphNode(path: "/a")
+        let b = TargetNode(project: .test(path: "/a"), target: .test(), dependencies: [])
+        let c = LibraryNode(path: "/a", publicHeaders: "/path/to/headers")
+        
+        // When / Then
+        let all = [a, b, c]
+        XCTAssertEqual(a, a)
+        XCTAssertEqual(b, b)
+        XCTAssertEqual(c, c)
+        
+        for lhs in all.enumerated() {
+            for rhs in all.enumerated() where lhs.offset != rhs.offset {
+                XCTAssertNotEqual(lhs.element, rhs.element)
+            }
+        }
+    }
+}
+
+final class TargetNodeTests: XCTestCase {
+    func test_equality() {
+        // Given
+        let c1 = TargetNode(project: .test(path: "/c"),
+                            target: .test(name: "c"),
+                            dependencies: [])
+        let c2 = TargetNode(project: .test(path: "/c"),
+                            target: .test(name: "c"),
+                            dependencies: [])
+        let c3 = TargetNode(project: .test(path: "/c"),
+                            target: .test(name: "c3"),
+                            dependencies: [])
+        let d = TargetNode(project: .test(path: "/d"),
+                            target: .test(name: "c"),
+                            dependencies: [])
+        
+        // When / Then
+        XCTAssertEqual(c1, c2)
+        XCTAssertNotEqual(c2, c3)
+        XCTAssertNotEqual(c1, d)
+        XCTAssertEqual(d, d)
+    }
+    
+    func test_equality_asGraphNodes() {
+        // Given
+        let c1: GraphNode = TargetNode(project: .test(path: "/c"),
+                            target: .test(name: "c"),
+                            dependencies: [])
+        let c2: GraphNode = TargetNode(project: .test(path: "/c"),
+                            target: .test(name: "c"),
+                            dependencies: [])
+        let c3: GraphNode = TargetNode(project: .test(path: "/c"),
+                            target: .test(name: "c3"),
+                            dependencies: [])
+        let d: GraphNode = TargetNode(project: .test(path: "/d"),
+                           target: .test(name: "c"),
+                           dependencies: [])
+        
+        // When / Then
+        XCTAssertEqual(c1, c2)
+        XCTAssertNotEqual(c2, c3)
+        XCTAssertNotEqual(c1, d)
+    }
+}
+
 final class PrecompiledNodeTests: XCTestCase {
     var system: MockSystem!
 
@@ -79,5 +183,18 @@ final class LibraryNodeTests: XCTestCase {
     func test_linking() {
         system.succeedCommand("/usr/bin/file", "/test.a", output: "whatever dynamically linked")
         try XCTAssertEqual(subject.linking(system: system), .dynamic)
+    }
+    
+    func test_equality() {
+        // Given
+        let a1 = LibraryNode(path: "/a", publicHeaders: "/a/header", swiftModuleMap: "/a/swiftmodulemap")
+        let a2 = LibraryNode(path: "/a", publicHeaders: "/a/header/2", swiftModuleMap: "/a/swiftmodulemap")
+        let b = LibraryNode(path: "/b", publicHeaders: "/b/header", swiftModuleMap: "/b/swiftmodulemap")
+        
+        // When / Then
+        XCTAssertEqual(a1, a1)
+        XCTAssertNotEqual(a1, a2)
+        XCTAssertNotEqual(a2, b)
+        XCTAssertNotEqual(a1, b)
     }
 }
