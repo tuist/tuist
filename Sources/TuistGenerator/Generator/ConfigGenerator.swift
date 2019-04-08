@@ -106,7 +106,7 @@ final class ConfigGenerator: ConfigGenerating {
         extend(buildSettings: &settings, with: project.settings.base)
         extend(buildSettings: &settings, with: defaultConfigSettings)
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.name.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
         if let variantConfig = configuration {
@@ -145,7 +145,7 @@ final class ConfigGenerator: ConfigGenerating {
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.name.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
         if let variantConfig = configuration {
