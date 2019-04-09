@@ -25,7 +25,7 @@ class ProjectLinter: ProjectLinting {
     func lint(_ project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintTargets(project: project))
-        issues.append(contentsOf: settingsLinter.lint(settings: project.settings))
+        issues.append(contentsOf: settingsLinter.lint(project: project))
         return issues
     }
 

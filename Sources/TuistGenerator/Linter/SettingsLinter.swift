@@ -3,7 +3,8 @@ import Foundation
 import TuistCore
 
 protocol SettingsLinting: AnyObject {
-    func lint(settings: Settings) -> [LintingIssue]
+    func lint(project: Project) -> [LintingIssue]
+    func lint(target: Target) -> [LintingIssue]
 }
 
 final class SettingsLinter: SettingsLinting {
@@ -19,9 +20,18 @@ final class SettingsLinter: SettingsLinting {
 
     // MARK: - SettingsLinting
 
-    func lint(settings: Settings) -> [LintingIssue] {
+    func lint(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: lintConfigFilesExist(settings: settings))
+        issues.append(contentsOf: lintConfigFilesExist(settings: project.settings))
+        issues.append(contentsOf: lintNonEmptyConfig(project: project))
+        return issues
+    }
+
+    func lint(target: Target) -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+        if let settings = target.settings {
+            issues.append(contentsOf: lintConfigFilesExist(settings: settings))
+        }
         return issues
     }
 
@@ -41,5 +51,12 @@ final class SettingsLinter: SettingsLinting {
         }
 
         return issues
+    }
+
+    private func lintNonEmptyConfig(project: Project) -> [LintingIssue] {
+        guard !project.settings.configurations.isEmpty else {
+            return [LintingIssue(reason: "The project at path \(project.path.asString) has no configurations", severity: .error)]
+        }
+        return []
     }
 }
