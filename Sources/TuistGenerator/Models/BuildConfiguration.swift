@@ -22,6 +22,14 @@ public struct BuildConfiguration {
         self.predefined = predefined
         self.variant = variant
     }
+
+    public static func release(_ name: String) -> BuildConfiguration {
+        return BuildConfiguration(name: name, variant: .release)
+    }
+
+    public static func debug(_ name: String) -> BuildConfiguration {
+        return BuildConfiguration(name: name, variant: .debug)
+    }
 }
 
 extension BuildConfiguration: Equatable {
