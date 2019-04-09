@@ -16,7 +16,11 @@ class GraphNode: Equatable, Hashable {
     // MARK: - Equatable
 
     static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
-        return lhs.path == rhs.path
+        return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
+    }
+
+    func isEqual(to otherNode: GraphNode) -> Bool {
+        return path == otherNode.path
     }
 
     func hash(into hasher: inout Hasher) {
@@ -43,12 +47,20 @@ class TargetNode: GraphNode {
     }
 
     override func hash(into hasher: inout Hasher) {
-        hasher.combine(path)
+        super.hash(into: &hasher)
         hasher.combine(target.name)
     }
 
     static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
-        return lhs.path == rhs.path && lhs.target == rhs.target
+        return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
+    }
+
+    override func isEqual(to otherNode: GraphNode) -> Bool {
+        guard let otherTagetNode = otherNode as? TargetNode else {
+            return false
+        }
+        return path == otherTagetNode.path
+            && target == otherTagetNode.target
     }
 
     static func read(name: String,
@@ -205,13 +217,22 @@ class LibraryNode: PrecompiledNode {
     }
 
     override func hash(into hasher: inout Hasher) {
-        hasher.combine(path)
-        hasher.combine(swiftModuleMap)
+        super.hash(into: &hasher)
         hasher.combine(publicHeaders)
+        hasher.combine(swiftModuleMap)
     }
 
     static func == (lhs: LibraryNode, rhs: LibraryNode) -> Bool {
-        return lhs.path == rhs.path && lhs.swiftModuleMap == rhs.swiftModuleMap && lhs.publicHeaders == rhs.publicHeaders
+        return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
+    }
+
+    override func isEqual(to otherNode: GraphNode) -> Bool {
+        guard let otherLibraryNode = otherNode as? LibraryNode else {
+            return false
+        }
+        return path == otherLibraryNode.path
+            && swiftModuleMap == otherLibraryNode.swiftModuleMap
+            && publicHeaders == otherLibraryNode.publicHeaders
     }
 
     static func parse(publicHeaders: RelativePath,
