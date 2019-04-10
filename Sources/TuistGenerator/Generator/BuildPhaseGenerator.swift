@@ -151,7 +151,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                        fileElements: fileElements,
                                        pbxproj: pbxproj,
                                        resourcesBuildPhase: resourcesBuildPhase)
-        
+
         generateResourceBundle(path: path,
                                target: target,
                                graph: graph,
@@ -225,16 +225,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: pbxBuildFile)
         resourcesBuildPhase.files?.append(pbxBuildFile)
     }
-    
+
     private func generateResourceBundle(path: AbsolutePath,
-                                target: Target,
-                                graph: Graphing,
-                                fileElements: ProjectFileElements,
-                                pbxproj: PBXProj,
-                                resourcesBuildPhase: PBXResourcesBuildPhase) {
+                                        target: Target,
+                                        graph: Graphing,
+                                        fileElements: ProjectFileElements,
+                                        pbxproj: PBXProj,
+                                        resourcesBuildPhase: PBXResourcesBuildPhase) {
         let dependencies = graph.targetDependencies(path: path, name: target.name)
         let bundles = dependencies.filter { $0.target.product == .bundle }
-        
+
         let refs = bundles.compactMap { fileElements.product(name: $0.target.productName) }
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)

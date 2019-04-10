@@ -204,7 +204,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertEqual(pbxBuildFile?.file, fileElement)
     }
-    
+
     func test_generateResourceBundle() throws {
         // Given
         let path = AbsolutePath("/path")
@@ -212,16 +212,16 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let bundle2 = Target.test(name: "Bundle2", product: .bundle)
         let app = Target.test(name: "App", product: .app)
         let graph = Graph.create(project: .test(path: path),
-                                dependencies: [
-            (target: bundle1, dependencies: []),
-            (target: bundle2, dependencies: []),
-            (target: app, dependencies: [bundle1, bundle2]),
-        ])
-        
+                                 dependencies: [
+                                     (target: bundle1, dependencies: []),
+                                     (target: bundle2, dependencies: []),
+                                     (target: app, dependencies: [bundle1, bundle2]),
+                                 ])
+
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [bundle1, bundle2])
-        
+
         // When
         try subject.generateResourcesBuildPhase(path: path,
                                                 target: app,
@@ -229,7 +229,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                                 pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
-        
+
         // Then
         let resourcePhase = try nativeTarget.resourcesBuildPhase()
         XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
@@ -237,13 +237,13 @@ final class BuildPhaseGeneratorTests: XCTestCase {
             "Bundle2",
         ])
     }
-    
+
     // MARK: - Helpers
-    
+
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
         fileElements.products = Dictionary(uniqueKeysWithValues: targets.map {
-            return ($0.productName, PBXFileReference(name: $0.name))
+            ($0.productName, PBXFileReference(name: $0.name))
         })
         return fileElements
     }

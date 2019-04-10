@@ -67,13 +67,13 @@ class TargetLinter: TargetLinting {
     private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
         let supportsSources = targetSupportsSources(target)
         let sources = target.sources
-        
-        if supportsSources && sources.isEmpty {
+
+        if supportsSources, sources.isEmpty {
             return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
-        } else if !supportsSources && !sources.isEmpty {
+        } else if !supportsSources, !sources.isEmpty {
             return [LintingIssue(reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files", severity: .error)]
         }
-        
+
         return []
     }
 
@@ -131,7 +131,7 @@ class TargetLinter: TargetLinting {
 
         return []
     }
-    
+
     private func targetSupportsSources(_ target: Target) -> Bool {
         switch (target.platform, target.product) {
         case (.iOS, .bundle):

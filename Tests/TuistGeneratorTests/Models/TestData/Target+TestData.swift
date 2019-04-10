@@ -36,23 +36,23 @@ extension Target {
                       filesGroup: filesGroup,
                       dependencies: dependencies)
     }
-    
+
     /// Creates a bare bones Target with as little data as possible
     static func empty(name: String = "Target",
-                     platform: Platform = .iOS,
-                     product: Product = .app,
-                     bundleId: String = "com.test.bundleId",
-                     infoPlist: AbsolutePath? = nil,
-                     entitlements: AbsolutePath? = nil,
-                     settings: Settings? = nil,
-                     sources: [AbsolutePath] = [],
-                     resources: [FileElement] = [],
-                     coreDataModels: [CoreDataModel] = [],
-                     headers: Headers? = nil,
-                     actions: [TargetAction] = [],
-                     environment: [String: String] = [:],
-                     filesGroup: ProjectGroup = .group(name: "Project"),
-                     dependencies: [Dependency] = []) -> Target {
+                      platform: Platform = .iOS,
+                      product: Product = .app,
+                      bundleId: String = "com.test.bundleId",
+                      infoPlist: AbsolutePath? = nil,
+                      entitlements: AbsolutePath? = nil,
+                      settings: Settings? = nil,
+                      sources: [AbsolutePath] = [],
+                      resources: [FileElement] = [],
+                      coreDataModels: [CoreDataModel] = [],
+                      headers: Headers? = nil,
+                      actions: [TargetAction] = [],
+                      environment: [String: String] = [:],
+                      filesGroup: ProjectGroup = .group(name: "Project"),
+                      dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
                       platform: platform,
                       product: product,

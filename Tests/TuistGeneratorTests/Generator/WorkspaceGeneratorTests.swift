@@ -95,7 +95,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                    settings: nil,
                                    targets: [target])
         let graph = Graph.create(project: project,
-                                dependencies: [(target, [])])
+                                 dependencies: [(target, [])])
         let workspace = Workspace.test(projects: [project.path])
 
         // When
