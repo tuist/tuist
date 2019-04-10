@@ -52,7 +52,9 @@ public class Settings: Equatable {
     }
 
     func xcconfigs() -> [AbsolutePath] {
-        return configurations.values.compactMap { $0?.xcconfig }
+        return orderedConfigurations()
+            .map { $0.value }
+            .compactMap { $0?.xcconfig }
     }
 
     // MARK: - Equatable
