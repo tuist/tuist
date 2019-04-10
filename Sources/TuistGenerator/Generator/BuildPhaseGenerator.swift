@@ -29,7 +29,9 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
 }
 
 protocol BuildPhaseGenerating: AnyObject {
-    func generateBuildPhases(target: Target,
+    func generateBuildPhases(path: AbsolutePath,
+                             target: Target,
+                             graph: Graphing,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj,
@@ -39,7 +41,9 @@ protocol BuildPhaseGenerating: AnyObject {
 final class BuildPhaseGenerator: BuildPhaseGenerating {
     // MARK: - Attributes
 
-    func generateBuildPhases(target: Target,
+    func generateBuildPhases(path: AbsolutePath,
+                             target: Target,
+                             graph: Graphing,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj,
@@ -54,8 +58,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                       fileElements: fileElements,
                                       pbxproj: pbxproj)
 
-        try generateResourcesBuildPhase(files: target.resources.map(\.path),
-                                        coreDataModels: target.coreDataModels,
+        try generateResourcesBuildPhase(path: path,
+                                        target: target,
+                                        graph: graph,
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
@@ -132,8 +137,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         try headers.project.forEach { try addHeader($0, "project") }
     }
 
-    func generateResourcesBuildPhase(files: [AbsolutePath] = [],
-                                     coreDataModels: [CoreDataModel] = [],
+    func generateResourcesBuildPhase(path: AbsolutePath,
+                                     target: Target,
+                                     graph: Graphing,
                                      pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
                                      pbxproj: PBXProj) throws {
@@ -141,12 +147,19 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: resourcesBuildPhase)
         pbxTarget.buildPhases.append(resourcesBuildPhase)
 
-        try generateResourcesBuildFile(files: files,
+        try generateResourcesBuildFile(files: target.resources.map(\.path),
                                        fileElements: fileElements,
                                        pbxproj: pbxproj,
                                        resourcesBuildPhase: resourcesBuildPhase)
+        
+        generateResourceBundle(path: path,
+                               target: target,
+                               graph: graph,
+                               fileElements: fileElements,
+                               pbxproj: pbxproj,
+                               resourcesBuildPhase: resourcesBuildPhase)
 
-        coreDataModels.forEach {
+        target.coreDataModels.forEach {
             self.generateCoreDataModel(coreDataModel: $0,
                                        fileElements: fileElements,
                                        pbxproj: pbxproj,
@@ -211,5 +224,22 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let pbxBuildFile = PBXBuildFile(file: modelReference)
         pbxproj.add(object: pbxBuildFile)
         resourcesBuildPhase.files?.append(pbxBuildFile)
+    }
+    
+    private func generateResourceBundle(path: AbsolutePath,
+                                target: Target,
+                                graph: Graphing,
+                                fileElements: ProjectFileElements,
+                                pbxproj: PBXProj,
+                                resourcesBuildPhase: PBXResourcesBuildPhase) {
+        let dependencies = graph.targetDependencies(path: path, name: target.name)
+        let bundles = dependencies.filter { $0.target.product == .bundle }
+        
+        let refs = bundles.compactMap { fileElements.product(name: $0.target.productName) }
+        refs.forEach {
+            let pbxBuildFile = PBXBuildFile(file: $0)
+            pbxproj.add(object: pbxBuildFile)
+            resourcesBuildPhase.files?.append(pbxBuildFile)
+        }
     }
 }
