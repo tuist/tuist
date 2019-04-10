@@ -12,6 +12,7 @@ let project = Project(
             sources: "Sources/**",
             resources: [
                 "Resources/*.png",
+                "Resources/*.xcassets",
                 .folderReference(path: "Examples")
             ],
             dependencies: [
