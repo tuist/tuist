@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import PathKit
-import xcodeproj
+import XcodeProj
 
 final class GeneratedProject {
     /// A reference to the .xcodeproj which was generated.

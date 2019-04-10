@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCoreTesting
-import xcodeproj
+import XcodeProj
 import XCTest
 @testable import TuistGenerator
 
@@ -78,7 +78,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let buildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(buildPhase)
         XCTAssertTrue(buildPhase is PBXSourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = buildPhase?.files.first
+        let pbxBuildFile: PBXBuildFile? = buildPhase?.files?.first
         XCTAssertNotNil(pbxBuildFile)
         XCTAssertEqual(pbxBuildFile?.file, fileReference)
     }
@@ -116,7 +116,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXHeadersBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertNotNil(pbxBuildFile)
         XCTAssertEqual(pbxBuildFile?.settings?["ATTRIBUTES"] as? [String], ["Public"])
         XCTAssertEqual(pbxBuildFile?.file, header)
@@ -140,7 +140,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertEqual(pbxBuildFile?.file, group)
     }
 
@@ -170,7 +170,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertEqual(pbxBuildFile?.file, versionGroup)
         XCTAssertEqual(versionGroup.currentVersion, model)
     }
@@ -193,7 +193,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files.first
+        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertEqual(pbxBuildFile?.file, fileElement)
     }
 }

@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import xcodeproj
+import XcodeProj
 @testable import TuistGenerator
 
 extension GeneratedProject {

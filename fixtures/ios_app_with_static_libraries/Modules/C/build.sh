@@ -7,7 +7,7 @@ IPHONE_SIM_DIR="$TEMP_DIR/Build/Products/Debug-iphoneos"
 IPHONE_OS_DIR="$TEMP_DIR/Build/Products/Debug-iphonesimulator"
 mkdir -p $TEMP_DIR
 
-xcrun xcodebuild build -scheme C -workspace C.xcworkspace -sdk iphoneos -derivedDataPath $TEMP_DIR
+xcrun xcodebuild build -scheme C -workspace C.xcworkspace -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath $TEMP_DIR
 xcrun xcodebuild build -scheme C -workspace C.xcworkspace -sdk iphonesimulator -derivedDataPath $TEMP_DIR
 
 mkdir -p prebuilt

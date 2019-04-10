@@ -5,12 +5,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next version
 
 ### Changed
+
 ### Added
 
 - Adding support for project additional files https://github.com/tuist/tuist/pull/314 by @kwridan
 - Adding support for resource folder references https://github.com/tuist/tuist/pull/318 by @kwridan
+- **Breaking** Swift 5 support https://github.com/tuist/tuist/pull/317 by @pepibumur.
 
 ### Removed
+
 ### Fixed
 
 ## 0.13.0

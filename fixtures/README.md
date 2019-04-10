@@ -129,7 +129,7 @@ Dependencies:
   - A -> B
   - A -> prebuild C (libC.a)
 
-  Note: to re-create `libC.a` run `fixtures/ios_app_with_static_libraries/Modules/C/build.sh` and copy the contents of `fixtures/ios_app_with_static_libraries/Modules/C/prebuilt` 
+  Note: to re-create `libC.a` run `fixtures/ios_app_with_static_libraries/Modules/C/build.sh`
 
 ## ios_app_with_static_frameworks
 
@@ -155,4 +155,28 @@ Dependencies:
 ## ios_app_with_tests
 
 Simple app with tests.
+
+# ios_app_with_transitive_framework
+
+```
+Workspace:
+  - App:
+    - MainApp (iOS app)
+    - MainAppTests (iOS unit tests)
+  - Framework1:
+    - Framework1 (dynamic iOS framework)
+    - Framework1Tests (iOS unit tests)
+```
+
+A standalone Framework2 project is used to generate a prebuilt dynamic framework :
+```
+  - Framework2:
+    - Framework2 (dynamic iOS framework)
+```
+
+Dependencies:
+  - App -> Framework1
+  - Framework1 -> Framework2 (prebuilt)
+
+  Note: to re-create `Framework2.framework` run `fixtures/ios_app_with_transitive_framework/Framework2/build.sh`
 

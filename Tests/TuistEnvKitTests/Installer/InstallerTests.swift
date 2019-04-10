@@ -36,25 +36,26 @@ final class InstallerTests: XCTestCase {
     func test_install_when_invalid_swift_version() throws {
         let version = "3.2.1"
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        system.swiftVersionStub = { "8.8.8" }
+        system.swiftVersionStub = { "4.2.1" }
         githubClient.getContentStub = { ref, path in
             if ref == version, path == ".swift-version" {
-                return "7.7.7"
+                return "5.0.0"
             } else {
                 throw NSError.test()
             }
         }
 
-        let expectedError = InstallerError.incompatibleSwiftVersion(local: "8.8.8", expected: "7.7.7")
+        let expectedError = InstallerError.incompatibleSwiftVersion(local: "4.2.1", expected: "5.0.0")
         XCTAssertThrowsError(try subject.install(version: version,
                                                  temporaryDirectory: temporaryDirectory)) { error in
             XCTAssertEqual(error as? InstallerError, expectedError)
         }
-        XCTAssertTrue(printer.printArgs.contains("Verifying the Swift version is compatible with your version 8.8.8"))
+        XCTAssertTrue(printer.printArgs.contains("Verifying the Swift version is compatible with your version 4.2.1"))
     }
 
     func test_install_when_bundled_release() throws {
         let version = "3.2.1"
+        stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
         let asset = Release.Asset(downloadURL: downloadURL,
@@ -81,10 +82,11 @@ final class InstallerTests: XCTestCase {
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
 
-        XCTAssertEqual(printer.printArgs.count, 3)
-        XCTAssertEqual(printer.printArgs[0], "Downloading version from \(downloadURL.absoluteString)")
-        XCTAssertEqual(printer.printArgs[1], "Installing...")
-        XCTAssertEqual(printer.printArgs[2], "Version \(version) installed")
+        XCTAssertEqual(printer.printArgs.count, 4)
+        XCTAssertEqual(printer.printArgs[0], "Verifying the Swift version is compatible with your version 5.0.0")
+        XCTAssertEqual(printer.printArgs[1], "Downloading version from \(downloadURL.absoluteString)")
+        XCTAssertEqual(printer.printArgs[2], "Installing...")
+        XCTAssertEqual(printer.printArgs[3], "Version \(version) installed")
 
         let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
@@ -92,6 +94,7 @@ final class InstallerTests: XCTestCase {
 
     func test_install_when_bundled_release_and_download_fails() throws {
         let version = "3.2.1"
+        stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
         let asset = Release.Asset(downloadURL: downloadURL,
@@ -119,6 +122,7 @@ final class InstallerTests: XCTestCase {
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
         let version = "3.2.1"
+        stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
         let asset = Release.Asset(downloadURL: downloadURL,
@@ -148,6 +152,7 @@ final class InstallerTests: XCTestCase {
 
     func test_install_when_no_bundled_release() throws {
         let version = "3.2.1"
+        stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
 
@@ -177,10 +182,11 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(printer.printWarningArgs.count, 1)
         XCTAssertEqual(printer.printWarningArgs.first, "The release \(version) is not bundled")
 
-        XCTAssertEqual(printer.printArgs.count, 3)
-        XCTAssertEqual(printer.printArgs[0], "Pulling source code")
-        XCTAssertEqual(printer.printArgs[1], "Building using Swift (it might take a while)")
-        XCTAssertEqual(printer.printArgs[2], "Version 3.2.1 installed")
+        XCTAssertEqual(printer.printArgs.count, 4)
+        XCTAssertEqual(printer.printArgs[0], "Verifying the Swift version is compatible with your version 5.0.0")
+        XCTAssertEqual(printer.printArgs[1], "Pulling source code")
+        XCTAssertEqual(printer.printArgs[2], "Building using Swift (it might take a while)")
+        XCTAssertEqual(printer.printArgs[3], "Version 3.2.1 installed")
 
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
@@ -188,6 +194,7 @@ final class InstallerTests: XCTestCase {
 
     func test_install_when_force() throws {
         let version = "3.2.1"
+        stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
 
@@ -227,6 +234,7 @@ final class InstallerTests: XCTestCase {
 
     func test_install_when_no_bundled_release_and_invalid_reference() throws {
         let version = "3.2.1"
+        stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 
         versionsController.installStub = { _, closure in
@@ -242,6 +250,15 @@ final class InstallerTests: XCTestCase {
         let expected = InstallerError.versionNotFound(version)
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory)) {
             XCTAssertEqual($0 as? InstallerError, expected)
+        }
+    }
+
+    // MARK: - Fileprivate
+
+    fileprivate func stubLocalAndRemoveSwiftVersions() {
+        system.swiftVersionStub = { "5.0.0" }
+        githubClient.getContentStub = { _, _ in
+            "5.2.1"
         }
     }
 }

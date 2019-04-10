@@ -10,7 +10,7 @@ let project = Project(
                infoPlist: "Config/Framework1-Info.plist",
                sources: "Sources/**",
                dependencies: [
-                   .framework(path: "../Framework2/Framework2.framework"),
+                   .framework(path: "../Framework2/prebuilt/Framework2.framework"),
         ]),
     ]
 )

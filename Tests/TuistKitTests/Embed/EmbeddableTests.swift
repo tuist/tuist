@@ -124,7 +124,7 @@ final class EmbeddableTests: XCTestCase {
                               contents: nil,
                               attributes: [:])
             }
-            try XCTAssertEqual($0.bcSymbolMapsForFramework(), symbolMapsPaths)
+            try XCTAssertEqual($0.bcSymbolMapsForFramework().sorted(), symbolMapsPaths.sorted())
         }
     }
 

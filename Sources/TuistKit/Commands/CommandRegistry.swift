@@ -10,15 +10,13 @@ public final class CommandRegistry {
     var commands: [Command] = []
     var rawCommands: [RawCommand] = []
     var hiddenCommands: [String: HiddenCommand] = [:]
-    private let commandCheck: CommandChecking
     private let errorHandler: ErrorHandling
     private let processArguments: () -> [String]
 
     // MARK: - Init
 
     public convenience init() {
-        self.init(commandCheck: CommandCheck(),
-                  errorHandler: ErrorHandler(),
+        self.init(errorHandler: ErrorHandler(),
                   processArguments: CommandRegistry.processArguments)
         register(command: InitCommand.self)
         register(command: GenerateCommand.self)
@@ -31,10 +29,8 @@ public final class CommandRegistry {
         register(rawCommand: BuildCommand.self)
     }
 
-    init(commandCheck: CommandChecking,
-         errorHandler: ErrorHandling,
+    init(errorHandler: ErrorHandling,
          processArguments: @escaping () -> [String]) {
-        self.commandCheck = commandCheck
         self.errorHandler = errorHandler
         parser = ArgumentParser(commandName: "tuist",
                                 usage: "<command> <options>",
@@ -118,7 +114,6 @@ public final class CommandRegistry {
             return
         }
         if let command = commands.first(where: { type(of: $0).command == subparser }) {
-            try commandCheck.check(command: type(of: command).command)
             try command.run(with: arguments)
         }
     }

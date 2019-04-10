@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import xcodeproj
+import XcodeProj
 
 protocol ConfigGenerating: AnyObject {
     func generateProjectConfig(project: Project,

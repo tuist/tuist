@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import xcodeproj
+import XcodeProj
 
 enum LinkGeneratorError: FatalError, Equatable {
     case missingProduct(name: String)
@@ -160,7 +160,7 @@ final class LinkGenerator: LinkGenerating {
                 }
                 let buildFile = PBXBuildFile(file: fileRef)
                 pbxproj.add(object: buildFile)
-                embedPhase.files.append(buildFile)
+                embedPhase.files?.append(buildFile)
             }
         }
         if script.isEmpty {
@@ -245,7 +245,7 @@ final class LinkGenerator: LinkGenerating {
                 }
                 let buildFile = PBXBuildFile(file: fileRef)
                 pbxproj.add(object: buildFile)
-                buildPhase.files.append(buildFile)
+                buildPhase.files?.append(buildFile)
 
             } else if case let DependencyReference.product(name) = dependency {
                 guard let fileRef = fileElements.product(name: name) else {
@@ -253,7 +253,7 @@ final class LinkGenerator: LinkGenerating {
                 }
                 let buildFile = PBXBuildFile(file: fileRef)
                 pbxproj.add(object: buildFile)
-                buildPhase.files.append(buildFile)
+                buildPhase.files?.append(buildFile)
             }
         }
     }
