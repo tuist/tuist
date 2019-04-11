@@ -37,10 +37,11 @@ extension Graph {
                                         dependencies: []))
         })
 
-        return dependencies.map {
+        dependencies.forEach {
             let node = nodesCache[$0.target.name]!
             node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
-            return node
         }
+        
+        return dependencies.map { nodesCache[$0.target.name]! }
     }
 }
