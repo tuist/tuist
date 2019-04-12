@@ -19,17 +19,17 @@ final class TargetTests: XCTestCase {
 
     func test_productName_when_staticLibrary() {
         let target = Target.test(name: "Test", product: .staticLibrary)
-        XCTAssertEqual(target.productName, "libTest.a")
+        XCTAssertEqual(target.productNameWithExtension, "libTest.a")
     }
 
     func test_productName_when_dynamicLibrary() {
         let target = Target.test(name: "Test", product: .dynamicLibrary)
-        XCTAssertEqual(target.productName, "libTest.dylib")
+        XCTAssertEqual(target.productNameWithExtension, "libTest.dylib")
     }
 
     func test_productName_when_app() {
         let target = Target.test(name: "Test", product: .app)
-        XCTAssertEqual(target.productName, "Test.app")
+        XCTAssertEqual(target.productNameWithExtension, "Test.app")
     }
 
     func test_sequence_testBundles() {

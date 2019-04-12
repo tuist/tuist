@@ -68,7 +68,7 @@ public class Target: Equatable {
     }
 
     /// Returns the product name including the extension.
-    var productName: String {
+    var productNameWithExtension: String {
         switch product {
         case .staticLibrary, .dynamicLibrary:
             return "lib\(name).\(product.xcodeValue.fileExtension!)"
