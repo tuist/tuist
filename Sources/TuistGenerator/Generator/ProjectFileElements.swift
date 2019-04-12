@@ -115,7 +115,7 @@ class ProjectFileElements {
 
     func targetProducts(target: Target) -> Set<String> {
         var products: Set<String> = Set()
-        products.insert(target.productName)
+        products.insert(target.productNameWithExtension)
         return products
     }
 
@@ -213,7 +213,7 @@ class ProjectFileElements {
         try dependencies.forEach { node in
             if let targetNode = node as? TargetNode {
                 // Product name
-                let productName = targetNode.target.productName
+                let productName = targetNode.target.productNameWithExtension
                 if self.products[productName] != nil { return }
 
                 /// The dependency belongs to the same project and its product

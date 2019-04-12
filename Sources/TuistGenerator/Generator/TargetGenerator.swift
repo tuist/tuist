@@ -54,7 +54,7 @@ final class TargetGenerator: TargetGenerating {
                         graph: Graphing,
                         system: Systeming = System()) throws -> PBXNativeTarget {
         /// Products reference.
-        let productFileReference = fileElements.products[target.productName]!
+        let productFileReference = fileElements.products[target.productNameWithExtension]!
 
         /// Target
         let pbxTarget = PBXNativeTarget(name: target.name,
@@ -63,7 +63,7 @@ final class TargetGenerator: TargetGenerating {
                                         buildRules: [],
                                         dependencies: [],
                                         productInstallPath: nil,
-                                        productName: target.productName,
+                                        productName: target.name,
                                         product: productFileReference,
                                         productType: target.product.xcodeValue)
         pbxproj.add(object: pbxTarget)
