@@ -42,6 +42,7 @@ final class TargetGeneratorTests: XCTestCase {
         let generatedTarget = try subject.generateTarget(target: target,
                                                          pbxproj: pbxproj,
                                                          pbxProject: pbxProject,
+                                                         projectSettings: Settings.test(),
                                                          groups: groups,
                                                          fileElements: fileElements,
                                                          path: path,
