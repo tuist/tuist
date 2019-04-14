@@ -16,6 +16,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Ensuring target product names are consistent with Xcode https://github.com/tuist/tuist/pull/323 by @kwridan
+
 ## 0.13.0
 
 ### Added

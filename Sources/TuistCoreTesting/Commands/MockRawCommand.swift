@@ -1,6 +1,6 @@
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 public final class MockRawCommand: RawCommand {
     public static var command: String = "raw"

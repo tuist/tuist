@@ -2,9 +2,9 @@ import Basic
 import Foundation
 import TuistCore
 import XCTest
+@testable import SPMUtility
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
-@testable import Utility
 
 final class LocalCommandTests: XCTestCase {
     var argumentParser: ArgumentParser!
@@ -58,7 +58,7 @@ final class LocalCommandTests: XCTestCase {
         XCTAssertEqual(printer.printSectionArgs.first, "Generating \(Constants.versionFileName) file with version 3.2.1")
 
         XCTAssertEqual(printer.printSuccessArgs.count, 1)
-        XCTAssertEqual(printer.printSuccessArgs.last, "File generated at path \(versionPath.asString)")
+        XCTAssertEqual(printer.printSuccessArgs.last, "File generated at path \(versionPath.pathString)")
     }
 
     func test_run_prints_when_no_argument_is_passed() throws {

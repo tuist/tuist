@@ -154,10 +154,10 @@ final class ConfigGenerator: ConfigGenerating {
         /// Target attributes
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
         if let infoPlist = target.infoPlist {
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).asString)"
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).pathString)"
         }
         if let entitlements = target.entitlements {
-            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).asString)"
+            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
         }
         settings["SDKROOT"] = target.platform.xcodeSdkRoot
         settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms
@@ -179,7 +179,7 @@ final class ConfigGenerator: ConfigGenerating {
                 settings["TEST_TARGET_NAME"] = "\(app.target.name)"
 
                 if target.product == .unitTests {
-                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productName)/\(app.target.name)"
+                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.name)"
                     settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
                 }
             }

@@ -32,7 +32,7 @@ final class SetupLoaderTests: XCTestCase {
         let projectPath = AbsolutePath("/test/test1")
         var receivedPaths = [String]()
         graphManifestLoader.loadSetupStub = { gotPath in
-            receivedPaths.append(gotPath.asString)
+            receivedPaths.append(gotPath.pathString)
             return []
         }
 

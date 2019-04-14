@@ -1,6 +1,6 @@
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 protocol GitHubClienting: AnyObject {
     func releases() throws -> [Release]

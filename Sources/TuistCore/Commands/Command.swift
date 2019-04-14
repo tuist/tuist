@@ -1,4 +1,4 @@
-import Utility
+import SPMUtility
 
 /// Protocol that defines the interface a CLI command.
 public protocol Command {

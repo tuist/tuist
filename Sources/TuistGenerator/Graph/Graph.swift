@@ -122,7 +122,7 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter(isStaticLibrary)
-            .map(\.target.productName)
+            .map(\.target.productNameWithExtension)
             .map(DependencyReference.product)
     }
 
@@ -149,7 +149,7 @@ class Graph: Graphing {
 
             let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
                 .lazy
-                .map(\.target.productName)
+                .map(\.target.productNameWithExtension)
                 .map(DependencyReference.product)
 
             references.append(contentsOf: staticLibraries)
@@ -159,7 +159,7 @@ class Graph: Graphing {
 
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
-            .map(\.target.productName)
+            .map(\.target.productNameWithExtension)
             .map(DependencyReference.product)
 
         references.append(contentsOf: dynamicLibrariesAndFrameworks)
@@ -224,7 +224,7 @@ class Graph: Graphing {
         /// Other targets' frameworks.
         let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
             .lazy
-            .map(\.target.productName)
+            .map(\.target.productNameWithExtension)
             .map(DependencyReference.product)
 
         references.append(contentsOf: otherTargetFrameworks)

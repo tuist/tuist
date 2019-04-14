@@ -72,7 +72,7 @@ class ProjectDirectoryHelper: ProjectDirectoryHelping {
     func setupDirectory(name: String, path: AbsolutePath, directory: GenerationDirectory) throws -> AbsolutePath {
         switch directory {
         case .derivedProjects:
-            let md5 = path.asString.md5
+            let md5 = path.pathString.md5
             let path = environmentController.derivedProjectsDirectory.appending(component: "\(name)-\(md5)")
             if !fileHandler.exists(path) {
                 try fileHandler.createFolder(path)

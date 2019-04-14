@@ -254,7 +254,7 @@ final class SchemesGenerator: SchemesGenerating {
     func targetBuildableReference(target: Target, pbxTarget: PBXNativeTarget, projectName: String) -> XCScheme.BuildableReference {
         return XCScheme.BuildableReference(referencedContainer: "container:\(projectName)",
                                            blueprint: pbxTarget,
-                                           buildableName: target.productName,
+                                           buildableName: target.productNameWithExtension,
                                            blueprintName: target.name,
                                            buildableIdentifier: "primary")
     }

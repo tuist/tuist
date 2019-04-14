@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 enum EmbedCommandError: FatalError {
     case missingFrameworkPath
@@ -57,7 +57,7 @@ final class EmbedCommand: HiddenCommand {
             throw EmbedCommandError.missingFrameworkPath
         }
         let path = RelativePath(pathString)
-        printer.print("Embedding framework \(path.asString)")
+        printer.print("Embedding framework \(path.pathString)")
         try embedder.embed(path: path)
         printer.print(success: "Framework embedded")
     }

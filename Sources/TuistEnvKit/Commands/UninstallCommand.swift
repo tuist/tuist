@@ -1,6 +1,6 @@
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 final class UninstallCommand: Command {
     // MARK: - Command

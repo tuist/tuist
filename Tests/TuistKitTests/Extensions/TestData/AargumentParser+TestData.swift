@@ -1,5 +1,5 @@
 import Foundation
-@testable import Utility
+@testable import SPMUtility
 
 extension ArgumentParser {
     static func test(usage: String = "test",

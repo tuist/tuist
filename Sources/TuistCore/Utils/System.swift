@@ -307,9 +307,9 @@ public final class System: Systeming {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in
-                                  FileHandle.standardOutput.write(Data(bytes: bytes))
+                                  FileHandle.standardOutput.write(Data(bytes))
                               }, stderr: { bytes in
-                                  FileHandle.standardError.write(Data(bytes: bytes))
+                                  FileHandle.standardError.write(Data(bytes))
                               }), verbose: verbose,
                               startNewProcessGroup: false)
         try process.launch()

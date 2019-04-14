@@ -39,19 +39,19 @@ final class SchemeGeneratorTests: XCTestCase {
 
         XCTAssertEqual(appEntry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
         XCTAssertEqual(appEntry.buildableReference.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(appEntry.buildableReference.buildableName, app.productName)
+        XCTAssertEqual(appEntry.buildableReference.buildableName, app.productNameWithExtension)
         XCTAssertEqual(appEntry.buildableReference.blueprintName, app.name)
         XCTAssertEqual(appEntry.buildableReference.buildableIdentifier, "primary")
 
         XCTAssertEqual(testsEntry.buildFor, [.testing])
         XCTAssertEqual(testsEntry.buildableReference.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(testsEntry.buildableReference.buildableName, appTests.productName)
+        XCTAssertEqual(testsEntry.buildableReference.buildableName, appTests.productNameWithExtension)
         XCTAssertEqual(testsEntry.buildableReference.blueprintName, appTests.name)
         XCTAssertEqual(testsEntry.buildableReference.buildableIdentifier, "primary")
 
         XCTAssertEqual(uiTestsEntry.buildFor, [.testing])
         XCTAssertEqual(uiTestsEntry.buildableReference.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(uiTestsEntry.buildableReference.buildableName, appUITests.productName)
+        XCTAssertEqual(uiTestsEntry.buildableReference.buildableName, appUITests.productNameWithExtension)
         XCTAssertEqual(uiTestsEntry.buildableReference.blueprintName, appUITests.name)
         XCTAssertEqual(uiTestsEntry.buildableReference.buildableIdentifier, "primary")
     }
@@ -73,7 +73,7 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(testable?.skipped, false)
 
         XCTAssertEqual(testable?.buildableReference.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(testable?.buildableReference.buildableName, appTests.productName)
+        XCTAssertEqual(testable?.buildableReference.buildableName, appTests.productNameWithExtension)
         XCTAssertEqual(testable?.buildableReference.blueprintName, appTests.name)
         XCTAssertEqual(testable?.buildableReference.buildableIdentifier, "primary")
     }
@@ -186,7 +186,7 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertNil(got?.macroExpansion)
         XCTAssertEqual(got?.buildableProductRunnable?.runnableDebuggingMode, "0")
         XCTAssertEqual(buildable?.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(buildable?.buildableName, target.productName)
+        XCTAssertEqual(buildable?.buildableName, target.productNameWithExtension)
         XCTAssertEqual(buildable?.blueprintName, target.name)
         XCTAssertEqual(buildable?.buildableIdentifier, "primary")
 
