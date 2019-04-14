@@ -65,7 +65,7 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
-        let supportsSources = targetSupportsSources(target)
+        let supportsSources = target.supportsSources
         let sources = target.sources
 
         if supportsSources, sources.isEmpty {
@@ -130,14 +130,5 @@ class TargetLinter: TargetLinting {
         }
 
         return []
-    }
-
-    private func targetSupportsSources(_ target: Target) -> Bool {
-        switch (target.platform, target.product) {
-        case (.iOS, .bundle):
-            return false
-        default:
-            return true
-        }
     }
 }
