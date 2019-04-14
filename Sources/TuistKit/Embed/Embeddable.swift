@@ -24,9 +24,9 @@ enum EmbeddableError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingBundleExecutable(path):
-            return "Couldn't find executable in bundle at path \(path.asString)"
+            return "Couldn't find executable in bundle at path \(path.pathString)"
         case let .unstrippableNonFatEmbeddable(path):
-            return "Can't strip architectures from the non-fat package at path \(path.asString)"
+            return "Can't strip architectures from the non-fat package at path \(path.pathString)"
         }
     }
 
@@ -61,7 +61,7 @@ final class Embeddable {
     // MARK: - Package Information
 
     func binaryPath() throws -> AbsolutePath? {
-        guard let bundle = Bundle(path: path.asString) else { return nil }
+        guard let bundle = Bundle(path: path.pathString) else { return nil }
         guard let packageType = packageType() else { return nil }
         switch packageType {
         case .framework, .bundle:
@@ -70,7 +70,7 @@ final class Embeddable {
             }
             return path.appending(RelativePath(bundleExecutable))
         case .dSYM:
-            let binaryName = URL(fileURLWithPath: path.asString)
+            let binaryName = URL(fileURLWithPath: path.pathString)
                 .deletingPathExtension()
                 .deletingPathExtension()
                 .lastPathComponent
@@ -82,7 +82,7 @@ final class Embeddable {
     }
 
     func packageType() -> EmbeddableType? {
-        guard let bundle = Bundle(path: path.asString) else { return nil }
+        guard let bundle = Bundle(path: path.pathString) else { return nil }
         guard let bundlePackageType = bundle.object(forInfoDictionaryKey: "CFBundlePackageType") as? String else {
             return nil
         }
@@ -91,7 +91,7 @@ final class Embeddable {
 
     func architectures(system: Systeming = System()) throws -> [String] {
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try system.capture("/usr/bin/lipo", "-info", binPath.asString).spm_chuzzle() ?? ""
+        let lipoResult = try system.capture("/usr/bin/lipo", "-info", binPath.pathString).spm_chuzzle() ?? ""
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)
@@ -103,7 +103,7 @@ final class Embeddable {
             //     Architectures in the fat file: PathToBinary are: armv7 arm64
             //
             var architectures: NSString?
-            scanner.scanString(binPath.asString, into: nil)
+            scanner.scanString(binPath.pathString, into: nil)
             scanner.scanString("are:", into: nil)
             scanner.scanCharacters(from: characterSet, into: &architectures)
             let components = architectures?
@@ -120,7 +120,7 @@ final class Embeddable {
             //     Non-fat file: PathToBinary is architecture: x86_64
             //
             var architecture: NSString?
-            scanner.scanString(binPath.asString, into: nil)
+            scanner.scanString(binPath.pathString, into: nil)
             scanner.scanString("is architecture:", into: nil)
             scanner.scanCharacters(from: characterSet, into: &architecture)
             if let architecture = architecture {
@@ -170,7 +170,7 @@ final class Embeddable {
     private func stripArchitecture(packagePath: AbsolutePath,
                                    architecture: String,
                                    system: Systeming = System()) throws {
-        try system.run("/usr/bin/lipo", "-remove", architecture, "-output", packagePath.asString, packagePath.asString)
+        try system.run("/usr/bin/lipo", "-remove", architecture, "-output", packagePath.pathString, packagePath.pathString)
     }
 
     private func stripHeaders(frameworkPath: AbsolutePath) throws {
@@ -217,7 +217,7 @@ final class Embeddable {
 
     private func uuidsFromDwarfdump(path: AbsolutePath,
                                     system: Systeming = System()) throws -> Set<UUID> {
-        let result = try system.capture("/usr/bin/dwarfdump", "--uuid", path.asString).spm_chuzzle() ?? ""
+        let result = try system.capture("/usr/bin/dwarfdump", "--uuid", path.pathString).spm_chuzzle() ?? ""
         var uuidCharacterSet = CharacterSet()
         uuidCharacterSet.formUnion(.letters)
         uuidCharacterSet.formUnion(.decimalDigits)

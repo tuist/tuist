@@ -55,7 +55,7 @@ class TargetActionLinter: TargetActionLinting {
     func lintPathExistence(_ action: TargetAction) -> [LintingIssue] {
         guard let path = action.path else { return [] }
         if fileHandler.exists(path) { return [] }
-        return [LintingIssue(reason: "The action path \(path.asString) doesn't exist",
+        return [LintingIssue(reason: "The action path \(path.pathString) doesn't exist",
                              severity: .error)]
     }
 }

@@ -27,12 +27,12 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/xcodeproj.git", .revision("86b5dd403c1fcf0a7325a65b6d6f10a8a3a369b9")),
-        .package(url: "https://github.com/apple/swift-package-manager", .revision("a107d28d1b40491cf505799a046fee53e7c422e1")),
+        .package(url: "https://github.com/apple/swift-package-manager", .branch("swift-5.0-RELEASE")),
     ],
     targets: [
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "Utility", "TuistCore", "TuistGenerator", "ProjectDescription"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistGenerator", "ProjectDescription"]
         ),
         .testTarget(
             name: "TuistKitTests",
@@ -44,7 +44,7 @@ let package = Package(
         ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["Utility", "TuistCore"]
+            dependencies: ["SPMUtility", "TuistCore"]
         ),
         .testTarget(
             name: "TuistEnvKitTests",
@@ -64,7 +64,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCore",
-            dependencies: ["Utility"]
+            dependencies: ["SPMUtility"]
         ),
         .target(
             name: "TuistCoreTesting",
@@ -76,7 +76,7 @@ let package = Package(
         ),
         .target(
             name: "TuistGenerator",
-            dependencies: ["XcodeProj", "Utility", "TuistCore"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistCore"]
         ),
         .testTarget(
             name: "TuistGeneratorTests",

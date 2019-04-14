@@ -41,6 +41,6 @@ final class BuildCopierTests: XCTestCase {
         try subject.copy(from: fromPath, to: toPath)
 
         XCTAssertEqual(toPath.glob("*").count, BuildCopier.files.count)
-        XCTAssertFalse(fileManager.fileExists(atPath: toPath.appending(component: "test").asString))
+        XCTAssertFalse(fileManager.fileExists(atPath: toPath.appending(component: "test").pathString))
     }
 }

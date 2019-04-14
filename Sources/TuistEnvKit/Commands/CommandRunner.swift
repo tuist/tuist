@@ -69,9 +69,9 @@ class CommandRunner: CommandRunning {
 
         switch resolvedVersion {
         case let .bin(path):
-            printer.print("Using bundled version at path \(path.asString)")
+            printer.print("Using bundled version at path \(path.pathString)")
         case let .versionFile(path, value):
-            printer.print("Using version \(value) defined at \(path.asString)")
+            printer.print("Using version \(value) defined at \(path.pathString)")
         default:
             break
         }
@@ -115,7 +115,7 @@ class CommandRunner: CommandRunning {
     }
 
     func runAtPath(_ path: AbsolutePath) throws {
-        var args = [path.appending(component: Constants.binName).asString]
+        var args = [path.appending(component: Constants.binName).pathString]
         args.append(contentsOf: Array(arguments().dropFirst()))
 
         try system.runAndPrint(args, verbose: false, environment: ProcessInfo.processInfo.environment)

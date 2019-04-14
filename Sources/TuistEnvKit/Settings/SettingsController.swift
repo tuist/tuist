@@ -44,7 +44,7 @@ class SettingsController: SettingsControlling {
     func settings() throws -> Settings {
         let path = environmentController.settingsPath
         if !fileHandler.exists(path) { return Settings() }
-        let data = try Data(contentsOf: URL(fileURLWithPath: path.asString))
+        let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
         let decoder = JSONDecoder()
         return try decoder.decode(Settings.self, from: data)
     }
@@ -58,7 +58,7 @@ class SettingsController: SettingsControlling {
         let data = try encoder.encode(settings)
         let path = environmentController.settingsPath
         if fileHandler.exists(path) { try fileHandler.delete(path) }
-        let url = URL(fileURLWithPath: path.asString)
+        let url = URL(fileURLWithPath: path.pathString)
         try data.write(to: url, options: Data.WritingOptions.atomic)
     }
 }

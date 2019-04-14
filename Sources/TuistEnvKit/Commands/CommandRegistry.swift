@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import Utility
+import SPMUtility
 
 public final class CommandRegistry {
     // MARK: - Attributes

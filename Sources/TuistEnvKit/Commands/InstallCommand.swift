@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import Utility
+import SPMUtility
 
 /// Command that installs new versions of Tuist in the system.
 final class InstallCommand: Command {

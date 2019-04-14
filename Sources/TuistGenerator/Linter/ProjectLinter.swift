@@ -47,7 +47,7 @@ class ProjectLinter: ProjectLinting {
             .filter { $0.value > 1 }
             .keys
         if !duplicatedTargets.isEmpty {
-            let issue = LintingIssue(reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.asString) have duplicates.",
+            let issue = LintingIssue(reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
                                      severity: .error)
             issues.append(issue)
         }

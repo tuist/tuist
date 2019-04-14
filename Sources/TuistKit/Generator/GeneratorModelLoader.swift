@@ -21,7 +21,7 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
         case let .featureNotYetSupported(details):
             return "\(details) is not yet supported"
         case let .missingFile(path):
-            return "Couldn't find file at path '\(path.asString)'"
+            return "Couldn't find file at path '\(path.pathString)'"
         }
     }
 }

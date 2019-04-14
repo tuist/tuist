@@ -137,7 +137,7 @@ final class FrameworkNodeTests: XCTestCase {
     }
 
     func test_binaryPath() {
-        XCTAssertEqual(subject.binaryPath.asString, "/test.framework/test")
+        XCTAssertEqual(subject.binaryPath.pathString, "/test.framework/test")
     }
 
     func test_isCarthage() {
@@ -172,7 +172,7 @@ final class LibraryNodeTests: XCTestCase {
     }
 
     func test_binaryPath() {
-        XCTAssertEqual(subject.binaryPath.asString, "/test.a")
+        XCTAssertEqual(subject.binaryPath.pathString, "/test.a")
     }
 
     func test_architectures() throws {

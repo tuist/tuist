@@ -380,7 +380,7 @@ class ProjectFileElements {
                                 pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath) {
         let versionGroupType = Xcode.filetype(extension: folderRelativePath.extension!)
         let group = XCVersionGroup(currentVersion: nil,
-                                   path: folderRelativePath.asString,
+                                   path: folderRelativePath.pathString,
                                    name: name,
                                    sourceTree: .group,
                                    versionGroupType: versionGroupType)
@@ -396,7 +396,7 @@ class ProjectFileElements {
                          name: String?,
                          toGroup: PBXGroup,
                          pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath) {
-        let group = PBXGroup(children: [], sourceTree: .group, name: name, path: folderRelativePath.asString)
+        let group = PBXGroup(children: [], sourceTree: .group, name: name, path: folderRelativePath.pathString)
         pbxproj.add(object: group)
         toGroup.children.append(group)
         elements[folderAbsolutePath] = group
@@ -410,7 +410,7 @@ class ProjectFileElements {
                         toGroup: PBXGroup,
                         pbxproj: PBXProj) {
         let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
-        let file = PBXFileReference(sourceTree: .group, name: name, lastKnownFileType: lastKnownFileType, path: fileRelativePath.asString)
+        let file = PBXFileReference(sourceTree: .group, name: name, lastKnownFileType: lastKnownFileType, path: fileRelativePath.pathString)
         pbxproj.add(object: file)
         toGroup.children.append(file)
         elements[fileAbsolutePath] = file
@@ -447,7 +447,7 @@ class ProjectFileElements {
     /// - Example:
     ///   /test/es.lproj/Main.storyboard ~> /test/es.lproj
     func normalize(_ path: AbsolutePath) -> AbsolutePath {
-        let pathString = path.asString
+        let pathString = path.pathString
         let range = NSRange(location: 0, length: pathString.count)
         if let localizedMatch = ProjectFileElements.localizedRegex.firstMatch(in: pathString,
                                                                               options: [],

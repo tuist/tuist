@@ -20,8 +20,8 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
                               environment: env)
             let outputFrameworkPath = srcRoot.appending(RelativePath("built_products_dir/frameworks/xpm.framework"))
             let outputDSYMPath = srcRoot.appending(RelativePath("built_products_dir/xpm.framework.dSYM"))
-            XCTAssertTrue(fm.fileExists(atPath: outputFrameworkPath.asString))
-            XCTAssertTrue(fm.fileExists(atPath: outputDSYMPath.asString))
+            XCTAssertTrue(fm.fileExists(atPath: outputFrameworkPath.pathString))
+            XCTAssertTrue(fm.fileExists(atPath: outputDSYMPath.pathString))
             XCTAssertEqual(try Embeddable(path: outputFrameworkPath).architectures(), ["arm64"])
             XCTAssertEqual(try Embeddable(path: outputDSYMPath).architectures(), ["arm64"])
         }
@@ -34,8 +34,8 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
                               environment: env)
             let outputFrameworkPath = srcRoot.appending(RelativePath("target_build_dir/frameworks/xpm.framework"))
             let outputDSYMPath = srcRoot.appending(RelativePath("target_build_dir/xpm.framework.dSYM"))
-            XCTAssertTrue(fm.fileExists(atPath: outputFrameworkPath.asString))
-            XCTAssertTrue(fm.fileExists(atPath: outputDSYMPath.asString))
+            XCTAssertTrue(fm.fileExists(atPath: outputFrameworkPath.pathString))
+            XCTAssertTrue(fm.fileExists(atPath: outputDSYMPath.pathString))
             XCTAssertEqual(try Embeddable(path: outputFrameworkPath).architectures(), ["arm64"])
             XCTAssertEqual(try Embeddable(path: outputDSYMPath).architectures(), ["arm64"])
         }
@@ -55,7 +55,7 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
         let targetBuildDir = tmpDir.path.appending(component: "target_build_dir")
         let validArchs = ["arm64"]
         func createDirectory(path: AbsolutePath) throws {
-            try FileManager.default.createDirectory(atPath: path.asString,
+            try FileManager.default.createDirectory(atPath: path.pathString,
                                                     withIntermediateDirectories: true,
                                                     attributes: nil)
         }
@@ -64,10 +64,10 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
         try createDirectory(path: targetBuildDir)
         let environment = XcodeBuild.Environment(configuration: "Debug",
                                                  frameworksFolderPath: frameworksPath,
-                                                 builtProductsDir: builtProductsDir.asString,
-                                                 targetBuildDir: targetBuildDir.asString,
+                                                 builtProductsDir: builtProductsDir.pathString,
+                                                 targetBuildDir: targetBuildDir.pathString,
                                                  validArchs: validArchs,
-                                                 srcRoot: srcRootPath.asString,
+                                                 srcRoot: srcRootPath.pathString,
                                                  action: action)
         try assert(srcRootPath, environment)
     }

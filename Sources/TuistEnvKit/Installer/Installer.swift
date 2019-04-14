@@ -152,11 +152,11 @@ final class Installer: Installing {
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.asString, bundleURL.absoluteString)
+            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 
             // Unzip
             printer.print("Installing...")
-            try system.run("/usr/bin/unzip", downloadPath.asString, "-d", installationDirectory.asString)
+            try system.run("/usr/bin/unzip", downloadPath.pathString, "-d", installationDirectory.pathString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
@@ -171,10 +171,10 @@ final class Installer: Installing {
 
             // Cloning and building
             printer.print("Pulling source code")
-            try system.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.asString)
+            try system.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString)
 
             do {
-                try system.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.asString, "checkout", version)
+                try system.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version)
             } catch let error as SystemError {
                 if error.description.contains("did not match any file(s) known to git") {
                     throw InstallerError.versionNotFound(version)
@@ -187,12 +187,12 @@ final class Installer: Installing {
 
             try system.run(swiftPath, "build",
                            "--product", "tuist",
-                           "--package-path", temporaryDirectory.path.asString,
+                           "--package-path", temporaryDirectory.path.pathString,
                            "--configuration", "release",
                            "-Xswiftc", "-static-stdlib")
             try system.run(swiftPath, "build",
                            "--product", "ProjectDescription",
-                           "--package-path", temporaryDirectory.path.asString,
+                           "--package-path", temporaryDirectory.path.pathString,
                            "--configuration", "release")
 
             if fileHandler.exists(installationDirectory) {

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import Utility
+import SPMUtility
 
 enum BundleCommandError: FatalError, Equatable {
     case missingVersionFile(AbsolutePath)
@@ -16,7 +16,7 @@ enum BundleCommandError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingVersionFile(path):
-            return "Couldn't find a .tuist-version file in the directory \(path.asString)"
+            return "Couldn't find a .tuist-version file in the directory \(path.pathString)"
         }
     }
 
@@ -74,7 +74,7 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.asString)")
+        printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.pathString)")
 
         let versionPath = versionsController.path(version: version)
 
@@ -90,6 +90,6 @@ final class BundleCommand: Command {
         }
         try fileHandler.copy(from: versionPath, to: binFolderPath)
 
-        printer.print(success: "tuist bundled successfully at \(binFolderPath.asString)")
+        printer.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
     }
 }

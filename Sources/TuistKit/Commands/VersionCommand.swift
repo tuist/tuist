@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
-import Utility
+import SPMUtility
 
 class VersionCommand: NSObject, Command {
     // MARK: - Command

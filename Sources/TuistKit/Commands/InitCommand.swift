@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 import TuistGenerator
-import Utility
+import SPMUtility
 
 private typealias Platform = TuistGenerator.Platform
 private typealias Product = TuistGenerator.Product
@@ -18,9 +18,9 @@ enum InitCommandError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .ungettableProjectName(path):
-            return "Couldn't infer the project name from path \(path.asString)."
+            return "Couldn't infer the project name from path \(path.pathString)."
         case let .nonEmptyDirectory(path):
-            return "Can't initialize a project in the non-empty directory at path \(path.asString)."
+            return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
         }
     }
 
@@ -113,7 +113,7 @@ class InitCommand: NSObject, Command {
         try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateGitIgnore(path: path)
         try generateSetup(path: path)
-        printer.print(success: "Project generated at path \(path.asString).")
+        printer.print(success: "Project generated at path \(path.pathString).")
     }
 
     // MARK: - Fileprivate

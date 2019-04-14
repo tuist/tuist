@@ -66,7 +66,7 @@ final class TargetTests: XCTestCase {
                                          fileHandler: fileHandler)
 
         // Then
-        let relativeSources = sources.map { $0.relative(to: fileHandler.currentPath).asString }
+        let relativeSources = sources.map { $0.relative(to: fileHandler.currentPath).pathString }
         XCTAssertEqual(relativeSources, [
             "sources/a.swift",
             "sources/b.m",
@@ -98,7 +98,7 @@ final class TargetTests: XCTestCase {
         let resources = paths.filter { Target.isResource(path: $0, fileHandler: fileHandler) }
 
         // Then
-        let relativeResources = resources.map { $0.relative(to: fileHandler.currentPath).asString }
+        let relativeResources = resources.map { $0.relative(to: fileHandler.currentPath).pathString }
         XCTAssertEqual(relativeResources, [
             "resources/d.xcassets",
             "resources/g.bundle",

@@ -1,5 +1,5 @@
 import Foundation
-import Utility
+import SPMUtility
 
 extension ShellCompletion: Equatable {
     public static func == (lhs: ShellCompletion, rhs: ShellCompletion) -> Bool {

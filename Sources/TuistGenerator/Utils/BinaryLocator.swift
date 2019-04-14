@@ -27,7 +27,7 @@ final class BinaryLocator: BinaryLocating {
     func copyFrameworksBinary() -> String {
         let debugPathPatterns = [".build/", "DerivedData"]
         if let launchPath = CommandLine.arguments.first, debugPathPatterns.contains(where: { launchPath.contains($0) }) {
-            return AbsolutePath(launchPath, relativeTo: fileHandler.currentPath).asString
+            return AbsolutePath(launchPath, relativeTo: fileHandler.currentPath).pathString
         }
         return "tuist"
     }
