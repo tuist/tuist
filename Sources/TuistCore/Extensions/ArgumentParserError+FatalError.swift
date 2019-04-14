@@ -1,4 +1,4 @@
-import Utility
+import SPMUtility
 
 // MARK: - FatalError
 

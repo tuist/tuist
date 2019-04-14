@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 class LocalCommand: Command {
     // MARK: - Command
@@ -64,9 +64,9 @@ class LocalCommand: Command {
         let currentPath = fileHandler.currentPath
         printer.print(section: "Generating \(Constants.versionFileName) file with version \(version)")
         let tuistVersionPath = currentPath.appending(component: Constants.versionFileName)
-        try "\(version)".write(to: URL(fileURLWithPath: tuistVersionPath.asString),
+        try "\(version)".write(to: URL(fileURLWithPath: tuistVersionPath.pathString),
                                atomically: true,
                                encoding: .utf8)
-        printer.print(success: "File generated at path \(tuistVersionPath.asString)")
+        printer.print(success: "File generated at path \(tuistVersionPath.pathString)")
     }
 }

@@ -14,7 +14,7 @@ enum OpeningError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .notFound(path):
-            return "Couldn't open file at path \(path.asString)"
+            return "Couldn't open file at path \(path.pathString)"
         }
     }
 
@@ -50,6 +50,6 @@ public class Opener: Opening {
         if !fileHandler.exists(path) {
             throw OpeningError.notFound(path)
         }
-        try system.runAndPrint("/usr/bin/open", path.asString)
+        try system.runAndPrint("/usr/bin/open", path.pathString)
     }
 }

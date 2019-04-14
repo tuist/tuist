@@ -64,10 +64,10 @@ class GraphLinter: GraphLinting {
 
         let carthageIssues = carthageFrameworks
             .filter { !fileHandler.exists($0.path) }
-            .map { LintingIssue(reason: "Framework not found at path \($0.path.asString). The path might be wrong or Carthage dependencies not fetched", severity: .warning) }
+            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString). The path might be wrong or Carthage dependencies not fetched", severity: .warning) }
         let nonCarthageIssues = nonCarthageFrameworks
             .filter { !fileHandler.exists($0.path) }
-            .map { LintingIssue(reason: "Framework not found at path \($0.path.asString)", severity: .error) }
+            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString)", severity: .error) }
 
         var issues: [LintingIssue] = []
         issues.append(contentsOf: carthageIssues)

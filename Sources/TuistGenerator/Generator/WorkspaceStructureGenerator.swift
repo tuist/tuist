@@ -202,13 +202,13 @@ extension DirectoryStructure.Node: CustomDebugStringConvertible {
     var debugDescription: String {
         switch self {
         case let .file(path):
-            return "file: \(path.asString)"
+            return "file: \(path.pathString)"
         case let .project(path):
-            return "project: \(path.asString)"
+            return "project: \(path.pathString)"
         case let .directory(path, graph):
-            return "directory: \(path.asString) > \(graph.nodes)"
+            return "directory: \(path.pathString) > \(graph.nodes)"
         case let .folderReference(path):
-            return "folderReference: \(path.asString)"
+            return "folderReference: \(path.pathString)"
         }
     }
 }

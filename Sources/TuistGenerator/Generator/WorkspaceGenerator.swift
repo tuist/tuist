@@ -147,7 +147,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     ///
     /// - Parameter path: The relative path to the file
     private func workspaceFileElement(path: RelativePath) -> XCWorkspaceDataElement {
-        let location = XCWorkspaceDataElementLocationType.group(path.asString)
+        let location = XCWorkspaceDataElementLocationType.group(path.pathString)
         let fileRef = XCWorkspaceDataFileRef(location: location)
         return .file(fileRef)
     }
@@ -211,7 +211,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             return workspaceFileElement(path: folderPath.relative(to: path))
 
         case let .group(name: name, path: groupPath, contents: contents):
-            let location = XCWorkspaceDataElementLocationType.group(groupPath.relative(to: path).asString)
+            let location = XCWorkspaceDataElementLocationType.group(groupPath.relative(to: path).pathString)
 
             let groupReference = XCWorkspaceDataGroup(
                 location: location,

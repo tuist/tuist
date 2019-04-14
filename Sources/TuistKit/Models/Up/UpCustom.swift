@@ -48,7 +48,7 @@ class UpCustom: Up, GraphInitiatable {
     override func meet(system: Systeming, printer _: Printing, projectPath: AbsolutePath) throws {
         let launchPath = try self.launchPath(command: meet, projectPath: projectPath, system: system)
 
-        var arguments = [launchPath.asString]
+        var arguments = [launchPath.pathString]
         arguments.append(contentsOf: Array(meet.dropFirst()))
 
         try system.runAndPrint(arguments)
@@ -68,7 +68,7 @@ class UpCustom: Up, GraphInitiatable {
         } catch {
             return false
         }
-        var arguments = [launchPath.asString]
+        var arguments = [launchPath.pathString]
         arguments.append(contentsOf: Array(isMet.dropFirst()))
 
         do {

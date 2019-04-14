@@ -15,11 +15,11 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .projectDescriptionNotFound(path):
-            return "Couldn't find ProjectDescription.framework at path \(path.asString)"
+            return "Couldn't find ProjectDescription.framework at path \(path.pathString)"
         case let .unexpectedOutput(path):
-            return "Unexpected output trying to parse the manifest at path \(path.asString)"
+            return "Unexpected output trying to parse the manifest at path \(path.pathString)"
         case let .manifestNotFound(manifest, path):
-            return "\(manifest?.fileName ?? "Manifest") not found at path \(path.asString)"
+            return "\(manifest?.fileName ?? "Manifest") not found at path \(path.pathString)"
         }
     }
 
@@ -171,12 +171,12 @@ class GraphManifestLoader: GraphManifestLoading {
             "swiftc",
             "--driver-mode=swift",
             "-suppress-warnings",
-            "-I", projectDescriptionPath.parentDirectory.asString,
-            "-L", projectDescriptionPath.parentDirectory.asString,
-            "-F", projectDescriptionPath.parentDirectory.asString,
+            "-I", projectDescriptionPath.parentDirectory.pathString,
+            "-L", projectDescriptionPath.parentDirectory.pathString,
+            "-F", projectDescriptionPath.parentDirectory.pathString,
             "-lProjectDescription",
         ]
-        arguments.append(path.asString)
+        arguments.append(path.pathString)
         arguments.append("--dump")
 
         guard let jsonString = try system.capture(arguments).spm_chuzzle(),

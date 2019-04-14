@@ -13,7 +13,7 @@ enum LinkGeneratorError: FatalError, Equatable {
         case let .missingProduct(name):
             return "Couldn't find a reference for the product \(name)."
         case let .missingReference(path):
-            return "Couldn't find a reference for the file at path \(path.asString)."
+            return "Couldn't find a reference for the file at path \(path.pathString)."
         case let .missingConfigurationList(targetName):
             return "The target \(targetName) doesn't have a configuration list."
         }
@@ -148,9 +148,9 @@ final class LinkGenerator: LinkGenerating {
 
         try dependencies.forEach { dependency in
             if case let DependencyReference.absolute(path) = dependency {
-                let relativePath = "$(SRCROOT)/\(path.relative(to: sourceRootPath).asString)"
+                let relativePath = "$(SRCROOT)/\(path.relative(to: sourceRootPath).pathString)"
                 let binary = binaryLocator.copyFrameworksBinary()
-                script.append("\(binary) embed \(path.relative(to: sourceRootPath).asString)")
+                script.append("\(binary) embed \(path.relative(to: sourceRootPath).pathString)")
                 precompiledEmbedPhase.inputPaths.append(relativePath)
                 precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
 
@@ -218,7 +218,7 @@ final class LinkGenerator: LinkGenerating {
                        pbxTarget: PBXTarget,
                        sourceRootPath: AbsolutePath) throws {
         let relativePaths = paths
-            .map { $0.relative(to: sourceRootPath).asString }
+            .map { $0.relative(to: sourceRootPath).pathString }
             .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)

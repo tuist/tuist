@@ -9,7 +9,7 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingFileReference(path):
-            return "Trying to add a file at path \(path.asString) to a build phase that hasn't been added to the project."
+            return "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
         }
     }
 
@@ -159,7 +159,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                             pbxproj: PBXProj,
                                             resourcesBuildPhase: PBXResourcesBuildPhase) throws {
         try files.forEach { buildFilePath in
-            let pathString = buildFilePath.asString
+            let pathString = buildFilePath.pathString
             let pathRange = NSRange(location: 0, length: pathString.count)
             let isLocalized = ProjectFileElements.localizedRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
             let isLproj = buildFilePath.extension == "lproj"

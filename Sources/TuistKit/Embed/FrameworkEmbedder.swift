@@ -51,7 +51,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         }
         let builtProductsDir = AbsolutePath(environment.builtProductsDir)
         let frameworkAbsolutePath = srcRoot.appending(frameworkPath)
-        let frameworkDsymPath = AbsolutePath("\(frameworkAbsolutePath.asString).dSYM")
+        let frameworkDsymPath = AbsolutePath("\(frameworkAbsolutePath.pathString).dSYM")
         let productFrameworksPath = destinationPath.appending(frameworksPath)
         let embeddable = Embeddable(path: frameworkAbsolutePath)
 

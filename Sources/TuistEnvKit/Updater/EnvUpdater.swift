@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
-import Utility
 
 /// Protocol that defines the interface to update the environment.
 protocol EnvUpdating {
@@ -49,8 +49,8 @@ final class EnvUpdater: EnvUpdating {
             // Download
             let fileName = asset.downloadURL.lastPathComponent
             let downloadPath = directory.appending(component: fileName)
-            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.asString, asset.downloadURL.absoluteString)
-            try system.run("/usr/bin/unzip", "-o", downloadPath.asString, "-d", "/tmp/")
+            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, asset.downloadURL.absoluteString)
+            try system.run("/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/")
             let binaryPath = "/tmp/tuistenv"
             try system.run(["/bin/chmod", "+x", binaryPath])
 

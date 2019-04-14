@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import Utility
+import SPMUtility
 @testable import TuistEnvKit
 
 extension Release {
