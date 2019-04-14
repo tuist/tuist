@@ -243,7 +243,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
         fileElements.products = Dictionary(uniqueKeysWithValues: targets.map {
-            ($0.productName, PBXFileReference(name: $0.name))
+            ($0.productNameWithExtension, PBXFileReference(name: $0.name))
         })
         return fileElements
     }

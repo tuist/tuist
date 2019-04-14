@@ -235,7 +235,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let dependencies = graph.targetDependencies(path: path, name: target.name)
         let bundles = dependencies.filter { $0.target.product == .bundle }
 
-        let refs = bundles.compactMap { fileElements.product(name: $0.target.productName) }
+        let refs = bundles.compactMap { fileElements.product(name: $0.target.productNameWithExtension) }
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)
             pbxproj.add(object: pbxBuildFile)
