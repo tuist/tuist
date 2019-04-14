@@ -2,9 +2,9 @@ import Basic
 import Foundation
 import TuistCore
 import XCTest
+@testable import SPMUtility
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
-@testable import SPMUtility
 
 final class InstallCommandTests: XCTestCase {
     var parser: ArgumentParser!

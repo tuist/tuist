@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 
 /// Protocol that defines the interface to update the environment.
 protocol EnvUpdating {

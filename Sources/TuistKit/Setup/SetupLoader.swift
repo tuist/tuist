@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 
 /// Protocol that represents an entity that knows how to get the environment status
 /// for a given project and configure it.

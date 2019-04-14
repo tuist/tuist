@@ -1,6 +1,6 @@
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 
 public final class MockHiddenCommand: HiddenCommand {
     public static var command: String = "hidden"

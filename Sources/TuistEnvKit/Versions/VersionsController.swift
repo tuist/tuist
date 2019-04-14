@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 
 protocol VersionsControlling: AnyObject {
     typealias Installation = (AbsolutePath) throws -> Void

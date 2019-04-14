@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting

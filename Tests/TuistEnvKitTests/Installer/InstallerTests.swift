@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit

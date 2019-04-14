@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 
 enum ResolvedVersion: Equatable {
     case bin(AbsolutePath)

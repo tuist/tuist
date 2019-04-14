@@ -1,6 +1,6 @@
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 
 /// Command that updates the version of Tuist in the environment.
 final class UpdateCommand: Command {

@@ -1,9 +1,9 @@
 import Basic
 import Foundation
 import XCTest
+@testable import SPMUtility
 @testable import TuistCoreTesting
 @testable import TuistKit
-@testable import SPMUtility
 
 final class InitCommandErrorTests: XCTestCase {
     func test_description() {
