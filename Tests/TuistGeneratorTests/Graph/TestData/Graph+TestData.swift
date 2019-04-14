@@ -41,7 +41,7 @@ extension Graph {
             let node = nodesCache[$0.target.name]!
             node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
         }
-        
+
         return dependencies.map { nodesCache[$0.target.name]! }
     }
 }
