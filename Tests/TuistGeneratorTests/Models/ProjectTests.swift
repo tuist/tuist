@@ -13,7 +13,7 @@ final class ProjectTests: XCTestCase {
             framework, app, appTests, frameworkTests,
         ])
 
-        let graph = createGraph(project: project, dependencies: [
+        let graph = Graph.create(project: project, dependencies: [
             (target: framework, dependencies: []),
             (target: frameworkTests, dependencies: [framework]),
             (target: app, dependencies: [framework]),
@@ -26,34 +26,5 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(got[1], app)
         XCTAssertEqual(got[2], appTests)
         XCTAssertEqual(got[3], frameworkTests)
-    }
-
-    // MARK: - Private
-
-    private func createTargetNodes(project: Project,
-                                   dependencies: [(target: Target, dependencies: [Target])]) -> [TargetNode] {
-        let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
-            ($0.target.name, TargetNode(project: project,
-                                        target: $0.target,
-                                        dependencies: []))
-        })
-
-        return dependencies.map {
-            let node = nodesCache[$0.target.name]!
-            node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
-            return node
-        }
-    }
-
-    private func createGraph(project: Project,
-                             dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
-        let targetNodes = createTargetNodes(project: project, dependencies: dependencies)
-
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
-
-        targetNodes.forEach { cache.add(targetNode: $0) }
-
-        return graph
     }
 }

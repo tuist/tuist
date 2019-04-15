@@ -43,7 +43,9 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                      TargetAction(name: "pre", order: .pre, path: tmpDir.path.appending(component: "script.sh"), arguments: ["arg"]),
                                  ])
 
-        try subject.generateBuildPhases(target: target,
+        try subject.generateBuildPhases(path: tmpDir.path,
+                                        target: target,
+                                        graph: Graph.test(),
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,
                                         pbxproj: pbxproj,
@@ -124,20 +126,22 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
     func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
         let path = AbsolutePath("/en.lproj/Main.storyboard")
+        let target = Target.test(resources: [.file(path: path)])
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
         let group = PBXVariantGroup()
         pbxproj.add(object: group)
         fileElements.elements[AbsolutePath("/Main.storyboard")] = group
-        let target = PBXNativeTarget(name: "Test")
+        let nativeTarget = PBXNativeTarget(name: "Test")
 
-        try subject.generateResourcesBuildPhase(files: [path],
-                                                coreDataModels: [],
-                                                pbxTarget: target,
+        try subject.generateResourcesBuildPhase(path: "/path",
+                                                target: target,
+                                                graph: Graph.test(),
+                                                pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
         let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
@@ -148,6 +152,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let coreDataModel = CoreDataModel(path: AbsolutePath("/Model.xcdatamodeld"),
                                           versions: [AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")],
                                           currentVersion: "1")
+        let target = Target.test(resources: [], coreDataModels: [coreDataModel])
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
 
@@ -160,14 +165,15 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         versionGroup.children.append(model)
         fileElements.elements[AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")] = model
 
-        let target = PBXNativeTarget(name: "Test")
-        try subject.generateResourcesBuildPhase(files: [],
-                                                coreDataModels: [coreDataModel],
-                                                pbxTarget: target,
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        try subject.generateResourcesBuildPhase(path: "/path",
+                                                target: target,
+                                                graph: Graph.test(),
+                                                pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
         let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
@@ -177,23 +183,68 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
     func test_generateResourcesBuildPhase_whenNormalResource() throws {
         let path = AbsolutePath("/image.png")
+        let target = Target.test(resources: [.file(path: path)])
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
         let fileElement = PBXFileReference()
         pbxproj.add(object: fileElement)
         fileElements.elements[path] = fileElement
-        let target = PBXNativeTarget(name: "Test")
+        let nativeTarget = PBXNativeTarget(name: "Test")
 
-        try subject.generateResourcesBuildPhase(files: [path],
-                                                coreDataModels: [],
-                                                pbxTarget: target,
+        try subject.generateResourcesBuildPhase(path: "/path",
+                                                target: target,
+                                                graph: Graph.test(),
+                                                pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
         let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertEqual(pbxBuildFile?.file, fileElement)
+    }
+
+    func test_generateResourceBundle() throws {
+        // Given
+        let path = AbsolutePath("/path")
+        let bundle1 = Target.test(name: "Bundle1", product: .bundle)
+        let bundle2 = Target.test(name: "Bundle2", product: .bundle)
+        let app = Target.test(name: "App", product: .app)
+        let graph = Graph.create(project: .test(path: path),
+                                 dependencies: [
+                                     (target: bundle1, dependencies: []),
+                                     (target: bundle2, dependencies: []),
+                                     (target: app, dependencies: [bundle1, bundle2]),
+                                 ])
+
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [bundle1, bundle2])
+
+        // When
+        try subject.generateResourcesBuildPhase(path: path,
+                                                target: app,
+                                                graph: graph,
+                                                pbxTarget: nativeTarget,
+                                                fileElements: fileElements,
+                                                pbxproj: pbxproj)
+
+        // Then
+        let resourcePhase = try nativeTarget.resourcesBuildPhase()
+        XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
+            "Bundle1",
+            "Bundle2",
+        ])
+    }
+
+    // MARK: - Helpers
+
+    private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
+        let fileElements = ProjectFileElements()
+        fileElements.products = Dictionary(uniqueKeysWithValues: targets.map {
+            ($0.productNameWithExtension, PBXFileReference(name: $0.name))
+        })
+        return fileElements
     }
 }

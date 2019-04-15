@@ -77,7 +77,14 @@ public class Target: Equatable {
         }
     }
 
-    // MARK: - Fileprivate
+    var supportsSources: Bool {
+        switch (platform, product) {
+        case (.iOS, .bundle):
+            return false
+        default:
+            return true
+        }
+    }
 
     public static func sources(projectPath: AbsolutePath, sources: [String], fileHandler _: FileHandling) throws -> [AbsolutePath] {
         return sources.flatMap { source in

@@ -79,7 +79,9 @@ final class TargetGenerator: TargetGenerating {
                                                  sourceRootPath: sourceRootPath)
 
         /// Build phases
-        try buildPhaseGenerator.generateBuildPhases(target: target,
+        try buildPhaseGenerator.generateBuildPhases(path: path,
+                                                    target: target,
+                                                    graph: graph,
                                                     pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
                                                     pbxproj: pbxproj,
