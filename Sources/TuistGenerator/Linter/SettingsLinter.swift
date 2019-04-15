@@ -55,7 +55,7 @@ final class SettingsLinter: SettingsLinting {
 
     private func lintNonEmptyConfig(project: Project) -> [LintingIssue] {
         guard !project.settings.configurations.isEmpty else {
-            return [LintingIssue(reason: "The project at path \(project.path.asString) has no configurations", severity: .error)]
+            return [LintingIssue(reason: "The project at path \(project.path.pathString) has no configurations", severity: .error)]
         }
         return []
     }
