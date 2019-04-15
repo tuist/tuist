@@ -138,7 +138,7 @@ class ProjectFileElements {
         }
 
         // Config files
-        target.settings?.xcconfigs().forEach { configFilePath in
+        target.settings?.configurations.xcconfigs().forEach { configFilePath in
             files.insert(configFilePath)
         }
 

@@ -46,7 +46,7 @@ final class SettingsLinter: SettingsLinting {
             }
         }
 
-        settings.xcconfigs().forEach { configFilePath in
+        settings.configurations.xcconfigs().forEach { configFilePath in
             lintPath(configFilePath)
         }
 

@@ -38,28 +38,21 @@ public class Settings: Equatable {
         self.configurations = configurations
     }
 
-    // MARK: - Internal
-
-    static func ordered(configurations: [BuildConfiguration: Configuration?])
-        -> [(key: BuildConfiguration, value: Configuration?)] {
-        return configurations.sorted(by: { first, second -> Bool in
-            first.key.name < second.key.name
-        })
-    }
-
-    func orderedConfigurations() -> [(key: BuildConfiguration, value: Configuration?)] {
-        return Settings.ordered(configurations: configurations)
-    }
-
-    func xcconfigs() -> [AbsolutePath] {
-        return orderedConfigurations()
-            .map { $0.value }
-            .compactMap { $0?.xcconfig }
-    }
-
     // MARK: - Equatable
 
     public static func == (lhs: Settings, rhs: Settings) -> Bool {
         return lhs.base == rhs.base && lhs.configurations == rhs.configurations
+    }
+}
+
+extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
+    func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
+        return sorted(by: { first, second -> Bool in first.key.name < second.key.name })
+    }
+
+    func xcconfigs() -> [AbsolutePath] {
+        return sortedByBuildConfigurationName()
+            .map { $0.value }
+            .compactMap { $0?.xcconfig }
     }
 }

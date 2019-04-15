@@ -40,7 +40,7 @@ final class ConfigGenerator: ConfigGenerating {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
 
-        try project.settings.orderedConfigurations().forEach {
+        try project.settings.configurations.sortedByBuildConfigurationName().forEach {
             try generateProjectSettingsFor(buildConfiguration: $0.key,
                                            configuration: $0.value,
                                            project: project,
@@ -76,7 +76,7 @@ final class ConfigGenerator: ConfigGenerating {
         }
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
-        let orderedConfigurations = Settings.ordered(configurations: nonEmptyConfigurations)
+        let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
         try orderedConfigurations.forEach {
             try generateTargetSettingsFor(target: target,
                                           buildConfiguration: $0.key,
