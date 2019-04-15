@@ -5,21 +5,14 @@ public struct BuildConfiguration {
         case debug, release
     }
 
-    public static let debug = BuildConfiguration(name: "Debug", predefined: true, variant: .debug)
-    public static let release = BuildConfiguration(name: "Release", predefined: true, variant: .release)
+    public static let debug = BuildConfiguration(name: "Debug", variant: .debug)
+    public static let release = BuildConfiguration(name: "Release", variant: .release)
 
     public let name: String
     public let variant: Variant
 
-    private let predefined: Bool
-
     public init(name: String, variant: Variant) {
-        self.init(name: name, predefined: false, variant: variant)
-    }
-
-    private init(name: String, predefined: Bool, variant: Variant) {
         self.name = name
-        self.predefined = predefined
         self.variant = variant
     }
 
