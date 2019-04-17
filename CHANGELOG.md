@@ -17,6 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Ensuring target product names are consistent with Xcode https://github.com/tuist/tuist/pull/323 by @kwridan
+- Ensuring generate works on additional disk volumes https://github.com/tuist/tuist/pull/327 by @kwridan
 
 ## 0.13.0
 
