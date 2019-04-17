@@ -67,11 +67,14 @@ public protocol FileHandling: AnyObject {
 }
 
 public final class FileHandler: FileHandling {
-    public init() {}
+    private let fileManager: FileManager
+    public init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+    }
 
     /// Returns the current path.
     public var currentPath: AbsolutePath {
-        return AbsolutePath(FileManager.default.currentDirectoryPath)
+        return AbsolutePath(fileManager.currentDirectoryPath)
     }
 
     /// Replaces a file/directory in a given path with another one.
@@ -80,7 +83,20 @@ public final class FileHandler: FileHandling {
     ///   - to: The file/directory to be replaced.
     ///   - with: The replacement file or directory.
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
-        _ = try FileManager.default.replaceItemAt(to.url, withItemAt: with.url)
+        // To support cases where the destination is on a different volume
+        // we need to create a temporary directory that is suitable
+        // for performing a `replaceItemAt`
+        //
+        // References:
+        // - https://developer.apple.com/documentation/foundation/filemanager/2293212-replaceitemat
+        // - https://developer.apple.com/documentation/foundation/filemanager/1407693-url
+        let tempUrl = try fileManager.url(for: .itemReplacementDirectory,
+                                          in: .userDomainMask,
+                                          appropriateFor: to.url,
+                                          create: true).appendingPathComponent("temp")
+        defer { try? fileManager.removeItem(at: tempUrl) }
+        try fileManager.copyItem(at: with.url, to: tempUrl)
+        _ = try fileManager.replaceItemAt(to.url, withItemAt: tempUrl)
     }
 
     /// Runs the given closure passing a temporary directory to it. When the closure
@@ -98,7 +114,7 @@ public final class FileHandler: FileHandling {
     /// - Parameter path: Path to check.
     /// - Returns: True if there's a folder or file at the given path.
     public func exists(_ path: AbsolutePath) -> Bool {
-        return FileManager.default.fileExists(atPath: path.pathString)
+        return fileManager.fileExists(atPath: path.pathString)
     }
 
     /// It copies a file or folder to another path.
@@ -108,7 +124,7 @@ public final class FileHandler: FileHandling {
     ///   - to: Path where the file/folder will be copied.
     /// - Throws: An error if from doesn't exist or to does.
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
-        try FileManager.default.copyItem(atPath: from.pathString, toPath: to.pathString)
+        try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     /// Reads a text file at the given path and returns it.
@@ -130,25 +146,25 @@ public final class FileHandler: FileHandling {
     }
 
     public func createFolder(_ path: AbsolutePath) throws {
-        try FileManager.default.createDirectory(at: path.url,
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try fileManager.createDirectory(at: path.url,
+                                        withIntermediateDirectories: true,
+                                        attributes: nil)
     }
 
     public func delete(_ path: AbsolutePath) throws {
-        try FileManager.default.removeItem(atPath: path.pathString)
+        try fileManager.removeItem(atPath: path.pathString)
     }
 
     public func touch(_ path: AbsolutePath) throws {
-        try FileManager.default.createDirectory(at: path.removingLastComponent().url,
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try fileManager.createDirectory(at: path.removingLastComponent().url,
+                                        withIntermediateDirectories: true,
+                                        attributes: nil)
         try Data().write(to: path.url)
     }
 
     public func isFolder(_ path: AbsolutePath) -> Bool {
         var isDirectory = ObjCBool(true)
-        let exists = FileManager.default.fileExists(atPath: path.pathString, isDirectory: &isDirectory)
+        let exists = fileManager.fileExists(atPath: path.pathString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
     }
 }
