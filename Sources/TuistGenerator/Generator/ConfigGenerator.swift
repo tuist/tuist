@@ -12,6 +12,7 @@ protocol ConfigGenerating: AnyObject {
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
+                              projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
                               options: GenerationOptions,
@@ -39,25 +40,22 @@ final class ConfigGenerator: ConfigGenerating {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
 
-        try generateProjectSettingsFor(buildConfiguration: .debug,
-                                       configuration: project.settings?.debug,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       pbxproj: pbxproj,
-                                       configurationList: configurationList)
+        try project.settings.configurations.sortedByBuildConfigurationName().forEach {
+            try generateProjectSettingsFor(buildConfiguration: $0.key,
+                                           configuration: $0.value,
+                                           project: project,
+                                           fileElements: fileElements,
+                                           pbxproj: pbxproj,
+                                           configurationList: configurationList)
+        }
 
-        try generateProjectSettingsFor(buildConfiguration: .release,
-                                       configuration: project.settings?.release,
-                                       project: project,
-                                       fileElements: fileElements,
-                                       pbxproj: pbxproj,
-                                       configurationList: configurationList)
         return configurationList
     }
 
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
+                              projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
                               options _: GenerationOptions,
@@ -66,23 +64,30 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
 
-        try generateTargetSettingsFor(target: target,
-                                      buildConfiguration: .debug,
-                                      configuration: target.settings?.debug,
-                                      fileElements: fileElements,
-                                      graph: graph,
-                                      pbxproj: pbxproj,
-                                      configurationList: configurationList,
-                                      sourceRootPath: sourceRootPath)
-
-        try generateTargetSettingsFor(target: target,
-                                      buildConfiguration: .release,
-                                      configuration: target.settings?.release,
-                                      fileElements: fileElements,
-                                      graph: graph,
-                                      pbxproj: pbxproj,
-                                      configurationList: configurationList,
-                                      sourceRootPath: sourceRootPath)
+        let projectBuildConfigurations = projectSettings.configurations.keys
+        let targetConfigurations = target.settings?.configurations ?? [:]
+        let targetBuildConfigurations = targetConfigurations.keys
+        let buildConfigurations = Set(projectBuildConfigurations).union(targetBuildConfigurations)
+        let configurationsTuples: [(BuildConfiguration, Configuration?)] = buildConfigurations
+            .map { buildConfiguration in
+                if let configuration = target.settings?.configurations[buildConfiguration] {
+                    return (buildConfiguration, configuration)
+                }
+                return (buildConfiguration, nil)
+            }
+        let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
+        let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
+        let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
+        try orderedConfigurations.forEach {
+            try generateTargetSettingsFor(target: target,
+                                          buildConfiguration: $0.key,
+                                          configuration: $0.value,
+                                          fileElements: fileElements,
+                                          graph: graph,
+                                          pbxproj: pbxproj,
+                                          configurationList: configurationList,
+                                          sourceRootPath: sourceRootPath)
+        }
     }
 
     // MARK: - Fileprivate
@@ -99,10 +104,10 @@ final class ConfigGenerator: ConfigGenerating {
 
         var settings: [String: Any] = [:]
         extend(buildSettings: &settings, with: defaultSettingsAll)
-        extend(buildSettings: &settings, with: project.settings?.base ?? [:])
+        extend(buildSettings: &settings, with: project.settings.base)
         extend(buildSettings: &settings, with: defaultConfigSettings)
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
         if let variantConfig = configuration {
@@ -141,49 +146,18 @@ final class ConfigGenerator: ConfigGenerating {
         extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.rawValue.capitalized,
+        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
-        if let variantConfig = configuration {
-            if let xcconfig = variantConfig.xcconfig {
-                let fileReference = fileElements.file(path: xcconfig)
-                variantBuildConfiguration.baseConfiguration = fileReference
-            }
+        if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
+            let fileReference = fileElements.file(path: xcconfig)
+            variantBuildConfiguration.baseConfiguration = fileReference
         }
 
-        /// Target attributes
-        settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
-        if let infoPlist = target.infoPlist {
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).pathString)"
-        }
-        if let entitlements = target.entitlements {
-            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
-        }
-        settings["SDKROOT"] = target.platform.xcodeSdkRoot
-        settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms
-        // TODO: We should show a warning here
-        if settings["SWIFT_VERSION"] == nil {
-            settings["SWIFT_VERSION"] = Constants.swiftVersion
-        }
-
-        if target.product == .staticFramework {
-            settings["MACH_O_TYPE"] = "staticlib"
-        }
-
-        if target.product.testsBundle {
-            let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
-                targetNode.target.product == .app
-            }
-
-            if let app = appDependency {
-                settings["TEST_TARGET_NAME"] = "\(app.target.name)"
-
-                if target.product == .unitTests {
-                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.name)"
-                    settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
-                }
-            }
-        }
+        updateTargetDerived(buildSettings: &settings,
+                            target: target,
+                            graph: graph,
+                            sourceRootPath: sourceRootPath)
 
         variantBuildConfiguration.buildSettings = settings
         pbxproj.add(object: variantBuildConfiguration)
@@ -226,6 +200,44 @@ final class ConfigGenerator: ConfigGenerating {
                     buildSettings[key] = "\(previousValueString) \(newValueString)"
                 } else {
                     buildSettings[key] = value
+                }
+            }
+        }
+    }
+
+    private func updateTargetDerived(buildSettings settings: inout [String: Any],
+                                     target: Target,
+                                     graph: Graphing,
+                                     sourceRootPath: AbsolutePath) {
+        settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
+        if let infoPlist = target.infoPlist {
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).pathString)"
+        }
+        if let entitlements = target.entitlements {
+            settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
+        }
+        settings["SDKROOT"] = target.platform.xcodeSdkRoot
+        settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms
+        // TODO: We should show a warning here
+        if settings["SWIFT_VERSION"] == nil {
+            settings["SWIFT_VERSION"] = Constants.swiftVersion
+        }
+
+        if target.product == .staticFramework {
+            settings["MACH_O_TYPE"] = "staticlib"
+        }
+
+        if target.product.testsBundle {
+            let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
+                targetNode.target.product == .app
+            }
+
+            if let app = appDependency {
+                settings["TEST_TARGET_NAME"] = "\(app.target.name)"
+
+                if target.product == .unitTests {
+                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.name)"
+                    settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
                 }
             }
         }

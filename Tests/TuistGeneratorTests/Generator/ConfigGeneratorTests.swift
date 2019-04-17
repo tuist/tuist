@@ -118,13 +118,15 @@ final class ConfigGeneratorTests: XCTestCase {
         try fileHandler.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .debug: Configuration(settings: ["Debug": "Debug"],
+                                  xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
+            .release: Configuration(settings: ["Release": "Release"],
+                                    xcconfig: xcconfigsDir.appending(component: "release.xcconfig")),
+        ]
         let project = Project.test(path: dir.path,
                                    name: "Test",
-                                   settings: Settings(base: ["Base": "Base"],
-                                                      debug: Configuration(settings: ["Debug": "Debug"],
-                                                                           xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
-                                                      release: Configuration(settings: ["Release": "Release"],
-                                                                             xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))),
+                                   settings: Settings(base: ["Base": "Base"], configurations: configurations),
                                    targets: [])
         let fileElements = ProjectFileElements()
         let options = GenerationOptions()
@@ -140,15 +142,17 @@ final class ConfigGeneratorTests: XCTestCase {
         try fileHandler.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .debug: Configuration(settings: ["Debug": "Debug"],
+                                  xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
+            .release: Configuration(settings: ["Release": "Release"],
+                                    xcconfig: xcconfigsDir.appending(component: "release.xcconfig")),
+        ]
         let target = Target.test(name: "Test",
-                                 settings: Settings(base: ["Base": "Base"],
-                                                    debug: Configuration(settings: ["Debug": "Debug"],
-                                                                         xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
-                                                    release: Configuration(settings: ["Release": "Release"],
-                                                                           xcconfig: xcconfigsDir.appending(component: "release.xcconfig"))))
+                                 settings: Settings(base: ["Base": "Base"], configurations: configurations))
         let project = Project.test(path: dir.path,
                                    name: "Test",
-                                   settings: nil,
+                                   settings: .default,
                                    targets: [target])
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: dir.path)
@@ -162,6 +166,7 @@ final class ConfigGeneratorTests: XCTestCase {
         _ = try subject.generateTargetConfig(target,
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
+                                             projectSettings: project.settings,
                                              fileElements: fileElements,
                                              graph: graph,
                                              options: options,
@@ -184,6 +189,7 @@ final class ConfigGeneratorTests: XCTestCase {
         _ = try subject.generateTargetConfig(target,
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
+                                             projectSettings: project.settings,
                                              fileElements: .init(),
                                              graph: graph,
                                              options: .init(),

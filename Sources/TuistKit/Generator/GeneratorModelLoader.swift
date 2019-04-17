@@ -164,7 +164,7 @@ extension TuistGenerator.Project {
 
         return Project(path: path,
                        name: name,
-                       settings: settings,
+                       settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
                        additionalFiles: additionalFiles)
@@ -242,7 +242,7 @@ extension TuistGenerator.Settings {
         let base = manifest.base
         let debug = manifest.debug.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
         let release = manifest.release.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
-        return Settings(base: base, debug: debug, release: release)
+        return TuistGenerator.Settings(base: base, configurations: [.debug: debug, .release: release])
     }
 }
 

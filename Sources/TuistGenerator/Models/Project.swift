@@ -15,7 +15,7 @@ public class Project: Equatable, CustomStringConvertible {
     public let targets: [Target]
 
     /// Project settings.
-    public let settings: Settings?
+    public let settings: Settings
 
     /// The group to place project files within
     public let filesGroup: ProjectGroup
@@ -37,7 +37,7 @@ public class Project: Equatable, CustomStringConvertible {
     ///                      *(Those won't be included in any build phases)*
     public init(path: AbsolutePath,
                 name: String,
-                settings: Settings? = nil,
+                settings: Settings,
                 filesGroup: ProjectGroup,
                 targets: [Target],
                 additionalFiles: [FileElement] = []) {

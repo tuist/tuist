@@ -65,10 +65,7 @@ final class ProjectGenerator: ProjectGenerating {
         printer.print("Generating project \(project.name)")
 
         // Getting the path.
-        var sourceRootPath: AbsolutePath! = sourceRootPath
-        if sourceRootPath == nil {
-            sourceRootPath = project.path
-        }
+        let sourceRootPath = sourceRootPath ?? project.path
         let xcodeprojPath = sourceRootPath.appending(component: "\(project.name).xcodeproj")
 
         // Project and workspace.
@@ -153,6 +150,7 @@ final class ProjectGenerator: ProjectGenerating {
             let nativeTarget = try targetGenerator.generateTarget(target: target,
                                                                   pbxproj: pbxproj,
                                                                   pbxProject: pbxProject,
+                                                                  projectSettings: project.settings,
                                                                   groups: groups,
                                                                   fileElements: fileElements,
                                                                   path: project.path,
