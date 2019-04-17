@@ -68,12 +68,13 @@ final class ConfigGenerator: ConfigGenerating {
         let targetConfigurations = target.settings?.configurations ?? [:]
         let targetBuildConfigurations = targetConfigurations.keys
         let buildConfigurations = Set(projectBuildConfigurations).union(targetBuildConfigurations)
-        let configurationsTuples: [(BuildConfiguration, Configuration?)] = buildConfigurations.map {
-            if let configuration = target.settings?.configurations[$0] {
-                return ($0, configuration)
+        let configurationsTuples: [(BuildConfiguration, Configuration?)] = buildConfigurations
+            .map { buildConfiguration in
+                if let configuration = target.settings?.configurations[buildConfiguration] {
+                    return (buildConfiguration, configuration)
+                }
+                return (buildConfiguration, nil)
             }
-            return ($0, nil)
-        }
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
