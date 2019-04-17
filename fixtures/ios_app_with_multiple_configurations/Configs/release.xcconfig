@@ -1,5 +1,0 @@
-#include "shared.xcconfig"
-
-CONFIG_SOURCE="release.xcconfig"
-RELEASE_XCCONFIG=YES
-OVERRIDEABLE_CONFIG="release"

@@ -1,4 +1,0 @@
-
-CONFIG_SOURCE="shared.xcconfig"
-SHARED_XCCONFIG=YES
-OVERRIDEABLE_CONFIG="shared"

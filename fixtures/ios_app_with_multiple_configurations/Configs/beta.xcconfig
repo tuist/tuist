@@ -1,5 +1,0 @@
-#include "shared.xcconfig"
-
-CONFIG_SOURCE="beta.xcconfig"
-BETA_XCCONFIG=YES
-OVERRIDEABLE_CONFIG="beta"
