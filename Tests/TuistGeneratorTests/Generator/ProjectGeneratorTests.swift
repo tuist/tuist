@@ -81,11 +81,11 @@ final class ProjectGeneratorTests: XCTestCase {
         let attributes = pbxproject?.targetAttributes ?? [:]
         XCTAssertTrue(attributes.contains { attribute in
 
-            guard let appUUID = nativeTargets["App"]?.uuid, let testTargetID = attribute.value["TestTargetID"] as? String else {
+            guard let app = nativeTargets["App"], let testTargetID = attribute.value["TestTargetID"] as? PBXNativeTarget else {
                 return false
             }
 
-            return attribute.key.name == "Tests" && testTargetID == appUUID
+            return attribute.key.name == "Tests" && testTargetID == app
 
         }, "Test target is missing from target attributes.")
     }
