@@ -71,14 +71,6 @@ The list of actions will likely grow as we get feedback from you.
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/install/master/install)"
 ```
 
-### Using Mint
-
-Optionally, you can use [Mint](https://github.com/yonaskolb/mint):
-
-```sh
-mint install tuist/tuist
-```
-
 ## Bootstrap your first project 🌀
 
 ```bash
