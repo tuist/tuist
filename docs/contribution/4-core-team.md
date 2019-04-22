@@ -1,3 +1,8 @@
+---
+name: Core team
+menu: Contributors
+---
+
 # Core Team
 
 The Tuist Core Team is a group of Tuist contributors that have demonstrated a lasting enthusiasm for the project and community. The Core Team has GitHub admin privileges on all Tuist repositories.

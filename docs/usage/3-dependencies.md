@@ -1,3 +1,7 @@
+---
+name: Dependencies
+---
+
 # Dependencies
 
 **Setting up dependencies in Xcode projects isn't straightforward**. When dependencies have transitive dependencies things get complicated because it requires changes in the targets that are part of the branch where the transitive dependency is. To illustrate that, think about an app, depending on a dynamic framework `Search`, which has no dependencies. If at some point in the future we add a new dynamic framework `Core`, on which `Search` depends, well need to update not only `Search`, but the app to embed the framework into the product.
@@ -7,7 +11,7 @@ Imagine a modular app made of 8 projects, with at least two targets each of them
 Fortunately, **Tuist takes care of all that work for you**. It allows you to define dependencies and it uses that knowledge to set up the targets with the right build phases and build settings.  
 If you noticed when we first introduced the manifest file, there isn't any public model for defining linking build phases. We made that on purpose because **we'd like to figure out all those things for you**.
 
-### Defining dependencies
+## Defining dependencies
 
 The `Target` model that we use from the manifest has a property, `dependencies`, that allows you to define the dependencies of the target.
 
@@ -22,7 +26,7 @@ let target = Target(
 
 A dependency can be any of the following types.
 
-#### Target dependencies
+### Target dependencies
 
 ```swift
 .target("App")
@@ -30,7 +34,7 @@ A dependency can be any of the following types.
 
 It defines a dependency with another target in the same project. For instance, a tests target depends on the target that is being tested.
 
-#### Target dependencies across projects
+### Target dependencies across projects
 
 ```swift
 .project(target: "Core", path: "../Core")
@@ -38,7 +42,7 @@ It defines a dependency with another target in the same project. For instance, a
 
 It defines a dependency with a target in another project. When the workspace gets generated, the other project is also included so that Xcode knows how to compile that other target.
 
-#### Framework dependencies
+### Framework dependencies
 
 ```swift
 .framework(path: "Carthage/Build/iOS/Alamofire.framework")
@@ -46,7 +50,7 @@ It defines a dependency with a target in another project. When the workspace get
 
 It defines a dependency with a pre-compiled framework, for example, a framework that has been compiled by Carthage. If the framework contains multiple architectures, Tuist will add an extra build phase to strip them.
 
-#### Library dependencies
+### Library dependencies
 
 ```swift
 .library(path: "Vendor/Library.a",
@@ -55,7 +59,5 @@ It defines a dependency with a pre-compiled framework, for example, a framework 
 ```
 
 It defines a dependency with a pre-compiled library. It allows specifying the path where the public headers or Swift module map is.
-
-> Dependencies on static libraries that depend on other static libraries \(transitive dependencies\) is not supported yet. There's an [ongoing work](https://github.com/tuist/tuist/pull/168) to give support for it.
 
 As we mentioned, the beauty of defining your dependencies with Tuist is that when you generate the project, things are set up and ready for you to successfully compile your targets.

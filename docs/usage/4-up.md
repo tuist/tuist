@@ -1,4 +1,8 @@
-# Up
+---
+name: Up tasks
+---
+
+# Up tasks
 
 Xcode projects often have dependencies with system tools like [SwiftLint](https://github.com/realm/SwiftLint), [Carthage](https://github.com/Carthage/Carthage), or [Sourcery](https://github.com/krzysztofzablocki/Sourcery). Those are dependencies that need to be installed/pulled and properly configured in the developer environment for the project to run.
 
@@ -35,11 +39,11 @@ Moreover, it assesses whether those dependencies are already met in the environm
 tuist up
 ```
 
-### Available commands
+## Available commands
 
 Tuist offers the following set of commands.
 
-#### Homebrew packages
+### Homebrew packages
 
 ```swift
 .homebrew(packages: [“swiftlint”])
@@ -47,7 +51,7 @@ Tuist offers the following set of commands.
 
 It installs the given [Homebrew](https://brew.sh) packages if they don’t exist in the system.
 
-#### Homebrew tap
+### Homebrew tap
 
 ```swift
 .homebrewTap(repositories: ["peripheryapp/periphery"])
@@ -55,7 +59,7 @@ It installs the given [Homebrew](https://brew.sh) packages if they don’t exist
 
 Configures Homebrew tap repositories. It also installs Homebrew if it's not available in the system.
 
-#### Carthage dependencies
+### Carthage dependencies
 
 ```swift
 .carthage(platforms: [.macOS])
@@ -63,7 +67,7 @@ Configures Homebrew tap repositories. It also installs Homebrew if it's not avai
 
 It runs [Carthage](https://github.com/carthage) dependencies for those dependencies that don’t exist or that are outdated.
 
-#### Custom
+### Custom
 
 ```swift
 .custom(name: “Name”, meet: [”./install.sh”], isMet: [“test, “mytool”])

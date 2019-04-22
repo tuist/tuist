@@ -1,3 +1,8 @@
+---
+name: Changelog guidelines
+menu: Contributors
+---
+
 # Changelog Guidelines
 
 Here you can find the general guidelines for maintaining the Changelog (or adding new entry). We follow the guidelines from [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) with few additions.

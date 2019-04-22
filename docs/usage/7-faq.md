@@ -1,3 +1,7 @@
+---
+name: Frequently asked questions
+---
+
 # Frequently asked questions
 
 ## Why should I use Tuist?
@@ -34,7 +38,7 @@ They can, but there's no dependency management built in Tuist. Depending on how 
 - [CocoaPods](https://cocoapods.org): The project manifest model doesn't support adding a CocoaPods dependency but you can call `pod install` after the project has been generated with Tuist. We have plans to improve this having support for it from the manifest.
 - [Swift Package Manager](https://swift.org/package-manager/): Unfortunately, there's no support for integrating your projects with spm dependencies. We are waiting for Apple to do some work on that area to add the integration into Tuist.
 
-{% include faq-question.html question="Should I check the Xcode projects into source control?" %}
+## Should I check the Xcode projects into source control?
 Whether or not you check in your projects is up to you, as workflows vary from project to project. We recommend that you keep the projects under source control, and don't add it to your .gitignore. But ultimately this decision is up to you:
 
 **Benefits of checking in the projects**

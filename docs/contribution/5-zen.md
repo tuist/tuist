@@ -1,3 +1,8 @@
+---
+name: Zen
+menu: Contributors
+---
+
 # Zen
 
 Like any other product, building Tuist is all about making the right decisions, coding features, and releasing them. Although making decisions is easy if there are only a few people contributing to the project, as Tuist grows, things will get more complicated. To facilitate the decision making process, it's important to have a framework, a list of principles that we can embrace. Steve Jobs liked to call this the **taste** of a company/project:
@@ -14,8 +19,6 @@ The list below contains the taste or design principles of Tuist. The list has be
 - Implementation details bring little value to users
 - Make feedback actionable
 - If it can't be reliable, you'd better not build it
-- Swift code that reads like Bash is not Swift code.
+- Swift code that reads like Bash is not Swift code
 
 When you need to make a decision for the project, whether it's about the code, or about the product, go trough the principles above and ask yourself questions. If you think there's no principle that helps answer your question, don't hesitate too make a proposal.
-
-> We stole this idea from GitHub, which exposes their principles through an [API Endpoint](https://api.github.com/zen).

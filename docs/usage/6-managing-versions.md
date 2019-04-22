@@ -1,3 +1,7 @@
+---
+name: Managing versions
+---
+
 # Managing versions
 
 When adding a dependency between your project and third-party tools, it’s crucial that the dependency is reproducible. If the dependency is not the same across all the environments, it might produce different results with the same input. Have you ever heard the well-known _“it works for me”_? That’s often the result of having non-reproducible environments.

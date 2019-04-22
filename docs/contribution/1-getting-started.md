@@ -1,3 +1,8 @@
+---
+name: Getting started
+menu: Contributors
+---
+
 # Contributing to Tuist
 
 As you might already know, Tuist is an open source project that encourages external contributions to help improve the project. Those contributions can come in different shapes: _issue reports, pull requests, participation in discussions, writing documentation, adding tests._
