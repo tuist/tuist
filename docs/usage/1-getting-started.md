@@ -1,5 +1,6 @@
 ---
 name: Getting started
+route: /
 ---
 
 # Getting started

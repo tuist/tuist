@@ -46,37 +46,30 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 
 Each target in the list of project targets can be initialized with the following attributes:
 
-* **Name:** The name of the target. The Xcode project target and the derivated product take the same name.
-* **Platform:** The platform the target product is built for. The following products are supported:
-
-  * **.app:** An application
-  * **.staticLibrary:** A static library.
-  * **.dynamicLibrary:** A dynamic library.
-  * **.framework:** A dynamic framework.
-  * **.staticFramework:** A static framework. This is a regular framework product however is configured to be statically linked.
-  * **.unitTests:** A unit tests bundle.
-  * **.uiTests:** A UI tests bundle.
-
-* **BundleID:** The product bundle identifier.
-* **InfoPlist:** Relative path to the `Info.plist`.
-* **Sources:** List of sources to be compiled by the target. The attribute can be any of the following types:
-  * **String:** A file or glob pattern _(e.g. `Sources/**`)_
-  * **[String]:** A list of files or list of glob patterns _(e.g. `["Sources/**"]`)_
-
-* **Resources (optional):** List of [FileElement](#FileElement)s to include in the resource build phase.
-* **Headers (optional):** Target headers. It accepts a `Header` type that is initialized with the following attributes:
-  * **Public:** Relative path to the folder that contains the public headers.
-  * **Private:** Relative path to the folder that contains the private headers.
-  * **Project:** Relative path to the folder that contains the project headers.
-
-* **Entitlements (optional):** Relative path to the entitlements file.
-* **Actions (optional):** Target actions allow defining extra script build phases. It's an array of `TargetAction` objects that that can be of type `pre` and `post`:
-
+- **Name:** The name of the target. The Xcode project target and the derivated product take the same name.
+- **Platform:** The platform the target product is built for. The following products are supported:
+  - **.app:** An application
+  - **.staticLibrary:** A static library.
+  - **.dynamicLibrary:** A dynamic library.
+  - **.framework:** A dynamic framework.
+  - **.staticFramework:** A static framework. This is a regular framework product however is configured to be statically linked.
+  - **.unitTests:** A unit tests bundle.
+  - **.uiTests:** A UI tests bundle.
+- **BundleID:** The product bundle identifier.
+- **InfoPlist:** Relative path to the `Info.plist`.
+- **Sources:** List of sources to be compiled by the target. The attribute can be any of the following types:
+  - **String:** A file or glob pattern _(e.g. `Sources/**`)_
+  - **[String]:** A list of files or list of glob patterns _(e.g. `["Sources/**"]`)_
+- **Resources (optional):** List of [FileElement](#FileElement)s to include in the resource build phase.
+- **Headers (optional):** Target headers. It accepts a `Header` type that is initialized with the following attributes:
+  - **Public:** Relative path to the folder that contains the public headers.
+  - **Private:** Relative path to the folder that contains the private headers.
+  - **Project:** Relative path to the folder that contains the project headers.
+- **Entitlements (optional):** Relative path to the entitlements file.
+- **Actions (optional):** Target actions allow defining extra script build phases. It's an array of `TargetAction` objects that that can be of type `pre` and `post`:
   - **pre:** Executed before the target-specific build phases.
   - **post:** Executed after the target-specific build phases.
-
   - Actions of both types can be initialized with:
-
     - **tool (optional):** The binary to use to execute the build phase.
     - **path (optional):** Path to the script to execute.
     - **arguments:** Path to the script to execute.
@@ -90,7 +83,6 @@ Each target in the list of project targets can be initialized with the following
 
 - **Dependencies (optional):** You can read more about dependencies [here](./dependencies.md)
 - **Settings (optional):** Read more about [settings](#settings)
-
 - **CoreDataModels (optional):** An array of `CoreDataModel` objects. A `CoreDataModel` is an special type of resource that requires the following two attributes:
   - **Path:** Relative path to the Core Data model.
   - **CurrentVersion:** Current version without the extension.
