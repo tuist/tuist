@@ -124,6 +124,44 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxBuildFile?.file, header)
     }
 
+    func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+        
+        let fileElements = ProjectFileElements()
+        let path = AbsolutePath("/test/file.swift")
+        
+        let sourceFileReference = PBXFileReference(sourceTree: .group, name: "Test")
+        fileElements.elements[path] = sourceFileReference
+        
+        let headerPath = AbsolutePath("/test.h")
+        let headers = Headers.test(public: [path], private: [], project: [])
+        
+        let headerFileReference = PBXFileReference()
+        fileElements.elements[headerPath] = headerFileReference
+        
+        let target = Target.test(sources: ["/test/file.swift"],
+                                 headers: headers)
+        
+        try subject.generateBuildPhases(path: tmpDir.path,
+                                        target: target,
+                                        graph: Graph.test(),
+                                        pbxTarget: pbxTarget,
+                                        fileElements: fileElements,
+                                        pbxproj: pbxproj,
+                                        sourceRootPath: tmpDir.path)
+        
+        let firstBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases.first
+        XCTAssertNotNil(firstBuildPhase)
+        XCTAssertTrue(firstBuildPhase is PBXHeadersBuildPhase)
+        
+        let secondBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases[1]
+        XCTAssertTrue(secondBuildPhase is PBXSourcesBuildPhase)
+
+    }
+
     func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
         let path = AbsolutePath("/en.lproj/Main.storyboard")
         let target = Target.test(resources: [.file(path: path)])

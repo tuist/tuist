@@ -53,6 +53,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                             pbxproj: pbxproj,
                             sourceRootPath: sourceRootPath)
 
+        if let headers = target.headers {
+            try generateHeadersBuildPhase(headers: headers,
+                                          pbxTarget: pbxTarget,
+                                          fileElements: fileElements,
+                                          pbxproj: pbxproj)
+        }
+
         try generateSourcesBuildPhase(files: target.sources,
                                       pbxTarget: pbxTarget,
                                       fileElements: fileElements,
@@ -64,13 +71,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
-
-        if let headers = target.headers {
-            try generateHeadersBuildPhase(headers: headers,
-                                          pbxTarget: pbxTarget,
-                                          fileElements: fileElements,
-                                          pbxproj: pbxproj)
-        }
 
         try generateActions(actions: target.actions.postActions,
                             pbxTarget: pbxTarget,
