@@ -9,7 +9,7 @@ xcodebuild_arguments:
   - tuist.xcodeproj
   - -scheme
   - tuist-Package
-swift_version: '5.0'
+swift_version: '5.0.1'
 min_acl: public
 readme: README.md
 custom_categories:
