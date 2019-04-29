@@ -19,6 +19,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Ensuring target product names are consistent with Xcode https://github.com/tuist/tuist/pull/323 by @kwridan
 - Ensuring generate works on additional disk volumes https://github.com/tuist/tuist/pull/327 by @kwridan
 - Headers build phase should be put on top of Compile build phase https://github.com/tuist/tuist/pull/332 by @dangthaison91
+- Set Code Sign On Copy to true for Embed Frameworks https://github.com/tuist/tuist/pull/333 by @dangthaison91
 
 ## 0.13.0
 
