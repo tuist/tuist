@@ -155,6 +155,8 @@ extension TuistGenerator.Project {
                                            printer: printer)
         }
 
+        let schemes = manifest.schemes.map { TuistGenerator.Scheme.from(manifest: $0) }
+        
         let additionalFiles = manifest.additionalFiles.flatMap {
             TuistGenerator.FileElement.from(manifest: $0,
                                             path: path,
@@ -167,6 +169,7 @@ extension TuistGenerator.Project {
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
+                       schemes: schemes,
                        additionalFiles: additionalFiles)
     }
 
@@ -334,7 +337,10 @@ extension TuistGenerator.Scheme {
 
 extension TuistGenerator.BuildAction {
     static func from(manifest: ProjectDescription.BuildAction) -> TuistGenerator.BuildAction {
-        return BuildAction(targets: manifest.targets)
+        let preActions = manifest.preActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
+        let postActions = manifest.postActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
+
+        return BuildAction(targets: manifest.targets, preActions: preActions, postActions: postActions)
     }
 }
 
@@ -344,10 +350,15 @@ extension TuistGenerator.TestAction {
         let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
         let config = BuildConfiguration.from(manifest: manifest.config)
         let coverage = manifest.coverage
+        let preActions = manifest.preActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
+        let postActions = manifest.postActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
+
         return TestAction(targets: targets,
                           arguments: arguments,
                           config: config,
-                          coverage: coverage)
+                          coverage: coverage,
+                          preActions: preActions,
+                          postActions: postActions)
     }
 }
 
@@ -360,6 +371,12 @@ extension TuistGenerator.RunAction {
         return RunAction(config: config,
                          executable: executable,
                          arguments: arguments)
+    }
+}
+
+extension TuistGenerator.ExecutionAction {
+    static func from(manifest: ProjectDescription.ExecutionAction) -> TuistGenerator.ExecutionAction {
+        return ExecutionAction(title: manifest.title, scriptText: manifest.scriptText, target: manifest.target)
     }
 }
 
