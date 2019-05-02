@@ -11,11 +11,19 @@ final class ProjectFileElementsTests: XCTestCase {
     var subject: ProjectFileElements!
     var fileHandler: MockFileHandler!
     var playgrounds: MockPlaygrounds!
+    var groups: ProjectGroups!
+    var pbxproj: PBXProj!
 
     override func setUp() {
         super.setUp()
         fileHandler = try! MockFileHandler()
         playgrounds = MockPlaygrounds()
+        pbxproj = PBXProj()
+        groups = ProjectGroups.generate(project: .test(),
+                                        pbxproj: pbxproj,
+                                        sourceRootPath: "/path",
+                                        playgrounds: MockPlaygrounds())
+
         subject = ProjectFileElements(playgrounds: playgrounds)
     }
 
@@ -46,6 +54,79 @@ final class ProjectFileElementsTests: XCTestCase {
             GroupFileElement(path: "/path/to/file", group: project.filesGroup),
             GroupFileElement(path: "/path/to/folder", group: project.filesGroup, isReference: true),
         ]))
+    }
+
+    func test_addElement() throws {
+        // Given
+        let element = GroupFileElement(path: "/path/myfolder/resources/a.png",
+                                       group: .group(name: "Project"))
+
+        // When
+        try subject.generate(fileElement: element,
+                             groups: groups,
+                             pbxproj: pbxproj,
+                             sourceRootPath: "/path")
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "myfolder/resources/a.png",
+        ])
+    }
+
+    func test_addElement_withDotFolders() throws {
+        // Given
+        let element = GroupFileElement(path: "/path/my.folder/resources/a.png",
+                                       group: .group(name: "Project"))
+
+        // When
+        try subject.generate(fileElement: element,
+                             groups: groups,
+                             pbxproj: pbxproj,
+                             sourceRootPath: "/path")
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "my.folder/resources/a.png",
+        ])
+    }
+
+    func test_addElement_fileReference() throws {
+        // Given
+        let element = GroupFileElement(path: "/path/myfolder/resources/generated_images",
+                                       group: .group(name: "Project"),
+                                       isReference: true)
+
+        // When
+        try subject.generate(fileElement: element,
+                             groups: groups,
+                             pbxproj: pbxproj,
+                             sourceRootPath: "/path")
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "myfolder/resources/generated_images",
+        ])
+    }
+
+    func test_addElement_parentDirectories() throws {
+        // Given
+        let element = GroupFileElement(path: "/path/another/path/resources/a.png",
+                                       group: .group(name: "Project"))
+
+        // When
+        try subject.generate(fileElement: element,
+                             groups: groups,
+                             pbxproj: pbxproj,
+                             sourceRootPath: "/path/project")
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "another/path/resources/a.png",
+        ])
     }
 
     func test_targetProducts() {
@@ -359,11 +440,6 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertTrue(subject.isVersionGroup(path: path))
     }
 
-    func test_isGroup() {
-        let path = AbsolutePath("/path/to/folder")
-        XCTAssertTrue(subject.isGroup(path: path))
-    }
-
     func test_normalize_whenLocalized() {
         let path = AbsolutePath("/test/es.lproj/Main.storyboard")
         let normalized = subject.normalize(path)
@@ -380,5 +456,27 @@ final class ProjectFileElementsTests: XCTestCase {
         let got = subject.closestRelativeElementPath(path: AbsolutePath("/a/framework/framework.framework"),
                                                      sourceRootPath: AbsolutePath("/a/b/c/project"))
         XCTAssertEqual(got, RelativePath("../../../framework"))
+    }
+}
+
+private extension PBXGroup {
+    /// Returns all the child paths (recursively)
+    ///
+    /// e.g.
+    ///    A
+    ///    - B
+    ///    - C
+    ///    -- D
+    /// Would return:
+    ///         ["A/B", "A/C/D"]
+    var debugChildPaths: [String] {
+        return children.flatMap { (element: PBXFileElement) -> [String] in
+            switch element {
+            case let group as PBXGroup:
+                return group.debugChildPaths.map { group.nameOrPath + "/" + $0 }
+            default:
+                return [element.nameOrPath]
+            }
+        }
     }
 }
