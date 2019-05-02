@@ -158,7 +158,7 @@ final class LinkGenerator: LinkGenerating {
                 guard let fileRef = fileElements.product(name: name) else {
                     throw LinkGeneratorError.missingProduct(name: name)
                 }
-                let buildFile = PBXBuildFile(file: fileRef)
+                let buildFile = PBXBuildFile(file: fileRef, settings: ["ATTRIBUTES": ["CodeSignOnCopy"]])
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             }

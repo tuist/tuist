@@ -8,6 +8,18 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+### Removed
+
+### Fixed
+
+- Set Code Sign On Copy to true for Embed Frameworks https://github.com/tuist/tuist/pull/333 by @dangthaison91
+
+## 0.14.0
+
+### Changed
+
+### Added
+
 - Adding support for project additional files https://github.com/tuist/tuist/pull/314 by @kwridan
 - Adding support for resource folder references https://github.com/tuist/tuist/pull/318 by @kwridan
 - **Breaking** Swift 5 support https://github.com/tuist/tuist/pull/317 by @pepibumur.
