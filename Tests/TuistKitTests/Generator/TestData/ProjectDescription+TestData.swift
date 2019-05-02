@@ -85,7 +85,9 @@ extension Scheme {
 
 extension BuildAction {
     static func test(targets: [String] = []) -> BuildAction {
-        return BuildAction(targets: targets)
+        return BuildAction(targets: targets,
+                           preActions: [ExecutionAction.test()],
+                           postActions: [ExecutionAction.test()])
     }
 }
 
@@ -97,7 +99,9 @@ extension TestAction {
         return TestAction(targets: targets,
                           arguments: arguments,
                           config: config,
-                          coverage: coverage)
+                          coverage: coverage,
+                          preActions: [ExecutionAction.test()],
+                          postActions: [ExecutionAction.test()])
     }
 }
 
@@ -108,6 +112,16 @@ extension RunAction {
         return RunAction(config: config,
                          executable: executable,
                          arguments: arguments)
+    }
+}
+
+extension ExecutionAction {
+    static func test(title: String = "Test Script",
+                     scriptText: String = "echo Test",
+                     target: String? = "Target") -> ExecutionAction {
+        return ExecutionAction(title: title,
+                               scriptText: scriptText,
+                               target: target)
     }
 }
 
