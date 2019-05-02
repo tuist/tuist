@@ -48,6 +48,34 @@ final class ProjectGeneratorTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(targetScheme))
     }
 
+    func test_generate_scheme() throws {
+        // Given
+        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let scheme = Scheme.test(name: "Target-Scheme", shared: true, buildAction: BuildAction(targets: ["Target"]))
+
+        let targets = [target]
+        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets, schemes: [scheme])
+        try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
+        
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        let graph = Graph.test(entryPath: fileHandler.currentPath,
+                               cache: cache,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: target,
+                                                       dependencies: [])])
+        
+        // When
+        let got = try subject.generate(project: project,
+                                       options: GenerationOptions(),
+                                       graph: graph)
+        
+        // Then
+        let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
+        let targetScheme = schemesPath.appending(component: "Target-Scheme.xcscheme")
+        XCTAssertTrue(fileHandler.exists(targetScheme))
+    }
+
     func test_generate_testTargetIdentity() throws {
         // Given
         let app = Target.test(name: "App",

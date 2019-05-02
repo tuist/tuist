@@ -24,17 +24,24 @@ extension TestAction {
     static func test(targets: [String] = ["AppTests"],
                      arguments: Arguments? = Arguments.test(),
                      config: BuildConfiguration = .debug,
-                     coverage: Bool = false) -> TestAction {
+                     coverage: Bool = false,
+                     preActions: [ExecutionAction] = [],
+                     postActions: [ExecutionAction] = []) -> TestAction {
+        
         return TestAction(targets: targets,
                           arguments: arguments,
                           config: config,
-                          coverage: coverage)
+                          coverage: coverage,
+                          preActions: preActions,
+                          postActions: postActions)
     }
 }
 
 extension BuildAction {
-    static func test(targets: [String] = ["App"]) -> BuildAction {
-        return BuildAction(targets: targets)
+    static func test(targets: [String] = ["App"],
+                     preActions: [ExecutionAction] = [],
+                     postActions: [ExecutionAction] = []) -> BuildAction {
+        return BuildAction(targets: targets, preActions: preActions, postActions: postActions)
     }
 }
 

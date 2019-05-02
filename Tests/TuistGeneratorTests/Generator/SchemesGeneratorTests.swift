@@ -116,6 +116,44 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference?.blueprintName, "AppTests")
         XCTAssertEqual(buildableReference?.buildableIdentifier, "primary")
     }
+    
+    func test_schemeTestAction_with_executionAction() {
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        
+        let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: "AppTests")
+        let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: "AppTests")
+        let testAction = TestAction.test(targets: ["AppTests"], preActions: [preAction], postActions: [postAction])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, testAction: testAction)
+        let project = Project.test(targets: [testTarget])
+        
+        let pbxTestTarget = PBXNativeTarget(name: "AppTests", productType: .unitTestBundle)
+        let generatedProject = GeneratedProject.test(targets: ["AppTests": pbxTestTarget])
+        
+        let got = subject.schemeTestAction(scheme: scheme, project: project, generatedProject: generatedProject)
+
+        // Pre Action
+        XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
+        XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
+        
+        let preBuildableReference = got?.preActions.first?.environmentBuildable
+        
+        XCTAssertEqual(preBuildableReference?.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(preBuildableReference?.buildableName, "AppTests.xctest")
+        XCTAssertEqual(preBuildableReference?.blueprintName, "AppTests")
+        XCTAssertEqual(preBuildableReference?.buildableIdentifier, "primary")
+        
+        // Post Action
+        XCTAssertEqual(got?.postActions.first?.title, "Post Action")
+        XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
+        
+        let postBuildableReference = got?.postActions.first?.environmentBuildable
+        
+        XCTAssertEqual(postBuildableReference?.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(postBuildableReference?.buildableName, "AppTests.xctest")
+        XCTAssertEqual(postBuildableReference?.blueprintName, "AppTests")
+        XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
+    }
 
     func test_schemeBuildAction() {
         let target = Target.test(name: "App", product: .app)
@@ -139,6 +177,43 @@ final class SchemeGeneratorTests: XCTestCase {
 
         XCTAssertEqual(got?.parallelizeBuild, true)
         XCTAssertEqual(got?.buildImplicitDependencies, true)
+    }
+    
+    func test_schemeBuildAction_with_executionAction() {
+        let target = Target.test(name: "App", product: .app)
+        let pbxTarget = PBXNativeTarget(name: "App")
+        
+        let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: "App")
+        let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: "App")
+        let buildAction = BuildAction.test(targets: ["Library"], preActions: [preAction], postActions: [postAction])
+
+        let scheme = Scheme.test(name: "App", shared: true, buildAction: buildAction)
+        let project = Project.test(targets: [target])
+        let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget])
+        
+        let got = subject.schemeBuildAction(scheme: scheme, project: project, generatedProject: generatedProject)
+        
+        // Pre Action
+        XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
+        XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
+        
+        let preBuildableReference = got?.preActions.first?.environmentBuildable
+        
+        XCTAssertEqual(preBuildableReference?.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(preBuildableReference?.buildableName, "App.app")
+        XCTAssertEqual(preBuildableReference?.blueprintName, "App")
+        XCTAssertEqual(preBuildableReference?.buildableIdentifier, "primary")
+        
+        // Post Action
+        XCTAssertEqual(got?.postActions.first?.title, "Post Action")
+        XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
+        
+        let postBuildableReference = got?.postActions.first?.environmentBuildable
+        
+        XCTAssertEqual(postBuildableReference?.referencedContainer, "container:project.xcodeproj")
+        XCTAssertEqual(postBuildableReference?.buildableName, "App.app")
+        XCTAssertEqual(postBuildableReference?.blueprintName, "App")
+        XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
     }
 
     func test_schemeLaunchAction_when_runnableTarget() {

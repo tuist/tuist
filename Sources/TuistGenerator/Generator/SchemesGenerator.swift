@@ -47,7 +47,8 @@ final class SchemesGenerator: SchemesGenerating {
         
         /// Generate scheme for every targets in Project that is not defined in Manifest
         try project.targets.forEach { target in
-            if project.schemes.contains(where: { $0.name != target.name }) {
+            
+            if !project.schemes.contains(where: { $0.name == target.name }) {
                 
                 let scheme = Scheme(name: target.name,
                                     shared: true,

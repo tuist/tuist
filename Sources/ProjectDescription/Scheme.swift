@@ -40,7 +40,7 @@ public class ExecutionAction: Codable {
     
     public enum CodingKeys: String, CodingKey {
         case title
-        case scriptText
+        case scriptText = "script_text"
         case target
     }
     
