@@ -39,37 +39,25 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - generatedProject: Generated Xcode project.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateSchemes(project: Project, generatedProject: GeneratedProject) throws {
-        
-        if project.schemes.isEmpty {
-            /// Generate scheme for every targets in Project
-            try generateTargetSchemes(project: project, generatedProject: generatedProject)
-        } else {
-            /// Generate scheme from  manifest
-            try project.schemes.forEach { scheme in
-                try generateScheme(scheme: scheme, project: project, generatedProject: generatedProject)
-            }
-        }
-    }
-    
-    /// Generates the schemes for the project targets.
-    ///
-    /// - Parameters:
-    ///   - project: Project manifest.
-    ///   - generatedProject: Generated Xcode project.
-    /// - Throws: A FatalError if the generation of the schemes fails.
-    func generateTargetSchemes(project: Project,
-                               generatedProject: GeneratedProject) throws {
-        try project.targets.forEach { target in
-            
-            let scheme = Scheme(name: target.name,
-                                shared: true,
-                                buildAction: BuildAction(targets: [target.name]),
-                                testAction: TestAction(targets: [target.name]),
-                                runAction: RunAction(config: .debug, executable: target.name))
 
-            try generateScheme(scheme: scheme,
-                               project: project,
-                               generatedProject: generatedProject)
+        /// Generate scheme from manifest
+        try project.schemes.forEach { scheme in
+            try generateScheme(scheme: scheme, project: project, generatedProject: generatedProject)
+        }
+        
+        /// Generate scheme for every targets in Project that is not defined in Manifest
+        project.targets.forEach { target in
+            if project.schemes.contains { $0.name != target.name } {
+                let scheme = Scheme(name: target.name,
+                                    shared: true,
+                                    buildAction: BuildAction(targets: [target.name]),
+                                    testAction: TestAction(targets: [target.name]),
+                                    runAction: RunAction(config: .debug, executable: target.name))
+                
+                try generateScheme(scheme: scheme,
+                                   project: project,
+                                   generatedProject: generatedProject)
+            }
         }
     }
     
