@@ -12,7 +12,7 @@ extension Arguments {
 
 extension RunAction {
     static func test(config: BuildConfiguration = .debug,
-                     executable: String? = "Test",
+                     executable: String? = "App",
                      arguments: Arguments? = Arguments.test()) -> RunAction {
         return RunAction(config: config,
                          executable: executable,
@@ -21,7 +21,7 @@ extension RunAction {
 }
 
 extension TestAction {
-    static func test(targets: [String] = ["TestTests"],
+    static func test(targets: [String] = ["AppTests"],
                      arguments: Arguments? = Arguments.test(),
                      config: BuildConfiguration = .debug,
                      coverage: Bool = false) -> TestAction {
@@ -33,7 +33,7 @@ extension TestAction {
 }
 
 extension BuildAction {
-    static func test(targets: [String] = ["Test"]) -> BuildAction {
+    static func test(targets: [String] = ["App"]) -> BuildAction {
         return BuildAction(targets: targets)
     }
 }

@@ -38,7 +38,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - project: Project manifest.
     ///   - generatedProject: Generated Xcode project.
     /// - Throws: A FatalError if the generation of the schemes fails.
-    func generateSchemes(project: Project, generatedProject: GeneratedProject) throws {
+    func generateTargetSchemes(project: Project, generatedProject: GeneratedProject) throws {
 
         /// Generate scheme from manifest
         try project.schemes.forEach { scheme in
@@ -46,8 +46,9 @@ final class SchemesGenerator: SchemesGenerating {
         }
         
         /// Generate scheme for every targets in Project that is not defined in Manifest
-        project.targets.forEach { target in
-            if project.schemes.contains { $0.name != target.name } {
+        try project.targets.forEach { target in
+            if project.schemes.contains(where: { $0.name != target.name }) {
+                
                 let scheme = Scheme(name: target.name,
                                     shared: true,
                                     buildAction: BuildAction(targets: [target.name]),
@@ -247,14 +248,18 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - project: Project manifest.
     ///   - generatedProject: Generated Xcode project.
     /// - Returns: Scheme launch action.
-    /// - Returns: Scheme launch action.
     func schemeLaunchAction(scheme: Scheme,
                             project: Project,
                             generatedProject: GeneratedProject) -> XCScheme.LaunchAction? {
         
-        guard let executable = scheme.runAction?.executable else { return nil }
-        guard let target = project.targets.first(where: { $0.name == executable }) else { return nil }
-        guard let pbxTarget = generatedProject.targets[executable] else { return nil }
+        guard var target = project.targets.first(where: { $0.name == scheme.buildAction?.targets.first }) else { return nil }
+        
+        if let executable = scheme.runAction?.executable {
+            guard let runableTarget = project.targets.first(where: { $0.name == executable }) else { return nil }
+            target = runableTarget
+        }
+        
+        guard let pbxTarget = generatedProject.targets[target.name] else { return nil }
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
@@ -284,9 +289,14 @@ final class SchemesGenerator: SchemesGenerating {
                              project: Project,
                              generatedProject: GeneratedProject) -> XCScheme.ProfileAction? {
         
-        guard let executable = scheme.runAction?.executable else { return nil }
-        guard let target = project.targets.first(where: { $0.name == executable }) else { return nil }
-        guard let pbxTarget = generatedProject.targets[executable] else { return nil }
+        guard var target = project.targets.first(where: { $0.name == scheme.buildAction?.targets.first }) else { return nil }
+        
+        if let executable = scheme.runAction?.executable {
+            guard let runableTarget = project.targets.first(where: { $0.name == executable }) else { return nil }
+            target = runableTarget
+        }
+        
+        guard let pbxTarget = generatedProject.targets[target.name] else { return nil }
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?

@@ -17,7 +17,7 @@ final class SchemeTests: XCTestCase {
                                                   arguments: Arguments(environment: ["a": "b"],
                                                                        launch: ["a": true])))
 
-        let expected = "{\"build_action\": {\"targets\": [\"target\"]}, \"name\": \"scheme\", \"run_action\": {\"arguments\": {\"environment\": {\"a\": \"b\"}, \"launch\": {\"a\": true}}, \"config\": \"debug\", \"executable\": \"executable\"}, \"shared\": true, \"test_action\": {\"arguments\": {\"environment\": {\"a\": \"b\"}, \"launch\": {\"a\": true}}, \"config\": \"debug\", \"coverage\": true, \"targets\": [\"target\"]}}"
+        let expected = "{\"build_action\": {\"targets\": [\"target\"], \"pre_actions\": [\"pre_action\"]}, \"name\": \"scheme\", \"run_action\": {\"arguments\": {\"environment\": {\"a\": \"b\"}, \"launch\": {\"a\": true}}, \"config\": \"debug\", \"executable\": \"executable\"}, \"shared\": true, \"test_action\": {\"arguments\": {\"environment\": {\"a\": \"b\"}, \"launch\": {\"a\": true}}, \"config\": \"debug\", \"coverage\": true, \"targets\": [\"target\"]}}"
         assertCodableEqualToJson(subject, expected)
     }
 }
