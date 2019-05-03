@@ -79,6 +79,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
+        clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
             0.234,
         ]

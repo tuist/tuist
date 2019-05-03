@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import XCTest
 
 /// A stub clock that can be primed with
 /// multiple dates and timers.
@@ -17,8 +18,18 @@ public class StubClock: Clock {
         return .distantPast
     }
 
+    /// The dates to return when calling `now`
+    /// in the order they are specified.
     public var primedDates: [Date] = []
+
+    /// The time intervals to return from timers
+    /// obtained when calling `startTimer()` in the
+    /// order they are specified.
     public var primedTimers: [TimeInterval] = []
+
+    /// Asserts when the stub methods are called
+    /// while there is no more stubbed data
+    public var assertOnUnexpectedCalls: Bool = false
 
     public init() {}
 
@@ -32,16 +43,28 @@ public class StubClock: Clock {
             primedTimers.removeFirst()
             return Timer(timeInterval: first)
         }
+        if assertOnUnexpectedCalls {
+            XCTFail("Trying to get more timers than the ones stubbed")
+        }
         return Timer(timeInterval: 0.0)
     }
 
     private class Timer: ClockTimer {
         private let timeInterval: TimeInterval
+        private var stopCount = 0
         fileprivate init(timeInterval: TimeInterval) {
             self.timeInterval = timeInterval
         }
 
         func stop() -> TimeInterval {
+            defer {
+                stopCount += 1
+            }
+
+            if stopCount >= 1 {
+                XCTFail("Attempting to stop a timer more than once")
+            }
+
             return timeInterval
         }
     }
