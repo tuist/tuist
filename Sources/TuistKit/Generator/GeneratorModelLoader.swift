@@ -179,6 +179,7 @@ extension TuistGenerator.Project {
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets + [target],
+                       schemes: schemes,
                        additionalFiles: additionalFiles)
     }
 }
