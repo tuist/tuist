@@ -24,12 +24,14 @@ extension Project {
                       settings: Settings = .default,
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       targets: [Target] = [],
+                      schemes: [Scheme] = [],
                       additionalFiles: [FileElement] = []) -> Project {
         return Project(path: path,
                        name: name,
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets,
+                       schemes: schemes,
                        additionalFiles: additionalFiles)
     }
 }
