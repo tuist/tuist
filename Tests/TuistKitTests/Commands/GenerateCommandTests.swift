@@ -88,7 +88,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(printer.printWithColorArgs.first?.0, "Total time: 0.234s")
+        XCTAssertEqual(printer.printWithColorArgs.first?.0, "Total time taken: 0.234s")
     }
 
     func test_run_withRelativePathParameter() throws {
