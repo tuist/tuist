@@ -24,5 +24,6 @@ let project = Project(name: "MainApp",
                           additionalFiles: [
                                 "Dangerfile.swift",
                                 "Documentation/**",
+                                "CHANGELOG",
                                 .folderReference(path: "Responses"), 
                           ])

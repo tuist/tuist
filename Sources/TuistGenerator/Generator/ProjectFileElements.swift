@@ -242,9 +242,10 @@ class ProjectFileElements {
         // The file already exists
         if elements[fileElement.path] != nil { return }
 
-        let closestRelativeRelativePath = closestRelativeElementPath(path: fileElement.path, sourceRootPath: sourceRootPath)
+        let closestRelativeRelativePath = closestRelativeElementPath(path: fileElement.path,
+                                                                     sourceRootPath: sourceRootPath)
         let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
-
+        let fileElementRelativeToSourceRoot = fileElement.path.relative(to: sourceRootPath)
         // Add the first relative element.
         let group: PBXGroup
         switch fileElement.group {
@@ -252,7 +253,7 @@ class ProjectFileElements {
             group = try groups.projectGroup(named: groupName)
         }
         guard let firstElement = addElement(relativePath: closestRelativeRelativePath,
-                                            isReference: fileElement.isReference,
+                                            isLeaf: closestRelativeRelativePath == fileElementRelativeToSourceRoot,
                                             from: sourceRootPath,
                                             toGroup: group,
                                             pbxproj: pbxproj) else {
@@ -266,11 +267,11 @@ class ProjectFileElements {
 
         var lastGroup: PBXGroup! = firstElement.element as? PBXGroup
         var lastPath: AbsolutePath = firstElement.path
-
-        for component in fileElement.path.relative(to: lastPath).components {
+        let components = fileElement.path.relative(to: lastPath).components
+        for component in components.enumerated() {
             if lastGroup == nil { return }
-            guard let element = addElement(relativePath: RelativePath(component),
-                                           isReference: fileElement.isReference,
+            guard let element = addElement(relativePath: RelativePath(component.element),
+                                           isLeaf: component.offset == components.count - 1,
                                            from: lastPath,
                                            toGroup: lastGroup!,
                                            pbxproj: pbxproj) else {
@@ -284,7 +285,7 @@ class ProjectFileElements {
     // MARK: - Internal
 
     @discardableResult func addElement(relativePath: RelativePath,
-                                       isReference: Bool,
+                                       isLeaf: Bool,
                                        from: AbsolutePath,
                                        toGroup: PBXGroup,
                                        pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath)? {
@@ -316,7 +317,7 @@ class ProjectFileElements {
                                           name: name,
                                           toGroup: toGroup,
                                           pbxproj: pbxproj)
-        } else if isGroup(path: absolutePath), !isReference {
+        } else if !isLeaf {
             return addGroupElement(from: from,
                                    folderAbsolutePath: absolutePath,
                                    folderRelativePath: relativePath,
@@ -428,10 +429,6 @@ class ProjectFileElements {
 
     func isVersionGroup(path: AbsolutePath) -> Bool {
         return path.extension == "xcdatamodeld"
-    }
-
-    func isGroup(path: AbsolutePath) -> Bool {
-        return !isVersionGroup(path: path) && path.extension == nil
     }
 
     /// Normalizes a path. Some paths have no direct representation in Xcode,

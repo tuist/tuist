@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Set Code Sign On Copy to true for Embed Frameworks https://github.com/tuist/tuist/pull/333 by @dangthaison91
+- Fixing files getting mistaken for folders https://github.com/tuist/tuist/pull/338 by @kwridan
 
 ## 0.14.0
 
