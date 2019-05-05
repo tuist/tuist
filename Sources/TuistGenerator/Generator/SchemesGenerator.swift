@@ -54,7 +54,9 @@ final class SchemesGenerator: SchemesGenerating {
                                     shared: true,
                                     buildAction: BuildAction(targets: [target.name]),
                                     testAction: TestAction(targets: [target.name]),
-                                    runAction: RunAction(config: .debug, executable: target.name))
+                                    runAction: RunAction(config: .debug,
+                                                         executable: target.name,
+                                                         arguments: Arguments(environment: target.environment)))
                 
                 try generateScheme(scheme: scheme,
                                    project: project,
@@ -164,11 +166,13 @@ final class SchemesGenerator: SchemesGenerating {
     func schemeTestAction(scheme: Scheme,
                           project: Project,
                           generatedProject: GeneratedProject) -> XCScheme.TestAction? {
+        guard let testAction = scheme.testAction else { return nil }
+        
         var testables: [XCScheme.TestableReference] = []
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
-        scheme.testAction?.targets.forEach { name in
+        testAction.targets.forEach { name in
             guard let target = project.targets.first(where: { $0.name == name }), target.product.testsBundle else { return }
             guard let pbxTarget = generatedProject.targets[name] else { return }
             
@@ -180,21 +184,30 @@ final class SchemesGenerator: SchemesGenerating {
             testables.append(testable)
         }
         
-        scheme.testAction.flatMap { testAction in
-            preActions = schemeExecutionActions(actions: testAction.preActions,
-                                                project: project,
-                                                generatedProject: generatedProject)
-            
-            postActions = schemeExecutionActions(actions: testAction.postActions,
-                                                 project: project,
-                                                 generatedProject: generatedProject)
-        }
+        preActions = schemeExecutionActions(actions: testAction.preActions,
+                                            project: project,
+                                            generatedProject: generatedProject)
         
+        postActions = schemeExecutionActions(actions: testAction.postActions,
+                                             project: project,
+                                             generatedProject: generatedProject)
+        
+        var args: XCScheme.CommandLineArguments?
+        var environments: [XCScheme.EnvironmentVariable]?
+        
+        if let arguments = testAction.arguments {
+            args = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+            environments = environmentVariables(arguments.environment)
+        }
+
         return XCScheme.TestAction(buildConfiguration: "Debug",
                                    macroExpansion: nil,
                                    testables: testables,
                                    preActions: preActions,
-                                   postActions: postActions)
+                                   postActions: postActions,
+                                   codeCoverageEnabled: testAction.coverage,
+                                   commandlineArguments: args,
+                                   environmentVariables: environments)
     }
 
     /// Generates the scheme build action.
@@ -207,6 +220,8 @@ final class SchemesGenerator: SchemesGenerating {
     func schemeBuildAction(scheme: Scheme,
                            project: Project,
                            generatedProject: GeneratedProject) -> XCScheme.BuildAction? {
+        guard let buildAction = scheme.buildAction else { return nil }
+        
         let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
             .analyzing, .archiving, .profiling, .running, .testing,
         ]
@@ -215,7 +230,7 @@ final class SchemesGenerator: SchemesGenerating {
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
-        scheme.buildAction?.targets.forEach { name in
+        buildAction.targets.forEach { name in
             guard let target = project.targets.first(where: { $0.name == name }) else { return }
             guard let pbxTarget = generatedProject.targets[name] else { return }
             let buildableReference = self.targetBuildableReference(target: target,
@@ -225,15 +240,13 @@ final class SchemesGenerator: SchemesGenerating {
             entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
         }
 
-        scheme.buildAction.flatMap { buildAction in
-            preActions = schemeExecutionActions(actions: buildAction.preActions,
-                                                project: project,
-                                                generatedProject: generatedProject)
-            
-            postActions = schemeExecutionActions(actions: buildAction.postActions,
-                                                 project: project,
-                                                 generatedProject: generatedProject)
-        }
+        preActions = schemeExecutionActions(actions: buildAction.preActions,
+                                            project: project,
+                                            generatedProject: generatedProject)
+        
+        postActions = schemeExecutionActions(actions: buildAction.postActions,
+                                             project: project,
+                                             generatedProject: generatedProject)
         
         return XCScheme.BuildAction(buildActionEntries: entries,
                                     preActions: preActions,
@@ -270,13 +283,20 @@ final class SchemesGenerator: SchemesGenerating {
         } else {
             macroExpansion = buildableReference
         }
-        let environmentVariables: [XCScheme.EnvironmentVariable] = target.environment.map { variable, value in
-            XCScheme.EnvironmentVariable(variable: variable, value: value, enabled: true)
+        
+        var commandlineArguments: XCScheme.CommandLineArguments?
+        var environments: [XCScheme.EnvironmentVariable]?
+        
+        if let arguments = scheme.runAction?.arguments {
+            commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+            environments = environmentVariables(arguments.environment)
         }
+        
         return XCScheme.LaunchAction(buildableProductRunnable: buildableProductRunnable,
                                      buildConfiguration: "Debug",
                                      macroExpansion: macroExpansion,
-                                     environmentVariables: environmentVariables)
+                                     commandlineArguments: commandlineArguments,
+                                     environmentVariables: environments)
     }
 
     /// Generates the scheme profile action for a given target.
@@ -348,6 +368,28 @@ final class SchemesGenerator: SchemesGenerating {
         return schemeActions
     }
 
+    /// Returns the scheme commandline argument passed on launch
+    ///
+    /// - Parameters:
+    /// - environments: commandline argument keys.
+    /// - Returns: XCScheme.CommandLineArguments.CommandLineArgument.
+    func commandlineArgruments(_ arguments: [String: Bool]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
+        return arguments.map { (key, enabled) in
+            XCScheme.CommandLineArguments.CommandLineArgument(name: key, enabled: enabled)
+        }
+    }
+    
+    /// Returns the scheme environment variables
+    ///
+    /// - Parameters:
+    /// - environments: environment variables
+    /// - Returns: XCScheme.EnvironmentVariable.
+    func environmentVariables(_ environments: [String: String]) -> [XCScheme.EnvironmentVariable] {
+        return environments.map { (key, value) in
+            XCScheme.EnvironmentVariable(variable: key, value: value, enabled: true)
+        }
+    }
+    
     /// Returns the scheme buildable reference for a given target.
     ///
     /// - Parameters:

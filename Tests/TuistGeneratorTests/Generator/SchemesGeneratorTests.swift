@@ -219,7 +219,7 @@ final class SchemeGeneratorTests: XCTestCase {
     func test_schemeLaunchAction_when_runnableTarget() {
         let target = Target.test(name: "App", product: .app, environment: ["a": "b"])
         let pbxTarget = PBXNativeTarget(name: "App")
-        let scheme = Scheme.test()
+        let scheme = Scheme.test(runAction: RunAction.test(arguments: Arguments.test(environment: ["a": "b"])))
         let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
         let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget])
         

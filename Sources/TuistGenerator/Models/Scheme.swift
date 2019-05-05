@@ -68,8 +68,8 @@ public class ExecutionAction: Equatable {
     // MARK: - Init
     
     public init(title: String,
-         scriptText: String,
-         target: String?) {
+                scriptText: String,
+                target: String?) {
         self.title = title
         self.scriptText = scriptText
         self.target = target
@@ -82,31 +82,12 @@ public class ExecutionAction: Equatable {
     }
 }
 
-public class SerialAction: Equatable {
-    
-    public let preActions: [ExecutionAction]
-    public let postActions: [ExecutionAction]
-    
-    // MARK: - Init
-    
-    public init(preActions: [ExecutionAction] = [],
-         postActions: [ExecutionAction] = []) {
-        self.preActions = preActions
-        self.postActions = postActions
-    }
-    
-    // MARK: - Equatable
-    
-    public static func == (lhs: SerialAction, rhs: SerialAction) -> Bool {
-        return lhs.preActions == rhs.preActions &&
-            lhs.postActions == rhs.postActions
-    }
-}
-
-public class BuildAction: SerialAction {
+public class BuildAction: Equatable {
     // MARK: - Attributes
 
     public let targets: [String]
+    public let preActions: [ExecutionAction]
+    public let postActions: [ExecutionAction]
 
     // MARK: - Init
 
@@ -115,7 +96,8 @@ public class BuildAction: SerialAction {
                 postActions: [ExecutionAction] = []) {
         
         self.targets = targets
-        super.init(preActions: preActions, postActions: postActions)
+        self.preActions = preActions
+        self.postActions = postActions
     }
 
     // MARK: - Equatable
@@ -127,13 +109,15 @@ public class BuildAction: SerialAction {
     }
 }
 
-public class TestAction: SerialAction {
+public class TestAction: Equatable {
     // MARK: - Attributes
 
     public let targets: [String]
     public let arguments: Arguments?
     public let config: BuildConfiguration
     public let coverage: Bool
+    public let preActions: [ExecutionAction]
+    public let postActions: [ExecutionAction]
 
     // MARK: - Init
 
@@ -147,7 +131,8 @@ public class TestAction: SerialAction {
         self.arguments = arguments
         self.config = config
         self.coverage = coverage
-        super.init(preActions: preActions, postActions: postActions)
+        self.preActions = preActions
+        self.postActions = postActions
     }
 
     // MARK: - Equatable
