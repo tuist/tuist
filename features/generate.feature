@@ -98,3 +98,16 @@ Scenario: The project is an iOS application with frameworks and tests (ios_app_w
     Then I should be able to test the scheme Framework3Tests
     Then I should be able to build the scheme Framework4
     Then I should be able to test the scheme Framework4Tests
+
+Scenario: The project is an iOS application that has resources (ios_app_with_custom_scheme)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_custom_scheme into the working directory
+    Then tuist generates the project
+    Then I should be able to build the scheme App-Debug
+    Then I should be able to build the scheme App-Release
+    Then I should be able to test the scheme AppTests
+    Then I should be able to build the scheme Framework1
+    Then I should be able to test the scheme Framework1Tests
+    Then I should be able to build the scheme Framework2
+    Then I should be able to test the scheme Framework2Tests
