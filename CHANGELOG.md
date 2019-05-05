@@ -4,9 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
-## 0.14.0
+## 0.15.0
 
 ### Added
+
+- Adding generate command timer https://github.com/tuist/tuist/pull/335 by @kwridan
 
 ### Removed
 

@@ -16,6 +16,7 @@ class GenerateCommand: NSObject, Command {
     private let printer: Printing
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
+    private let clock: Clock
 
     let pathArgument: OptionArgument<String>
 
@@ -43,19 +44,22 @@ class GenerateCommand: NSObject, Command {
                   printer: printer,
                   fileHandler: fileHandler,
                   generator: generator,
-                  manifestLoader: manifestLoader)
+                  manifestLoader: manifestLoader,
+                  clock: WallClock())
     }
 
     init(parser: ArgumentParser,
          printer: Printing,
          fileHandler: FileHandling,
          generator: Generating,
-         manifestLoader: GraphManifestLoading) {
+         manifestLoader: GraphManifestLoading,
+         clock: Clock) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.generator = generator
         self.printer = printer
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
+        self.clock = clock
 
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
@@ -65,13 +69,16 @@ class GenerateCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
+        let timer = clock.startTimer()
         let path = self.path(arguments: arguments)
 
         _ = try generator.generate(at: path,
                                    config: .default,
                                    manifestLoader: manifestLoader)
 
+        let time = String(format: "%.3f", timer.stop())
         printer.print(success: "Project generated.")
+        printer.print("Total time taken: \(time)s", color: .white)
     }
 
     // MARK: - Fileprivate

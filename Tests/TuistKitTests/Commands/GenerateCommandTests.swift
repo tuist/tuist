@@ -14,6 +14,7 @@ final class GenerateCommandTests: XCTestCase {
     var printer: MockPrinter!
     var fileHandler: MockFileHandler!
     var manifestLoader: MockGraphManifestLoader!
+    var clock: StubClock!
 
     override func setUp() {
         super.setUp()
@@ -23,12 +24,14 @@ final class GenerateCommandTests: XCTestCase {
             parser = ArgumentParser.test()
             fileHandler = try MockFileHandler()
             manifestLoader = MockGraphManifestLoader()
+            clock = StubClock()
 
             subject = GenerateCommand(parser: parser,
                                       printer: printer,
                                       fileHandler: fileHandler,
                                       generator: generator,
-                                      manifestLoader: manifestLoader)
+                                      manifestLoader: manifestLoader,
+                                      clock: clock)
         } catch {
             XCTFail("failed to setup test: \(error.localizedDescription)")
         }
@@ -68,6 +71,24 @@ final class GenerateCommandTests: XCTestCase {
 
         // Then
         XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
+    }
+
+    func test_run_timeIsPrinted() throws {
+        // Given
+        let result = try parser.parse([GenerateCommand.command])
+        manifestLoader.manifestsAtStub = { _ in
+            Set([.project])
+        }
+        clock.assertOnUnexpectedCalls = true
+        clock.primedTimers = [
+            0.234,
+        ]
+
+        // When
+        try subject.run(with: result)
+
+        // Then
+        XCTAssertEqual(printer.printWithColorArgs.first?.0, "Total time taken: 0.234s")
     }
 
     func test_run_withRelativePathParameter() throws {
