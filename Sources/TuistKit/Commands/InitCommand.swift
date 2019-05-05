@@ -140,10 +140,13 @@ class InitCommand: NSObject, Command {
                                        bundleId: "io.tuist.\(name)",
                                        infoPlist: "Info.plist",
                                        sources: ["Sources/**"],
-                                       resources: ["Resources/**"],
+                                       resources: [
+                                               /* Path to resouces can be defined here */
+                                               // "Resources/**"
+                                       ],
                                        dependencies: [
                                             /* Target dependencies can be defined here */
-                                            /* .framework(path: "framework") */
+                                            // .framework(path: "Frameworks/MyFramework.framework")
                                         ]),
                                 Target(name: "\(name)Tests",
                                        platform: .\(platform.caseValue),
