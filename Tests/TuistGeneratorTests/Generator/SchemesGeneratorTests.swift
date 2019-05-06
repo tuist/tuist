@@ -86,7 +86,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let got = subject.schemeTestAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
-        XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, true)
+        XCTAssertEqual(got?.shouldUseLaunchSchemeArgsEnv, false)
         XCTAssertNil(got?.macroExpansion)
         XCTAssertEqual(got?.testables.count, 0)
     }
@@ -95,7 +95,8 @@ final class SchemeGeneratorTests: XCTestCase {
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
         
-        let scheme = Scheme.test(name: "AppTests")
+        let testAction = TestAction.test(arguments: nil)
+        let scheme = Scheme.test(name: "AppTests", testAction: testAction)
         let project = Project.test(targets: [target, testTarget])
         
         let pbxTarget = PBXNativeTarget(name: "App")

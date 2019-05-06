@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Adding generate command timer https://github.com/tuist/tuist/pull/335 by @kwridan
+- Support Scheme manifest with pre/post action https://github.com/tuist/tuist/pull/336 by @dangthaison91
 
 ### Removed
 

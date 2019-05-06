@@ -62,8 +62,8 @@ public class Arguments: Codable {
         case launch
     }
 
-    public init(environment: [String: String],
-                launch: [String: Bool]) {
+    public init(environment: [String: String] = [:],
+                launch: [String: Bool] = [:]) {
         self.environment = environment
         self.launch = launch
     }

@@ -200,11 +200,14 @@ final class SchemesGenerator: SchemesGenerating {
             environments = environmentVariables(arguments.environment)
         }
 
+        let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
+        
         return XCScheme.TestAction(buildConfiguration: "Debug",
                                    macroExpansion: nil,
                                    testables: testables,
                                    preActions: preActions,
                                    postActions: postActions,
+                                   shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
                                    codeCoverageEnabled: testAction.coverage,
                                    commandlineArguments: args,
                                    environmentVariables: environments)
