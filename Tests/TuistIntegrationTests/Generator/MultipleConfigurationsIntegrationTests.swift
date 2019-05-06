@@ -273,7 +273,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     private func createModelLoader(projectSettings: Settings, targetSettings: Settings?) -> GeneratorModelLoading {
         let modelLoader = MockGeneratorModelLoader(basePath: path)
         let appTarget = createAppTarget(settings: targetSettings)
-        let project = createProject(path: pathTo("App"), settings: projectSettings, targets: [appTarget])
+        let project = createProject(path: pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
         let workspace = createWorkspace(projects: ["App"])
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
@@ -284,12 +284,13 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         return Workspace(name: "Workspace", projects: projects.map { pathTo($0) })
     }
 
-    private func createProject(path: AbsolutePath, settings: Settings, targets: [Target]) -> Project {
+    private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], schemes: [Scheme]) -> Project {
         return Project(path: path,
                        name: "App",
                        settings: settings,
                        filesGroup: .group(name: "Project"),
-                       targets: targets)
+                       targets: targets,
+                       schemes: schemes)
     }
 
     private func createAppTarget(settings: Settings?) -> Target {

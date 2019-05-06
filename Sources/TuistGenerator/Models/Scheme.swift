@@ -57,21 +57,55 @@ public class Arguments: Equatable {
     }
 }
 
+public class ExecutionAction: Equatable {
+    
+    // MARK: - Attributes
+    
+    public let title: String
+    public let scriptText: String
+    public let target: String?
+    
+    // MARK: - Init
+    
+    public init(title: String,
+                scriptText: String,
+                target: String?) {
+        self.title = title
+        self.scriptText = scriptText
+        self.target = target
+    }
+    
+    public static func == (lhs: ExecutionAction, rhs: ExecutionAction) -> Bool {
+        return lhs.title == rhs.title &&
+            lhs.scriptText == rhs.scriptText &&
+            lhs.target == rhs.target
+    }
+}
+
 public class BuildAction: Equatable {
     // MARK: - Attributes
 
     public let targets: [String]
+    public let preActions: [ExecutionAction]
+    public let postActions: [ExecutionAction]
 
     // MARK: - Init
 
-    public init(targets: [String] = []) {
+    public init(targets: [String] = [],
+                preActions: [ExecutionAction] = [],
+                postActions: [ExecutionAction] = []) {
+        
         self.targets = targets
+        self.preActions = preActions
+        self.postActions = postActions
     }
 
     // MARK: - Equatable
 
     public static func == (lhs: BuildAction, rhs: BuildAction) -> Bool {
-        return lhs.targets == rhs.targets
+        return lhs.targets == rhs.targets &&
+            lhs.preActions == rhs.preActions &&
+            lhs.postActions == rhs.postActions
     }
 }
 
@@ -82,17 +116,23 @@ public class TestAction: Equatable {
     public let arguments: Arguments?
     public let config: BuildConfiguration
     public let coverage: Bool
+    public let preActions: [ExecutionAction]
+    public let postActions: [ExecutionAction]
 
     // MARK: - Init
 
     public init(targets: [String] = [],
                 arguments: Arguments? = nil,
                 config: BuildConfiguration = .debug,
-                coverage: Bool = false) {
+                coverage: Bool = false,
+                preActions: [ExecutionAction] = [],
+                postActions: [ExecutionAction] = []) {
         self.targets = targets
         self.arguments = arguments
         self.config = config
         self.coverage = coverage
+        self.preActions = preActions
+        self.postActions = postActions
     }
 
     // MARK: - Equatable
@@ -101,7 +141,9 @@ public class TestAction: Equatable {
         return lhs.targets == rhs.targets &&
             lhs.arguments == rhs.arguments &&
             lhs.config == rhs.config &&
-            lhs.coverage == rhs.coverage
+            lhs.coverage == rhs.coverage &&
+            lhs.preActions == rhs.preActions &&
+            lhs.postActions == rhs.postActions
     }
 }
 

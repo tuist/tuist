@@ -30,6 +30,27 @@ public class Scheme: Codable {
     }
 }
 
+// MARK: - ExecutionAction
+
+public class ExecutionAction: Codable {
+    
+    public let title: String
+    public let scriptText: String
+    public let target: String?
+    
+    public enum CodingKeys: String, CodingKey {
+        case title
+        case scriptText = "script_text"
+        case target
+    }
+    
+    public init(title: String = "Run Script", scriptText: String, target: String? = nil) {
+        self.title = title
+        self.scriptText = scriptText
+        self.target = target
+    }
+}
+
 // MARK: - Arguments
 
 public class Arguments: Codable {
@@ -41,8 +62,8 @@ public class Arguments: Codable {
         case launch
     }
 
-    public init(environment: [String: String],
-                launch: [String: Bool]) {
+    public init(environment: [String: String] = [:],
+                launch: [String: Bool] = [:]) {
         self.environment = environment
         self.launch = launch
     }
@@ -52,13 +73,21 @@ public class Arguments: Codable {
 
 public class BuildAction: Codable {
     public let targets: [String]
+    public let preActions: [ExecutionAction]
+    public let postActions: [ExecutionAction]
 
     public enum CodingKeys: String, CodingKey {
         case targets
+        case preActions = "pre_actions"
+        case postActions = "post_actions"
     }
-
-    public init(targets: [String]) {
+    
+    public init(targets: [String],
+                preActions: [ExecutionAction] = [],
+                postActions: [ExecutionAction] = []) {
         self.targets = targets
+        self.preActions = preActions
+        self.postActions = postActions
     }
 }
 
@@ -69,22 +98,30 @@ public class TestAction: Codable {
     public let arguments: Arguments?
     public let config: BuildConfiguration
     public let coverage: Bool
+    public let preActions: [ExecutionAction]
+    public let postActions: [ExecutionAction]
 
     public enum CodingKeys: String, CodingKey {
         case targets
         case arguments
         case config
         case coverage
+        case preActions = "pre_actions"
+        case postActions = "post_actions"
     }
 
     public init(targets: [String],
                 arguments: Arguments? = nil,
                 config: BuildConfiguration = .debug,
-                coverage: Bool = false) {
+                coverage: Bool = false,
+                preActions: [ExecutionAction] = [],
+                postActions: [ExecutionAction] = []){
         self.targets = targets
         self.arguments = arguments
         self.config = config
         self.coverage = coverage
+        self.preActions = preActions
+        self.postActions = postActions
     }
 }
 
