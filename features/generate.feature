@@ -106,6 +106,7 @@ Scenario: The project is an iOS application that has resources (ios_app_with_cus
     Then tuist generates the project
     Then I should be able to build the scheme App-Debug
     Then I should be able to build the scheme App-Release
+    Then I should be able to build the scheme App-Local
     Then I should be able to test the scheme AppTests
     Then I should be able to build the scheme Framework1
     Then I should be able to test the scheme Framework1Tests

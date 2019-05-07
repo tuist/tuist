@@ -51,10 +51,11 @@ final class ProjectGeneratorTests: XCTestCase {
     func test_generate_scheme() throws {
         // Given
         let target = Target.test(name: "Target", platform: .iOS, product: .framework)
-        let scheme = Scheme.test(name: "Target-Scheme", shared: true, buildAction: BuildAction(targets: ["Target"]))
+        let sharedScheme = Scheme.test(name: "Target-Scheme", shared: true, buildAction: BuildAction(targets: ["Target"]))
+        let localScheme = Scheme.test(name: "Target-Local", shared: false, buildAction: BuildAction(targets: ["Target"]))
 
         let targets = [target]
-        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets, schemes: [scheme])
+        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets, schemes: [sharedScheme, localScheme])
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
         
         let cache = GraphLoaderCache()
@@ -72,8 +73,18 @@ final class ProjectGeneratorTests: XCTestCase {
         
         // Then
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
-        let targetScheme = schemesPath.appending(component: "Target-Scheme.xcscheme")
-        XCTAssertTrue(fileHandler.exists(targetScheme))
+        let scheme = schemesPath.appending(component: "Target-Scheme.xcscheme")
+        XCTAssertTrue(fileHandler.exists(scheme))
+        
+        let username = NSUserName()
+        let userSchemesPath = got.path.appending(RelativePath("\(username).xcuserdatad/xcschemes"))
+        let userScheme = userSchemesPath.appending(component: "Target-Local.xcscheme")
+        XCTAssertTrue(fileHandler.exists(userScheme))
+        
+        // It doensn't generate Target Scheme
+        let targetSchemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
+        let targetScheme = targetSchemesPath.appending(component: "Target.xcscheme")
+        XCTAssertFalse(fileHandler.exists(targetScheme))
     }
 
     func test_generate_testTargetIdentity() throws {
