@@ -437,7 +437,7 @@ final class SchemesGenerator: SchemesGenerating {
             path = projectPath.appending(RelativePath("xcshareddata/xcschemes"))
         } else {
             let username = NSUserName()
-            path = projectPath.appending(RelativePath("\(username).xcuserdatad/xcschemes"))
+            path = projectPath.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
         if !fileHandler.exists(path) {
             try fileHandler.createFolder(path)

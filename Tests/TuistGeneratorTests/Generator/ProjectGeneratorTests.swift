@@ -77,7 +77,7 @@ final class ProjectGeneratorTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(scheme))
         
         let username = NSUserName()
-        let userSchemesPath = got.path.appending(RelativePath("\(username).xcuserdatad/xcschemes"))
+        let userSchemesPath = got.path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
         let userScheme = userSchemesPath.appending(component: "Target-Local.xcscheme")
         XCTAssertTrue(fileHandler.exists(userScheme))
     }
