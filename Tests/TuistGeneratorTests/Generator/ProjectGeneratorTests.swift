@@ -80,11 +80,6 @@ final class ProjectGeneratorTests: XCTestCase {
         let userSchemesPath = got.path.appending(RelativePath("\(username).xcuserdatad/xcschemes"))
         let userScheme = userSchemesPath.appending(component: "Target-Local.xcscheme")
         XCTAssertTrue(fileHandler.exists(userScheme))
-        
-        // It doensn't generate Target Scheme
-        let targetSchemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
-        let targetScheme = targetSchemesPath.appending(component: "Target.xcscheme")
-        XCTAssertFalse(fileHandler.exists(targetScheme))
     }
 
     func test_generate_testTargetIdentity() throws {
