@@ -129,6 +129,54 @@ final class ProjectFileElementsTests: XCTestCase {
         ])
     }
 
+    func test_addElement_xcassets() throws {
+        // Given
+        let element = GroupFileElement(path: "/path/myfolder/resources/assets.xcassets/foo/bar.png",
+                                       group: .group(name: "Project"),
+                                       isReference: true)
+
+        // When
+        try subject.generate(fileElement: element,
+                             groups: groups,
+                             pbxproj: pbxproj,
+                             sourceRootPath: "/path")
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "myfolder/resources/assets.xcassets",
+        ])
+    }
+
+    func test_addElement_xcassets_multiple_files() throws {
+        // Given
+        let resouces = [
+            "/path/myfolder/resources/assets.xcassets/foo/a.png",
+            "/path/myfolder/resources/assets.xcassets/foo/abc/b.png",
+            "/path/myfolder/resources/assets.xcassets/foo/def/c.png",
+            "/path/myfolder/resources/assets.xcassets",
+        ]
+        let elements = resouces.map {
+            GroupFileElement(path: AbsolutePath($0),
+                             group: .group(name: "Project"),
+                             isReference: true)
+        }
+
+        // When
+        try elements.forEach {
+            try subject.generate(fileElement: $0,
+                                 groups: groups,
+                                 pbxproj: pbxproj,
+                                 sourceRootPath: "/path")
+        }
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "myfolder/resources/assets.xcassets",
+        ])
+    }
+
     func test_targetProducts() {
         let target = Target.test()
         let products = subject.targetProducts(target: target).sorted()

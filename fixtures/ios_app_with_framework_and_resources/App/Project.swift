@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: "Config/App-Info.plist",
             sources: "Sources/**",
             resources: [
-                "Resources/*.png",
+                "Resources/**/*.png",
                 "Resources/*.xcassets",
                 "Resources/**/*.txt",
                 "Resources/resource_without_extension",
