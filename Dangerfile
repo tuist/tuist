@@ -2,7 +2,7 @@
 all_files = git.modified_files + git.added_files
 
 # Changelog
-unless git.modified_files.include?("CHANGELOG.md")
+if !git.modified_files.include?("CHANGELOG.md") && all_files.any? { |f| f.include?("Sources/") }
   message = <<~MESSAGE
     Please include a CHANGELOG entry.
     You can find it at [CHANGELOG.md](https://github.com/tuist/tuist/blob/master/CHANGELOG.md).
