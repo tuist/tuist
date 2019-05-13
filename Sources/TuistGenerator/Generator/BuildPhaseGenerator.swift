@@ -232,9 +232,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         fileElements: ProjectFileElements,
                                         pbxproj: PBXProj,
                                         resourcesBuildPhase: PBXResourcesBuildPhase) {
-        let dependencies = graph.targetDependencies(path: path, name: target.name)
-        let bundles = dependencies.filter { $0.target.product == .bundle }
-
+        let bundles = graph.resourceBundleDependencies(path: path, name: target.name)
         let refs = bundles.compactMap { fileElements.product(name: $0.target.productNameWithExtension) }
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)

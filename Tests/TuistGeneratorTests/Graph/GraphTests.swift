@@ -281,4 +281,48 @@ final class GraphTests: XCTestCase {
         // Then
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
     }
+
+    func test_resourceBundleDependencies_fromTargetDependency() {
+        // Given
+        let bundle = Target.test(name: "Bundle1", product: .bundle)
+        let app = Target.test(name: "App", product: .bundle)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: bundle, dependencies: []),
+                                     (target: app, dependencies: [bundle]),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectA.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "Bundle1",
+        ])
+    }
+
+    func test_resourceBundleDependencies_fromProjectDependency() {
+        // Given
+        let bundle = Target.test(name: "Bundle1", product: .bundle)
+        let projectA = Project.test(path: "/path/a")
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b")
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectA, target: bundle, dependencies: []),
+                                     (project: projectB, target: app, dependencies: [bundle]),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "Bundle1",
+        ])
+    }
 }
