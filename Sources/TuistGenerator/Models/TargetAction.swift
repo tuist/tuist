@@ -28,6 +28,18 @@ public struct TargetAction {
     /// Arguments that to be passed
     public let arguments: [String]
 
+    /// List of input file paths
+    public let inputPaths: [String]
+
+    /// List of input filelist paths
+    public let inputFileListPaths: [String]
+
+    /// List of output file paths
+    public let outputPaths: [String]
+
+    /// List of output filelist paths
+    public let outputFileListPaths: [String]
+
     /// Initializes a new target action with its attributes.
     ///
     /// - Parameters:
@@ -36,16 +48,28 @@ public struct TargetAction {
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH
     ///   - path: Path to the script to execute
     ///   - arguments: Arguments that to be passed
+    ///   - inputPaths: List of input file paths
+    ///   - inputFileListPaths: List of input filelist paths
+    ///   - outputPaths: List of output file paths
+    ///   - outputFileListPaths: List of output filelist paths
     public init(name: String,
                 order: Order,
                 tool: String? = nil,
                 path: AbsolutePath? = nil,
-                arguments: [String] = []) {
+                arguments: [String] = [],
+                inputPaths: [String] = [],
+                inputFileListPaths: [String] = [],
+                outputPaths: [String] = [],
+                outputFileListPaths: [String] = []) {
         self.name = name
         self.order = order
         self.tool = tool
         self.path = path
         self.arguments = arguments
+        self.inputPaths = inputPaths
+        self.inputFileListPaths = inputFileListPaths
+        self.outputPaths = outputPaths
+        self.outputFileListPaths = outputFileListPaths
     }
 
     /// Returns the shell script that should be used in the target build phase.

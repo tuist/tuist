@@ -293,7 +293,13 @@ extension TuistGenerator.TargetAction {
         let order = TuistGenerator.TargetAction.Order.from(manifest: manifest.order)
         let path = manifest.path.map { AbsolutePath($0, relativeTo: path) }
         let arguments = manifest.arguments
-        return TargetAction(name: name, order: order, tool: tool, path: path, arguments: arguments)
+        let inputPaths = manifest.inputPaths
+        let inputFileListPaths = manifest.inputFileListPaths
+        let outputPaths = manifest.outputPaths
+        let outputFileListPaths = manifest.outputFileListPaths
+        return TargetAction(name: name, order: order, tool: tool, path: path1, arguments: arguments,
+                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
     }
 }
 
