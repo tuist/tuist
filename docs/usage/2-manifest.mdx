@@ -94,9 +94,9 @@ Each target in the list of project targets can be initialized with the following
   - **[String]:** A list of files or list of glob patterns _(e.g. `["Sources/**"]`)_
 - **Resources (optional):** List of [FileElement](#FileElement)s to include in the resource build phase.
 - **Headers (optional):** Target headers. It accepts a `Header` type that is initialized with the following attributes:
-  - **Public:** Relative path to the folder that contains the public headers.
-  - **Private:** Relative path to the folder that contains the private headers.
-  - **Project:** Relative path to the folder that contains the project headers.
+  - **Public:** Relative path or glob pattern to the public headers _(e.g. `Sources/Public/**`)_
+  - **Private:** Relative path or glob pattern to the private headers _(e.g. `Sources/Private/**`)_
+  - **Project:** Relative path or glob pattern to the project headers _(e.g. `Sources/Project/**`)_
 - **Entitlements (optional):** Relative path to the entitlements file.
 - **Actions (optional):** Target actions allow defining extra script build phases. It's an array of `TargetAction` objects that that can be of type `pre` and `post`:
   - **pre:** Executed before the target-specific build phases.

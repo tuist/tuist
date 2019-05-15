@@ -348,34 +348,45 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_headers() throws {
         // Given
-        let publicPath = path.appending(component: "public")
-        try fileHandler.createFolder(publicPath)
-        try fileHandler.touch(publicPath.appending(component: "a.h"))
-        try fileHandler.touch(publicPath.appending(component: "b.h"))
+        try fileHandler.createFiles([
+            "Sources/public/A1.h",
+            "Sources/public/A1.m",
+            "Sources/public/A2.h",
+            "Sources/public/A2.m",
 
-        let projectPath = path.appending(component: "project")
-        try fileHandler.createFolder(projectPath)
-        try fileHandler.touch(projectPath.appending(component: "c.h"))
+            "Sources/private/B1.h",
+            "Sources/private/B1.m",
+            "Sources/private/B2.h",
+            "Sources/private/B2.m",
 
-        let privatePath = path.appending(component: "private")
-        try fileHandler.createFolder(privatePath)
+            "Sources/project/C1.h",
+            "Sources/project/C1.m",
+            "Sources/project/C2.h",
+            "Sources/project/C2.m",
+        ])
 
-        let manifest = HeadersManifest(public: "public/*.h", private: "private/*.h", project: "project/*.h")
+        let manifest = HeadersManifest(public: "Sources/public/**",
+                                       private: "Sources/private/**",
+                                       project: "Sources/project/**")
 
         // When
         let model = TuistGenerator.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(model.public, [
-            publicPath.appending(component: "a.h"),
-            publicPath.appending(component: "b.h"),
-        ])
+            "Sources/public/A1.h",
+            "Sources/public/A2.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.private, [
+            "Sources/private/B1.h",
+            "Sources/private/B2.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
 
         XCTAssertEqual(model.project, [
-            projectPath.appending(component: "c.h"),
-        ])
-
-        XCTAssertEqual(model.private, [])
+            "Sources/project/C1.h",
+            "Sources/project/C2.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
     }
 
     func test_coreDataModel() throws {
