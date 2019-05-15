@@ -22,17 +22,3 @@ Then(/tuist generates reports error "(.+)"/) do |error|
   assert_equal(actual_msg, expected_msg)
   assert_equal(wait_thr.value.exitstatus, 1)
 end
-
-Then("tuist regenerates the project {int} times and comapre hashes of the generated project file {string}") do |times, project_file|
-  hash = ""
-  prev_hash = ""
-  for i in 1..times do
-    system("swift", "run", "tuist", "generate", "--path", @dir)
-    xcodeproj_path = File.join(@dir, project_file)
-    hash = Digest::MD5.hexdigest(File.read(xcodeproj_path))
-    if i > 1 then
-       assert_equal(hash, prev_hash)
-    end
-    prev_hash = hash
-  end
-end

@@ -261,22 +261,22 @@ final class ProjectFileElementsTests: XCTestCase {
         ]))
     }
 
-    func test_generateProduct() {
+    func test_generateProduct() throws {
         let pbxproj = PBXProj()
         let project = Project.test()
         let sourceRootPath = AbsolutePath("/a/project/")
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        let products = ["Test.framework"]
-        subject.generate(products: products,
-                         groups: groups,
-                         pbxproj: pbxproj)
+        try subject.generateProducts(project: project,
+                                     dependencies: [],
+                                     groups: groups,
+                                     pbxproj: pbxproj)
         XCTAssertEqual(groups.products.children.count, 1)
-        let fileReference = subject.product(name: "Test.framework")
+        let fileReference = subject.product(name: "Target.app")
         XCTAssertNotNil(fileReference)
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
-        XCTAssertEqual(fileReference?.path, "Test.framework")
+        XCTAssertEqual(fileReference?.path, "Target.app")
         XCTAssertNil(fileReference?.name)
         XCTAssertEqual(fileReference?.includeInIndex, false)
     }
@@ -328,11 +328,7 @@ final class ProjectFileElementsTests: XCTestCase {
                              sourceRootPath: sourceRootPath,
                              filesGroup: .group(name: "Project"))
 
-        let fileReference: PBXFileReference? = groups.products.children.first as? PBXFileReference
-        XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
-        XCTAssertEqual(fileReference?.includeInIndex, false)
-        XCTAssertEqual(fileReference?.path, "Target.app")
-        XCTAssertEqual(fileReference?.explicitFileType, "wrapper.application")
+        XCTAssertTrue(groups.products.children.isEmpty)
     }
 
     func test_generateDependencies_whenPrecompiledNode() throws {

@@ -117,9 +117,6 @@ final class ProjectGenerator: ProjectGenerating {
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
                                     pbxproj: PBXProj) throws -> PBXProject {
-        // sort products
-        groups.products.children.sort(by: { (p1, p2) in p1.nameOrPath < p2.nameOrPath })
-
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,

@@ -116,9 +116,3 @@ Scenario: The project is an iOS application that has resources (ios_app_with_cus
     Then I should be able to test the scheme Framework1Tests
     Then I should be able to build the scheme Framework2
     Then I should be able to test the scheme Framework2Tests
-
-Scenario: The project is an iOS application that has multiple dependencies (ios_app_with_multiple_dependencies)
-    Given that tuist is available
-    And I have a working directory
-    Then I copy the fixture ios_app_with_multiple_dependencies into the working directory
-    Then tuist regenerates the project 5 times and comapre hashes of the generated project file "App/MainApp.xcodeproj/project.pbxproj"
