@@ -36,7 +36,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         fileElements.products["waka.framework"] = wakaFile
         let sourceRootPath = AbsolutePath("/")
 
-        try subject.generateEmbedPhase(dependencies: Set(dependencies),
+        try subject.generateEmbedPhase(dependencies: dependencies,
                                        pbxTarget: pbxTarget,
                                        pbxproj: pbxproj,
                                        fileElements: fileElements,
@@ -64,7 +64,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let fileElements = ProjectFileElements()
         let sourceRootPath = AbsolutePath("/")
 
-        XCTAssertThrowsError(try subject.generateEmbedPhase(dependencies: Set(dependencies),
+        XCTAssertThrowsError(try subject.generateEmbedPhase(dependencies: dependencies,
                                                             pbxTarget: pbxTarget,
                                                             pbxproj: pbxproj,
                                                             fileElements: fileElements,

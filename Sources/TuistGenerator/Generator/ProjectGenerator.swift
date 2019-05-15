@@ -81,12 +81,10 @@ final class ProjectGenerator: ProjectGenerating {
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
-
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
                                                                           fileElements: fileElements,
                                                                           options: options)
-
         let pbxProject = try generatePbxproject(project: project,
                                                 configurationList: configurationList,
                                                 groups: groups,
@@ -119,6 +117,9 @@ final class ProjectGenerator: ProjectGenerating {
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
                                     pbxproj: PBXProj) throws -> PBXProject {
+        // sort products
+        groups.products.children.sort(by: { (p1, p2) in p1.nameOrPath < p2.nameOrPath })
+
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
