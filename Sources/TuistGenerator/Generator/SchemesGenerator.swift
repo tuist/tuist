@@ -75,7 +75,7 @@ final class SchemesGenerator: SchemesGenerating {
     func generateScheme(scheme: Scheme,
                         project: Project,
                         generatedProject: GeneratedProject) throws {
-        let schemesDirectory = try createSchemesDirectory(projectPath: generatedProject.path)
+        let schemesDirectory = try createSchemesDirectory(projectPath: generatedProject.path, shared: scheme.shared)
         let schemePath = schemesDirectory.appending(component: "\(scheme.name).xcscheme")
         
         let generatedBuildAction = schemeBuildAction(scheme: scheme, project: project, generatedProject: generatedProject)
@@ -428,10 +428,17 @@ final class SchemesGenerator: SchemesGenerating {
     ///
     /// - Parameters:
     ///   - projectPath: Path to the Xcode project.
+    ///   - shared: Scheme should be shared or not
     /// - Returns: Path to the schemes directory.
     /// - Throws: A FatalError if the creation of the directory fails.
-    private func createSchemesDirectory(projectPath: AbsolutePath) throws -> AbsolutePath {
-        let path = projectPath.appending(RelativePath("xcshareddata/xcschemes"))
+    private func createSchemesDirectory(projectPath: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
+        var path: AbsolutePath!
+        if shared {
+            path = projectPath.appending(RelativePath("xcshareddata/xcschemes"))
+        } else {
+            let username = NSUserName()
+            path = projectPath.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
+        }
         if !fileHandler.exists(path) {
             try fileHandler.createFolder(path)
         }

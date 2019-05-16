@@ -14,6 +14,12 @@ let releaseScheme = Scheme(name: "App-Release",
                            testAction: TestAction(targets: ["AppTests"]),
                            runAction: RunAction(executable: "App"))
 
+let userScheme = Scheme(name: "App-Local",
+                        shared: false,
+                        buildAction: BuildAction(targets: ["App"], preActions: [debugAction]),
+                        testAction: TestAction(targets: ["AppTests"]),
+                        runAction: RunAction(executable: "App"))
+
 let project = Project(name: "MainApp",
                       targets: [
                           Target(name: "App",
@@ -35,6 +41,6 @@ let project = Project(name: "MainApp",
                                  dependencies: [
                                      .target(name: "App"),
                           ])],
-                      schemes: [debugScheme, releaseScheme])
+                      schemes: [debugScheme, releaseScheme, userScheme])
 
 
