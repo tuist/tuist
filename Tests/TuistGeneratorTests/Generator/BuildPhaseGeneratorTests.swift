@@ -129,22 +129,22 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
-        
+
         let fileElements = ProjectFileElements()
         let path = AbsolutePath("/test/file.swift")
-        
+
         let sourceFileReference = PBXFileReference(sourceTree: .group, name: "Test")
         fileElements.elements[path] = sourceFileReference
-        
+
         let headerPath = AbsolutePath("/test.h")
         let headers = Headers.test(public: [path], private: [], project: [])
-        
+
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
-        
+
         let target = Target.test(sources: ["/test/file.swift"],
                                  headers: headers)
-        
+
         try subject.generateBuildPhases(path: tmpDir.path,
                                         target: target,
                                         graph: Graph.test(),
@@ -152,14 +152,13 @@ final class BuildPhaseGeneratorTests: XCTestCase {
                                         fileElements: fileElements,
                                         pbxproj: pbxproj,
                                         sourceRootPath: tmpDir.path)
-        
+
         let firstBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases.first
         XCTAssertNotNil(firstBuildPhase)
         XCTAssertTrue(firstBuildPhase is PBXHeadersBuildPhase)
-        
+
         let secondBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases[1]
         XCTAssertTrue(secondBuildPhase is PBXSourcesBuildPhase)
-
     }
 
     func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
@@ -273,6 +272,39 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
             "Bundle1",
             "Bundle2",
+        ])
+    }
+
+    func test_generateResourceBundle_fromProjectDependency() throws {
+        // Given
+        let bundle = Target.test(name: "Bundle1", product: .bundle)
+        let projectA = Project.test(path: "/path/a")
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b")
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectA, target: bundle, dependencies: []),
+                                     (project: projectB, target: app, dependencies: [bundle]),
+                                 ])
+
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [bundle])
+
+        // When
+        try subject.generateResourcesBuildPhase(path: projectB.path,
+                                                target: app,
+                                                graph: graph,
+                                                pbxTarget: nativeTarget,
+                                                fileElements: fileElements,
+                                                pbxproj: pbxproj)
+
+        // Then
+        let resourcePhase = try nativeTarget.resourcesBuildPhase()
+        XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
+            "Bundle1",
         ])
     }
 

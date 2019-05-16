@@ -59,6 +59,7 @@ protocol Graphing: AnyObject {
     func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> Set<DependencyReference>
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
+    func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
 
     // MARK: - Depth First Search
 
@@ -124,6 +125,15 @@ class Graph: Graphing {
             .filter(isStaticLibrary)
             .map(\.target.productNameWithExtension)
             .map(DependencyReference.product)
+    }
+
+    func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        return targetNode.targetDependencies
+            .filter { $0.target.product == .bundle }
     }
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
