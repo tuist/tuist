@@ -52,10 +52,9 @@ final class ProjectGeneratorTests: XCTestCase {
         // Given
         let target = Target.test(name: "Target", platform: .iOS, product: .framework)
         let sharedScheme = Scheme.test(name: "Target-Scheme", shared: true, buildAction: BuildAction(targets: ["Target"]))
-        let localScheme = Scheme.test(name: "Target-Local", shared: false, buildAction: BuildAction(targets: ["Target"]))
 
         let targets = [target]
-        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets, schemes: [sharedScheme, localScheme])
+        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets, schemes: [sharedScheme])
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
         
         let cache = GraphLoaderCache()
@@ -73,9 +72,33 @@ final class ProjectGeneratorTests: XCTestCase {
         
         // Then
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
-        let scheme = schemesPath.appending(component: "Target-Scheme.xcscheme")
-        XCTAssertTrue(fileHandler.exists(scheme))
+        let targetScheme = schemesPath.appending(component: "Target-Scheme.xcscheme")
+        XCTAssertTrue(fileHandler.exists(targetScheme))
+    }
+
+    func test_generate_local_scheme() throws {
+        // Given
+        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let localScheme = Scheme.test(name: "Target-Local", shared: false, buildAction: BuildAction(targets: ["Target"]))
         
+        let targets = [target]
+        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets, schemes: [localScheme])
+        try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
+        
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        let graph = Graph.test(entryPath: fileHandler.currentPath,
+                               cache: cache,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: target,
+                                                       dependencies: [])])
+        
+        // When
+        let got = try subject.generate(project: project,
+                                       options: GenerationOptions(),
+                                       graph: graph)
+        
+        // Then
         let username = NSUserName()
         let userSchemesPath = got.path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
         let userScheme = userSchemesPath.appending(component: "Target-Local.xcscheme")
