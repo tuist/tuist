@@ -10,12 +10,6 @@ import Message from "./message"
 Projects are defined in `Project.swift` files, which we refer to as manifest files. Manifests need to import the framework `ProjectDescription` which contains all the classes and enums that are available for you to describe your projects. The snippet below shows an example project manifest:
 
 ```swift
-let releaseScheme = Scheme(name: "App-Release",
-                            shared: true,
-                            buildAction: BuildAction(targets: ["App"], preActions: [releaseAction]),
-                            testAction: TestAction(targets: ["AppTests"]),
-                            runAction: RunAction(executable: "App"))
-
 
 let project = Project(name: "MyProject",
                       targets: [
@@ -147,36 +141,36 @@ Each target in the list of project targets can be initialized with the following
 
 ### Scheme
 
-A `Scheme` will help to define a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
+A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
 > Note: Tuist will auto-generate Scheme for each target if they are not defined. 
-- **name: String:** Name of Scheme
-- **shared: Bool:** Scheme is shared or not 
-- **buildAction: BuildAction?:** Scheme Build options
-    - **targets: [String]:** A list of targets will be built, which are defined in Project
-    - **preActions:[ [ExecutionAction](#execution-action)]:** A list of pre build actions
-    - **postActions: [[ExecutionAction](#execution-action)]:** A list of post build actions
-- **testAction: TestAction?:** Scheme Test options
-    - **targets: [String]:** A list of targets will be tested, which are defined in Project
-    - **arguments: [Arguments?](#arguments):** Commandline arguments passed on launch and Environment variables
-    - **config: BuildConfiguration:** Test with  `debug` or `release` configuration
-    - **coverage: Bool:** Scheme should gather coverage data or not. Default is `false`
-    - **preActions: [[ExecutionAction](#execution-action)]:** Pre test script action
-    - **postActions: [[ExecutionAction](#execution-action)]:** Post test script action
-- **runAction: RunAction?:** Run or Launch action
-    - **config: BuildConfiguration:** Run with `debug` or `release` configuration
-    - **executable: String?:** Executable or target will be launch
+- **name: String:** Name of Scheme.
+- **shared: Bool:** Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to `xcodebuild` from the command line).
+- **buildAction: BuildAction?:** Scheme Build options.
+    - **targets: [String]:** A list of targets to build, which are defined in the Project.
+    - **preActions:[ [ExecutionAction](#execution-action)]:** A list of pre build actions.
+    - **postActions: [[ExecutionAction](#execution-action)]:** A list of post build actions.
+- **testAction: TestAction?:** Scheme Test options.
+    - **targets: [String]:** A list of targets to test, which are defined in the Project.
+    - **arguments: [Arguments?](#arguments):** Commandline arguments passed on launch and Environment variables.
+    - **config: BuildConfiguration:** Test with  `debug` or `release` configuration.
+    - **coverage: Bool:** Scheme should gather coverage data or not. Default is `false`.
+    - **preActions: [[ExecutionAction](#execution-action)]:** Pre test script action.
+    - **postActions: [[ExecutionAction](#execution-action)]:** Post test script action.
+- **runAction: RunAction?:** Run or Launch action.
+    - **config: BuildConfiguration:** Run with `debug` or `release` configuration.
+    - **executable: String?:** Executable or target to launch.
     - **arguments: [Arguments?](#arguments):** Commandline arguments passed on launch and Environment variables
     
 #### Execution Action
 Scheme run scripts can be defined with the following attributes:
-- **title: String:** Name of a script. Defaults to `Run Script`
-- **scriptText: String:** An inline shell script
-- **target: String?:** Name of a build or test target that will provide build settings.
+- **title: String:** Name of a script. Defaults to `Run Script`.
+- **scriptText: String:** An inline shell script.
+- **target: String?:** Name of the build or test target that will provide the action's build settings.
 
 #### Arguments
-Arguments contain commandline arguments passed on launch and Environment variables
-- **environment: [String: String]:** Environment variables
-- **launch: [String: Bool]:** Commandline arguments
+Arguments contain commandline arguments passed on launch and Environment variables.
+- **environment: [String: String]:** Environment variables.
+- **launch: [String: Bool]:** Commandline launch arguments where the `key` is a launch argument and the `value` is a boolean indicating if it's enabled.
 
 ### Settings
 
