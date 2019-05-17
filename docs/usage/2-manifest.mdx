@@ -10,6 +10,7 @@ import Message from "./message"
 Projects are defined in `Project.swift` files, which we refer to as manifest files. Manifests need to import the framework `ProjectDescription` which contains all the classes and enums that are available for you to describe your projects. The snippet below shows an example project manifest:
 
 ```swift
+
 let project = Project(name: "MyProject",
                       targets: [
                           Target(name: "App",
@@ -26,6 +27,17 @@ let project = Project(name: "MyProject",
                                      .project(target: "Framework1", path: "../Framework1"),
                                      .project(target: "Framework2", path: "../Framework2")
                                  ])
+                        ],
+                        schemes: [
+                            Scheme(name: "App-Debug",
+                                   shared: true,
+                                   buildAction: BuildAction(targets: ["App"]),
+                                   testAction: TestAction(targets: ["AppTests"]),
+                                   runAction: RunAction(executable: "App")),
+                            Scheme(name: "App-Release",
+                                   shared: true,
+                                   buildAction: BuildAction(targets: ["App"]),
+                                   runAction: RunAction(executable: "App"))
                         ],
                         additionalFiles: [
                                  "Dangerfile.swift",
@@ -52,6 +64,13 @@ description: "Name of the project. It's used to determine the name of the genera
 type: "[Target]",
 typeLink: "#target",
 optional: false,
+default: "[]"
+},
+name: "Schemes",
+description: "List of files to include in the project - these won't be included in any of the build phases",
+type: "[Scheme]",
+typeLink: "#scheme",
+optional: true,
 default: "[]"
 },
 {
@@ -119,6 +138,39 @@ Each target in the list of project targets can be initialized with the following
   - **Path:** Relative path to the Core Data model.
   - **CurrentVersion:** Current version without the extension.
 - **Environment (optional):** It's a `[String: String]` to defined variables that will be set to the scheme that Tuist automatically generates for the target.
+
+### Scheme
+
+A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
+> Note: Tuist will auto-generate Scheme for each target if they are not defined. 
+- **name: String:** Name of Scheme.
+- **shared: Bool:** Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to `xcodebuild` from the command line).
+- **buildAction: BuildAction?:** Scheme Build options.
+    - **targets: [String]:** A list of targets to build, which are defined in the Project.
+    - **preActions:[ [ExecutionAction](#execution-action)]:** A list of pre build actions.
+    - **postActions: [[ExecutionAction](#execution-action)]:** A list of post build actions.
+- **testAction: TestAction?:** Scheme Test options.
+    - **targets: [String]:** A list of targets to test, which are defined in the Project.
+    - **arguments: [Arguments?](#arguments):** Commandline arguments passed on launch and Environment variables.
+    - **config: BuildConfiguration:** Test with  `debug` or `release` configuration.
+    - **coverage: Bool:** Scheme should gather coverage data or not. Default is `false`.
+    - **preActions: [[ExecutionAction](#execution-action)]:** Pre test script action.
+    - **postActions: [[ExecutionAction](#execution-action)]:** Post test script action.
+- **runAction: RunAction?:** Run or Launch action.
+    - **config: BuildConfiguration:** Run with `debug` or `release` configuration.
+    - **executable: String?:** Executable or target to launch.
+    - **arguments: [Arguments?](#arguments):** Commandline arguments passed on launch and Environment variables
+    
+#### Execution Action
+Scheme run scripts can be defined with the following attributes:
+- **title: String:** Name of a script. Defaults to `Run Script`.
+- **scriptText: String:** An inline shell script.
+- **target: String?:** Name of the build or test target that will provide the action's build settings.
+
+#### Arguments
+Arguments contain commandline arguments passed on launch and Environment variables.
+- **environment: [String: String]:** Environment variables.
+- **launch: [String: Bool]:** Commandline launch arguments where the `key` is a launch argument and the `value` is a boolean indicating if it's enabled.
 
 ### Settings
 
