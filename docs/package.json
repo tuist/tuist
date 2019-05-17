@@ -6,5 +6,9 @@
   "scripts": {
     "docz:dev": "docz dev",
     "docz:build": "docz build"
+  },
+  "dependencies": {
+    "react-table": "^6.10.0",
+    "semantic-ui-react": "^0.87.1"
   }
 }

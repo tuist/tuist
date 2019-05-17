@@ -5,23 +5,23 @@ export default {
   themeConfig: {
     codemirrorTheme: 'dracula',
     colors: {
-      blue: "#3495E8",
-      darkBlue: "#12344F",
-      lightGray: "#F8F8F8",
-      gray: "#A3A3A3",
-      purple: "#7768AF",
-      darkPurple: "#52428E",
-      green: "#3EB270",
-      darkGreen: "#207E49",
-      yellow: "#FFC107",
+      blue: '#3495E8',
+      darkBlue: '#12344F',
+      lightGray: '#F8F8F8',
+      gray: '#A3A3A3',
+      purple: '#7768AF',
+      darkPurple: '#52428E',
+      green: '#3EB270',
+      darkGreen: '#207E49',
+      yellow: '#FFC107',
       primary: '#3495E8',
       link: 'green',
       sidebarHighlight: 'purple',
     },
     logo: {
       src: '/public/logo.png',
-      width: 100
-    }
+      width: 100,
+    },
   },
   public: './public',
   htmlContext: {
@@ -30,10 +30,15 @@ export default {
       links: [
         {
           rel: 'stylesheet',
-          href: 'https://codemirror.net/theme/dracula.css'
-        }
-      ]
-    }
+          href: 'https://codemirror.net/theme/dracula.css',
+        },
+        {
+          rel: 'stylesheet',
+          href:
+            '//cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.css',
+        },
+      ],
+    },
   },
   menu: [
     'Getting started',
