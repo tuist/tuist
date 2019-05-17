@@ -302,9 +302,14 @@ extension TuistGenerator.Headers {
         return Headers(public: `public`, private: `private`, project: project)
     }
 
-    private static func headerFiles(path: AbsolutePath, glob: String, fileHandler: FileHandling) -> [AbsolutePath] {
+    private static func headerFiles(path: AbsolutePath,
+                                    glob: String,
+                                    fileHandler: FileHandling) -> [AbsolutePath] {
         return fileHandler.glob(path, glob: glob).filter {
-            $0.extension == "h"
+            if let `extension` = $0.extension, Headers.extensions.contains(".\(`extension`)") {
+                return true
+            }
+            return false
         }
     }
 }
