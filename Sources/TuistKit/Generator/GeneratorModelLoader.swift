@@ -156,7 +156,7 @@ extension TuistGenerator.Project {
         }
 
         let schemes = manifest.schemes.map { TuistGenerator.Scheme.from(manifest: $0) }
-        
+
         let additionalFiles = manifest.additionalFiles.flatMap {
             TuistGenerator.FileElement.from(manifest: $0,
                                             path: path,
@@ -296,10 +296,21 @@ extension TuistGenerator.CoreDataModel {
 
 extension TuistGenerator.Headers {
     static func from(manifest: ProjectDescription.Headers, path: AbsolutePath, fileHandler: FileHandling) -> TuistGenerator.Headers {
-        let `public` = manifest.public.map { fileHandler.glob(path, glob: $0) } ?? []
-        let `private` = manifest.private.map { fileHandler.glob(path, glob: $0) } ?? []
-        let project = manifest.project.map { fileHandler.glob(path, glob: $0) } ?? []
+        let `public` = manifest.public.map { headerFiles(path: path, glob: $0, fileHandler: fileHandler) } ?? []
+        let `private` = manifest.private.map { headerFiles(path: path, glob: $0, fileHandler: fileHandler) } ?? []
+        let project = manifest.project.map { headerFiles(path: path, glob: $0, fileHandler: fileHandler) } ?? []
         return Headers(public: `public`, private: `private`, project: project)
+    }
+
+    private static func headerFiles(path: AbsolutePath,
+                                    glob: String,
+                                    fileHandler: FileHandling) -> [AbsolutePath] {
+        return fileHandler.glob(path, glob: glob).filter {
+            if let `extension` = $0.extension, Headers.extensions.contains(".\(`extension`)") {
+                return true
+            }
+            return false
+        }
     }
 }
 
