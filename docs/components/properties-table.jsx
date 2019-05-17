@@ -15,7 +15,7 @@ const PropertiesTable = ({ props }) => {
       </Table.Header>
 
       <Table.Body>
-        {props.map(prop => {
+        {props.map((prop, index) => {
           let type
           if (prop.typeLink) {
             type = <a href={prop.typeLink}>{prop.type}</a>
@@ -24,10 +24,13 @@ const PropertiesTable = ({ props }) => {
           }
 
           return (
-            <Table.Row>
-              <Table.Cell>{prop.name}</Table.Cell>
+            <Table.Row warning={prop.deprecated} key={index}>
+              <Table.Cell>
+                {prop.deprecated && <Label ribbon>Deprecated</Label>}
+                {prop.name}
+              </Table.Cell>
               <Table.Cell>{prop.description}</Table.Cell>
-              <Table.Cell>{type}</Table.Cell>
+              <Table.Cell singleLine>{type}</Table.Cell>
               <Table.Cell>{prop.optional ? 'Yes' : 'No'}</Table.Cell>
               <Table.Cell>{prop.default}</Table.Cell>
             </Table.Row>

@@ -2,8 +2,9 @@
 name: Manifest format
 ---
 
-import PropertiesTable from "./properties-table"
-import Message from "./message"
+import PropertiesTable from "../components/properties-table"
+import Message from "../components/message"
+import EnumTable from "../components/enum"
 
 ## Project.swift
 
@@ -124,17 +125,67 @@ Each target in the list of project targets can be initialized with the following
 
 A `Settings` object contains an optional dictionary with build settings and relative path to an `.xcconfig` file. It is initialized with the following attributes:
 
-- **Base (optional):** A `[String: String]` with build settings that are inherited from all the configurations.
-- **Debug (optional):** The debug configuration settings. The settings are initialized with `.settings([String: String], xcconfig: String)` where the first argument are the build settings and the second a relative path to an xcconfig file. Both arguments are optionals.
-- **Release (optional):** Same as debug but for the release configuration.
+<PropertiesTable props={[
+{
+name: "Base",
+description: "A dictionary with build settings that are inherited from all the configurations.",
+type: "[String: String]",
+optional: true,
+default: "[:]"
+},
+{
+name: "Debug",
+description: "The debug configuration settings.",
+type: "Configuration",
+typeLink: "#configuration",
+optional: true,
+default: "",
+},
+{
+name: "Release",
+description: "Same as debug but for the release configuration.",
+type: "Configuration",
+typeLink: "#configuration",
+optional: true,
+default: "",
+}
+]}/>
+
+### Configuration
+
+A `Configuration` object describes the build settings and the `.xcconfig` file of a project or target. It is initialized with the following attributes:
+
+<PropertiesTable props={[
+{
+name: "Settings",
+description: "A dictionary that contains the build settings",
+type: "[String: String]",
+optional: true,
+default: "[:]"
+},
+{
+name: "Xcconfig",
+description: "The path to the xcconfig file",
+type: "String",
+optional: true,
+default: ""
+},
+]}/>
 
 ### FileElement
 
 A `FileElement` can be one of the following options:
 
-- `.glob(pattern: String)`: A file path (or glob pattern) to include.
-  - _For convenience, a string literal can be used as an alternate way to specify this option._
-- `.folderReference(path: String)`: A directory path to include as a folder reference.
+<EnumTable cases={[
+{
+case: ".glob(pattern: String)",
+description: "A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify this option."
+},
+{
+case: ".folderReference(path: String)",
+description: "A directory path to include as a folder reference."
+}
+]}/>
 
 ## Workspace.swift
 
