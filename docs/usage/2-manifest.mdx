@@ -143,7 +143,9 @@ Each target in the list of project targets can be initialized with the following
 ### Scheme
 
 A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
-> Note: Tuist will auto-generate Scheme for each target if they are not defined. 
+
+> Note: Tuist will auto-generate a scheme for each target by default in addition to any defined schemes.
+
 - **name: String:** Name of Scheme.
 - **shared: Bool:** Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to `xcodebuild` from the command line).
 - **buildAction: BuildAction?:** Scheme Build options.
