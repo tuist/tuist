@@ -82,6 +82,58 @@ final class GraphLinterTests: XCTestCase {
         XCTAssertTrue(result.contains(LintingIssue(reason: "Target staticFramework has been linked against AppTarget and frameworkA, it is a static product so may introduce unwanted side effects.", severity: .warning)))
     }
 
+    func test_lint_when_staticFramework_depends_on_static_products() throws {
+        // Given
+        let appTarget = Target.test(name: "AppTarget", product: .app)
+        let staticFrameworkA = Target.test(name: "staticFrameworkA", product: .staticFramework)
+        let staticFrameworkB = Target.test(name: "staticFrameworkB", product: .staticFramework)
+        let staticLibrary = Target.test(name: "staticLibrary", product: .staticLibrary)
+
+        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
+        let frameworks = Project.test(path: "/tmp/staticframework",
+                                      name: "projectStaticFramework",
+                                      targets: [staticFrameworkA, staticFrameworkB, staticLibrary])
+
+        let graph = Graph.create(dependencies: [
+            (project: app, target: appTarget, dependencies: [staticFrameworkA, staticFrameworkB, staticLibrary]),
+            (project: frameworks, target: staticFrameworkA, dependencies: [staticFrameworkB]),
+            (project: frameworks, target: staticFrameworkB, dependencies: [staticLibrary]),
+            (project: frameworks, target: staticLibrary, dependencies: []),
+        ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_lint_when_staticLibrary_depends_on_static_products() throws {
+        // Given
+        let appTarget = Target.test(name: "AppTarget", product: .app)
+        let staticLibraryA = Target.test(name: "staticLibraryA", product: .staticLibrary)
+        let staticLibraryB = Target.test(name: "staticLibraryB", product: .staticLibrary)
+        let staticFramework = Target.test(name: "staticFramework", product: .staticFramework)
+
+        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
+        let frameworks = Project.test(path: "/tmp/staticframework",
+                                      name: "projectStaticFramework",
+                                      targets: [staticLibraryA, staticLibraryB, staticFramework])
+
+        let graph = Graph.create(dependencies: [
+            (project: app, target: appTarget, dependencies: [staticLibraryA, staticLibraryB, staticFramework]),
+            (project: frameworks, target: staticLibraryA, dependencies: [staticLibraryB]),
+            (project: frameworks, target: staticLibraryB, dependencies: [staticFramework]),
+            (project: frameworks, target: staticFramework, dependencies: []),
+        ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func test_lint_frameworkDependsOnBundle() throws {
         // Given
         let bundle = Target.empty(name: "bundle", product: .bundle)

@@ -85,18 +85,6 @@ class GraphLinter: GraphLinting {
 
         targetNode.dependencies.forEach { toNode in
             if let toTargetNode = toNode as? TargetNode {
-                if toTargetNode.target.product.isStatic {
-                    let warning = StaticDepedencyWarning(targetNode: targetNode,
-                                                         linkingStaticTargetNode: toTargetNode)
-                    let (inserted, oldMember) = linkedStaticProducts.insert(warning)
-
-                    if inserted == false {
-                        let reason = "Target \(toTargetNode.target.name) has been linked against \(oldMember.targetNode.target.name) and \(targetNode.target.name), it is a static product so may introduce unwanted side effects."
-                        let issue = LintingIssue(reason: reason, severity: .warning)
-                        issues.append(issue)
-                    }
-                }
-
                 issues.append(contentsOf: lintDependency(from: targetNode, to: toTargetNode))
             }
             issues.append(contentsOf: lintGraphNode(node: toNode, evaluatedNodes: &evaluatedNodes))
@@ -126,7 +114,25 @@ class GraphLinter: GraphLinting {
             issues.append(issue)
         }
 
+        issues.append(contentsOf: lintStaticDependencies(from: from, to: to))
+
         return issues
+    }
+
+    private func lintStaticDependencies(from: TargetNode, to: TargetNode) -> [LintingIssue] {
+        guard to.target.product.isStatic, from.target.canLinkStaticProducts() else {
+            return []
+        }
+        let warning = StaticDepedencyWarning(targetNode: from,
+                                             linkingStaticTargetNode: to)
+        let (inserted, oldMember) = linkedStaticProducts.insert(warning)
+        guard inserted == false else {
+            return []
+        }
+
+        let reason = "Target \(to.target.name) has been linked against \(oldMember.targetNode.target.name) and \(from.target.name), it is a static product so may introduce unwanted side effects."
+        let issue = LintingIssue(reason: reason, severity: .warning)
+        return [issue]
     }
 
     struct LintableTarget: Equatable, Hashable {

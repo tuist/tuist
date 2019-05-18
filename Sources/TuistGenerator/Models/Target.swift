@@ -63,8 +63,14 @@ public class Target: Equatable {
         self.dependencies = dependencies
     }
 
+    /// Target can be included in the link phase of other targets
     func isLinkable() -> Bool {
         return [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
+    }
+
+    /// Target can link staitc products (e.g. an app can link a staticLibrary)
+    func canLinkStaticProducts() -> Bool {
+        return [.framework, .app, .unitTests, .uiTests].contains(product)
     }
 
     /// Returns the product name including the extension.

@@ -44,7 +44,7 @@ extension Graph {
     /// Note: For the purposes of testing, to reduce complexity of resolving dependencies
     ///       The `dependencies` property is used to define the dependencies explicitly.
     ///       All targets need to be listed even if they don't have any dependencies.
-    static func create(projects: [Project],
+    static func create(projects: [Project] = [],
                        dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> Graph {
         let targetNodes = createTargetNodes(dependencies: dependencies)
 

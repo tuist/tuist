@@ -143,7 +143,7 @@ class Graph: Graphing {
 
         var references: [DependencyReference] = []
 
-        /// Precompiled libraries and frameworks
+        // Precompiled libraries and frameworks
 
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies
             .map(\.path)
@@ -151,12 +151,9 @@ class Graph: Graphing {
 
         references.append(contentsOf: precompiledLibrariesAndFrameworks)
 
-        switch targetNode.target.product {
-        case .staticLibrary, .dynamicLibrary, .staticFramework, .bundle:
-            // Ignore the products, they do not want to directly link the static libraries, the top level bundles will be responsible.
-            break
-        case .app, .unitTests, .uiTests, .framework:
+        // Static libraries and frameworks
 
+        if targetNode.target.canLinkStaticProducts() {
             let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
                 .lazy
                 .map(\.target.productNameWithExtension)
