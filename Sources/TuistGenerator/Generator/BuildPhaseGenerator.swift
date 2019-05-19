@@ -171,6 +171,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             resourcesBuildPhase: PBXResourcesBuildPhase) throws {
+        var buildFilesCache = Set<PBXFileElement>()
         try files.forEach { buildFilePath in
             let pathString = buildFilePath.pathString
             let pathRange = NSRange(location: 0, length: pathString.count)
@@ -194,17 +195,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
                 element = group
-
             } else if !isLproj {
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
                 element = fileReference
             }
-            if let element = element {
+            if let element = element, buildFilesCache.contains(element) == false {
                 let pbxBuildFile = PBXBuildFile(file: element)
                 pbxproj.add(object: pbxBuildFile)
                 resourcesBuildPhase.files?.append(pbxBuildFile)
+                buildFilesCache.insert(element)
             }
         }
     }
