@@ -24,8 +24,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                         sourceRootPath: "/path",
                                         playgrounds: MockPlaygrounds())
 
-        subject = ProjectFileElements(playgrounds: playgrounds,
-                                      fileHandler: fileHandler)
+        subject = ProjectFileElements(playgrounds: playgrounds)
     }
 
     func test_projectFiles() {
@@ -133,8 +132,7 @@ final class ProjectFileElementsTests: XCTestCase {
     func test_addElement_xcassets() throws {
         // Given
         let element = GroupFileElement(path: "/path/myfolder/resources/assets.xcassets/foo/bar.png",
-                                       group: .group(name: "Project"),
-                                       isReference: true)
+                                       group: .group(name: "Project"))
 
         // When
         try subject.generate(fileElement: element,
@@ -159,8 +157,7 @@ final class ProjectFileElementsTests: XCTestCase {
         ]
         let elements = resouces.map {
             GroupFileElement(path: AbsolutePath($0),
-                             group: .group(name: "Project"),
-                             isReference: true)
+                             group: .group(name: "Project"))
         }
 
         // When
@@ -401,32 +398,23 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(file.sourceTree, .group)
     }
 
-    func test_addVariantGroup() throws {
-        let fileName = "localizable.strings"
-        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let localizedDir = dir.path.appending(component: "en.lproj")
-        try fileHandler.createFolder(localizedDir)
-        try "test".write(to: localizedDir.appending(component: fileName).url, atomically: true, encoding: .utf8)
-        let from = dir.path.parentDirectory
-        let absolutePath = localizedDir
-        let relativePath = RelativePath("en.lproj")
-        let group = PBXGroup()
+    func test_addLocalizedFile() throws {
+        // Given
         let pbxproj = PBXProj()
-        pbxproj.add(object: group)
-        subject.addVariantGroup(from: from,
-                                absolutePath: absolutePath,
-                                relativePath: relativePath,
-                                toGroup: group,
-                                pbxproj: pbxproj)
-        let variantGroupPath = dir.path.appending(component: fileName)
-        let variantGroup: PBXVariantGroup = subject.group(path: variantGroupPath) as! PBXVariantGroup
-        XCTAssertEqual(variantGroup.name, fileName)
-        XCTAssertEqual(variantGroup.sourceTree, .group)
+        let group = PBXGroup()
+        let file: AbsolutePath = "/path/to/resources/en.lproj/App.strings"
 
-        let fileReference: PBXFileReference? = variantGroup.children.first as? PBXFileReference
-        XCTAssertEqual(fileReference?.name, "en")
-        XCTAssertEqual(fileReference?.sourceTree, .group)
-        XCTAssertEqual(fileReference?.path, "en.lproj/\(fileName)")
+        // When
+        subject.addLocalizedFile(localizedFile: file,
+                                 toGroup: group,
+                                 pbxproj: pbxproj)
+
+        // Then
+        let variantGroup = group.children.first as? PBXVariantGroup
+        XCTAssertEqual(variantGroup?.name, "App.strings")
+        XCTAssertNil(variantGroup?.path)
+        XCTAssertEqual(variantGroup?.children.map { $0.name }, ["en"])
+        XCTAssertEqual(variantGroup?.children.map { $0.path }, ["en.lproj/App.strings"])
     }
 
     func test_addVersionGroupElement() throws {

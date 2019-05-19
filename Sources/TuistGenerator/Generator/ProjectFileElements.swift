@@ -33,20 +33,14 @@ class ProjectFileElements {
     let playgrounds: Playgrounding
     let filesSortener: ProjectFilesSortening
 
-    // MARK: - Private
-
-    private let fileHandler: FileHandling
-
     // MARK: - Init
 
     init(_ elements: [AbsolutePath: PBXFileElement] = [:],
          playgrounds: Playgrounding = Playgrounds(),
-         filesSortener: ProjectFilesSortening = ProjectFilesSortener(),
-         fileHandler: FileHandling = FileHandler()) {
+         filesSortener: ProjectFilesSortening = ProjectFilesSortener()) {
         self.elements = elements
         self.playgrounds = playgrounds
         self.filesSortener = filesSortener
-        self.fileHandler = fileHandler
     }
 
     func generateProjectFiles(project: Project,
@@ -310,11 +304,16 @@ class ProjectFileElements {
 
         // Add the file element
         if isLocalized(path: absolutePath) {
-            addVariantGroup(from: from,
-                            absolutePath: absolutePath,
-                            relativePath: relativePath,
-                            toGroup: toGroup,
-                            pbxproj: pbxproj)
+            // Localized container (e.g. /path/to/en.lproj) we don't add it directly
+            // an element will get added once the next path component is evaluated
+            //
+            // note: assumption here is a path to a nested resource is always provided
+            return (element: toGroup, path: absolutePath)
+        } else if isLocalized(path: from) {
+            // Localized file (e.g. /path/to/en.lproj/foo.png)
+            addLocalizedFile(localizedFile: absolutePath,
+                             toGroup: toGroup,
+                             pbxproj: pbxproj)
             return nil
         } else if isVersionGroup(path: absolutePath) {
             return addVersionGroupElement(from: from,
@@ -341,36 +340,60 @@ class ProjectFileElements {
         }
     }
 
-    func addVariantGroup(from: AbsolutePath,
-                         absolutePath: AbsolutePath,
-                         relativePath _: RelativePath,
-                         toGroup: PBXGroup,
-                         pbxproj: PBXProj) {
-        // /path/to/*.lproj/*
-        fileHandler.glob(absolutePath, glob: "*").sorted().forEach { localizedFile in
-            let localizedName = localizedFile.components.last!
+    func addLocalizedFile(localizedFile: AbsolutePath,
+                          toGroup: PBXGroup,
+                          pbxproj: PBXProj) {
+        // e.g.
+        // from: resources/en.lproj/
+        // localizedFile: resources/en.lproj/App.strings
 
-            // Variant group
-            let variantGroupPath = absolutePath.parentDirectory.appending(component: localizedName)
-            var variantGroup: PBXVariantGroup! = elements[variantGroupPath] as? PBXVariantGroup
-            if variantGroup == nil {
-                variantGroup = PBXVariantGroup(children: [], sourceTree: .group, name: localizedName)
-                pbxproj.add(object: variantGroup)
-                toGroup.children.append(variantGroup)
-                elements[variantGroupPath] = variantGroup
-            }
+        // Variant Group
+        let localizedName = localizedFile.basename // e.g. App.strings
+        let localizedContainer = localizedFile.parentDirectory // e.g. resources/en.lproj
+        let variantGroupPath = localizedContainer
+            .parentDirectory
+            .appending(component: localizedName) // e.g. resources/App.strings
 
-            // Localized element
-            let localizedFilePath = "\(absolutePath.components.last!)/\(localizedName)" // e.g: en.lproj/Main.storyboard
-            let lastKnownFileType = Xcode.filetype(extension: localizedName) // e.g. Main.storyboard
-            let name = absolutePath.components.last!.split(separator: ".").first! // e.g. en
-            let localizedFileReference = PBXFileReference(sourceTree: .group,
-                                                          name: String(name),
-                                                          lastKnownFileType: lastKnownFileType,
-                                                          path: localizedFilePath)
-            pbxproj.add(object: localizedFileReference)
-            variantGroup.children.append(localizedFileReference)
+        let variantGroup = addVariantGroup(variantGroupPath: variantGroupPath,
+                                           localizedName: localizedName,
+                                           toGroup: toGroup,
+                                           pbxproj: pbxproj)
+
+        // Localized element
+        addLocalizedFileElement(localizedFile: localizedFile,
+                                variantGroup: variantGroup,
+                                localizedContainer: localizedContainer,
+                                pbxproj: pbxproj)
+    }
+
+    private func addVariantGroup(variantGroupPath: AbsolutePath,
+                                 localizedName: String,
+                                 toGroup: PBXGroup,
+                                 pbxproj: PBXProj) -> PBXVariantGroup {
+        if let variantGroup = elements[variantGroupPath] as? PBXVariantGroup {
+            return variantGroup
         }
+
+        let variantGroup = PBXVariantGroup(children: [], sourceTree: .group, name: localizedName)
+        pbxproj.add(object: variantGroup)
+        toGroup.children.append(variantGroup)
+        elements[variantGroupPath] = variantGroup
+        return variantGroup
+    }
+
+    private func addLocalizedFileElement(localizedFile: AbsolutePath,
+                                         variantGroup: PBXVariantGroup,
+                                         localizedContainer: AbsolutePath,
+                                         pbxproj: PBXProj) {
+        let localizedFilePath = localizedFile.relative(to: localizedContainer.parentDirectory)
+        let lastKnownFileType = Xcode.filetype(extension: localizedFile.basename)
+        let name = localizedContainer.basename.split(separator: ".").first
+        let localizedFileReference = PBXFileReference(sourceTree: .group,
+                                                      name: name.map { String($0) },
+                                                      lastKnownFileType: lastKnownFileType,
+                                                      path: localizedFilePath.pathString)
+        pbxproj.add(object: localizedFileReference)
+        variantGroup.children.append(localizedFileReference)
     }
 
     func addVersionGroupElement(from: AbsolutePath,
