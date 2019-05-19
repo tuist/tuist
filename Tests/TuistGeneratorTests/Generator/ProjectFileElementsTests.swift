@@ -24,7 +24,8 @@ final class ProjectFileElementsTests: XCTestCase {
                                         sourceRootPath: "/path",
                                         playgrounds: MockPlaygrounds())
 
-        subject = ProjectFileElements(playgrounds: playgrounds)
+        subject = ProjectFileElements(playgrounds: playgrounds,
+                                      fileHandler: fileHandler)
     }
 
     func test_projectFiles() {
@@ -174,6 +175,44 @@ final class ProjectFileElementsTests: XCTestCase {
         let projectGroup = groups.main.group(named: "Project")
         XCTAssertEqual(projectGroup?.debugChildPaths, [
             "myfolder/resources/assets.xcassets",
+        ])
+    }
+
+    func test_addElement_lproj_multiple_files() throws {
+        // Given
+        let resouces = try fileHandler.createFiles([
+            "resources/en.lproj/App.strings",
+            "resources/en.lproj/Extension.strings",
+            "resources/fr.lproj/App.strings",
+            "resources/fr.lproj/Extension.strings",
+        ])
+
+        let elements = resouces.map {
+            GroupFileElement(path: $0,
+                             group: .group(name: "Project"),
+                             isReference: true)
+        }
+
+        // When
+        try elements.forEach {
+            try subject.generate(fileElement: $0,
+                                 groups: groups,
+                                 pbxproj: pbxproj,
+                                 sourceRootPath: fileHandler.currentPath)
+        }
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "resources/App.strings/en",
+            "resources/App.strings/fr",
+            "resources/Extension.strings/en",
+            "resources/Extension.strings/fr",
+        ])
+
+        XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
+            "resources/App.strings",
+            "resources/Extension.strings",
         ])
     }
 
@@ -524,6 +563,20 @@ private extension PBXGroup {
                 return group.debugChildPaths.map { group.nameOrPath + "/" + $0 }
             default:
                 return [element.nameOrPath]
+            }
+        }
+    }
+
+    /// Retuns all the child variant groups (recursively)
+    var debugVariantGroupPaths: [String] {
+        return children.flatMap { (element: PBXFileElement) -> [String] in
+            switch element {
+            case let group as PBXVariantGroup:
+                return [group.nameOrPath]
+            case let group as PBXGroup:
+                return group.debugVariantGroupPaths.map { group.nameOrPath + "/" + $0 }
+            default:
+                return []
             }
         }
     }

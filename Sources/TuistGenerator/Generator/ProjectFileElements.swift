@@ -33,14 +33,20 @@ class ProjectFileElements {
     let playgrounds: Playgrounding
     let filesSortener: ProjectFilesSortening
 
+    // MARK: - Private
+
+    private let fileHandler: FileHandling
+
     // MARK: - Init
 
     init(_ elements: [AbsolutePath: PBXFileElement] = [:],
          playgrounds: Playgrounding = Playgrounds(),
-         filesSortener: ProjectFilesSortening = ProjectFilesSortener()) {
+         filesSortener: ProjectFilesSortening = ProjectFilesSortener(),
+         fileHandler: FileHandling = FileHandler()) {
         self.elements = elements
         self.playgrounds = playgrounds
         self.filesSortener = filesSortener
+        self.fileHandler = fileHandler
     }
 
     func generateProjectFiles(project: Project,
@@ -341,7 +347,7 @@ class ProjectFileElements {
                          toGroup: PBXGroup,
                          pbxproj: PBXProj) {
         // /path/to/*.lproj/*
-        absolutePath.glob("*").sorted().forEach { localizedFile in
+        fileHandler.glob(absolutePath, glob: "*").sorted().forEach { localizedFile in
             let localizedName = localizedFile.components.last!
 
             // Variant group
