@@ -98,7 +98,7 @@ final class ConfigGenerator: ConfigGenerating {
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             configurationList: XCConfigurationList) throws {
-        let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
+        let variant: BuildSettingsProvider.Variant = (buildConfiguration.variant == .debug) ? .debug : .release
         let defaultConfigSettings = BuildSettingsProvider.projectDefault(variant: variant)
         let defaultSettingsAll = BuildSettingsProvider.projectDefault(variant: .all)
 
@@ -132,7 +132,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            sourceRootPath: AbsolutePath) throws {
         let product = settingsProviderProduct(target)
         let platform = settingsProviderPlatform(target)
-        let variant: BuildSettingsProvider.Variant = (buildConfiguration == .debug) ? .debug : .release
+        let variant: BuildSettingsProvider.Variant = (buildConfiguration.variant == .debug) ? .debug : .release
 
         var settings: [String: Any] = [:]
         extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: .all,

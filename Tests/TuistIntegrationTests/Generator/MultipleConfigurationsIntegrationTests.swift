@@ -250,6 +250,29 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         XCTAssertTrue(debug.contains("TARGET", "YES")) // from target settings
     }
 
+    func testGenerateWhenCustomDebugVariant() throws {
+        // Given
+        let projectDebugConfiguration = Configuration(settings: ["A": "A_PROJECT_DEBUG",
+                                                                 "B": "B_PROJECT_DEBUG"])
+        let projectReleaseConfiguration = Configuration(settings: ["A": "A_PROJECT_RELEASE",
+                                                                   "C": "C_PROJECT_RELEASE"])
+        let projectSettings = Settings(configurations: [.debug: projectDebugConfiguration,
+                                                        .debug("CustomDebug"): projectReleaseConfiguration])
+
+        // When
+        try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
+
+        // Then
+        assertProject(expectedConfigurations: ["Debug", "CustomDebug"])
+        assertTarget(expectedConfigurations: ["Debug", "CustomDebug"])
+
+        let debug = try extractWorkspaceSettings(configuration: "Debug")
+        let customDebug = try extractWorkspaceSettings(configuration: "CustomDebug")
+
+        XCTAssertTrue(debug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
+        XCTAssertTrue(customDebug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
+    }
+
     // MARK: - Helpers
 
     private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {

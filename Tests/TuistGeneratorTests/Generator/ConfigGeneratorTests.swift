@@ -27,7 +27,7 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxproj.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.configurationLists.first!
 
-        let debugConfig: XCBuildConfiguration = configurationList.buildConfigurations.first!
+        let debugConfig: XCBuildConfiguration = configurationList.buildConfigurations[2]
         XCTAssertEqual(debugConfig.name, "Debug")
         XCTAssertEqual(debugConfig.buildSettings["Debug"] as? String, "Debug")
         XCTAssertEqual(debugConfig.buildSettings["Base"] as? String, "Base")
@@ -39,21 +39,20 @@ final class ConfigGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxproj.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.configurationLists.first!
 
-        let releaseConfig: XCBuildConfiguration = configurationList.buildConfigurations.last!
+        let releaseConfig: XCBuildConfiguration = configurationList.buildConfigurations[3]
         XCTAssertEqual(releaseConfig.name, "Release")
         XCTAssertEqual(releaseConfig.buildSettings["Release"] as? String, "Release")
         XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")
+        XCTAssertEqual(releaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"] as? String, "NO")
+
+        let customReleaseConfig: XCBuildConfiguration = configurationList.buildConfigurations[1]
+        XCTAssertEqual(customReleaseConfig.name, "CustomRelease")
+        XCTAssertEqual(customReleaseConfig.buildSettings["Base"] as? String, "Base")
+        XCTAssertEqual(customReleaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"] as? String, "NO")
     }
 
     func test_generateTargetConfig() throws {
-        // Given / When
-        try generateTargetConfig()
-
-        // Then
-        let configurationList = pbxTarget.buildConfigurationList
-        let debugConfig = configurationList?.configuration(name: "Debug")
-        let releaseConfig = configurationList?.configuration(name: "Release")
-
+        // Given
         let commonSettings = [
             "Base": "Base",
             "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
@@ -70,13 +69,29 @@ final class ConfigGeneratorTests: XCTestCase {
             "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
         ]
 
+        // When
+        try generateTargetConfig()
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let customDebugConfig = configurationList?.configuration(name: "CustomDebug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+        let customReleaseConfig = configurationList?.configuration(name: "CustomRelease")
+
         assert(config: debugConfig, contains: commonSettings)
         assert(config: debugConfig, contains: debugSettings)
         assert(config: debugConfig, hasXcconfig: "debug.xcconfig")
 
+        assert(config: customDebugConfig, contains: commonSettings)
+        assert(config: customDebugConfig, contains: debugSettings)
+
         assert(config: releaseConfig, contains: commonSettings)
         assert(config: releaseConfig, contains: releaseSettings)
         assert(config: releaseConfig, hasXcconfig: "release.xcconfig")
+
+        assert(config: customReleaseConfig, contains: commonSettings)
+        assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
     func test_generateTestTargetConfiguration() throws {
@@ -118,11 +133,15 @@ final class ConfigGeneratorTests: XCTestCase {
         try fileHandler.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
+
+        // CustomDebug, CustomRelease, Debug, Release
         let configurations: [BuildConfiguration: Configuration?] = [
             .debug: Configuration(settings: ["Debug": "Debug"],
                                   xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
+            .debug("CustomDebug"): Configuration(settings: ["CustomDebug": "CustomDebug"], xcconfig: nil),
             .release: Configuration(settings: ["Release": "Release"],
                                     xcconfig: xcconfigsDir.appending(component: "release.xcconfig")),
+            .release("CustomRelease"): Configuration(settings: ["CustomRelease": "CustomRelease"], xcconfig: nil),
         ]
         let project = Project.test(path: dir.path,
                                    name: "Test",
@@ -136,7 +155,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                               options: options)
     }
 
-    private func generateTargetConfig() throws {
+    private func generateTargetConfig(additionalConfigurations: [BuildConfiguration: Configuration?] = [:]) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try fileHandler.createFolder(xcconfigsDir)
@@ -145,8 +164,10 @@ final class ConfigGeneratorTests: XCTestCase {
         let configurations: [BuildConfiguration: Configuration?] = [
             .debug: Configuration(settings: ["Debug": "Debug"],
                                   xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")),
+            .debug("CustomDebug"): Configuration(settings: ["CustomDebug": "CustomDebug"], xcconfig: nil),
             .release: Configuration(settings: ["Release": "Release"],
                                     xcconfig: xcconfigsDir.appending(component: "release.xcconfig")),
+            .release("CustomRelease"): Configuration(settings: ["CustomRelease": "CustomRelease"], xcconfig: nil),
         ]
         let target = Target.test(name: "Test",
                                  settings: Settings(base: ["Base": "Base"], configurations: configurations))
