@@ -14,6 +14,7 @@ let project = Project(
                 "Resources/**/*.png",
                 "Resources/*.xcassets",
                 "Resources/**/*.txt",
+                "Resources/**/*.strings",
                 "Resources/resource_without_extension",
                 .folderReference(path: "Examples")
             ],

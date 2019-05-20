@@ -171,6 +171,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             resourcesBuildPhase: PBXResourcesBuildPhase) throws {
+        var buildFilesCache = Set<AbsolutePath>()
         try files.forEach { buildFilePath in
             let pathString = buildFilePath.pathString
             let pathRange = NSRange(location: 0, length: pathString.count)
@@ -185,7 +186,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 return
             }
 
-            var element: PBXFileElement?
+            var element: (element: PBXFileElement, path: AbsolutePath)?
 
             if isLocalized {
                 let name = buildFilePath.components.last!
@@ -193,18 +194,18 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 guard let group = fileElements.group(path: path) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
-                element = group
-
+                element = (group, path)
             } else if !isLproj {
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
-                element = fileReference
+                element = (fileReference, buildFilePath)
             }
-            if let element = element {
-                let pbxBuildFile = PBXBuildFile(file: element)
+            if let element = element, buildFilesCache.contains(element.path) == false {
+                let pbxBuildFile = PBXBuildFile(file: element.element)
                 pbxproj.add(object: pbxBuildFile)
                 resourcesBuildPhase.files?.append(pbxBuildFile)
+                buildFilesCache.insert(element.path)
             }
         }
     }

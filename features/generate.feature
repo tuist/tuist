@@ -76,6 +76,10 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Examples/list.json'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Assets.car'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'resource.txt'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'en.lproj/App.strings'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'en.lproj/Greetings.strings'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'fr.lproj/App.strings'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'fr.lproj/Greetings.strings'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'resource_without_extension'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
 

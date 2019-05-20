@@ -132,8 +132,7 @@ final class ProjectFileElementsTests: XCTestCase {
     func test_addElement_xcassets() throws {
         // Given
         let element = GroupFileElement(path: "/path/myfolder/resources/assets.xcassets/foo/bar.png",
-                                       group: .group(name: "Project"),
-                                       isReference: true)
+                                       group: .group(name: "Project"))
 
         // When
         try subject.generate(fileElement: element,
@@ -158,8 +157,7 @@ final class ProjectFileElementsTests: XCTestCase {
         ]
         let elements = resouces.map {
             GroupFileElement(path: AbsolutePath($0),
-                             group: .group(name: "Project"),
-                             isReference: true)
+                             group: .group(name: "Project"))
         }
 
         // When
@@ -174,6 +172,44 @@ final class ProjectFileElementsTests: XCTestCase {
         let projectGroup = groups.main.group(named: "Project")
         XCTAssertEqual(projectGroup?.debugChildPaths, [
             "myfolder/resources/assets.xcassets",
+        ])
+    }
+
+    func test_addElement_lproj_multiple_files() throws {
+        // Given
+        let resouces = try fileHandler.createFiles([
+            "resources/en.lproj/App.strings",
+            "resources/en.lproj/Extension.strings",
+            "resources/fr.lproj/App.strings",
+            "resources/fr.lproj/Extension.strings",
+        ])
+
+        let elements = resouces.map {
+            GroupFileElement(path: $0,
+                             group: .group(name: "Project"),
+                             isReference: true)
+        }
+
+        // When
+        try elements.forEach {
+            try subject.generate(fileElement: $0,
+                                 groups: groups,
+                                 pbxproj: pbxproj,
+                                 sourceRootPath: fileHandler.currentPath)
+        }
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.debugChildPaths, [
+            "resources/App.strings/en",
+            "resources/App.strings/fr",
+            "resources/Extension.strings/en",
+            "resources/Extension.strings/fr",
+        ])
+
+        XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
+            "resources/App.strings",
+            "resources/Extension.strings",
         ])
     }
 
@@ -362,32 +398,23 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(file.sourceTree, .group)
     }
 
-    func test_addVariantGroup() throws {
-        let fileName = "localizable.strings"
-        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let localizedDir = dir.path.appending(component: "en.lproj")
-        try fileHandler.createFolder(localizedDir)
-        try "test".write(to: localizedDir.appending(component: fileName).url, atomically: true, encoding: .utf8)
-        let from = dir.path.parentDirectory
-        let absolutePath = localizedDir
-        let relativePath = RelativePath("en.lproj")
-        let group = PBXGroup()
+    func test_addLocalizedFile() throws {
+        // Given
         let pbxproj = PBXProj()
-        pbxproj.add(object: group)
-        subject.addVariantGroup(from: from,
-                                absolutePath: absolutePath,
-                                relativePath: relativePath,
-                                toGroup: group,
-                                pbxproj: pbxproj)
-        let variantGroupPath = dir.path.appending(component: fileName)
-        let variantGroup: PBXVariantGroup = subject.group(path: variantGroupPath) as! PBXVariantGroup
-        XCTAssertEqual(variantGroup.name, fileName)
-        XCTAssertEqual(variantGroup.sourceTree, .group)
+        let group = PBXGroup()
+        let file: AbsolutePath = "/path/to/resources/en.lproj/App.strings"
 
-        let fileReference: PBXFileReference? = variantGroup.children.first as? PBXFileReference
-        XCTAssertEqual(fileReference?.name, "en")
-        XCTAssertEqual(fileReference?.sourceTree, .group)
-        XCTAssertEqual(fileReference?.path, "en.lproj/\(fileName)")
+        // When
+        subject.addLocalizedFile(localizedFile: file,
+                                 toGroup: group,
+                                 pbxproj: pbxproj)
+
+        // Then
+        let variantGroup = group.children.first as? PBXVariantGroup
+        XCTAssertEqual(variantGroup?.name, "App.strings")
+        XCTAssertNil(variantGroup?.path)
+        XCTAssertEqual(variantGroup?.children.map { $0.name }, ["en"])
+        XCTAssertEqual(variantGroup?.children.map { $0.path }, ["en.lproj/App.strings"])
     }
 
     func test_addVersionGroupElement() throws {
@@ -524,6 +551,20 @@ private extension PBXGroup {
                 return group.debugChildPaths.map { group.nameOrPath + "/" + $0 }
             default:
                 return [element.nameOrPath]
+            }
+        }
+    }
+
+    /// Retuns all the child variant groups (recursively)
+    var debugVariantGroupPaths: [String] {
+        return children.flatMap { (element: PBXFileElement) -> [String] in
+            switch element {
+            case let group as PBXVariantGroup:
+                return [group.nameOrPath]
+            case let group as PBXGroup:
+                return group.debugVariantGroupPaths.map { group.nameOrPath + "/" + $0 }
+            default:
+                return []
             }
         }
     }
