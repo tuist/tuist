@@ -110,7 +110,11 @@ extension TuistGenerator.FileElement {
                 .filter(includeFiles)
 
             if files.isEmpty {
-                printer.print(warning: "No files found at: \(string)")
+                if fileHandler.isFolder(path.appending(RelativePath(string))) {
+                    printer.print(warning: "'\(string)' is a directory, try using: '\(string)/**' to list its files")
+                } else {
+                    printer.print(warning: "No files found at: \(string)")
+                }
             }
 
             return files

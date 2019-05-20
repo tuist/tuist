@@ -269,70 +269,6 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.projects, [])
     }
 
-    func test_loadWorkspace_withInvalidFilePaths() throws {
-        // Given
-        let path = fileHandler.currentPath
-        try fileHandler.createFolders([
-            "Documentation",
-        ])
-
-        let manifests = [
-            path: WorkspaceManifest.test(name: "SomeWorkspace",
-                                         projects: [],
-                                         additionalFiles: [
-                                             "Documentation/**/*.md",
-                                         ]),
-        ]
-
-        let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator,
-                                           printer: printer)
-
-        // When
-        let model = try subject.loadWorkspace(at: path)
-
-        // Then
-        XCTAssertEqual(printer.printWarningArgs, [
-            "No files found at: Documentation/**/*.md",
-        ])
-        XCTAssertEqual(model.additionalFiles, [])
-    }
-
-    func test_loadWorkspace_withInvalidFolderReferencePaths() throws {
-        // Given
-        let path = fileHandler.currentPath
-        try fileHandler.createFiles([
-            "README.md",
-        ])
-
-        let manifests = [
-            path: WorkspaceManifest.test(name: "SomeWorkspace",
-                                         projects: [],
-                                         additionalFiles: [
-                                             .folderReference(path: "Documentation"),
-                                             .folderReference(path: "README.md"),
-                                         ]),
-        ]
-
-        let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator,
-                                           printer: printer)
-
-        // When
-        let model = try subject.loadWorkspace(at: path)
-
-        // Then
-        XCTAssertEqual(printer.printWarningArgs, [
-            "Documentation does not exist",
-            "README.md is not a directory - folder reference paths need to point to directories",
-        ])
-        XCTAssertEqual(model.additionalFiles, [])
-    }
-
     func test_settings() throws {
         // Given
         let debug = ConfigurationManifest(settings: ["Debug": "Debug"], xcconfig: "debug.xcconfig")
@@ -472,6 +408,88 @@ class GeneratorModelLoaderTest: XCTestCase {
     func test_generatorModelLoaderError_description() {
         XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("abc").description, "abc is not yet supported")
         XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").description, "Couldn't find file at path '/missing/path'")
+    }
+
+    func test_fileElement_warning_withDirectoryPathsAsFiles() throws {
+        // Given
+        let path = fileHandler.currentPath
+        try fileHandler.createFiles([
+            "Documentation/README.md",
+            "Documentation/USAGE.md",
+        ])
+
+        let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation")
+
+        // When
+        let model = TuistGenerator.FileElement.from(manifest: manifest,
+                                                    path: path,
+                                                    fileHandler: fileHandler,
+                                                    printer: printer,
+                                                    includeFiles: { !self.fileHandler.isFolder($0) })
+
+        // Then
+        XCTAssertEqual(printer.printWarningArgs, [
+            "'Documentation' is a directory, try using: 'Documentation/**' to list its files",
+        ])
+        XCTAssertEqual(model, [])
+    }
+
+    func test_fileElement_warning_withMisingPaths() throws {
+        // Given
+        let path = fileHandler.currentPath
+        let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation/**")
+
+        // When
+        let model = TuistGenerator.FileElement.from(manifest: manifest,
+                                                    path: path,
+                                                    fileHandler: fileHandler,
+                                                    printer: printer)
+
+        // Then
+        XCTAssertEqual(printer.printWarningArgs, [
+            "No files found at: Documentation/**",
+        ])
+        XCTAssertEqual(model, [])
+    }
+
+    func test_fileElement_warning_withInvalidFolderReference() throws {
+        // Given
+        let path = fileHandler.currentPath
+        try fileHandler.createFiles([
+            "README.md",
+        ])
+
+        let manifest = ProjectDescription.FileElement.folderReference(path: "README.md")
+
+        // When
+        let model = TuistGenerator.FileElement.from(manifest: manifest,
+                                                    path: path,
+                                                    fileHandler: fileHandler,
+                                                    printer: printer)
+
+        // Then
+        XCTAssertEqual(printer.printWarningArgs, [
+            "README.md is not a directory - folder reference paths need to point to directories",
+        ])
+        XCTAssertEqual(model, [])
+    }
+
+    func test_fileElement_warning_withMissingFolderReference() throws {
+        // Given
+        let path = fileHandler.currentPath
+        let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
+
+        // When
+        let model = TuistGenerator.FileElement.from(manifest: manifest,
+                                                    path: path,
+                                                    fileHandler: fileHandler,
+                                                    printer: printer)
+
+        // Then
+        XCTAssertEqual(printer.printWarningArgs, [
+            "Documentation does not exist",
+        ])
+        XCTAssertEqual(model, [])
     }
 
     // MARK: - Helpers

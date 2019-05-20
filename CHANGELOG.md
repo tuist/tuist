@@ -22,6 +22,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fixing generation failures due to asset catalog & `**/*.png` glob patterns handling https://github.com/tuist/tuist/pull/346 by @kwridan 
 - Supporting bundle target dependencies that reside in different projects (in `TuistGenerator`) https://github.com/tuist/tuist/pull/348 by @kwridan 
 - Fixing header paths including folders and non-header files https://github.com/tuist/tuist/pull/356 by @kwridan
+- Fix duplicate localized resource files https://github.com/tuist/tuist/pull/363 by @kwridan
 
 ## 0.14.0
 
