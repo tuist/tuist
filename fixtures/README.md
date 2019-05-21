@@ -133,7 +133,7 @@ Dependencies:
 
 ## ios_app_with_static_frameworks
 
-Same as `ios_app_with_static_libraries` except using static frameworks instead of libraries.
+This fixture contains an application that depends on static frameworks, both directly and transitively.
 
 ```
 Workspace:
@@ -141,16 +141,21 @@ Workspace:
     - MainApp (iOS app)
     - MainAppTests (iOS unit tests)
   - A:
-    - A (static library iOS)
+    - A (static framework iOS)
     - ATests (iOS unit tests)
   - B:
-    - B (static library iOS)
+    - B (static framework iOS)
     - BTests (iOS unit tests)
+  - C:
+    - C (static framework iOS)
+    - CTests (iOS unit tests)
 ```
 
 Dependencies:
   - App -> A
+  - App -> C
   - A -> B
+  - A -> C
 
 ## ios_app_with_tests
 

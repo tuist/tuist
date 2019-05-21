@@ -10,6 +10,7 @@ let project = Project(name: "A",
                                  sources: "Sources/**",
                                  dependencies: [
                                      .project(target: "B", path: "../B"),
+                                     .project(target: "C", path: "../C"),
                           ]),
                           Target(name: "ATests",
                                  platform: .iOS,
