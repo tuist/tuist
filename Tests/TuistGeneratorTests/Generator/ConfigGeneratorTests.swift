@@ -155,7 +155,7 @@ final class ConfigGeneratorTests: XCTestCase {
                                               options: options)
     }
 
-    private func generateTargetConfig(additionalConfigurations: [BuildConfiguration: Configuration?] = [:]) throws {
+    private func generateTargetConfig() throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try fileHandler.createFolder(xcconfigsDir)
