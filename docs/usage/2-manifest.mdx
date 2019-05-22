@@ -169,6 +169,13 @@ optional: true,
 default: "[]"
 },
 {
+name: "Sources",
+description: "Source files that are compiled by the target",
+type: "[String], String",
+optional: false,
+default: ""
+},
+{
 name: "Settings",
 description: "Target build settings and configuration files.",
 type: "Settings",
@@ -193,6 +200,21 @@ default: "[:]"
 },
 ]}/>
 
+<<<<<<< HEAD
+=======
+```swift
+import ProjectDescription
+
+let target = Target(name: "App",
+                    platform: .iOS,
+                    product: .app,
+                    bundleId: "io.tuist.App",
+                    infoPlist: "Info.plist",
+                    sources: "Sources/**",
+                    dependencies: [])
+```
+
+>>>>>>> Move more models to tables
 ### Headers
 
 It represents the target headers:
