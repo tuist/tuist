@@ -272,17 +272,21 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
 
         let debug = try extractWorkspaceSettings(configuration: "Debug")
         let customDebug = try extractWorkspaceSettings(configuration: "CustomDebug")
-//        let release = try extractWorkspaceSettings(configuration: "Release")
-//        let customRelease = try extractWorkspaceSettings(configuration: "CustomRelease")
+        let release = try extractWorkspaceSettings(configuration: "Release")
+        let customRelease = try extractWorkspaceSettings(configuration: "CustomRelease")
 
         XCTAssertTrue(debug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
         XCTAssertTrue(customDebug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
 
-//      TODO: Waiting for tuist/xcodeproj#417 
-//        XCTAssertTrue(debug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
-//        XCTAssertTrue(customDebug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
-//        XCTAssertTrue(release.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
-//        XCTAssertTrue(customRelease.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
+        XCTAssertTrue(debug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        XCTAssertTrue(customDebug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        XCTAssertFalse(release.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        XCTAssertFalse(customRelease.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+
+        XCTAssertTrue(debug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
+        XCTAssertTrue(customDebug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
+        XCTAssertTrue(release.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
+        XCTAssertTrue(customRelease.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
     }
 
     // MARK: - Helpers
