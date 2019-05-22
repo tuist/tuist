@@ -24,8 +24,9 @@ final class ProjectGroupsTests: XCTestCase {
                           settings: .default,
                           filesGroup: .group(name: "Project"),
                           targets: [
-                            .test(filesGroup: .group(name: "Target")),
-                            .test()],
+                              .test(filesGroup: .group(name: "Target")),
+                              .test(),
+                          ],
                           schemes: [])
         pbxproj = PBXProj()
     }

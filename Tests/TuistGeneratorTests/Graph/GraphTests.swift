@@ -238,13 +238,14 @@ final class GraphTests: XCTestCase {
 
     func test_embeddableFrameworks_ordered() throws {
         // Given
-        let dependencyNames = (0..<10).shuffled().map { "Depndency\($0)"}
+        let dependencyNames = (0 ..< 10).shuffled().map { "Depndency\($0)" }
         let target = Target.test(name: "Main", product: .app)
         let project = Project.test(targets: [target])
         let dependencyNodes = dependencyNames.map {
             TargetNode(project: project,
                        target: Target.test(name: $0, product: .framework),
-                       dependencies: []) }
+                       dependencies: [])
+        }
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: dependencyNodes)
@@ -354,7 +355,6 @@ final class GraphTests: XCTestCase {
 }
 
 final class DependencyReferenceTests: XCTestCase {
-
     func test_compare() {
         XCTAssertFalse(DependencyReference.absolute("/A") < .absolute("/A"))
         XCTAssertTrue(DependencyReference.absolute("/A") < .absolute("/B"))

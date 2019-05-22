@@ -30,9 +30,9 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
         var capturesWorkspaces = [XCWorkspace]()
 
         // When
-        try (0..<10).forEach { _ in
+        try (0 ..< 10).forEach { _ in
             let modelLoader = createModelLoader()
-            let subject = Generator(modelLoader: modelLoader)
+            let subject = Generator(printer: MockPrinter(), modelLoader: modelLoader)
             _ = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
             let workspace = try XCWorkspace(path: path.appending(component: "Workspace.xcworkspace").path)
             let projectsPaths = workspace.data.children
@@ -59,7 +59,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
 
     private func createModelLoader() -> GeneratorModelLoading {
         let modelLoader = MockGeneratorModelLoader(basePath: path)
-        let frameworksNames = (0..<10).map { "Framework\($0)"}
+        let frameworksNames = (0 ..< 10).map { "Framework\($0)" }
         let targetSettings = Settings(base: ["A1": "A_VALUE",
                                              "B1": "B_VALUE",
                                              "C1": "C_VALUE"],
@@ -91,7 +91,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], schemes: [Scheme]) -> Project {
-        let additionalFiles = (0..<10)
+        let additionalFiles = (0 ..< 10)
             .map { "/A\($0).txt" }
             .map { FileElement.file(path: AbsolutePath($0)) }
         return Project(path: path,
@@ -104,7 +104,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
     }
 
     private func createAppTarget(settings: Settings?, dependencies: [String]) -> Target {
-        let sources = (0..<10)
+        let sources = (0 ..< 10)
             .map { "/App/Sources/SourceFile\($0).swift" }
             .map { AbsolutePath($0) }
         return Target(name: "AppTarget",
@@ -141,13 +141,10 @@ extension XCWorkspace {
 extension XCWorkspaceDataElement {
     var projectPaths: [String] {
         switch self {
-        case .file(let file):
-            if file.location.path.hasSuffix(".xcodeproj") {
-                return [file.location.path]
-            } else {
-                return []
-            }
-        case .group(let elements):
+        case let .file(file):
+            let path = file.location.path
+            return path.hasSuffix(".xcodeproj") ? [path] : []
+        case let .group(elements):
             return elements.children.flatMap { $0.projectPaths }
         }
     }
