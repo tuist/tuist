@@ -250,6 +250,45 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         XCTAssertTrue(debug.contains("TARGET", "YES")) // from target settings
     }
 
+    func testGenerateWhenCustomConfigurations() throws {
+        // Given
+        let projectDebugConfiguration = Configuration(settings: ["A": "A_PROJECT_DEBUG",
+                                                                 "B": "B_PROJECT_DEBUG"])
+        let projectCustomDebugConfiguration = Configuration(settings: ["A": "A_PROJECT_RELEASE",
+                                                                       "C": "C_PROJECT_RELEASE"])
+        let projectReleaseConfiguration = Configuration(settings: [:])
+        let projectCustomReleaseConfiguration = Configuration(settings: ["E": "E_PROJECT_RELEASE"])
+        let projectSettings = Settings(configurations: [.debug: projectDebugConfiguration,
+                                                        .debug("CustomDebug"): projectCustomDebugConfiguration,
+                                                        .release: projectReleaseConfiguration,
+                                                        .release("CustomRelease"): projectCustomReleaseConfiguration])
+
+        // When
+        try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
+
+        // Then
+        assertProject(expectedConfigurations: ["CustomDebug", "CustomRelease", "Debug", "Release"])
+        assertTarget(expectedConfigurations: ["CustomDebug", "CustomRelease", "Debug", "Release"])
+
+        let debug = try extractWorkspaceSettings(configuration: "Debug")
+        let customDebug = try extractWorkspaceSettings(configuration: "CustomDebug")
+        let release = try extractWorkspaceSettings(configuration: "Release")
+        let customRelease = try extractWorkspaceSettings(configuration: "CustomRelease")
+
+        XCTAssertTrue(debug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
+        XCTAssertTrue(customDebug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
+
+        XCTAssertTrue(debug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        XCTAssertTrue(customDebug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        XCTAssertFalse(release.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        XCTAssertFalse(customRelease.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+
+        XCTAssertTrue(debug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
+        XCTAssertTrue(customDebug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
+        XCTAssertTrue(release.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
+        XCTAssertTrue(customRelease.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
+    }
+
     // MARK: - Helpers
 
     private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {
