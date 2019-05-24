@@ -4,7 +4,7 @@ source "https://rubygems.org"
 
 gem "cucumber", "~> 3.1"
 gem "rake", "~> 12.3"
-gem "danger", "~> 5.10"
+gem "danger", "~> 6.0"
 gem "byebug", "~> 10.0"
 gem "minitest", "~> 5.11"
 gem "simctl", "~> 1.6"
