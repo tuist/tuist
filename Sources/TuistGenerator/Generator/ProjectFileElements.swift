@@ -188,6 +188,7 @@ class ProjectFileElements {
                           groups: ProjectGroups,
                           pbxproj: PBXProj) throws {
         try prepareProductsFileReferences(project: project, dependencies: dependencies).forEach { pair in
+            guard self.products[pair.productName] == nil else { return }
             pbxproj.add(object: pair.fileReference)
             groups.products.children.append(pair.fileReference)
             self.products[pair.productName] = pair.fileReference

@@ -281,6 +281,63 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(fileReference?.includeInIndex, false)
     }
 
+    func test_generateProducts_secondTime() throws {
+        // Given
+        let project = Project.test()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let groups = ProjectGroups.generate(project: project,
+                                             pbxproj: pbxproj,
+                                             sourceRootPath: sourceRootPath)
+        try subject.generateProducts(project: project,
+                                     dependencies: [],
+                                     groups: groups,
+                                     pbxproj: pbxproj)
+        let products = groups.products.children
+
+        // When
+        try subject.generateProducts(project: project,
+                                     dependencies: [],
+                                     groups: groups,
+                                     pbxproj: pbxproj)
+
+        // Then
+        XCTAssertEqual(groups.products.children, products) // we don't get duplicates
+    }
+
+    func test_generateProducts_stableOrder() throws {
+        for _ in 0..<5 {
+            // Given
+            let subject = ProjectFileElements(playgrounds: playgrounds)
+            let pbxproj = PBXProj()
+            let project = Project.test()
+            let sourceRootPath = AbsolutePath("/a/project/")
+            let groups = ProjectGroups.generate(project: project,
+                                                pbxproj: pbxproj,
+                                                sourceRootPath: sourceRootPath)
+            let dependencies: Set<TargetNode> = Set((1...5).map {
+                let target = Target.test(name: "Target\($0)", product: .framework)
+                return TargetNode(project: project,
+                                  target: target,
+                                  dependencies: [])
+            })
+
+            // When
+            try subject.generateProducts(project: project,
+                                         dependencies: dependencies,
+                                         groups: groups,
+                                         pbxproj: pbxproj)
+
+            // Then
+            let expected = ["Target.app",
+                            "Target1.framework",
+                            "Target2.framework",
+                            "Target3.framework",
+                            "Target4.framework",
+                            "Target5.framework"]
+            XCTAssertEqual(groups.products.children.map { $0.path }, expected)
+        }
+    }
+
     func test_generateDependencies_whenTargetNode_thatHasAlreadyBeenAdded() throws {
         let pbxproj = PBXProj()
         let sourceRootPath = AbsolutePath("/a/project/")
