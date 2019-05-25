@@ -3,7 +3,7 @@ export default {
   description:
     'Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.',
   themeConfig: {
-    codemirrorTheme: 'dracula',
+    codemirrorTheme: 'swifty',
     colors: {
       blue: '#3495E8',
       darkBlue: '#12344F',
@@ -40,7 +40,7 @@ export default {
       links: [
         {
           rel: 'stylesheet',
-          href: 'https://codemirror.net/theme/dracula.css',
+          href: '/public/swifty.css',
         },
         {
           rel: 'stylesheet',
