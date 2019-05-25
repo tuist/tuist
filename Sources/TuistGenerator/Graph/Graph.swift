@@ -20,7 +20,7 @@ enum GraphError: FatalError {
     }
 }
 
-enum DependencyReference: Equatable, Hashable {
+enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
     case product(String)
 
@@ -43,6 +43,19 @@ enum DependencyReference: Equatable, Hashable {
             return false
         }
     }
+
+    static func < (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
+        switch (lhs, rhs) {
+        case let (.absolute(lhsPath), .absolute(rhsPath)):
+            return lhsPath < rhsPath
+        case let (.product(lhsName), .product(rhsName)):
+            return lhsName < rhsName
+        case (.product, .absolute):
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 protocol Graphing: AnyObject {
@@ -56,7 +69,7 @@ protocol Graphing: AnyObject {
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> Set<DependencyReference>
+    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
@@ -203,7 +216,7 @@ class Graph: Graphing {
 
     func embeddableFrameworks(path: AbsolutePath,
                               name: String,
-                              system: Systeming) throws -> Set<DependencyReference> {
+                              system: Systeming) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -244,7 +257,7 @@ class Graph: Graphing {
 
         references.append(contentsOf: transitiveFrameworks)
 
-        return Set(references)
+        return Set(references).sorted()
     }
 
     // MARK: - Fileprivate

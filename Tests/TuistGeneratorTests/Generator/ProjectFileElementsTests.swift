@@ -261,24 +261,81 @@ final class ProjectFileElementsTests: XCTestCase {
         ]))
     }
 
-    func test_generateProduct() {
+    func test_generateProduct() throws {
         let pbxproj = PBXProj()
         let project = Project.test()
         let sourceRootPath = AbsolutePath("/a/project/")
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        let products = ["Test.framework"]
-        subject.generate(products: products,
-                         groups: groups,
-                         pbxproj: pbxproj)
+        try subject.generateProducts(project: project,
+                                     dependencies: [],
+                                     groups: groups,
+                                     pbxproj: pbxproj)
         XCTAssertEqual(groups.products.children.count, 1)
-        let fileReference = subject.product(name: "Test.framework")
+        let fileReference = subject.product(name: "Target.app")
         XCTAssertNotNil(fileReference)
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
-        XCTAssertEqual(fileReference?.path, "Test.framework")
+        XCTAssertEqual(fileReference?.path, "Target.app")
         XCTAssertNil(fileReference?.name)
         XCTAssertEqual(fileReference?.includeInIndex, false)
+    }
+
+    func test_generateProducts_secondTime() throws {
+        // Given
+        let project = Project.test()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let groups = ProjectGroups.generate(project: project,
+                                             pbxproj: pbxproj,
+                                             sourceRootPath: sourceRootPath)
+        try subject.generateProducts(project: project,
+                                     dependencies: [],
+                                     groups: groups,
+                                     pbxproj: pbxproj)
+        let products = groups.products.children
+
+        // When
+        try subject.generateProducts(project: project,
+                                     dependencies: [],
+                                     groups: groups,
+                                     pbxproj: pbxproj)
+
+        // Then
+        XCTAssertEqual(groups.products.children, products) // we don't get duplicates
+    }
+
+    func test_generateProducts_stableOrder() throws {
+        for _ in 0..<5 {
+            // Given
+            let subject = ProjectFileElements(playgrounds: playgrounds)
+            let pbxproj = PBXProj()
+            let project = Project.test()
+            let sourceRootPath = AbsolutePath("/a/project/")
+            let groups = ProjectGroups.generate(project: project,
+                                                pbxproj: pbxproj,
+                                                sourceRootPath: sourceRootPath)
+            let dependencies: Set<TargetNode> = Set((1...5).map {
+                let target = Target.test(name: "Target\($0)", product: .framework)
+                return TargetNode(project: project,
+                                  target: target,
+                                  dependencies: [])
+            })
+
+            // When
+            try subject.generateProducts(project: project,
+                                         dependencies: dependencies,
+                                         groups: groups,
+                                         pbxproj: pbxproj)
+
+            // Then
+            let expected = ["Target.app",
+                            "Target1.framework",
+                            "Target2.framework",
+                            "Target3.framework",
+                            "Target4.framework",
+                            "Target5.framework"]
+            XCTAssertEqual(groups.products.children.map { $0.path }, expected)
+        }
     }
 
     func test_generateDependencies_whenTargetNode_thatHasAlreadyBeenAdded() throws {
@@ -328,11 +385,7 @@ final class ProjectFileElementsTests: XCTestCase {
                              sourceRootPath: sourceRootPath,
                              filesGroup: .group(name: "Project"))
 
-        let fileReference: PBXFileReference? = groups.products.children.first as? PBXFileReference
-        XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
-        XCTAssertEqual(fileReference?.includeInIndex, false)
-        XCTAssertEqual(fileReference?.path, "Target.app")
-        XCTAssertEqual(fileReference?.explicitFileType, "wrapper.application")
+        XCTAssertTrue(groups.products.children.isEmpty)
     }
 
     func test_generateDependencies_whenPrecompiledNode() throws {

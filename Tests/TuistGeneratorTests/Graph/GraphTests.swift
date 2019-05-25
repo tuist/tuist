@@ -236,6 +236,33 @@ final class GraphTests: XCTestCase {
         ])
     }
 
+    func test_embeddableFrameworks_ordered() throws {
+        // Given
+        let dependencyNames = (0 ..< 10).shuffled().map { "Depndency\($0)" }
+        let target = Target.test(name: "Main", product: .app)
+        let project = Project.test(targets: [target])
+        let dependencyNodes = dependencyNames.map {
+            TargetNode(project: project,
+                       target: Target.test(name: $0, product: .framework),
+                       dependencies: [])
+        }
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: dependencyNodes)
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+
+        // When
+        let got = try graph.embeddableFrameworks(path: project.path,
+                                                 name: target.name,
+                                                 system: system)
+
+        // Then
+        let expected = dependencyNames.sorted().map { DependencyReference.product("\($0).framework") }
+        XCTAssertEqual(got, expected)
+    }
+
     func test_librariesSearchPaths() throws {
         // Given
         let target = Target.test(name: "Main")
@@ -324,5 +351,25 @@ final class GraphTests: XCTestCase {
         XCTAssertEqual(result.map(\.target.name), [
             "Bundle1",
         ])
+    }
+}
+
+final class DependencyReferenceTests: XCTestCase {
+    func test_compare() {
+        XCTAssertFalse(DependencyReference.absolute("/A") < .absolute("/A"))
+        XCTAssertTrue(DependencyReference.absolute("/A") < .absolute("/B"))
+        XCTAssertFalse(DependencyReference.absolute("/B") < .absolute("/A"))
+
+        XCTAssertFalse(DependencyReference.product("A") < .product("A"))
+        XCTAssertTrue(DependencyReference.product("A") < .product("B"))
+        XCTAssertFalse(DependencyReference.product("B") < .product("A"))
+
+        XCTAssertTrue(DependencyReference.product("/A") < .absolute("/A"))
+        XCTAssertTrue(DependencyReference.product("/A") < .absolute("/B"))
+        XCTAssertTrue(DependencyReference.product("/B") < .absolute("/A"))
+
+        XCTAssertFalse(DependencyReference.absolute("/A") < .product("/A"))
+        XCTAssertFalse(DependencyReference.absolute("/A") < .product("/B"))
+        XCTAssertFalse(DependencyReference.absolute("/B") < .product("/A"))
     }
 }
