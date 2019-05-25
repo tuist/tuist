@@ -1,5 +1,6 @@
 import React from 'react'
 import { Label, Table } from 'semantic-ui-react'
+import StyledCode from "./styled-code"
 
 const EnumTable = ({ cases }) => {
   return (
@@ -15,9 +16,9 @@ const EnumTable = ({ cases }) => {
         {cases.map((prop, index) => {
           return (
             <Table.Row warning={prop.deprecated} key={index}>
-              <Table.Cell singleLine>
+              <Table.Cell>
                 {prop.deprecated && <Label ribbon>Deprecated</Label>}
-                {prop.case}
+                <StyledCode>{prop.case}</StyledCode>
               </Table.Cell>
               <Table.Cell>{prop.description}</Table.Cell>
             </Table.Row>

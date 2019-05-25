@@ -1,10 +1,12 @@
 import React from 'react'
-import { Icon, Label, Menu, Table } from 'semantic-ui-react'
+import { Responsive, Label, Table } from 'semantic-ui-react'
+import styled from 'styled-components'
+import StyledCode from "./styled-code"
 
 const PropertiesTable = ({ props }) => {
   return (
     <Table celled>
-      <Table.Header>
+      <Responsive as={Table.Header} {...Responsive.onlyWidescreen}>
         <Table.Row>
           <Table.HeaderCell>Property</Table.HeaderCell>
           <Table.HeaderCell>Description</Table.HeaderCell>
@@ -12,7 +14,7 @@ const PropertiesTable = ({ props }) => {
           <Table.HeaderCell>Optional</Table.HeaderCell>
           <Table.HeaderCell>Default</Table.HeaderCell>
         </Table.Row>
-      </Table.Header>
+      </Responsive>
 
       <Table.Body>
         {props.map((prop, index) => {
@@ -23,6 +25,8 @@ const PropertiesTable = ({ props }) => {
             type = <span>{prop.type}</span>
           }
 
+          const optionalValue = prop.optional ? 'Yes' : 'No'
+
           return (
             <Table.Row warning={prop.deprecated} key={index}>
               <Table.Cell>
@@ -30,9 +34,24 @@ const PropertiesTable = ({ props }) => {
                 {prop.name}
               </Table.Cell>
               <Table.Cell>{prop.description}</Table.Cell>
-              <Table.Cell singleLine>{type}</Table.Cell>
-              <Table.Cell>{prop.optional ? 'Yes' : 'No'}</Table.Cell>
-              <Table.Cell>{prop.default}</Table.Cell>
+              <Table.Cell>
+                <Responsive as="b" {...Responsive.onlyMobile}>
+                  Type:{' '}
+                </Responsive>
+                <StyledCode>{type}</StyledCode>
+              </Table.Cell>
+              <Table.Cell>
+                <Responsive as="b" {...Responsive.onlyMobile}>
+                  Optional:{' '}
+                </Responsive>
+                {optionalValue}
+              </Table.Cell>
+              <Table.Cell>
+                <Responsive as="b" {...Responsive.onlyMobile}>
+                  Default:{' '}
+                </Responsive>
+                <StyledCode>{prop.default}</StyledCode>
+              </Table.Cell>
             </Table.Row>
           )
         })}

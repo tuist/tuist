@@ -22,6 +22,16 @@ export default {
       src: '/public/logo.png',
       width: 100,
     },
+    styles: {
+      "body": `
+        font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, Verdana, sans-serif;
+      `,
+      code: `
+        font-size: 13px;
+        font-family: Menlo, Consolas, Monaco, "Courier New", monospace, serif;
+        background-color: white;
+      `
+    }
   },
   public: './public',
   htmlContext: {
