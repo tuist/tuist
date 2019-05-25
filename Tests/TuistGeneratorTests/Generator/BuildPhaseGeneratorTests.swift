@@ -162,27 +162,37 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
-        let path = AbsolutePath("/en.lproj/Main.storyboard")
-        let target = Target.test(resources: [.file(path: path)])
-        let fileElements = ProjectFileElements()
-        let pbxproj = PBXProj()
-        let group = PBXVariantGroup()
-        pbxproj.add(object: group)
-        fileElements.elements[AbsolutePath("/Main.storyboard")] = group
-        let nativeTarget = PBXNativeTarget(name: "Test")
+        // Given
+        let files: [AbsolutePath] = [
+            "/path/resources/en.lproj/Main.storyboard",
+            "/path/resources/en.lproj/App.strings",
+            "/path/resources/fr.lproj/Main.storyboard",
+            "/path/resources/fr.lproj/App.strings",
+        ]
 
+        let resources = files.map { FileElement.file(path: $0) }
+        let fileElements = createLocalizedResourceFileElements(for: [
+            "/path/resources/Main.storyboard",
+            "/path/resources/App.strings",
+        ])
+
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+
+        // When
         try subject.generateResourcesBuildPhase(path: "/path",
-                                                target: target,
+                                                target: .test(resources: resources),
                                                 graph: Graph.test(),
                                                 pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
-        XCTAssertEqual(pbxBuildFile?.file, group)
+        // Then
+        let buildPhase = nativeTarget.buildPhases.first
+        XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
+            fileElements.elements["/path/resources/Main.storyboard"],
+            fileElements.elements["/path/resources/App.strings"],
+        ])
     }
 
     func test_generateResourcesBuildPhase_whenCoreDataModel() throws {
@@ -314,6 +324,14 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
         fileElements.products = Dictionary(uniqueKeysWithValues: targets.map {
             ($0.productNameWithExtension, PBXFileReference(name: $0.name))
+        })
+        return fileElements
+    }
+
+    private func createLocalizedResourceFileElements(for files: [AbsolutePath]) -> ProjectFileElements {
+        let fileElements = ProjectFileElements()
+        fileElements.elements = Dictionary(uniqueKeysWithValues: files.map {
+            ($0, PBXVariantGroup())
         })
         return fileElements
     }

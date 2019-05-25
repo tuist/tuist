@@ -1,24 +1,24 @@
 import ProjectDescription
 
-let project = Project(name: "iOSAppWithTransistiveStaticFrameworks",
+let project = Project(name: "C",
                       targets: [
-                          Target(name: "App",
+                          Target(name: "C",
                                  platform: .iOS,
-                                 product: .app,
-                                 bundleId: "io.tuist.App",
+                                 product: .staticFramework,
+                                 bundleId: "io.tuist.C",
                                  infoPlist: "Info.plist",
                                  sources: "Sources/**",
                                  dependencies: [
-                                     .project(target: "A", path: "Modules/A"),
-                                     .project(target: "C", path: "Modules/C"),
+                                     /* Target dependencies can be defined here */
+                                     /* .framework(path: "framework") */
                           ]),
-                          Target(name: "AppTests",
+                          Target(name: "CTests",
                                  platform: .iOS,
                                  product: .unitTests,
-                                 bundleId: "io.tuist.AppTests",
+                                 bundleId: "io.tuist.CTests",
                                  infoPlist: "Tests.plist",
                                  sources: "Tests/**",
                                  dependencies: [
-                                     .target(name: "App"),
+                                     .target(name: "C"),
                           ]),
 ])

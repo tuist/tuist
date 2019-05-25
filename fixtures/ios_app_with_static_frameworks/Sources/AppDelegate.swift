@@ -1,4 +1,5 @@
 import A
+import C
 import UIKit
 
 @UIApplicationMain
@@ -13,6 +14,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.makeKeyAndVisible()
 
         A.printFromA()
+        C.printFromC()
 
         return true
     }

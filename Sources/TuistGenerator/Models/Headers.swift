@@ -5,6 +5,8 @@ import XcodeProj
 
 /// Headers
 public class Headers: Equatable {
+    public static let extensions = Xcode.headersExtensions
+
     // MARK: - Attributes
 
     public let `public`: [AbsolutePath]

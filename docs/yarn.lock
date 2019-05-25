@@ -2276,11 +2276,6 @@ change-case@^3.0.2:
     upper-case "^1.1.1"
     upper-case-first "^1.1.0"
 
-change-emitter@^0.1.2:
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/change-emitter/-/change-emitter-0.1.6.tgz#e8b2fe3d7f1ab7d69a32199aff91ea6931409515"
-  integrity sha1-6LL+PX8at9aaMhma/5HqaTFAlRU=
-
 character-entities-html4@^1.0.0:
   version "1.1.3"
   resolved "https://registry.yarnpkg.com/character-entities-html4/-/character-entities-html4-1.1.3.tgz#5ce6e01618e47048ac22f34f7f39db5c6fd679ef"
@@ -2381,7 +2376,7 @@ class-utils@^0.3.5:
     isobject "^3.0.0"
     static-extend "^0.1.1"
 
-classnames@^2.2.5, classnames@^2.2.6:
+classnames@^2.2.6:
   version "2.2.6"
   resolved "https://registry.yarnpkg.com/classnames/-/classnames-2.2.6.tgz#43935bffdd291f326dad0a205309b38d00f650ce"
   integrity sha512-JR/iSQOSt+LQIWwrwEzJ9uk0xfN3mTVYMwt1Ir5mUcSN6pU+V4zQFFaJsclJbPuAUQH+yfWef6tm7l1quW3C8Q==
@@ -3799,7 +3794,7 @@ faye-websocket@~0.11.1:
   dependencies:
     websocket-driver ">=0.5.1"
 
-fbjs@^0.8.0, fbjs@^0.8.1:
+fbjs@^0.8.0:
   version "0.8.17"
   resolved "https://registry.yarnpkg.com/fbjs/-/fbjs-0.8.17.tgz#c4d598ead6949112653d6588b01a5cdcd9f90fdd"
   integrity sha1-xNWY6taUkRJlPWWIsBpc3Nn5D90=
@@ -4385,11 +4380,6 @@ hmac-drbg@^1.0.0:
     hash.js "^1.0.3"
     minimalistic-assert "^1.0.0"
     minimalistic-crypto-utils "^1.0.1"
-
-hoist-non-react-statics@^1.0.0:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/hoist-non-react-statics/-/hoist-non-react-statics-1.2.0.tgz#aa448cf0986d55cc40773b17174b7dd066cb7cfb"
-  integrity sha1-qkSM8JhtVcxAdzsXF0t90GbLfPs=
 
 hoist-non-react-statics@^3.3.0:
   version "3.3.0"
@@ -6419,30 +6409,10 @@ pretty-time@^1.1.0:
   resolved "https://registry.yarnpkg.com/pretty-time/-/pretty-time-1.1.0.tgz#ffb7429afabb8535c346a34e41873adf3d74dd0e"
   integrity sha512-28iF6xPQrP8Oa6uxE6a1biz+lWeTOAPKggvjB8HAs6nVMKZwf5bG++632Dx614hIWgUPkgivRfG+a8uAXGTIbA==
 
-prism-react-renderer@^0.1.0, prism-react-renderer@^0.1.6:
+prism-react-renderer@^0.1.0:
   version "0.1.6"
   resolved "https://registry.yarnpkg.com/prism-react-renderer/-/prism-react-renderer-0.1.6.tgz#c9216baa234fab1c234209fcdaf0cd23a01c50a9"
   integrity sha512-uZJn5wrygCH0ZMue+2JRd0qJharrmpxa6/uK7deKgvCtJFFE+VsyvJ49LS8/ATt0mlAJS6vFQTDvhXBEXsda+A==
-
-prism-react@^1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/prism-react/-/prism-react-1.0.2.tgz#c568c534760f738330295c633f647395afa972f4"
-  integrity sha1-xWjFNHYPc4MwKVxjP2Rzla+pcvQ=
-  dependencies:
-    recompose "^0.22.0"
-
-prism-redux@^1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/prism-redux/-/prism-redux-1.0.2.tgz#3dbb5463c9527812cf890d1b1ba29c8d902f82ed"
-  integrity sha1-PbtUY8lSeBLPiQ0bG6KcjZAvgu0=
-
-prism@^4.1.2:
-  version "4.1.2"
-  resolved "https://registry.yarnpkg.com/prism/-/prism-4.1.2.tgz#783dbc08c4dd20ea3ba7679135ca41d57deb2496"
-  integrity sha1-eD28CMTdIOo7p2eRNcpB1X3rJJY=
-  dependencies:
-    prism-react "^1.0.2"
-    prism-redux "^1.0.2"
 
 private@^0.1.6, private@^0.1.8:
   version "0.1.8"
@@ -6788,22 +6758,10 @@ react-popper@^1.3.3:
     typed-styles "^0.0.7"
     warning "^4.0.2"
 
-react-prism@^4.3.2:
-  version "4.3.2"
-  resolved "https://registry.yarnpkg.com/react-prism/-/react-prism-4.3.2.tgz#5c07609539b3ba6f45eb33e7d6a3588df3270c21"
-  integrity sha512-Z8BzDfWxzhngDtnZFjYj4RgHo7uqiWB4cOCpp//GFEpWbtINbCqHLIpL+q/f8ah5Aokw/uXkBkoLgvYIGgtm4A==
-
 react-simple-code-editor@^0.9.0:
   version "0.9.10"
   resolved "https://registry.yarnpkg.com/react-simple-code-editor/-/react-simple-code-editor-0.9.10.tgz#1ab5ea7215687ed918c6d0dae90736cf01890905"
   integrity sha512-80LJwRQS7Wi9Ugh/e6FRHWdcg4oQOpMBDFxyDpORILffrHdV3EIQ1IeX5x7488r05iFgLbVDV4nQ1LRKjgCm0g==
-
-react-table@^6.10.0:
-  version "6.10.0"
-  resolved "https://registry.yarnpkg.com/react-table/-/react-table-6.10.0.tgz#20444b19d8ca3c1a08e7544e5c3a93e4ba56690e"
-  integrity sha512-s/mQLI1+mNvlae45MfAZyZ04YIT3jUzWJqx34s0tfwpDdgJkpeK6vyzwMUkKFCpGODBxpjBOekYZzcEmk+2FiQ==
-  dependencies:
-    classnames "^2.2.5"
 
 react@^16.8.6:
   version "16.8.6"
@@ -6879,16 +6837,6 @@ recast@^0.17.3, recast@^0.17.6:
     esprima "~4.0.0"
     private "^0.1.8"
     source-map "~0.6.1"
-
-recompose@^0.22.0:
-  version "0.22.0"
-  resolved "https://registry.yarnpkg.com/recompose/-/recompose-0.22.0.tgz#f099d18385882ca41d9eec891718dadddc3204ef"
-  integrity sha1-8JnRg4WILKQdnuyJFxja3dwyBO8=
-  dependencies:
-    change-emitter "^0.1.2"
-    fbjs "^0.8.1"
-    hoist-non-react-statics "^1.0.0"
-    symbol-observable "^1.0.4"
 
 recursive-readdir@2.2.2:
   version "2.2.2"
@@ -7955,11 +7903,6 @@ swap-case@^1.1.0:
   dependencies:
     lower-case "^1.1.1"
     upper-case "^1.1.1"
-
-symbol-observable@^1.0.4:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/symbol-observable/-/symbol-observable-1.2.0.tgz#c22688aed4eab3cdc2dfeacbb561660560a00804"
-  integrity sha512-e900nM8RRtGhlV36KGEU9k65K3mPb1WV70OdjfxlG2EAuM1noi/E/BaW/uMhL7bPEssK8QV57vN3esixjUvcXQ==
 
 tapable@^1.0.0, tapable@^1.1.0:
   version "1.1.3"
