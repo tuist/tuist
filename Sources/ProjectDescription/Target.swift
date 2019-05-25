@@ -16,7 +16,7 @@ public class Target: Codable {
     public let bundleId: String
 
     /// Relative path to the Info.plist file.
-    public let infoPlist: String
+    public let infoPlist: InfoPlist
 
     /// Relative path to the entitlements file.
     public let entitlements: String?
@@ -83,7 +83,7 @@ public class Target: Codable {
                 platform: Platform,
                 product: Product,
                 bundleId: String,
-                infoPlist: String,
+                infoPlist: InfoPlist,
                 sources: FileList? = nil,
                 resources: [FileElement]? = nil,
                 headers: Headers? = nil,
