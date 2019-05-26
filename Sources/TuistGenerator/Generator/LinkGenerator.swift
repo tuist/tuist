@@ -107,27 +107,12 @@ final class LinkGenerator: LinkGenerating {
                                  pbxproj: pbxproj,
                                  fileElements: fileElements)
 
-        // If the current target, which is non-shared (e.g., static lib), depends on other focused targets which
-        // include Swift code, we must ensure those are treated as dependencies so that Xcode builds the targets
-        // in the correct order. Unfortunately, those deps can be part of other projects which would require
-        // cross-project references.
-        //
-        // Thankfully, there's an easy workaround because we can just create a phony copy phase which depends on
-        // the outputs of the deps (i.e., the static libs). The copy phase will effectively say "Copy libX.a from
-        // Products Dir into Products Dir" which is a nop. To be on the safe side, we're explicitly marking the
-        // copy phase as only running for deployment postprocessing (i.e., "Copy only when installing") and
-        // disabling deployment postprocessing (it's enabled by default for release builds).
-
-        if target.product.isStatic {
-            let dependencies = graph.staticDependencies(path: path, name: target.name)
-
-            try generateDependenciesBuildPhase(
-                dependencies: dependencies,
-                pbxTarget: pbxTarget,
-                pbxproj: pbxproj,
-                fileElements: fileElements
-            )
-        }
+        try generateCopyProductsdBuildPhase(path: path,
+                                            target: target,
+                                            graph: graph,
+                                            pbxTarget: pbxTarget,
+                                            pbxproj: pbxproj,
+                                            fileElements: fileElements)
     }
 
     func generateEmbedPhase(dependencies: [DependencyReference],
@@ -258,10 +243,49 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    func generateDependenciesBuildPhase(dependencies: [DependencyReference],
-                                        pbxTarget: PBXTarget,
-                                        pbxproj: PBXProj,
-                                        fileElements: ProjectFileElements) throws {
+    func generateCopyProductsdBuildPhase(path: AbsolutePath,
+                                         target: Target,
+                                         graph: Graphing,
+                                         pbxTarget: PBXTarget,
+                                         pbxproj: PBXProj,
+                                         fileElements: ProjectFileElements) throws {
+        // If the current target, which is non-shared (e.g., static lib), depends on other focused targets which
+        // include Swift code, we must ensure those are treated as dependencies so that Xcode builds the targets
+        // in the correct order. Unfortunately, those deps can be part of other projects which would require
+        // cross-project references.
+        //
+        // Thankfully, there's an easy workaround because we can just create a phony copy phase which depends on
+        // the outputs of the deps (i.e., the static libs). The copy phase will effectively say "Copy libX.a from
+        // Products Dir into Products Dir" which is a nop. To be on the safe side, we're explicitly marking the
+        // copy phase as only running for deployment postprocessing (i.e., "Copy only when installing") and
+        // disabling deployment postprocessing (it's enabled by default for release builds).
+        //
+        // This technique also allows resource bundles that reside in different projects to get built ahead of the
+        // "Copy Bundle Resources" phase.
+
+        var dependencies = [DependencyReference]()
+        if target.product.isStatic {
+            dependencies.append(contentsOf: graph.staticDependencies(path: path, name: target.name))
+        }
+
+        dependencies.append(contentsOf:
+            graph.resourceBundleDependencies(path: path, name: target.name)
+                .map { .product($0.target.productNameWithExtension) })
+
+        if !dependencies.isEmpty {
+            try generateDependenciesBuildPhase(
+                dependencies: dependencies,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                fileElements: fileElements
+            )
+        }
+    }
+
+    private func generateDependenciesBuildPhase(dependencies: [DependencyReference],
+                                                pbxTarget: PBXTarget,
+                                                pbxproj: PBXProj,
+                                                fileElements: ProjectFileElements) throws {
         var files: [PBXBuildFile] = []
 
         for case let .product(name) in dependencies {
