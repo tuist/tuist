@@ -230,7 +230,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                  platform: .iOS,
                                  product: .app,
                                  bundleId: "com.bundle.id",
-                                 infoPlist: AbsolutePath("/project/info.plist"),
+                                 infoPlist: .file(path: AbsolutePath("/project/info.plist")),
                                  entitlements: AbsolutePath("/project/app.entitlements"),
                                  settings: settings,
                                  sources: [AbsolutePath("/project/file.swift")],
@@ -286,8 +286,8 @@ final class ProjectFileElementsTests: XCTestCase {
         let project = Project.test()
         let sourceRootPath = AbsolutePath("/a/project/")
         let groups = ProjectGroups.generate(project: project,
-                                             pbxproj: pbxproj,
-                                             sourceRootPath: sourceRootPath)
+                                            pbxproj: pbxproj,
+                                            sourceRootPath: sourceRootPath)
         try subject.generateProducts(project: project,
                                      dependencies: [],
                                      groups: groups,
@@ -305,7 +305,7 @@ final class ProjectFileElementsTests: XCTestCase {
     }
 
     func test_generateProducts_stableOrder() throws {
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             // Given
             let subject = ProjectFileElements(playgrounds: playgrounds)
             let pbxproj = PBXProj()
@@ -314,7 +314,7 @@ final class ProjectFileElementsTests: XCTestCase {
             let groups = ProjectGroups.generate(project: project,
                                                 pbxproj: pbxproj,
                                                 sourceRootPath: sourceRootPath)
-            let dependencies: Set<TargetNode> = Set((1...5).map {
+            let dependencies: Set<TargetNode> = Set((1 ... 5).map {
                 let target = Target.test(name: "Target\($0)", product: .framework)
                 return TargetNode(project: project,
                                   target: target,

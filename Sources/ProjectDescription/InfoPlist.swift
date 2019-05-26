@@ -1,7 +1,7 @@
 import Foundation
 
 public enum InfoPlist: Codable {
-    case local(path: String)
+    case file(path: String)
 
     // MARK: - Error
 
@@ -16,13 +16,22 @@ public enum InfoPlist: Codable {
         case path
     }
 
+    // MARK: - Internal
+
+    var path: String {
+        switch self {
+        case let .file(path):
+            return path
+        }
+    }
+
     // MARK: - Codable
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
-        if type == "local" {
-            self = .local(path: try container.decode(String.self, forKey: .path))
+        if type == "file" {
+            self = .file(path: try container.decode(String.self, forKey: .path))
         } else {
             throw CodingError.invalidType(type)
         }
@@ -31,8 +40,8 @@ public enum InfoPlist: Codable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .local(path):
-            try container.encode("local", forKey: .type)
+        case let .file(path):
+            try container.encode("file", forKey: .type)
             try container.encode(path, forKey: .path)
         }
     }
@@ -40,8 +49,12 @@ public enum InfoPlist: Codable {
 
 // MARK: - ExpressibleByStringLiteral
 
-extension InfoPlist: ExpressibleByStringLiteral {
+extension InfoPlist: ExpressibleByStringLiteral, ExpressibleByUnicodeScalarLiteral, ExpressibleByExtendedGraphemeClusterLiteral {
+    public typealias UnicodeScalarLiteralType = String
+    public typealias ExtendedGraphemeClusterLiteralType = String
+    public typealias StringLiteralType = String
+
     public init(stringLiteral value: String) {
-        self = .local(path: value)
+        self = .file(path: value)
     }
 }

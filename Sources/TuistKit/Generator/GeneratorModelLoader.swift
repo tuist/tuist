@@ -200,7 +200,7 @@ extension TuistGenerator.Target {
         let bundleId = manifest.bundleId
         let dependencies = manifest.dependencies.map { TuistGenerator.Dependency.from(manifest: $0) }
 
-        let infoPlist = path.appending(RelativePath(manifest.infoPlist))
+        let infoPlist = TuistGenerator.InfoPlist.from(manifest: manifest.infoPlist, path: path)
         let entitlements = manifest.entitlements.map { path.appending(RelativePath($0)) }
 
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
@@ -227,21 +227,30 @@ extension TuistGenerator.Target {
         let actions = manifest.actions.map { TuistGenerator.TargetAction.from(manifest: $0, path: path) }
         let environment = manifest.environment
 
-        return Target(name: name,
-                      platform: platform,
-                      product: product,
-                      bundleId: bundleId,
-                      infoPlist: infoPlist,
-                      entitlements: entitlements,
-                      settings: settings,
-                      sources: sources,
-                      resources: resources,
-                      headers: headers,
-                      coreDataModels: coreDataModels,
-                      actions: actions,
-                      environment: environment,
-                      filesGroup: .group(name: "Project"),
-                      dependencies: dependencies)
+        return TuistGenerator.Target(name: name,
+                                     platform: platform,
+                                     product: product,
+                                     bundleId: bundleId,
+                                     infoPlist: infoPlist,
+                                     entitlements: entitlements,
+                                     settings: settings,
+                                     sources: sources,
+                                     resources: resources,
+                                     headers: headers,
+                                     coreDataModels: coreDataModels,
+                                     actions: actions,
+                                     environment: environment,
+                                     filesGroup: .group(name: "Project"),
+                                     dependencies: dependencies)
+    }
+}
+
+extension TuistGenerator.InfoPlist {
+    static func from(manifest: ProjectDescription.InfoPlist, path: AbsolutePath) -> TuistGenerator.InfoPlist {
+        switch manifest {
+        case let .file(infoplistPath):
+            return .file(path: path.appending(RelativePath(infoplistPath)))
+        }
     }
 }
 
