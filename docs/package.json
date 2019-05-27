@@ -1,7 +1,7 @@
 {
   "devDependencies": {
-    "docz": "^1.2.0",
-    "docz-theme-default": "^1.2.0"
+    "docz": "git@github.com:lemon-31/docz.git#9a8fe392c443e9c3fa1f4c161d40b7487b05cb7c",
+    "docz-theme-default": "git@github.com:lemon-31/docz.git#9a8fe392c443e9c3fa1f4c161d40b7487b05cb7c"
   },
   "scripts": {
     "docz:dev": "docz dev",

@@ -6,7 +6,7 @@ import StyledCode from "./styled-code"
 const PropertiesTable = ({ props }) => {
   return (
     <Table celled>
-      <Responsive as={Table.Header} {...Responsive.onlyWidescreen}>
+      <Responsive as={Table.Header} {...Responsive.onlyComputer}>
         <Table.Row>
           <Table.HeaderCell>Property</Table.HeaderCell>
           <Table.HeaderCell>Description</Table.HeaderCell>
