@@ -7,6 +7,10 @@
     "docz:dev": "docz dev",
     "docz:build": "docz build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuist/tuist.git"
+  },
   "dependencies": {
     "semantic-ui-react": "^0.87.1",
     "styled-components": "^4.2.0",
