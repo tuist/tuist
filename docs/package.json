@@ -1,14 +1,19 @@
 {
   "devDependencies": {
-    "docz": "^1.0.4",
-    "docz-theme-default": "^1.0.4"
+    "docz": "git@github.com:lemon-31/docz.git#9a8fe392c443e9c3fa1f4c161d40b7487b05cb7c",
+    "docz-theme-default": "git@github.com:lemon-31/docz.git#9a8fe392c443e9c3fa1f4c161d40b7487b05cb7c"
   },
   "scripts": {
     "docz:dev": "docz dev",
     "docz:build": "docz build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuist/tuist.git"
+  },
   "dependencies": {
-    "react-table": "^6.10.0",
-    "semantic-ui-react": "^0.87.1"
+    "semantic-ui-react": "^0.87.1",
+    "styled-components": "^4.2.0",
+    "styled-system": "^4.2.2"
   }
 }
