@@ -58,15 +58,14 @@ public class Arguments: Equatable {
 }
 
 public class ExecutionAction: Equatable {
-    
     // MARK: - Attributes
-    
+
     public let title: String
     public let scriptText: String
     public let target: String?
-    
+
     // MARK: - Init
-    
+
     public init(title: String,
                 scriptText: String,
                 target: String?) {
@@ -74,7 +73,7 @@ public class ExecutionAction: Equatable {
         self.scriptText = scriptText
         self.target = target
     }
-    
+
     public static func == (lhs: ExecutionAction, rhs: ExecutionAction) -> Bool {
         return lhs.title == rhs.title &&
             lhs.scriptText == rhs.scriptText &&
@@ -94,7 +93,6 @@ public class BuildAction: Equatable {
     public init(targets: [String] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
-        
         self.targets = targets
         self.preActions = preActions
         self.postActions = postActions

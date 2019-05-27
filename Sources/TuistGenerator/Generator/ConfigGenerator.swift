@@ -211,7 +211,7 @@ final class ConfigGenerator: ConfigGenerating {
                                      sourceRootPath: AbsolutePath) {
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
         if let infoPlist = target.infoPlist {
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.relative(to: sourceRootPath).pathString)"
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.path.relative(to: sourceRootPath).pathString)"
         }
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"

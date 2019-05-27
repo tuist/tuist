@@ -28,7 +28,7 @@ extension Target {
                      platform: Platform = .iOS,
                      product: Product = .framework,
                      bundleId: String = "com.some.bundle.id",
-                     infoPlist: String = "Info.plist",
+                     infoPlist: InfoPlist = .file(path: "Info.plist"),
                      sources: FileList = "Sources/**",
                      resources: [FileElement] = "Resources/**",
                      headers: Headers? = nil,

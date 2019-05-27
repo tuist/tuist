@@ -33,17 +33,16 @@ public class Scheme: Codable {
 // MARK: - ExecutionAction
 
 public class ExecutionAction: Codable {
-    
     public let title: String
     public let scriptText: String
     public let target: String?
-    
+
     public enum CodingKeys: String, CodingKey {
         case title
         case scriptText = "script_text"
         case target
     }
-    
+
     public init(title: String = "Run Script", scriptText: String, target: String? = nil) {
         self.title = title
         self.scriptText = scriptText
@@ -81,7 +80,7 @@ public class BuildAction: Codable {
         case preActions = "pre_actions"
         case postActions = "post_actions"
     }
-    
+
     public init(targets: [String],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
@@ -115,7 +114,7 @@ public class TestAction: Codable {
                 config: BuildConfiguration = .debug,
                 coverage: Bool = false,
                 preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = []){
+                postActions: [ExecutionAction] = []) {
         self.targets = targets
         self.arguments = arguments
         self.config = config

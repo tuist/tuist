@@ -27,7 +27,6 @@ extension TestAction {
                      coverage: Bool = false,
                      preActions: [ExecutionAction] = [],
                      postActions: [ExecutionAction] = []) -> TestAction {
-        
         return TestAction(targets: targets,
                           arguments: arguments,
                           config: config,

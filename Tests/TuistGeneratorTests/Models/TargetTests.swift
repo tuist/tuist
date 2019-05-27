@@ -110,6 +110,4 @@ final class TargetTests: XCTestCase {
             "resources/f.otf",
         ])
     }
-
-    // MARK: - Helpers
 }

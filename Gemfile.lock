@@ -7,7 +7,7 @@ GEM
     ast (2.4.0)
     backports (3.11.4)
     builder (3.2.3)
-    byebug (11.0.1)
+    byebug (10.0.2)
     claide (1.0.2)
     claide-plugins (0.9.2)
       cork
@@ -106,7 +106,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  byebug (~> 11.0)
+  byebug (~> 10.0)
   cucumber (~> 3.1)
   danger (~> 6.0)
   danger-rubocop (~> 0.6.1)

@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Changed
+- Introduce the `InfoPlist` file https://github.com/tuist/tuist/pull/373 by @pepibumur.
+
 ### Fixed
 
 - Fixing unstable diff (products and embedded frameworks) https://github.com/tuist/tuist/pull/357 by @marciniwanicki
