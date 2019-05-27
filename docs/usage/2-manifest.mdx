@@ -6,7 +6,7 @@ import PropertiesTable from "../components/properties-table"
 import Message from "../components/message"
 import EnumTable from "../components/enum"
 
-## Project.swift
+# Project.swift
 
 Projects are defined in `Project.swift` files, which we refer to as manifest files. Manifests need to import the framework `ProjectDescription` which contains all the classes and enums that are available for you to describe your projects. The snippet below shows an example project manifest:
 
@@ -47,7 +47,7 @@ let project = Project(name: "MyProject",
                         ])
 ```
 
-### Project
+## Project
 
 A `Project.swift` should initialize a variable of type `Project`. It can take any name, although we recommend to stick to `project`. A project accepts the following attributes:
 
@@ -95,7 +95,7 @@ default: "[]"
 
 <Message info title="Relative paths" description="All the relative paths in the project manifest are relative to the folder that contains the manifest file."/>
 
-### Target
+## Target
 
 Each target in the list of project targets can be initialized with the following attributes:
 
@@ -212,7 +212,7 @@ let target = Target(name: "App",
                     dependencies: [])
 ```
 
-### Headers
+## Headers
 
 It represents the target headers:
 
@@ -240,7 +240,7 @@ default: "nil"
 },
 ]}/>
 
-### Core Data Model
+## Core Data Model
 
 The `CoreDataModel` type represents a Core Data model:
 
@@ -262,7 +262,7 @@ default: ""
 ]}/>
 
 
-### Platform
+## Platform
 
 The platform type represents the platform a target is built for. It can be any of the following types:
 
@@ -297,7 +297,7 @@ description: "A UI tests bundle."
 },
 ]}/>
 
-### Target Action
+## Target Action
 
 Target actions, represented as target script build phases, are useful to define actions to be executed before of after the build process of a target. 
 
@@ -329,7 +329,7 @@ The following example shows the definition of an action that runs the `my_custom
 
 <Message info title="Relative paths" description="Either the tool or the path need to be defined. Moreover, Tuist verifies whether the launch path is valid and fail otherwise."/>
 
-### Build Configuration
+## Build Configuration
 
 It represents the default build configurations available:
 
@@ -344,7 +344,7 @@ description: "Release build configuration."
 }
 ]}/>
 
-### Scheme
+## Scheme
 
 A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
 
@@ -392,7 +392,7 @@ default: "nil"
 <Message info title="Auto-generation of schemes" description="Tuist will auto-generate a scheme for each target by default in addition to any defined schemes."/>
 
 
-#### Build Action
+### Build Action
 
 It represents the scheme action that builds targets:
 
@@ -422,7 +422,7 @@ default: "[]"
 },
 ]}/>
 
-#### Run action
+### Run action
 
 It represents the scheme action that runs the built products on the supported platforms:
 
@@ -452,7 +452,7 @@ default: "nil"
 }
 ]}/>
 
-#### Test Action
+### Test Action
 
 <PropertiesTable props={[
 {
@@ -503,7 +503,7 @@ default: "[]"
 },
 ]}/>
 
-#### Execution Action
+### Execution Action
 Scheme run scripts can be defined with the following attributes:
 
 <PropertiesTable props={[
@@ -530,7 +530,7 @@ default: "nil"
 },
 ]}/>
 
-#### Arguments
+### Arguments
 
 Arguments contain commandline arguments passed on launch and Environment variables.
 
@@ -551,7 +551,7 @@ default: "[:]"
 },
 ]}/>
 
-### Settings
+## Settings
 
 A `Settings` object contains an optional dictionary with build settings and relative path to an `.xcconfig` file. It is initialized with the following attributes:
 
@@ -581,7 +581,7 @@ default: "nil",
 }
 ]}/>
 
-### Configuration
+## Configuration
 
 A `Configuration` object describes the build settings and the `.xcconfig` file of a project or target. It is initialized with the following attributes:
 
@@ -602,7 +602,7 @@ default: "nil"
 },
 ]}/>
 
-### FileElement
+## FileElement
 
 A `FileElement` can be one of the following options:
 
@@ -617,7 +617,7 @@ description: "A directory path to include as a folder reference."
 }
 ]}/>
 
-## Workspace.swift
+# Workspace.swift
 
 By default, `tuist generate` generates an Xcode workspace that has the same name as the current project. It includes the project and all its dependencies. Tuist allows customizing this behaviour by defining a workspace manifest within a `Workspace.swift` file.
 
@@ -643,7 +643,7 @@ let workspace = Workspace(name: "CustomWorkspace",
 
 A `Workspace.swift` file can reside in any directory (including a project directory).
 
-### Workspace
+## Workspace
 
 A `Workspace.swift` should initialize a variable of type `Workspace`. It can take any name, although we recommend to stick to `workspace`. A workspace accepts the following attributes:
 
