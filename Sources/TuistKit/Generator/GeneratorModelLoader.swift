@@ -259,7 +259,21 @@ extension TuistGenerator.Settings {
         let base = manifest.base
         let debug = manifest.debug.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
         let release = manifest.release.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
-        return TuistGenerator.Settings(base: base, configurations: [.debug: debug, .release: release])
+        let defaultSettings = TuistGenerator.DefaultSettings.from(manifest: manifest.defaultSettings)
+        return TuistGenerator.Settings(base: base,
+                                       configurations: [.debug: debug, .release: release],
+                                       defaultSettings: defaultSettings)
+    }
+}
+
+extension TuistGenerator.DefaultSettings {
+    static func from(manifest: ProjectDescription.DefaultSettings) -> TuistGenerator.DefaultSettings {
+        switch manifest {
+        case .recommended:
+            return .recommended
+        case .essential:
+            return .essential
+        }
     }
 }
 

@@ -22,12 +22,16 @@ protocol ConfigGenerating: AnyObject {
 final class ConfigGenerator: ConfigGenerating {
     // MARK: - Attributes
 
-    let fileGenerator: FileGenerating
+    private let fileGenerator: FileGenerating
+    private let defaultSettingsProvider: DefaultSettingsProviding
+    private let settingsHelper = SettingsHelper()
 
     // MARK: - Init
 
-    init(fileGenerator: FileGenerating = FileGenerator()) {
+    init(fileGenerator: FileGenerating = FileGenerator(),
+         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         self.fileGenerator = fileGenerator
+        self.defaultSettingsProvider = defaultSettingsProvider
     }
 
     // MARK: - ConfigGenerating
@@ -98,20 +102,15 @@ final class ConfigGenerator: ConfigGenerating {
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             configurationList: XCConfigurationList) throws {
-        let variant: BuildSettingsProvider.Variant = (buildConfiguration.variant == .debug) ? .debug : .release
-        let defaultConfigSettings = BuildSettingsProvider.projectDefault(variant: variant)
-        let defaultSettingsAll = BuildSettingsProvider.projectDefault(variant: .all)
-
-        var settings: [String: Any] = [:]
-        extend(buildSettings: &settings, with: defaultSettingsAll)
-        extend(buildSettings: &settings, with: project.settings.base)
-        extend(buildSettings: &settings, with: defaultConfigSettings)
+        var settings = defaultSettingsProvider.defaultProjectSettings(project: project,
+                                                                      buildConfiguration: buildConfiguration)
+        settingsHelper.extend(buildSettings: &settings, with: project.settings.base)
 
         let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
                                                              baseConfiguration: nil,
                                                              buildSettings: [:])
         if let variantConfig = configuration {
-            extend(buildSettings: &settings, with: variantConfig.settings)
+            settingsHelper.extend(buildSettings: &settings, with: variantConfig.settings)
             if let xcconfig = variantConfig.xcconfig {
                 let fileReference = fileElements.file(path: xcconfig)
                 variantBuildConfiguration.baseConfiguration = fileReference
@@ -130,21 +129,10 @@ final class ConfigGenerator: ConfigGenerating {
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            sourceRootPath: AbsolutePath) throws {
-        let product = settingsProviderProduct(target)
-        let platform = settingsProviderPlatform(target)
-        let variant: BuildSettingsProvider.Variant = (buildConfiguration.variant == .debug) ? .debug : .release
-
-        var settings: [String: Any] = [:]
-        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: .all,
-                                                                                   platform: platform,
-                                                                                   product: product,
-                                                                                   swift: true))
-        extend(buildSettings: &settings, with: BuildSettingsProvider.targetDefault(variant: variant,
-                                                                                   platform: platform,
-                                                                                   product: product,
-                                                                                   swift: true))
-        extend(buildSettings: &settings, with: target.settings?.base ?? [:])
-        extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+        var settings = defaultSettingsProvider.defaultTargetSettings(target: target,
+                                                                     buildConfiguration: buildConfiguration)
+        settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
+        settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
         let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
                                                              baseConfiguration: nil,
@@ -162,47 +150,6 @@ final class ConfigGenerator: ConfigGenerating {
         variantBuildConfiguration.buildSettings = settings
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
-    }
-
-    private func settingsProviderPlatform(_ target: Target) -> BuildSettingsProvider.Platform? {
-        var platform: BuildSettingsProvider.Platform?
-        switch target.platform {
-        case .iOS: platform = .iOS
-        case .macOS: platform = .macOS
-        case .tvOS: platform = .tvOS
-//        case .watchOS: platform = .watchOS
-        }
-        return platform
-    }
-
-    private func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
-        switch target.product {
-        case .app:
-            return .application
-        case .dynamicLibrary:
-            return .dynamicLibrary
-        case .staticLibrary:
-            return .staticLibrary
-        case .framework, .staticFramework:
-            return .framework
-        default:
-            return nil
-        }
-    }
-
-    private func extend(buildSettings: inout [String: Any], with other: [String: Any]) {
-        other.forEach { key, value in
-            if buildSettings[key] == nil || (value as? String)?.contains("$(inherited)") == false {
-                buildSettings[key] = value
-            } else {
-                let previousValue: Any = buildSettings[key]!
-                if let previousValueString = previousValue as? String, let newValueString = value as? String {
-                    buildSettings[key] = "\(previousValueString) \(newValueString)"
-                } else {
-                    buildSettings[key] = value
-                }
-            }
-        }
     }
 
     private func updateTargetDerived(buildSettings settings: inout [String: Any],

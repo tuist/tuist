@@ -11,7 +11,7 @@ final class SettingsTests: XCTestCase {
                                                       xcconfig: "/path/release"))
 
         let expected = """
-        {"base": {"base": "base"}, "debug": {"settings": {"debug": "debug"}, "xcconfig": "/path/debug.xcconfig"}, "release": {"settings": {"release": "release"}, "xcconfig": "/path/release"}}
+        {"base": {"base": "base"}, "debug": {"settings": {"debug": "debug"}, "xcconfig": "/path/debug.xcconfig"}, "release": {"settings": {"release": "release"}, "xcconfig": "/path/release"}, "defaultSettings": "recommended"}
         """
         assertCodableEqualToJson(subject, expected)
     }

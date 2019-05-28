@@ -22,20 +22,29 @@ public class Configuration: Equatable {
     }
 }
 
+public enum DefaultSettings {
+    case recommended
+    case essential
+}
+
 public class Settings: Equatable {
-    public static let `default` = Settings(configurations: [.release: nil, .debug: nil])
+    public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
+                                           defaultSettings: .recommended)
 
     // MARK: - Attributes
 
     public let base: [String: String]
     public let configurations: [BuildConfiguration: Configuration?]
+    public let defaultSettings: DefaultSettings
 
     // MARK: - Init
 
     public init(base: [String: String] = [:],
-                configurations: [BuildConfiguration: Configuration?]) {
+                configurations: [BuildConfiguration: Configuration?],
+                defaultSettings: DefaultSettings = .recommended) {
         self.base = base
         self.configurations = configurations
+        self.defaultSettings = defaultSettings
     }
 
     // MARK: - Equatable

@@ -58,12 +58,20 @@ public class Generator: Generating {
     public convenience init(system: Systeming = System(),
                             printer: Printing = Printer(),
                             fileHandler: FileHandling = FileHandler(),
+                            defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                             modelLoader: GeneratorModelLoading) {
         let graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
+        let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
+        let projectGenerator = ProjectGenerator(configGenerator: configGenerator,
+                                                printer: printer,
+                                                system: system)
+        let workspaceStructureGenerator = WorkspaceStructureGenerator(fileHandler: fileHandler)
         let workspaceGenerator = WorkspaceGenerator(system: system,
                                                     printer: printer,
                                                     projectDirectoryHelper: ProjectDirectoryHelper(),
-                                                    fileHandler: fileHandler)
+                                                    projectGenerator: projectGenerator,
+                                                    fileHandler: fileHandler,
+                                                    workspaceStructureGenerator: workspaceStructureGenerator)
         self.init(graphLoader: graphLoader,
                   workspaceGenerator: workspaceGenerator)
     }
