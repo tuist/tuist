@@ -272,6 +272,106 @@ final class LinkGeneratorErrorTests: XCTestCase {
         }
     }
 
+    func test_generateCopyProductsdBuildPhase_staticTargetDependsOnStaticProducts() throws {
+        // Given
+        let path = AbsolutePath("/path/")
+        let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
+        let target = Target.test(name: "Static", product: .staticLibrary)
+        let graph = Graph.create(project: .test(path: path),
+                                 dependencies: [
+                                     (target: target, dependencies: [staticDependency]),
+                                     (target: staticDependency, dependencies: []),
+                                 ])
+        let fileElements = createProjectFileElements(for: [staticDependency])
+        let xcodeProjElements = createXcodeprojElements()
+
+        // When
+        try subject.generateCopyProductsdBuildPhase(path: path,
+                                                    target: target,
+                                                    graph: graph,
+                                                    pbxTarget: xcodeProjElements.pbxTarget,
+                                                    pbxproj: xcodeProjElements.pbxproj,
+                                                    fileElements: fileElements)
+
+        // Then
+        let copyProductsPhase = xcodeProjElements
+            .pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXCopyFilesBuildPhase }
+            .first(where: { $0.name() == "Dependencies" })
+        XCTAssertEqual(copyProductsPhase?.dstSubfolderSpec, .productsDirectory)
+
+        let buildFiles = copyProductsPhase?.files?.compactMap { $0.file?.path }
+        XCTAssertEqual(buildFiles, [
+            "libStaticDependency.a",
+        ])
+    }
+
+    func test_generateCopyProductsdBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
+        // Given
+        let path = AbsolutePath("/path/")
+        let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
+        let target = Target.test(name: "Dynamic", product: .framework)
+        let graph = Graph.create(project: .test(path: path),
+                                 dependencies: [
+                                     (target: target, dependencies: [staticDependency]),
+                                     (target: staticDependency, dependencies: []),
+                                 ])
+        let fileElements = createProjectFileElements(for: [staticDependency])
+        let xcodeProjElements = createXcodeprojElements()
+
+        // When
+        try subject.generateCopyProductsdBuildPhase(path: path,
+                                                    target: target,
+                                                    graph: graph,
+                                                    pbxTarget: xcodeProjElements.pbxTarget,
+                                                    pbxproj: xcodeProjElements.pbxproj,
+                                                    fileElements: fileElements)
+
+        // Then
+        let copyProductsPhase = xcodeProjElements
+            .pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXCopyFilesBuildPhase }
+            .first(where: { $0.name() == "Dependencies" })
+        XCTAssertNil(copyProductsPhase)
+    }
+
+    func test_generateCopyProductsdBuildPhase_resourceBundles() throws {
+        // Given
+        let path = AbsolutePath("/path/")
+        let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let target = Target.test(name: "Target", product: .app)
+        let graph = Graph.create(project: .test(path: path),
+                                 dependencies: [
+                                     (target: target, dependencies: [resourceBundle]),
+                                     (target: resourceBundle, dependencies: []),
+                                 ])
+        let fileElements = createProjectFileElements(for: [resourceBundle])
+        let xcodeProjElements = createXcodeprojElements()
+
+        // When
+        try subject.generateCopyProductsdBuildPhase(path: path,
+                                                    target: target,
+                                                    graph: graph,
+                                                    pbxTarget: xcodeProjElements.pbxTarget,
+                                                    pbxproj: xcodeProjElements.pbxproj,
+                                                    fileElements: fileElements)
+
+        // Then
+        let copyProductsPhase = xcodeProjElements
+            .pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXCopyFilesBuildPhase }
+            .first(where: { $0.name() == "Dependencies" })
+        XCTAssertEqual(copyProductsPhase?.dstSubfolderSpec, .productsDirectory)
+
+        let buildFiles = copyProductsPhase?.files?.compactMap { $0.file?.path }
+        XCTAssertEqual(buildFiles, [
+            "ResourceBundle.bundle",
+        ])
+    }
+
     // MARK: - Helpers
 
     struct XcodeprojElements {
@@ -296,5 +396,14 @@ final class LinkGeneratorErrorTests: XCTestCase {
         return XcodeprojElements(pbxproj: pbxproj,
                                  pbxTarget: pbxTarget,
                                  config: config)
+    }
+
+    func createProjectFileElements(for targets: [Target]) -> ProjectFileElements {
+        let projectFileElements = ProjectFileElements(playgrounds: MockPlaygrounds())
+        targets.forEach {
+            projectFileElements.products[$0.productNameWithExtension] = PBXFileReference(path: $0.productNameWithExtension)
+        }
+
+        return projectFileElements
     }
 }
