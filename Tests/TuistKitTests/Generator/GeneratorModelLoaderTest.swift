@@ -1,7 +1,8 @@
 import Basic
 import Foundation
-import TuistGenerator
 import XCTest
+
+import TuistGenerator
 @testable import ProjectDescription
 @testable import TuistCoreTesting
 @testable import TuistKit
@@ -535,7 +536,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
         XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
-        XCTAssertEqual(target.infoPlist, path.appending(RelativePath(manifest.infoPlist)), file: file, line: line)
+        XCTAssertEqual(target.infoPlist?.path, path.appending(RelativePath(manifest.infoPlist.path)), file: file, line: line)
         XCTAssertEqual(target.entitlements, manifest.entitlements.map { path.appending(RelativePath($0)) }, file: file, line: line)
         XCTAssertEqual(target.environment, manifest.environment, file: file, line: line)
         assert(coreDataModels: target.coreDataModels, matches: manifest.coreDataModels, at: path, file: file, line: line)

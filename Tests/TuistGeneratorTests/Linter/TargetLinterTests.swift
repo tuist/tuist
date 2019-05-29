@@ -61,7 +61,7 @@ final class TargetLinterTests: XCTestCase {
 
     func test_lint_when_entitlements_not_missing() {
         let path = fileHandler.currentPath.appending(component: "Info.plist")
-        let target = Target.test(infoPlist: path)
+        let target = Target.test(infoPlist: .file(path: path))
 
         let got = subject.lint(target: target)
 

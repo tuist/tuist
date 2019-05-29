@@ -16,7 +16,7 @@ public class Project: Equatable, CustomStringConvertible {
 
     /// Project schemes
     public let schemes: [Scheme]
-    
+
     /// Project settings.
     public let settings: Settings
 

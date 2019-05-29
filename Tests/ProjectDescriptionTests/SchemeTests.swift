@@ -6,7 +6,7 @@ final class SchemeTests: XCTestCase {
     func test_toJSON() {
         let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: "target")]
         let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: "target")]
-        
+
         let subject = Scheme(name: "scheme",
                              shared: true,
                              buildAction: BuildAction(targets: ["target"],

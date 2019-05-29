@@ -26,7 +26,7 @@ let target = Target(
 
 A dependency can be any of the following types.
 
-### Target dependencies
+## Target dependencies
 
 ```swift
 .target("App")
@@ -34,7 +34,7 @@ A dependency can be any of the following types.
 
 It defines a dependency with another target in the same project. For instance, a tests target depends on the target that is being tested.
 
-### Target dependencies across projects
+## Target dependencies across projects
 
 ```swift
 .project(target: "Core", path: "../Core")
@@ -42,7 +42,7 @@ It defines a dependency with another target in the same project. For instance, a
 
 It defines a dependency with a target in another project. When the workspace gets generated, the other project is also included so that Xcode knows how to compile that other target.
 
-### Framework dependencies
+## Framework dependencies
 
 ```swift
 .framework(path: "Carthage/Build/iOS/Alamofire.framework")
@@ -50,7 +50,7 @@ It defines a dependency with a target in another project. When the workspace get
 
 It defines a dependency with a pre-compiled framework, for example, a framework that has been compiled by Carthage. If the framework contains multiple architectures, Tuist will add an extra build phase to strip them.
 
-### Library dependencies
+## Library dependencies
 
 ```swift
 .library(path: "Vendor/Library.a",
