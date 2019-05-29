@@ -15,3 +15,4 @@ This document describes the process of releasing new versions of tuist.
 6.  Commit the changes and tag the commit with the version `git tag x.y.z`.
 7.  Package the release running `make package-release`.
 8.  Push the changes to remote and create a new release on GitHub including the changelog. Attach all the files in the `build/` directory.
+9.  Deploy the documentation website to [Netlify](https://app.netlify.com/sites/peaceful-fermat-c0d5d7/deploys).
