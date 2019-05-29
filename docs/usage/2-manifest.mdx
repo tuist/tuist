@@ -350,6 +350,23 @@ description: "A UI tests bundle."
 },
 ]}/>
 
+## InfoPlist
+
+The `InfoPlist` model represents a target `Info.plist` file. It can have any of the following values:
+
+<EnumTable cases={[
+{
+case: ".file(path: String)",
+description: "The path to an existing Info.plist file"
+},
+{
+case: ".dictionary([String: Any])",
+description: "A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time."
+},
+]}/>
+
+<Message info title="ExpressibleByStringLiteral" description="The InfoPlist model conforms the ExpressibleByStringLiteral protocol, which means that it can be initialized with a String. In that case, the string is the path to the Info.plist file."/>
+
 ## Target Action
 
 Target actions, represented as target script build phases, are useful to define actions to be executed before of after the build process of a target. 
