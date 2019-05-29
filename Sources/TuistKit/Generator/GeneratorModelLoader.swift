@@ -259,6 +259,8 @@ extension TuistGenerator.InfoPlist {
         switch manifest {
         case let .file(infoplistPath):
             return .file(path: path.appending(RelativePath(infoplistPath)))
+        default:
+            fatalError("Not implemented yet")
         }
     }
 }
