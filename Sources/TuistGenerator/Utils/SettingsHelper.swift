@@ -6,13 +6,10 @@ final class SettingsHelper {
         other.forEach { key, value in
             if buildSettings[key] == nil || (value as? String)?.contains("$(inherited)") == false {
                 buildSettings[key] = value
+            } else if let previousValueString = buildSettings[key] as? String, let newValueString = value as? String {
+                buildSettings[key] = "\(previousValueString) \(newValueString)"
             } else {
-                let previousValue: Any = buildSettings[key]!
-                if let previousValueString = previousValue as? String, let newValueString = value as? String {
-                    buildSettings[key] = "\(previousValueString) \(newValueString)"
-                } else {
-                    buildSettings[key] = value
-                }
+                buildSettings[key] = value
             }
         }
     }

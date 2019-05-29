@@ -102,8 +102,8 @@ final class ConfigGenerator: ConfigGenerating {
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             configurationList: XCConfigurationList) throws {
-        var settings = defaultSettingsProvider.defaultProjectSettings(project: project,
-                                                                      buildConfiguration: buildConfiguration)
+        var settings = defaultSettingsProvider.projectSettings(project: project,
+                                                               buildConfiguration: buildConfiguration)
         settingsHelper.extend(buildSettings: &settings, with: project.settings.base)
 
         let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
@@ -129,8 +129,8 @@ final class ConfigGenerator: ConfigGenerating {
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            sourceRootPath: AbsolutePath) throws {
-        var settings = defaultSettingsProvider.defaultTargetSettings(target: target,
-                                                                     buildConfiguration: buildConfiguration)
+        var settings = defaultSettingsProvider.targetSettings(target: target,
+                                                              buildConfiguration: buildConfiguration)
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 

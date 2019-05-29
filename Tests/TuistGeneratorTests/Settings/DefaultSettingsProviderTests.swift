@@ -1,3 +1,4 @@
+import TuistCoreTesting
 import TuistGenerator
 import XCTest
 
@@ -109,7 +110,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         subject = DefaultSettingsProvider()
     }
 
-    func testDefaultProjectSettings_whenEssentialDebug() {
+    func testProjectSettings_whenEssentialDebug() {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
@@ -118,14 +119,14 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let project = Project.test(settings: settings)
 
         // When
-        let got = subject.defaultProjectSettings(project: project,
-                                                 buildConfiguration: buildConfiguration)
+        let got = subject.projectSettings(project: project,
+                                          buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertEqualDictionaries(got, projectEssentialDebugSettings)
     }
 
-    func testDefaultProjectSettings_whenEssentialRelease_iOS() {
+    func testProjectSettings_whenEssentialRelease_iOS() {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
@@ -134,14 +135,14 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let project = Project.test(settings: settings)
 
         // When
-        let got = subject.defaultProjectSettings(project: project,
-                                                 buildConfiguration: buildConfiguration)
+        let got = subject.projectSettings(project: project,
+                                          buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertEqualDictionaries(got, projectEssentialReleaseSettings)
     }
 
-    func testDefaultTargetSettings_whenEssentialDebug_App() {
+    func testTargetSettings_whenEssentialDebug_App() {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
@@ -150,14 +151,14 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let target = Target.test(product: .app, settings: settings)
 
         // When
-        let got = subject.defaultTargetSettings(target: target,
-                                                buildConfiguration: buildConfiguration)
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertEqualDictionaries(got, appTargetEssentialDebugSettings)
     }
 
-    func testDefaultTargetSettings_whenEssentialDebug_Framework() {
+    func testTargetSettings_whenEssentialDebug_Framework() {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
@@ -166,14 +167,14 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let target = Target.test(product: .framework, settings: settings)
 
         // When
-        let got = subject.defaultTargetSettings(target: target,
-                                                buildConfiguration: buildConfiguration)
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertEqualDictionaries(got, frameworkTargetEssentialDebugSettings)
     }
 
-    func testDefaultTargetSettings_whenEssentialRelease_Framework() {
+    func testTargetSettings_whenEssentialRelease_Framework() {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
@@ -182,14 +183,14 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let target = Target.test(product: .framework, settings: settings)
 
         // When
-        let got = subject.defaultTargetSettings(target: target,
-                                                buildConfiguration: buildConfiguration)
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertEqualDictionaries(got, frameworkTargetEssentialReleaseSettings)
     }
 
-    func testDefaultProjectSettings_whenRecommendedDebug() {
+    func testProjectSettings_whenRecommendedDebug() {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
@@ -198,15 +199,15 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let project = Project.test(settings: settings)
 
         // When
-        let got = subject.defaultProjectSettings(project: project,
-                                                 buildConfiguration: buildConfiguration)
+        let got = subject.projectSettings(project: project,
+                                          buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertDictionary(got, containsAll: projectEssentialDebugSettings)
         XCTAssertEqual(got.count, 47)
     }
 
-    func testDefaultProjectSettings_whenRecommendedRelease() {
+    func testProjectSettings_whenRecommendedRelease() {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
@@ -215,15 +216,15 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let project = Project.test(settings: settings)
 
         // When
-        let got = subject.defaultProjectSettings(project: project,
-                                                 buildConfiguration: buildConfiguration)
+        let got = subject.projectSettings(project: project,
+                                          buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertDictionary(got, containsAll: projectEssentialReleaseSettings)
         XCTAssertEqual(got.count, 43)
     }
 
-    func testDefaultTargetSettings_whenRecommendedDebug() {
+    func testTargetSettings_whenRecommendedDebug() {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
@@ -232,15 +233,15 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.defaultTargetSettings(target: target,
-                                                buildConfiguration: buildConfiguration)
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertDictionary(got, containsAll: appTargetEssentialDebugSettings)
         XCTAssertEqual(got.count, 8)
     }
 
-    func testDefaultTargetSettings_whenRecommendedRelease_App() {
+    func testTargetSettings_whenRecommendedRelease_App() {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
@@ -249,15 +250,15 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let target = Target.test(product: .app, settings: settings)
 
         // When
-        let got = subject.defaultTargetSettings(target: target,
-                                                buildConfiguration: buildConfiguration)
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertDictionary(got, containsAll: appTargetEssentialReleaseSettings)
         XCTAssertEqual(got.count, 8)
     }
 
-    func testDefaultTargetSettings_whenRecommendedDebug_Framework() {
+    func testTargetSettings_whenRecommendedDebug_Framework() {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
@@ -266,15 +267,15 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let target = Target.test(product: .framework, settings: settings)
 
         // When
-        let got = subject.defaultTargetSettings(target: target,
-                                                buildConfiguration: buildConfiguration)
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertDictionary(got, containsAll: frameworkTargetEssentialDebugSettings)
         XCTAssertEqual(got.count, 17)
     }
 
-    func testDefaultTargetSettings_whenRecommendedRelease_Framework() {
+    func testTargetSettings_whenRecommendedRelease_Framework() {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
@@ -283,8 +284,8 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         let target = Target.test(product: .framework, settings: settings)
 
         // When
-        let got = subject.defaultTargetSettings(target: target,
-                                                buildConfiguration: buildConfiguration)
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertDictionary(got, containsAll: frameworkTargetEssentialReleaseSettings)

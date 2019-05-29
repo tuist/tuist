@@ -2,11 +2,11 @@ import Foundation
 import XcodeProj
 
 public protocol DefaultSettingsProviding {
-    func defaultProjectSettings(project: Project,
-                                buildConfiguration: BuildConfiguration) -> [String: Any]
+    func projectSettings(project: Project,
+                         buildConfiguration: BuildConfiguration) -> [String: Any]
 
-    func defaultTargetSettings(target: Target,
-                               buildConfiguration: BuildConfiguration) -> [String: Any]
+    func targetSettings(target: Target,
+                        buildConfiguration: BuildConfiguration) -> [String: Any]
 }
 
 public final class DefaultSettingsProvider: DefaultSettingsProviding {
@@ -64,8 +64,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
 
     // MARK: - DefaultSettingsProviding
 
-    public func defaultProjectSettings(project: Project,
-                                       buildConfiguration: BuildConfiguration) -> [String: Any] {
+    public func projectSettings(project: Project,
+                                buildConfiguration: BuildConfiguration) -> [String: Any] {
         let defaultSettings = project.settings.defaultSettings
         let variant = settingsHelper.variant(buildConfiguration)
         let projectDefaultAll = BuildSettingsProvider.projectDefault(variant: .all)
@@ -79,8 +79,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         return settings.filter(filter)
     }
 
-    public func defaultTargetSettings(target: Target,
-                                      buildConfiguration: BuildConfiguration) -> [String: Any] {
+    public func targetSettings(target: Target,
+                               buildConfiguration: BuildConfiguration) -> [String: Any] {
         let defaultSettings = target.settings?.defaultSettings ?? .recommended
         let product = settingsHelper.settingsProviderProduct(target)
         let platform = settingsHelper.settingsProviderPlatform(target)
