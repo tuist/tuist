@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-class GraphNode: Equatable, Hashable {
+public class GraphNode: Equatable, Hashable {
     // MARK: - Attributes
 
     let path: AbsolutePath
@@ -15,7 +15,7 @@ class GraphNode: Equatable, Hashable {
 
     // MARK: - Equatable
 
-    static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
+    public static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
         return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
 
@@ -23,12 +23,12 @@ class GraphNode: Equatable, Hashable {
         return path == otherNode.path
     }
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         hasher.combine(path)
     }
 }
 
-class TargetNode: GraphNode {
+public class TargetNode: GraphNode {
     // MARK: - Attributes
 
     let project: Project
@@ -46,12 +46,12 @@ class TargetNode: GraphNode {
         super.init(path: project.path)
     }
 
-    override func hash(into hasher: inout Hasher) {
+    public override func hash(into hasher: inout Hasher) {
         super.hash(into: &hasher)
         hasher.combine(target.name)
     }
 
-    static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
+    public static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
         return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
 
@@ -156,7 +156,7 @@ enum PrecompiledNodeError: FatalError, Equatable {
     }
 }
 
-class SDKNode: GraphNode {
+public class SDKNode: GraphNode {
     let name: String
     let status: SDKStatus
     let type: Type
@@ -224,7 +224,7 @@ class SDKNode: GraphNode {
     }
 }
 
-class PrecompiledNode: GraphNode {
+public class PrecompiledNode: GraphNode {
     enum Linking {
         case `static`, dynamic
     }
@@ -256,7 +256,7 @@ class PrecompiledNode: GraphNode {
     }
 }
 
-class FrameworkNode: PrecompiledNode {
+public class FrameworkNode: PrecompiledNode {
     static func parse(projectPath: AbsolutePath,
                       path: RelativePath,
                       cache: GraphLoaderCaching) throws -> FrameworkNode {
@@ -267,11 +267,11 @@ class FrameworkNode: PrecompiledNode {
         return framewokNode
     }
 
-    var isCarthage: Bool {
+    public var isCarthage: Bool {
         return path.pathString.contains("Carthage/Build")
     }
 
-    override var binaryPath: AbsolutePath {
+    public override var binaryPath: AbsolutePath {
         let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
         return path.appending(component: frameworkName)
     }

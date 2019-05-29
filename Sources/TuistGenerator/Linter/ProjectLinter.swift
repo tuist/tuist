@@ -6,7 +6,7 @@ protocol ProjectLinting: AnyObject {
     func lint(_ project: Project) -> [LintingIssue]
 }
 
-class ProjectLinter: ProjectLinting {
+public class ProjectLinter: ProjectLinting {
     // MARK: - Attributes
 
     let targetLinter: TargetLinting

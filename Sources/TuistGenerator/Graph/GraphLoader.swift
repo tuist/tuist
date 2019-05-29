@@ -2,12 +2,12 @@ import Basic
 import Foundation
 import TuistCore
 
-protocol GraphLoading: AnyObject {
+public protocol GraphLoading: AnyObject {
     func loadProject(path: AbsolutePath) throws -> (Graph, Project)
     func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace)
 }
 
-class GraphLoader: GraphLoading {
+public class GraphLoader: GraphLoading {
     // MARK: - Attributes
 
     let linter: GraphLinting
@@ -17,9 +17,16 @@ class GraphLoader: GraphLoading {
 
     // MARK: - Init
 
-    init(linter: GraphLinting = GraphLinter(),
-         printer: Printing = Printer(),
-         fileHandler: FileHandling = FileHandler(),
+    public convenience init(modelLoader: GeneratorModelLoading) {
+        self.init(linter: GraphLinter(),
+                  printer: Printer(),
+                  fileHandler: FileHandler(),
+                  modelLoader: modelLoader)
+    }
+
+    init(linter: GraphLinting,
+         printer: Printing,
+         fileHandler: FileHandling,
          modelLoader: GeneratorModelLoading) {
         self.linter = linter
         self.printer = printer
@@ -27,7 +34,7 @@ class GraphLoader: GraphLoading {
         self.modelLoader = modelLoader
     }
 
-    func loadProject(path: AbsolutePath) throws -> (Graph, Project) {
+    public func loadProject(path: AbsolutePath) throws -> (Graph, Project) {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let project = try Project.at(path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
@@ -42,7 +49,7 @@ class GraphLoader: GraphLoading {
         return (graph, project)
     }
 
-    func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace) {
+    public func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace) {
         let cache = GraphLoaderCache()
         let circularDetector = GraphCircularDetector()
         let workspace = try modelLoader.loadWorkspace(at: path)
