@@ -1,7 +1,9 @@
+import Basic
 import Foundation
 import XCTest
 
 public extension XCTestCase {
+
     func XCTAssertEqualDictionaries<T: Hashable>(_ first: [T: Any],
                                                  _ second: [T: Any],
                                                  file: StaticString = #file,
@@ -9,6 +11,22 @@ public extension XCTestCase {
         let firstDictionary = NSDictionary(dictionary: first)
         let secondDictioanry = NSDictionary(dictionary: second)
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
+    }
+
+    func fixturePath(path: RelativePath) -> AbsolutePath {
+        return AbsolutePath(#file)
+            .appending(RelativePath("../../../../Tests/Fixtures"))
+            .appending(path)
+    }
+
+    func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String) {
+        XCTAssertTrue(printer.standardOutputMatches(with: pattern), """
+        The pattern:
+        \(pattern)
+            
+        Does not match the standard output:
+        \(printer.standardOutput)
+        """)
     }
 
     func XCTAssertDictionary<T: Hashable>(_ first: [T: Any],
@@ -19,5 +37,61 @@ public extension XCTestCase {
         let firstDictionary = NSDictionary(dictionary: filteredFirst)
         let secondDictioanry = NSDictionary(dictionary: second)
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
+    }
+
+    func XCTTry<T>(_ closure: @autoclosure @escaping () throws -> T, file _: StaticString = #file, line _: UInt = #line) -> T {
+        var value: T!
+        do {
+            value = try closure()
+        } catch {
+            XCTFail("The code threw the following error: \(error)")
+        }
+        return value
+    }
+
+    func XCTAssertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {
+        let decoder = JSONDecoder()
+        let decoded = XCTTry(try decoder.decode(C.self, from: json.data(using: .utf8)!))
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let jsonData = XCTTry(try encoder.encode(decoded))
+        let subjectData = XCTTry(try encoder.encode(subject))
+
+        XCTAssert(jsonData == subjectData, "JSON does not match the encoded \(String(describing: subject))", file: file, line: line)
+    }
+
+    func XCTAssertEncodableEqualToJson<C: Encodable>(_ subject: C, _ json: String, file _: StaticString = #file, line _: UInt = #line) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+
+        let subjectData = XCTTry(try encoder.encode(subject))
+        let subjectObject = XCTTry(try JSONSerialization.jsonObject(with: subjectData, options: []))
+        let jsonObject = XCTTry(try JSONSerialization.jsonObject(with: json.data(using: .utf8)!, options: []))
+
+        let errorString = """
+        The JSON-encoded object doesn't match the given JSON:
+        Given
+        =======
+        \(String(data: subjectData, encoding: .utf8)!)
+
+        Expected
+        =======
+        \(json)
+        """
+
+        if let subjectArray = subjectObject as? [Any], let jsonArray = jsonObject as? [Any] {
+            let subjectNSArray = NSArray(array: subjectArray)
+            let jsonNSArray = NSArray(array: jsonArray)
+
+            XCTAssertTrue(subjectNSArray.isEqual(to: jsonNSArray), errorString)
+
+        } else if let subjectDictionary = subjectObject as? [String: Any], let jsonDictionary = jsonObject as? [String: Any] {
+            let subjectNSDictionary = NSDictionary(dictionary: subjectDictionary)
+            let jsonNSDictionary = NSDictionary(dictionary: jsonDictionary)
+
+            XCTAssertTrue(subjectNSDictionary.isEqual(to: jsonNSDictionary), errorString)
+        } else {
+            XCTFail("Failed comparing the subject to the given JSON. Has the JSON the right format?")
+        }
     }
 }

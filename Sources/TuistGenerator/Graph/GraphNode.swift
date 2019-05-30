@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-public class GraphNode: Equatable, Hashable {
+public class GraphNode: Equatable, Hashable, Encodable {
     // MARK: - Attributes
 
     let path: AbsolutePath
@@ -34,6 +34,16 @@ public class TargetNode: GraphNode {
     let project: Project
     let target: Target
     var dependencies: [GraphNode]
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case name
+        case platform
+        case product
+        case bundleId = "bundle_id"
+        case dependencies
+        case type
+    }
 
     // MARK: - Init
 
@@ -89,6 +99,27 @@ public class TargetNode: GraphNode {
         circularDetector.complete(GraphCircularDetectorNode(path: path, name: name))
         cache.add(targetNode: targetNode)
         return targetNode
+    }
+
+    public override func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(path.pathString, forKey: .path)
+        try container.encode(target.name, forKey: .name)
+        try container.encode(target.platform.rawValue, forKey: .platform)
+        try container.encode(target.product.rawValue, forKey: .product)
+        try container.encode(target.bundleId, forKey: .bundleId)
+        try container.encode("source", forKey: .type)
+
+        let dependencies = self.dependencies.compactMap { (dependency) -> String? in
+            if let targetDependency = dependency as? TargetNode {
+                return targetDependency.target.name
+            } else if let precompiledDependency = dependency as? PrecompiledNode {
+                return precompiledDependency.name
+            } else {
+                return nil
+            }
+        }
+        try container.encode(dependencies, forKey: .dependencies)
     }
 
     static func node(for dependency: Dependency,
@@ -225,7 +256,7 @@ public class SDKNode: GraphNode {
 }
 
 public class PrecompiledNode: GraphNode {
-    enum Linking {
+    enum Linking: String {
         case `static`, dynamic
     }
 
@@ -234,6 +265,14 @@ public class PrecompiledNode: GraphNode {
         case i386
         case armv7
         case armv7s
+        case arm64
+    }
+
+    /// Returns the name of the precompiled node removing the extension
+    /// Alamofire.framework -> Alamofire
+    /// libAlamofire.a -> libAlamofire
+    var name: String {
+        return String(path.components.last!.split(separator: ".").first!)
     }
 
     var binaryPath: AbsolutePath {
@@ -242,17 +281,36 @@ public class PrecompiledNode: GraphNode {
 
     func architectures(system: Systeming = System()) throws -> [Architecture] {
         let result = try system.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
-        let regex = try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: [])
-        guard let match = regex.firstMatch(in: result, options: [], range: NSRange(location: 0, length: result.count)) else {
+        let regexes = [
+            // Non-fat file: path is architecture: x86_64
+            try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: []),
+            // Architectures in the fat file: /path/xpm.framework/xpm are: x86_64 arm64
+            try NSRegularExpression(pattern: "Architectures\\sin\\sthe\\sfat\\sfile:.+:\\s(.+)", options: []),
+        ]
+
+        guard let architectures = regexes.compactMap({ (regex) -> [Architecture]? in
+            guard let match = regex.firstMatch(in: result, options: [], range: NSRange(location: 0, length: result.count)) else {
+                return nil
+            }
+            let architecturesString = (result as NSString).substring(with: match.range(at: 1))
+            return architecturesString.split(separator: " ").map(String.init).compactMap(Architecture.init)
+        }).first else {
             throw PrecompiledNodeError.architecturesNotFound(binaryPath)
         }
-        let architecturesString = (result as NSString).substring(with: match.range(at: 1))
-        return architecturesString.split(separator: " ").map(String.init).compactMap(Architecture.init)
+        return architectures
     }
 
     func linking(system: Systeming = System()) throws -> Linking {
         let result = try system.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case name
+        case architectures
+        case product
+        case type
     }
 }
 
@@ -274,6 +332,31 @@ public class FrameworkNode: PrecompiledNode {
     public override var binaryPath: AbsolutePath {
         let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
         return path.appending(component: frameworkName)
+    }
+
+    /// Returns the library product.
+    ///
+    /// - Parameter system: System instance used to determine whether the library is static or dynamic.
+    /// - Returns: Product.
+    /// - Throws: An error if the static/dynamic nature of the library cannot be obtained.
+    func product(system _: Systeming = System()) throws -> Product {
+        switch try linking() {
+        case .dynamic:
+            return .framework
+        case .static:
+            return .staticFramework
+        }
+    }
+
+    public override func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(path.pathString, forKey: .path)
+        try container.encode(name, forKey: .name)
+
+        try container.encode(product(), forKey: .product)
+        let archs = try architectures()
+        try container.encode(archs.map(\.rawValue), forKey: .architectures)
+        try container.encode("precompiled", forKey: .type)
     }
 }
 
@@ -343,5 +426,29 @@ class LibraryNode: PrecompiledNode {
 
     override var binaryPath: AbsolutePath {
         return path
+    }
+
+    /// Returns the framework product.
+    ///
+    /// - Parameter system: System instance used to determine whether the framework is static or dynamic.
+    /// - Returns: Product.
+    /// - Throws: An error if the static/dynamic nature of the framework cannot be obtained.
+    func product(system _: Systeming = System()) throws -> Product {
+        switch try linking() {
+        case .dynamic:
+            return .dynamicLibrary
+        case .static:
+            return .staticLibrary
+        }
+    }
+
+    public override func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(path.pathString, forKey: .path)
+        try container.encode(name, forKey: .name)
+        try container.encode(product(), forKey: .product)
+        let archs = try architectures()
+        try container.encode(archs.map(\.rawValue), forKey: .architectures)
+        try container.encode("precompiled", forKey: .type)
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 import XcodeProj
 
-public enum Product: String, CustomStringConvertible, CaseIterable {
+public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     case app
     case staticLibrary = "static_library"
     case dynamicLibrary = "dynamic_library"

@@ -1,7 +1,8 @@
 import Basic
 import Foundation
 import XCTest
-@testable import TuistCoreTesting
+
+import TuistCoreTesting
 @testable import TuistGenerator
 
 final class GraphNodeTests: XCTestCase {
@@ -106,6 +107,33 @@ final class TargetNodeTests: XCTestCase {
         XCTAssertNotEqual(c2, c3)
         XCTAssertNotEqual(c1, d)
     }
+
+    func test_encode() {
+        // Given
+        let library = LibraryNode.test()
+        let framework = FrameworkNode.test()
+        let node = TargetNode(project: .test(path: "/"),
+                              target: .test(name: "Target"),
+                              dependencies: [library, framework])
+
+        let expected = """
+        {
+            "type": "source",
+            "path" : "\(node.path.pathString)",
+            "bundle_id" : "\(node.target.bundleId)",
+            "product" : "\(node.target.product.rawValue)",
+            "name" : "\(node.target.name)",
+            "dependencies" : [
+                "\(library.name)",
+                "\(framework.name)"
+            ],
+            "platform" : "\(node.target.platform.rawValue)"
+        }
+        """
+
+        // Then
+        XCTAssertEncodableEqualToJson(node, expected)
+    }
 }
 
 final class PrecompiledNodeTests: XCTestCase {
@@ -136,6 +164,10 @@ final class FrameworkNodeTests: XCTestCase {
         subject = FrameworkNode(path: path)
     }
 
+    func test_name() {
+        XCTAssertEqual(subject.name, "test")
+    }
+
     func test_binaryPath() {
         XCTAssertEqual(subject.binaryPath.pathString, "/test.framework/test")
     }
@@ -146,16 +178,40 @@ final class FrameworkNodeTests: XCTestCase {
         XCTAssertTrue(subject.isCarthage)
     }
 
-    func test_architectures() throws {
+    func test_architectures_when_nonFatFramework() throws {
         system.succeedCommand("/usr/bin/lipo -info /test.framework/test",
                               output: "Non-fat file: path is architecture: x86_64")
         try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
+    }
+
+    func test_architectures_when_fatFramework() throws {
+        system.succeedCommand("/usr/bin/lipo -info /test.framework/test",
+                              output: "Architectures in the fat file: /path/xpm.framework/xpm are: x86_64 arm64")
+        try XCTAssertTrue(subject.architectures(system: system).contains(.x8664))
+        try XCTAssertTrue(subject.architectures(system: system).contains(.arm64))
     }
 
     func test_linking() {
         system.succeedCommand("/usr/bin/file", "/test.framework/test",
                               output: "whatever dynamically linked")
         try XCTAssertEqual(subject.linking(system: system), .dynamic)
+    }
+
+    func test_encode() {
+        // Given
+        let framework = FrameworkNode(path: fixturePath(path: RelativePath("xpm.framework")))
+        let expected = """
+        {
+            "path": "\(framework.path)",
+            "architectures": ["x86_64", "arm64"],
+            "name": "xpm",
+            "type": "precompiled",
+            "product": "framework"
+        }
+        """
+
+        // Then
+        XCTAssertEncodableEqualToJson(framework, expected)
     }
 }
 
@@ -169,6 +225,10 @@ final class LibraryNodeTests: XCTestCase {
         system = MockSystem()
         path = AbsolutePath("/test.a")
         subject = LibraryNode(path: path, publicHeaders: AbsolutePath("/headers"))
+    }
+
+    func test_name() {
+        XCTAssertEqual(subject.name, "test")
     }
 
     func test_binaryPath() {
@@ -196,6 +256,26 @@ final class LibraryNodeTests: XCTestCase {
         XCTAssertNotEqual(a1, a2)
         XCTAssertNotEqual(a2, b)
         XCTAssertNotEqual(a1, b)
+    }
+
+    func test_encode() {
+        // Given
+        let library = LibraryNode(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
+                                  publicHeaders: fixturePath(path: RelativePath("")))
+        let expected = """
+        {
+            "type": "precompiled",
+            "path" : "\(library.path)",
+            "architectures" : [
+                "x86_64"
+            ],
+            "name" : "\(library.name)",
+            "product" : "static_library"
+        }
+        """
+
+        // Then
+        XCTAssertEncodableEqualToJson(library, expected)
     }
 }
 

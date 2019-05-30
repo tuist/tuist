@@ -65,7 +65,7 @@ public enum DependencyReference: Equatable, Comparable, Hashable {
     }
 }
 
-public protocol Graphing: AnyObject {
+public protocol Graphing: AnyObject, Encodable {
     var name: String { get }
     var entryPath: AbsolutePath { get }
     var entryNodes: [GraphNode] { get }
@@ -411,5 +411,19 @@ extension Graph {
         }
 
         return references
+    }
+}
+
+// MARK: - Encodable
+
+extension Graph {
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        var nodes: [GraphNode] = []
+
+        nodes.append(contentsOf: cache.targetNodes.values.flatMap { $0.values })
+        nodes.append(contentsOf: Array(cache.precompiledNodes.values))
+
+        try container.encode(nodes.sorted(by: { $0.path < $1.path }))
     }
 }

@@ -1,14 +1,16 @@
 import Foundation
+import TuistCoreTesting
 import XCTest
+
 @testable import ProjectDescription
 
 final class ProductTests: XCTestCase {
     func test_toJSON() {
-        assertCodableEqualToJson([Product.app], "[\"app\"]")
-        assertCodableEqualToJson([Product.staticLibrary], "[\"static_library\"]")
-        assertCodableEqualToJson([Product.dynamicLibrary], "[\"dynamic_library\"]")
-        assertCodableEqualToJson([Product.framework], "[\"framework\"]")
-        assertCodableEqualToJson([Product.unitTests], "[\"unit_tests\"]")
-        assertCodableEqualToJson([Product.uiTests], "[\"ui_tests\"]")
+        XCTAssertCodableEqualToJson([Product.app], "[\"app\"]")
+        XCTAssertCodableEqualToJson([Product.staticLibrary], "[\"static_library\"]")
+        XCTAssertCodableEqualToJson([Product.dynamicLibrary], "[\"dynamic_library\"]")
+        XCTAssertCodableEqualToJson([Product.framework], "[\"framework\"]")
+        XCTAssertCodableEqualToJson([Product.unitTests], "[\"unit_tests\"]")
+        XCTAssertCodableEqualToJson([Product.uiTests], "[\"ui_tests\"]")
     }
 }

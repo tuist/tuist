@@ -1,5 +1,7 @@
 import Foundation
+import TuistCoreTesting
 import XCTest
+
 @testable import ProjectDescription
 
 final class SettingsTests: XCTestCase {
@@ -13,6 +15,6 @@ final class SettingsTests: XCTestCase {
         let expected = """
         {"base": {"base": "base"}, "debug": {"settings": {"debug": "debug"}, "xcconfig": "/path/debug.xcconfig"}, "release": {"settings": {"release": "release"}, "xcconfig": "/path/release"}, "defaultSettings": "recommended"}
         """
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertCodableEqualToJson(subject, expected)
     }
 }

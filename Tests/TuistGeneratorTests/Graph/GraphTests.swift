@@ -352,6 +352,58 @@ final class GraphTests: XCTestCase {
             "Bundle1",
         ])
     }
+
+    func test_encode() {
+        // Given
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let framework = FrameworkNode(path: fixturePath(path: RelativePath("xpm.framework")))
+        let library = LibraryNode(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
+                                  publicHeaders: fixturePath(path: RelativePath("")))
+        let target = TargetNode.test(dependencies: [framework, library])
+        cache.add(targetNode: target)
+        cache.add(precompiledNode: framework)
+        cache.add(precompiledNode: library)
+
+        let expected = """
+        [
+            {
+              "path" : "\(library.path)",
+              "architectures" : [
+                "x86_64"
+              ],
+              "product" : "static_library",
+              "name" : "\(library.name)",
+              "type" : "precompiled"
+            },
+            {
+              "path" : "\(framework.path)",
+              "architectures" : [
+                "x86_64",
+                "arm64"
+              ],
+              "product" : "framework",
+              "name" : "\(framework.name)",
+              "type" : "precompiled"
+            },
+            {
+              "product" : "\(target.target.product.rawValue)",
+              "bundle_id" : "\(target.target.bundleId)",
+              "platform" : "\(target.target.platform.rawValue)",
+              "path" : "\(target.path)",
+              "dependencies" : [
+                "xpm",
+                "libStaticLibrary"
+              ],
+              "name" : "Target",
+              "type" : "source"
+            }
+        ]
+        """
+
+        // Then
+        XCTAssertEncodableEqualToJson(graph, expected)
+    }
 }
 
 final class DependencyReferenceTests: XCTestCase {
