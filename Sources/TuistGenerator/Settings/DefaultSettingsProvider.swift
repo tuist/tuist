@@ -58,14 +58,13 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "WRAPPER_EXTENSION",
     ]
 
-    private let settingsHelper = SettingsHelper()
-
     public init() {}
 
     // MARK: - DefaultSettingsProviding
 
     public func projectSettings(project: Project,
                                 buildConfiguration: BuildConfiguration) -> [String: Any] {
+        let settingsHelper = SettingsHelper()
         let defaultSettings = project.settings.defaultSettings
         let variant = settingsHelper.variant(buildConfiguration)
         let projectDefaultAll = BuildSettingsProvider.projectDefault(variant: .all)
@@ -81,6 +80,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
 
     public func targetSettings(target: Target,
                                buildConfiguration: BuildConfiguration) -> [String: Any] {
+        let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? .recommended
         let product = settingsHelper.settingsProviderProduct(target)
         let platform = settingsHelper.settingsProviderPlatform(target)

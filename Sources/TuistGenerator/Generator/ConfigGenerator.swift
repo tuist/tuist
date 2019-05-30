@@ -24,7 +24,6 @@ final class ConfigGenerator: ConfigGenerating {
 
     private let fileGenerator: FileGenerating
     private let defaultSettingsProvider: DefaultSettingsProviding
-    private let settingsHelper = SettingsHelper()
 
     // MARK: - Init
 
@@ -102,6 +101,7 @@ final class ConfigGenerator: ConfigGenerating {
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             configurationList: XCConfigurationList) throws {
+        let settingsHelper = SettingsHelper()
         var settings = defaultSettingsProvider.projectSettings(project: project,
                                                                buildConfiguration: buildConfiguration)
         settingsHelper.extend(buildSettings: &settings, with: project.settings.base)
@@ -129,6 +129,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            sourceRootPath: AbsolutePath) throws {
+        let settingsHelper = SettingsHelper()
         var settings = defaultSettingsProvider.targetSettings(target: target,
                                                               buildConfiguration: buildConfiguration)
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
