@@ -44,12 +44,16 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     convenience init(system: Systeming = System(),
                      printer: Printing = Printer(),
                      projectDirectoryHelper: ProjectDirectoryHelping = ProjectDirectoryHelper(),
-                     fileHandler: FileHandling = FileHandler()) {
+                     fileHandler: FileHandling = FileHandler(),
+                     defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+        let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
+        let projectGenerator = ProjectGenerator(configGenerator: configGenerator,
+                                                printer: printer,
+                                                system: system)
         self.init(system: system,
                   printer: printer,
                   projectDirectoryHelper: projectDirectoryHelper,
-                  projectGenerator: ProjectGenerator(printer: printer,
-                                                     system: system),
+                  projectGenerator: projectGenerator,
                   fileHandler: fileHandler,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler))
     }

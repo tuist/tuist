@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 - Introduce the `InfoPlist` file https://github.com/tuist/tuist/pull/373 by @pepibumur.
+- Add `defaultSettings` option to `Settings` definition to control default settings generation https://github.com/tuist/tuist/pull/378 by @marciniwanicki
 
 ### Added
 

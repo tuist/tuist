@@ -2,23 +2,22 @@ import Foundation
 import XCTest
 
 public extension XCTestCase {
-    func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String) {
-        XCTAssertTrue(printer.standardOutputMatches(with: pattern), """
-        The pattern:
-        \(pattern)
-            
-        Does not match the standard output:
-        \(printer.standardOutput)
-        """)
+    func XCTAssertEqualDictionaries<T: Hashable>(_ first: [T: Any],
+                                                 _ second: [T: Any],
+                                                 file: StaticString = #file,
+                                                 line: UInt = #line) {
+        let firstDictionary = NSDictionary(dictionary: first)
+        let secondDictioanry = NSDictionary(dictionary: second)
+        XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
     }
 
-    func XCTAssertStandarError(_ printer: MockPrinter, pattern: String) {
-        XCTAssertTrue(printer.standardErrorMatches(with: pattern), """
-        The pattern:
-        \(pattern)
-            
-        Does not match the standard error:
-        \(printer.standardError)
-        """)
+    func XCTAssertDictionary<T: Hashable>(_ first: [T: Any],
+                                          containsAll second: [T: Any],
+                                          file: StaticString = #file,
+                                          line: UInt = #line) {
+        let filteredFirst = first.filter { second.keys.contains($0.key) }
+        let firstDictionary = NSDictionary(dictionary: filteredFirst)
+        let secondDictioanry = NSDictionary(dictionary: second)
+        XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
     }
 }

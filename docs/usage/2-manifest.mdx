@@ -579,6 +579,15 @@ typeLink: "#configuration",
 optional: true,
 default: "nil",
 }
+,
+{
+name: "Default settings",
+description: "An enum specifying the set of default settings.",
+type: "DefaultSettings",
+typeLink: "#defaultsettings",
+optional: true,
+default: ".recommended",
+}
 ]}/>
 
 ## Configuration
@@ -616,6 +625,23 @@ case: ".folderReference(path: String)",
 description: "A directory path to include as a folder reference."
 }
 ]}/>
+
+## DefaultSettings
+
+A `DefaultSettings` can be one of the following options:
+
+<EnumTable cases={[
+{
+case: ".recommended",
+description: "Recommented settings including warning flags to help you catch some of the bugs at the early stage of development."
+},
+{
+case: ".essential",
+description: "A minimal set of settings to make the project compile without any additional settings for example `PRODUCT_NAME` or `TARGETED_DEVICE_FAMILY`."
+},
+]}/>
+
+<Message info title="Essential Settings" description="The `.essential` option can be used in the event all warnings are defined in an `xcconfig` file to prevent Tuist from overriding them at the project or target level."/>
 
 # Workspace.swift
 

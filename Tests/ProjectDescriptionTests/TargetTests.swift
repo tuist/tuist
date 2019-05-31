@@ -77,7 +77,8 @@ final class TargetTests: XCTestCase {
                     "settings": {
                         "a": "b"
                     }
-                }
+                },
+                "defaultSettings": "recommended"
             },
             "resources": [
                 {
@@ -195,7 +196,8 @@ final class TargetTests: XCTestCase {
                     "settings": {
                         "a": "b"
                     }
-                }
+                },
+                "defaultSettings": "recommended"
             },
             "resources": [
                 {
