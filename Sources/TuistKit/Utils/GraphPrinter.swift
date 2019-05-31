@@ -6,7 +6,7 @@ protocol GraphPrinting {
     /// Outputs the graph to the standard output.
     ///
     /// - Parameter graph: Graph to be printed.
-    func print(graph: Graph)
+    func print(graph: Graph) throws
 }
 
 /// Outputs the graph to the standard output.
@@ -24,7 +24,11 @@ class GraphPrinter: GraphPrinting {
     /// Outputs the graph to the standard output.
     ///
     /// - Parameter graph: Graph to be printed.
-    func print(graph _: Graph) {
-        //  TODO:
+    func print(graph: Graph) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        
+        let json = try encoder.encode(graph)
+        printer.print(String(data: json, encoding: .utf8)!)
     }
 }

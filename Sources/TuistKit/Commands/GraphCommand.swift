@@ -82,10 +82,10 @@ class GraphCommand: NSObject, Command {
 
         if manifests.contains(.workspace) {
             let (graph, _) = try graphLoader.loadWorkspace(path: path)
-            graphPrinter.print(graph: graph)
+            try graphPrinter.print(graph: graph)
         } else if manifests.contains(.project) {
             let (graph, _) = try graphLoader.loadProject(path: path)
-            graphPrinter.print(graph: graph)
+            try graphPrinter.print(graph: graph)
         } else {
             throw GraphManifestLoaderError.manifestNotFound(path)
         }
