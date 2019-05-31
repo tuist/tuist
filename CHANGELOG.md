@@ -7,22 +7,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 - Introduce the `InfoPlist` file https://github.com/tuist/tuist/pull/373 by @pepibumur.
 
-### Fixed
-
-- Fixing unstable diff (products and embedded frameworks) https://github.com/tuist/tuist/pull/357 by @marciniwanicki
-
-## 0.15.0
-
 ### Added
 
 - Adding generate command timer https://github.com/tuist/tuist/pull/335 by @kwridan
 - Support Scheme manifest with pre/post action https://github.com/tuist/tuist/pull/336 by @dangthaison91
 - Support local Scheme (not shared) flag https://github.com/tuist/tuist/pull/341 by @dangthaison91
 
-### Removed
-
 ### Fixed
 
+- Fixing unstable diff (products and embedded frameworks) https://github.com/tuist/tuist/pull/357 by @marciniwanicki
 - Set Code Sign On Copy to true for Embed Frameworks https://github.com/tuist/tuist/pull/333 by @dangthaison91
 - Fixing files getting mistaken for folders https://github.com/tuist/tuist/pull/338 by @kwridan
 - Updating init template to avoid warnings https://github.com/tuist/tuist/pull/339 by @kwridan 
