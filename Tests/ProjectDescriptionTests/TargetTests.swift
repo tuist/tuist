@@ -57,11 +57,11 @@ final class TargetTests: XCTestCase {
                 }
             ],
             "product": "app",
-            "sources": {
-                "globs": [
-                    "sources\\/*"
-                ]
-            },
+            "sources": [
+                {
+                    "glob": "sources\\/*"
+                }
+            ],
             "settings": {
                 "base": {
                     "a": "b"
@@ -176,11 +176,11 @@ final class TargetTests: XCTestCase {
                 }
             ],
             "product": "app",
-            "sources": {
-                "globs": [
-                    "sources\\/*"
-                ]
-            },
+            "sources": [
+                {
+                    "glob": "sources\\/*"
+                }
+            ],
             "settings": {
                 "base": {
                     "a": "b"

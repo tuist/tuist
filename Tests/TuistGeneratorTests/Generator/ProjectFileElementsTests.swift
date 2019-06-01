@@ -233,7 +233,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                  infoPlist: .file(path: AbsolutePath("/project/info.plist")),
                                  entitlements: AbsolutePath("/project/app.entitlements"),
                                  settings: settings,
-                                 sources: [AbsolutePath("/project/file.swift")],
+                                 sources: [(path: AbsolutePath("/project/file.swift"), compilerFlags: nil)],
                                  resources: [
                                      .file(path: AbsolutePath("/project/image.png")),
                                      .folderReference(path: AbsolutePath("/project/reference")),

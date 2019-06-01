@@ -28,7 +28,7 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
                       product: .staticFramework,
                       bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
                       settings: settings,
-                      sources: [manifest],
+                      sources: [(path: manifest, compilerFlags: nil)],
                       filesGroup: .group(name: "Manifest"))
     }
 

@@ -3,6 +3,8 @@ import Foundation
 import TuistCore
 
 public class Target: Equatable {
+    public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
+
     // MARK: - Static
 
     static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
@@ -21,7 +23,7 @@ public class Target: Equatable {
     public let entitlements: AbsolutePath?
     public let settings: Settings?
     public let dependencies: [Dependency]
-    public let sources: [AbsolutePath]
+    public let sources: [SourceFile]
     public let resources: [FileElement]
     public let headers: Headers?
     public let coreDataModels: [CoreDataModel]
@@ -38,7 +40,7 @@ public class Target: Equatable {
                 infoPlist: InfoPlist? = nil,
                 entitlements: AbsolutePath? = nil,
                 settings: Settings? = nil,
-                sources: [AbsolutePath] = [],
+                sources: [SourceFile] = [],
                 resources: [FileElement] = [],
                 headers: Headers? = nil,
                 coreDataModels: [CoreDataModel] = [],
@@ -92,14 +94,14 @@ public class Target: Equatable {
         }
     }
 
-    public static func sources(projectPath: AbsolutePath, sources: [String], fileHandler _: FileHandling) throws -> [AbsolutePath] {
+    public static func sources(projectPath: AbsolutePath, sources: [(glob: String, compilerFlags: String?)]) throws -> [Target.SourceFile] {
         return sources.flatMap { source in
-            projectPath.glob(source).filter { path in
+            projectPath.glob(source.glob).filter { path in
                 if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
                     return true
                 }
                 return false
-            }
+            }.map { (path: $0, compilerFlags: source.compilerFlags) }
         }
     }
 

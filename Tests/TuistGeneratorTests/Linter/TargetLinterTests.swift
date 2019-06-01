@@ -96,7 +96,7 @@ final class TargetLinterTests: XCTestCase {
         let bundle = Target.empty(platform: .iOS,
                                   product: .bundle,
                                   sources: [
-                                      "/path/to/some/source.swift",
+                                      (path: "/path/to/some/source.swift", compilerFlags: nil),
                                   ],
                                   resources: [])
 

@@ -338,7 +338,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
                       product: .app,
                       bundleId: "test.bundle",
                       settings: settings,
-                      sources: [pathTo("App/Sources/AppDelegate.swift")],
+                      sources: [(path: pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],
                       filesGroup: .group(name: "ProjectGroup"))
     }
 

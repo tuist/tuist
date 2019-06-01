@@ -171,7 +171,8 @@ default: "[]"
 {
 name: "Sources",
 description: "Source files that are compiled by the target",
-type: "[String], String",
+type: "SourceFilesList",
+typeLink: "#source-file-list",
 optional: false,
 default: ""
 },
@@ -211,6 +212,28 @@ let target = Target(name: "App",
                     sources: "Sources/**",
                     dependencies: [])
 ```
+
+## Source file list
+
+It represents a list of source files that are part of a target:
+
+<PropertiesTable props={[
+{
+name: "Globs",
+description: "Path to the source files. They represented by a glob pattern and the compiler flags.",
+type: "[SourceFileGlob]",
+typeLink: "#source-file-glob",
+optional: false,
+default: ""
+}]}/>
+
+<Message info title="ExpressibleByStringLiteral and ExpressibleByArrayLiteral" description="The list of source files can be initialized with a string that represents the glob pattern, or an array of strings, which represents a list of glob patterns. In both cases the comiler flags will have no value."/>
+
+### Source file glob
+
+It represents a glob pattern k
+
+// TODO
 
 ## Headers
 

@@ -96,18 +96,23 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateSourcesBuildPhase(files: [AbsolutePath],
+    func generateSourcesBuildPhase(files: [Target.SourceFile],
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    pbxproj: PBXProj) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         pbxproj.add(object: sourcesBuildPhase)
         pbxTarget.buildPhases.append(sourcesBuildPhase)
-        try files.forEach { buildFilePath in
-            guard let fileReference = fileElements.file(path: buildFilePath) else {
-                throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
+        try files.forEach { buildFile in
+            guard let fileReference = fileElements.file(path: buildFile.path) else {
+                throw BuildPhaseGenerationError.missingFileReference(buildFile.path)
             }
-            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: [:])
+            var settings: [String: Any] = [:]
+            if let compilerFlags = buildFile.compilerFlags {
+                settings["COMPILER_FLAGS"] = compilerFlags
+            }
+
+            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
             pbxproj.add(object: pbxBuildFile)
             sourcesBuildPhase.files?.append(pbxBuildFile)
         }
