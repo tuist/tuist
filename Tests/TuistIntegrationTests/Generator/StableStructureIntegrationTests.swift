@@ -104,9 +104,10 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
     }
 
     private func createAppTarget(settings: Settings?, dependencies: [String]) -> Target {
-        let sources = (0 ..< 10)
+        let sources: [Target.SourceFile] = (0 ..< 10)
             .map { "/App/Sources/SourceFile\($0).swift" }
-            .map { AbsolutePath($0) }
+            .map { (path: AbsolutePath($0), compilerFlags: nil) }
+
         return Target(name: "AppTarget",
                       platform: .iOS,
                       product: .app,

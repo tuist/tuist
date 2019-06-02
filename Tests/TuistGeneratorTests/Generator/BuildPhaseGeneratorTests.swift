@@ -72,7 +72,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         pbxproj.add(object: fileReference)
         fileElements.elements[path] = fileReference
 
-        try subject.generateSourcesBuildPhase(files: [path],
+        try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: "flag")],
                                               pbxTarget: target,
                                               fileElements: fileElements,
                                               pbxproj: pbxproj)
@@ -83,6 +83,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxBuildFile: PBXBuildFile? = buildPhase?.files?.first
         XCTAssertNotNil(pbxBuildFile)
         XCTAssertEqual(pbxBuildFile?.file, fileReference)
+        XCTAssertEqual(pbxBuildFile?.settings?["COMPILER_FLAGS"] as? String, "flag")
     }
 
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
@@ -92,7 +93,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [path],
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
                                                                    pbxproj: pbxproj)) {
@@ -142,7 +143,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(sources: ["/test/file.swift"],
+        let target = Target.test(sources: [(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
 
         try subject.generateBuildPhases(path: tmpDir.path,
