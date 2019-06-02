@@ -231,9 +231,23 @@ default: ""
 
 ### Source file glob
 
-It represents a glob pattern k
+It represents a glob pattern that refers to source files and the compiler flags *(if any)* to be set in the build phase:
 
-// TODO
+<PropertiesTable props={[
+{
+name: "Glob",
+description: "Glob pattern to the source files.",
+type: "String",
+optional: false,
+default: ""
+},
+{
+name: "Compiler flags",
+description: "The compiler flags to be set to the source files in the sources build phase.",
+type: "String",
+optional: true,
+default: "nil"
+}]}/>
 
 ## Headers
 
