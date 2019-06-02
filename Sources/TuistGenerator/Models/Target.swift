@@ -95,14 +95,16 @@ public class Target: Equatable {
     }
 
     public static func sources(projectPath: AbsolutePath, sources: [(glob: String, compilerFlags: String?)]) throws -> [Target.SourceFile] {
-        return sources.flatMap { source in
+        var sourceFiles: [AbsolutePath: Target.SourceFile] = [:]
+        sources.forEach { source in
             projectPath.glob(source.glob).filter { path in
                 if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
                     return true
                 }
                 return false
-            }.map { (path: $0, compilerFlags: source.compilerFlags) }
+            }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
         }
+        return Array(sourceFiles.values)
     }
 
     public static func isResource(path: AbsolutePath, fileHandler: FileHandling) -> Bool {

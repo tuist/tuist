@@ -229,6 +229,8 @@ default: ""
 
 <Message info title="ExpressibleByStringLiteral and ExpressibleByArrayLiteral" description="The list of source files can be initialized with a string that represents the glob pattern, or an array of strings, which represents a list of glob patterns. In both cases the comiler flags will have no value."/>
 
+<Message info title="Patterns matching the same paths" description="If multiple patterns match the same paths, the latest one takes preference over the others. That also means that the latest compiler flags will be applied."/>
+
 ### Source file glob
 
 It represents a glob pattern that refers to source files and the compiler flags *(if any)* to be set in the build phase:
