@@ -1,7 +1,10 @@
+import doczPluginNetlify from "docz-plugin-netlify";
+
 export default {
   title: 'Tuist Documentation',
   description:
     'Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.',
+  plugins: [doczPluginNetlify()],
   themeConfig: {
     codemirrorTheme: 'swifty',
     colors: {

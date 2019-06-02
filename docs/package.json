@@ -12,6 +12,7 @@
     "url": "git+https://github.com/tuist/tuist.git"
   },
   "dependencies": {
+    "docz-plugin-netlify": "^1.1.4",
     "semantic-ui-react": "^0.87.1",
     "styled-components": "^4.2.0",
     "styled-system": "^4.2.2"
