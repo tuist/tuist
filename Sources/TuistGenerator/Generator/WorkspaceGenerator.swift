@@ -47,7 +47,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                      fileHandler: FileHandling = FileHandler(),
                      defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
-        let projectGenerator = ProjectGenerator(configGenerator: configGenerator,
+        let targetGenerator = TargetGenerator(configGenerator: configGenerator)
+        let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
+                                                configGenerator: configGenerator,
                                                 printer: printer,
                                                 system: system)
         self.init(system: system,
