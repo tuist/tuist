@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Fixed
+
+- Ensuring the correct default settings provider dependency is used https://github.com/tuist/tuist/pull/389 by @kwridan
+
 ## 0.15.0
 
 ### Changed
