@@ -62,9 +62,12 @@ public class Generator: Generating {
                             modelLoader: GeneratorModelLoading) {
         let graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
-        let projectGenerator = ProjectGenerator(configGenerator: configGenerator,
+        let targetGenerator = TargetGenerator(configGenerator: configGenerator)
+        let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
+                                                configGenerator: configGenerator,
                                                 printer: printer,
-                                                system: system)
+                                                system: system,
+                                                fileHandler: fileHandler)
         let workspaceStructureGenerator = WorkspaceStructureGenerator(fileHandler: fileHandler)
         let workspaceGenerator = WorkspaceGenerator(system: system,
                                                     printer: printer,
