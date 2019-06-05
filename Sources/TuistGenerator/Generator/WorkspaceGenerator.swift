@@ -51,7 +51,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
                                                 printer: printer,
-                                                system: system)
+                                                system: system,
+                                                fileHandler: fileHandler)
         self.init(system: system,
                   printer: printer,
                   projectDirectoryHelper: projectDirectoryHelper,
