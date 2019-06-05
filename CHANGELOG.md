@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Ensuring the correct default settings provider dependency is used https://github.com/tuist/tuist/pull/389 by @kwridan
+- Fixing build settings repeated same value https://github.com/tuist/tuist/pull/391 @platonsi
 
 ## 0.15.0
 
@@ -23,7 +24,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Fixing build settings repeated same value https://github.com/tuist/tuist/pull/391 @platonsi
 - Fixing unstable diff (products and embedded frameworks) https://github.com/tuist/tuist/pull/357 by @marciniwanicki
 - Set Code Sign On Copy to true for Embed Frameworks https://github.com/tuist/tuist/pull/333 by @dangthaison91
 - Fixing files getting mistaken for folders https://github.com/tuist/tuist/pull/338 by @kwridan
