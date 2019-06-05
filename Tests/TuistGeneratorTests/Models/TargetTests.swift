@@ -62,17 +62,21 @@ final class TargetTests: XCTestCase {
 
         // When
         let sources = try Target.sources(projectPath: fileHandler.currentPath,
-                                         sources: [(glob: "sources/**", compilerFlags: nil)])
+                                         sources: [
+                                             (glob: "sources/**", compilerFlags: nil),
+                                             (glob: "sources/**", compilerFlags: nil),
+                                         ])
 
         // Then
         let relativeSources = sources.map { $0.path.relative(to: fileHandler.currentPath).pathString }
-        XCTAssertEqual(relativeSources, [
+        
+        XCTAssertEqual(Set(relativeSources), Set([
             "sources/a.swift",
             "sources/b.m",
             "sources/c.mm",
             "sources/d.c",
             "sources/e.cpp",
-        ])
+            ]))
     }
 
     func test_resources() throws {
