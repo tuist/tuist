@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Ensuring the correct default settings provider dependency is used https://github.com/tuist/tuist/pull/389 by @kwridan
+- Fixing build settings repeated same value https://github.com/tuist/tuist/pull/391 @platonsi
 
 ## 0.15.0
 

@@ -64,6 +64,29 @@ final class SettingsHelpersTests: XCTestCase {
         XCTAssertEqualDictionaries(settings, ["A": "A_VALUE $(inherited) A_VALUE_2", "B": "B_VALUE", "C": "C_VALUE"])
     }
 
+    func testNotExtend_whenExistingSettingsAndNewWithSameValues() {
+        // Given
+        settings["A"] = "A_VALUE"
+        settings["B"] = "B_VALUE"
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": "A_VALUE"])
+
+        // Then
+        XCTAssertEqualDictionaries(settings, ["A": "A_VALUE", "B": "B_VALUE"])
+    }
+
+    func testNotExtend_whenExistingSettingsAndNewWithInheritedDeclarationAndSameValues() {
+        // Given
+        settings["A"] = "$(inherited) A_VALUE"
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE",])
+
+        // Then
+        XCTAssertEqualDictionaries(settings, ["A": "$(inherited) A_VALUE"])
+    }
+
     func testSettingsProviderPlatform() {
         XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .iOS)), .iOS)
         XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .macOS)), .macOS)
