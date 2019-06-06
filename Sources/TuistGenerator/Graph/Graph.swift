@@ -65,6 +65,7 @@ protocol Graphing: AnyObject {
     var projects: [Project] { get }
     var frameworks: [FrameworkNode] { get }
 
+    func packages(path: AbsolutePath, name: String) throws -> [PackageNode]
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
@@ -147,6 +148,14 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter { $0.target.product == .bundle }
+    }
+
+    func packages(path: AbsolutePath, name: String) throws -> [PackageNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        return targetNode.packages
     }
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
@@ -313,6 +322,10 @@ extension TargetNode {
 
     fileprivate var precompiledDependencies: [PrecompiledNode] {
         return dependencies.lazy.compactMap { $0 as? PrecompiledNode }
+    }
+
+    fileprivate var packages: [PackageNode] {
+        return dependencies.lazy.compactMap { $0 as? PackageNode }
     }
 
     fileprivate var libraryDependencies: [LibraryNode] {

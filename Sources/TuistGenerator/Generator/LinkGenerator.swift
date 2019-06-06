@@ -68,7 +68,7 @@ final class LinkGenerator: LinkGenerating {
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
                        pbxproj: PBXProj,
-                       pbxProject _: PBXProject,
+                       pbxProject: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
@@ -79,6 +79,7 @@ final class LinkGenerator: LinkGenerating {
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
         let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
+        let packages = try graph.packages(path: path, name: target.name)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
                                pbxTarget: pbxTarget,
@@ -113,6 +114,23 @@ final class LinkGenerator: LinkGenerating {
                                             pbxTarget: pbxTarget,
                                             pbxproj: pbxproj,
                                             fileElements: fileElements)
+
+        try generatePackages(target: target,
+                             pbxTarget: pbxTarget,
+                             pbxProject: pbxProject,
+                             packages: packages)
+    }
+
+    func generatePackages(target _: Target,
+                          pbxTarget: PBXTarget,
+                          pbxProject: PBXProject,
+                          packages: [PackageNode]) throws {
+        packages.forEach { package in
+            _ = pbxProject.addSwiftPackage(repositoryURL: package.url,
+                                           productName: package.productName,
+                                           versionRules: package.versionRules.xcodeprojValue,
+                                           target: pbxTarget)
+        }
     }
 
     func generateEmbedPhase(dependencies: [DependencyReference],

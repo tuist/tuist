@@ -114,6 +114,11 @@ class TargetNode: GraphNode {
                                          projectPath: path,
                                          path: libraryPath,
                                          fileHandler: fileHandler, cache: cache)
+        case let .package(url, productName, versionRules):
+            return PackageNode(url: url,
+                               productName: productName,
+                               versionRules: versionRules,
+                               path: path)
         }
     }
 }
@@ -144,6 +149,19 @@ enum PrecompiledNodeError: FatalError, Equatable {
         case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
             return lhsPath == rhsPath
         }
+    }
+}
+
+class PackageNode: GraphNode {
+    let url: String
+    let productName: String
+    let versionRules: Dependency.VersionRules
+
+    init(url: String, productName: String, versionRules: Dependency.VersionRules, path: AbsolutePath) {
+        self.url = url
+        self.productName = productName
+        self.versionRules = versionRules
+        super.init(path: path)
     }
 }
 

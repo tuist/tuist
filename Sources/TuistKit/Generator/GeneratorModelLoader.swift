@@ -342,6 +342,25 @@ extension TuistGenerator.Headers {
     }
 }
 
+extension TuistGenerator.Dependency.VersionRules {
+    static func from(manifest: ProjectDescription.TargetDependency.VersionRules) -> TuistGenerator.Dependency.VersionRules {
+        switch manifest {
+        case let .branch(branch):
+            return .branch(branch)
+        case let .exact(version):
+            return .exact(version)
+        case let .range(from, to):
+            return .range(from: from, to: to)
+        case let .revision(revision):
+            return .revision(revision)
+        case let .upToNextMajorVersion(version):
+            return .upToNextMajorVersion(version)
+        case let .upToNextMinorVersion(version):
+            return .upToNextMinorVersion(version)
+        }
+    }
+}
+
 extension TuistGenerator.Dependency {
     static func from(manifest: ProjectDescription.TargetDependency) -> TuistGenerator.Dependency {
         switch manifest {
@@ -355,6 +374,10 @@ extension TuistGenerator.Dependency {
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
+        case let .package(url, productName, versionRules):
+            return .package(url: url,
+                            productName: productName,
+                            versionRules: .from(manifest: versionRules))
         }
     }
 }
