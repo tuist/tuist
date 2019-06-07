@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next version
 
+### Added
+- `DefaultSettings.none` to disable the generation of default build settings https://github.com/tuist/tuist/pull/395 by @pepibumur.
+
 ### Fixed
 
 - Ensuring the correct default settings provider dependency is used https://github.com/tuist/tuist/pull/389 by @kwridan
