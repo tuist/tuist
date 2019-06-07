@@ -25,6 +25,7 @@ public class Configuration: Equatable {
 public enum DefaultSettings {
     case recommended
     case essential
+    case none
 }
 
 public class Settings: Equatable {
