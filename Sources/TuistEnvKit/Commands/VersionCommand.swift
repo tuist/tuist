@@ -27,6 +27,6 @@ class VersionCommand: NSObject, Command {
     // MARK: - Command
     
     func run(with _: ArgumentParser.Result) {
-        printer.print(Constants.envVersion)
+        printer.print(Constants.version)
     }
 }
