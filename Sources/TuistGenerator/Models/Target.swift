@@ -7,7 +7,7 @@ public class Target: Equatable {
 
     // MARK: - Static
 
-    static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c"]
+    static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d"]
     static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset"]
 
     // MARK: - Attributes

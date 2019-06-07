@@ -14,7 +14,7 @@ final class TargetTests: XCTestCase {
     }
 
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c"])
+        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d"])
     }
 
     func test_productName_when_staticLibrary() {
