@@ -37,6 +37,7 @@ class XcodeBuild {
         public let validArchs: [String]
         public let srcRoot: String
         public let action: Action
+        public let codeSigningIdentity: String?
 
         public init(configuration: String,
                     frameworksFolderPath: String,
@@ -44,7 +45,8 @@ class XcodeBuild {
                     targetBuildDir: String,
                     validArchs: [String],
                     srcRoot: String,
-                    action: Action) {
+                    action: Action,
+                    codeSigningIdentity: String?) {
             self.configuration = configuration
             self.frameworksFolderPath = frameworksFolderPath
             self.builtProductsDir = builtProductsDir
@@ -52,6 +54,7 @@ class XcodeBuild {
             self.validArchs = validArchs
             self.srcRoot = srcRoot
             self.action = action
+            self.codeSigningIdentity = codeSigningIdentity
         }
 
         public init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
@@ -83,6 +86,7 @@ class XcodeBuild {
             self.validArchs = validArchs.components(separatedBy: " ")
             self.srcRoot = srcRoot
             self.action = Action(rawValue: action) ?? .install
+            self.codeSigningIdentity = environment["CODE_SIGN_IDENTITY"]
         }
 
         // MARK: - Public

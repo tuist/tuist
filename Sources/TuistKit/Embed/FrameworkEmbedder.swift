@@ -13,15 +13,13 @@ final class FrameworkEmbedder: FrameworkEmbedding {
     // MARK: - Attributes
 
     private let fileHandler: FileHandling
+    private let system: Systeming
 
     // MARK: - Init
 
-    public convenience init() {
-        self.init(fileHandler: FileHandler())
-    }
-
-    init(fileHandler: FileHandling) {
+    init(fileHandler: FileHandling = FileHandler(), system: Systeming = System()) {
         self.fileHandler = fileHandler
+        self.system = system
     }
 
     // MARK: - Internal
@@ -63,12 +61,25 @@ final class FrameworkEmbedder: FrameworkEmbedding {
             try fileHandler.createFolder(productFrameworksPath)
         }
 
+        if let codeSigningIdentity = environment.codeSigningIdentity {
+            try codesignFramework(frameworkAbsolutePath: frameworkAbsolutePath, codeSigningIdentify: codeSigningIdentity)
+        }
+        
         try copyFramework(productFrameworksPath: productFrameworksPath, frameworkAbsolutePath: frameworkAbsolutePath, validArchs: validArchs)
         try copySymbols(frameworkDsymPath: frameworkDsymPath, destinationPath: destinationPath, validArchs: validArchs)
         try copyBCSymbolMaps(action: action, frameworkAbsolutePath: frameworkAbsolutePath, builtProductsDir: builtProductsDir)
     }
 
     // MARK: - Fileprivate
+    
+    private func codesignFramework(frameworkAbsolutePath: AbsolutePath, codeSigningIdentify: String) throws {
+        
+        try system.run([
+            "/usr/bin/xcrun",
+            "codesign", "--force", "--sign", codeSigningIdentify, "--preserve-metadata=identifier,entitlements", frameworkAbsolutePath.pathString
+        ])
+        
+    }
 
     private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
