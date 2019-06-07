@@ -22,6 +22,7 @@ public final class CommandRegistry {
                       UpdateCommand.self,
                       InstallCommand.self,
                       UninstallCommand.self,
+                      VersionCommand.self,
                   ])
     }
 
