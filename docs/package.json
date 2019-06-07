@@ -1,7 +1,6 @@
 {
   "devDependencies": {
-    "docz": "git@github.com:lemon-31/docz.git#9a8fe392c443e9c3fa1f4c161d40b7487b05cb7c",
-    "docz-theme-default": "git@github.com:lemon-31/docz.git#9a8fe392c443e9c3fa1f4c161d40b7487b05cb7c"
+    "react-hot-loader": "^4.9.0"
   },
   "scripts": {
     "docz:dev": "docz dev",
@@ -12,8 +11,16 @@
     "url": "git+https://github.com/tuist/tuist.git"
   },
   "dependencies": {
+    "css-loader": "^2.1.1",
+    "docz": "^1.2.0",
     "docz-plugin-netlify": "^1.1.4",
+    "docz-theme-default": "^1.2.0",
+    "node-sass": "^4.12.0",
+    "react": "^16.8.6",
+    "react-dom": "^16.8.6",
+    "sass-loader": "^7.1.0",
     "semantic-ui-react": "^0.87.1",
+    "style-loader": "^0.23.1",
     "styled-components": "^4.2.0",
     "styled-system": "^4.2.2"
   }
