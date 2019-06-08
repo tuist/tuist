@@ -13,15 +13,13 @@ final class FrameworkEmbedder: FrameworkEmbedding {
     // MARK: - Attributes
 
     private let fileHandler: FileHandling
+    private let system: Systeming
 
     // MARK: - Init
 
-    public convenience init() {
-        self.init(fileHandler: FileHandler())
-    }
-
-    init(fileHandler: FileHandling) {
+    init(fileHandler: FileHandling = FileHandler(), system: Systeming = System()) {
         self.fileHandler = fileHandler
+        self.system = system
     }
 
     // MARK: - Internal
@@ -62,15 +60,30 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         if !fileHandler.exists(productFrameworksPath) {
             try fileHandler.createFolder(productFrameworksPath)
         }
-
-        try copyFramework(productFrameworksPath: productFrameworksPath, frameworkAbsolutePath: frameworkAbsolutePath, validArchs: validArchs)
+        
+        let copiedFramework = try copyFramework(productFrameworksPath: productFrameworksPath, frameworkAbsolutePath: frameworkAbsolutePath, validArchs: validArchs)
         try copySymbols(frameworkDsymPath: frameworkDsymPath, destinationPath: destinationPath, validArchs: validArchs)
         try copyBCSymbolMaps(action: action, frameworkAbsolutePath: frameworkAbsolutePath, builtProductsDir: builtProductsDir)
+        
+        if environment.codeSigningAllowed, let codeSigningIdentity = environment.codeSigningIdentity {
+            try codesignFramework(frameworkPath: copiedFramework, codeSigningIdentity: codeSigningIdentity)
+        }
+        
     }
 
     // MARK: - Fileprivate
+    
+    private func codesignFramework(frameworkPath: AbsolutePath, codeSigningIdentity: String) throws {
+        /// We need to ensure the frameworks are codesigned after being copied to the built products directory.
+        /// Passing `preserve-metadata=identifier,entitlements` ensures any signatures or entitlements which are
+        /// already there are preserved.
+        try system.run([
+            "/usr/bin/xcrun",
+            "codesign", "--force", "--sign", codeSigningIdentity, "--preserve-metadata=identifier,entitlements", frameworkPath.pathString
+        ])
+    }
 
-    private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws {
+    private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws -> AbsolutePath {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
         if fileHandler.exists(frameworkOutputPath) {
             try fileHandler.delete(frameworkOutputPath)
@@ -81,6 +94,8 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         if try embeddable.architectures().count > 1 {
             try embeddable.strip(keepingArchitectures: validArchs)
         }
+        
+        return frameworkOutputPath
     }
 
     private func copyBCSymbolMaps(action: XcodeBuild.Action,

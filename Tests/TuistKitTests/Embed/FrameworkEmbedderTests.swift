@@ -2,14 +2,17 @@ import Basic
 import Foundation
 import XCTest
 @testable import TuistKit
+@testable import TuistCoreTesting
 
 final class FrameworkEmbedderErrorTests: XCTestCase {
     var subject: FrameworkEmbedder!
     var fm: FileManager!
+    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        subject = FrameworkEmbedder()
+        system = MockSystem()
+        subject = FrameworkEmbedder(system: system)
         fm = FileManager.default
     }
 
@@ -40,6 +43,28 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
             XCTAssertEqual(try Embeddable(path: outputDSYMPath).architectures(), ["arm64"])
         }
     }
+    
+    func test_embed_with_codesigning() throws {
+        XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: "iPhone Developer") { srcRoot, env in
+            let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
+            system.succeedCommand([
+                "/usr/bin/xcrun",
+                "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString
+            ])
+            try subject.embed(frameworkPath: frameworkPath, environment: env)
+        })
+    }
+    
+    func test_embed_with_no_codesigning() {
+        XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: nil) { srcRoot, env in
+            let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
+            try subject.embed(frameworkPath: frameworkPath, environment: env)
+            XCTAssertFalse(
+                system.called("/usr/bin/xcrun",
+                              "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString)
+            )
+        })
+    }
 
     private func universalFrameworkPath() -> AbsolutePath {
         let testsPath = AbsolutePath(#file).parentDirectory.parentDirectory.parentDirectory
@@ -47,6 +72,7 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
     }
 
     private func withEnvironment(action: XcodeBuild.Action = .install,
+                                 codeSigningIdentity: String? = nil,
                                  assert: (AbsolutePath, XcodeBuild.Environment) throws -> Void) throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let frameworksPath = "frameworks"
@@ -68,7 +94,9 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
                                                  targetBuildDir: targetBuildDir.pathString,
                                                  validArchs: validArchs,
                                                  srcRoot: srcRootPath.pathString,
-                                                 action: action)
+                                                 action: action,
+                                                 codeSigningIdentity: codeSigningIdentity,
+                                                 codeSigningAllowed: true)
         try assert(srcRootPath, environment)
     }
 }

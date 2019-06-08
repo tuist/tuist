@@ -18,5 +18,7 @@ Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
   end
 
   args << "CODE_SIGNING_ALLOWED=NO"
+  args << "CODE_SIGNING_IDENTITY=\"iPhone Developer\""
+
   xcodebuild(*args)
 end
