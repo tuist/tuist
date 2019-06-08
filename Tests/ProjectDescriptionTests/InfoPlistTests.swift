@@ -20,16 +20,15 @@ final class InfoPlistTests: XCTestCase {
     }
 
     func test_toJSON_when_dictionary() throws {
-        let dictionary = ["key": "value"]
-        let data = try JSONSerialization.data(withJSONObject: dictionary,
-                                              options: [])
-        let subject = InfoPlist.dictionary(dictionary)
+        let subject = InfoPlist.dictionary(["key": "value"])
 
         let expected =
             """
             {
                "type": "dictionary",
-               "value": "\(data.base64EncodedString())"
+               "value": {
+                 "key": "value"
+               }
             }
             """
         assertCodableEqualToJson(subject, expected)

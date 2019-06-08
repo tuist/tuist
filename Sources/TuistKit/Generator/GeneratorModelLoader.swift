@@ -259,8 +259,27 @@ extension TuistGenerator.InfoPlist {
         switch manifest {
         case let .file(infoplistPath):
             return .file(path: path.appending(RelativePath(infoplistPath)))
-        default:
-            fatalError("Not implemented yet")
+        case let .dictionary(dictionary):
+            return .dictionary(
+                dictionary.mapValues { TuistGenerator.InfoPlist.Value.from(manifest: $0) }
+            )
+        }
+    }
+}
+
+extension TuistGenerator.InfoPlist.Value {
+    static func from(manifest: ProjectDescription.InfoPlist.Value) -> TuistGenerator.InfoPlist.Value {
+        switch manifest {
+        case let .string(value):
+            return .string(value)
+        case let .boolean(value):
+            return .boolean(value)
+        case let .integer(value):
+            return .integer(value)
+        case let .array(value):
+            return .array(value.map { TuistGenerator.InfoPlist.Value.from(manifest: $0) })
+        case let .dictionary(value):
+            return .dictionary(value.mapValues { TuistGenerator.InfoPlist.Value.from(manifest: $0) })
         }
     }
 }

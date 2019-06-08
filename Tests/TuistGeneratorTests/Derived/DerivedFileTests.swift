@@ -27,4 +27,16 @@ final class DerivedFileTests: XCTestCase {
         // Then
         XCTAssertEqual(got, sourceRootPath.appending(RelativePath("Derived/InfoPlists")))
     }
+
+    func test_array_infoPlist() {
+        // Given
+        let subject = DerivedFile.infoPlist(target: "Core")
+        let files = [subject]
+
+        // When
+        let got = files.infoPlist(target: "Core")
+
+        // Then
+        XCTAssertEqual(got, subject)
+    }
 }

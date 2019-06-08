@@ -16,7 +16,7 @@ final class InfoPlistTests: XCTestCase {
 
     func test_equal_when_dictionary() {
         // Given
-        let dictionary: [String: Any] = ["string": "string", "array": ["a", "b", "c"], "dictionary": [
+        let dictionary: [String: InfoPlist.Value] = ["string": "string", "array": ["a", "b", "c"], "dictionary": [
             "key": "value",
         ]]
         let first: InfoPlist = .dictionary(dictionary)
