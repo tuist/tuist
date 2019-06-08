@@ -49,7 +49,7 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
             let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
             system.succeedCommand([
                 "/usr/bin/xcrun",
-                "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", universalFrameworkPath().pathString
+                "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString
             ])
             try subject.embed(frameworkPath: frameworkPath, environment: env)
         })
@@ -59,9 +59,11 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
         XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: nil) { srcRoot, env in
             let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
             try subject.embed(frameworkPath: frameworkPath, environment: env)
+            XCTAssertFalse(
+                system.called("/usr/bin/xcrun",
+                              "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString)
+            )
         })
-        XCTAssertFalse(system.called("/usr/bin/xcrun",
-                                      "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", universalFrameworkPath().pathString))
     }
 
     private func universalFrameworkPath() -> AbsolutePath {

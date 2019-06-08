@@ -99,7 +99,7 @@ class XcodeBuild {
             }
         }
 
-        private func frameworksPath() -> AbsolutePath {
+        internal func frameworksPath() -> AbsolutePath {
             return destinationPath().appending(RelativePath(frameworksFolderPath))
         }
     }
