@@ -95,7 +95,8 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
                                                  validArchs: validArchs,
                                                  srcRoot: srcRootPath.pathString,
                                                  action: action,
-                                                 codeSigningIdentity: codeSigningIdentity)
+                                                 codeSigningIdentity: codeSigningIdentity,
+                                                 codeSigningAllowed: true)
         try assert(srcRootPath, environment)
     }
 }

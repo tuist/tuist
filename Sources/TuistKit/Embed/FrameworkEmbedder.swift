@@ -65,7 +65,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         try copySymbols(frameworkDsymPath: frameworkDsymPath, destinationPath: destinationPath, validArchs: validArchs)
         try copyBCSymbolMaps(action: action, frameworkAbsolutePath: frameworkAbsolutePath, builtProductsDir: builtProductsDir)
         
-        if let codeSigningIdentity = environment.codeSigningIdentity {
+        if environment.codeSigningAllowed, let codeSigningIdentity = environment.codeSigningIdentity {
             try codesignFramework(frameworkPath: copiedFramework, codeSigningIdentity: codeSigningIdentity)
         }
         
