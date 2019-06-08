@@ -81,7 +81,7 @@ final class SettingsHelpersTests: XCTestCase {
         settings["A"] = "$(inherited) A_VALUE"
 
         // When
-        subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE",])
+        subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE"])
 
         // Then
         XCTAssertEqualDictionaries(settings, ["A": "$(inherited) A_VALUE"])
