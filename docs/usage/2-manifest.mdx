@@ -342,19 +342,19 @@ Target actions, represented as target script build phases, are useful to define 
 
 <EnumTable cases={[
 {
-case: ".pre(tool: String, arguments: String..., name: String)",
+case: ".pre(tool: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])",
 description: "Action executed before the target-specific build phases where tool is the name of the tool to be executed."
 },
 {
-case: ".pre(name: String, arguments: String..., name: String)",
+case: ".pre(name: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])",
 description: "Action executed before the target-specific build phases where path is the path to the tool to be executed."
 },
 {
-case: ".post(tool: String, arguments: String..., name: String)",
+case: ".post(tool: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])",
 description: "Action executed after all the target-specific build phases where tool is the name of the tool to be executed."
 },
 {
-case: ".post(name: String, arguments: String..., name: String)",
+case: ".post(name: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])",
 description: "Action executed after all the target-specific build phases where path is the path to the tool to be executed."
 },
 ]}/>
@@ -365,8 +365,13 @@ The following example shows the definition of an action that runs the `my_custom
 .pre(path: "my_custom_script.sh", arguments: ["hello"], name: "My Custom Script Phase")
 ```
 
-
 <Message info title="Relative paths" description="Either the tool or the path need to be defined. Moreover, Tuist verifies whether the launch path is valid and fail otherwise."/>
+
+The following example shows the definition of an action that runs the `my_custom_script.sh` defining input and output files:
+
+```swift
+.pre(path: "my_custom_script.sh", name: "My Custom Script Phase", inputFileListPaths: [ "Data/Cars.raw.json", "Data/Drivers.raw.json" ], outputFileListPaths: [ "Data/Cars.swift", "Data/Drivers.swift" ])
+```
 
 ## Build Configuration
 
