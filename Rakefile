@@ -37,6 +37,8 @@ end
 desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
 task :package_commit do
   decrypt_secrets
+  package
+  
   bucket = storage.bucket("tuist-builds")
 
   sha = %x(git show --pretty=%H).strip
