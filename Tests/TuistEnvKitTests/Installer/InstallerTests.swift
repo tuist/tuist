@@ -170,8 +170,7 @@ final class InstallerTests: XCTestCase {
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "tuist",
                               "--package-path", temporaryDirectory.path.pathString,
-                              "--configuration", "release",
-                              "-Xswiftc", "-static-stdlib")
+                              "--configuration", "release")
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
                               "--package-path", temporaryDirectory.path.pathString,
@@ -212,8 +211,7 @@ final class InstallerTests: XCTestCase {
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "tuist",
                               "--package-path", temporaryDirectory.path.pathString,
-                              "--configuration", "release",
-                              "-Xswiftc", "-static-stdlib")
+                              "--configuration", "release")
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
                               "--package-path", temporaryDirectory.path.pathString,
