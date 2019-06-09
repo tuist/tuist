@@ -32,16 +32,20 @@ public enum InfoPlist: Codable {
             if let singleValueContainer = try? decoder.singleValueContainer() {
                 if let value: String = try? singleValueContainer.decode(String.self) {
                     self = .string(value)
+                    return
                 } else if let value: Int = try? singleValueContainer.decode(Int.self) {
                     self = .integer(value)
+                    return
                 } else if let value: Bool = try? singleValueContainer.decode(Bool.self) {
                     self = .boolean(value)
+                    return
                 } else if let value: [String: Value] = try? singleValueContainer.decode([String: Value].self) {
                     self = .dictionary(value)
-                } else {
-                    preconditionFailure("invalid value")
+                    return
                 }
-            } else if var unkeyedContainer = try? decoder.unkeyedContainer() {
+            }
+            
+            if var unkeyedContainer = try? decoder.unkeyedContainer() {
                 self = try .array(unkeyedContainer.decode([Value].self))
             } else {
                 preconditionFailure("unsupported container type")
