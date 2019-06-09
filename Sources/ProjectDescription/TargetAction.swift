@@ -61,9 +61,15 @@ public struct TargetAction: Codable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
-    init(name: String, tool: String?, path: String?, order: Order, arguments: [String],
-         inputPaths: [String] = [], inputFileListPaths: [String] = [],
-         outputPaths: [String] = [], outputFileListPaths: [String] = []) {
+    init(name: String,
+         tool: String?,
+         path: String?,
+         order: Order,
+         arguments: [String],
+         inputPaths: [String] = [],
+         inputFileListPaths: [String] = [],
+         outputPaths: [String] = [],
+         outputFileListPaths: [String] = []) {
         self.name = name
         self.path = path
         self.tool = tool
@@ -86,12 +92,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(tool: String, arguments: String..., name: String,
-                           inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .pre, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func pre(tool: String,
+                           arguments: String...,
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -105,12 +121,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(tool: String, arguments: [String], name: String,
-                           inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .pre, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func pre(tool: String,
+                           arguments: [String],
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -124,12 +150,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(path: String, arguments: String..., name: String,
-                           inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .pre, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func pre(path: String,
+                           arguments: String...,
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -143,12 +179,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(path: String, arguments: [String], name: String,
-                           inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .pre, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func pre(path: String,
+                           arguments: [String],
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -162,12 +208,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(tool: String, arguments: String..., name: String,
-                            inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .post, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func post(tool: String,
+                            arguments: String...,
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -181,12 +237,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(tool: String, arguments: [String], name: String,
-                            inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .post, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func post(tool: String,
+                            arguments: [String],
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -200,12 +266,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(path: String, arguments: String..., name: String,
-                            inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .post, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func post(path: String,
+                            arguments: String...,
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -219,12 +295,22 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(path: String, arguments: [String], name: String,
-                            inputPaths: [String] = [], inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [], outputFileListPaths: [String] = []) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .post, arguments: arguments,
-                            inputPaths: inputPaths, inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths, outputFileListPaths: outputFileListPaths)
+    public static func post(path: String,
+                            arguments: [String],
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     // MARK: - Codable
