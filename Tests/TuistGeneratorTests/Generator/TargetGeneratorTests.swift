@@ -25,7 +25,20 @@ final class TargetGeneratorTests: XCTestCase {
     func test_generateTarget_productName() throws {
         // Given
         let target = Target.test(name: "MyFramework",
-                                 product: .framework)
+                                 product: .framework,
+                                 actions: [
+                                    TargetAction(name: "pre",
+                                                 order: .pre,
+                                                 tool: "echo",
+                                                 arguments: [ "pre1", "pre2" ]),
+                                    TargetAction(name: "post",
+                                                 order: .post,
+                                                 tool: "echo",
+                                                 path: "/tmp",
+                                                 arguments: [ "post1", "post2" ],
+                                                 inputFileListPaths: [ "/tmp/b" ],
+                                                 outputFileListPaths: [ "/tmp/d" ])
+            ])
         let project = Project.test(path: path, targets: [target])
         let graph = Graph.test()
         let groups = ProjectGroups.generate(project: project,
@@ -49,11 +62,26 @@ final class TargetGeneratorTests: XCTestCase {
                                                          sourceRootPath: path,
                                                          options: GenerationOptions(),
                                                          graph: graph)
+    
 
         // Then
         XCTAssertEqual(generatedTarget.productName, "MyFramework")
         XCTAssertEqual(generatedTarget.productNameWithExtension(), "MyFramework.framework")
         XCTAssertEqual(generatedTarget.productType, .framework)
+        
+        guard
+            let preBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "pre" }),
+            let postBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "post" }) else {
+                XCTFail("Failed to generate target with build phases pre and post")
+                return
+        }
+        
+        XCTAssertNil(preBuildPhase.inputFileListPaths)
+        XCTAssertNil(preBuildPhase.outputFileListPaths)
+        
+        XCTAssertEqual(postBuildPhase.inputFileListPaths, [ "/tmp/b" ])
+        XCTAssertEqual(postBuildPhase.outputFileListPaths, [ "/tmp/d" ])
+
     }
 
     func test_generateTargetDependencies() throws {
