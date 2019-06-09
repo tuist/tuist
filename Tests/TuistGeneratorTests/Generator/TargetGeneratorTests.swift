@@ -76,8 +76,8 @@ final class TargetGeneratorTests: XCTestCase {
                 return
         }
         
-        XCTAssertNil(preBuildPhase.inputFileListPaths)
-        XCTAssertNil(preBuildPhase.outputFileListPaths)
+        XCTAssertEqual(preBuildPhase.inputFileListPaths, [])
+        XCTAssertEqual(preBuildPhase.outputFileListPaths, [])
         
         XCTAssertEqual(postBuildPhase.inputFileListPaths, [ "/tmp/b" ])
         XCTAssertEqual(postBuildPhase.outputFileListPaths, [ "/tmp/d" ])
