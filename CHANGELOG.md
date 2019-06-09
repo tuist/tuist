@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 - `DefaultSettings.none` to disable the generation of default build settings https://github.com/tuist/tuist/pull/395 by @pepibumur.
 - Version information for tuistenv https://github.com/tuist/tuist/pull/399 by @ollieatkinson
+- Add input & output paths for target action https://github.com/tuist/tuist/pull/353 by Rag0n
 
 ### Fixed
 
