@@ -156,7 +156,7 @@ final class Installer: Installing {
 
             // Unzip
             printer.print("Installing...")
-            try system.run("/usr/bin/unzip", downloadPath.pathString, "-d", installationDirectory.pathString)
+            try system.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")

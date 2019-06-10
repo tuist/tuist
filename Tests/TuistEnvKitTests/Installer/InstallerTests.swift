@@ -76,7 +76,9 @@ final class InstallerTests: XCTestCase {
         system.succeedCommand("/usr/bin/curl", "-LSs",
                               "--output", downloadPath.pathString,
                               downloadURL.absoluteString)
-        system.succeedCommand("/usr/bin/unzip", downloadPath.pathString,
+        system.succeedCommand("/usr/bin/unzip",
+                              "-q",
+                              downloadPath.pathString,
                               "-d", fileHandler.currentPath.pathString)
 
         try subject.install(version: version,
