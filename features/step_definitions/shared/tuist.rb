@@ -22,3 +22,7 @@ Then(/tuist generates reports error "(.+)"/) do |error|
   assert_equal(actual_msg, expected_msg)
   assert_equal(wait_thr.value.exitstatus, 1)
 end
+
+Then(/tuistenv should succeed in installing "(.+)"/) do |ref|
+  system("swift", "run", "tuistenv", "install", ref)
+end
