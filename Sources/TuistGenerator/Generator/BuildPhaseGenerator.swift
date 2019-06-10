@@ -85,10 +85,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         try actions.forEach { action in
             let buildPhase = try PBXShellScriptBuildPhase(files: [],
                                                           name: action.name,
-                                                          inputPaths: [],
-                                                          outputPaths: [],
-                                                          inputFileListPaths: [],
-                                                          outputFileListPaths: [],
+                                                          inputPaths: action.inputPaths,
+                                                          outputPaths: action.outputPaths,
+                                                          inputFileListPaths: action.inputFileListPaths,
+                                                          outputFileListPaths: action.outputFileListPaths,
                                                           shellPath: "/bin/sh",
                                                           shellScript: action.shellScript(sourceRootPath: sourceRootPath))
             pbxproj.add(object: buildPhase)
