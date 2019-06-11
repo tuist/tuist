@@ -224,21 +224,27 @@ final class LinkGenerator: LinkGenerating {
         pbxTarget.buildPhases.append(buildPhase)
 
         try dependencies.forEach { dependency in
-            if case let DependencyReference.absolute(path) = dependency {
+            switch dependency {
+            case let .absolute(path):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
                 let buildFile = PBXBuildFile(file: fileRef)
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
-
-            } else if case let DependencyReference.product(name) = dependency {
+            case let .product(name):
                 guard let fileRef = fileElements.product(name: name) else {
                     throw LinkGeneratorError.missingProduct(name: name)
                 }
                 let buildFile = PBXBuildFile(file: fileRef)
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
+            case let .sdk(name):
+                // TODO: figure out correct file refs
+                // TODO: include status in the DependencyReference enum to configure weak linking attributes
+                // TODO: Cache existing sdk file refs?
+                let fileReference = PBXFileReference(sourceTree: .sdkRoot,
+                                                     name: name)
             }
         }
     }

@@ -1,6 +1,10 @@
 import Basic
 import Foundation
-import ProjectDescription
+
+public enum SDKStatus {
+    case required
+    case optional
+}
 
 public enum Dependency: Equatable {
     case target(name: String)

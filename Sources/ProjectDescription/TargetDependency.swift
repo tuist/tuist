@@ -3,7 +3,8 @@ import Foundation
 // MARK: - TargetDependency
 
 public enum SDKStatus: String {
-    case required, optional
+    case required
+    case optional
 }
 
 public enum TargetDependency: Codable {
@@ -12,7 +13,11 @@ public enum TargetDependency: Codable {
     case framework(path: String)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
     case sdk(name: String, status: SDKStatus)
-
+    
+    public func sdk(name: String) -> TargetDependency {
+        return .sdk(name: name, status: .required)
+    }
+    
     public var typeName: String {
         switch self {
         case .target:

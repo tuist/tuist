@@ -23,6 +23,7 @@ enum GraphError: FatalError {
 enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
     case product(String)
+    case sdk(String)
 
     public func hash(into hasher: inout Hasher) {
         switch self {
@@ -30,6 +31,8 @@ enum DependencyReference: Equatable, Comparable, Hashable {
             hasher.combine(path)
         case let .product(product):
             hasher.combine(product)
+        case let .sdk(sdk):
+            hasher.combine(sdk)
         }
     }
 
@@ -39,6 +42,8 @@ enum DependencyReference: Equatable, Comparable, Hashable {
             return lhsPath == rhsPath
         case let (.product(lhsName), .product(rhsName)):
             return lhsName == rhsName
+        case let (.sdk(lhsSdk), .sdk(rhsSdk)):
+            return lhsSdk == rhsSdk
         default:
             return false
         }
@@ -50,6 +55,12 @@ enum DependencyReference: Equatable, Comparable, Hashable {
             return lhsPath < rhsPath
         case let (.product(lhsName), .product(rhsName)):
             return lhsName < rhsName
+        case let (.sdk(lhsSdk), .sdk(rhsSdk)):
+            return lhsSdk < rhsSdk
+        case (.sdk, .absolute):
+            return true
+        case (.sdk, .product):
+            return true
         case (.product, .absolute):
             return true
         default:
@@ -156,6 +167,11 @@ class Graph: Graphing {
 
         var references: [DependencyReference] = []
 
+        // System libraries and frameworks
+        let systemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
+            return DependencyReference.sdk($0.name)
+        }
+        
         // Precompiled libraries and frameworks
 
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies

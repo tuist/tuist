@@ -9,8 +9,6 @@ public enum InfoPlist: Equatable, ExpressibleByStringLiteral, ExpressibleByUnico
         switch (lhs, rhs) {
         case let (.file(lhsPath), .file(rhsPath)):
             return lhsPath == rhsPath
-        default:
-            return false
         }
     }
 

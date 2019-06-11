@@ -272,6 +272,34 @@ final class LinkGeneratorErrorTests: XCTestCase {
         }
     }
 
+    func test_generateLinkingPhase_sdkNodes() throws {
+        // Given
+        let dependencies: [DependencyReference] = [
+            .sdk("ARKit.framework"),
+        ]
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let fileElements = ProjectFileElements()
+        
+        // When
+        try subject.generateLinkingPhase(dependencies: dependencies,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         fileElements: fileElements)
+        
+        // Then
+        // 425C7C7D22B05FDE00697BD9 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS12.2.sdk/System/Library/Frameworks/ARKit.framework; sourceTree = DEVELOPER_DIR; };
+		// 425C7C7F22B05FF900697BD9 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS12.2.sdk/usr/lib/libsqlite3.tbd; sourceTree = DEVELOPER_DIR; };
+        
+//        let buildPhase = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
+//        XCTAssertEqual(buildPhase?.files?.map { $0.file?.name }, [
+//            "ARKit.framework"
+//        ])
+//        XCTAssertEqual(buildPhase?.files?.map { $0.file?.path }, [
+//            "Foundation"
+//        ])
+    }
+    
     func test_generateCopyProductsdBuildPhase_staticTargetDependsOnStaticProducts() throws {
         // Given
         let path = AbsolutePath("/path/")
