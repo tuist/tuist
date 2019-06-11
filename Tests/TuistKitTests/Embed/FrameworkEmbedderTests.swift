@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import XCTest
-@testable import TuistKit
 @testable import TuistCoreTesting
+@testable import TuistKit
 
 final class FrameworkEmbedderErrorTests: XCTestCase {
     var subject: FrameworkEmbedder!
@@ -43,18 +43,18 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
             XCTAssertEqual(try Embeddable(path: outputDSYMPath).architectures(), ["arm64"])
         }
     }
-    
+
     func test_embed_with_codesigning() throws {
         XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: "iPhone Developer") { srcRoot, env in
             let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
             system.succeedCommand([
                 "/usr/bin/xcrun",
-                "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString
+                "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString,
             ])
             try subject.embed(frameworkPath: frameworkPath, environment: env)
         })
     }
-    
+
     func test_embed_with_no_codesigning() {
         XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: nil) { srcRoot, env in
             let frameworkPath = universalFrameworkPath().relative(to: srcRoot)

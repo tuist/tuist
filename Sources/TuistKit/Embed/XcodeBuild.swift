@@ -89,8 +89,8 @@ class XcodeBuild {
             self.validArchs = validArchs.components(separatedBy: " ")
             self.srcRoot = srcRoot
             self.action = Action(rawValue: action) ?? .install
-            self.codeSigningIdentity = environment["CODE_SIGN_IDENTITY"]
-            self.codeSigningAllowed = environment["CODE_SIGNING_ALLOWED"]?.uppercased() == "YES"
+            codeSigningIdentity = environment["CODE_SIGN_IDENTITY"]
+            codeSigningAllowed = environment["CODE_SIGNING_ALLOWED"]?.uppercased() == "YES"
         }
 
         // MARK: - Public

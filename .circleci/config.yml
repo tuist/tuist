@@ -9,7 +9,7 @@ workflows:
 jobs:
   build:
     macos:
-      xcode: '10.2.0'
+      xcode: '10.2.1'
     steps:
       - checkout
       - restore_cache:
