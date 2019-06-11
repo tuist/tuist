@@ -367,6 +367,8 @@ extension TuistGenerator.Dependency {
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
+        case let .sdk(name, status):
+            return .sdk(name: name, status: status)
         }
     }
 }

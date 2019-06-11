@@ -322,6 +322,10 @@ extension TargetNode {
     fileprivate var frameworkDependencies: [FrameworkNode] {
         return dependencies.lazy.compactMap { $0 as? FrameworkNode }
     }
+
+    fileprivate var sdkDependencies: [SDKNode] {
+        return dependencies.lazy.compactMap { $0 as? SDKNode }
+    }
 }
 
 extension Graph {
