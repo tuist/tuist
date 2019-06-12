@@ -150,18 +150,27 @@ enum PrecompiledNodeError: FatalError, Equatable {
 }
 
 class SDKNode: GraphNode {
-    enum Error: Swift.Error {
-        case invalidExtension(String?)
+    enum `Type`: String, CaseIterable {
+        case framework
+        case library = "tbd"
     }
-
-    enum `Type`: String {
-        case framework, library
-
-        init(from string: String) throws {
-            guard let type = Type(rawValue: string)
-            else { throw Error.invalidExtension(string) }
-
-            self = type
+    
+    // TODO: convert to lint rule
+    enum Error: FatalError, Equatable {
+        case unsupported(sdk: String)
+        var description: String {
+            switch self {
+            case let .unsupported(sdk):
+                let supportedTypes = Type.allCases.map(\.rawValue).joined(separator: ", ")
+                return "The SDK type of \(sdk) is not currently supported - only \(supportedTypes) are supported."
+            }
+        }
+        
+        var type: ErrorType {
+            switch self {
+            case .unsupported:
+                return .abort
+            }
         }
     }
 
@@ -172,12 +181,14 @@ class SDKNode: GraphNode {
     init(name: String, status: SDKStatus) throws {
         let sdk = AbsolutePath("/\(name)")
 
-        guard let string = sdk.extension
-        else { throw Error.invalidExtension(sdk.extension) }
+        guard let sdkExtension = sdk.extension,
+            let type = Type(rawValue: sdkExtension) else {
+                throw Error.unsupported(sdk: name)
+        }
 
         self.name = name
         self.status = status
-        type = try Type(from: string)
+        self.type = type
 
         let path: AbsolutePath
 
