@@ -23,31 +23,7 @@ enum GraphError: FatalError {
 enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
     case product(String)
-    case sdk(String)
-
-    public func hash(into hasher: inout Hasher) {
-        switch self {
-        case let .absolute(path):
-            hasher.combine(path)
-        case let .product(product):
-            hasher.combine(product)
-        case let .sdk(sdk):
-            hasher.combine(sdk)
-        }
-    }
-
-    static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
-        switch (lhs, rhs) {
-        case let (.absolute(lhsPath), .absolute(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.product(lhsName), .product(rhsName)):
-            return lhsName == rhsName
-        case let (.sdk(lhsSdk), .sdk(rhsSdk)):
-            return lhsSdk == rhsSdk
-        default:
-            return false
-        }
-    }
+    case sdk(AbsolutePath, SDKStatus)
 
     static func < (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
@@ -55,8 +31,8 @@ enum DependencyReference: Equatable, Comparable, Hashable {
             return lhsPath < rhsPath
         case let (.product(lhsName), .product(rhsName)):
             return lhsName < rhsName
-        case let (.sdk(lhsSdk), .sdk(rhsSdk)):
-            return lhsSdk < rhsSdk
+        case let (.sdk(lhsPath, _), .sdk(rhsPath, _)):
+            return lhsPath < rhsPath
         case (.sdk, .absolute):
             return true
         case (.sdk, .product):
@@ -169,8 +145,10 @@ class Graph: Graphing {
 
         // System libraries and frameworks
         let systemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
-            return DependencyReference.sdk($0.name)
+            return DependencyReference.sdk($0.path, $0.status)
         }
+        
+        references.append(contentsOf: systemLibrariesAndFrameworks)
         
         // Precompiled libraries and frameworks
 

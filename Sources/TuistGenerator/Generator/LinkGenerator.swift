@@ -239,12 +239,14 @@ final class LinkGenerator: LinkGenerating {
                 let buildFile = PBXBuildFile(file: fileRef)
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
-            case let .sdk(name):
-                // TODO: figure out correct file refs
-                // TODO: include status in the DependencyReference enum to configure weak linking attributes
-                // TODO: Cache existing sdk file refs?
-                let fileReference = PBXFileReference(sourceTree: .sdkRoot,
-                                                     name: name)
+            case let .sdk(sdkPath, sdkStatus):
+                guard let fileRef = fileElements.sdk(path: sdkPath) else {
+                    throw LinkGeneratorError.missingReference(path: sdkPath)
+                }
+                
+                let buildFile = createSdkBuildFile(for: fileRef, status: sdkStatus)
+                pbxproj.add(object: buildFile)
+                buildPhase.files?.append(buildFile)
             }
         }
     }
@@ -320,6 +322,15 @@ final class LinkGenerator: LinkGenerating {
 
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
+    }
+    
+    func createSdkBuildFile(for fileReference: PBXFileReference, status: SDKStatus) -> PBXBuildFile {
+        var settings: [String: Any]?
+        if status == .optional {
+            settings = ["ATTRIBUTES": ["Weak"]]
+        }
+        return PBXBuildFile(file: fileReference,
+                            settings: settings)
     }
 }
 

@@ -486,6 +486,10 @@ class ProjectFileElements {
     func product(name: String) -> PBXFileReference? {
         return products[name]
     }
+    
+    func sdk(path: AbsolutePath) -> PBXFileReference? {
+        return sdks[path]
+    }
 
     func file(path: AbsolutePath) -> PBXFileReference? {
         return elements[path] as? PBXFileReference
