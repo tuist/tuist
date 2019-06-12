@@ -14,7 +14,7 @@ public enum TargetDependency: Codable {
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
     case sdk(name: String, status: SDKStatus)
     
-    public func sdk(name: String) -> TargetDependency {
+    static public func sdk(name: String) -> TargetDependency {
         return .sdk(name: name, status: .required)
     }
     

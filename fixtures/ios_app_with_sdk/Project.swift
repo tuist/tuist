@@ -9,9 +9,9 @@ let project = Project(name: "App",
                                  infoPlist: "Info.plist",
                                  sources: "Sources/**",
                                  dependencies: [
-                                     /* Target dependencies can be defined here */
-                                     /* .framework(path: "framework") */
-                                     .sdk(name: "StoreKit.framework", status: .required),
+                                     .sdk(name: "CloudKit.framework", status: .required),
+                                     .sdk(name: "StoreKit.framework", status: .optional),
+                                     .sdk(name: "libc++.tbd"),
                                  ],
                                  settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"])),
