@@ -453,22 +453,22 @@ class ProjectFileElements {
         toGroup.children.append(file)
         elements[fileAbsolutePath] = file
     }
-    
+
     private func generateSdkFileElement(node: SDKNode,
-                                toGroup: PBXGroup,
-                                pbxproj: PBXProj) {
-        guard nil == sdks[node.path] else {
+                                        toGroup: PBXGroup,
+                                        pbxproj: PBXProj) {
+        guard sdks[node.path] == nil else {
             return
         }
-        
+
         addSdkElement(node: node, toGroup: toGroup, pbxproj: pbxproj)
     }
-    
+
     private func addSdkElement(node: SDKNode,
-                       toGroup: PBXGroup,
-                       pbxproj: PBXProj) {
+                               toGroup: PBXGroup,
+                               pbxproj: PBXProj) {
         let sdkPath = node.path.relative(to: AbsolutePath("/")) // SDK paths are relative
-        
+
         let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(sourceTree: .sdkRoot,
                                     name: sdkPath.basename,
@@ -486,7 +486,7 @@ class ProjectFileElements {
     func product(name: String) -> PBXFileReference? {
         return products[name]
     }
-    
+
     func sdk(path: AbsolutePath) -> PBXFileReference? {
         return sdks[path]
     }

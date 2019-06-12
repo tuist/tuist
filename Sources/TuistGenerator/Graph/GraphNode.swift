@@ -154,7 +154,7 @@ class SDKNode: GraphNode {
         case framework
         case library = "tbd"
     }
-    
+
     // TODO: convert to lint rule
     enum Error: FatalError, Equatable {
         case unsupported(sdk: String)
@@ -165,7 +165,7 @@ class SDKNode: GraphNode {
                 return "The SDK type of \(sdk) is not currently supported - only \(supportedTypes) are supported."
             }
         }
-        
+
         var type: ErrorType {
             switch self {
             case .unsupported:
@@ -183,7 +183,7 @@ class SDKNode: GraphNode {
 
         guard let sdkExtension = sdk.extension,
             let type = Type(rawValue: sdkExtension) else {
-                throw Error.unsupported(sdk: name)
+            throw Error.unsupported(sdk: name)
         }
 
         self.name = name

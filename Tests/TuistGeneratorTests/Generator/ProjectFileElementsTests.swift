@@ -585,7 +585,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                                      sourceRootPath: AbsolutePath("/a/b/c/project"))
         XCTAssertEqual(got, RelativePath("../../../framework"))
     }
-    
+
     func test_generateDependencies_sdks() throws {
         // Given
         let pbxproj = PBXProj()
@@ -594,21 +594,21 @@ final class ProjectFileElementsTests: XCTestCase {
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        
+
         let sdk = try SDKNode(name: "ARKit.framework", status: .required)
-        
+
         // When
         try subject.generate(dependencies: [sdk],
                              path: sourceRootPath,
                              groups: groups, pbxproj: pbxproj,
                              sourceRootPath: sourceRootPath,
                              filesGroup: .group(name: "Project"))
-        
+
         // Then
         XCTAssertEqual(groups.frameworks.debugChildPaths, [
-            "ARKit.framework"
+            "ARKit.framework",
         ])
-        
+
         let sdkElement = subject.sdks[sdk.path]
         XCTAssertNotNil(sdkElement)
         XCTAssertEqual(sdkElement?.sourceTree, .sdkRoot)

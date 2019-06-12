@@ -13,11 +13,11 @@ public enum TargetDependency: Codable {
     case framework(path: String)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
     case sdk(name: String, status: SDKStatus)
-    
-    static public func sdk(name: String) -> TargetDependency {
+
+    public static func sdk(name: String) -> TargetDependency {
         return .sdk(name: name, status: .required)
     }
-    
+
     public var typeName: String {
         switch self {
         case .target:

@@ -285,26 +285,26 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let optionalFile = PBXFileReference(name: "optional")
         fileElements.sdks["/Strong/Foo.framework"] = requiredFile
         fileElements.sdks["/Weak/Bar.framework"] = optionalFile
-        
+
         // When
         try subject.generateLinkingPhase(dependencies: dependencies,
                                          pbxTarget: pbxTarget,
                                          pbxproj: pbxproj,
                                          fileElements: fileElements)
-        
+
         // Then
         let buildPhase = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
         XCTAssertNotNil(buildPhase)
         XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
             requiredFile,
-            optionalFile
+            optionalFile,
         ])
         XCTAssertEqual(buildPhase?.files?.map { $0.settings?.description }, [
             nil,
-            "[\"ATTRIBUTES\": [\"Weak\"]]"
+            "[\"ATTRIBUTES\": [\"Weak\"]]",
         ])
     }
-    
+
     func test_generateCopyProductsdBuildPhase_staticTargetDependsOnStaticProducts() throws {
         // Given
         let path = AbsolutePath("/path/")

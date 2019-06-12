@@ -145,11 +145,11 @@ class Graph: Graphing {
 
         // System libraries and frameworks
         let systemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
-            return DependencyReference.sdk($0.path, $0.status)
+            DependencyReference.sdk($0.path, $0.status)
         }
-        
+
         references.append(contentsOf: systemLibrariesAndFrameworks)
-        
+
         // Precompiled libraries and frameworks
 
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies

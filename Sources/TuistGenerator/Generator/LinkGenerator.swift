@@ -243,7 +243,7 @@ final class LinkGenerator: LinkGenerating {
                 guard let fileRef = fileElements.sdk(path: sdkPath) else {
                     throw LinkGeneratorError.missingReference(path: sdkPath)
                 }
-                
+
                 let buildFile = createSdkBuildFile(for: fileRef, status: sdkStatus)
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
@@ -323,7 +323,7 @@ final class LinkGenerator: LinkGenerating {
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
     }
-    
+
     func createSdkBuildFile(for fileReference: PBXFileReference, status: SDKStatus) -> PBXBuildFile {
         var settings: [String: Any]?
         if status == .optional {
