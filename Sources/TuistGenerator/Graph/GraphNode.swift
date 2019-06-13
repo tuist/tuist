@@ -153,15 +153,21 @@ class SDKNode: GraphNode {
     enum `Type`: String, CaseIterable {
         case framework
         case library = "tbd"
+
+        static var supportedTypesDescription: String {
+            let supportedTypes = allCases
+                .map { ".\($0.rawValue)" }
+                .joined(separator: ", ")
+            return "[\(supportedTypes)]"
+        }
     }
 
-    // TODO: convert to lint rule
     enum Error: FatalError, Equatable {
         case unsupported(sdk: String)
         var description: String {
             switch self {
             case let .unsupported(sdk):
-                let supportedTypes = Type.allCases.map(\.rawValue).joined(separator: ", ")
+                let supportedTypes = Type.supportedTypesDescription
                 return "The SDK type of \(sdk) is not currently supported - only \(supportedTypes) are supported."
             }
         }
