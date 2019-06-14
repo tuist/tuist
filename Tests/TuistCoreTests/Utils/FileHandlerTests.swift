@@ -28,7 +28,7 @@ final class FileHandlerTests: XCTestCase {
 
         // Then
         let content = try String(contentsOf: destFile.path.asURL)
-        XCTAssertEqual("content", content)
+        XCTAssertEqual(content, "content")
     }
 
     func test_replace_cleans_up_temp() throws {
