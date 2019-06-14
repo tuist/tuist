@@ -4,11 +4,35 @@ import XCTest
 @testable import TuistCore
 
 final class FileHandlerTests: XCTestCase {
+    private var subject: FileHandler!
     private let fileManager = FileManager.default
+
+    // MARK: - Setup
+
+    override func setUp() {
+        super.setUp()
+
+        subject = FileHandler()
+    }
+
+    // MARK: - Tests
+
+    func test_replace() throws {
+        // Given
+        let tempFile = try TemporaryFile()
+        let destFile = try TemporaryFile()
+        try "content".write(to: tempFile.path.asURL, atomically: true, encoding: .utf8)
+
+        // When
+        try subject.replace(destFile.path, with: tempFile.path)
+
+        // Then
+        let content = try String(contentsOf: destFile.path.asURL)
+        XCTAssertEqual("content", content)
+    }
 
     func test_replace_cleans_up_temp() throws {
         // Given
-        let subject = FileHandler()
         let tempFile = try TemporaryFile()
         let destFile = try TemporaryFile()
         let count = try countItemsInRootTempDirectory(appropriateFor: destFile.path.asURL)
