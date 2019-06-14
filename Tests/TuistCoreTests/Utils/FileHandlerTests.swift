@@ -1,12 +1,10 @@
-import XCTest
-import Foundation
 import Basic
+import Foundation
+import XCTest
 @testable import TuistCore
 
 final class FileHandlerTests: XCTestCase {
-
     private let fileManager = FileManager.default
-
 
     func test_replace_cleans_up_temp() throws {
         // Given
