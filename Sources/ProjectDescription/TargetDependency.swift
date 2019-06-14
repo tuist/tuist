@@ -2,18 +2,60 @@ import Foundation
 
 // MARK: - TargetDependency
 
+/// Dependency status used by `.sdk` target dependencies
 public enum SDKStatus: String {
+    /// Required dependency
     case required
+
+    /// Optional dependency (weakly linked)
     case optional
 }
 
+/// Defines the target dependencies supported by Tuist
 public enum TargetDependency: Codable {
+
+    /// Dependency on another target within the same project
+    ///
+    /// - Parameters:
+    ///   - name: Name of the target to depend on
     case target(name: String)
+
+    /// Dependency on a target within another project
+    ///
+    /// - Parameters:
+    ///   - target: Name of the target to depend on
+    ///   - path: Relative path to the other project directory
     case project(target: String, path: String)
+
+    /// Dependency on a prebuilt framework
+    ///
+    /// - Parameters:
+    ///   - path: Relative path to the prebuilt framework
     case framework(path: String)
+
+    /// Dependency on prebuilt library
+    ///
+    /// - Parameters:
+    ///   - path: Relative path to the prebuilt library
+    ///   - publicHeaders: Relative path to the library's public headers directory
+    ///   - swiftModuleMap: Relative path to the library's swift module map file
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
+
+    /// Dependency on system library or framework
+    ///
+    /// - Parameters:
+    ///   - name: Name of the system library or framework (including extension)
+    ///            e.g. `ARKit.framework`, `libc++.tbd`
+    ///   - status: The dependency status (optional dependencies are weakly linked)
     case sdk(name: String, status: SDKStatus)
 
+    /// Dependency on system library or framework
+    ///
+    /// - Parameters:
+    ///   - name: Name of the system library or framework (including extension)
+    ///            e.g. `ARKit.framework`, `libc++.tbd`
+    ///
+    /// Note: Defaults to using a `required` dependency status
     public static func sdk(name: String) -> TargetDependency {
         return .sdk(name: name, status: .required)
     }
