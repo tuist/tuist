@@ -161,11 +161,23 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
             .map { "/App/Files/File\($0).md" }
             .map { FileElement.file(path: AbsolutePath($0)) }
 
+        // When using ** glob patterns (e.g. `Documentation/**`)
+        // the results will include the folders in addition to the files
+        //
+        // e.g.
+        //    Documentation
+        //    Documentation/a.md
+        //    Documentation/Subfolder
+        //    Documentation/Subfolder/a.md
+        let filesWithFolderPaths = files + [
+            .file(path: AbsolutePath("/App/Files")),
+        ]
+
         let folderReferences = (0 ..< 10)
             .map { "/App/Documentation\($0)" }
             .map { FileElement.folderReference(path: AbsolutePath($0)) }
 
-        return (files + folderReferences).shuffled()
+        return (filesWithFolderPaths + folderReferences).shuffled()
     }
 
     private func createFrameworkTarget(name: String) -> Target {

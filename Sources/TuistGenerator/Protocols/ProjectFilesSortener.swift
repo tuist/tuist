@@ -44,7 +44,7 @@ class ProjectFilesSortener: ProjectFilesSortening {
         let commonPaths = lhsPathsSet.intersection(rhsPathsSet)
 
         guard let lhsPathFirst = lhsPathsSet.subtracting(commonPaths).sorted().first else { return false }
-        guard let rhsPathFirst = rhsPathsSet.subtracting(commonPaths).sorted().first else { return false }
+        guard let rhsPathFirst = rhsPathsSet.subtracting(commonPaths).sorted().first else { return true }
 
         let lhsIsDirectory = isDirectory(lhsPathFirst)
         let rhsIsDirectory = isDirectory(rhsPathFirst)
