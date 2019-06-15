@@ -18,6 +18,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Codesign frameworks when copying during the embed phase https://github.com/tuist/tuist/pull/398 by @ollieatkinson
 - 'tuist local' failed when trying to install from source https://github.com/tuist/tuist/pull/402 by @ollieatkinson
 - Omitting unzip logs during installation https://github.com/tuist/tuist/pull/404 by @kwridan
+- Fix "The file couldn’t be saved." error https://github.com/tuist/tuist/pull/408 @marciniwanicki
 
 ## 0.15.0
 
