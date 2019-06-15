@@ -31,14 +31,12 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
 
         // When
         try (0 ..< 10).forEach { _ in
-            let modelLoader = createModelLoader()
-            let subject = Generator(printer: MockPrinter(), modelLoader: modelLoader)
-            _ = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
-            let workspace = try XCWorkspace(path: path.appending(component: "Workspace.xcworkspace").path)
-            let projectsPaths = workspace.data.children
-                .flatMap { $0.projectPaths }
-                .map { path.appending(RelativePath($0)) }
-            let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
+            let subject = Generator(printer: MockPrinter(), modelLoader: createModelLoader())
+
+            let workspacePath = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
+
+            let workspace = try XCWorkspace(path: workspacePath.path)
+            let xcodeProjs = try findXcodeProjs(in: workspace)
             capturedProjects.append(xcodeProjs)
             capturesWorkspaces.append(workspace)
         }
@@ -52,6 +50,12 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
+        let projectsPaths = workspace.projectPaths.map { path.appending(RelativePath($0)) }
+        let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
+        return xcodeProjs
+    }
 
     private func setupTestProject() throws {
         try fileHandler.createFolders(["App/Sources"])
@@ -91,31 +95,77 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], schemes: [Scheme]) -> Project {
-        let additionalFiles = (0 ..< 10)
-            .map { "/A\($0).txt" }
-            .map { FileElement.file(path: AbsolutePath($0)) }
         return Project(path: path,
                        name: "App",
                        settings: settings,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
                        schemes: schemes,
-                       additionalFiles: additionalFiles)
+                       additionalFiles: createAdditionalFiles())
     }
 
     private func createAppTarget(settings: Settings?, dependencies: [String]) -> Target {
-        let sources: [Target.SourceFile] = (0 ..< 10)
-            .map { "/App/Sources/SourceFile\($0).swift" }
-            .map { (path: AbsolutePath($0), compilerFlags: nil) }
-
         return Target(name: "AppTarget",
                       platform: .iOS,
                       product: .app,
                       bundleId: "test.bundle",
                       settings: settings,
-                      sources: sources,
+                      sources: createSources(),
+                      resources: createResources(),
+                      headers: createHeaders(),
                       filesGroup: .group(name: "ProjectGroup"),
                       dependencies: dependencies.map { Dependency.target(name: $0) })
+    }
+
+    private func createSources() -> [Target.SourceFile] {
+        let sources: [Target.SourceFile] = (0 ..< 10)
+            .map { "/App/Sources/SourceFile\($0).swift" }
+            .map { (path: AbsolutePath($0), compilerFlags: nil) }
+            .shuffled()
+        return sources
+    }
+
+    private func createHeaders() -> Headers {
+        let publicHeaders = (0 ..< 10)
+            .map { "/App/Sources/PublicHeader\($0).h" }
+            .map { AbsolutePath($0) }
+            .shuffled()
+
+        let privateHeaders = (0 ..< 10)
+            .map { "/App/Sources/PrivateHeader\($0).h" }
+            .map { AbsolutePath($0) }
+            .shuffled()
+
+        let projectHeaders = (0 ..< 10)
+            .map { "/App/Sources/ProjectHeader\($0).h" }
+            .map { AbsolutePath($0) }
+            .shuffled()
+
+        return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
+    }
+
+    private func createResources() -> [FileElement] {
+        let files = (0 ..< 10)
+            .map { "/App/Resources/Resource\($0).png" }
+            .map { FileElement.file(path: AbsolutePath($0)) }
+
+        let folderReferences = (0 ..< 10)
+            .map { "/App/Resources/Folder\($0)" }
+            .map { FileElement.folderReference(path: AbsolutePath($0)) }
+
+        return (files + folderReferences).shuffled()
+    }
+
+    private func createAdditionalFiles() -> [FileElement] {
+        let files = (0 ..< 10)
+            .map { "/App/Files/File\($0).md" }
+            .map { FileElement.file(path: AbsolutePath($0)) }
+
+        let folderReferences = (0 ..< 10)
+            .map { "/App/Documentation\($0)" }
+            .map { FileElement.folderReference(path: AbsolutePath($0)) }
+
+        return (files + folderReferences).shuffled()
     }
 
     private func createFrameworkTarget(name: String) -> Target {
