@@ -31,7 +31,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
 
         // When
         try (0 ..< 10).forEach { _ in
-            let subject = Generator(printer: MockPrinter(), modelLoader: createModelLoader())
+            let subject = Generator(printer: MockPrinter(), modelLoader: try createModelLoader())
 
             let workspacePath = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
 
@@ -61,7 +61,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
         try fileHandler.createFolders(["App/Sources"])
     }
 
-    private func createModelLoader() -> GeneratorModelLoading {
+    private func createModelLoader() throws -> GeneratorModelLoading {
         let modelLoader = MockGeneratorModelLoader(basePath: path)
         let frameworksNames = (0 ..< 10).map { "Framework\($0)" }
         let targetSettings = Settings(base: ["A1": "A_VALUE",
@@ -78,9 +78,11 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
                                                         .release: nil,
                                                         .debug("CustomDebug2"): nil,
                                                         .release("CustomRelease2"): nil])
-        let frameworkTargets = frameworksNames.map { createFrameworkTarget(name: $0) }
+        let projectPath = pathTo("App")
+        let dependencies = try createDependencies(relativeTo: projectPath)
+        let frameworkTargets = try frameworksNames.map { try createFrameworkTarget(name: $0, depenendencies: dependencies) }
         let appTarget = createAppTarget(settings: targetSettings, dependencies: frameworksNames)
-        let project = createProject(path: pathTo("App"),
+        let project = createProject(path: projectPath,
                                     settings: projectSettings,
                                     targets: [appTarget] + frameworkTargets,
                                     schemes: [])
@@ -180,14 +182,50 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
         return (filesWithFolderPaths + folderReferences).shuffled()
     }
 
-    private func createFrameworkTarget(name: String) -> Target {
+    private func createFrameworkTarget(name: String, depenendencies: [Dependency] = []) throws -> Target {
         return Target(name: name,
                       platform: .iOS,
                       product: .framework,
                       bundleId: "test.bundle.\(name)",
                       settings: nil,
                       sources: [],
-                      filesGroup: .group(name: "ProjectGroup"))
+                      filesGroup: .group(name: "ProjectGroup"),
+                      dependencies: depenendencies)
+    }
+
+    private func createDependencies(relativeTo path: AbsolutePath) throws -> [Dependency] {
+        let prebuiltFrameworks = (0 ..< 10).map { "Frameworks/Framework\($0).framework" }
+        let frameworks = try fileHandler.createFiles(prebuiltFrameworks)
+            .map { Dependency.framework(path: $0.relative(to: path)) }
+
+        let libraries = try createLibraries(relativeTo: path)
+
+        return (frameworks + libraries).shuffled()
+    }
+
+    private func createLibraries(relativeTo path: AbsolutePath) throws -> [Dependency] {
+        var libraries = [Dependency]()
+
+        for i in 0 ..< 10 {
+            let libraryName = "Library\(i)"
+            let library = "Libraries/\(libraryName)/lib\(libraryName).a"
+            let headers = "Libraries/\(libraryName)/Headers"
+            let swiftModuleMap = "Libraries/\(libraryName)/\(libraryName).swiftmodule"
+
+            let files = try fileHandler.createFiles([
+                library,
+                headers,
+                swiftModuleMap,
+            ])
+
+            libraries.append(
+                .library(path: files[0].relative(to: path),
+                         publicHeaders: files[1].relative(to: path),
+                         swiftModuleMap: files[2].relative(to: path))
+            )
+        }
+
+        return libraries
     }
 
     private func pathTo(_ relativePath: String) -> AbsolutePath {

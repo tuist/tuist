@@ -228,7 +228,8 @@ class ProjectFileElements {
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath,
                   filesGroup: ProjectGroup) throws {
-        try dependencies.forEach { node in
+        let sortedDependencies = dependencies.sorted(by: { $0.path < $1.path })
+        try sortedDependencies.forEach { node in
             if let precompiledNode = node as? PrecompiledNode {
                 let fileElement = GroupFileElement(path: precompiledNode.path,
                                                    group: filesGroup)
