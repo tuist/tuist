@@ -164,7 +164,7 @@ final class LinkGenerator: LinkGenerating {
         }
         .map { $0.removingLastComponent() }
 
-        let uniquePaths = Array(Set(paths)).sorted()
+        let uniquePaths = Array(Set(paths))
         try setup(setting: "FRAMEWORK_SEARCH_PATHS",
                   paths: uniquePaths,
                   pbxTarget: pbxTarget,
@@ -202,7 +202,7 @@ final class LinkGenerator: LinkGenerating {
                        paths: [AbsolutePath],
                        pbxTarget: PBXTarget,
                        sourceRootPath: AbsolutePath) throws {
-        let relativePaths = paths
+        let relativePaths = paths.sorted()
             .map { $0.relative(to: sourceRootPath).pathString }
             .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
@@ -223,7 +223,9 @@ final class LinkGenerator: LinkGenerating {
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
 
-        try dependencies.forEach { dependency in
+        try dependencies
+            .sorted()
+            .forEach { dependency in
             switch dependency {
             case let .absolute(path):
                 guard let fileRef = fileElements.file(path: path) else {
@@ -296,7 +298,7 @@ final class LinkGenerator: LinkGenerating {
                                                 fileElements: ProjectFileElements) throws {
         var files: [PBXBuildFile] = []
 
-        for case let .product(name) in dependencies {
+        for case let .product(name) in dependencies.sorted() {
             guard let fileRef = fileElements.product(name: name) else {
                 throw LinkGeneratorError.missingProduct(name: name)
             }

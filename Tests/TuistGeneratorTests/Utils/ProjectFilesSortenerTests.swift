@@ -35,4 +35,77 @@ final class ProjectFilesSortenerTests: XCTestCase {
         XCTAssertEqual(got[2], file1)
         XCTAssertEqual(got[3], file2)
     }
+
+    func test_sort_isStable() throws {
+        // Given
+        let folders = try fileHandler.createFolders([
+            "Root/A",
+            "Root/A/A1",
+            "Root/B",
+            "Root/B/B1",
+        ])
+
+        let files = try fileHandler.createFiles([
+            "Root/A/a.md",
+            "Root/A/z.md",
+            "Root/A/A1/a.md",
+            "Root/A/A1/z.md",
+            "Root/B/b.md",
+            "Root/B/z.md",
+            "Root/B/B1/b.md",
+            "Root/B/B1/z.md",
+        ])
+
+        let paths = (files + folders)
+
+        // When
+        let got = (0 ..< 10).map { _ in paths.shuffled().sorted(by: subject.sort) }
+
+        // Then
+        let unstable = got.dropFirst().filter { $0 != got.first }
+        XCTAssertTrue(unstable.isEmpty)
+    }
+
+    func test_sort_filesBeforeDirectories() throws {
+        // Given
+        let folders = try fileHandler.createFolders([
+            "Root/A",
+            "Root/A/A1",
+            "Root/B",
+            "Root/B/B1",
+        ])
+
+        let files = try fileHandler.createFiles([
+            "Root/A/a.md",
+            "Root/A/z.md",
+            "Root/A/A1/a.md",
+            "Root/A/A1/z.md",
+            "Root/B/b.md",
+            "Root/B/z.md",
+            "Root/B/B1/b.md",
+            "Root/B/B1/z.md",
+        ])
+
+        let paths = (files + folders).shuffled()
+
+        // When
+        let got = paths.sorted(by: subject.sort)
+
+        // Then
+        let raltivePaths = got.map { $0.relative(to: fileHandler.currentPath).pathString }
+        XCTAssertEqual(raltivePaths, [
+            "Root/A/a.md",
+            "Root/A/z.md",
+            "Root/A/A1/a.md",
+            "Root/A/A1/z.md",
+            "Root/A/A1",
+            "Root/A",
+            "Root/B/b.md",
+            "Root/B/z.md",
+            "Root/B/B1/b.md",
+            "Root/B/B1/z.md",
+            "Root/B/B1",
+            "Root/B",
+        ])
+    }
 }

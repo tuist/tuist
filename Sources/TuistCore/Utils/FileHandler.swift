@@ -90,11 +90,13 @@ public final class FileHandler: FileHandling {
         // References:
         // - https://developer.apple.com/documentation/foundation/filemanager/2293212-replaceitemat
         // - https://developer.apple.com/documentation/foundation/filemanager/1407693-url
-        let tempUrl = try fileManager.url(for: .itemReplacementDirectory,
-                                          in: .userDomainMask,
-                                          appropriateFor: to.url,
-                                          create: true).appendingPathComponent("temp")
-        defer { try? fileManager.removeItem(at: tempUrl) }
+        // - https://openradar.appspot.com/50553219
+        let rootTempDir = try fileManager.url(for: .itemReplacementDirectory,
+                                              in: .userDomainMask,
+                                              appropriateFor: to.url,
+                                              create: true)
+        let tempUrl = rootTempDir.appendingPathComponent("temp")
+        defer { try? fileManager.removeItem(at: rootTempDir) }
         try fileManager.copyItem(at: with.url, to: tempUrl)
         _ = try fileManager.replaceItemAt(to.url, withItemAt: tempUrl)
     }
