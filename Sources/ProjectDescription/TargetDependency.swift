@@ -12,7 +12,7 @@ public enum SDKStatus: String {
 }
 
 /// Defines the target dependencies supported by Tuist
-public enum TargetDependency: Codable {
+public enum TargetDependency: Codable, Equatable {
     /// Dependency on another target within the same project
     ///
     /// - Parameters:
