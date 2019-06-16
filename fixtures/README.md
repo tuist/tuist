@@ -53,7 +53,7 @@ Dependencies:
   - App -> Framework2
   - Framework1 -> Framework2
 
-# ios_app_with_framework_and_resources
+## ios_app_with_framework_and_resources
 
 A workspace with an application that includes resources.
 
@@ -99,6 +99,12 @@ Dependencies:
   - Framework1 -> Framework2
   - Framework1 -> Framework3
   - Framework3 -> Framework4
+
+## ios_app_with_sdk
+
+An application that contains an application target that depends on system libraries and frameworks (`.framework` and `.tbd`).
+
+One of the dependencies is declared as `.optional` i.e. will be linked weakly.
 
 ## ios_app_with_static_libraries
 
