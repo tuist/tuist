@@ -226,31 +226,31 @@ final class LinkGenerator: LinkGenerating {
         try dependencies
             .sorted()
             .forEach { dependency in
-            switch dependency {
-            case let .absolute(path):
-                guard let fileRef = fileElements.file(path: path) else {
-                    throw LinkGeneratorError.missingReference(path: path)
-                }
-                let buildFile = PBXBuildFile(file: fileRef)
-                pbxproj.add(object: buildFile)
-                buildPhase.files?.append(buildFile)
-            case let .product(name):
-                guard let fileRef = fileElements.product(name: name) else {
-                    throw LinkGeneratorError.missingProduct(name: name)
-                }
-                let buildFile = PBXBuildFile(file: fileRef)
-                pbxproj.add(object: buildFile)
-                buildPhase.files?.append(buildFile)
-            case let .sdk(sdkPath, sdkStatus):
-                guard let fileRef = fileElements.sdk(path: sdkPath) else {
-                    throw LinkGeneratorError.missingReference(path: sdkPath)
-                }
+                switch dependency {
+                case let .absolute(path):
+                    guard let fileRef = fileElements.file(path: path) else {
+                        throw LinkGeneratorError.missingReference(path: path)
+                    }
+                    let buildFile = PBXBuildFile(file: fileRef)
+                    pbxproj.add(object: buildFile)
+                    buildPhase.files?.append(buildFile)
+                case let .product(name):
+                    guard let fileRef = fileElements.product(name: name) else {
+                        throw LinkGeneratorError.missingProduct(name: name)
+                    }
+                    let buildFile = PBXBuildFile(file: fileRef)
+                    pbxproj.add(object: buildFile)
+                    buildPhase.files?.append(buildFile)
+                case let .sdk(sdkPath, sdkStatus):
+                    guard let fileRef = fileElements.sdk(path: sdkPath) else {
+                        throw LinkGeneratorError.missingReference(path: sdkPath)
+                    }
 
-                let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
-                pbxproj.add(object: buildFile)
-                buildPhase.files?.append(buildFile)
+                    let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
+                    pbxproj.add(object: buildFile)
+                    buildPhase.files?.append(buildFile)
+                }
             }
-        }
     }
 
     func generateCopyProductsdBuildPhase(path: AbsolutePath,
