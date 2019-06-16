@@ -164,7 +164,7 @@ final class LinkGenerator: LinkGenerating {
         }
         .map { $0.removingLastComponent() }
 
-        let uniquePaths = Array(Set(paths)).sorted()
+        let uniquePaths = Array(Set(paths))
         try setup(setting: "FRAMEWORK_SEARCH_PATHS",
                   paths: uniquePaths,
                   pbxTarget: pbxTarget,
@@ -202,7 +202,7 @@ final class LinkGenerator: LinkGenerating {
                        paths: [AbsolutePath],
                        pbxTarget: PBXTarget,
                        sourceRootPath: AbsolutePath) throws {
-        let relativePaths = paths
+        let relativePaths = paths.sorted()
             .map { $0.relative(to: sourceRootPath).pathString }
             .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
@@ -223,24 +223,26 @@ final class LinkGenerator: LinkGenerating {
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
 
-        try dependencies.forEach { dependency in
-            if case let DependencyReference.absolute(path) = dependency {
-                guard let fileRef = fileElements.file(path: path) else {
-                    throw LinkGeneratorError.missingReference(path: path)
-                }
-                let buildFile = PBXBuildFile(file: fileRef)
-                pbxproj.add(object: buildFile)
-                buildPhase.files?.append(buildFile)
+        try dependencies
+            .sorted()
+            .forEach { dependency in
+                if case let DependencyReference.absolute(path) = dependency {
+                    guard let fileRef = fileElements.file(path: path) else {
+                        throw LinkGeneratorError.missingReference(path: path)
+                    }
+                    let buildFile = PBXBuildFile(file: fileRef)
+                    pbxproj.add(object: buildFile)
+                    buildPhase.files?.append(buildFile)
 
-            } else if case let DependencyReference.product(name) = dependency {
-                guard let fileRef = fileElements.product(name: name) else {
-                    throw LinkGeneratorError.missingProduct(name: name)
+                } else if case let DependencyReference.product(name) = dependency {
+                    guard let fileRef = fileElements.product(name: name) else {
+                        throw LinkGeneratorError.missingProduct(name: name)
+                    }
+                    let buildFile = PBXBuildFile(file: fileRef)
+                    pbxproj.add(object: buildFile)
+                    buildPhase.files?.append(buildFile)
                 }
-                let buildFile = PBXBuildFile(file: fileRef)
-                pbxproj.add(object: buildFile)
-                buildPhase.files?.append(buildFile)
             }
-        }
     }
 
     func generateCopyProductsdBuildPhase(path: AbsolutePath,
@@ -288,7 +290,7 @@ final class LinkGenerator: LinkGenerating {
                                                 fileElements: ProjectFileElements) throws {
         var files: [PBXBuildFile] = []
 
-        for case let .product(name) in dependencies {
+        for case let .product(name) in dependencies.sorted() {
             guard let fileRef = fileElements.product(name: name) else {
                 throw LinkGeneratorError.missingProduct(name: name)
             }
