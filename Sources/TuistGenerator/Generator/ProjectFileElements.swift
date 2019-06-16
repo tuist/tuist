@@ -240,7 +240,7 @@ class ProjectFileElements {
                              sourceRootPath: sourceRootPath)
                 return
             case let sdkNode as SDKNode:
-                generateSdkFileElement(node: sdkNode,
+                generateSDKFileElement(node: sdkNode,
                                        toGroup: groups.frameworks,
                                        pbxproj: pbxproj)
             default:
@@ -454,17 +454,17 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
     }
 
-    private func generateSdkFileElement(node: SDKNode,
+    private func generateSDKFileElement(node: SDKNode,
                                         toGroup: PBXGroup,
                                         pbxproj: PBXProj) {
         guard sdks[node.path] == nil else {
             return
         }
 
-        addSdkElement(node: node, toGroup: toGroup, pbxproj: pbxproj)
+        addSDKElement(node: node, toGroup: toGroup, pbxproj: pbxproj)
     }
 
-    private func addSdkElement(node: SDKNode,
+    private func addSDKElement(node: SDKNode,
                                toGroup: PBXGroup,
                                pbxproj: PBXProj) {
         let sdkPath = node.path.relative(to: AbsolutePath("/")) // SDK paths are relative
