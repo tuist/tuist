@@ -69,7 +69,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildPaths, [
             "myfolder/resources/a.png",
         ])
     }
@@ -87,7 +87,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildPaths, [
             "my.folder/resources/a.png",
         ])
     }
@@ -106,7 +106,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildPaths, [
             "myfolder/resources/generated_images",
         ])
     }
@@ -124,7 +124,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildPaths, [
             "another/path/resources/a.png",
         ])
     }
@@ -142,7 +142,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildPaths, [
             "myfolder/resources/assets.xcassets",
         ])
     }
@@ -170,7 +170,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildPaths, [
             "myfolder/resources/assets.xcassets",
         ])
     }
@@ -200,7 +200,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildPaths, [
             "resources/App.strings/en",
             "resources/App.strings/fr",
             "resources/Extension.strings/en",
@@ -605,7 +605,7 @@ final class ProjectFileElementsTests: XCTestCase {
                              filesGroup: .group(name: "Project"))
 
         // Then
-        XCTAssertEqual(groups.frameworks.debugChildPaths, [
+        XCTAssertEqual(groups.frameworks.flattenedChildPaths, [
             "ARKit.framework",
         ])
 
@@ -627,11 +627,11 @@ private extension PBXGroup {
     ///    -- D
     /// Would return:
     ///         ["A/B", "A/C/D"]
-    var debugChildPaths: [String] {
+    var flattenedChildPaths: [String] {
         return children.flatMap { (element: PBXFileElement) -> [String] in
             switch element {
             case let group as PBXGroup:
-                return group.debugChildPaths.map { group.nameOrPath + "/" + $0 }
+                return group.flattenedChildPaths.map { group.nameOrPath + "/" + $0 }
             default:
                 return [element.nameOrPath]
             }
