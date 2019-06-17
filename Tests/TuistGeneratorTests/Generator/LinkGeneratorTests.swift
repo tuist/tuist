@@ -233,7 +233,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                          pbxproj: pbxproj,
                                          fileElements: fileElements)
 
-        let buildPhase: PBXFrameworksBuildPhase? = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
         let wakaBuildFile: PBXBuildFile? = buildPhase?.files?.last
@@ -293,7 +293,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                          fileElements: fileElements)
 
         // Then
-        let buildPhase = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
         XCTAssertNotNil(buildPhase)
         XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
             requiredFile,
