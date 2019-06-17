@@ -291,7 +291,7 @@ final class SchemesGenerator: SchemesGenerating {
             environments = environmentVariables(arguments.environment)
         }
 
-        return XCScheme.LaunchAction(buildableProductRunnable: buildableProductRunnable,
+        return XCScheme.LaunchAction(runnable: buildableProductRunnable,
                                      buildConfiguration: "Debug",
                                      macroExpansion: macroExpansion,
                                      commandlineArguments: commandlineArguments,

@@ -3,6 +3,23 @@ import Foundation
 import TuistCore
 import XcodeProj
 
+struct ProjectConstants {
+    var objectVersion: UInt
+    var archiveVersion: UInt
+}
+
+extension ProjectConstants {
+    static var xcode10: ProjectConstants {
+        return ProjectConstants(objectVersion: 50,
+                                archiveVersion: Xcode.LastKnown.archiveVersion)
+    }
+
+    static var xcode11: ProjectConstants {
+        return ProjectConstants(objectVersion: 52,
+                                archiveVersion: Xcode.LastKnown.archiveVersion)
+    }
+}
+
 protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
                   options: GenerationOptions,
@@ -71,8 +88,9 @@ final class ProjectGenerator: ProjectGenerating {
         // Project and workspace.
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        let pbxproj = PBXProj(objectVersion: Xcode.Default.objectVersion,
-                              archiveVersion: Xcode.LastKnown.archiveVersion,
+        let projectConstants = determineProjectConstants()
+        let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
+                              archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
@@ -235,5 +253,14 @@ final class ProjectGenerator: ProjectGenerating {
                               generatedProject: GeneratedProject) throws {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
+    }
+
+    private func determineProjectConstants() -> ProjectConstants {
+        // TODO:
+        //
+        // To maintain backwards compatibility with Xcode 10
+        // the Xcode10 constants are used unless the use of Xcode 11
+        // features are detected (e.g Swift PM dependencies)
+        return .xcode10
     }
 }

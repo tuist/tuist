@@ -227,7 +227,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let got = subject.schemeLaunchAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         XCTAssertNil(got?.macroExpansion)
-        let buildableReference = got?.buildableProductRunnable?.buildableReference
+        let buildableReference = got?.runnable?.buildableReference
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.environmentVariables, [XCScheme.EnvironmentVariable(variable: "a", value: "b", enabled: true)])
@@ -251,7 +251,7 @@ final class SchemeGeneratorTests: XCTestCase {
 
         let got = subject.schemeLaunchAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
-        XCTAssertNil(got?.buildableProductRunnable?.buildableReference)
+        XCTAssertNil(got?.runnable?.buildableReference)
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
         XCTAssertEqual(got?.macroExpansion?.referencedContainer, "container:project.xcodeproj")
