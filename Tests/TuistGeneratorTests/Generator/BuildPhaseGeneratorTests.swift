@@ -63,27 +63,42 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateSourcesBuildPhase() throws {
-        let path = AbsolutePath("/test/file.swift")
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
-        let fileReference = PBXFileReference(sourceTree: .group, name: "Test")
-        pbxproj.add(object: fileReference)
-        fileElements.elements[path] = fileReference
 
-        try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: "flag")],
+        let path1 = AbsolutePath("/test/file1.swift")
+        let fileReference1 = PBXFileReference(sourceTree: .group, name: "Test1")
+        pbxproj.add(object: fileReference1)
+        fileElements.elements[path1] = fileReference1
+
+        let path2 = AbsolutePath("/test/file2.swift")
+        let fileReference2 = PBXFileReference(sourceTree: .group, name: "Test2")
+        pbxproj.add(object: fileReference2)
+        fileElements.elements[path2] = fileReference2
+
+        try subject.generateSourcesBuildPhase(files: [(path: path1, compilerFlags: "flag"),
+                                                      (path: path2, compilerFlags: nil)],
                                               pbxTarget: target,
                                               fileElements: fileElements,
                                               pbxproj: pbxproj)
 
         let buildPhase: PBXBuildPhase? = target.buildPhases.first
+
         XCTAssertNotNil(buildPhase)
         XCTAssertTrue(buildPhase is PBXSourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = buildPhase?.files?.first
-        XCTAssertNotNil(pbxBuildFile)
-        XCTAssertEqual(pbxBuildFile?.file, fileReference)
-        XCTAssertEqual(pbxBuildFile?.settings?["COMPILER_FLAGS"] as? String, "flag")
+        XCTAssertEqual(buildPhase?.files?.count, 2)
+
+        let pbxBuildFile1 = buildPhase?.files?[0]
+        XCTAssertNotNil(pbxBuildFile1)
+        XCTAssertEqual(pbxBuildFile1?.file, fileReference1)
+        XCTAssertEqual(pbxBuildFile1?.settings?["COMPILER_FLAGS"] as? String, "flag")
+
+        let pbxBuildFile2 = buildPhase?.files?[1]
+        XCTAssertNotNil(pbxBuildFile2)
+        XCTAssertEqual(pbxBuildFile2?.file, fileReference2)
+        XCTAssertNil(pbxBuildFile2?.settings)
     }
 
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
