@@ -109,9 +109,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             guard let fileReference = fileElements.file(path: buildFile.path) else {
                 throw BuildPhaseGenerationError.missingFileReference(buildFile.path)
             }
-            var settings: [String: Any] = [:]
+            var settings: [String: Any]?
             if let compilerFlags = buildFile.compilerFlags {
-                settings["COMPILER_FLAGS"] = compilerFlags
+                settings = [
+                    "COMPILER_FLAGS": compilerFlags,
+                ]
             }
 
             let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)

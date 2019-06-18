@@ -63,27 +63,44 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateSourcesBuildPhase() throws {
-        let path = AbsolutePath("/test/file.swift")
+        // Given
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let fileElements = ProjectFileElements()
-        let fileReference = PBXFileReference(sourceTree: .group, name: "Test")
-        pbxproj.add(object: fileReference)
-        fileElements.elements[path] = fileReference
 
-        try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: "flag")],
+        let sources: [Target.SourceFile] = [
+            ("/test/file1.swift", "flag"),
+            ("/test/file2.swift", nil),
+        ]
+
+        let fileElements = createSourceFileElements(for: sources.map { $0.path })
+
+        // When
+        try subject.generateSourcesBuildPhase(files: sources,
                                               pbxTarget: target,
                                               fileElements: fileElements,
                                               pbxproj: pbxproj)
 
-        let buildPhase: PBXBuildPhase? = target.buildPhases.first
-        XCTAssertNotNil(buildPhase)
-        XCTAssertTrue(buildPhase is PBXSourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = buildPhase?.files?.first
-        XCTAssertNotNil(pbxBuildFile)
-        XCTAssertEqual(pbxBuildFile?.file, fileReference)
-        XCTAssertEqual(pbxBuildFile?.settings?["COMPILER_FLAGS"] as? String, "flag")
+        // Then
+        let buildPhase = try target.sourcesBuildPhase()
+        let buildFiles = buildPhase?.files ?? []
+        let buildFilesNames = buildFiles.map {
+            $0.file?.name
+        }
+
+        XCTAssertEqual(buildFilesNames, [
+            "file1.swift",
+            "file2.swift",
+        ])
+
+        let buildFilesSettings = buildFiles.map {
+            $0.settings as? [String: String]
+        }
+
+        XCTAssertEqual(buildFilesSettings, [
+            ["COMPILER_FLAGS": "flag"],
+            nil,
+        ])
     }
 
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
@@ -333,6 +350,14 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
         fileElements.elements = Dictionary(uniqueKeysWithValues: files.map {
             ($0, PBXVariantGroup())
+        })
+        return fileElements
+    }
+
+    private func createSourceFileElements(for files: [AbsolutePath]) -> ProjectFileElements {
+        let fileElements = ProjectFileElements()
+        fileElements.elements = Dictionary(uniqueKeysWithValues: files.map {
+            ($0, PBXFileReference(sourceTree: .group, name: $0.basename))
         })
         return fileElements
     }
