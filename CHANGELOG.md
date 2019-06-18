@@ -12,14 +12,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Ensuring the correct default settings provider dependency is used https://github.com/tuist/tuist/pull/389 by @kwridan
-- Fixing build settings repeated same value https://github.com/tuist/tuist/pull/391 @platonsi
+- Fixing build settings repeated same value https://github.com/tuist/tuist/pull/391 by @platonsi
 - Duplicated files in the sources build phase when different glob patterns match the same files https://github.com/tuist/tuist/pull/388 by @pepibumur.
 - Support `.d` source files https://github.com/tuist/tuist/pull/396 by @pepibumur.
 - Codesign frameworks when copying during the embed phase https://github.com/tuist/tuist/pull/398 by @ollieatkinson
 - 'tuist local' failed when trying to install from source https://github.com/tuist/tuist/pull/402 by @ollieatkinson
 - Omitting unzip logs during installation https://github.com/tuist/tuist/pull/404 by @kwridan
-- Fix "The file couldn’t be saved." error https://github.com/tuist/tuist/pull/408 @marciniwanicki
+- Fix "The file couldn’t be saved." error https://github.com/tuist/tuist/pull/408 by @marciniwanicki
 - Ensure generated projects are stable https://github.com/tuist/tuist/pull/410 by @kwridan
+- Stop generating empty `PBXBuildFile` settings https://github.com/tuist/tuist/pull/415 by @marciniwanicki
 
 ## 0.15.0
 
