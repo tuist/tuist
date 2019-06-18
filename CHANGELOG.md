@@ -20,7 +20,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Omitting unzip logs during installation https://github.com/tuist/tuist/pull/404 by @kwridan
 - Fix "The file couldn’t be saved." error https://github.com/tuist/tuist/pull/408 by @marciniwanicki
 - Ensure generated projects are stable https://github.com/tuist/tuist/pull/410 by @kwridan
-- Stop generating empty `PBXBuildFile` settings https://github.com/tuist/tuist/pull/415 by @marciniwanicki
+- Stop generating empty `PBXBuildFile` settings https://github.com/tuist/tuist/pull/415 by @marciniwanicki 
 
 ## 0.15.0
 
