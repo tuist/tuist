@@ -226,19 +226,27 @@ final class LinkGenerator: LinkGenerating {
         try dependencies
             .sorted()
             .forEach { dependency in
-                if case let DependencyReference.absolute(path) = dependency {
+                switch dependency {
+                case let .absolute(path):
                     guard let fileRef = fileElements.file(path: path) else {
                         throw LinkGeneratorError.missingReference(path: path)
                     }
                     let buildFile = PBXBuildFile(file: fileRef)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
-
-                } else if case let DependencyReference.product(name) = dependency {
+                case let .product(name):
                     guard let fileRef = fileElements.product(name: name) else {
                         throw LinkGeneratorError.missingProduct(name: name)
                     }
                     let buildFile = PBXBuildFile(file: fileRef)
+                    pbxproj.add(object: buildFile)
+                    buildPhase.files?.append(buildFile)
+                case let .sdk(sdkPath, sdkStatus):
+                    guard let fileRef = fileElements.sdk(path: sdkPath) else {
+                        throw LinkGeneratorError.missingReference(path: sdkPath)
+                    }
+
+                    let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
                 }
@@ -316,6 +324,15 @@ final class LinkGenerator: LinkGenerating {
 
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
+    }
+
+    func createSDKBuildFile(for fileReference: PBXFileReference, status: SDKStatus) -> PBXBuildFile {
+        var settings: [String: Any]?
+        if status == .optional {
+            settings = ["ATTRIBUTES": ["Weak"]]
+        }
+        return PBXBuildFile(file: fileReference,
+                            settings: settings)
     }
 }
 

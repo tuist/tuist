@@ -198,3 +198,43 @@ final class LibraryNodeTests: XCTestCase {
         XCTAssertNotEqual(a1, b)
     }
 }
+
+final class SDKNodeTests: XCTestCase {
+    func test_sdk_supportedTypes() throws {
+        // Given
+        let libraries = [
+            "Foo.framework",
+            "libBar.tbd",
+        ]
+
+        // When / Then
+        XCTAssertNoThrow(try libraries.map { try SDKNode(name: $0, status: .required) })
+    }
+
+    func test_sdk_usupportedTypes() throws {
+        XCTAssertThrowsError(try SDKNode(name: "FooBar", status: .required)) { error in
+            XCTAssertEqual(error as? SDKNode.Error, .unsupported(sdk: "FooBar"))
+        }
+    }
+
+    func test_sdk_errors() {
+        XCTAssertEqual(SDKNode.Error.unsupported(sdk: "Foo").type, .abort)
+    }
+
+    func test_sdk_paths() throws {
+        // Given
+        let libraries = [
+            "Foo.framework",
+            "libBar.tbd",
+        ]
+
+        // When
+        let nodes = try libraries.map { try SDKNode(name: $0, status: .required) }
+
+        // Then
+        XCTAssertEqual(nodes.map(\.path), [
+            "/System/Library/Frameworks/Foo.framework",
+            "/usr/lib/libBar.tbd",
+        ])
+    }
+}

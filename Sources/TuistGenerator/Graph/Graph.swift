@@ -23,26 +23,7 @@ enum GraphError: FatalError {
 enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
     case product(String)
-
-    public func hash(into hasher: inout Hasher) {
-        switch self {
-        case let .absolute(path):
-            hasher.combine(path)
-        case let .product(product):
-            hasher.combine(product)
-        }
-    }
-
-    static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
-        switch (lhs, rhs) {
-        case let (.absolute(lhsPath), .absolute(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.product(lhsName), .product(rhsName)):
-            return lhsName == rhsName
-        default:
-            return false
-        }
-    }
+    case sdk(AbsolutePath, SDKStatus)
 
     static func < (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
@@ -50,6 +31,12 @@ enum DependencyReference: Equatable, Comparable, Hashable {
             return lhsPath < rhsPath
         case let (.product(lhsName), .product(rhsName)):
             return lhsName < rhsName
+        case let (.sdk(lhsPath, _), .sdk(rhsPath, _)):
+            return lhsPath < rhsPath
+        case (.sdk, .absolute):
+            return true
+        case (.sdk, .product):
+            return true
         case (.product, .absolute):
             return true
         default:
@@ -155,6 +142,13 @@ class Graph: Graphing {
         }
 
         var references: [DependencyReference] = []
+
+        // System libraries and frameworks
+        let systemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
+            DependencyReference.sdk($0.path, $0.status)
+        }
+
+        references.append(contentsOf: systemLibrariesAndFrameworks)
 
         // Precompiled libraries and frameworks
 
@@ -321,6 +315,10 @@ extension TargetNode {
 
     fileprivate var frameworkDependencies: [FrameworkNode] {
         return dependencies.lazy.compactMap { $0 as? FrameworkNode }
+    }
+
+    fileprivate var sdkDependencies: [SDKNode] {
+        return dependencies.lazy.compactMap { $0 as? SDKNode }
     }
 }
 

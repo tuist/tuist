@@ -367,6 +367,9 @@ extension TuistGenerator.Dependency {
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
+        case let .sdk(name, status):
+            return .sdk(name: name,
+                        status: .from(manifest: status))
         }
     }
 }
@@ -482,6 +485,17 @@ extension TuistGenerator.Platform {
             return .tvOS
         case .watchOS:
             throw GeneratorModelLoaderError.featureNotYetSupported("watchOS platform")
+        }
+    }
+}
+
+extension TuistGenerator.SDKStatus {
+    static func from(manifest: ProjectDescription.SDKStatus) -> TuistGenerator.SDKStatus {
+        switch manifest {
+        case .required:
+            return .required
+        case .optional:
+            return .optional
         }
     }
 }

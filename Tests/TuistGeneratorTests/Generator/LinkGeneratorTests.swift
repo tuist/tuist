@@ -233,7 +233,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                          pbxproj: pbxproj,
                                          fileElements: fileElements)
 
-        let buildPhase: PBXFrameworksBuildPhase? = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
         let wakaBuildFile: PBXBuildFile? = buildPhase?.files?.last
@@ -270,6 +270,40 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                                               fileElements: fileElements)) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
         }
+    }
+
+    func test_generateLinkingPhase_sdkNodes() throws {
+        // Given
+        let dependencies: [DependencyReference] = [
+            .sdk("/Strong/Foo.framework", .required),
+            .sdk("/Weak/Bar.framework", .optional),
+        ]
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let fileElements = ProjectFileElements()
+        let requiredFile = PBXFileReference(name: "required")
+        let optionalFile = PBXFileReference(name: "optional")
+        fileElements.sdks["/Strong/Foo.framework"] = requiredFile
+        fileElements.sdks["/Weak/Bar.framework"] = optionalFile
+
+        // When
+        try subject.generateLinkingPhase(dependencies: dependencies,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         fileElements: fileElements)
+
+        // Then
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        XCTAssertNotNil(buildPhase)
+        XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
+            requiredFile,
+            optionalFile,
+        ])
+        XCTAssertEqual(buildPhase?.files?.map { $0.settings?.description }, [
+            nil,
+            "[\"ATTRIBUTES\": [\"Weak\"]]",
+        ])
     }
 
     func test_generateCopyProductsdBuildPhase_staticTargetDependsOnStaticProducts() throws {

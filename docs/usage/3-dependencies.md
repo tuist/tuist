@@ -60,4 +60,22 @@ It defines a dependency with a pre-compiled framework, for example, a framework 
 
 It defines a dependency with a pre-compiled library. It allows specifying the path where the public headers or Swift module map is.
 
+## System libraries and frameworks dependencies
+
+```swift
+.sdk(name: "StoreKit.framework", status: .required)
+```
+
+```swift
+.sdk(name: "ARKit.framework", status: .optional)
+```
+
+```swift
+.sdk(name: "libc++.tbd")
+```
+
+It defines a dependency on a system library (`.tbd`) or framework (`.framework`) and optionally if it is `required` or `optional` (i.e. gets weakly linked).
+
+-----
+
 As we mentioned, the beauty of defining your dependencies with Tuist is that when you generate the project, things are set up and ready for you to successfully compile your targets.

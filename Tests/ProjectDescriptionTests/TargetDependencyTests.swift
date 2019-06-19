@@ -32,4 +32,20 @@ final class TargetDependencyTests: XCTestCase {
         """
         assertCodableEqualToJson(subject, expected)
     }
+
+    func test_sdk_codable() throws {
+        // Given
+        let sdks: [TargetDependency] = [
+            .sdk(name: "A.framework"),
+            .sdk(name: "B.framework", status: .required),
+            .sdk(name: "c.framework", status: .optional),
+        ]
+
+        // When
+        let encoded = try JSONEncoder().encode(sdks)
+        let decoded = try JSONDecoder().decode([TargetDependency].self, from: encoded)
+
+        // Then
+        XCTAssertEqual(decoded, sdks)
+    }
 }

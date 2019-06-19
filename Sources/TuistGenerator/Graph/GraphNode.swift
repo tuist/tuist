@@ -114,6 +114,8 @@ class TargetNode: GraphNode {
                                          projectPath: path,
                                          path: libraryPath,
                                          fileHandler: fileHandler, cache: cache)
+        case let .sdk(name, status):
+            return try SDKNode(name: name, status: status)
         }
     }
 }
@@ -144,6 +146,66 @@ enum PrecompiledNodeError: FatalError, Equatable {
         case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
             return lhsPath == rhsPath
         }
+    }
+}
+
+class SDKNode: GraphNode {
+    enum `Type`: String, CaseIterable {
+        case framework
+        case library = "tbd"
+
+        static var supportedTypesDescription: String {
+            let supportedTypes = allCases
+                .map { ".\($0.rawValue)" }
+                .joined(separator: ", ")
+            return "[\(supportedTypes)]"
+        }
+    }
+
+    enum Error: FatalError, Equatable {
+        case unsupported(sdk: String)
+        var description: String {
+            switch self {
+            case let .unsupported(sdk):
+                let supportedTypes = Type.supportedTypesDescription
+                return "The SDK type of \(sdk) is not currently supported - only \(supportedTypes) are supported."
+            }
+        }
+
+        var type: ErrorType {
+            switch self {
+            case .unsupported:
+                return .abort
+            }
+        }
+    }
+
+    let name: String
+    let status: SDKStatus
+    let type: Type
+
+    init(name: String, status: SDKStatus) throws {
+        let sdk = AbsolutePath("/\(name)")
+
+        guard let sdkExtension = sdk.extension,
+            let type = Type(rawValue: sdkExtension) else {
+            throw Error.unsupported(sdk: name)
+        }
+
+        self.name = name
+        self.status = status
+        self.type = type
+
+        let path: AbsolutePath
+
+        switch type {
+        case .framework:
+            path = AbsolutePath("/System/Library/Frameworks").appending(component: name)
+        case .library:
+            path = AbsolutePath("/usr/lib").appending(component: name)
+        }
+
+        super.init(path: path)
     }
 }
 

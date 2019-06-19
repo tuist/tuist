@@ -30,6 +30,7 @@ class ProjectFileElements {
 
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
+    var sdks: [AbsolutePath: PBXFileReference] = [:]
     let playgrounds: Playgrounding
     let filesSortener: ProjectFilesSortening
 
@@ -230,13 +231,21 @@ class ProjectFileElements {
                   filesGroup: ProjectGroup) throws {
         let sortedDependencies = dependencies.sorted(by: { $0.path < $1.path })
         try sortedDependencies.forEach { node in
-            if let precompiledNode = node as? PrecompiledNode {
+            switch node {
+            case let precompiledNode as PrecompiledNode:
                 let fileElement = GroupFileElement(path: precompiledNode.path,
                                                    group: filesGroup)
                 try generate(fileElement: fileElement,
                              groups: groups,
                              pbxproj: pbxproj,
                              sourceRootPath: sourceRootPath)
+                return
+            case let sdkNode as SDKNode:
+                generateSDKFileElement(node: sdkNode,
+                                       toGroup: groups.frameworks,
+                                       pbxproj: pbxproj)
+            default:
+                return
             }
         }
     }
@@ -446,12 +455,41 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
     }
 
+    private func generateSDKFileElement(node: SDKNode,
+                                        toGroup: PBXGroup,
+                                        pbxproj: PBXProj) {
+        guard sdks[node.path] == nil else {
+            return
+        }
+
+        addSDKElement(node: node, toGroup: toGroup, pbxproj: pbxproj)
+    }
+
+    private func addSDKElement(node: SDKNode,
+                               toGroup: PBXGroup,
+                               pbxproj: PBXProj) {
+        let sdkPath = node.path.relative(to: AbsolutePath("/")) // SDK paths are relative
+
+        let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
+        let file = PBXFileReference(sourceTree: .sdkRoot,
+                                    name: sdkPath.basename,
+                                    lastKnownFileType: lastKnownFileType,
+                                    path: sdkPath.pathString)
+        pbxproj.add(object: file)
+        toGroup.children.append(file)
+        sdks[node.path] = file
+    }
+
     func group(path: AbsolutePath) -> PBXGroup? {
         return elements[path] as? PBXGroup
     }
 
     func product(name: String) -> PBXFileReference? {
         return products[name]
+    }
+
+    func sdk(path: AbsolutePath) -> PBXFileReference? {
+        return sdks[path]
     }
 
     func file(path: AbsolutePath) -> PBXFileReference? {
