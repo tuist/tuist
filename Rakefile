@@ -7,6 +7,7 @@ require 'mkmf'
 require 'fileutils'
 require "google/cloud/storage"
 require "encrypted/environment"
+require 'colorize'
 
 Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
@@ -41,13 +42,15 @@ task :package_commit do
 
   bucket = storage.bucket("tuist-builds")
 
-  sha = %x(git show --pretty=%H).strip
+  sha = %x(git rev-parse --short HEAD).strip.chomp
+  print_section("Uploading tuist-#{sha}")
   file = bucket.create_file(
     "build/tuist.zip",
-    "#{sha}.zip"
+    "tuist-#{sha}.zip"
   )
 
   file.acl.public!
+  print_section("Uploaded 🚀")
 end
 
 desc("Encrypt secret keys")
@@ -60,6 +63,7 @@ def decrypt_secrets
 end
 
 def package
+  print_section("Building tuist")
   FileUtils.mkdir_p("build")
   system("swift", "build", "--product", "tuist", "--configuration", "release")
   system("swift", "build", "--product", "ProjectDescription", "--configuration", "release")
@@ -94,4 +98,8 @@ def storage
       client_x509_cert_url: ENV["GCS_CLIENT_X509_CERT_URL"],
     }
   )
+end
+
+def print_section(text)
+  puts text.bold.green
 end
