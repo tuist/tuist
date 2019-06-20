@@ -25,6 +25,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Version information for tuistenv https://github.com/tuist/tuist/pull/399 by @ollieatkinson
 - Add input & output paths for target action https://github.com/tuist/tuist/pull/353 by Rag0n
 - Adding support for linking system libraries and frameworks https://github.com/tuist/tuist/pull/353 by @steprescott
+- Support passing the `Info.plist` as a dictionary https://github.com/tuist/tuist/pull/380 by @pepibumur.
 
 ### Fixed
 
