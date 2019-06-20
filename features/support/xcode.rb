@@ -2,7 +2,7 @@
 
 module Xcode
   include MiniTest::Assertions
-  
+
   def self.product_with_name(name, destination:, derived_data_path:)
     glob = File.join(derived_data_path, "**/Build/**/Products/#{destination}/#{name}/")
     Dir.glob(glob).max_by { |f| File.mtime(f) }

@@ -38,6 +38,10 @@ jobs:
           name: Run acceptance tests
           command: bundle exec rake features
       - run:
+          name: Package build and upload it to GCS
+          command: |
+            bundle exec rake package_commit
+      - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)
       - save_cache:
