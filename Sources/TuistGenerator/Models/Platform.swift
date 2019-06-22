@@ -3,14 +3,12 @@ import Foundation
 public enum Platform: String {
     case iOS = "ios"
     case macOS = "macos"
-//    case watchOS = "watchos"
     case tvOS = "tvos"
 
     public var caseValue: String {
         switch self {
         case .iOS: return "iOS"
         case .macOS: return "macOS"
-        //        case .watchOS: return "watchOS"
         case .tvOS: return "tvOS"
         }
     }
@@ -25,8 +23,6 @@ extension Platform {
             return "iphoneos"
         case .tvOS:
             return "appletvos"
-//        case .watchOS:
-//            return "watchos"
         }
     }
 
@@ -34,12 +30,22 @@ extension Platform {
         switch self {
         case .tvOS:
             return "appletvsimulator appletvos"
-        //        case .watchOS:
-        //            return "watchsimulator watchos"
         case .iOS:
             return "iphonesimulator iphoneos"
         case .macOS:
             return "macosx"
+        }
+    }
+
+    /// The SDK Root Path within Xcode's developer directory
+    var xcodeSdkRootPath: String {
+        switch self {
+        case .iOS:
+            return "Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"
+        case .macOS:
+            return "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+        case .tvOS:
+            return "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk"
         }
     }
 }

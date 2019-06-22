@@ -595,7 +595,9 @@ final class ProjectFileElementsTests: XCTestCase {
                                             pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
 
-        let sdk = try SDKNode(name: "ARKit.framework", status: .required)
+        let sdk = try SDKNode(name: "ARKit.framework",
+                              platform: .iOS,
+                              status: .required)
 
         // When
         try subject.generate(dependencies: [sdk],
@@ -611,7 +613,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         let sdkElement = subject.sdks[sdk.path]
         XCTAssertNotNil(sdkElement)
-        XCTAssertEqual(sdkElement?.sourceTree, .sdkRoot)
+        XCTAssertEqual(sdkElement?.sourceTree, .developerDir)
         XCTAssertEqual(sdkElement?.path, sdk.path.relative(to: "/").pathString)
         XCTAssertEqual(sdkElement?.name, sdk.path.basename)
     }
