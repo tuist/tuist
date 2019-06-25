@@ -8,6 +8,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Ensuring the correct platform SDK dependencies path is set https://github.com/tuist/tuist/pull/419 by @kwridan
 
+### Changed
+- Update XcodeProj to 7.0.0 https://github.com/tuist/tuist/pull/421 by @pepibumur.
+
 ## 0.16.0
 
 ### Added
