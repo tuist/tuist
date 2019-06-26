@@ -97,7 +97,7 @@ GEM
       os (>= 0.9, < 2.0)
       signet (~> 0.7)
     httpclient (2.8.3)
-    jaro_winkler (1.5.2)
+    jaro_winkler (1.5.3)
     jwt (2.2.1)
     kramdown (2.1.0)
     kramdown-parser-gfm (1.0.1)
@@ -129,7 +129,7 @@ GEM
       declarative-option (< 0.2.0)
       uber (< 0.2.0)
     retriable (3.1.2)
-    rubocop (0.71.0)
+    rubocop (0.72.0)
       jaro_winkler (~> 1.5.1)
       parallel (~> 1.10)
       parser (>= 2.6)
@@ -169,7 +169,7 @@ DEPENDENCIES
   google-cloud-storage (~> 1.18)
   minitest (~> 5.11)
   rake (~> 12.3)
-  rubocop (~> 0.71.0)
+  rubocop (~> 0.72.0)
   simctl (~> 1.6)
 
 BUNDLED WITH
