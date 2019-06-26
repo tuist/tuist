@@ -20,12 +20,12 @@ enum GraphError: FatalError {
     }
 }
 
-public enum DependencyReference: Equatable, Comparable, Hashable {
+enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
     case product(String)
     case sdk(AbsolutePath, SDKStatus)
 
-    public func hash(into hasher: inout Hasher) {
+    func hash(into hasher: inout Hasher) {
         switch self {
         case let .absolute(path):
             hasher.combine(path)
@@ -37,7 +37,7 @@ public enum DependencyReference: Equatable, Comparable, Hashable {
         }
     }
 
-    public static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
+    static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
         case let (.absolute(lhsPath), .absolute(rhsPath)):
             return lhsPath == rhsPath
@@ -50,7 +50,7 @@ public enum DependencyReference: Equatable, Comparable, Hashable {
         }
     }
 
-    public static func < (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
+    static func < (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
         case let (.absolute(lhsPath), .absolute(rhsPath)):
             return lhsPath < rhsPath
@@ -70,7 +70,7 @@ public enum DependencyReference: Equatable, Comparable, Hashable {
     }
 }
 
-public protocol Graphing: AnyObject, Encodable {
+protocol Graphing: AnyObject, Encodable {
     var name: String { get }
     var entryPath: AbsolutePath { get }
     var entryNodes: [GraphNode] { get }
@@ -99,14 +99,14 @@ public protocol Graphing: AnyObject, Encodable {
     func findAll<T: GraphNode>(path: AbsolutePath, name: String, test: (T) -> Bool) -> Set<T>
 }
 
-public class Graph: Graphing {
+class Graph: Graphing {
     // MARK: - Attributes
 
     private let cache: GraphLoaderCaching
-    public let name: String
-    public let entryPath: AbsolutePath
-    public let entryNodes: [GraphNode]
-    public var projects: [Project] {
+    let name: String
+    let entryPath: AbsolutePath
+    let entryNodes: [GraphNode]
+    var projects: [Project] {
         return Array(cache.projects.values)
     }
 
@@ -128,11 +128,11 @@ public class Graph: Graphing {
 
     // MARK: - Internal
 
-    public var frameworks: [FrameworkNode] {
+    var frameworks: [FrameworkNode] {
         return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
     }
 
-    public func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
+    func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -141,7 +141,7 @@ public class Graph: Graphing {
             .filter { $0.path == path }
     }
 
-    public func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference] {
+    func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -152,7 +152,7 @@ public class Graph: Graphing {
             .map(DependencyReference.product)
     }
 
-    public func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
+    func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -161,7 +161,7 @@ public class Graph: Graphing {
             .filter { $0.target.product == .bundle }
     }
 
-    public func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
+    func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -206,7 +206,7 @@ public class Graph: Graphing {
         return references
     }
 
-    public func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath] {
+    func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -215,7 +215,7 @@ public class Graph: Graphing {
             .map(\.publicHeaders)
     }
 
-    public func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath] {
+    func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -224,7 +224,7 @@ public class Graph: Graphing {
             .map { $0.path.removingLastComponent() }
     }
 
-    public func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath] {
+    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -233,7 +233,7 @@ public class Graph: Graphing {
             .compactMap { $0.swiftModuleMap?.removingLastComponent() }
     }
 
-    public func embeddableFrameworks(path: AbsolutePath,
+    func embeddableFrameworks(path: AbsolutePath,
                                      name: String,
                                      system: Systeming) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
@@ -348,13 +348,13 @@ extension TargetNode {
 }
 
 extension Graph {
-    public func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T> {
+    func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T> {
         let alwaysTrue: (T) -> Bool = { _ in true }
         return findAll(path: path, test: alwaysTrue)
     }
 
     // Traverse the graph for all cached target nodes using DFS and return all results passing the test.
-    public func findAll<T: GraphNode>(path: AbsolutePath, test: (T) -> Bool) -> Set<T> {
+    func findAll<T: GraphNode>(path: AbsolutePath, test: (T) -> Bool) -> Set<T> {
         guard let targetNodes = cache.targetNodes[path] else {
             return []
         }
@@ -369,7 +369,7 @@ extension Graph {
     }
 
     // Traverse the graph finding target node with name using DFS and return all results passing the test.
-    public func findAll<T: GraphNode>(path: AbsolutePath, name: String, test: (T) -> Bool) -> Set<T> {
+    func findAll<T: GraphNode>(path: AbsolutePath, name: String, test: (T) -> Bool) -> Set<T> {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -378,7 +378,7 @@ extension Graph {
     }
 
     // Traverse the graph from the target node using DFS and return all results passing the test.
-    public func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
+    func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         for node in targetNode.dependencies where node is T {
@@ -422,7 +422,7 @@ extension Graph {
 // MARK: - Encodable
 
 extension Graph {
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         var nodes: [GraphNode] = []
 

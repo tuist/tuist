@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-public class GraphNode: Equatable, Hashable, Encodable {
+class GraphNode: Equatable, Hashable, Encodable {
     // MARK: - Attributes
 
     let path: AbsolutePath
@@ -15,7 +15,7 @@ public class GraphNode: Equatable, Hashable, Encodable {
 
     // MARK: - Equatable
 
-    public static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
+    static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
         return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
 
@@ -23,12 +23,12 @@ public class GraphNode: Equatable, Hashable, Encodable {
         return path == otherNode.path
     }
 
-    public func hash(into hasher: inout Hasher) {
+    func hash(into hasher: inout Hasher) {
         hasher.combine(path)
     }
 }
 
-public class TargetNode: GraphNode {
+class TargetNode: GraphNode {
     // MARK: - Attributes
 
     let project: Project
@@ -56,12 +56,12 @@ public class TargetNode: GraphNode {
         super.init(path: project.path)
     }
 
-    public override func hash(into hasher: inout Hasher) {
+    override func hash(into hasher: inout Hasher) {
         super.hash(into: &hasher)
         hasher.combine(target.name)
     }
 
-    public static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
+    static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
         return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
 
@@ -101,7 +101,7 @@ public class TargetNode: GraphNode {
         return targetNode
     }
 
-    public override func encode(to encoder: Encoder) throws {
+    override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(target.name, forKey: .name)
@@ -187,7 +187,7 @@ enum PrecompiledNodeError: FatalError, Equatable {
     }
 }
 
-public class SDKNode: GraphNode {
+class SDKNode: GraphNode {
     let name: String
     let status: SDKStatus
     let type: Type
@@ -255,7 +255,7 @@ public class SDKNode: GraphNode {
     }
 }
 
-public class PrecompiledNode: GraphNode {
+class PrecompiledNode: GraphNode {
     enum Linking: String {
         case `static`, dynamic
     }
@@ -314,7 +314,7 @@ public class PrecompiledNode: GraphNode {
     }
 }
 
-public class FrameworkNode: PrecompiledNode {
+class FrameworkNode: PrecompiledNode {
     static func parse(projectPath: AbsolutePath,
                       path: RelativePath,
                       cache: GraphLoaderCaching) throws -> FrameworkNode {
@@ -325,11 +325,11 @@ public class FrameworkNode: PrecompiledNode {
         return framewokNode
     }
 
-    public var isCarthage: Bool {
+    var isCarthage: Bool {
         return path.pathString.contains("Carthage/Build")
     }
 
-    public override var binaryPath: AbsolutePath {
+    override var binaryPath: AbsolutePath {
         let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
         return path.appending(component: frameworkName)
     }
@@ -348,7 +348,7 @@ public class FrameworkNode: PrecompiledNode {
         }
     }
 
-    public override func encode(to encoder: Encoder) throws {
+    override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(name, forKey: .name)
@@ -442,7 +442,7 @@ class LibraryNode: PrecompiledNode {
         }
     }
 
-    public override func encode(to encoder: Encoder) throws {
+    override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(name, forKey: .name)
