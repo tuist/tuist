@@ -13,12 +13,12 @@ public extension XCTestCase {
 
     // MARK: - XCTAssertions
 
-    func XCTAssertEqualPairs<T: Equatable>(_ subjects: [(T, T, Bool)]) {
+    func XCTAssertEqualPairs<T: Equatable>(_ subjects: [(T, T, Bool)], file: StaticString = #file, line: UInt = #line) {
         subjects.forEach {
             if $0.2 {
-                XCTAssertEqual($0.0, $0.1, "Expected \($0.0) to be equal to \($0.1) but they are not.")
+                XCTAssertEqual($0.0, $0.1, "Expected \($0.0) to be equal to \($0.1) but they are not.", file: file, line: line)
             } else {
-                XCTAssertNotEqual($0.0, $0.1, "Expected \($0.0) to not be equal to \($0.1) but they are.")
+                XCTAssertNotEqual($0.0, $0.1, "Expected \($0.0) to not be equal to \($0.1) but they are.", file: file, line: line)
             }
         }
     }
@@ -32,14 +32,14 @@ public extension XCTestCase {
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
     }
 
-    func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String) {
+    func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String, file: StaticString = #file, line: UInt = #line) {
         XCTAssertTrue(printer.standardOutputMatches(with: pattern), """
         The pattern:
         \(pattern)
-            
+        
         Does not match the standard output:
         \(printer.standardOutput)
-        """)
+        """, file: file, line: line)
     }
 
     func XCTAssertDictionary<T: Hashable>(_ first: [T: Any],
@@ -52,28 +52,28 @@ public extension XCTestCase {
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
     }
 
-    func XCTTry<T>(_ closure: @autoclosure @escaping () throws -> T, file _: StaticString = #file, line _: UInt = #line) -> T {
+    func XCTTry<T>(_ closure: @autoclosure @escaping () throws -> T, file: StaticString = #file, line: UInt = #line) -> T {
         var value: T!
         do {
             value = try closure()
         } catch {
-            XCTFail("The code threw the following error: \(error)")
+            XCTFail("The code threw the following error: \(error)", file: file, line: line)
         }
         return value
     }
 
     func XCTAssertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {
         let decoder = JSONDecoder()
-        let decoded = XCTTry(try decoder.decode(C.self, from: json.data(using: .utf8)!))
+        let decoded = XCTTry(try decoder.decode(C.self, from: json.data(using: .utf8)!), file: file, line: line)
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
-        let jsonData = XCTTry(try encoder.encode(decoded))
-        let subjectData = XCTTry(try encoder.encode(subject))
+        let jsonData = XCTTry(try encoder.encode(decoded), file: file, line: line)
+        let subjectData = XCTTry(try encoder.encode(subject), file: file, line: line)
 
         XCTAssert(jsonData == subjectData, "JSON does not match the encoded \(String(describing: subject))", file: file, line: line)
     }
 
-    func XCTAssertEncodableEqualToJson<C: Encodable>(_ subject: C, _ json: String, file _: StaticString = #file, line _: UInt = #line) {
+    func XCTAssertEncodableEqualToJson<C: Encodable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
 
@@ -96,13 +96,13 @@ public extension XCTestCase {
             let subjectNSArray = NSArray(array: subjectArray)
             let jsonNSArray = NSArray(array: jsonArray)
 
-            XCTAssertTrue(subjectNSArray.isEqual(to: jsonNSArray), errorString)
+            XCTAssertTrue(subjectNSArray.isEqual(to: jsonNSArray), errorString, file: file, line: line)
 
         } else if let subjectDictionary = subjectObject as? [String: Any], let jsonDictionary = jsonObject as? [String: Any] {
             let subjectNSDictionary = NSDictionary(dictionary: subjectDictionary)
             let jsonNSDictionary = NSDictionary(dictionary: jsonDictionary)
 
-            XCTAssertTrue(subjectNSDictionary.isEqual(to: jsonNSDictionary), errorString)
+            XCTAssertTrue(subjectNSDictionary.isEqual(to: jsonNSDictionary), errorString, file: file, line: line)
         } else {
             XCTFail("Failed comparing the subject to the given JSON. Has the JSON the right format?")
         }
