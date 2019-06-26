@@ -31,6 +31,9 @@ public enum DependencyReference: Equatable, Comparable, Hashable {
             hasher.combine(path)
         case let .product(product):
             hasher.combine(product)
+        case let .sdk(path, status):
+            hasher.combine(path)
+            hasher.combine(status)
         }
     }
 
@@ -40,6 +43,8 @@ public enum DependencyReference: Equatable, Comparable, Hashable {
             return lhsPath == rhsPath
         case let (.product(lhsName), .product(rhsName)):
             return lhsName == rhsName
+        case let (.sdk(lhsPath, lhsStatus), .sdk(rhsPath, rhsStatus)):
+            return lhsPath == rhsPath && lhsStatus == rhsStatus
         default:
             return false
         }

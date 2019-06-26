@@ -407,6 +407,27 @@ final class GraphTests: XCTestCase {
 }
 
 final class DependencyReferenceTests: XCTestCase {
+    func test_equal() {
+        let subjects: [(DependencyReference, DependencyReference, Bool)] = [
+            // Absolute
+            (.absolute(.init("/a.framework")), .absolute(.init("/a.framework")), true),
+            (.absolute(.init("/a.framework")), .product("Product.framework"), false),
+            (.absolute(.init("/a.framework")), .sdk(.init("/CoreData.framework"), .required), false),
+
+            // Product
+            (.product("Product.framework"), .product("Product.framework"), true),
+            (.product("Product.framework"), .absolute(.init("/a.framework")), false),
+            (.product("Product.framework"), .sdk(.init("/CoreData.framework"), .required), false),
+
+            // SDK
+            (.sdk(.init("/CoreData.framework"), .required), .sdk(.init("/CoreData.framework"), .required), true),
+            (.sdk(.init("/CoreData.framework"), .required), .product("Product.framework"), false),
+            (.sdk(.init("/CoreData.framework"), .required), .absolute(.init("/a.framework")), false),
+        ]
+
+        XCTAssertEqualPairs(subjects)
+    }
+
     func test_compare() {
         XCTAssertFalse(DependencyReference.absolute("/A") < .absolute("/A"))
         XCTAssertTrue(DependencyReference.absolute("/A") < .absolute("/B"))

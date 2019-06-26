@@ -60,7 +60,8 @@ public class Generator: Generating {
                             fileHandler: FileHandling = FileHandler(),
                             defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                             modelLoader: GeneratorModelLoading) {
-        let graphLoader = GraphLoader(printer: printer, modelLoader: modelLoader)
+        let graphLinter = GraphLinter(fileHandler: fileHandler)
+        let graphLoader = GraphLoader(linter: graphLinter, printer: printer, fileHandler: fileHandler, modelLoader: modelLoader)
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,

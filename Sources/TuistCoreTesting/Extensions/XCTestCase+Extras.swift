@@ -3,6 +3,25 @@ import Foundation
 import XCTest
 
 public extension XCTestCase {
+    // MARK: - Fixtures
+
+    func fixturePath(path: RelativePath) -> AbsolutePath {
+        return AbsolutePath(#file)
+            .appending(RelativePath("../../../../Tests/Fixtures"))
+            .appending(path)
+    }
+
+    // MARK: - XCTAssertions
+
+    func XCTAssertEqualPairs<T: Equatable>(_ subjects: [(T, T, Bool)]) {
+        subjects.forEach {
+            if $0.2 {
+                XCTAssertEqual($0.0, $0.1, "Expected \($0.0) to be equal to \($0.1) but they are not.")
+            } else {
+                XCTAssertNotEqual($0.0, $0.1, "Expected \($0.0) to not be equal to \($0.1) but they are.")
+            }
+        }
+    }
 
     func XCTAssertEqualDictionaries<T: Hashable>(_ first: [T: Any],
                                                  _ second: [T: Any],
@@ -11,12 +30,6 @@ public extension XCTestCase {
         let firstDictionary = NSDictionary(dictionary: first)
         let secondDictioanry = NSDictionary(dictionary: second)
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
-    }
-
-    func fixturePath(path: RelativePath) -> AbsolutePath {
-        return AbsolutePath(#file)
-            .appending(RelativePath("../../../../Tests/Fixtures"))
-            .appending(path)
     }
 
     func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String) {

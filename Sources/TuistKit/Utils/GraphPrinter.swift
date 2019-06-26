@@ -27,7 +27,7 @@ class GraphPrinter: GraphPrinting {
     func print(graph: Graph) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
-        
+
         let json = try encoder.encode(graph)
         printer.print(String(data: json, encoding: .utf8)!)
     }
