@@ -2,6 +2,12 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## Next
+
+### Fixed
+
+- Ensuring the correct platform SDK dependencies path is set https://github.com/tuist/tuist/pull/419 by @kwridan
+
 ## 0.16.0
 
 ### Added

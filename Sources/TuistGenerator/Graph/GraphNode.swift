@@ -76,7 +76,13 @@ class TargetNode: GraphNode {
         }
 
         let dependencies: [GraphNode] = try target.dependencies.map {
-            try node(for: $0, path: path, name: name, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
+            try node(for: $0,
+                     path: path,
+                     name: name,
+                     platform: target.platform,
+                     cache: cache,
+                     circularDetector: circularDetector,
+                     modelLoader: modelLoader)
         }
 
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
@@ -88,6 +94,7 @@ class TargetNode: GraphNode {
     static func node(for dependency: Dependency,
                      path: AbsolutePath,
                      name: String,
+                     platform: Platform,
                      cache: GraphLoaderCaching,
                      circularDetector: GraphCircularDetecting,
                      modelLoader: GeneratorModelLoading,
@@ -115,7 +122,7 @@ class TargetNode: GraphNode {
                                          path: libraryPath,
                                          fileHandler: fileHandler, cache: cache)
         case let .sdk(name, status):
-            return try SDKNode(name: name, status: status)
+            return try SDKNode(name: name, platform: platform, status: status)
         }
     }
 }
@@ -150,6 +157,42 @@ enum PrecompiledNodeError: FatalError, Equatable {
 }
 
 class SDKNode: GraphNode {
+    let name: String
+    let status: SDKStatus
+    let type: Type
+
+    init(name: String,
+         platform: Platform,
+         status: SDKStatus) throws {
+        let sdk = AbsolutePath("/\(name)")
+
+        guard let sdkExtension = sdk.extension,
+            let type = Type(rawValue: sdkExtension) else {
+            throw Error.unsupported(sdk: name)
+        }
+
+        self.name = name
+        self.status = status
+        self.type = type
+
+        let sdkRootPath = AbsolutePath(platform.xcodeSdkRootPath,
+                                       relativeTo: AbsolutePath("/"))
+
+        let path: AbsolutePath
+        switch type {
+        case .framework:
+            path = sdkRootPath
+                .appending(RelativePath("System/Library/Frameworks"))
+                .appending(component: name)
+        case .library:
+            path = sdkRootPath
+                .appending(RelativePath("usr/lib"))
+                .appending(component: name)
+        }
+
+        super.init(path: path)
+    }
+
     enum `Type`: String, CaseIterable {
         case framework
         case library = "tbd"
@@ -178,34 +221,6 @@ class SDKNode: GraphNode {
                 return .abort
             }
         }
-    }
-
-    let name: String
-    let status: SDKStatus
-    let type: Type
-
-    init(name: String, status: SDKStatus) throws {
-        let sdk = AbsolutePath("/\(name)")
-
-        guard let sdkExtension = sdk.extension,
-            let type = Type(rawValue: sdkExtension) else {
-            throw Error.unsupported(sdk: name)
-        }
-
-        self.name = name
-        self.status = status
-        self.type = type
-
-        let path: AbsolutePath
-
-        switch type {
-        case .framework:
-            path = AbsolutePath("/System/Library/Frameworks").appending(component: name)
-        case .library:
-            path = AbsolutePath("/usr/lib").appending(component: name)
-        }
-
-        super.init(path: path)
     }
 }
 

@@ -471,7 +471,7 @@ class ProjectFileElements {
         let sdkPath = node.path.relative(to: AbsolutePath("/")) // SDK paths are relative
 
         let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
-        let file = PBXFileReference(sourceTree: .sdkRoot,
+        let file = PBXFileReference(sourceTree: .developerDir,
                                     name: sdkPath.basename,
                                     lastKnownFileType: lastKnownFileType,
                                     path: sdkPath.pathString)
