@@ -77,6 +77,12 @@ protocol Graphing: AnyObject, Encodable {
     var projects: [Project] { get }
     var frameworks: [FrameworkNode] { get }
 
+    /// Returns all the precompiled nodes that are part of the graph.
+    var precompiled: [PrecompiledNode] { get }
+
+    /// Returns all the targets that are part of the graph.
+    var targets: [TargetNode] { get }
+
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
@@ -130,6 +136,16 @@ class Graph: Graphing {
 
     var frameworks: [FrameworkNode] {
         return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
+    }
+
+    /// Returns all the precompiled nodes that are part of the graph.
+    var precompiled: [PrecompiledNode] {
+        return Array(cache.precompiledNodes.values)
+    }
+
+    /// Returns all the targets that are part of the graph.
+    var targets: [TargetNode] {
+        return cache.targetNodes.flatMap { $0.value.values }
     }
 
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -234,8 +250,8 @@ class Graph: Graphing {
     }
 
     func embeddableFrameworks(path: AbsolutePath,
-                                     name: String,
-                                     system: Systeming) throws -> [DependencyReference] {
+                              name: String,
+                              system: Systeming) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
