@@ -2,11 +2,12 @@ import Basic
 import Foundation
 import TuistCore
 
-class GraphNode: Equatable, Hashable, Encodable {
+class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible {
     // MARK: - Attributes
 
     let path: AbsolutePath
     let name: String
+    var description: String { return name }
 
     // MARK: - Init
 

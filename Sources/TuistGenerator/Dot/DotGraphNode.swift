@@ -1,6 +1,6 @@
 import Foundation
 
-struct DotGraphNode: CustomStringConvertible, Hashable {
+struct DotGraphNode: CustomStringConvertible, Hashable, Equatable {
     /// Node name.
     let name: String
 

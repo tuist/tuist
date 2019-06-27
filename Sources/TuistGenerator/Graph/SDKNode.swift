@@ -34,7 +34,7 @@ class SDKNode: GraphNode {
                 .appending(component: name)
         }
 
-        super.init(path: path, name: name)
+        super.init(path: path, name: String(name.split(separator: ".").first!))
     }
 
     enum `Type`: String, CaseIterable {

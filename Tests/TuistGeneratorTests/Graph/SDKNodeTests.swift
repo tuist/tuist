@@ -64,4 +64,17 @@ final class SDKNodeTests: XCTestCase {
             "/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk/usr/lib/libFooBar.tbd",
         ])
     }
+
+    func test_name_removesTheExtension() throws {
+        // Given
+        let subject = try SDKNode(name: "CoreData.framework",
+                                  platform: .iOS,
+                                  status: .required)
+
+        // When
+        let got = subject.name
+
+        // Then
+        XCTAssertEqual(got, "CoreData")
+    }
 }

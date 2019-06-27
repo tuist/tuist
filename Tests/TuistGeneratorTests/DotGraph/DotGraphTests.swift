@@ -12,8 +12,8 @@ final class DotGraphTests: XCTestCase {
                                       attributes: Set([.label("Search"), .shape(.circle)])),
                          DotGraphNode(name: "Core",
                                       attributes: Set([.label("Core")]))])
-        let dependencies = [(from: "App", to: "Search"),
-                            (from: "Search", to: "Core")]
+        let dependencies = Set([DotGraphDependency(from: "App", to: "Search"),
+                                DotGraphDependency(from: "Search", to: "Core")])
         let subject = DotGraph(name: "TestGraph",
                                type: .directed,
                                nodes: nodes,

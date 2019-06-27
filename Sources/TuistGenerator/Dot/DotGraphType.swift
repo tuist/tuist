@@ -1,6 +1,6 @@
 import Foundation
 
-public enum DotGraphType {
+public enum DotGraphType: Equatable {
     /// Unidirected graph
     case undirected
 
