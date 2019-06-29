@@ -29,5 +29,6 @@ class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(path)
+        hasher.combine(name)
     }
 }

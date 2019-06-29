@@ -1,7 +1,13 @@
 import Foundation
 
-/// Interface t
-protocol GraphToDotGraphMapping {}
+/// Interface that describes a mapper that convers a project graph into a dot graph.
+protocol GraphToDotGraphMapping {
+    /// Maps the project graph into a dot graph representation.
+    ///
+    /// - Parameter graph: Graph to be converted into a dot graph.
+    /// - Returns: The dot graph representation.
+    func map(graph: Graph) -> DotGraph
+}
 
 class GraphToDotGraphMapper: GraphToDotGraphMapping {
     /// Maps the project graph into a dot graph representation.
