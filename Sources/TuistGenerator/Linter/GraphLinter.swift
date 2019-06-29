@@ -43,7 +43,7 @@ class GraphLinter: GraphLinting {
 
     // MARK: - Fileprivate
 
-    private func lintDependencies(graph: Graphing) -> [LintingIssue] {
+    func lintDependencies(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         var evaluatedNodes: [GraphNode] = []
         var linkedStaticProducts = Set<StaticDepedencyWarning>()

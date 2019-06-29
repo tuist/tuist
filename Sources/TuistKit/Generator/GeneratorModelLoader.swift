@@ -31,6 +31,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
     private let manifestLoader: GraphManifestLoading
     private let manifestTargetGenerator: ManifestTargetGenerating
     private let printer: Printing
+
     init(fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
          manifestTargetGenerator: ManifestTargetGenerating,

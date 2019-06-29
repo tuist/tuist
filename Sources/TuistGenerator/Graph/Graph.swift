@@ -25,6 +25,31 @@ enum DependencyReference: Equatable, Comparable, Hashable {
     case product(String)
     case sdk(AbsolutePath, SDKStatus)
 
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case let .absolute(path):
+            hasher.combine(path)
+        case let .product(product):
+            hasher.combine(product)
+        case let .sdk(path, status):
+            hasher.combine(path)
+            hasher.combine(status)
+        }
+    }
+
+    static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
+        switch (lhs, rhs) {
+        case let (.absolute(lhsPath), .absolute(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.product(lhsName), .product(rhsName)):
+            return lhsName == rhsName
+        case let (.sdk(lhsPath, lhsStatus), .sdk(rhsPath, rhsStatus)):
+            return lhsPath == rhsPath && lhsStatus == rhsStatus
+        default:
+            return false
+        }
+    }
+
     static func < (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
         switch (lhs, rhs) {
         case let (.absolute(lhsPath), .absolute(rhsPath)):
@@ -45,12 +70,18 @@ enum DependencyReference: Equatable, Comparable, Hashable {
     }
 }
 
-protocol Graphing: AnyObject {
+protocol Graphing: AnyObject, Encodable {
     var name: String { get }
     var entryPath: AbsolutePath { get }
     var entryNodes: [GraphNode] { get }
     var projects: [Project] { get }
     var frameworks: [FrameworkNode] { get }
+
+    /// Returns all the precompiled nodes that are part of the graph.
+    var precompiled: [PrecompiledNode] { get }
+
+    /// Returns all the targets that are part of the graph.
+    var targets: [TargetNode] { get }
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
@@ -105,6 +136,16 @@ class Graph: Graphing {
 
     var frameworks: [FrameworkNode] {
         return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
+    }
+
+    /// Returns all the precompiled nodes that are part of the graph.
+    var precompiled: [PrecompiledNode] {
+        return Array(cache.precompiledNodes.values)
+    }
+
+    /// Returns all the targets that are part of the graph.
+    var targets: [TargetNode] {
+        return cache.targetNodes.flatMap { $0.value.values }
     }
 
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -323,13 +364,13 @@ extension TargetNode {
 }
 
 extension Graph {
-    internal func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T> {
+    func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T> {
         let alwaysTrue: (T) -> Bool = { _ in true }
         return findAll(path: path, test: alwaysTrue)
     }
 
     // Traverse the graph for all cached target nodes using DFS and return all results passing the test.
-    internal func findAll<T: GraphNode>(path: AbsolutePath, test: (T) -> Bool) -> Set<T> {
+    func findAll<T: GraphNode>(path: AbsolutePath, test: (T) -> Bool) -> Set<T> {
         guard let targetNodes = cache.targetNodes[path] else {
             return []
         }
@@ -344,7 +385,7 @@ extension Graph {
     }
 
     // Traverse the graph finding target node with name using DFS and return all results passing the test.
-    internal func findAll<T: GraphNode>(path: AbsolutePath, name: String, test: (T) -> Bool) -> Set<T> {
+    func findAll<T: GraphNode>(path: AbsolutePath, name: String, test: (T) -> Bool) -> Set<T> {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -353,7 +394,7 @@ extension Graph {
     }
 
     // Traverse the graph from the target node using DFS and return all results passing the test.
-    internal func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
+    func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         for node in targetNode.dependencies where node is T {
@@ -391,5 +432,19 @@ extension Graph {
         }
 
         return references
+    }
+}
+
+// MARK: - Encodable
+
+extension Graph {
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        var nodes: [GraphNode] = []
+
+        nodes.append(contentsOf: cache.targetNodes.values.flatMap { $0.values })
+        nodes.append(contentsOf: Array(cache.precompiledNodes.values))
+
+        try container.encode(nodes.sorted(by: { $0.path < $1.path }))
     }
 }

@@ -1,5 +1,7 @@
 import Foundation
+import TuistCoreTesting
 import XCTest
+
 @testable import ProjectDescription
 
 final class SchemeTests: XCTestCase {
@@ -90,6 +92,6 @@ final class SchemeTests: XCTestCase {
             }
         }
         """
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertCodableEqualToJson(subject, expected)
     }
 }

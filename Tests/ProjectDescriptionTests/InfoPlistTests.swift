@@ -1,5 +1,7 @@
 import Foundation
+import TuistCoreTesting
 import XCTest
+
 @testable import ProjectDescription
 
 final class InfoPlistTests: XCTestCase {
@@ -14,6 +16,6 @@ final class InfoPlistTests: XCTestCase {
             }
             """
 
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertCodableEqualToJson(subject, expected)
     }
 }

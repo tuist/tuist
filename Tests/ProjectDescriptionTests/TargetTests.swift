@@ -1,5 +1,7 @@
 import Foundation
+import TuistCoreTesting
 import XCTest
+
 @testable import ProjectDescription
 
 final class TargetTests: XCTestCase {
@@ -119,7 +121,7 @@ final class TargetTests: XCTestCase {
             "name": "name"
         }
         """
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertCodableEqualToJson(subject, expected)
     }
 
     func test_toJSON_withFileList() {
@@ -238,6 +240,6 @@ final class TargetTests: XCTestCase {
             "name": "name"
         }
         """
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertCodableEqualToJson(subject, expected)
     }
 }
