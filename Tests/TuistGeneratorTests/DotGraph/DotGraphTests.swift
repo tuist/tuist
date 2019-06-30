@@ -25,12 +25,12 @@ final class DotGraphTests: XCTestCase {
         // Then
         let expected = """
         digraph "TestGraph" {
-          App [label="App"]
-          Core [label="Core"]
-          Search [label="Search", shape="circle"]
+          "App" [label="App"]
+          "Core" [label="Core"]
+          "Search" [label="Search", shape="circle"]
 
-          App -> Search
-          Search -> Core
+          "App" -> "Search"
+          "Search" -> "Core"
         }
         """
         XCTAssertEqual(got, expected)

@@ -21,6 +21,9 @@ class GraphCommand: NSObject, Command {
     /// Dot graph generator.
     let dotGraphGenerator: DotGraphGenerating
 
+    /// Manifest loader.
+    let manifestLoader: GraphManifestLoading
+    
     required convenience init(parser: ArgumentParser) {
         let fileHandler = FileHandler()
         let system = System()
@@ -37,21 +40,28 @@ class GraphCommand: NSObject, Command {
                                                manifestTargetGenerator: manifestTargetGenerator)
 
         let dotGraphGenerator = DotGraphGenerator(modelLoader: modelLoader, printer: printer, fileHandler: fileHandler)
-        self.init(parser: parser, fileHandler: fileHandler, printer: printer, dotGraphGenerator: dotGraphGenerator)
+        self.init(parser: parser,
+                  fileHandler: fileHandler,
+                  printer: printer,
+                  dotGraphGenerator: dotGraphGenerator,
+                  manifestLoader: manifestLoader)
     }
 
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
          printer: Printing,
-         dotGraphGenerator: DotGraphGenerating) {
+         dotGraphGenerator: DotGraphGenerating,
+         manifestLoader: GraphManifestLoading) {
         parser.add(subparser: GraphCommand.command, overview: GraphCommand.overview)
         self.fileHandler = fileHandler
         self.printer = printer
         self.dotGraphGenerator = dotGraphGenerator
+        self.manifestLoader = manifestLoader
     }
 
     func run(with _: ArgumentParser.Result) throws {
-        let graph = try dotGraphGenerator.generateProject(at: fileHandler.currentPath)
+        let graph = try dotGraphGenerator.generate(at: fileHandler.currentPath,
+                                                   manifestLoader: manifestLoader)
 
         let path = fileHandler.currentPath.appending(component: "graph.dot")
         if fileHandler.exists(path) {

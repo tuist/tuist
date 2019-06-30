@@ -11,7 +11,7 @@ struct DotGraphNode: CustomStringConvertible, Hashable, Equatable {
     var description: String {
         let sortedAttributes = attributes.sorted(by: { $0.description < $1.description })
         let attributesString = "[\(sortedAttributes.map { $0.description }.joined(separator: ", "))]"
-        return "\(name) \(attributesString)"
+        return "\"\(name)\" \(attributesString)"
     }
 
     /// Initializes the node with its attributes.
