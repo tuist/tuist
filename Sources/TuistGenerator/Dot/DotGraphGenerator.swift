@@ -29,23 +29,23 @@ public final class DotGraphGenerator: DotGraphGenerating {
     ///
     /// - Parameters:
     ///   - modelLoader: Instance to load the models.
-    ///   - system: Instance to run commands in the system.
     ///   - printer: Instance to print outputs to the user.
     ///   - fileHandler: Instance to handle files.
     public convenience init(modelLoader: GeneratorModelLoading,
-                            system _: Systeming = System(),
                             printer: Printing = Printer(),
                             fileHandler: FileHandling = FileHandler()) {
         let graphLinter = GraphLinter(fileHandler: fileHandler)
         let graphLoader = GraphLoader(linter: graphLinter, printer: printer, fileHandler: fileHandler, modelLoader: modelLoader)
-        self.init(graphLoader: graphLoader)
+        self.init(graphLoader: graphLoader, graphToDotGraphMapper: GraphToDotGraphMapper())
     }
 
     /// Initializes the generator with an instance to load the graph.
     ///
-    /// - Parameter graphLoader: Graph loader instance.
+    /// - Parameters:
+    ///   - graphLoader: Graph loader instance.
+    ///   - graphToDotGraphMapper: Mapper to map the graph into a dot graph.
     init(graphLoader: GraphLoading,
-         graphToDotGraphMapper: GraphToDotGraphMapping = GraphToDotGraphMapper()) {
+         graphToDotGraphMapper: GraphToDotGraphMapping) {
         self.graphLoader = graphLoader
         self.graphToDotGraphMapper = graphToDotGraphMapper
     }

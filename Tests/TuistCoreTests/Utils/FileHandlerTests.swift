@@ -3,6 +3,13 @@ import Foundation
 import XCTest
 @testable import TuistCore
 
+final class FileHandlerErrorTests: XCTestCase {
+    func test_description() {
+        XCTAssertEqual(FileHandlerError.invalidTextEncoding(AbsolutePath("/path")).description, "The file at /path is not a utf8 text file")
+        XCTAssertEqual(FileHandlerError.writingError(AbsolutePath("/path")).description, "Couldn't write to the file /path")
+    }
+}
+
 final class FileHandlerTests: XCTestCase {
     private var subject: FileHandler!
     private let fileManager = FileManager.default

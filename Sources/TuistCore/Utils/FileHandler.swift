@@ -3,10 +3,14 @@ import Foundation
 
 enum FileHandlerError: FatalError {
     case invalidTextEncoding(AbsolutePath)
+    case writingError(AbsolutePath)
+
     var description: String {
         switch self {
         case let .invalidTextEncoding(path):
             return "The file at \(path.pathString) is not a utf8 text file"
+        case let .writingError(path):
+            return "Couldn't write to the file \(path.pathString)"
         }
     }
 
@@ -14,6 +18,8 @@ enum FileHandlerError: FatalError {
         switch self {
         case .invalidTextEncoding:
             return .bug
+        case .writingError:
+            return .abort
         }
     }
 }
@@ -58,6 +64,15 @@ public protocol FileHandling: AnyObject {
     /// - Parameter closure: Closure to be executed with the temporary directory.
     /// - Throws: An error if the temporary directory cannot be created or the closure throws.
     func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
+
+    /// Writes a string into the given path (using the utf8 encoding)
+    ///
+    /// - Parameters:
+    ///   - content: Content to be written.
+    ///   - path: Path where the content will be written into.
+    ///   - atomically: Whether the content should be written atomically.
+    /// - Throws: An error if the writing fails.
+    func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func createFolder(_ path: AbsolutePath) throws
@@ -141,6 +156,19 @@ public final class FileHandler: FileHandling {
         } else {
             throw FileHandlerError.invalidTextEncoding(at)
         }
+    }
+
+    /// Writes a string into the given path (using the utf8 encoding)
+    ///
+    /// - Parameters:
+    ///   - content: Content to be written.
+    ///   - path: Path where the content will be written into.
+    ///   - atomically: Whether the content should be written atomically.
+    /// - Throws: An error if the writing fails.
+    public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        do {
+            try content.write(to: path.url, atomically: atomically, encoding: .utf8)
+        } catch {}
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {

@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistGenerator
 
-extension DotGraphGenerator {
+extension DotGraphGenerating {
     func generate(at path: AbsolutePath,
                   manifestLoader: GraphManifestLoading) throws -> String {
         let manifests = manifestLoader.manifests(at: path)
