@@ -33,11 +33,8 @@ class GraphCommand: NSObject, Command {
                                                  system: system,
                                                  resourceLocator: resourceLocator,
                                                  deprecator: Deprecator(printer: printer))
-        let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
-                                                              resourceLocator: resourceLocator)
         let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
-                                               manifestLoader: manifestLoader,
-                                               manifestTargetGenerator: manifestTargetGenerator)
+                                               manifestLoader: manifestLoader)
 
         let dotGraphGenerator = DotGraphGenerator(modelLoader: modelLoader, printer: printer, fileHandler: fileHandler)
         self.init(parser: parser,
