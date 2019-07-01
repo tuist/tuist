@@ -10,9 +10,9 @@ final class PlatformTests: XCTestCase {
     }
 
     func test_xcodeSupportedPLatforms_returns_the_right_value() {
-        XCTAssertEqual(Platform.macOS.xcodeSupportedPlatforms, "macosx")
-        XCTAssertEqual(Platform.iOS.xcodeSupportedPlatforms, "iphonesimulator iphoneos")
-        XCTAssertEqual(Platform.tvOS.xcodeSupportedPlatforms, "appletvsimulator appletvos")
+        XCTAssertEqual(Platform.macOS.xcodeSupportedPlatforms, ["macosx"])
+        XCTAssertEqual(Platform.iOS.xcodeSupportedPlatforms, ["iphonesimulator", "iphoneos"])
+        XCTAssertEqual(Platform.tvOS.xcodeSupportedPlatforms, ["appletvsimulator", "appletvos"])
     }
 
     func test_xcodeSdkRootPath() {

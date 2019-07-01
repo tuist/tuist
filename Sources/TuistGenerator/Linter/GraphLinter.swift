@@ -105,20 +105,21 @@ class GraphLinter: GraphLinting {
                                 linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let fromTarget = LintableTarget(platform: from.target.platform,
+        // TODO FIX LINTINGsupported
+        let fromTarget = LintableTarget(platform: from.target.platform.first!,
                                         product: from.target.product)
-        let toTarget = LintableTarget(platform: to.target.platform,
+        let toTarget = LintableTarget(platform: to.target.platform.first!,
                                       product: to.target.product)
 
         if !GraphLinter.validLinks.keys.contains(fromTarget) {
-            let reason = "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
+            let reason = "Target \(from.target.name) has a platform '\(from.target.platform.map(\.rawValue))' and product '\(from.target.product)' invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }
         let supportedTargets = GraphLinter.validLinks[fromTarget]!
 
         if !supportedTargets.contains(toTarget) {
-            let reason = "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
+            let reason = "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform.map(\.caseValue))' which is invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }

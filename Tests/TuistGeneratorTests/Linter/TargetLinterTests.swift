@@ -106,7 +106,7 @@ final class TargetLinterTests: XCTestCase {
         // Then
         let sortedResults = result.sorted(by: { $0.reason < $1.reason })
         XCTAssertEqual(sortedResults, [
-            LintingIssue(reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files", severity: .error),
+            LintingIssue(reason: "Target \(bundle.name) cannot contain sources. [iOS] bundle targets don't support source files", severity: .error),
         ])
     }
 

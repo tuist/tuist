@@ -83,23 +83,41 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? .recommended
         let product = settingsHelper.settingsProviderProduct(target)
-        let platform = settingsHelper.settingsProviderPlatform(target)
         let variant = settingsHelper.variant(buildConfiguration)
-        let targetDefaultAll = BuildSettingsProvider.targetDefault(variant: .all,
-                                                                   platform: platform,
-                                                                   product: product,
-                                                                   swift: true)
-        let targetDefaultVariant = BuildSettingsProvider.targetDefault(variant: variant,
-                                                                       platform: platform,
+        
+        var settings: [String: Any] = [:]
+        
+        for platform in target.platform {
+            
+            let buildPlatform = settingsHelper.settingsProviderPlatform(platform)
+            
+            let targetDefaultAll = BuildSettingsProvider.targetDefault(variant: .all,
+                                                                       platform: buildPlatform,
                                                                        product: product,
                                                                        swift: true)
-        let filter = createFilter(defaultSettings: defaultSettings,
-                                  essentialKeys: DefaultSettingsProvider.essentialTargetSettings)
-
-        var settings: [String: Any] = [:]
-        settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
-        settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
-        return settings.filter(filter)
+            
+            let targetDefaultVariant = BuildSettingsProvider.targetDefault(variant: variant,
+                                                                           platform: buildPlatform,
+                                                                           product: product,
+                                                                           swift: true)
+            let filter = createFilter(defaultSettings: defaultSettings,
+                                      essentialKeys: DefaultSettingsProvider.essentialTargetSettings)
+            
+            for supported in platform.xcodeSupportedPlatforms {
+                
+                // If we support more than one SDK, we should ensure the build settings are keyed
+                // on the supported platform.
+                let sdk = target.platform.count > 1 ? supported : nil
+                
+                settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll, sdk: sdk)
+                settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant, sdk: sdk)
+            }
+            
+            settings = settings.filter(filter)
+            
+        }
+        
+        return settings
     }
 
     // MARK: - Private

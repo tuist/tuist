@@ -26,14 +26,14 @@ extension Platform {
         }
     }
 
-    var xcodeSupportedPlatforms: String {
+    var xcodeSupportedPlatforms: [String] {
         switch self {
         case .tvOS:
-            return "appletvsimulator appletvos"
+            return ["appletvsimulator", "appletvos"]
         case .iOS:
-            return "iphonesimulator iphoneos"
+            return ["iphonesimulator", "iphoneos"]
         case .macOS:
-            return "macosx"
+            return ["macosx"]
         }
     }
 

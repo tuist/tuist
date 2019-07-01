@@ -13,7 +13,7 @@ public class Target: Equatable {
     // MARK: - Attributes
 
     public let name: String
-    public let platform: Platform
+    public let platform: [Platform]
     public let product: Product
     public let bundleId: String
 
@@ -35,6 +35,38 @@ public class Target: Equatable {
 
     public init(name: String,
                 platform: Platform,
+                product: Product,
+                bundleId: String,
+                infoPlist: InfoPlist? = nil,
+                entitlements: AbsolutePath? = nil,
+                settings: Settings? = nil,
+                sources: [SourceFile] = [],
+                resources: [FileElement] = [],
+                headers: Headers? = nil,
+                coreDataModels: [CoreDataModel] = [],
+                actions: [TargetAction] = [],
+                environment: [String: String] = [:],
+                filesGroup: ProjectGroup,
+                dependencies: [Dependency] = []) {
+        self.name = name
+        self.product = product
+        self.platform = [ platform ]
+        self.bundleId = bundleId
+        self.infoPlist = infoPlist
+        self.entitlements = entitlements
+        self.settings = settings
+        self.sources = sources
+        self.resources = resources
+        self.headers = headers
+        self.coreDataModels = coreDataModels
+        self.actions = actions
+        self.environment = environment
+        self.filesGroup = filesGroup
+        self.dependencies = dependencies
+    }
+    
+    public init(name: String,
+                platform: [Platform],
                 product: Product,
                 bundleId: String,
                 infoPlist: InfoPlist? = nil,
@@ -86,12 +118,7 @@ public class Target: Equatable {
     }
 
     var supportsSources: Bool {
-        switch (platform, product) {
-        case (.iOS, .bundle):
-            return false
-        default:
-            return true
-        }
+        return !(platform.contains(.iOS) && product == .bundle)
     }
 
     public static func sources(projectPath: AbsolutePath, sources: [(glob: String, compilerFlags: String?)]) throws -> [Target.SourceFile] {

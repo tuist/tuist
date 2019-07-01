@@ -195,7 +195,7 @@ extension TuistGenerator.Target {
                      fileHandler: FileHandling,
                      printer: Printing) throws -> TuistGenerator.Target {
         let name = manifest.name
-        let platform = try TuistGenerator.Platform.from(manifest: manifest.platform)
+        let platform = try manifest.platform.map(TuistGenerator.Platform.from)
         let product = TuistGenerator.Product.from(manifest: manifest.product)
 
         let bundleId = manifest.bundleId

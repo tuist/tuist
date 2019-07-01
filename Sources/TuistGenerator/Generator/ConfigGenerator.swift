@@ -164,8 +164,14 @@ final class ConfigGenerator: ConfigGenerating {
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
         }
-        settings["SDKROOT"] = target.platform.xcodeSdkRoot
-        settings["SUPPORTED_PLATFORMS"] = target.platform.xcodeSupportedPlatforms
+        
+        for platform in target.platform {
+            for supported in platform.xcodeSupportedPlatforms {
+                settings["SDKROOT[sdk=\(supported)*]"] = platform.xcodeSdkRoot
+            }
+            settings["SUPPORTED_PLATFORMS"] = platform.xcodeSupportedPlatforms
+        }
+        
         // TODO: We should show a warning here
         if settings["SWIFT_VERSION"] == nil {
             settings["SWIFT_VERSION"] = Constants.swiftVersion

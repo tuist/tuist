@@ -389,7 +389,7 @@ final class GraphTests: XCTestCase {
             {
               "product" : "\(target.target.product.rawValue)",
               "bundle_id" : "\(target.target.bundleId)",
-              "platform" : "\(target.target.platform.rawValue)",
+              "platform" : \(target.target.platform.map(\.caseValue)),
               "path" : "\(target.path)",
               "dependencies" : [
                 "xpm",

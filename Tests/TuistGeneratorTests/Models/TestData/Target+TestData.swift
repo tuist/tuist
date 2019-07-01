@@ -21,7 +21,7 @@ extension Target {
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
-                      platform: platform,
+                      platform: [ platform ],
                       product: product,
                       bundleId: bundleId,
                       infoPlist: infoPlist,
@@ -36,7 +36,7 @@ extension Target {
                       filesGroup: filesGroup,
                       dependencies: dependencies)
     }
-
+    
     /// Creates a bare bones Target with as little data as possible
     static func empty(name: String = "Target",
                       platform: Platform = .iOS,
@@ -54,7 +54,7 @@ extension Target {
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
-                      platform: platform,
+                      platform: [platform],
                       product: product,
                       bundleId: bundleId,
                       infoPlist: infoPlist,
@@ -69,4 +69,5 @@ extension Target {
                       filesGroup: filesGroup,
                       dependencies: dependencies)
     }
+    
 }

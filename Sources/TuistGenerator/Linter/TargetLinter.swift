@@ -69,7 +69,7 @@ class TargetLinter: TargetLinting {
         if supportsSources, sources.isEmpty {
             return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
         } else if !supportsSources, !sources.isEmpty {
-            return [LintingIssue(reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files", severity: .error)]
+            return [LintingIssue(reason: "Target \(target.name) cannot contain sources. \(target.platform.map(\.caseValue)) \(target.product) targets don't support source files", severity: .error)]
         }
 
         return []

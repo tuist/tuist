@@ -68,7 +68,7 @@ final class TargetNodeTests: XCTestCase {
         "\(library.name)",
         "\(framework.name)"
         ],
-        "platform" : "\(node.target.platform.rawValue)"
+        "platform" : \(node.target.platform.map(\.caseValue))
         }
         """
 

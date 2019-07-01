@@ -59,14 +59,16 @@ class TargetNode: GraphNode {
             throw GraphLoadingError.targetNotFound(name, path)
         }
 
-        let dependencies: [GraphNode] = try target.dependencies.map {
-            try node(for: $0,
-                     path: path,
-                     name: name,
-                     platform: target.platform,
-                     cache: cache,
-                     circularDetector: circularDetector,
-                     modelLoader: modelLoader)
+        let dependencies: [GraphNode] = try target.dependencies.flatMap { dependency in
+            return try target.platform.map { platform in
+                try node(for: dependency,
+                         path: path,
+                         name: name,
+                         platform: platform,
+                         cache: cache,
+                         circularDetector: circularDetector,
+                         modelLoader: modelLoader)
+            }
         }
 
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
@@ -79,7 +81,7 @@ class TargetNode: GraphNode {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(target.name, forKey: .name)
-        try container.encode(target.platform.rawValue, forKey: .platform)
+        try container.encode(target.platform.map(\.caseValue), forKey: .platform)
         try container.encode(target.product.rawValue, forKey: .product)
         try container.encode(target.bundleId, forKey: .bundleId)
         try container.encode("source", forKey: .type)

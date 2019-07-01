@@ -534,7 +534,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                 line: UInt = #line) {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
-        XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
+        XCTAssertTrue(target.platform.map(\.rawValue) == manifest.platform.map(\.rawValue), file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(target.infoPlist?.path, path.appending(RelativePath(manifest.infoPlist.path)), file: file, line: line)
         XCTAssertEqual(target.entitlements, manifest.entitlements.map { path.appending(RelativePath($0)) }, file: file, line: line)
