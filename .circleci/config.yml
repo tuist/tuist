@@ -1,13 +1,23 @@
 version: 2
 workflows:
   version: 2
-  build:
+  cli:
     jobs:
-      - build:
+      - cli:
           context: tuist
-
+  galaxy:
+    jobs:
+      - galaxy:
+          context: tuist
+      - galaxy-deploy:
+          context: tuist
+          requires:
+            - galaxy
+          filters:
+            branches:
+              only: master
 jobs:
-  build:
+  cli:
     macos:
       xcode: '10.2.1'
     steps:
@@ -48,3 +58,81 @@ jobs:
           key: bundler-{{ checksum "Gemfile.lock" }}
           paths:
             - 'vendor'
+
+  # Reference https://gist.github.com/Virolea/b589e7bd128ed53b9080583d1213e71f
+  # Reference https://robots.thoughtbot.com/circleci-2-rails
+  galaxy:
+    docker:
+      - image: circleci/ruby:2.6.3-node
+        environment:
+          RAILS_ENV: test
+          BUNDLER_VERSION: 2.0.1
+
+      - image: circleci/postgres:9.6.2-alpine
+        environment:
+          POSTGRES_USER: runner
+          POSTGRES_DB: test_db
+          POSTGRES_PASSWORD: ''
+
+      - image: redis:4.0.6
+
+    working_directory: ~/repo/galaxy
+    steps:
+      - checkout:
+          path: ~/repo
+
+      - restore_cache:
+          key: yarn-galaxy-{{ checksum "package.json" }}
+
+      - run:
+          name: Install Yarn dependencies
+          command: |
+            yarn
+
+      - save_cache:
+          key: yarn-galaxy-{{ checksum "package.json" }}
+          paths:
+            - node_modules
+
+      - run:
+          name: Update Bundler
+          command: |
+            gem update bundler
+
+      - restore_cache:
+          name: Restore Bundler Cache
+          keys:
+            - bundler-galaxy-{{ checksum "Gemfile.lock" }}
+            - bundler-galaxy
+
+      - run:
+          name: Install Bundler dependencies
+          command: |
+            sudo apt-get install -y cmake
+            bundle install --jobs=4 --retry=3 --path vendor/bundle
+
+      - save_cache:
+          name: Save Bundler Cache
+          paths:
+            - ./vendor/bundle
+          key: bundler-galaxy-{{ checksum "Gemfile.lock" }}
+
+      - run:
+          name: Rails tests
+          command: |
+            cp config/database.yml.ci config/database.yml
+            bundle exec rake db:create
+            bundle exec rails db:schema:load
+            bundle exec rake test
+
+  galaxy-deploy:
+    docker:
+      - image: buildpack-deps:trusty
+    working_directory: ~/repo/galaxy
+    steps:
+      - checkout:
+          path: ~/repo
+      - run:
+          name: Deploy Master to Heroku
+          command: |
+            git push https://heroku:$HEROKU_API_KEY@git.heroku.com/$HEROKU_APP_NAME.git master

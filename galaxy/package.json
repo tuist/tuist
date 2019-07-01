@@ -1,0 +1,10 @@
+{
+  "name": "galaxy",
+  "private": true,
+  "dependencies": {
+    "@rails/webpacker": "^4.0.7"
+  },
+  "devDependencies": {
+    "webpack-dev-server": "^3.7.2"
+  }
+}
