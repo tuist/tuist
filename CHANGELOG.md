@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+- `tuist graph` command https://github.com/tuist/tuist/pull/427 by @pepibumur.
+
 ### Fixed
 
 - Ensuring the correct platform SDK dependencies path is set https://github.com/tuist/tuist/pull/419 by @kwridan
