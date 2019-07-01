@@ -2,7 +2,10 @@
   "name": "galaxy",
   "private": true,
   "dependencies": {
-    "@rails/webpacker": "^4.0.7"
+    "@rails/webpacker": "^4.0.7",
+    "bootstrap": "4.0.0-beta",
+    "jquery": "^3.4.1",
+    "popper.js": "^1.15.0"
   },
   "devDependencies": {
     "webpack-dev-server": "^3.7.2"
