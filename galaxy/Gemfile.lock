@@ -76,6 +76,8 @@ GEM
     crass (1.0.4)
     erubi (1.8.0)
     execjs (2.7.0)
+    faraday (0.15.4)
+      multipart-post (>= 1.2, < 3)
     ffi (1.11.1)
     globalid (0.4.2)
       activesupport (>= 4.2.0)
@@ -106,6 +108,7 @@ GEM
     mini_portile2 (2.4.0)
     minitest (5.11.3)
     msgpack (1.2.10)
+    multipart-post (2.1.1)
     nio4r (2.3.1)
     nokogiri (1.10.3)
       mini_portile2 (~> 2.4.0)
@@ -163,6 +166,8 @@ GEM
     selenium-webdriver (3.142.3)
       childprocess (>= 0.5, < 2.0)
       rubyzip (~> 1.2, >= 1.2.2)
+    sentry-raven (2.9.0)
+      faraday (>= 0.7.6, < 1.0)
     spring (2.1.0)
     spring-watcher-listen (2.0.1)
       listen (>= 2.7, < 4.0)
@@ -216,6 +221,7 @@ DEPENDENCIES
   rails (~> 5.2.3)
   sass-rails (~> 5.0)
   selenium-webdriver
+  sentry-raven
   spring
   spring-watcher-listen (~> 2.0.0)
   turbolinks (~> 5)
