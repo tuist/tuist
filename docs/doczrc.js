@@ -59,6 +59,7 @@ export default {
     'Manifest format',
     'Dependencies',
     'Up tasks',
+    'Graph',
     'Managing versions',
     'Frequently asked questions',
     {
