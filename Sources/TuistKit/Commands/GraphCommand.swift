@@ -23,7 +23,7 @@ class GraphCommand: NSObject, Command {
 
     /// Manifest loader.
     let manifestLoader: GraphManifestLoading
-    
+
     required convenience init(parser: ArgumentParser) {
         let fileHandler = FileHandler()
         let system = System()
