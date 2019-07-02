@@ -28,11 +28,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Lint
-          command: |
-            bundle install
-            bundle exec rubocop
-      - run:
           name: Install Tuist
           command: |
             ./install/install
