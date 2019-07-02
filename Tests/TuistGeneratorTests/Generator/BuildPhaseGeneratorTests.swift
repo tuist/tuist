@@ -273,8 +273,8 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     func test_generateResourceBundle() throws {
         // Given
         let path = AbsolutePath("/path")
-        let bundle1 = Target.test(name: "Bundle1", product: .bundle)
-        let bundle2 = Target.test(name: "Bundle2", product: .bundle)
+        let bundle1 = Target.test(name: "Bundle1", product: .bundle, productName: "Bundle1")
+        let bundle2 = Target.test(name: "Bundle2", product: .bundle, productName: "Bundle2")
         let app = Target.test(name: "App", product: .app)
         let graph = Graph.create(project: .test(path: path),
                                  dependencies: [

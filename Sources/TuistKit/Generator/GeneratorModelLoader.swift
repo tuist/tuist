@@ -203,6 +203,8 @@ extension TuistGenerator.Target {
         let product = TuistGenerator.Product.from(manifest: manifest.product)
 
         let bundleId = manifest.bundleId
+        let productName = manifest.productName
+
         let dependencies = manifest.dependencies.map { TuistGenerator.Dependency.from(manifest: $0) }
 
         let infoPlist = TuistGenerator.InfoPlist.from(manifest: manifest.infoPlist, path: path)
@@ -236,6 +238,7 @@ extension TuistGenerator.Target {
         return TuistGenerator.Target(name: name,
                                      platform: platform,
                                      product: product,
+                                     productName: productName,
                                      bundleId: bundleId,
                                      infoPlist: infoPlist,
                                      entitlements: entitlements,

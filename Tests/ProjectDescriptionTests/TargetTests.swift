@@ -9,6 +9,7 @@ final class TargetTests: XCTestCase {
         let subject = Target(name: "name",
                              platform: .iOS,
                              product: .app,
+                             productName: "product_name",
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
                              sources: "sources/*",
@@ -59,6 +60,7 @@ final class TargetTests: XCTestCase {
                 }
             ],
             "product": "app",
+            "product_name": "product_name",
             "sources": [
                 {
                     "glob": "sources\\/*"
@@ -128,6 +130,7 @@ final class TargetTests: XCTestCase {
         let subject = Target(name: "name",
                              platform: .iOS,
                              product: .app,
+                             productName: "product_name",
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
                              sources: FileList(globs: ["sources/*"]),
@@ -178,6 +181,7 @@ final class TargetTests: XCTestCase {
                 }
             ],
             "product": "app",
+            "product_name": "product_name",
             "sources": [
                 {
                     "glob": "sources\\/*"

@@ -14,6 +14,7 @@ final class MockManifestTargetGenerator: ManifestTargetGenerating {
         return Target(name: name,
                       platform: .iOS,
                       product: .framework,
+                      productName: name,
                       bundleId: "io.tuist.testing",
                       infoPlist: nil,
                       filesGroup: .group(name: "Manifest"))
