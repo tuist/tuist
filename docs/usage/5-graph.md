@@ -4,7 +4,7 @@ name: Graph
 
 # Graph
 
-When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist takes provides a command, `tuist generates`, that loads your project dependencies graph and exports it in a representable format.
+When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it in a representable format.
 
 Being in a directory that contains a workspace or project manifest, run the following command:
 
@@ -12,8 +12,7 @@ Being in a directory that contains a workspace or project manifest, run the foll
 tuist graph
 ```
 
-The command will output a human-readable file, `graph.dot` that describes the dependencies graph using the [DOT](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) description language.
-
+The command will output a human-readable file, `graph.dot` that describes the dependencies graph using the [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>) description language.
 
 ## A visual representation of the graph
 

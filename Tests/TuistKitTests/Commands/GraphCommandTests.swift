@@ -59,6 +59,7 @@ final class GraphCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
+        XCTAssertEqual(try fileHandler.readTextFile(graphPath), graph)
         XCTAssertTrue(printer.printArgs.contains("Deleting existing graph at \(graphPath.pathString)"))
         XCTAssertTrue(printer.printSuccessArgs.contains("Graph exported to \(graphPath.pathString)"))
     }
