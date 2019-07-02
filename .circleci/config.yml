@@ -31,12 +31,12 @@ jobs:
       - run:
           name: Install Tuist
           command: |
-            ~/repo/install/install
+            ruby ~/repo/install/install
             tuist --help
       - run:
           name: Uninstall Tuist
           command: |
-            ~/repo/install/uninstall
+            ruby ~/repo/install/uninstall
   cli:
     macos:
       xcode: '10.2.1'
