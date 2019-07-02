@@ -1,6 +1,10 @@
 version: 2
 workflows:
   version: 2
+  install:
+    jobs:
+      - install:
+          context: tuist
   cli:
     jobs:
       - cli:
@@ -16,7 +20,27 @@ workflows:
           filters:
             branches:
               only: master
+
 jobs:
+  install:
+    macos:
+      xcode: "10.0.0"
+    steps:
+      - checkout
+      - run:
+          name: Lint
+          command: |
+            bundle install
+            bundle exec rubocop
+      - run:
+          name: Install Tuist
+          command: |
+            ./install/install
+            tuist --help
+      - run:
+          name: Uninstall Tuist
+          command: |
+            ./install/uninstall
   cli:
     macos:
       xcode: '10.2.1'
