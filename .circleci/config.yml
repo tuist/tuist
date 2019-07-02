@@ -63,7 +63,7 @@ jobs:
   # Reference https://robots.thoughtbot.com/circleci-2-rails
   galaxy:
     docker:
-      - image: circleci/ruby:2.6.0-node
+      - image: circleci/ruby:2.6.3-node
         environment:
           RAILS_ENV: test
           BUNDLER_VERSION: 2.0.1
