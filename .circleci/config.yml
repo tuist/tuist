@@ -24,18 +24,18 @@ workflows:
 jobs:
   install:
     macos:
-      xcode: "10.0.0"
+      xcode: '10.0.0'
     steps:
       - checkout
       - run:
           name: Install Tuist
           command: |
-            ./install/install
+            install/install
             tuist --help
       - run:
           name: Uninstall Tuist
           command: |
-            ./install/uninstall
+            install/uninstall
   cli:
     macos:
       xcode: '10.2.1'
