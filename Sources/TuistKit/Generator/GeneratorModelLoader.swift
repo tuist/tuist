@@ -29,12 +29,12 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
 class GeneratorModelLoader: GeneratorModelLoading {
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
-    private let manifestTargetGenerator: ManifestTargetGenerating
+    private let manifestTargetGenerator: ManifestTargetGenerating?
     private let printer: Printing
 
     init(fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
-         manifestTargetGenerator: ManifestTargetGenerating,
+         manifestTargetGenerator: ManifestTargetGenerating? = nil,
          printer: Printing = Printer()) {
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
@@ -49,10 +49,14 @@ class GeneratorModelLoader: GeneratorModelLoading {
                                                       fileHandler: fileHandler,
                                                       printer: printer)
 
-        let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
-                                                                                at: path)
+        if let manifestTargetGenerator = manifestTargetGenerator {
+            let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
+                                                                                    at: path)
+            return project.adding(target: manifestTarget)
 
-        return project.adding(target: manifestTarget)
+        } else {
+            return project
+        }
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> TuistGenerator.Workspace {

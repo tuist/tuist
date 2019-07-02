@@ -54,6 +54,10 @@ public final class MockFileHandler: FileHandling {
     public func isFolder(_ path: AbsolutePath) -> Bool {
         return fileHandler.isFolder(path)
     }
+
+    public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        return try fileHandler.write(content, path: path, atomically: atomically)
+    }
 }
 
 extension MockFileHandler {

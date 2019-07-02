@@ -295,6 +295,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             return []
         }
 
+        func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
+            // Do nothing
+        }
+
         func createFolder(_ path: AbsolutePath) throws {
             var pathSoFar = AbsolutePath("/")
             for component in path.components.dropFirst() {

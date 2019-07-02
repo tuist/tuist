@@ -10,7 +10,7 @@ protocol GraphLoading: AnyObject {
 class GraphLoader: GraphLoading {
     // MARK: - Attributes
 
-    let linter: GraphLinting
+    let linter: GraphLinting?
     let printer: Printing
     let fileHandler: FileHandling
     let modelLoader: GeneratorModelLoading
@@ -24,7 +24,7 @@ class GraphLoader: GraphLoading {
                   modelLoader: modelLoader)
     }
 
-    init(linter: GraphLinting,
+    init(linter: GraphLinting? = nil,
          printer: Printing,
          fileHandler: FileHandling,
          modelLoader: GeneratorModelLoading) {
@@ -71,6 +71,6 @@ class GraphLoader: GraphLoading {
     }
 
     private func lint(graph: Graph) throws {
-        try linter.lint(graph: graph).printAndThrowIfNeeded(printer: printer)
+        try linter?.lint(graph: graph).printAndThrowIfNeeded(printer: printer)
     }
 }

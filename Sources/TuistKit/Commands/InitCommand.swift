@@ -238,6 +238,9 @@ class InitCommand: NSObject, Command {
         ### Projects ###
         *.xcodeproj
         *.xcworkspace
+
+        ### Tuist derived files ###
+        graph.dot
         """
         try content.write(to: path.url, atomically: true, encoding: .utf8)
     }

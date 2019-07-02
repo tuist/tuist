@@ -31,7 +31,7 @@ struct DotGraph: Equatable, CustomStringConvertible {
         digraph \"\(name)\" {
         \(sortedNodes.map { "  \($0.description)" }.joined(separator: "\n"))
         
-        \(sortedDependencies.map { "  \($0.from) \(edgeCharacter) \($0.to)" }.joined(separator: "\n"))
+        \(sortedDependencies.map { "  \"\($0.from)\" \(edgeCharacter) \"\($0.to)\"" }.joined(separator: "\n"))
         }
         """
     }
