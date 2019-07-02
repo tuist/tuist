@@ -26,16 +26,17 @@ jobs:
     macos:
       xcode: '10.2.1'
     steps:
-      - checkout
+      - checkout:
+          path: ~/repo
       - run:
           name: Install Tuist
           command: |
-            install/install
+            ~/repo/install/install
             tuist --help
       - run:
           name: Uninstall Tuist
           command: |
-            install/uninstall
+            ~/repo/install/uninstall
   cli:
     macos:
       xcode: '10.2.1'
