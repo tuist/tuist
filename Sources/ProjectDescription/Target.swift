@@ -14,7 +14,7 @@ public class Target: Codable {
 
     /// Bundle identifier.
     public let bundleId: String
-    
+
     /// The name of the product output by this target.
     /// passing nil in the initialiser will default
     /// this value to the name of the target.

@@ -174,7 +174,7 @@ final class ConfigGenerator: ConfigGenerating {
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
         }
-        
+
         settings["PRODUCT_NAME"] = target.productName
 
         if target.product.testsBundle {
