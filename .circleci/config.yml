@@ -144,6 +144,11 @@ jobs:
             bundle exec rails db:schema:load
             bundle exec rake test
 
+      - run:
+          name: Javascript tests
+          command: |
+            yarn test
+
   galaxy-deploy:
     docker:
       - image: buildpack-deps:trusty

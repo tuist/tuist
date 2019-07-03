@@ -2,7 +2,8 @@
   "name": "galaxy",
   "private": true,
   "scripts": {
-    "storybook": "start-storybook"
+    "storybook": "start-storybook",
+    "test": "jest"
   },
   "dependencies": {
     "@rails/webpacker": "^4.0.7",
