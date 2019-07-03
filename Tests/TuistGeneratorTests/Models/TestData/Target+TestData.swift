@@ -36,7 +36,7 @@ extension Target {
                       filesGroup: filesGroup,
                       dependencies: dependencies)
     }
-    
+
     /// Creates a bare bones Target with as little data as possible
     static func empty(name: String = "Target",
                       platform: [Platform] = [.iOS],
@@ -69,5 +69,4 @@ extension Target {
                       filesGroup: filesGroup,
                       dependencies: dependencies)
     }
-    
 }

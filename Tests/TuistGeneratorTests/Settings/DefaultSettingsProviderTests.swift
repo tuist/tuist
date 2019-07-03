@@ -355,7 +355,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         // Then
         XCTAssertEqual(got.count, 0)
     }
-    
+
     let targetMultiPlatformSettingsForMacOSiOS = [
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=macosx*]": "DEBUG",
         "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer",
@@ -380,18 +380,18 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "SWIFT_COMPILATION_MODE[sdk=iphonesimulator*]": "singlefile",
         "SWIFT_OPTIMIZATION_LEVEL[sdk=iphoneos*]": "-Onone",
         "LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]": "$(inherited) @executable_path/Frameworks",
-        "SWIFT_COMPILATION_MODE[sdk=macosx*]": "singlefile"
+        "SWIFT_COMPILATION_MODE[sdk=macosx*]": "singlefile",
     ]
-    
+
     func testTargetSettings_when_multi_platform() {
         // Given
 
         let target = Target.test(platform: [.iOS, .macOS])
-        
+
         // When
         let got = subject.targetSettings(target: target,
                                          buildConfiguration: .debug)
-        
+
         // Then
         XCTAssertDictionary(got, containsAll: targetMultiPlatformSettingsForMacOSiOS)
     }

@@ -190,7 +190,6 @@ extension TuistGenerator.Project {
 }
 
 extension TuistGenerator.Target {
-
     static func from(manifest: ProjectDescription.Target,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
@@ -246,37 +245,30 @@ extension TuistGenerator.Target {
                                      filesGroup: .group(name: "Project"),
                                      dependencies: dependencies)
     }
-    
-
-    
 }
 
 extension Array where Element == TuistGenerator.Platform {
-    
     static func from(manifest platform: ProjectDescription.Platform) throws -> [TuistGenerator.Platform] {
-        
-        var platforms: [TuistGenerator.Platform] = [ ]
-        
+        var platforms: [TuistGenerator.Platform] = []
+
         if platform.contains(.iOS) {
             platforms.append(.iOS)
         }
-        
+
         if platform.contains(.macOS) {
             platforms.append(.macOS)
         }
-        
+
         if platform.contains(.tvOS) {
             platforms.append(.tvOS)
         }
-        
+
         if platform.contains(.watchOS) {
             throw GeneratorModelLoaderError.featureNotYetSupported("watchOS platform")
         }
-        
+
         return platforms
-        
     }
-    
 }
 
 extension TuistGenerator.InfoPlist {

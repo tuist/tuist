@@ -32,7 +32,7 @@ public class Target: Equatable {
     public let filesGroup: ProjectGroup
 
     // MARK: - Init
-    
+
     public init(name: String,
                 platform: [Platform],
                 product: Product,

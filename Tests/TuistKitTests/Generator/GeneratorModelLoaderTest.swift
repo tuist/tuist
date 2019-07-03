@@ -534,9 +534,8 @@ class GeneratorModelLoaderTest: XCTestCase {
                 line: UInt = #line) {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
-        
+
         for platform in target.platform {
-            
             switch platform {
             case .iOS:
                 XCTAssertTrue(manifest.platform.contains(.iOS), file: file, line: line)
@@ -545,7 +544,6 @@ class GeneratorModelLoaderTest: XCTestCase {
             case .tvOS:
                 XCTAssertTrue(manifest.platform.contains(.tvOS), file: file, line: line)
             }
-            
         }
 
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)

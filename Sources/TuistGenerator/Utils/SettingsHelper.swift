@@ -4,9 +4,9 @@ import XcodeProj
 final class SettingsHelper {
     func extend(buildSettings: inout [String: Any], with other: [String: Any], sdk: String? = nil) {
         other.forEach { _key, value in
-            
+
             let key: String
-            
+
             if let sdk = sdk {
                 key = "\(_key)[sdk=\(sdk)*]"
             } else {

@@ -60,7 +60,7 @@ class TargetNode: GraphNode {
         }
 
         let dependencies: [GraphNode] = try target.dependencies.flatMap { dependency in
-            return try target.platform.map { platform in
+            try target.platform.map { platform in
                 try node(for: dependency,
                          path: path,
                          name: name,
