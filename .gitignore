@@ -98,7 +98,6 @@ Carthage/Checkouts
 *.profraw
 tuist.zip
 build/
-tuistenv
 TODO
 TODO.md
 mkmf.log
