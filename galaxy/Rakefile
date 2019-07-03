@@ -5,4 +5,8 @@
 
 require_relative 'config/application'
 
+task :start do
+  system("bundle exec foreman start -f config/Procfile.dev") || abort
+end
+
 Rails.application.load_tasks
