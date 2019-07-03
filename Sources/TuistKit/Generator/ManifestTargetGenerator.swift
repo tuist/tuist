@@ -24,7 +24,7 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
                                 defaultSettings: .recommended)
         let manifest = try manifestLoader.manifestPath(at: path, manifest: .project)
         return Target(name: "\(project)-Manifest",
-                      platform: .macOS,
+                      platform: [.macOS],
                       product: .staticFramework,
                       bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
                       settings: settings,

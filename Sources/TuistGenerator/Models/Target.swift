@@ -32,38 +32,6 @@ public class Target: Equatable {
     public let filesGroup: ProjectGroup
 
     // MARK: - Init
-
-    public init(name: String,
-                platform: Platform,
-                product: Product,
-                bundleId: String,
-                infoPlist: InfoPlist? = nil,
-                entitlements: AbsolutePath? = nil,
-                settings: Settings? = nil,
-                sources: [SourceFile] = [],
-                resources: [FileElement] = [],
-                headers: Headers? = nil,
-                coreDataModels: [CoreDataModel] = [],
-                actions: [TargetAction] = [],
-                environment: [String: String] = [:],
-                filesGroup: ProjectGroup,
-                dependencies: [Dependency] = []) {
-        self.name = name
-        self.product = product
-        self.platform = [ platform ]
-        self.bundleId = bundleId
-        self.infoPlist = infoPlist
-        self.entitlements = entitlements
-        self.settings = settings
-        self.sources = sources
-        self.resources = resources
-        self.headers = headers
-        self.coreDataModels = coreDataModels
-        self.actions = actions
-        self.environment = environment
-        self.filesGroup = filesGroup
-        self.dependencies = dependencies
-    }
     
     public init(name: String,
                 platform: [Platform],
