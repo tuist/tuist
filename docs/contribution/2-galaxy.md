@@ -16,6 +16,12 @@ Galaxy is a [Rails](https://rubyonrails.org/) application that exposes a [GraphQ
 - Install NPM dependencies: `yarn install`.
 - Run: `rails start`.
 
+## Storybook
+
+The project has [Storybook](https://storybook.js.org/) configured, a Javascript tool to create a catalogue for the project components. The catalogue entries are called stories, and they are defined in the directory `stories/`.
+
+To run the catalogue, just run the command `yarn storybook` in your terminal. That'll transpile the catalogue and open the browser with it.
+
 ## Useful commands
 
 - `rails db:drop`: Deletes the database.

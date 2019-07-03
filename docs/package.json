@@ -1,7 +1,5 @@
 {
-  "devDependencies": {
-    "react-hot-loader": "^4.9.0"
-  },
+  "devDependencies": {},
   "scripts": {
     "docz:dev": "docz dev",
     "docz:build": "docz build"
