@@ -108,7 +108,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
 
     private func createAppTarget(settings: Settings?, dependencies: [String]) -> Target {
         return Target(name: "AppTarget",
-                      platform: .iOS,
+                      platform: [.iOS],
                       product: .app,
                       bundleId: "test.bundle",
                       settings: settings,
@@ -184,7 +184,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
 
     private func createFrameworkTarget(name: String, depenendencies: [Dependency] = []) throws -> Target {
         return Target(name: name,
-                      platform: .iOS,
+                      platform: [.iOS],
                       product: .framework,
                       bundleId: "test.bundle.\(name)",
                       settings: nil,

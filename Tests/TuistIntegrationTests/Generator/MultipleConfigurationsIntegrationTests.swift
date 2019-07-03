@@ -334,7 +334,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
 
     private func createAppTarget(settings: Settings?) -> Target {
         return Target(name: "AppTarget",
-                      platform: .iOS,
+                      platform: [.iOS],
                       product: .app,
                       bundleId: "test.bundle",
                       settings: settings,

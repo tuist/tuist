@@ -12,7 +12,7 @@ final class MockManifestTargetGenerator: ManifestTargetGenerating {
 
     private func dummyTarget(name: String) -> Target {
         return Target(name: name,
-                      platform: .iOS,
+                      platform: [.iOS],
                       product: .framework,
                       bundleId: "io.tuist.testing",
                       infoPlist: nil,
