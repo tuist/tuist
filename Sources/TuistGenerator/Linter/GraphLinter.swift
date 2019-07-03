@@ -104,22 +104,39 @@ class GraphLinter: GraphLinting {
                                 to: TargetNode,
                                 linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-
-        // TODO FIX LINTINGsupported
-        let fromTarget = LintableTarget(platform: from.target.platform.first!,
-                                        product: from.target.product)
-        let toTarget = LintableTarget(platform: to.target.platform.first!,
-                                      product: to.target.product)
-
-        if !GraphLinter.validLinks.keys.contains(fromTarget) {
-            let reason = "Target \(from.target.name) has a platform '\(from.target.platform.map(\.rawValue))' and product '\(from.target.product)' invalid or not supported yet."
-            let issue = LintingIssue(reason: reason, severity: .error)
-            issues.append(issue)
+        
+        var validLinks: [Bool] = [ ]
+        
+        for fromPlatform in from.target.platform {
+            
+            let fromTarget = LintableTarget(platform: fromPlatform,
+                                            product: from.target.product)
+            
+            if !GraphLinter.validLinks.keys.contains(fromTarget) {
+                let reason = "Target \(from.target.name) has a platform '\(fromPlatform.caseValue)' and product '\(from.target.product)' invalid or not supported yet."
+                let issue = LintingIssue(reason: reason, severity: .error)
+                issues.append(issue)
+            }
+            
+            for toPlatform in to.target.platform {
+                
+                let toTarget = LintableTarget(platform: toPlatform,
+                                              product: to.target.product)
+  
+                let supportedTargets = GraphLinter.validLinks[fromTarget]!
+                
+                if supportedTargets.contains(toTarget) {
+                    validLinks.append(true)
+                } else {
+                    validLinks.append(false)
+                }
+                
+            }
+            
         }
-        let supportedTargets = GraphLinter.validLinks[fromTarget]!
-
-        if !supportedTargets.contains(toTarget) {
-            let reason = "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform.map(\.caseValue))' which is invalid or not supported yet."
+        
+        if validLinks.contains(true) == false {
+            let reason = "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for the platforms '\(to.target.platform.map(\.caseValue))' which is invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }

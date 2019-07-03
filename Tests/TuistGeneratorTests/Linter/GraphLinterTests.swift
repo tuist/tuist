@@ -205,8 +205,8 @@ final class GraphLinterTests: XCTestCase {
         // Then
         let sortedResults = result.sorted { $0.reason < $1.reason }
         XCTAssertEqual(sortedResults, [
-            LintingIssue(reason: "Target staticFramework has a dependency with target bundle of type bundle for platform '[\"iOS\"]' which is invalid or not supported yet.", severity: .error),
-            LintingIssue(reason: "Target staticLibrary has a dependency with target bundle of type bundle for platform '[\"iOS\"]' which is invalid or not supported yet.", severity: .error),
+            LintingIssue(reason: "Target staticFramework has a dependency with target bundle of type bundle for the platforms '[\"iOS\"]' which is invalid or not supported yet.", severity: .error),
+            LintingIssue(reason: "Target staticLibrary has a dependency with target bundle of type bundle for the platforms '[\"iOS\"]' which is invalid or not supported yet.", severity: .error),
         ])
     }
 }

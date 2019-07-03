@@ -197,7 +197,7 @@ final class ConfigGeneratorTests: XCTestCase {
     private func generateTestTargetConfig(uiTest: Bool = false) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
 
-        let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
+        let appTarget = Target.test(name: "App", platform: [.iOS], product: .app)
 
         let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir.path, name: "Project", targets: [target])

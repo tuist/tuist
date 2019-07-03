@@ -24,7 +24,7 @@ final class ProjectGeneratorTests: XCTestCase {
 
     func test_generate() throws {
         // Given
-        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let target = Target.test(name: "Target", platform: [.iOS], product: .framework)
         let targets = [target]
         let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets)
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
@@ -50,7 +50,7 @@ final class ProjectGeneratorTests: XCTestCase {
 
     func test_generate_scheme() throws {
         // Given
-        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let target = Target.test(name: "Target", platform: [.iOS], product: .framework)
         let sharedScheme = Scheme.test(name: "Target-Scheme", shared: true, buildAction: BuildAction(targets: ["Target"]))
 
         let targets = [target]
@@ -78,7 +78,7 @@ final class ProjectGeneratorTests: XCTestCase {
 
     func test_generate_local_scheme() throws {
         // Given
-        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let target = Target.test(name: "Target", platform: [.iOS], product: .framework)
         let localScheme = Scheme.test(name: "Target-Local", shared: false, buildAction: BuildAction(targets: ["Target"]))
 
         let targets = [target]
@@ -108,10 +108,10 @@ final class ProjectGeneratorTests: XCTestCase {
     func test_generate_testTargetIdentity() throws {
         // Given
         let app = Target.test(name: "App",
-                              platform: .iOS,
+                              platform: [.iOS],
                               product: .app)
         let test = Target.test(name: "Tests",
-                               platform: .iOS,
+                               platform: [.iOS],
                                product: .unitTests)
         let project = Project.test(path: fileHandler.currentPath,
                                    name: "Project",

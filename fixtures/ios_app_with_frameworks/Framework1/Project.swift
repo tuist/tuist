@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(name: "Framework1",
                       targets: [
                           Target(name: "Framework1",
-                                 platform: .iOS, .macOS,
+                                 platform: [ .iOS, .macOS ],
                                  product: .framework,
                                  bundleId: "io.tuist.Framework1",
                                  infoPlist: "Config/Framework1-Info.plist",
@@ -13,7 +13,7 @@ let project = Project(name: "Framework1",
                           ]),
 
                           Target(name: "Framework1Tests",
-                                 platform: .iOS,
+                                 platform: [ .iOS, .macOS ],
                                  product: .unitTests,
                                  bundleId: "io.tuist.Framework1Tests",
                                  infoPlist: "Config/Framework1Tests-Info.plist",

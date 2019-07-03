@@ -395,7 +395,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_platform_watchOSNotSupported() {
         XCTAssertThrowsError(
-            try TuistGenerator.Platform.from(manifest: .watchOS)
+            try [TuistGenerator.Platform].from(manifest: .watchOS)
         ) { error in
             XCTAssertEqual(error as? GeneratorModelLoaderError, GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
         }
@@ -534,7 +534,20 @@ class GeneratorModelLoaderTest: XCTestCase {
                 line: UInt = #line) {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
-        XCTAssertTrue(target.platform.map(\.rawValue) == manifest.platform.map(\.rawValue), file: file, line: line)
+        
+        for platform in target.platform {
+            
+            switch platform {
+            case .iOS:
+                XCTAssertTrue(manifest.platform.contains(.iOS), file: file, line: line)
+            case .macOS:
+                XCTAssertTrue(manifest.platform.contains(.macOS), file: file, line: line)
+            case .tvOS:
+                XCTAssertTrue(manifest.platform.contains(.tvOS), file: file, line: line)
+            }
+            
+        }
+
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(target.infoPlist?.path, path.appending(RelativePath(manifest.infoPlist.path)), file: file, line: line)
         XCTAssertEqual(target.entitlements, manifest.entitlements.map { path.appending(RelativePath($0)) }, file: file, line: line)

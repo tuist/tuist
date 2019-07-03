@@ -190,12 +190,13 @@ extension TuistGenerator.Project {
 }
 
 extension TuistGenerator.Target {
+
     static func from(manifest: ProjectDescription.Target,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
                      printer: Printing) throws -> TuistGenerator.Target {
         let name = manifest.name
-        let platform = try manifest.platform.map(TuistGenerator.Platform.from)
+        let platform = try [TuistGenerator.Platform].from(manifest: manifest.platform)
         let product = TuistGenerator.Product.from(manifest: manifest.product)
 
         let bundleId = manifest.bundleId
@@ -245,6 +246,37 @@ extension TuistGenerator.Target {
                                      filesGroup: .group(name: "Project"),
                                      dependencies: dependencies)
     }
+    
+
+    
+}
+
+extension Array where Element == TuistGenerator.Platform {
+    
+    static func from(manifest platform: ProjectDescription.Platform) throws -> [TuistGenerator.Platform] {
+        
+        var platforms: [TuistGenerator.Platform] = [ ]
+        
+        if platform.contains(.iOS) {
+            platforms.append(.iOS)
+        }
+        
+        if platform.contains(.macOS) {
+            platforms.append(.macOS)
+        }
+        
+        if platform.contains(.tvOS) {
+            platforms.append(.tvOS)
+        }
+        
+        if platform.contains(.watchOS) {
+            throw GeneratorModelLoaderError.featureNotYetSupported("watchOS platform")
+        }
+        
+        return platforms
+        
+    }
+    
 }
 
 extension TuistGenerator.InfoPlist {
@@ -471,21 +503,6 @@ extension TuistGenerator.Product {
             return .unitTests
         case .uiTests:
             return .uiTests
-        }
-    }
-}
-
-extension TuistGenerator.Platform {
-    static func from(manifest: ProjectDescription.Platform) throws -> TuistGenerator.Platform {
-        switch manifest {
-        case .macOS:
-            return .macOS
-        case .iOS:
-            return .iOS
-        case .tvOS:
-            return .tvOS
-        case .watchOS:
-            throw GeneratorModelLoaderError.featureNotYetSupported("watchOS platform")
         }
     }
 }

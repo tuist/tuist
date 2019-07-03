@@ -355,4 +355,44 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         // Then
         XCTAssertEqual(got.count, 0)
     }
+    
+    let targetMultiPlatformSettingsForMacOSiOS = [
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=macosx*]": "DEBUG",
+        "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer",
+        "SDKROOT[sdk=macosx*]": "macosx",
+        "COMBINE_HIDPI_IMAGES[sdk=macosx*]": "YES",
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]": "AppIcon",
+        "TARGETED_DEVICE_FAMILY[sdk=iphonesimulator*]": "1,2",
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]": "DEBUG",
+        "LD_RUNPATH_SEARCH_PATHS[sdk=iphoneos*]": "$(inherited) @executable_path/Frameworks",
+        "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "iPhone Developer",
+        "SDKROOT[sdk=iphoneos*]": "iphoneos",
+        "SWIFT_OPTIMIZATION_LEVEL[sdk=iphonesimulator*]": "-Onone",
+        "SWIFT_COMPILATION_MODE[sdk=iphoneos*]": "singlefile",
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": "-",
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]": "DEBUG",
+        "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "$(inherited) @executable_path/../Frameworks",
+        "SWIFT_OPTIMIZATION_LEVEL[sdk=macosx*]": "-Onone",
+        "TARGETED_DEVICE_FAMILY[sdk=iphoneos*]": "1,2",
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]": "AppIcon",
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]": "AppIcon",
+        "SDKROOT[sdk=iphonesimulator*]": "iphoneos",
+        "SWIFT_COMPILATION_MODE[sdk=iphonesimulator*]": "singlefile",
+        "SWIFT_OPTIMIZATION_LEVEL[sdk=iphoneos*]": "-Onone",
+        "LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]": "$(inherited) @executable_path/Frameworks",
+        "SWIFT_COMPILATION_MODE[sdk=macosx*]": "singlefile"
+    ]
+    
+    func testTargetSettings_when_multi_platform() {
+        // Given
+
+        let target = Target.test(platform: [.iOS, .macOS])
+        
+        // When
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: .debug)
+        
+        // Then
+        XCTAssertDictionary(got, containsAll: targetMultiPlatformSettingsForMacOSiOS)
+    }
 }

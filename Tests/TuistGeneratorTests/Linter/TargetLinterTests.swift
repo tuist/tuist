@@ -93,7 +93,7 @@ final class TargetLinterTests: XCTestCase {
 
     func test_lint_when_ios_bundle_has_sources() {
         // Given
-        let bundle = Target.empty(platform: .iOS,
+        let bundle = Target.empty(platform: [.iOS],
                                   product: .bundle,
                                   sources: [
                                       (path: "/path/to/some/source.swift", compilerFlags: nil),
@@ -106,13 +106,13 @@ final class TargetLinterTests: XCTestCase {
         // Then
         let sortedResults = result.sorted(by: { $0.reason < $1.reason })
         XCTAssertEqual(sortedResults, [
-            LintingIssue(reason: "Target \(bundle.name) cannot contain sources. [iOS] bundle targets don't support source files", severity: .error),
+            LintingIssue(reason: "Target \(bundle.name) cannot contain sources. [\"iOS\"] bundle targets don't support source files", severity: .error),
         ])
     }
 
     func test_lint_valid_ios_bundle() {
         // Given
-        let bundle = Target.empty(platform: .iOS,
+        let bundle = Target.empty(platform: [.iOS],
                                   product: .bundle,
                                   resources: [
                                       .file(path: "/path/to/some/asset.png"),

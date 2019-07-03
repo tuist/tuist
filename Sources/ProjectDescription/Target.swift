@@ -7,7 +7,7 @@ public class Target: Codable {
     public let name: String
 
     /// Product platform.
-    public let platform: [Platform]
+    public let platform: Platform
 
     /// Product type.
     public let product: Product
@@ -80,7 +80,7 @@ public class Target: Codable {
     ///   - coreDataModels: CoreData models.
     ///   - environment: Environment variables to be exposed to the target.
     public init(name: String,
-                platform: Platform...,
+                platform: Platform,
                 product: Product,
                 bundleId: String,
                 infoPlist: InfoPlist,

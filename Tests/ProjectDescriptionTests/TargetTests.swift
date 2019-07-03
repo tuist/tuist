@@ -88,7 +88,7 @@ final class TargetTests: XCTestCase {
                     "pattern": "resources\\/*"
                 }
             ],
-            "platform": [ "ios" ],
+            "platform": 1,
             "entitlements": "entitlement",
             "info_plist": {
                 "type": "file",
@@ -207,7 +207,7 @@ final class TargetTests: XCTestCase {
                     "pattern": "resources\\/*"
                 }
             ],
-            "platform": [ "ios" ],
+            "platform": 1,
             "entitlements": "entitlement",
             "info_plist": {
                 "type": "file",

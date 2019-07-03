@@ -227,7 +227,7 @@ final class ProjectFileElementsTests: XCTestCase {
         )
 
         let target = Target.test(name: "name",
-                                 platform: .iOS,
+                                 platform: [.iOS],
                                  product: .app,
                                  bundleId: "com.bundle.id",
                                  infoPlist: .file(path: AbsolutePath("/project/info.plist")),

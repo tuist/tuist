@@ -238,7 +238,7 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_schemeLaunchAction_when_notRunnableTarget() {
-        let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
+        let target = Target.test(name: "Library", platform: [.iOS], product: .dynamicLibrary)
         let pbxTarget = PBXNativeTarget(name: "App")
 
         let buildAction = BuildAction.test(targets: ["Library"])
@@ -261,7 +261,7 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_schemeProfileAction_when_runnableTarget() {
-        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let target = Target.test(name: "App", platform: [.iOS], product: .app)
         let scheme = Scheme.test()
         let pbxTarget = PBXNativeTarget(name: "App")
         let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
@@ -292,7 +292,7 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_schemeProfileAction_when_notRunnableTarget() {
-        let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
+        let target = Target.test(name: "Library", platform: [.iOS], product: .dynamicLibrary)
 
         let buildAction = BuildAction.test(targets: ["Library"])
         let testAction = TestAction.test(targets: ["Library"])

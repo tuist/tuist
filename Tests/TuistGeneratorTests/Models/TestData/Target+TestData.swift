@@ -6,7 +6,7 @@ extension Target {
     /// Creates a Target with test data
     /// Note: Referenced paths may not exist
     static func test(name: String = "Target",
-                     platform: Platform = .iOS,
+                     platform: [Platform] = [.iOS],
                      product: Product = .app,
                      bundleId: String = "com.test.bundle_id",
                      infoPlist: InfoPlist? = .file(path: AbsolutePath("/Info.plist")),
@@ -21,7 +21,7 @@ extension Target {
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
-                      platform: [ platform ],
+                      platform: platform,
                       product: product,
                       bundleId: bundleId,
                       infoPlist: infoPlist,
@@ -39,7 +39,7 @@ extension Target {
     
     /// Creates a bare bones Target with as little data as possible
     static func empty(name: String = "Target",
-                      platform: Platform = .iOS,
+                      platform: [Platform] = [.iOS],
                       product: Product = .app,
                       bundleId: String = "com.test.bundleId",
                       infoPlist: InfoPlist? = nil,
@@ -54,7 +54,7 @@ extension Target {
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       dependencies: [Dependency] = []) -> Target {
         return Target(name: name,
-                      platform: [platform],
+                      platform: platform,
                       product: product,
                       bundleId: bundleId,
                       infoPlist: infoPlist,
