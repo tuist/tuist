@@ -15,7 +15,7 @@
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "files.exclude": {
-    "**/.git*": true,
+    "**/.git": true,
     "**/node_modules": true,
     "**/.DS_Store": true
   }

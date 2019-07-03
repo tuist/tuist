@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 if ENV.key?("SENTRY_DSN")
   Raven.configure do |config|
     config.dsn = ENV["SENTRY_DSN"]

@@ -14,26 +14,26 @@ TUIST_API_URL = "https://api.github.com/repos/#{TUIST_REPOSITORY}"
 TUIST_RELEASES_URL = "#{TUIST_API_URL}/releases/latest"
 
 module Tty
-  module_function
+  extend self
 
   def blue
-    bold 34
+    bold(34)
   end
 
   def red
-    bold 31
+    bold(31)
   end
 
   def reset
-    escape 0
+    escape(0)
   end
 
   def bold(code = 39)
-    escape "1;#{code}"
+    escape("1;#{code}")
   end
 
   def underline
-    escape '4;39'
+    escape('4;39')
   end
 
   def escape(code)
@@ -45,7 +45,7 @@ class Array
   def shell_s
     cp = dup
     first = cp.shift
-    cp.map { |arg| arg.gsub ' ', '\\ ' }.unshift(first).join(' ')
+    cp.map { |arg| arg.gsub(' ', '\\ ') }.unshift(first).join(' ')
   end
 end
 
@@ -58,24 +58,24 @@ def warn(warning)
 end
 
 def system(*args)
-  abort "Failed during: #{args.shell_s}" unless Kernel.system(*args)
+  abort("Failed during: #{args.shell_s}") unless Kernel.system(*args)
 end
 
 def sudo(*args)
   args.unshift('-A') unless ENV['SUDO_ASKPASS'].nil?
-  ohai '/usr/bin/sudo', *args
-  system '/usr/bin/sudo', *args
+  ohai('/usr/bin/sudo', *args)
+  system('/usr/bin/sudo', *args)
 end
 
 def getc
-  system '/bin/stty raw -echo'
+  system('/bin/stty raw -echo')
   if STDIN.respond_to?(:getbyte)
     STDIN.getbyte
   else
     STDIN.getc
   end
 ensure
-  system '/bin/stty -raw echo'
+  system('/bin/stty -raw echo')
 end
 
 def wait_for_user
@@ -104,11 +104,11 @@ def force_curl?
 end
 
 def macos_version
-  @macos_version ||= Version.new(`/usr/bin/sw_vers -productVersion`.chomp[/10\.\d+/])
+  @macos_version ||= Version.new(%x(/usr/bin/sw_vers -productVersion).chomp[/10\.\d+/])
 end
 
 def command_line_tools_path
-  path = (`/usr/bin/xcode-select --print-path`).strip
+  path = %x(/usr/bin/xcode-select --print-path).strip
   path.empty? ? "/Library/Developer/CommandLineTools" : path
 end
 
@@ -120,41 +120,41 @@ def should_install_command_line_tools?
 end
 
 # Invalidate sudo timestamp before exiting (if it wasn't active before).
-Kernel.system '/usr/bin/sudo -n -v 2>/dev/null'
-at_exit { Kernel.system '/usr/bin/sudo', '-k' } unless $CHILD_STATUS.success?
+Kernel.system('/usr/bin/sudo -n -v 2>/dev/null')
+at_exit { Kernel.system('/usr/bin/sudo', '-k') } unless $CHILD_STATUS.success?
 
 # The block form of Dir.chdir fails later if Dir.CWD doesn't exist which I
 # guess is fair enough. Also sudo prints a warning message for no good reason
-Dir.chdir '/usr'
+Dir.chdir('/usr')
 
 ####################################################################### Script
-abort 'Tuist is not available for Linux platforms' if RUBY_PLATFORM.to_s.downcase.include?('linux')
-abort "Don't run this as root!" if Process.uid.zero?
+abort('Tuist is not available for Linux platforms') if RUBY_PLATFORM.to_s.downcase.include?('linux')
+abort("Don't run this as root!") if Process.uid.zero?
 
-ohai 'Installing Tuist'
+ohai('Installing Tuist')
 
 if should_install_command_line_tools?
-  ohai 'Searching online for the Command Line Tools'
+  ohai('Searching online for the Command Line Tools')
   # This temporary file prompts the 'softwareupdate' utility to list the Command Line Tools
   clt_placeholder = '/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress'
-  sudo '/usr/bin/touch', clt_placeholder
-  clt_label = `/usr/sbin/softwareupdate -l | grep -B 1 -E "Command Line (Developer|Tools)" | awk -F"*" '/^ +\\*/ {print $2}' | sed 's/^ *//' | tail -n1`.chomp
-  ohai "Installing #{clt_label}"
-  sudo '/usr/sbin/softwareupdate', '-i', clt_label
-  sudo '/bin/rm', '-f', clt_placeholder
-  sudo '/usr/bin/xcode-select', '--switch', command_line_tools_path
+  sudo('/usr/bin/touch', clt_placeholder)
+  clt_label = %x(/usr/sbin/softwareupdate -l | grep -B 1 -E "Command Line (Developer|Tools)" | awk -F"*" '/^ +\\*/ {print $2}' | sed 's/^ *//' | tail -n1).chomp
+  ohai("Installing #{clt_label}")
+  sudo('/usr/sbin/softwareupdate', '-i', clt_label)
+  sudo('/bin/rm', '-f', clt_placeholder)
+  sudo('/usr/bin/xcode-select', '--switch', command_line_tools_path)
 end
 
 # Headless install may have failed, so fallback to original 'xcode-select' method
 if should_install_command_line_tools? && STDIN.tty?
-  ohai 'Installing the Command Line Tools (expect a GUI popup):'
-  sudo '/usr/bin/xcode-select', '--install'
+  ohai('Installing the Command Line Tools (expect a GUI popup):')
+  sudo('/usr/bin/xcode-select', '--install')
   puts 'Press any key when the installation has completed.'
   getc
-  sudo '/usr/bin/xcode-select', '--switch', command_line_tools_path
+  sudo('/usr/bin/xcode-select', '--switch', command_line_tools_path)
 end
 
-abort <<~EOABORT if `/usr/bin/xcrun clang 2>&1` =~ /license/ && !$CHILD_STATUS.success?
+abort(<<~EOABORT) if %x(/usr/bin/xcrun clang 2>&1) =~ /license/ && !$CHILD_STATUS.success?
   You have not agreed to the Xcode license.
   Before running the installer again please agree to the license by opening
   Xcode.app or running:
@@ -172,16 +172,16 @@ begin
   uncompressed_path = File.join(tmp_dir, 'tuistenv')
   installation_path = File.join('/usr', 'local', 'bin', 'tuist')
 
-  system 'curl', '-LSs', '--output', download_path, download_url
-  system "unzip -o #{download_path} -d #{uncompressed_path} > /dev/null"
-  system 'mv', File.join(uncompressed_path, 'tuistenv'), installation_path
-  system 'chmod', '+x', installation_path
+  system('curl', '-LSs', '--output', download_path, download_url)
+  system("unzip -o #{download_path} -d #{uncompressed_path} > /dev/null")
+  system('mv', File.join(uncompressed_path, 'tuistenv'), installation_path)
+  system('chmod', '+x', installation_path)
 ensure
   # remove the directory.
-  FileUtils.remove_entry tmp_dir
+  FileUtils.remove_entry(tmp_dir)
 end
 
-ohai 'Tuist installed 🎉'
+ohai('Tuist installed 🎉')
 
 puts '- Run `tuist --help` to get started'
 puts '- Further documentation: '
