@@ -24,7 +24,7 @@ final class ManifestTargetGeneratorTests: XCTestCase {
         let target = try subject.generateManifestTarget(for: "MyProject", at: path)
 
         // Then
-        XCTAssertEqual(target.name, "MyProject-Manifest")
+        XCTAssertEqual(target.name, "MyProject_Manifest")
         XCTAssertEqual(target.product, .staticFramework)
         XCTAssertEqual(target.sources.map { $0.path.pathString }, ["/test/Project.swift"])
         XCTAssertNil(target.infoPlist)
