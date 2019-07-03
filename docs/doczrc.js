@@ -1,4 +1,4 @@
-import doczPluginNetlify from "docz-plugin-netlify";
+import doczPluginNetlify from 'docz-plugin-netlify'
 
 export default {
   title: 'Tuist Documentation',
@@ -27,15 +27,15 @@ export default {
       width: 100,
     },
     styles: {
-      "body": `
+      body: `
         font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, Verdana, sans-serif;
       `,
       code: `
         font-size: 13px;
         font-family: Menlo, Consolas, Monaco, "Courier New", monospace, serif;
         background-color: white;
-      `
-    }
+      `,
+    },
   },
   public: './public',
   htmlContext: {
@@ -66,6 +66,7 @@ export default {
       name: 'Contributors',
       menu: [
         'Getting started',
+        'Galaxy',
         'Code of conduct',
         'Changelog guidelines',
         'Core team',
