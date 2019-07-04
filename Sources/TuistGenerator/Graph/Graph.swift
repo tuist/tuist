@@ -165,7 +165,7 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter(isStaticLibrary)
-            .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+            .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
     }
 
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -203,7 +203,7 @@ class Graph: Graphing {
 
         if targetNode.target.canLinkStaticProducts() {
             let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
-                .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+                .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
 
             references.append(contentsOf: staticLibraries)
         }
@@ -212,7 +212,7 @@ class Graph: Graphing {
 
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
-            .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+            .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
 
         references.append(contentsOf: dynamicLibrariesAndFrameworks)
 
@@ -275,7 +275,7 @@ class Graph: Graphing {
 
         /// Other targets' frameworks.
         let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
-            .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+            .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
 
         references.append(contentsOf: otherTargetFrameworks)
 

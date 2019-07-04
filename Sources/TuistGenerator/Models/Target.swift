@@ -139,7 +139,7 @@ public class Target: Equatable, Hashable {
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment
     }
-    
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name)
         hasher.combine(platform)
