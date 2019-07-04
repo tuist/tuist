@@ -11,7 +11,7 @@ let project = Project(
                infoPlist: "Config/Framework1-Info.plist",
                sources: "Sources/**",
                dependencies: [
-                   .framework(path: "../Framework2/prebuilt/Framework2.framework"),
+                   .framework(path: "../Framework2/prebuilt/iOS/Framework2.framework"),
         ]),
         Target(name: "Framework1-macOS",
                platform: .macOS,
@@ -21,7 +21,7 @@ let project = Project(
                infoPlist: "Config/Framework1-Info.plist",
                sources: "Sources/**",
                dependencies: [
-                
+                .framework(path: "../Framework2/prebuilt/Mac/Framework2.framework"),
             ]),
         Target(name: "Framework1Tests-iOS",
                platform: .iOS,
