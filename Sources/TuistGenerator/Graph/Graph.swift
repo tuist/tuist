@@ -102,7 +102,6 @@ protocol Graphing: AnyObject, Encodable {
     /// up a graph of dependencies to later be used to define the "Link Binary with Library" in an xcodeproj.
 
     func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T>
-
 }
 
 class Graph: Graphing {
@@ -266,7 +265,7 @@ class Graph: Graphing {
         }
 
         var references: [DependencyReference] = []
-        
+
         let isDynamicAndLinkable = and(frameworkUsesDynamicLinking(system: system), frameworkArchitechtureMatchesTargetPlatform(targetNode: targetNode, system: system))
 
         /// Precompiled frameworks
@@ -276,7 +275,7 @@ class Graph: Graphing {
             .map(DependencyReference.absolute)
 
         references.append(contentsOf: precompiledFrameworks)
-        
+
         /// Other targets' frameworks.
         let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
             .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
@@ -337,18 +336,18 @@ extension Graph {
             return isDynamicLink ?? false
         }
     }
-    
+
     internal func frameworkArchitechtureMatchesTargetPlatform(targetNode: TargetNode, system: Systeming) -> (_ frameworkNode: PrecompiledNode) -> Bool {
         return { frameworkNode in
 
-            let architechtures:  [ PrecompiledNode.Architecture ]
-            
+            let architechtures: [PrecompiledNode.Architecture]
+
             do {
                 architechtures = try frameworkNode.architectures(system: system)
             } catch {
                 return false
             }
-            
+
             // https://docs.elementscompiler.com/Platforms/Cocoa/CpuArchitectures/
 
             switch targetNode.target.platform {
@@ -359,13 +358,12 @@ extension Graph {
                 return architechtures.contains(.arm64) || architechtures.contains(.armv7) || architechtures.contains(.armv7s)
             case .macOS:
                 // On macOS, one architecture is supported as of now: 64-bit Intel, officially called x86_64
-                return architechtures == [ .x8664 ]
+                return architechtures == [.x8664]
             case .tvOS:
                 // arm64 is the current 64-bit ARM CPU architecture and used on Apple TV 4
                 // x86_64 (i.e. 64-bit Intel) is used in the Simulator
                 return architechtures.contains(.arm64)
             }
-
         }
     }
 }
@@ -399,20 +397,20 @@ extension Graph {
         guard let targetNodes = cache.targetNodes[path] else {
             return []
         }
-        
+
         var references = Set<T>()
-        
+
         for (_, node) in targetNodes {
             references.formUnion(findAll(targetNode: node))
         }
-        
+
         return references
     }
-    
+
     // Traverse the graph from the target node using DFS and return all results passing the test.
     func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool = { _ in true }, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
-        
+
         stack.push(targetNode)
 
         var visited: Set<GraphNode> = .init()

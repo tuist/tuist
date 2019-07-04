@@ -62,10 +62,10 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        
+
         system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
                               output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
-        
+
         let got = try graph.linkableDependencies(path: project.path,
                                                  name: target.name,
                                                  system: system)
@@ -201,7 +201,7 @@ final class GraphTests: XCTestCase {
 
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
-        
+
         system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test", output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
 
         let got = try graph.embeddableFrameworks(path: project.path,
@@ -210,7 +210,7 @@ final class GraphTests: XCTestCase {
 
         XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
     }
-    
+
     func test_embeddableFrameworks_when_dependencyIsAFramework_architechture_unsupported() throws {
         let frameworkPath = AbsolutePath("/test/test.framework")
         let target = Target.test(name: "Main", platform: .macOS)
@@ -222,17 +222,17 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        
+
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
-        
+
         system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
                               output: "Architectures in the fat file: TuistKit are: x86_64 arm64")
-        
+
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  system: system)
-        
+
         XCTAssertNil(got.first)
     }
 
@@ -260,7 +260,7 @@ final class GraphTests: XCTestCase {
 
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
-        
+
         system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
                               output: "Architectures in the fat file: TuistKit are: x86_64 arm64")
 
