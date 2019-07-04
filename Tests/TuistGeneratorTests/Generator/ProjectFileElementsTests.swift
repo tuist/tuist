@@ -273,7 +273,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                      groups: groups,
                                      pbxproj: pbxproj)
         XCTAssertEqual(groups.products.children.count, 1)
-        let fileReference = subject.product(name: "Target.app")
+        let fileReference = subject.product(target: "Target")
         XCTAssertNotNil(fileReference)
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
         XCTAssertEqual(fileReference?.path, "Target.app")

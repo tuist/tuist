@@ -139,8 +139,8 @@ final class LinkGenerator: LinkGenerating {
                 precompiledEmbedPhase.inputPaths.append(relativePath)
                 precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
 
-            } else if case let DependencyReference.product(name) = dependency {
-                guard let fileRef = fileElements.product(name: name) else {
+            } else if case let DependencyReference.product(target, name) = dependency {
+                guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: name)
                 }
                 let buildFile = PBXBuildFile(file: fileRef, settings: ["ATTRIBUTES": ["CodeSignOnCopy"]])
@@ -234,8 +234,8 @@ final class LinkGenerator: LinkGenerating {
                     let buildFile = PBXBuildFile(file: fileRef)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
-                case let .product(name):
-                    guard let fileRef = fileElements.product(name: name) else {
+                case let .product(target, name):
+                    guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: name)
                     }
                     let buildFile = PBXBuildFile(file: fileRef)
@@ -280,7 +280,7 @@ final class LinkGenerator: LinkGenerating {
 
         dependencies.append(contentsOf:
             graph.resourceBundleDependencies(path: path, name: target.name)
-                .map { .product($0.target.productNameWithExtension) })
+                .map { .product(target: $0.target.name, name: $0.target.productNameWithExtension) })
 
         if !dependencies.isEmpty {
             try generateDependenciesBuildPhase(
@@ -298,8 +298,8 @@ final class LinkGenerator: LinkGenerating {
                                                 fileElements: ProjectFileElements) throws {
         var files: [PBXBuildFile] = []
 
-        for case let .product(name) in dependencies.sorted() {
-            guard let fileRef = fileElements.product(name: name) else {
+        for case let .product(target, name) in dependencies.sorted() {
+            guard let fileRef = fileElements.product(target: target) else {
                 throw LinkGeneratorError.missingProduct(name: name)
             }
 

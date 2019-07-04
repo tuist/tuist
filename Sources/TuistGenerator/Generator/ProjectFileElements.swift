@@ -189,23 +189,23 @@ class ProjectFileElements {
                           groups: ProjectGroups,
                           pbxproj: PBXProj) throws {
         try prepareProductsFileReferences(project: project, dependencies: dependencies).forEach { pair in
-            guard self.products[pair.productName] == nil else { return }
+            guard self.products[pair.targetName] == nil else { return }
             pbxproj.add(object: pair.fileReference)
             groups.products.children.append(pair.fileReference)
-            self.products[pair.productName] = pair.fileReference
+            self.products[pair.targetName] = pair.fileReference
         }
     }
 
     func prepareProductsFileReferences(project: Project, dependencies: Set<GraphNode>)
-        throws -> [(productName: String, fileReference: PBXFileReference)] {
+        throws -> [(targetName: String, fileReference: PBXFileReference)] {
         let targetsProducts = project.targets
-            .map { ($0.productNameWithExtension, $0.product) }
+            .map { ($0, $0.product) }
         let dependenciesProducts = dependencies
             .compactMap { $0 as? TargetNode }
             .map { $0.target }
-            .map { ($0.productNameWithExtension, $0.product) }
+            .map { ($0, $0.product) }
         let mergeStrategy: (Product, Product) -> Product = { first, _ in first }
-        let sortByName: ((String, Product), (String, Product)) -> Bool = { first, second in first.0 < second.0 }
+        let sortByName: ((Target, Product), (Target, Product)) -> Bool = { first, second in first.0.productNameWithExtension < second.0.productNameWithExtension }
 
         let targetsProductsDictionary = Dictionary(targetsProducts, uniquingKeysWith: mergeStrategy)
         let dependenciesProductsDictionary = Dictionary(dependenciesProducts, uniquingKeysWith: mergeStrategy)
@@ -213,12 +213,12 @@ class ProjectFileElements {
                                                                    uniquingKeysWith: mergeStrategy)
         return productsDictionary
             .sorted(by: sortByName)
-            .map { productName, product in
+            .map { target, product in
                 let fileType = Xcode.filetype(extension: product.xcodeValue.fileExtension!)
-                return (productName: productName,
+                return (targetName: target.name,
                         fileReference: PBXFileReference(sourceTree: .buildProductsDir,
                                                         explicitFileType: fileType,
-                                                        path: productName,
+                                                        path: target.productNameWithExtension,
                                                         includeInIndex: false))
             }
     }
@@ -484,7 +484,7 @@ class ProjectFileElements {
         return elements[path] as? PBXGroup
     }
 
-    func product(name: String) -> PBXFileReference? {
+    func product(target name: String) -> PBXFileReference? {
         return products[name]
     }
 

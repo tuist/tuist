@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-public class Target: Equatable {
+public class Target: Equatable, Hashable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
 
     // MARK: - Static
@@ -138,6 +138,23 @@ public class Target: Equatable {
             lhs.coreDataModels == rhs.coreDataModels &&
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(platform)
+        hasher.combine(product)
+        hasher.combine(bundleId)
+        hasher.combine(productName)
+//        hasher.combine(infoPlist)
+        hasher.combine(entitlements)
+//        hasher.combine(settings)
+//        hasher.combine(sources)
+//        hasher.combine(resources)
+//        hasher.combine(headers)
+//        hasher.combine(coreDataModels)
+//        hasher.combine(dependencies)
+        hasher.combine(environment)
     }
 }
 

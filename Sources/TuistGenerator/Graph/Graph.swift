@@ -22,15 +22,16 @@ enum GraphError: FatalError {
 
 enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
-    case product(String)
+    case product(target: String, name: String)
     case sdk(AbsolutePath, SDKStatus)
 
     func hash(into hasher: inout Hasher) {
         switch self {
         case let .absolute(path):
             hasher.combine(path)
-        case let .product(product):
-            hasher.combine(product)
+        case let .product(target, name):
+            hasher.combine(target)
+            hasher.combine(name)
         case let .sdk(path, status):
             hasher.combine(path)
             hasher.combine(status)
@@ -164,8 +165,7 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter(isStaticLibrary)
-            .map(\.target.productNameWithExtension)
-            .map(DependencyReference.product)
+            .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
     }
 
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -203,9 +203,7 @@ class Graph: Graphing {
 
         if targetNode.target.canLinkStaticProducts() {
             let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
-                .lazy
-                .map(\.target.productNameWithExtension)
-                .map(DependencyReference.product)
+                .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
 
             references.append(contentsOf: staticLibraries)
         }
@@ -214,8 +212,7 @@ class Graph: Graphing {
 
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
-            .map(\.target.productNameWithExtension)
-            .map(DependencyReference.product)
+            .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
 
         references.append(contentsOf: dynamicLibrariesAndFrameworks)
 
@@ -278,9 +275,7 @@ class Graph: Graphing {
 
         /// Other targets' frameworks.
         let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
-            .lazy
-            .map(\.target.productNameWithExtension)
-            .map(DependencyReference.product)
+            .map{ DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
 
         references.append(contentsOf: otherTargetFrameworks)
 
