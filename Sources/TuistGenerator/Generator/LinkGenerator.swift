@@ -78,7 +78,7 @@ final class LinkGenerator: LinkGenerating {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
         let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
-        let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
+        let linkableModules = try graph.linkableDependencies(path: path, name: target.name, system: system)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
                                pbxTarget: pbxTarget,

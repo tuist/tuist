@@ -84,7 +84,7 @@ protocol Graphing: AnyObject, Encodable {
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] { get }
 
-    func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
+    func linkableDependencies(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath]
@@ -102,8 +102,7 @@ protocol Graphing: AnyObject, Encodable {
     /// up a graph of dependencies to later be used to define the "Link Binary with Library" in an xcodeproj.
 
     func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T>
-    func findAll<T: GraphNode>(path: AbsolutePath, test: (T) -> Bool) -> Set<T>
-    func findAll<T: GraphNode>(path: AbsolutePath, name: String, test: (T) -> Bool) -> Set<T>
+
 }
 
 class Graph: Graphing {
@@ -113,6 +112,7 @@ class Graph: Graphing {
     let name: String
     let entryPath: AbsolutePath
     let entryNodes: [GraphNode]
+
     var projects: [Project] {
         return Array(cache.projects.values)
     }
@@ -177,7 +177,7 @@ class Graph: Graphing {
             .filter { $0.target.product == .bundle }
     }
 
-    func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
+    func linkableDependencies(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -194,6 +194,8 @@ class Graph: Graphing {
         // Precompiled libraries and frameworks
 
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies
+            .lazy
+            .filter(frameworkArchitechtureMatchesTargetPlatform(targetNode: targetNode, system: system))
             .map(\.path)
             .map(DependencyReference.absolute)
 
@@ -264,15 +266,17 @@ class Graph: Graphing {
         }
 
         var references: [DependencyReference] = []
+        
+        let isDynamicAndLinkable = and(frameworkUsesDynamicLinking(system: system), frameworkArchitechtureMatchesTargetPlatform(targetNode: targetNode, system: system))
 
         /// Precompiled frameworks
-        let precompiledFrameworks = findAll(targetNode: targetNode, test: frameworkUsesDynamicLinking(system: system))
+        let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable)
             .lazy
             .map(\.path)
             .map(DependencyReference.absolute)
 
         references.append(contentsOf: precompiledFrameworks)
-
+        
         /// Other targets' frameworks.
         let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
             .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
@@ -280,7 +284,8 @@ class Graph: Graphing {
         references.append(contentsOf: otherTargetFrameworks)
 
         /// Pre-built frameworks
-        let transitiveFrameworks = findAll(path: path)
+        let transitiveFrameworks = findAll(targetNode: targetNode, test: frameworkArchitechtureMatchesTargetPlatform(targetNode: targetNode, system: system))
+            .lazy
             .filter(FrameworkNode.self)
             .map(\.path)
             .map(DependencyReference.absolute)
@@ -326,10 +331,41 @@ extension Graph {
         return targetNode.target.product == .framework
     }
 
-    internal func frameworkUsesDynamicLinking(system: Systeming) -> (_ frameworkNode: FrameworkNode) -> Bool {
+    internal func frameworkUsesDynamicLinking(system: Systeming) -> (_ frameworkNode: PrecompiledNode) -> Bool {
         return { frameworkNode in
             let isDynamicLink = try? frameworkNode.linking(system: system) == .dynamic
             return isDynamicLink ?? false
+        }
+    }
+    
+    internal func frameworkArchitechtureMatchesTargetPlatform(targetNode: TargetNode, system: Systeming) -> (_ frameworkNode: PrecompiledNode) -> Bool {
+        return { frameworkNode in
+
+            let architechtures:  [ PrecompiledNode.Architecture ]
+            
+            do {
+                architechtures = try frameworkNode.architectures(system: system)
+            } catch {
+                return false
+            }
+            
+            // https://docs.elementscompiler.com/Platforms/Cocoa/CpuArchitectures/
+
+            switch targetNode.target.platform {
+            case .iOS:
+                // arm64 is the current 64-bit ARM CPU architecture, as used since the iPhone 5S and later (6, 6S, SE and 7), the iPad Air, Air 2 and Pro, with the A7 and later chips.
+                // armv7s (a.k.a. Swift, not to be confused with the language of the same name), being used in Apple's A6 and A6X chips on iPhone 5, iPhone 5C and iPad 4.
+                // armv7, an older variation of the 32-bit ARM CPU, as used in the A5 and earlier.
+                return architechtures.contains(.arm64) || architechtures.contains(.armv7) || architechtures.contains(.armv7s)
+            case .macOS:
+                // On macOS, one architecture is supported as of now: 64-bit Intel, officially called x86_64
+                return architechtures == [ .x8664 ]
+            case .tvOS:
+                // arm64 is the current 64-bit ARM CPU architecture and used on Apple TV 4
+                // x86_64 (i.e. 64-bit Intel) is used in the Simulator
+                return architechtures.contains(.arm64)
+            }
+
         }
     }
 }
@@ -360,42 +396,24 @@ extension TargetNode {
 
 extension Graph {
     func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T> {
-        let alwaysTrue: (T) -> Bool = { _ in true }
-        return findAll(path: path, test: alwaysTrue)
-    }
-
-    // Traverse the graph for all cached target nodes using DFS and return all results passing the test.
-    func findAll<T: GraphNode>(path: AbsolutePath, test: (T) -> Bool) -> Set<T> {
         guard let targetNodes = cache.targetNodes[path] else {
             return []
         }
-
+        
         var references = Set<T>()
-
+        
         for (_, node) in targetNodes {
-            references.formUnion(findAll(targetNode: node, test: test))
+            references.formUnion(findAll(targetNode: node))
         }
-
+        
         return references
     }
-
-    // Traverse the graph finding target node with name using DFS and return all results passing the test.
-    func findAll<T: GraphNode>(path: AbsolutePath, name: String, test: (T) -> Bool) -> Set<T> {
-        guard let targetNode = findTargetNode(path: path, name: name) else {
-            return []
-        }
-
-        return findAll(targetNode: targetNode, test: test)
-    }
-
+    
     // Traverse the graph from the target node using DFS and return all results passing the test.
-    func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool, skip: (T) -> Bool = { _ in false }) -> Set<T> {
+    func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool = { _ in true }, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
-
-        for node in targetNode.dependencies where node is T {
-            // swiftlint:disable:next force_cast
-            stack.push(node as! T)
-        }
+        
+        stack.push(targetNode)
 
         var visited: Set<GraphNode> = .init()
         var references = Set<T>()
@@ -412,12 +430,12 @@ extension Graph {
             visited.insert(node)
 
             // swiftlint:disable:next force_cast
-            if node is T, test(node as! T) {
+            if node != targetNode, node is T, test(node as! T) {
                 // swiftlint:disable:next force_cast
                 references.insert(node as! T)
             }
 
-            if let node = node as? T, skip(node) {
+            if node != targetNode, let node = node as? T, skip(node) {
                 continue
             } else if let targetNode = node as? TargetNode {
                 for child in targetNode.dependencies where !visited.contains(child) {

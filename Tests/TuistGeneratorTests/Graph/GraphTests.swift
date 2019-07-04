@@ -62,8 +62,13 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
+        
+        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
+                              output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
+        
         let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name)
+                                                 name: target.name,
+                                                 system: system)
         XCTAssertEqual(got.first, .absolute(precompiledNode.path))
     }
 
@@ -81,7 +86,8 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name)
+                                                 name: target.name,
+                                                 system: system)
         XCTAssertEqual(got.first, .product(target: "Dependency", name: "libDependency.a"))
     }
 
@@ -108,12 +114,14 @@ final class GraphTests: XCTestCase {
 
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name)
+                                                 name: target.name,
+                                                 system: system)
         XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product(target: "Dependency", name: "Dependency.framework"))
 
         let frameworkGot = try graph.linkableDependencies(path: project.path,
-                                                          name: dependency.name)
+                                                          name: dependency.name,
+                                                          system: system)
 
         XCTAssertEqual(frameworkGot.count, 1)
         XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", name: "libStaticDependency.a")))
@@ -179,9 +187,9 @@ final class GraphTests: XCTestCase {
         XCTAssertEqual(got.first, DependencyReference.product(target: "Dependency", name: "Dependency.framework"))
     }
 
-    func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
+    func test_embeddableFrameworks_when_dependencyIsAFramework_architechture_supported() throws {
         let frameworkPath = AbsolutePath("/test/test.framework")
-        let target = Target.test(name: "Main")
+        let target = Target.test(name: "Main", platform: .iOS)
         let frameworkNode = FrameworkNode(path: frameworkPath)
         let project = Project.test(targets: [target])
         let targetNode = TargetNode(project: project,
@@ -193,12 +201,39 @@ final class GraphTests: XCTestCase {
 
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
+        
+        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test", output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
 
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  system: system)
 
         XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
+    }
+    
+    func test_embeddableFrameworks_when_dependencyIsAFramework_architechture_unsupported() throws {
+        let frameworkPath = AbsolutePath("/test/test.framework")
+        let target = Target.test(name: "Main", platform: .macOS)
+        let frameworkNode = FrameworkNode(path: frameworkPath)
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [frameworkNode])
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+        
+        system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
+                              output: "dynamically linked")
+        
+        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
+                              output: "Architectures in the fat file: TuistKit are: x86_64 arm64")
+        
+        let got = try graph.embeddableFrameworks(path: project.path,
+                                                 name: target.name,
+                                                 system: system)
+        
+        XCTAssertNil(got.first)
     }
 
     func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
@@ -223,7 +258,12 @@ final class GraphTests: XCTestCase {
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
 
-        system.succeedCommand([], output: "dynamically linked")
+        system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
+                              output: "dynamically linked")
+        
+        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
+                              output: "Architectures in the fat file: TuistKit are: x86_64 arm64")
+
         let got = try graph.embeddableFrameworks(
             path: project.path,
             name: target.name,
