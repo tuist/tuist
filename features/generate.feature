@@ -64,7 +64,8 @@ Scenario: The project is an iOS application with a target dependency and transit
     Then I should be able to build the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'Framework1' with architecture 'arm64'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'Framework2' without architecture 'x86'
-    Then I should be able to build the scheme Framework1
+    Then I should be able to build the scheme Framework1-iOS
+    Then I should be able to build the scheme Framework1-macOS
 
 Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)
     Given that tuist is available

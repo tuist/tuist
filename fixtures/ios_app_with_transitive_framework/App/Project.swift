@@ -15,17 +15,6 @@ let project = Project(
             ]
         ),
         Target(
-            name: "MacApp",
-            platform: .macOS,
-            product: .app,
-            bundleId: "io.tuist.App",
-            infoPlist: "Config/App-Info.plist",
-            sources: "Sources/**",
-            dependencies: [
-                .project(target: "Framework1-macOS", path: "../Framework1"),
-            ]
-        ),
-        Target(
             name: "AppTests",
             platform: .iOS,
             product: .unitTests,
