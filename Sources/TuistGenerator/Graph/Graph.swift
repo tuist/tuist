@@ -22,16 +22,15 @@ enum GraphError: FatalError {
 
 enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
-    case product(target: String, name: String)
+    case product(target: String)
     case sdk(AbsolutePath, SDKStatus)
 
     func hash(into hasher: inout Hasher) {
         switch self {
         case let .absolute(path):
             hasher.combine(path)
-        case let .product(target, name):
+        case let .product(target):
             hasher.combine(target)
-            hasher.combine(name)
         case let .sdk(path, status):
             hasher.combine(path)
             hasher.combine(status)
@@ -164,7 +163,7 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter(isStaticLibrary)
-            .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+            .map { DependencyReference.product(target: $0.target.name) }
     }
 
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -176,7 +175,7 @@ class Graph: Graphing {
             .filter { $0.target.product == .bundle }
     }
 
-    func linkableDependencies(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference] {
+    func linkableDependencies(path: AbsolutePath, name: String, system _: Systeming) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -194,7 +193,6 @@ class Graph: Graphing {
 
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies
             .lazy
-            .filter(frameworkArchitechtureMatchesTargetPlatform(targetNode: targetNode, system: system))
             .map(\.path)
             .map(DependencyReference.absolute)
 
@@ -204,7 +202,7 @@ class Graph: Graphing {
 
         if targetNode.target.canLinkStaticProducts() {
             let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
-                .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+                .map { DependencyReference.product(target: $0.target.name) }
 
             references.append(contentsOf: staticLibraries)
         }
@@ -213,7 +211,7 @@ class Graph: Graphing {
 
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
-            .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+            .map { DependencyReference.product(target: $0.target.name) }
 
         references.append(contentsOf: dynamicLibrariesAndFrameworks)
 
@@ -266,7 +264,7 @@ class Graph: Graphing {
 
         var references: [DependencyReference] = []
 
-        let isDynamicAndLinkable = and(frameworkUsesDynamicLinking(system: system), frameworkArchitechtureMatchesTargetPlatform(targetNode: targetNode, system: system))
+        let isDynamicAndLinkable = frameworkUsesDynamicLinking(system: system)
 
         /// Precompiled frameworks
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable)
@@ -278,12 +276,12 @@ class Graph: Graphing {
 
         /// Other targets' frameworks.
         let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
-            .map { DependencyReference.product(target: $0.target.name, name: $0.target.productNameWithExtension) }
+            .map { DependencyReference.product(target: $0.target.name) }
 
         references.append(contentsOf: otherTargetFrameworks)
 
         /// Pre-built frameworks
-        let transitiveFrameworks = findAll(targetNode: targetNode, test: frameworkArchitechtureMatchesTargetPlatform(targetNode: targetNode, system: system))
+        let transitiveFrameworks = findAll(targetNode: targetNode)
             .lazy
             .filter(FrameworkNode.self)
             .map(\.path)
@@ -334,36 +332,6 @@ extension Graph {
         return { frameworkNode in
             let isDynamicLink = try? frameworkNode.linking(system: system) == .dynamic
             return isDynamicLink ?? false
-        }
-    }
-
-    internal func frameworkArchitechtureMatchesTargetPlatform(targetNode: TargetNode, system: Systeming) -> (_ frameworkNode: PrecompiledNode) -> Bool {
-        return { frameworkNode in
-
-            let architechtures: [PrecompiledNode.Architecture]
-
-            do {
-                architechtures = try frameworkNode.architectures(system: system)
-            } catch {
-                return false
-            }
-
-            // https://docs.elementscompiler.com/Platforms/Cocoa/CpuArchitectures/
-
-            switch targetNode.target.platform {
-            case .iOS:
-                // arm64 is the current 64-bit ARM CPU architecture, as used since the iPhone 5S and later (6, 6S, SE and 7), the iPad Air, Air 2 and Pro, with the A7 and later chips.
-                // armv7s (a.k.a. Swift, not to be confused with the language of the same name), being used in Apple's A6 and A6X chips on iPhone 5, iPhone 5C and iPad 4.
-                // armv7, an older variation of the 32-bit ARM CPU, as used in the A5 and earlier.
-                return architechtures.contains(.arm64) || architechtures.contains(.armv7) || architechtures.contains(.armv7s)
-            case .macOS:
-                // On macOS, one architecture is supported as of now: 64-bit Intel, officially called x86_64
-                return architechtures == [.x8664]
-            case .tvOS:
-                // arm64 is the current 64-bit ARM CPU architecture and used on Apple TV 4
-                // x86_64 (i.e. 64-bit Intel) is used in the Simulator
-                return architechtures.contains(.arm64)
-            }
         }
     }
 }

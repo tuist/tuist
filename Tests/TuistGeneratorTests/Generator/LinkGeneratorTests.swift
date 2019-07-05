@@ -27,7 +27,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateEmbedPhase() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product(target: "Test", name: "waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -58,7 +58,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product(target: "Test", name: "waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -69,7 +69,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                                             pbxproj: pbxproj,
                                                             fileElements: fileElements,
                                                             sourceRootPath: sourceRootPath)) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
+            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
 
@@ -217,7 +217,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateLinkingPhase() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product(target: "Test", name: "waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -259,7 +259,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product(target: "Test", name: "waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -268,7 +268,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                                               pbxTarget: pbxTarget,
                                                               pbxproj: pbxproj,
                                                               fileElements: fileElements)) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
+            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
 

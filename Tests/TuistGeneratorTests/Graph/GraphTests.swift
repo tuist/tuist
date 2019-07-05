@@ -88,7 +88,7 @@ final class GraphTests: XCTestCase {
         let got = try graph.linkableDependencies(path: project.path,
                                                  name: target.name,
                                                  system: system)
-        XCTAssertEqual(got.first, .product(target: "Dependency", name: "libDependency.a"))
+        XCTAssertEqual(got.first, .product(target: "Dependency"))
     }
 
     func test_linkableDependencies_whenAFrameworkTarget() throws {
@@ -117,14 +117,14 @@ final class GraphTests: XCTestCase {
                                                  name: target.name,
                                                  system: system)
         XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got.first, .product(target: "Dependency", name: "Dependency.framework"))
+        XCTAssertEqual(got.first, .product(target: "Dependency"))
 
         let frameworkGot = try graph.linkableDependencies(path: project.path,
                                                           name: dependency.name,
                                                           system: system)
 
         XCTAssertEqual(frameworkGot.count, 1)
-        XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", name: "libStaticDependency.a")))
+        XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency")))
     }
 
     func test_librariesPublicHeaders() throws {
@@ -184,10 +184,10 @@ final class GraphTests: XCTestCase {
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  system: system)
-        XCTAssertEqual(got.first, DependencyReference.product(target: "Dependency", name: "Dependency.framework"))
+        XCTAssertEqual(got.first, DependencyReference.product(target: "Dependency"))
     }
 
-    func test_embeddableFrameworks_when_dependencyIsAFramework_architechture_supported() throws {
+    func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
         let frameworkPath = AbsolutePath("/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
         let frameworkNode = FrameworkNode(path: frameworkPath)
@@ -202,38 +202,11 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
 
-        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test", output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
-
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name,
                                                  system: system)
 
         XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
-    }
-
-    func test_embeddableFrameworks_when_dependencyIsAFramework_architechture_unsupported() throws {
-        let frameworkPath = AbsolutePath("/test/test.framework")
-        let target = Target.test(name: "Main", platform: .macOS)
-        let frameworkNode = FrameworkNode(path: frameworkPath)
-        let project = Project.test(targets: [target])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [frameworkNode])
-        let cache = GraphLoaderCache()
-        cache.add(targetNode: targetNode)
-        let graph = Graph.test(cache: cache)
-
-        system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
-                              output: "dynamically linked")
-
-        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
-                              output: "Architectures in the fat file: TuistKit are: x86_64 arm64")
-
-        let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
-
-        XCTAssertNil(got.first)
     }
 
     func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
@@ -261,9 +234,6 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
 
-        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
-                              output: "Architectures in the fat file: TuistKit are: x86_64 arm64")
-
         let got = try graph.embeddableFrameworks(
             path: project.path,
             name: target.name,
@@ -271,7 +241,7 @@ final class GraphTests: XCTestCase {
         )
 
         XCTAssertEqual(got, [
-            DependencyReference.product(target: "Dependency", name: "Dependency.framework"),
+            DependencyReference.product(target: "Dependency"),
             DependencyReference.absolute(frameworkPath),
         ])
     }
@@ -299,7 +269,7 @@ final class GraphTests: XCTestCase {
                                                  system: system)
 
         // Then
-        let expected = dependencyNames.sorted().map { DependencyReference.product(target: $0, name: "\($0).framework") }
+        let expected = dependencyNames.sorted().map { DependencyReference.product(target: $0) }
         XCTAssertEqual(got, expected)
     }
 
@@ -451,18 +421,18 @@ final class DependencyReferenceTests: XCTestCase {
         let subjects: [(DependencyReference, DependencyReference, Bool)] = [
             // Absolute
             (.absolute(.init("/a.framework")), .absolute(.init("/a.framework")), true),
-            (.absolute(.init("/a.framework")), .product(target: "Main", name: "Product.framework"), false),
+            (.absolute(.init("/a.framework")), .product(target: "Main"), false),
             (.absolute(.init("/a.framework")), .sdk(.init("/CoreData.framework"), .required), false),
 
             // Product
-            (.product(target: "Main", name: "Product.framework"), .product(target: "Main", name: "Product.framework"), true),
-            (.product(target: "Main", name: "Product.framework"), .absolute(.init("/a.framework")), false),
-            (.product(target: "Main", name: "Product.framework"), .sdk(.init("/CoreData.framework"), .required), false),
-            (.product(target: "Main-iOS", name: "Product.framework"), .product(target: "Main-macOS", name: "Product.framework"), false),
+            (.product(target: "Main"), .product(target: "Main"), true),
+            (.product(target: "Main"), .absolute(.init("/a.framework")), false),
+            (.product(target: "Main"), .sdk(.init("/CoreData.framework"), .required), false),
+            (.product(target: "Main-iOS"), .product(target: "Main-macOS"), false),
 
             // SDK
             (.sdk(.init("/CoreData.framework"), .required), .sdk(.init("/CoreData.framework"), .required), true),
-            (.sdk(.init("/CoreData.framework"), .required), .product(target: "Main", name: "Product.framework"), false),
+            (.sdk(.init("/CoreData.framework"), .required), .product(target: "Main"), false),
             (.sdk(.init("/CoreData.framework"), .required), .absolute(.init("/a.framework")), false),
         ]
 
@@ -474,16 +444,16 @@ final class DependencyReferenceTests: XCTestCase {
         XCTAssertTrue(DependencyReference.absolute("/A") < .absolute("/B"))
         XCTAssertFalse(DependencyReference.absolute("/B") < .absolute("/A"))
 
-        XCTAssertFalse(DependencyReference.product(target: "T", name: "A") < .product(target: "T", name: "A"))
-        XCTAssertTrue(DependencyReference.product(target: "T", name: "A") < .product(target: "T", name: "B"))
-        XCTAssertFalse(DependencyReference.product(target: "T", name: "B") < .product(target: "T", name: "A"))
+        XCTAssertFalse(DependencyReference.product(target: "A") < .product(target: "A"))
+        XCTAssertTrue(DependencyReference.product(target: "A") < .product(target: "B"))
+        XCTAssertFalse(DependencyReference.product(target: "B") < .product(target: "A"))
 
-        XCTAssertTrue(DependencyReference.product(target: "T", name: "/A") < .absolute("/A"))
-        XCTAssertTrue(DependencyReference.product(target: "T", name: "/A") < .absolute("/B"))
-        XCTAssertTrue(DependencyReference.product(target: "T", name: "/B") < .absolute("/A"))
+        XCTAssertTrue(DependencyReference.product(target: "/A") < .absolute("/A"))
+        XCTAssertTrue(DependencyReference.product(target: "/A") < .absolute("/B"))
+        XCTAssertTrue(DependencyReference.product(target: "/B") < .absolute("/A"))
 
-        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "T", name: "/A"))
-        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "T", name: "/B"))
-        XCTAssertFalse(DependencyReference.absolute("/B") < .product(target: "T", name: "/A"))
+        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/A"))
+        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/B"))
+        XCTAssertFalse(DependencyReference.absolute("/B") < .product(target: "/A"))
     }
 }

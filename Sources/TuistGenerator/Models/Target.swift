@@ -37,7 +37,7 @@ public class Target: Equatable, Hashable {
     public init(name: String,
                 platform: Platform,
                 product: Product,
-                productName: String,
+                productName: String?,
                 bundleId: String,
                 infoPlist: InfoPlist? = nil,
                 entitlements: AbsolutePath? = nil,
@@ -54,7 +54,7 @@ public class Target: Equatable, Hashable {
         self.product = product
         self.platform = platform
         self.bundleId = bundleId
-        self.productName = productName
+        self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
         self.infoPlist = infoPlist
         self.entitlements = entitlements
         self.settings = settings
@@ -146,14 +146,7 @@ public class Target: Equatable, Hashable {
         hasher.combine(product)
         hasher.combine(bundleId)
         hasher.combine(productName)
-//        hasher.combine(infoPlist)
         hasher.combine(entitlements)
-//        hasher.combine(settings)
-//        hasher.combine(sources)
-//        hasher.combine(resources)
-//        hasher.combine(headers)
-//        hasher.combine(coreDataModels)
-//        hasher.combine(dependencies)
         hasher.combine(environment)
     }
 }

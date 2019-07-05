@@ -18,7 +18,7 @@ public class Target: Codable {
     /// The name of the product output by this target.
     /// passing nil in the initialiser will default
     /// this value to the name of the target.
-    public let productName: String
+    public let productName: String?
 
     /// Relative path to the Info.plist file.
     public let infoPlist: InfoPlist
@@ -103,7 +103,7 @@ public class Target: Codable {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId
-        self.productName = productName ?? name
+        self.productName = productName
         self.product = product
         self.infoPlist = infoPlist
         self.entitlements = entitlements

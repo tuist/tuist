@@ -64,7 +64,7 @@ final class TargetGeneratorTests: XCTestCase {
                                                          graph: graph)
 
         // Then
-        XCTAssertEqual(generatedTarget.name, "MyFramework")
+        XCTAssertEqual(generatedTarget.productName, "MyFramework")
         XCTAssertEqual(generatedTarget.productNameWithExtension(), "MyFramework.framework")
         XCTAssertEqual(generatedTarget.productType, .framework)
 
