@@ -53,7 +53,7 @@ final class SchemesGenerator: SchemesGenerating {
                                     buildAction: BuildAction(targets: [target.name]),
                                     testAction: TestAction(targets: [target.name]),
                                     runAction: RunAction(config: .debug,
-                                                         executable: target.name,
+                                                         executable: target.productName,
                                                          arguments: Arguments(environment: target.environment)))
 
                 try generateScheme(scheme: scheme,

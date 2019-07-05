@@ -175,16 +175,18 @@ final class ConfigGenerator: ConfigGenerating {
             settings["MACH_O_TYPE"] = "staticlib"
         }
 
+        settings["PRODUCT_NAME"] = target.productName
+
         if target.product.testsBundle {
             let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
                 targetNode.target.product == .app
             }
 
             if let app = appDependency {
-                settings["TEST_TARGET_NAME"] = "\(app.target.name)"
+                settings["TEST_TARGET_NAME"] = "\(app.target.productName)"
 
                 if target.product == .unitTests {
-                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.name)"
+                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.productName)"
                     settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
                 }
             }

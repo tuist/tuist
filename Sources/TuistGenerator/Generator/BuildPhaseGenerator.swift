@@ -245,7 +245,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         resourcesBuildPhase: PBXResourcesBuildPhase) {
         let bundles = graph.resourceBundleDependencies(path: path, name: target.name)
         let sortedBundles = bundles.sorted { $0.target.name < $1.target.name }
-        let refs = sortedBundles.compactMap { fileElements.product(name: $0.target.productNameWithExtension) }
+        let refs = sortedBundles.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)

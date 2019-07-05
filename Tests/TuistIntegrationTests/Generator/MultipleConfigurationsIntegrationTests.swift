@@ -336,6 +336,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         return Target(name: "AppTarget",
                       platform: .iOS,
                       product: .app,
+                      productName: "AppTarget",
                       bundleId: "test.bundle",
                       settings: settings,
                       sources: [(path: pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],

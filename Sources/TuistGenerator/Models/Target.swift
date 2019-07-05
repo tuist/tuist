@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 
-public class Target: Equatable {
+public class Target: Equatable, Hashable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
 
     // MARK: - Static
@@ -16,6 +16,7 @@ public class Target: Equatable {
     public let platform: Platform
     public let product: Product
     public let bundleId: String
+    public let productName: String
 
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
@@ -36,6 +37,7 @@ public class Target: Equatable {
     public init(name: String,
                 platform: Platform,
                 product: Product,
+                productName: String?,
                 bundleId: String,
                 infoPlist: InfoPlist? = nil,
                 entitlements: AbsolutePath? = nil,
@@ -52,6 +54,7 @@ public class Target: Equatable {
         self.product = product
         self.platform = platform
         self.bundleId = bundleId
+        self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
         self.infoPlist = infoPlist
         self.entitlements = entitlements
         self.settings = settings
@@ -79,9 +82,9 @@ public class Target: Equatable {
     var productNameWithExtension: String {
         switch product {
         case .staticLibrary, .dynamicLibrary:
-            return "lib\(name).\(product.xcodeValue.fileExtension!)"
+            return "lib\(productName).\(product.xcodeValue.fileExtension!)"
         case _:
-            return "\(name).\(product.xcodeValue.fileExtension!)"
+            return "\(productName).\(product.xcodeValue.fileExtension!)"
         }
     }
 
@@ -125,6 +128,7 @@ public class Target: Equatable {
             lhs.platform == rhs.platform &&
             lhs.product == rhs.product &&
             lhs.bundleId == rhs.bundleId &&
+            lhs.productName == rhs.productName &&
             lhs.infoPlist == rhs.infoPlist &&
             lhs.entitlements == rhs.entitlements &&
             lhs.settings == rhs.settings &&
@@ -134,6 +138,16 @@ public class Target: Equatable {
             lhs.coreDataModels == rhs.coreDataModels &&
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(platform)
+        hasher.combine(product)
+        hasher.combine(bundleId)
+        hasher.combine(productName)
+        hasher.combine(entitlements)
+        hasher.combine(environment)
     }
 }
 

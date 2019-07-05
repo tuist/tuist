@@ -26,6 +26,7 @@ class TargetLinter: TargetLinting {
 
     func lint(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
+        issues.append(contentsOf: lintProductName(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
@@ -59,6 +60,18 @@ class TargetLinter: TargetLinting {
 
             return [LintingIssue(reason: reason, severity: .error)]
         }
+        return []
+    }
+
+    private func lintProductName(target: Target) -> [LintingIssue] {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+
+        if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
+            let reason = "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+
+            return [LintingIssue(reason: reason, severity: .error)]
+        }
+
         return []
     }
 

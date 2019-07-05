@@ -116,6 +116,20 @@ optional: false,
 default: ""
 },
 {
+name: "Product",
+description: "The type of build product this target will output.",
+type: "Product",
+optional: false,
+default: ""
+},
+{
+name: "Product Name",
+description: "The built product name.",
+type: "String",
+optional: true,
+default: "$(TARGET_NAME)"
+},
+{
 name: "Bundle id",
 description: "The product bundle identifier.",
 type: "String",

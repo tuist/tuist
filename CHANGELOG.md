@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 - `tuist graph` command https://github.com/tuist/tuist/pull/427 by @pepibumur.
+- Allow customisation of `productName` in the project Manifest https://github.com/tuist/tuist/pull/435 by @ollieatkinson
 
 ### Fixed
 

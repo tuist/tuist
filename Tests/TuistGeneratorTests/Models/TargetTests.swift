@@ -27,6 +27,11 @@ final class TargetTests: XCTestCase {
         XCTAssertEqual(target.productNameWithExtension, "libTest.dylib")
     }
 
+    func test_productName_when_nil() {
+        let target = Target.test(name: "Test-Module", productName: nil)
+        XCTAssertEqual(target.productName, "Test_Module")
+    }
+
     func test_productName_when_app() {
         let target = Target.test(name: "Test", product: .app)
         XCTAssertEqual(target.productNameWithExtension, "Test.app")
