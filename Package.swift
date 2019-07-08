@@ -42,17 +42,13 @@ let package = Package(
             name: "tuist",
             dependencies: ["TuistKit"]
         ),
-        .target(
-            name: "TuistEnvKit",
-            dependencies: ["SPMUtility", "TuistCore"]
-        ),
         .testTarget(
-            name: "TuistEnvKitTests",
-            dependencies: ["TuistEnvKit", "TuistCoreTesting"]
+            name: "tuistenvTests",
+            dependencies: ["tuist", "TuistCoreTesting"]
         ),
         .target(
             name: "tuistenv",
-            dependencies: ["TuistEnvKit"]
+            dependencies: ["SPMUtility", "TuistCore"]
         ),
         .target(
             name: "ProjectDescription",
