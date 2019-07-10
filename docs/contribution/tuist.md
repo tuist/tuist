@@ -16,7 +16,7 @@ If you have experience building apps for Apple platforms,
 like iOS,
 adding code to Tuist shouldn't be much different.
 You already know the most important elements,
-[Foundation](https://developer.apple.com/documentation/foundation) and Swift. There are two differences compared to developing apps that are worth mentioning.
+[Foundation](https://developer.apple.com/documentation/foundation) and Swift. There are two differences compared to developing apps that are worth mentioning:
 
 - **The interactions with CLIs happen through the terminal.**
   The user executes Tuist,
