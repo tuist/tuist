@@ -9,8 +9,6 @@ let project = Project(name: "StaticFramework",
                                infoPlist: "Support/Info.plist",
                                sources: ["Sources/**"],
                                dependencies: [
-                                    /* Target dependencies can be defined here */
-                                    // .framework(path: "Frameworks/MyFramework.framework")
                                     .sdk(name: "libc++.tbd"),
                                 ]),
                         Target(name: "StaticFrameworkTests",
@@ -21,6 +19,5 @@ let project = Project(name: "StaticFramework",
                                sources: "Tests/**",
                                dependencies: [
                                 .target(name: "StaticFramework"),
-                                .sdk(name: "libc++.tbd"),
                             ])
                       ])

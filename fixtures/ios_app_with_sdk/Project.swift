@@ -13,7 +13,6 @@ let project = Project(name: "Project",
                                      .sdk(name: "ARKit.framework", status: .required),
                                      .sdk(name: "StoreKit.framework", status: .optional),
                                      .sdk(name: "MobileCoreServices.framework", status: .required),
-                                     // .sdk(name: "libc++.tbd"),
                                      .project(target: "StaticFramework", path: "Modules/StaticFramework")
                           ]),
                           Target(name: "AppTests",
