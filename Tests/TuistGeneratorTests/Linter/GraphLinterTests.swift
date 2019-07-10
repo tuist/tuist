@@ -209,4 +209,42 @@ final class GraphLinterTests: XCTestCase {
             LintingIssue(reason: "Target staticLibrary has a dependency with target bundle of type bundle for platform 'iOS' which is invalid or not supported yet.", severity: .error),
         ])
     }
+
+    func test_lint_staticProductsCanDependOnDynamicFrameworks() throws {
+        // Given
+        let staticFramework = Target.empty(name: "StaticFramework", product: .staticFramework)
+        let staticLibrary = Target.empty(name: "StaticLibrary", product: .staticLibrary)
+        let dynamicFramework = Target.empty(name: "DynamicFramework", product: .framework)
+        let graph = Graph.create(project: .empty(),
+                                 dependencies: [
+                                     (target: staticLibrary, dependencies: [dynamicFramework]),
+                                     (target: staticFramework, dependencies: [dynamicFramework]),
+                                     (target: dynamicFramework, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_lint_macStaticProductsCantDependOniOSStaticProducts() throws {
+        // Given
+        let macStaticFramework = Target.empty(name: "MacStaticFramework", platform: .macOS, product: .staticFramework)
+        let iosStaticFramework = Target.empty(name: "iOSStaticFramework", platform: .iOS, product: .staticFramework)
+        let iosStaticLibrary = Target.empty(name: "iOSStaticLibrary", platform: .iOS, product: .staticLibrary)
+        let graph = Graph.create(project: .empty(),
+                                 dependencies: [
+                                     (target: macStaticFramework, dependencies: [iosStaticFramework, iosStaticLibrary]),
+                                     (target: iosStaticFramework, dependencies: []),
+                                     (target: iosStaticLibrary, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertFalse(result.isEmpty)
+    }
 }

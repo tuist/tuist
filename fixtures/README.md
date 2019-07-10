@@ -155,6 +155,8 @@ Workspace:
   - C:
     - C (static framework iOS)
     - CTests (iOS unit tests)
+  - D:
+    - D (dynamic framework iOS)
 ```
 
 Dependencies:
@@ -162,6 +164,7 @@ Dependencies:
   - App -> C
   - A -> B
   - A -> C
+  - C -> D
 
 ## ios_app_with_tests
 

@@ -11,6 +11,7 @@ let project = Project(name: "C",
                                  dependencies: [
                                      /* Target dependencies can be defined here */
                                      /* .framework(path: "framework") */
+                                     .project(target: "D", path: "../D")
                           ]),
                           Target(name: "CTests",
                                  platform: .iOS,
