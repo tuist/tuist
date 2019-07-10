@@ -3,7 +3,7 @@ name: Galaxy
 menu: Contributors
 ---
 
-# Galaxy
+# Contributing to Galaxy
 
 Galaxy is a [Rails](https://rubyonrails.org/) application that exposes a [GraphQL API](https://graphql.org/learn/) that is consumed by a [React](https://reactjs.org/) frontend that is bundled and served by Rails using [Webpacker](https://github.com/rails/webpacker).
 

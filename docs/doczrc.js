@@ -65,7 +65,7 @@ export default {
     {
       name: 'Contributors',
       menu: [
-        'Getting started',
+        'Tuist',
         'Galaxy',
         'Code of conduct',
         'Changelog guidelines',
