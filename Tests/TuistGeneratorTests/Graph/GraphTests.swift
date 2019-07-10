@@ -319,7 +319,7 @@ final class GraphTests: XCTestCase {
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
     }
 
-    func test_resourceBundleDependencies_fromTargetDependency() {
+    func test_resourceBundleDependencies_fromTargetDependency() throws {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let app = Target.test(name: "App", product: .bundle)
@@ -339,8 +339,80 @@ final class GraphTests: XCTestCase {
             "Bundle1",
         ])
     }
+    
+    func test_transitiveSDKDependenciesStatic() throws {
+        // Given
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "some.framework", status: .optional)])
+        let staticFrameworkB = Target.test(name: "StaticFrameworkB",
+                                           product: .staticFramework,
+                                           dependencies: [])
+        
+        let app = Target.test(name: "App", product: .app)
+    
+        let projectA = Project.test(path: "/path/a")
+        
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                    (target: app, dependencies: [staticFrameworkB]),
+                                    (target: staticFrameworkB, dependencies: [staticFrameworkA]),
+                                    (target: staticFrameworkA, dependencies: [])
+        ])
+        
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        
+        // Then
+        let sdkDependencies: [SDKPathAndStatus] = result.compactMap {
+            switch $0 {
+            case .sdk(let path, let status):
+                return SDKPathAndStatus(name: path.basename, status: status)
+            default:
+                return nil
+            }
+        }
+        XCTAssertEqual(sdkDependencies, [
+            SDKPathAndStatus(name: "some.framework", status: .optional),
+        ])
+    }
+    
+    func test_transitiveSDKDependenciesDynamic() throws {
+        // Given
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "some.framework", status: .optional)])
+        let staticFrameworkB = Target.test(name: "DynamicFrameworkB",
+                                           product: .framework,
+                                           dependencies: [])
+        
+        let app = Target.test(name: "App", product: .app)
+        
+        let projectA = Project.test(path: "/path/a")
+        
+        let graph = Graph.create(project: projectA,
+                                     dependencies: [
+                                        (target: app, dependencies: [staticFrameworkB]),
+                                        (target: staticFrameworkB, dependencies: [staticFrameworkA]),
+                                        (target: staticFrameworkA, dependencies: [])
+            ])
+        
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        
+        // Then
+        let sdkDependencies: [SDKPathAndStatus] = result.compactMap {
+            switch $0 {
+            case .sdk(let path, let status):
+                return SDKPathAndStatus(name: path.basename, status: status)
+            default:
+                return nil
+            }
+        }
+        XCTAssertEqual(sdkDependencies, [])
+    }
 
-    func test_resourceBundleDependencies_fromProjectDependency() {
+    func test_resourceBundleDependencies_fromProjectDependency() throws {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let projectA = Project.test(path: "/path/a")
@@ -456,4 +528,9 @@ final class DependencyReferenceTests: XCTestCase {
         XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/B"))
         XCTAssertFalse(DependencyReference.absolute("/B") < .product(target: "/A"))
     }
+}
+
+struct SDKPathAndStatus: Equatable {
+    var name: String
+    var status: SDKStatus
 }

@@ -183,11 +183,16 @@ class Graph: Graphing {
         var references: [DependencyReference] = []
 
         // System libraries and frameworks
-        let systemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
-            DependencyReference.sdk($0.path, $0.status)
+        
+        if targetNode.target.canLinkStaticProducts() {
+            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).flatMap {
+                $0.sdkDependencies.map {
+                    DependencyReference.sdk($0.path, $0.status)
+                }
+            }
+            
+            references.append(contentsOf: staticLibraries)
         }
-
-        references.append(contentsOf: systemLibrariesAndFrameworks)
 
         // Precompiled libraries and frameworks
 

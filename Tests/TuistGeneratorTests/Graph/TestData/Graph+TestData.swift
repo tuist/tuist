@@ -69,9 +69,20 @@ extension Graph {
 
         dependencies.forEach {
             let node = nodesCache[$0.target.name]!
+            let platform = $0.target.platform
             node.dependencies = $0.dependencies.map { nodesCache[$0.name]! }
+            let sdkDependencies: [(name: String, status: SDKStatus)] = $0.target.dependencies.compactMap {
+                if case .sdk(name: let name, status: let status) = $0 {
+                     return (name: name, status: status)
+                }
+                return nil
+            }
+            node.dependencies.append(contentsOf: sdkDependencies.compactMap {
+                try? SDKNode(name: $0.name, platform: platform, status: $0.status)
+            })
         }
-
+        
         return dependencies.map { nodesCache[$0.target.name]! }
     }
+    
 }
