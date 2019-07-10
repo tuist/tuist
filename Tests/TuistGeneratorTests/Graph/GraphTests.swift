@@ -373,7 +373,7 @@ final class GraphTests: XCTestCase {
             }
         }
         XCTAssertEqual(sdkDependencies, [
-            SDKPathAndStatus(name: "some.framework", status: .optional),
+            SDKPathAndStatus(name: "some.framework", status: .optional)
         ])
     }
     
@@ -395,7 +395,7 @@ final class GraphTests: XCTestCase {
                                         (target: app, dependencies: [staticFrameworkB]),
                                         (target: staticFrameworkB, dependencies: [staticFrameworkA]),
                                         (target: staticFrameworkA, dependencies: [])
-            ])
+        ])
         
         // When
         let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
@@ -410,6 +410,72 @@ final class GraphTests: XCTestCase {
             }
         }
         XCTAssertEqual(sdkDependencies, [])
+    }
+    
+    func test_transitiveSDKDependenciesNotDuplicated() throws {
+        // Given
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "some.framework", status: .optional)])
+        let staticFrameworkB = Target.test(name: "StaticFrameworkB",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "some.framework", status: .optional)])
+        
+        let projectA = Project.test(path: "/path/a")
+        
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                    (target: staticFrameworkA, dependencies: []),
+                                    (target: staticFrameworkB, dependencies: [staticFrameworkA])
+        ])
+        
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkB.name, system: system)
+        
+        // Then
+        let sdkDependencies: [SDKPathAndStatus] = result.compactMap {
+            switch $0 {
+            case .sdk(let path, let status):
+                return SDKPathAndStatus(name: path.basename, status: status)
+            default:
+                return nil
+            }
+        }
+        XCTAssertEqual(sdkDependencies, [SDKPathAndStatus(name: "some.framework", status: .optional)])
+    }
+    
+    func test_transitiveSDKDependenciesImmediateDependencies() throws {
+        // Given
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "thingone.framework", status: .optional),
+                                                          .sdk(name: "thingtwo.framework", status: .required)])
+        let staticFrameworkB = Target.test(name: "StaticFrameworkB",
+                                           product: .staticFramework,
+                                           dependencies: [])
+        
+        let projectA = Project.test(path: "/path/a")
+        
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                    (target: staticFrameworkA, dependencies: []),
+                                    (target: staticFrameworkB, dependencies: [staticFrameworkA])
+        ])
+        
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name, system: system)
+        
+        // Then
+        let sdkDependencies: [SDKPathAndStatus] = result.compactMap {
+            switch $0 {
+            case .sdk(let path, let status):
+                return SDKPathAndStatus(name: path.basename, status: status)
+            default:
+                return nil
+            }
+        }
+        XCTAssertEqual(sdkDependencies, [SDKPathAndStatus(name: "thingone.framework", status: .optional),
+                                         SDKPathAndStatus(name: "thingtwo.framework", status: .required)])
     }
 
     func test_resourceBundleDependencies_fromProjectDependency() throws {

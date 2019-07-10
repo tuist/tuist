@@ -180,19 +180,25 @@ class Graph: Graphing {
             return []
         }
 
-        var references: [DependencyReference] = []
+        var references = Set<DependencyReference>()
 
         // System libraries and frameworks
         
         if targetNode.target.canLinkStaticProducts() {
-            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).flatMap {
+            let transitiveSystemLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).flatMap {
                 $0.sdkDependencies.map {
                     DependencyReference.sdk($0.path, $0.status)
                 }
             }
             
-            references.append(contentsOf: staticLibraries)
+            references = references.union(transitiveSystemLibraries)
         }
+        
+        let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
+            DependencyReference.sdk($0.path, $0.status)
+        }
+        
+        references = references.union(directSystemLibrariesAndFrameworks)
 
         // Precompiled libraries and frameworks
 
@@ -201,7 +207,7 @@ class Graph: Graphing {
             .map(\.path)
             .map(DependencyReference.absolute)
 
-        references.append(contentsOf: precompiledLibrariesAndFrameworks)
+        references = references.union(precompiledLibrariesAndFrameworks)
 
         // Static libraries and frameworks
 
@@ -209,7 +215,7 @@ class Graph: Graphing {
             let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
                 .map { DependencyReference.product(target: $0.target.name) }
 
-            references.append(contentsOf: staticLibraries)
+            references = references.union(staticLibraries)
         }
 
         // Link dynamic libraries and frameworks
@@ -218,9 +224,9 @@ class Graph: Graphing {
             .filter(or(isFramework, isDynamicLibrary))
             .map { DependencyReference.product(target: $0.target.name) }
 
-        references.append(contentsOf: dynamicLibrariesAndFrameworks)
+        references = references.union(dynamicLibrariesAndFrameworks)
 
-        return references
+        return Array(references).sorted()
     }
 
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath] {
