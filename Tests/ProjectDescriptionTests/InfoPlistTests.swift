@@ -25,7 +25,7 @@ final class InfoPlistTests: XCTestCase {
             "number": 1,
             "boolean": true,
             "dictionary": ["a": "b"],
-            "array": ["a", "b"]
+            "array": ["a", "b"],
         ])
 
         let expected =
@@ -34,8 +34,8 @@ final class InfoPlistTests: XCTestCase {
                 "type": "dictionary",
                 "value": {
                     "string": "string",
-                    "number": "1",
-                    "boolean": "true",
+                    "number": 1,
+                    "boolean": true,
                     "dictionary": {
                         "a": "b"
                     },
@@ -43,6 +43,6 @@ final class InfoPlistTests: XCTestCase {
                 }
             }
             """
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertEncodableEqualToJson(subject, expected)
     }
 }

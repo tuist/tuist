@@ -11,14 +11,13 @@ protocol DerivedFileGenerating {
     ///   - sourceRootPath: Path to the directory in which the Xcode project will be generated.
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> ()
+    func generate(project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
-    
     fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
-    
+
     /// File handler instance.
     let fileHandler: FileHandling
 
@@ -28,7 +27,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     init(fileHandler: FileHandling = FileHandler()) {
         self.fileHandler = fileHandler
     }
-    
+
     /// Generates the derived files that are associated to the given project.
     ///
     /// - Parameters:
@@ -36,19 +35,18 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     ///   - sourceRootPath: Path to the directory in which the Xcode project will be generated.
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> () {
+    func generate(project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void {
         /// The files that are not necessary anymore should be deleted after we generate the project.
         /// Otherwise, Xcode will try to reload their references before the project generation.
         var toDelete: Set<AbsolutePath> = []
-        
-        toDelete.formUnion(try self.generateInfoPlists(project: project, sourceRootPath: sourceRootPath))
-        
+
+        toDelete.formUnion(try generateInfoPlists(project: project, sourceRootPath: sourceRootPath))
+
         return {
-            try toDelete.forEach({ try self.fileHandler.delete($0) })
+            try toDelete.forEach { try self.fileHandler.delete($0) }
         }
     }
-    
-    
+
     /// Genreates the Info.plist files.
     ///
     /// - Parameters:
@@ -60,34 +58,37 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
         let targetsWithGeneratableInfoPlists = project.targets.filter {
             guard let infoPlist = $0.infoPlist else { return false }
-            guard case InfoPlist.dictionary(_) = infoPlist else { return false }
+            guard case InfoPlist.dictionary = infoPlist else { return false }
             return true
         }
         let infoPlistPath: (Target) -> AbsolutePath = { infoPlistsPath.appending(component: "\($0.name).plist") }
-        
+
         // Getting the Info.plist files that need to be deleted
         let glob = "\(DerivedFileGenerator.derivedFolderName)/\(DerivedFileGenerator.infoPlistsFolderName)/*.plist"
         let existing = fileHandler.glob(sourceRootPath, glob: glob)
         let new: [AbsolutePath] = targetsWithGeneratableInfoPlists.map(infoPlistPath)
         let toDelete = Set(existing).subtracting(new)
-        
+
         if !fileHandler.exists(infoPlistsPath) {
             try fileHandler.createFolder(infoPlistsPath)
         }
-        
+
         // Generate the Info.plist
-        try targetsWithGeneratableInfoPlists.forEach { (target) in
+        try targetsWithGeneratableInfoPlists.forEach { target in
             guard let infoPlist = target.infoPlist else { return }
             guard case let InfoPlist.dictionary(dictionary) = infoPlist else { return }
 
             let path = infoPlistPath(target)
             if fileHandler.exists(path) { try fileHandler.delete(path) }
-            
-            if #available(OSX 10.13, *) {
-                NSDictionary(dictionary: dictionary).write(toFile: path.pathString, atomically: true)
-            }
+
+            let outputDictionary = dictionary.mapValues { $0.value }
+            let data = try PropertyListSerialization.data(fromPropertyList: outputDictionary,
+                                                          format: .xml,
+                                                          options: 0)
+
+            try data.write(to: path.url)
         }
-        
+
         return toDelete
     }
 
@@ -99,7 +100,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         return sourceRootPath
             .appending(component: DerivedFileGenerator.derivedFolderName)
     }
-    
+
     /// Returns the path to the directory where all generated Info.plist files will be.
     ///
     /// - Parameter sourceRootPath: Directory where the Xcode project gets genreated.
@@ -108,5 +109,4 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         return path(sourceRootPath: sourceRootPath)
             .appending(component: DerivedFileGenerator.infoPlistsFolderName)
     }
-    
 }

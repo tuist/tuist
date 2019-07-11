@@ -10,6 +10,21 @@ public enum InfoPlist: Equatable {
         case dictionary([String: Value])
         case array([Value])
 
+        var value: Any {
+            switch self {
+            case let .array(array):
+                return array.map { $0.value }
+            case let .boolean(boolean):
+                return boolean
+            case let .dictionary(dictionary):
+                return dictionary.mapValues { $0.value }
+            case let .integer(integer):
+                return integer
+            case let .string(string):
+                return string
+            }
+        }
+
         public init(from decoder: Decoder) throws {
             if let singleValueContainer = try? decoder.singleValueContainer() {
                 if let value: String = try? singleValueContainer.decode(String.self) {

@@ -44,7 +44,7 @@ public enum InfoPlist: Codable {
                     return
                 }
             }
-            
+
             if var unkeyedContainer = try? decoder.unkeyedContainer() {
                 self = try .array(unkeyedContainer.decode([Value].self))
             } else {
