@@ -61,12 +61,13 @@ final class DerivedFileGenerator: DerivedFileGenerating {
             guard case InfoPlist.dictionary = infoPlist else { return false }
             return true
         }
-        let infoPlistPath: (Target) -> AbsolutePath = { infoPlistsPath.appending(component: "\($0.name).plist") }
 
         // Getting the Info.plist files that need to be deleted
         let glob = "\(DerivedFileGenerator.derivedFolderName)/\(DerivedFileGenerator.infoPlistsFolderName)/*.plist"
         let existing = fileHandler.glob(sourceRootPath, glob: glob)
-        let new: [AbsolutePath] = targetsWithGeneratableInfoPlists.map(infoPlistPath)
+        let new: [AbsolutePath] = targetsWithGeneratableInfoPlists.map {
+            DerivedFileGenerator.infoPlistPath(target: $0, sourceRootPath: sourceRootPath)
+        }
         let toDelete = Set(existing).subtracting(new)
 
         if !fileHandler.exists(infoPlistsPath) {
@@ -78,7 +79,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
             guard let infoPlist = target.infoPlist else { return }
             guard case let InfoPlist.dictionary(dictionary) = infoPlist else { return }
 
-            let path = infoPlistPath(target)
+            let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
             if fileHandler.exists(path) { try fileHandler.delete(path) }
 
             let outputDictionary = dictionary.mapValues { $0.value }
@@ -108,5 +109,16 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     static func infoPlistsPath(sourceRootPath: AbsolutePath) -> AbsolutePath {
         return path(sourceRootPath: sourceRootPath)
             .appending(component: DerivedFileGenerator.infoPlistsFolderName)
+    }
+
+    /// Returns the path where the derived Info.plist is generated.
+    ///
+    /// - Parameters:
+    ///   - target: The target the InfoPlist belongs to.
+    ///   - sourceRootPath: The directory where the Xcode project will be generated.
+    /// - Returns: The path where the derived Info.plist is generated.
+    static func infoPlistPath(target: Target, sourceRootPath: AbsolutePath) -> AbsolutePath {
+        return infoPlistsPath(sourceRootPath: sourceRootPath)
+            .appending(component: "\(target.name).plist")
     }
 }
