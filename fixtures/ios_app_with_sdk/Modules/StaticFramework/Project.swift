@@ -10,7 +10,7 @@ let project = Project(name: "StaticFramework",
                                sources: ["Sources/**"],
                                dependencies: [
                                     .sdk(name: "libc++.tbd"),
-                                ]),
+                        ]),
                         Target(name: "StaticFrameworkTests",
                                platform: .iOS,
                                product: .unitTests,
@@ -18,6 +18,6 @@ let project = Project(name: "StaticFramework",
                                infoPlist: "Support/Tests.plist",
                                sources: "Tests/**",
                                dependencies: [
-                                .target(name: "StaticFramework"),
-                            ])
+                                    .target(name: "StaticFramework"),
+                        ])
                       ])
