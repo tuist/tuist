@@ -56,6 +56,20 @@ Feature: Generate a new project using Tuist
     Then I should be able to build the scheme B
     Then I should be able to test the scheme BTests
 
+  Scenario: The project is an iOS application with frameworks and tests (ios_app_with_sdk)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_sdk into the working directory
+    Then tuist generates the project
+    Then I should be able to build the scheme App
+    Then I should be able to test the scheme AppTests
+    Then I should be able to build the scheme MacFramework
+    Then I should be able to build the scheme Project_Manifest
+    Then I should be able to build the scheme StaticFramework
+    Then I should be able to build the scheme StaticFramework_Manifest
+    Then I should be able to test the scheme StaticFrameworkTests
+    Then I should be able to build the scheme TVFramework
+
 Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_framework)
     Given that tuist is available
     And I have a working directory

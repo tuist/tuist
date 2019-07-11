@@ -478,7 +478,7 @@ final class GraphTests: XCTestCase {
                                          SDKPathAndStatus(name: "thingtwo.framework", status: .required)])
     }
 
-    func test_resourceBundleDependencies_fromProjectDependency() throws {
+    func test_resourceBundleDependencies_fromProjectDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let projectA = Project.test(path: "/path/a")
