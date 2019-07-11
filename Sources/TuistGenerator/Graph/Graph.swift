@@ -183,7 +183,7 @@ class Graph: Graphing {
         var references = Set<DependencyReference>()
 
         // System libraries and frameworks
-        
+
         if targetNode.target.canLinkStaticProducts() {
             let transitiveSystemLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).flatMap {
                 $0.sdkDependencies.map {
@@ -193,11 +193,11 @@ class Graph: Graphing {
 
             references = references.union(transitiveSystemLibraries)
         }
-        
+
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
             DependencyReference.sdk($0.path, $0.status)
         }
-        
+
         references = references.union(directSystemLibrariesAndFrameworks)
 
         // Precompiled libraries and frameworks
