@@ -190,7 +190,7 @@ class Graph: Graphing {
                     DependencyReference.sdk($0.path, $0.status)
                 }
             }
-            
+
             references = references.union(transitiveSystemLibraries)
         }
         

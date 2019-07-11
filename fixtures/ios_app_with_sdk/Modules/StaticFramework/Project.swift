@@ -8,6 +8,7 @@ let project = Project(name: "StaticFramework",
                                bundleId: "io.tuist.StaticFramework",
                                infoPlist: "Support/Info.plist",
                                sources: ["Sources/**"],
+                               headers: Headers(public: "Sources/**/*.h"),
                                dependencies: [
                                     .sdk(name: "libc++.tbd"),
                         ]),

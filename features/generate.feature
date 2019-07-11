@@ -56,7 +56,7 @@ Feature: Generate a new project using Tuist
     Then I should be able to build the scheme B
     Then I should be able to test the scheme BTests
 
-  Scenario: The project is an iOS application with frameworks and tests (ios_app_with_sdk)
+  Scenario: The project is an iOS application with SDK dependencies (ios_app_with_sdk)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_sdk into the working directory
