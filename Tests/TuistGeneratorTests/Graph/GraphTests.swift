@@ -450,7 +450,7 @@ final class GraphTests: XCTestCase {
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
     }
 
-    func test_resourceBundleDependencies_fromTargetDependency() throws {
+    func test_resourceBundleDependencies_fromTargetDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let app = Target.test(name: "App", product: .bundle)
