@@ -133,7 +133,7 @@ class ProjectFileElements {
         // Support files
         if let infoPlist = target.infoPlist, let path = infoPlist.path {
             files.insert(path)
-        } else {
+        } else if target.infoPlist != nil {
             let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
             files.insert(path)
         }

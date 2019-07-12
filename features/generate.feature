@@ -25,6 +25,7 @@ Feature: Generate a new project using Tuist
     Then I should be able to build the scheme MainApp_Manifest
     Then I should be able to build the scheme Framework1_Manifest
     Then I should be able to build the scheme Framework2_Manifest
+    Then the product 'Framework1.framework' with destination 'Debug-iphoneos' contains the Info.plist key 'Test'
 
   Scenario: The project is a directory without valid manifest file (invalid_workspace_manifest_name)
     Given that tuist is available

@@ -46,3 +46,20 @@ Then("the product {string} with destination {string} does not contain resource {
   )
   refute(resource_path)
 end
+
+Then("the product {string} with destination {string} contains the Info.plist key {string}") do |product, destination, key|
+  info_plist_path = Xcode.find_resource(
+    product: product,
+    destination: destination,
+    resource: "Info.plist",
+    derived_data_path: @derived_data_path
+  )
+  unless info_plist_path
+    flunk("Info.plist not found in the product #{product}")
+    return
+  end
+
+  unless system("/usr/libexec/PlistBuddy -c \"print :#{key}\" #{info_plist_path}")
+    flunk("Key #{key} not found in the #{product} Info.plist")
+  end
+end
