@@ -49,7 +49,7 @@ Then("the product {string} with destination {string} does not contain resource {
     resource: resource,
     derived_data_path: @derived_data_path
   )
-  flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if resource_path.nil?
+  flunk("Resource #{resource} found in product #{product} and destination #{destination}") unless resource_path.nil?
 
   refute(resource_path)
 end
