@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Ensuring transitive SDK dependencies are added correctly https://github.com/tuist/tuist/pull/441 by @adamkhazi
 - Ensuring the correct platform SDK dependencies path is set https://github.com/tuist/tuist/pull/419 by @kwridan
 - Update manifest target name such that its product has a valid name https://github.com/tuist/tuist/pull/426 by @kwridan
 

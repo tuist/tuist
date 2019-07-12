@@ -127,6 +127,137 @@ final class GraphTests: XCTestCase {
         XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency")))
     }
 
+    func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
+        // Given
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "some.framework", status: .optional)])
+        let staticFrameworkB = Target.test(name: "StaticFrameworkB",
+                                           product: .staticFramework,
+                                           dependencies: [])
+
+        let app = Target.test(name: "App", product: .app)
+
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [staticFrameworkB]),
+                                     (target: staticFrameworkB, dependencies: [staticFrameworkA]),
+                                     (target: staticFrameworkA, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+
+        // Then
+        XCTAssertEqual(result.compactMap(sdkDependency), [
+            SDKPathAndStatus(name: "some.framework", status: .optional),
+        ])
+    }
+
+    func test_linkableDependencies_transitiveSDKDependenciesDynamic() throws {
+        // Given
+        let staticFramework = Target.test(name: "StaticFramework",
+                                          product: .staticFramework,
+                                          dependencies: [.sdk(name: "some.framework", status: .optional)])
+        let dynamicFramework = Target.test(name: "DynamicFramework",
+                                           product: .framework,
+                                           dependencies: [])
+
+        let app = Target.test(name: "App", product: .app)
+
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [dynamicFramework]),
+                                     (target: dynamicFramework, dependencies: [staticFramework]),
+                                     (target: staticFramework, dependencies: []),
+                                 ])
+
+        // When
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let dynamicResult = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name, system: system)
+
+        // Then
+        XCTAssertEqual(appResult.compactMap(sdkDependency), [])
+        XCTAssertEqual(dynamicResult.compactMap(sdkDependency),
+                       [SDKPathAndStatus(name: "some.framework", status: .optional)])
+    }
+
+    func test_linkableDependencies_transitiveSDKDependenciesNotDuplicated() throws {
+        // Given
+        let staticFramework = Target.test(name: "StaticFramework",
+                                          product: .staticFramework,
+                                          dependencies: [.sdk(name: "some.framework", status: .optional)])
+        let app = Target.test(name: "App",
+                              product: .app,
+                              dependencies: [.sdk(name: "some.framework", status: .optional)])
+
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [staticFramework]),
+                                     (target: staticFramework, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+
+        // Then
+        XCTAssertEqual(result.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
+    }
+
+    func test_linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
+        // Given
+        let staticFramework = Target.test(name: "StaticFrameworkA",
+                                          product: .staticFramework,
+                                          dependencies: [.sdk(name: "thingone.framework", status: .optional),
+                                                         .sdk(name: "thingtwo.framework", status: .required)])
+
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: staticFramework, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFramework.name, system: system)
+
+        // Then
+        XCTAssertEqual(result.compactMap(sdkDependency),
+                       [SDKPathAndStatus(name: "thingone.framework", status: .optional),
+                        SDKPathAndStatus(name: "thingtwo.framework", status: .required)])
+    }
+
+    func test_linkableDependencies_NoTransitiveSDKDependenciesForStaticFrameworks() throws {
+        // Given
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "ThingOne.framework", status: .optional)])
+        let staticFrameworkB = Target.test(name: "StaticFrameworkB",
+                                           product: .staticFramework,
+                                           dependencies: [.sdk(name: "ThingTwo.framework", status: .optional)])
+
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: staticFrameworkA, dependencies: [staticFrameworkB]),
+                                     (target: staticFrameworkB, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name, system: system)
+
+        // Then
+        XCTAssertEqual(result.compactMap(sdkDependency),
+                       [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)])
+    }
+
     func test_librariesPublicHeaders() throws {
         let target = Target.test(name: "Main")
         let publicHeadersPath = AbsolutePath("/test/public/")
@@ -414,6 +545,17 @@ final class GraphTests: XCTestCase {
         // Then
         XCTAssertEncodableEqualToJson(graph, expected)
     }
+
+    // MARK: - Helpers
+
+    private func sdkDependency(from dependency: DependencyReference) -> SDKPathAndStatus? {
+        switch dependency {
+        case let .sdk(path, status):
+            return SDKPathAndStatus(name: path.basename, status: status)
+        default:
+            return nil
+        }
+    }
 }
 
 final class DependencyReferenceTests: XCTestCase {
@@ -456,4 +598,9 @@ final class DependencyReferenceTests: XCTestCase {
         XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/B"))
         XCTAssertFalse(DependencyReference.absolute("/B") < .product(target: "/A"))
     }
+}
+
+private struct SDKPathAndStatus: Equatable {
+    var name: String
+    var status: SDKStatus
 }
