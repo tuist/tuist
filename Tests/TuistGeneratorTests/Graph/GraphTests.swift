@@ -600,7 +600,7 @@ final class DependencyReferenceTests: XCTestCase {
     }
 }
 
-struct SDKPathAndStatus: Equatable {
+private struct SDKPathAndStatus: Equatable {
     var name: String
     var status: SDKStatus
 }
