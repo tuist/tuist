@@ -14,18 +14,11 @@ module Xcode
       destination: destination,
       derived_data_path: derived_data_path
     )
-
-    if product_path.nil?
-      Minitest::Assertions.flunk("Product with name #{product} and destination #{destination} not found in DerivedData")
-    end
+    return if product_path.nil?
 
     framework_glob = File.join(product_path, "**/Frameworks/#{framework}.framework")
     # /path/to/product/Frameworks/MyFramework.framework
     framework_path = Dir.glob(framework_glob).first
-
-    if framework_path.nil?
-      Minitest::Assertions.flunk("Framework #{framework} not found in product #{product_path}")
-    end
 
     framework_path
   end
@@ -36,10 +29,7 @@ module Xcode
       destination: destination,
       derived_data_path: derived_data_path
     )
-
-    if product_path.nil?
-      Minitest::Assertions.flunk("Product with name #{product} and destination #{destination} not found in DerivedData")
-    end
+    return if product_path.nil?
 
     resource_glob = File.join(product_path, "**/#{resource}")
     # /path/to/product/resource.png

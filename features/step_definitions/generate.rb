@@ -7,6 +7,8 @@ Then("the product {string} with destination {string} contains the framework {str
     framework: framework,
     derived_data_path: @derived_data_path
   )
+  flunk("Framework #{framework} not found") if framework_path.nil?
+
   binary_path = File.join(framework_path, framework)
   out, err, status = Open3.capture3("file", binary_path)
   assert(status.success?, err)
@@ -20,6 +22,8 @@ Then("the product {string} with destination {string} contains the framework {str
     framework: framework,
     derived_data_path: @derived_data_path
   )
+  flunk("Framework #{framework} not found") if framework_path.nil?
+
   binary_path = File.join(framework_path, framework)
   out, err, status = Open3.capture3("file", binary_path)
   assert(status.success?, err)
@@ -33,6 +37,7 @@ Then("the product {string} with destination {string} contains resource {string}"
     resource: resource,
     derived_data_path: @derived_data_path
   )
+  flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if resource_path.nil?
 
   assert(resource_path)
 end
@@ -44,6 +49,8 @@ Then("the product {string} with destination {string} does not contain resource {
     resource: resource,
     derived_data_path: @derived_data_path
   )
+  flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if resource_path.nil?
+
   refute(resource_path)
 end
 
@@ -54,10 +61,7 @@ Then("the product {string} with destination {string} contains the Info.plist key
     resource: "Info.plist",
     derived_data_path: @derived_data_path
   )
-  unless info_plist_path
-    flunk("Info.plist not found in the product #{product}")
-    return
-  end
+  flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if info_plist_path.nil?
 
   unless system("/usr/libexec/PlistBuddy -c \"print :#{key}\" #{info_plist_path}")
     flunk("Key #{key} not found in the #{product} Info.plist")
