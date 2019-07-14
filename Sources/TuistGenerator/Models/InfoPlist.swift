@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 
 public enum InfoPlist: Equatable {
-    public indirect enum Value: Decodable, Equatable {
+    public indirect enum Value: Equatable {
         case string(String)
         case integer(Int)
         case boolean(Bool)
@@ -22,26 +22,6 @@ public enum InfoPlist: Equatable {
                 return integer
             case let .string(string):
                 return string
-            }
-        }
-
-        public init(from decoder: Decoder) throws {
-            if let singleValueContainer = try? decoder.singleValueContainer() {
-                if let value: String = try? singleValueContainer.decode(String.self) {
-                    self = .string(value)
-                } else if let value: Int = try? singleValueContainer.decode(Int.self) {
-                    self = .integer(value)
-                } else if let value: Bool = try? singleValueContainer.decode(Bool.self) {
-                    self = .boolean(value)
-                } else if let value: [String: Value] = try? singleValueContainer.decode([String: Value].self) {
-                    self = .dictionary(value)
-                } else {
-                    preconditionFailure("invalid value")
-                }
-            } else if var unkeyedContainer = try? decoder.unkeyedContainer() {
-                self = try .array(unkeyedContainer.decode([Value].self))
-            } else {
-                preconditionFailure("unsupported container type")
             }
         }
 

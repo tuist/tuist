@@ -7,16 +7,7 @@ import XCTest
 final class InfoPlistTests: XCTestCase {
     func test_toJSON_when_file() throws {
         let subject = InfoPlist.file(path: "path/Info.plist")
-
-        let expected =
-            """
-            {
-               "type": "file",
-               "value": "path/Info.plist"
-            }
-            """
-
-        XCTAssertCodableEqualToJson(subject, expected)
+        XCTAssertCodable(subject)
     }
 
     func test_toJSON_when_dictionary() throws {
@@ -27,22 +18,6 @@ final class InfoPlistTests: XCTestCase {
             "dictionary": ["a": "b"],
             "array": ["a", "b"],
         ])
-
-        let expected =
-            """
-            {
-                "type": "dictionary",
-                "value": {
-                    "string": "string",
-                    "number": 1,
-                    "boolean": true,
-                    "dictionary": {
-                        "a": "b"
-                    },
-                    "array": ["a", "b"]
-                }
-            }
-            """
-        XCTAssertEncodableEqualToJson(subject, expected)
+        XCTAssertCodable(subject)
     }
 }
