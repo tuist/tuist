@@ -6,6 +6,11 @@ import Foundation
 /// Objects that conform this protocol provide a way of handling fatal errors
 /// that are thrown during the execution of an app.
 public protocol ErrorHandling: AnyObject {
+    /// Configures the crash reporting to observe and report unhandled exceptions.
+    ///
+    /// - Throws: An error if the error handler can't be initialized.
+    func setup() throws
+
     /// When called, this method delegates the error handling
     /// to the entity that conforms this protocol.
     ///
@@ -15,6 +20,9 @@ public protocol ErrorHandling: AnyObject {
 
 /// The default implementation of the ErrorHandling protocol
 public final class ErrorHandler: ErrorHandling {
+    /// Shared instance of the error handler.
+    public static let shared: ErrorHandler = ErrorHandler()
+
     // MARK: - Attributes
 
     /// Printer to output information to the user.
@@ -44,6 +52,16 @@ public final class ErrorHandler: ErrorHandling {
     }
 
     // MARK: - Public
+
+    /// Configures the crash reporting to observe and report unhandled exceptions.
+    ///
+    /// - Throws: An error if the error handler can't be initialized.
+    public func setup() throws {
+        #if canImport(Sentry)
+            Client.shared = try Client(dsn: "xxx")
+            try Client.shared?.startCrashHandler()
+        #endif
+    }
 
     /// When called, this method delegates the error handling
     /// to the entity that conforms this protocol.

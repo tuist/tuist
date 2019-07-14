@@ -70,17 +70,44 @@ end
 def package
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
-  system("swift", "build", "--product", "tuist", "--configuration", "release")
+
+  link_args = [
+    "-Xswiftc", "-F", "-Xswiftc", File.expand_path("./Frameworks", __dir__),
+    "-Xswiftc", "-framework", "-Xswiftc", "Sentry"
+  ]
+  build_cli_args = ["swift", "build", "--configuration", "release"]
+
+  build_tuist_args = build_cli_args.dup
+  build_tuist_args.concat(["--product", "tuist"])
+  build_tuist_args.concat(link_args)
+
+  build_tuistenv_args = build_cli_args.dup
+  build_tuistenv_args.concat(["--product", "tuistenv"])
+  build_tuistenv_args.concat(link_args)
+
+  # ProjectDescription
   system("swift", "build", "--product", "ProjectDescription", "--configuration", "release")
-  system("swift", "build", "--product", "tuistenv", "--configuration", "release")
+
+  # Tuist
+  system(*build_tuist_args)
+  system("install_name_tool", "-add_rpath", "@executable_path", ".build/release/tuist")
+  
+  # Tuistenv
+  system(*build_tuistenv_args)
+  system("install_name_tool", "-add_rpath", "@executable_path", ".build/release/tuistenv")
 
   Dir.chdir(".build/release") do
     system("zip", "-q", "-r", "--symlinks", "tuist.zip", "tuist", "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", " libProjectDescription.dylib")
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
 
+  Dir.chdir("Frameworks") do
+    system("zip", "-q", "-r", "--symlinks", "Sentry.framework.zip", "Sentry.framework")
+  end
+
   FileUtils.cp(".build/release/tuist.zip", "build/tuist.zip")
   FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
+  FileUtils.cp("Frameworks/Sentry.framework.zip", "build/Sentry.framework.zip")
 end
 
 def system(*args)
