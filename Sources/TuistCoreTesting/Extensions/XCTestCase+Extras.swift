@@ -73,6 +73,18 @@ public extension XCTestCase {
         XCTAssert(jsonData == subjectData, "JSON does not match the encoded \(String(describing: subject))", file: file, line: line)
     }
 
+    func XCTAssertCodable<C: Codable & Equatable>(_ subject: C, file _: StaticString = #file, line _: UInt = #line) {
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+
+        encoder.outputFormatting = .prettyPrinted
+
+        let data = XCTTry(try encoder.encode(subject))
+        let decoded = XCTTry(try decoder.decode(C.self, from: data))
+
+        XCTAssertEqual(subject, decoded, "The subject is not equal to it's encoded & decoded version")
+    }
+
     func XCTAssertEncodableEqualToJson<C: Encodable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
