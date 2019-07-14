@@ -163,10 +163,6 @@ final class ConfigGenerator: ConfigGenerating {
         if let infoPlist = target.infoPlist, let path = infoPlist.path {
             let relativePath = path.relative(to: sourceRootPath).pathString
             settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(relativePath)"
-        } else if target.infoPlist != nil {
-            let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
-            let relativePath = path.relative(to: sourceRootPath).pathString
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(relativePath)"
         }
 
         if let entitlements = target.entitlements {

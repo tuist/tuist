@@ -88,6 +88,9 @@ final class DerivedFileGenerator: DerivedFileGenerating {
                                                           options: 0)
 
             try data.write(to: path.url)
+
+            // Override the Info.plist value to point to te generated one
+            target.infoPlist = InfoPlist.file(path: path)
         }
 
         return toDelete

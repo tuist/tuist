@@ -1,7 +1,7 @@
 import Foundation
 
-public enum InfoPlist: Codable {
-    public indirect enum Value: Codable {
+public enum InfoPlist: Codable, Equatable {
+    public indirect enum Value: Codable, Equatable {
         case string(String)
         case integer(Int)
         case boolean(Bool)
@@ -23,8 +23,8 @@ public enum InfoPlist: Codable {
                 var container = encoder.singleValueContainer()
                 try container.encode(value)
             case let .array(value):
-                var container = encoder.unkeyedContainer()
-                try container.encode(contentsOf: value)
+                var container = encoder.singleValueContainer()
+                try container.encode(value)
             }
         }
 
@@ -42,13 +42,30 @@ public enum InfoPlist: Codable {
                 } else if let value: [String: Value] = try? singleValueContainer.decode([String: Value].self) {
                     self = .dictionary(value)
                     return
+                } else if let value: [Value] = try? singleValueContainer.decode([Value].self) {
+                    self = .array(value)
+                } else {
+                    preconditionFailure("unsupported container type")
                 }
-            }
-
-            if var unkeyedContainer = try? decoder.unkeyedContainer() {
-                self = try .array(unkeyedContainer.decode([Value].self))
             } else {
                 preconditionFailure("unsupported container type")
+            }
+        }
+
+        public static func == (lhs: Value, rhs: Value) -> Bool {
+            switch (lhs, rhs) {
+            case let (.string(lhsValue), .string(rhsValue)):
+                return lhsValue == rhsValue
+            case let (.integer(lhsValue), .integer(rhsValue)):
+                return lhsValue == rhsValue
+            case let (.boolean(lhsValue), .boolean(rhsValue)):
+                return lhsValue == rhsValue
+            case let (.dictionary(lhsValue), .dictionary(rhsValue)):
+                return lhsValue == rhsValue
+            case let (.array(lhsValue), .array(rhsValue)):
+                return lhsValue == rhsValue
+            default:
+                return false
             }
         }
     }
@@ -77,6 +94,19 @@ public enum InfoPlist: Codable {
             return path
         default:
             return nil
+        }
+    }
+
+    // MARK: - Equatable
+
+    public static func == (lhs: InfoPlist, rhs: InfoPlist) -> Bool {
+        switch (lhs, rhs) {
+        case let (.file(lhsPath), .file(rhsPath)):
+            return lhsPath == rhsPath
+        case let (.dictionary(lhsDictionary), .dictionary(rhsDictionary)):
+            return lhsDictionary == rhsDictionary
+        default:
+            return false
         }
     }
 
