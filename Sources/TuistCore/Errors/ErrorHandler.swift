@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Sentry)
+    import Sentry
+#endif
 
 /// Objects that conform this protocol provide a way of handling fatal errors
 /// that are thrown during the execution of an app.
@@ -57,6 +60,7 @@ public final class ErrorHandler: ErrorHandling {
             """
             printer.print(errorMessage: message)
         }
+
         exiter(1)
     }
 }

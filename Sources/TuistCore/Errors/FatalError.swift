@@ -11,6 +11,16 @@ public enum ErrorType {
     case bug
     case abortSilent
     case bugSilent
+
+    /// Returns true if the error is a bug.
+    var isBug: Bool {
+        switch self {
+        case .bug, .bugSilent:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 /// An error type that decorates an error that hasn't been handled.
