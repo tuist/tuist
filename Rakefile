@@ -35,6 +35,11 @@ task :package do
   package
 end
 
+desc("Generates the project Xcode project")
+task :generate do
+  system("swift", "package", "generate-xcodeproj", "--xcconfig-overrides", "tuist.xcconfig")
+end
+
 desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
 task :package_commit do
   decrypt_secrets
