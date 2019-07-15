@@ -41,7 +41,7 @@ public final class CommandRegistry {
 
     // MARK: - Public
 
-    public func run() {
+    public func run(file: StaticString = #file, line: UInt = #line) {
         do {
             if processArguments().dropFirst().first == "--help-env" {
                 parser.printUsage(on: stdoutStream)
@@ -51,9 +51,9 @@ public final class CommandRegistry {
                 try commandRunner.run()
             }
         } catch let error as FatalError {
-            errorHandler.fatal(error: error)
+            errorHandler.fatal(error: error, file: file, line: line)
         } catch {
-            errorHandler.fatal(error: UnhandledError(error: error))
+            errorHandler.fatal(error: UnhandledError(error: error), file: file, line: line)
         }
     }
 

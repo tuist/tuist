@@ -60,7 +60,7 @@ public final class CommandRegistry {
 
     // MARK: - Public
 
-    public func run() {
+    public func run(file: StaticString = #file, line: UInt = #line) {
         do {
             // Hidden command
             if let hiddenCommand = hiddenCommand() {
@@ -77,9 +77,9 @@ public final class CommandRegistry {
                 try process(arguments: parsedArguments)
             }
         } catch let error as FatalError {
-            errorHandler.fatal(error: error)
+            errorHandler.fatal(error: error, file: file, line: line)
         } catch {
-            errorHandler.fatal(error: UnhandledError(error: error))
+            errorHandler.fatal(error: UnhandledError(error: error), file: file, line: line)
         }
     }
 

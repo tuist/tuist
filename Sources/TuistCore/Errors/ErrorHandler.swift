@@ -15,7 +15,7 @@ public protocol ErrorHandling: AnyObject {
     /// to the entity that conforms this protocol.
     ///
     /// - Parameter error: Fatal error that should be handler.
-    func fatal(error: FatalError)
+    func fatal(error: FatalError, file: StaticString, line: UInt)
 }
 
 /// The default implementation of the ErrorHandling protocol
@@ -43,8 +43,8 @@ public final class ErrorHandler: ErrorHandling {
     /// Default error handler initializer.
     ///
     /// - Parameters:
-    ///   - printer: <#printer description#>
-    ///   - exiter: <#exiter description#>
+    ///   - printer: Printer to output information to the user.
+    ///   - exiter: Instance to exit the process.
     init(printer: Printing,
          exiter: @escaping (Int32) -> Void) {
         self.printer = printer
@@ -58,9 +58,14 @@ public final class ErrorHandler: ErrorHandling {
     /// - Throws: An error if the error handler can't be initialized.
     public func setup() throws {
         #if canImport(Sentry)
-            if !isDisabled() {
-                Client.shared = try Client(dsn: "xxx")
+            if !isDisabled(), !sentryDsn.isEmpty {
+                Client.shared = try Client(dsn: sentryDsn)
                 try Client.shared?.startCrashHandler()
+
+                // Report unhandled exceptions
+                NSSetUncaughtExceptionHandler { _ in
+                    exit(1)
+                }
             }
         #endif
     }
@@ -69,7 +74,7 @@ public final class ErrorHandler: ErrorHandling {
     /// to the entity that conforms this protocol.
     ///
     /// - Parameter error: Fatal error that should be handler.
-    public func fatal(error: FatalError) {
+    public func fatal(error: FatalError, file _: StaticString = #file, line _: UInt = #line) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
             printer.print(errorMessage: error.description)
@@ -84,9 +89,9 @@ public final class ErrorHandler: ErrorHandling {
         exiter(1)
     }
 
-    /// Returns true if the analytics are disabled by setting the
+    /// Returns true if the user decided to disable the analytics by setting the TUIST_ANALYTICS_DISABLED environment variable.
     ///
-    /// - Returns: <#return value description#>
+    /// - Returns: True if the analytics are disabled.
     func isDisabled() -> Bool {
         return ProcessInfo.processInfo.environment["TUIST_ANALYTICS_DISABLED"] != nil
     }

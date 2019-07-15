@@ -12,7 +12,7 @@ public final class MockErrorHandler: ErrorHandling {
         setupCallCount += 1
     }
 
-    public func fatal(error: FatalError) {
+    public func fatal(error: FatalError, file _: StaticString = #file, line _: UInt = #line) {
         fatalErrorArgs.append(error)
     }
 }
