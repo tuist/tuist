@@ -111,8 +111,8 @@ class TargetLinter: TargetLinting {
 
     private func lintInfoplistExists(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        if let infoPlist = target.infoPlist, !fileHandler.exists(infoPlist.path) {
-            issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path.pathString)", severity: .error))
+        if let infoPlist = target.infoPlist, let path = infoPlist.path, !fileHandler.exists(path) {
+            issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
         return issues
     }

@@ -158,9 +158,13 @@ final class ConfigGenerator: ConfigGenerating {
                                      graph: Graphing,
                                      sourceRootPath: AbsolutePath) {
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
-        if let infoPlist = target.infoPlist {
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.path.relative(to: sourceRootPath).pathString)"
+
+        // Info.plist
+        if let infoPlist = target.infoPlist, let path = infoPlist.path {
+            let relativePath = path.relative(to: sourceRootPath).pathString
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(relativePath)"
         }
+
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
         }

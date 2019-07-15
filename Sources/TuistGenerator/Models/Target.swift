@@ -20,7 +20,7 @@ public class Target: Equatable, Hashable {
 
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
-    public let infoPlist: InfoPlist?
+    public var infoPlist: InfoPlist?
     public let entitlements: AbsolutePath?
     public let settings: Settings?
     public let dependencies: [Dependency]

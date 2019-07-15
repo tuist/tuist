@@ -220,6 +220,8 @@ final class ProjectFileElementsTests: XCTestCase {
     }
 
     func test_targetFiles() {
+        let sourceRootPath = AbsolutePath("/a/project/")
+
         let settings = Settings.test(
             base: [:],
             debug: Configuration(settings: ["Configuration": "A"], xcconfig: AbsolutePath("/project/debug.xcconfig")),
@@ -246,7 +248,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                                   project: [AbsolutePath("/project/project.h")]),
                                  dependencies: [])
 
-        let files = subject.targetFiles(target: target)
+        let files = subject.targetFiles(target: target, sourceRootPath: sourceRootPath)
         XCTAssertTrue(files.isSuperset(of: [
             GroupFileElement(path: "/project/debug.xcconfig", group: target.filesGroup),
             GroupFileElement(path: "/project/release.xcconfig", group: target.filesGroup),

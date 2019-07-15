@@ -52,7 +52,7 @@ class ProjectFileElements {
         var files = Set<GroupFileElement>()
         var products = Set<String>()
         project.targets.forEach { target in
-            files.formUnion(targetFiles(target: target))
+            files.formUnion(targetFiles(target: target, sourceRootPath: sourceRootPath))
             products.formUnion(targetProducts(target: target))
         }
         let projectFileElements = projectFiles(project: project)
@@ -118,7 +118,7 @@ class ProjectFileElements {
         return products
     }
 
-    func targetFiles(target: Target) -> Set<GroupFileElement> {
+    func targetFiles(target: Target, sourceRootPath _: AbsolutePath) -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources.map { $0.path })
         files.formUnion(target.coreDataModels.map { $0.path })
@@ -131,8 +131,8 @@ class ProjectFileElements {
         }
 
         // Support files
-        if let infoPlist = target.infoPlist {
-            files.insert(infoPlist.path)
+        if let infoPlist = target.infoPlist, let path = infoPlist.path {
+            files.insert(path)
         }
 
         if let entitlements = target.entitlements {

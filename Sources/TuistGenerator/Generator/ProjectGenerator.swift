@@ -39,6 +39,9 @@ final class ProjectGenerator: ProjectGenerating {
     /// Generator for the project schemes.
     let schemesGenerator: SchemesGenerating
 
+    /// Generator for the project derived files.
+    let derivedFileGenerator: DerivedFileGenerating
+
     /// Printer instance to output messages to the user.
     let printer: Printing
 
@@ -56,18 +59,21 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemesGenerator: Generator for the project schemes.
+    ///   - derivedFileGenerator: Generator for the project derived files.
     ///   - printer: Printer instance to output messages to the user.
     ///   - system: System instance to run commands in the system.
     ///   - fileHandler: File handler instance to interact with the system files.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
          schemesGenerator: SchemesGenerating = SchemesGenerator(),
+         derivedFileGenerator: DerivedFileGenerating = DerivedFileGenerator(),
          printer: Printing = Printer(),
          system: Systeming = System(),
          fileHandler: FileHandling = FileHandler()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
+        self.derivedFileGenerator = derivedFileGenerator
         self.printer = printer
         self.system = system
         self.fileHandler = fileHandler
@@ -84,6 +90,9 @@ final class ProjectGenerator: ProjectGenerating {
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path
         let xcodeprojPath = sourceRootPath.appending(component: "\(project.name).xcodeproj")
+
+        // Derived files
+        let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)
 
         // Project and workspace.
         let workspaceData = XCWorkspaceData(children: [])
@@ -120,6 +129,8 @@ final class ProjectGenerator: ProjectGenerating {
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
+
+        try deleteOldDerivedFiles()
 
         return try write(xcodeprojPath: xcodeprojPath,
                          nativeTargets: nativeTargets,

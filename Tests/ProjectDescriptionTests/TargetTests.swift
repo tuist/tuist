@@ -94,7 +94,7 @@ final class TargetTests: XCTestCase {
             "entitlements": "entitlement",
             "info_plist": {
                 "type": "file",
-                "path": "info.plist"
+                "value": "info.plist"
             },
             "dependencies": [
                 {
@@ -215,7 +215,7 @@ final class TargetTests: XCTestCase {
             "entitlements": "entitlement",
             "info_plist": {
                 "type": "file",
-                "path": "info.plist"
+                "value": "info.plist"
             },
             "dependencies": [
                 {

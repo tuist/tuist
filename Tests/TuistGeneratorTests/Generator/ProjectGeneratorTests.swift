@@ -24,7 +24,7 @@ final class ProjectGeneratorTests: XCTestCase {
 
     func test_generate() throws {
         // Given
-        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let target = Target.test(name: "Target", platform: .iOS, product: .framework, infoPlist: .dictionary(["a": "b"]))
         let targets = [target]
         let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: targets)
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
@@ -46,6 +46,7 @@ final class ProjectGeneratorTests: XCTestCase {
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
         let targetScheme = schemesPath.appending(component: "Target.xcscheme")
         XCTAssertTrue(fileHandler.exists(targetScheme))
+        XCTAssertTrue(fileHandler.exists(got.path.appending(RelativePath("../Derived/InfoPlists/Target.plist"))))
     }
 
     func test_generate_scheme() throws {
