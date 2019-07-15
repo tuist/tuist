@@ -91,10 +91,11 @@ def package
   # Tuist
   system(*build_tuist_args)
   system("install_name_tool", "-add_rpath", "@executable_path", ".build/release/tuist")
-  
+
   # Tuistenv
   system(*build_tuistenv_args)
   system("install_name_tool", "-add_rpath", "@executable_path", ".build/release/tuistenv")
+  system("install_name_tool", "-add_rpath", "/usr/local/etc", ".build/release/tuistenv")
 
   Dir.chdir(".build/release") do
     system("zip", "-q", "-r", "--symlinks", "tuist.zip", "tuist", "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", " libProjectDescription.dylib")

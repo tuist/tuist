@@ -58,8 +58,10 @@ public final class ErrorHandler: ErrorHandling {
     /// - Throws: An error if the error handler can't be initialized.
     public func setup() throws {
         #if canImport(Sentry)
-            Client.shared = try Client(dsn: "xxx")
-            try Client.shared?.startCrashHandler()
+            if !isDisabled() {
+                Client.shared = try Client(dsn: "xxx")
+                try Client.shared?.startCrashHandler()
+            }
         #endif
     }
 
@@ -80,5 +82,12 @@ public final class ErrorHandler: ErrorHandling {
         }
 
         exiter(1)
+    }
+
+    /// Returns true if the analytics are disabled by setting the
+    ///
+    /// - Returns: <#return value description#>
+    func isDisabled() -> Bool {
+        return ProcessInfo.processInfo.environment["TUIST_ANALYTICS_DISABLED"] != nil
     }
 }
