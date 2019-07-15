@@ -92,15 +92,11 @@ final class Installer: Installing {
             return
         }
 
-        try verifySwiftVersion(version: version)
-
-        var bundleURL: URL?
-        do {
-            bundleURL = try self.bundleURL(version: version)
-        } catch {}
-
-        if let bundleURL = bundleURL {
+        if let release = githubRelease(version: version),
+            let bundleURL = bundleURL(release: release) {
+            let sentryBundleURL = self.sentryBundleURL(release: release)
             try installFromBundle(bundleURL: bundleURL,
+                                  sentryBundleURL: sentryBundleURL,
                                   version: version,
                                   temporaryDirectory: temporaryDirectory)
         } else {
@@ -109,54 +105,47 @@ final class Installer: Installing {
         }
     }
 
-    func verifySwiftVersion(version: String) throws {
-        guard let localVersionString = try system.swiftVersion() else { return }
-        printer.print("Verifying the Swift version is compatible with your version \(localVersionString)")
-        var remoteVersionString: String!
-        do {
-            remoteVersionString = try githubClient.getContent(ref: version, path: ".swift-version").spm_chomp()
-        } catch is GitHubClientError {
-            printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
-        }
-
-        let localVersion = SwiftVersion(localVersionString)
-        let remoteVersion = SwiftVersion(remoteVersionString)
-        let versionFive = SwiftVersion("5")
-
-        if localVersion >= versionFive, remoteVersion >= versionFive {
-            return
-        } else if localVersion == remoteVersion {
-            return
-        } else {
-            throw InstallerError.incompatibleSwiftVersion(local: localVersionString, expected: remoteVersionString)
-        }
-    }
-
-    func bundleURL(version: String) throws -> URL? {
+    func githubRelease(version: String) -> Release? {
         guard let release = try? githubClient.release(tag: version) else {
             printer.print(warning: "The release \(version) couldn't be obtained from GitHub")
             return nil
         }
+        return release
+    }
+
+    func bundleURL(release: Release) -> URL? {
         guard let bundleAsset = release.assets.first(where: { $0.name == Constants.bundleName }) else {
-            printer.print(warning: "The release \(version) is not bundled")
+            printer.print(warning: "The release \(release.version) is not bundled")
             return nil
         }
         return bundleAsset.downloadURL
     }
 
+    func sentryBundleURL(release: Release) -> URL? {
+        return release.assets.first(where: { $0.name == Constants.sentryBundleName })?.downloadURL
+    }
+
     func installFromBundle(bundleURL: URL,
+                           sentryBundleURL: URL?,
                            version: String,
                            temporaryDirectory: TemporaryDirectory) throws {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
-            let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
+            let tuistDownloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
+            let sentryDownloadPath = temporaryDirectory.path.appending(component: Constants.sentryBundleName)
+            try system.run("/usr/bin/curl", "-LSs", "--output", tuistDownloadPath.pathString, bundleURL.absoluteString)
+            if let sentryBundleURL = sentryBundleURL {
+                try system.run("/usr/bin/curl", "-LSs", "--output", sentryDownloadPath.pathString, sentryBundleURL.absoluteString)
+            }
 
             // Unzip
             printer.print("Installing...")
-            try system.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
+            try system.run("/usr/bin/unzip", "-q", tuistDownloadPath.pathString, "-d", installationDirectory.pathString)
+            if sentryBundleURL != nil {
+                try system.run("/usr/bin/unzip", "-q", sentryDownloadPath.pathString, "-d", installationDirectory.pathString)
+            }
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
