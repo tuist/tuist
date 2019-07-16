@@ -178,6 +178,10 @@ final class Installer: Installing {
                            "--product", "tuist",
                            "--package-path", temporaryDirectory.path.pathString,
                            "--configuration", "release")
+            try system.run("install_name_tool",
+                           "-add_rpath", "@executable_path",
+                           buildDirectory.appending(component: "tuist").pathString)
+
             try system.run(swiftPath, "build",
                            "--product", "ProjectDescription",
                            "--package-path", temporaryDirectory.path.pathString,
@@ -190,6 +194,8 @@ final class Installer: Installing {
 
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
+            try buildCopier.copyFrameworks(from: temporaryDirectory.path.appending(component: "Frameworks"),
+                                           to: installationDirectory)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
