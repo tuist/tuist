@@ -60,6 +60,7 @@ export default {
     'Dependencies',
     'Up tasks',
     'Graph',
+    'Configuration',
     'Managing versions',
     'Frequently asked questions',
     {
