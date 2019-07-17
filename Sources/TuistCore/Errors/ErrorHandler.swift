@@ -59,13 +59,9 @@ public final class ErrorHandler: ErrorHandling {
     public func setup() throws {
         #if canImport(Sentry)
             if !isDisabled(), !sentryDsn.isEmpty {
+                Client.logLevel = .none
                 Client.shared = try Client(dsn: sentryDsn)
                 try Client.shared?.startCrashHandler()
-
-                // Report unhandled exceptions
-                NSSetUncaughtExceptionHandler { _ in
-                    exit(1)
-                }
             }
         #endif
     }

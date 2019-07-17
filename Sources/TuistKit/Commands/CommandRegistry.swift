@@ -61,6 +61,8 @@ public final class CommandRegistry {
     // MARK: - Public
 
     public func run(file: StaticString = #file, line: UInt = #line) {
+        try? errorHandler.setup()
+
         do {
             // Hidden command
             if let hiddenCommand = hiddenCommand() {
