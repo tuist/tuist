@@ -7,14 +7,17 @@ import XCTest
 
 final class DerivedFileGeneratorTests: XCTestCase {
     var fileHandler: MockFileHandler!
+    var infoPlistContentProvider: MockInfoPlistContentProvider!
     var subject: DerivedFileGenerator!
 
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        
         fileHandler = sharedMockFileHandler()
+        infoPlistContentProvider = MockInfoPlistContentProvider()
 
-        subject = DerivedFileGenerator()
+        subject = DerivedFileGenerator(infoPlistContentProvider: infoPlistContentProvider)
     }
 
     func test_generate_generatesTheInfoPlistFiles_whenDictionaryInfoPlist() throws {
@@ -35,6 +38,30 @@ final class DerivedFileGeneratorTests: XCTestCase {
         let content = try PropertyListSerialization.propertyList(from: writtenData, options: [], format: nil)
         XCTAssertTrue(NSDictionary(dictionary: (content as? [String: Any]) ?? [:])
             .isEqual(to: ["a": "b"]))
+    }
+
+    func test_generate_generatesTheInfoPlistFiles_whenExtendingDefault() throws {
+        // Given
+        let sourceRootPath = fileHandler.currentPath
+        let target = Target.test(name: "Target", infoPlist: InfoPlist.extendingDefault(with: ["a": "b"]))
+        let project = Project.test(name: "App", targets: [target])
+        let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
+        let path = infoPlistsPath.appending(component: "Target.plist")
+        infoPlistContentProvider.contentStub = ["test": "value"]
+
+        // When
+        _ = try subject.generate(project: project,
+                                 sourceRootPath: sourceRootPath)
+
+        // Then
+        XCTAssertTrue(fileHandler.exists(path))
+        XCTAssertTrue(infoPlistContentProvider.contentArgs.first?.target == target)
+        XCTAssertTrue(infoPlistContentProvider.contentArgs.first?.extendedWith["a"] == "b")
+
+        let writtenData = try Data(contentsOf: path.url)
+        let content = try PropertyListSerialization.propertyList(from: writtenData, options: [], format: nil)
+        XCTAssertTrue(NSDictionary(dictionary: (content as? [String: Any]) ?? [:])
+            .isEqual(to: ["test": "value"]))
     }
 
     func test_generate_returnsABlockToDeleteUnnecessaryInfoPlistFiles() throws {
