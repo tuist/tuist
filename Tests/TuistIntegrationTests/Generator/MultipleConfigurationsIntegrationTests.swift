@@ -31,7 +31,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         let subject = Generator(modelLoader: modelLoader)
 
         // When / Then
-        XCTAssertThrowsError(try subject.generateWorkspace(at: path, config: .default, workspaceFiles: []))
+        XCTAssertThrowsError(try subject.generateWorkspace(at: path, workspaceFiles: []))
     }
 
     func testGenerateWhenSingleDebugConfigurationInProject() throws {
@@ -294,7 +294,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {
         let modelLoader = createModelLoader(projectSettings: projectSettings, targetSettings: targetSettings)
         let subject = Generator(modelLoader: modelLoader)
-        _ = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
+        _ = try subject.generateWorkspace(at: path, workspaceFiles: [])
     }
 
     private func setupTestProject() throws {

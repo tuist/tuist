@@ -8,11 +8,9 @@ protocol TargetGenerating: AnyObject {
                         pbxproj: PBXProj,
                         pbxProject: PBXProject,
                         projectSettings: Settings,
-                        groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        options: GenerationOptions,
                         graph: Graphing,
                         system: Systeming) throws -> PBXNativeTarget
 
@@ -48,11 +46,9 @@ final class TargetGenerator: TargetGenerating {
                         pbxproj: PBXProj,
                         pbxProject: PBXProject,
                         projectSettings: Settings,
-                        groups _: ProjectGroups,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        options: GenerationOptions,
                         graph: Graphing,
                         system: Systeming = System()) throws -> PBXNativeTarget {
         /// Products reference.
@@ -78,7 +74,6 @@ final class TargetGenerator: TargetGenerating {
                                                  projectSettings: projectSettings,
                                                  fileElements: fileElements,
                                                  graph: graph,
-                                                 options: options,
                                                  sourceRootPath: sourceRootPath)
 
         /// Build phases

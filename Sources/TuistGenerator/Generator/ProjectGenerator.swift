@@ -22,7 +22,6 @@ extension ProjectConstants {
 
 protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
-                  options: GenerationOptions,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath?) throws -> GeneratedProject
 }
@@ -82,7 +81,6 @@ final class ProjectGenerator: ProjectGenerating {
     // MARK: - ProjectGenerating
 
     func generate(project: Project,
-                  options: GenerationOptions,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
         printer.print("Generating project \(project.name)")
@@ -110,8 +108,7 @@ final class ProjectGenerator: ProjectGenerating {
                                               sourceRootPath: sourceRootPath)
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
-                                                                          fileElements: fileElements,
-                                                                          options: options)
+                                                                          fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 configurationList: configurationList,
                                                 groups: groups,
@@ -123,7 +120,6 @@ final class ProjectGenerator: ProjectGenerating {
                                                 groups: groups,
                                                 fileElements: fileElements,
                                                 sourceRootPath: sourceRootPath,
-                                                options: options,
                                                 graph: graph)
 
         generateTestTargetIdentity(project: project,
@@ -167,10 +163,9 @@ final class ProjectGenerator: ProjectGenerating {
     private func generateTargets(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
-                                 groups: ProjectGroups,
+                                 groups _: ProjectGroups,
                                  fileElements: ProjectFileElements,
                                  sourceRootPath: AbsolutePath,
-                                 options: GenerationOptions,
                                  graph: Graphing) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
@@ -178,11 +173,9 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   pbxproj: pbxproj,
                                                                   pbxProject: pbxProject,
                                                                   projectSettings: project.settings,
-                                                                  groups: groups,
                                                                   fileElements: fileElements,
                                                                   path: project.path,
                                                                   sourceRootPath: sourceRootPath,
-                                                                  options: options,
                                                                   graph: graph,
                                                                   system: system)
             nativeTargets[target.name] = nativeTarget

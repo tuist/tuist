@@ -56,11 +56,9 @@ final class TargetGeneratorTests: XCTestCase {
                                                          pbxproj: pbxproj,
                                                          pbxProject: pbxProject,
                                                          projectSettings: Settings.test(),
-                                                         groups: groups,
                                                          fileElements: fileElements,
                                                          path: path,
                                                          sourceRootPath: path,
-                                                         options: GenerationOptions(),
                                                          graph: graph)
 
         // Then

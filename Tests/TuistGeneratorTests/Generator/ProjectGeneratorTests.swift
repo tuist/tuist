@@ -38,9 +38,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        dependencies: [])])
 
         // When
-        let got = try subject.generate(project: project,
-                                       options: GenerationOptions(),
-                                       graph: graph)
+        let got = try subject.generate(project: project, graph: graph)
 
         // Then
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
@@ -67,9 +65,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        dependencies: [])])
 
         // When
-        let got = try subject.generate(project: project,
-                                       options: GenerationOptions(),
-                                       graph: graph)
+        let got = try subject.generate(project: project, graph: graph)
 
         // Then
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
@@ -95,9 +91,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        dependencies: [])])
 
         // When
-        let got = try subject.generate(project: project,
-                                       options: GenerationOptions(),
-                                       graph: graph)
+        let got = try subject.generate(project: project, graph: graph)
 
         // Then
         let username = NSUserName()
@@ -129,9 +123,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        ])])
 
         // When
-        let generatedProject = try subject.generate(project: project,
-                                                    options: GenerationOptions(),
-                                                    graph: graph)
+        let generatedProject = try subject.generate(project: project, graph: graph)
 
         // Then
         let pbxproject = try generatedProject.pbxproj.rootProject()

@@ -19,6 +19,9 @@ final class MockGraphManifestLoader: GraphManifestLoading {
     var loadSetupCount: UInt = 0
     var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
 
+    var loadTuistConfigCount: UInt = 0
+    var loadTuistConfigStub: ((AbsolutePath) throws -> ProjectDescription.TuistConfig)?
+
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
         return try loadProjectStub?(path) ?? ProjectDescription.Project.test()
     }
@@ -40,5 +43,10 @@ final class MockGraphManifestLoader: GraphManifestLoading {
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
         loadSetupCount += 1
         return try loadSetupStub?(path) ?? []
+    }
+
+    func loadTuistConfig(at path: AbsolutePath) throws -> TuistConfig {
+        loadTuistConfigCount += 1
+        return try loadTuistConfigStub?(path) ?? ProjectDescription.TuistConfig.test()
     }
 }

@@ -5,6 +5,13 @@ import TuistCore
 protocol GraphLoading: AnyObject {
     func loadProject(path: AbsolutePath) throws -> (Graph, Project)
     func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace)
+
+    /// Loads the TuistConfig.
+    ///
+    /// - Parameter path: Directory from which look up and load the TuistConfig.
+    /// - Returns: Loaded TuistConfig object.
+    /// - Throws: An error if the TuistConfig.swift can't be parsed.
+    func loadTuistConfig(path: AbsolutePath) throws -> TuistConfig
 }
 
 class GraphLoader: GraphLoading {
@@ -68,6 +75,19 @@ class GraphLoader: GraphLoading {
 
         try lint(graph: graph)
         return (graph, workspace)
+    }
+
+    /// Loads the TuistConfig.
+    ///
+    /// - Parameter path: Directory from which look up and load the TuistConfig.
+    /// - Returns: Loaded TuistConfig object.
+    /// - Throws: An error if the TuistConfig.swift can't be parsed.
+    func loadTuistConfig(path: AbsolutePath) throws -> TuistConfig {
+        let cache = GraphLoaderCache()
+        return try TuistConfig.at(path,
+                                  cache: cache,
+                                  modelLoader: modelLoader,
+                                  fileHandler: fileHandler)
     }
 
     private func lint(graph: Graph) throws {

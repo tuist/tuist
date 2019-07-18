@@ -33,7 +33,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
         try (0 ..< 10).forEach { _ in
             let subject = Generator(printer: MockPrinter(), modelLoader: try createModelLoader())
 
-            let workspacePath = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
+            let workspacePath = try subject.generateWorkspace(at: path, workspaceFiles: [])
 
             let workspace = try XCWorkspace(path: workspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: workspace)

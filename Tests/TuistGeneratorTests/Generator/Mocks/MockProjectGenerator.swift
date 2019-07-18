@@ -4,12 +4,11 @@ import TuistCore
 @testable import TuistGenerator
 
 final class MockProjectGenerator: ProjectGenerating {
-    var generateStub: ((Project, GenerationOptions, Graphing, AbsolutePath?) throws -> GeneratedProject)?
+    var generateStub: ((Project, Graphing, AbsolutePath?) throws -> GeneratedProject)?
 
     func generate(project: Project,
-                  options: GenerationOptions,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath?) throws -> GeneratedProject {
-        return try generateStub?(project, options, graph, sourceRootPath) ?? GeneratedProject.test()
+        return try generateStub?(project, graph, sourceRootPath) ?? GeneratedProject.test()
     }
 }

@@ -7,7 +7,8 @@ import TuistGenerator
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-class GeneratorModelLoaderTest: XCTestCase {
+class GeneratorModelLoaderTests: XCTestCase {
+    typealias TuistConfigManifest = ProjectDescription.TuistConfig
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target
@@ -139,6 +140,24 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
+    }
+
+    func test_loadTuistConfig() throws {
+        // Given
+        let manifests = [
+            path: TuistConfigManifest.test(generationOptions: [.generateManifestElements]),
+        ]
+
+        let manifestLoader = createManifestLoader(with: manifests)
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
+
+        // When
+        let model = try subject.loadTuistConfig(at: path)
+
+        // Then
+        XCTAssertTrue(model.generationOptions.contains(.generateManifestElements))
     }
 
     func test_loadWorkspace() throws {
@@ -523,6 +542,17 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
         manifestLoader.manifestsAtStub = { path in
             projects.contains(path) ? Set([.project]) : Set([])
+        }
+        return manifestLoader
+    }
+
+    func createManifestLoader(with tuistConfigs: [AbsolutePath: ProjectDescription.TuistConfig]) -> GraphManifestLoading {
+        let manifestLoader = MockGraphManifestLoader()
+        manifestLoader.loadTuistConfigStub = { path in
+            guard let manifest = tuistConfigs[path] else {
+                throw GraphManifestLoaderError.manifestNotFound(path)
+            }
+            return manifest
         }
         return manifestLoader
     }

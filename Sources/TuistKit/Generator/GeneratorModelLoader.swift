@@ -68,6 +68,34 @@ class GeneratorModelLoader: GeneratorModelLoading {
                                                           printer: printer)
         return workspace
     }
+
+    /// Load a TusitConfig model at the specified path
+    ///
+    /// - Parameter path: The absolute path for the tuistconfig model to load
+    /// - Returns: The tuistconfig loaded from the specified path
+    /// - Throws: Error encountered during the loading process (e.g. Missing tuistconfig)
+    func loadTuistConfig(at path: AbsolutePath) throws -> TuistGenerator.TuistConfig {
+        let manifest = try manifestLoader.loadTuistConfig(at: path)
+        return try TuistGenerator.TuistConfig.from(manifest: manifest, path: path)
+    }
+}
+
+extension TuistGenerator.TuistConfig {
+    static func from(manifest: ProjectDescription.TuistConfig,
+                     path: AbsolutePath) throws -> TuistGenerator.TuistConfig {
+        let generationOptions = try manifest.generationOptions.map { try TuistGenerator.TuistConfig.GenerationOption.from(manifest: $0, path: path) }
+        return TuistGenerator.TuistConfig(generationOptions: generationOptions)
+    }
+}
+
+extension TuistGenerator.TuistConfig.GenerationOption {
+    static func from(manifest: ProjectDescription.TuistConfig.GenerationOption,
+                     path _: AbsolutePath) throws -> TuistGenerator.TuistConfig.GenerationOption {
+        switch manifest {
+        case .generateManifestElements:
+            return .generateManifestElements
+        }
+    }
 }
 
 extension TuistGenerator.Workspace {
