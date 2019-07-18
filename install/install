@@ -164,7 +164,6 @@ EOABORT
 puts 'Getting versions available'
 releases = JSON.parse(Net::HTTP.get(URI(TUIST_RELEASES_URL)))
 tuistenv_download_url = releases['assets'].detect { |a| a['name'] == 'tuistenv.zip' }.fetch('browser_download_url')
-sentry_download_url = releases['assets'].detect { |a| a['name'] == 'Sentry.framework.zip' }&.fetch('browser_download_url')
 
 puts 'Downloading...'
 tmp_dir = Dir.mktmpdir
@@ -178,16 +177,6 @@ begin
   system("unzip -o #{tuistenv_download_path} -d #{tmp_dir} > /dev/null")
   system('mv', tuistenv_uncompressed_path, tuistenv_installation_path)
   system('chmod', '+x', tuistenv_installation_path)
-
-  unless sentry_download_url.nil?
-    sentry_download_path = File.join(tmp_dir, 'Sentry.framework.zip')
-    sentry_uncompressed_path = File.join(tmp_dir, 'Sentry.framework')
-    sentry_installation_path = "/usr/local/Frameworks/Sentry.framework"
-
-    system('curl', '-LSs', '--output', sentry_download_path, sentry_download_url)
-    system("unzip -o #{sentry_download_path} -d #{tmp_dir} > /dev/null")
-    system('mv', sentry_uncompressed_path, sentry_installation_path)
-  end
 ensure
   # remove the directory.
   FileUtils.remove_entry(tmp_dir)
