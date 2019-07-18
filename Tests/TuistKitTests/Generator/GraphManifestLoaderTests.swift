@@ -44,7 +44,7 @@ final class GraphManifestLoaderTests: XCTestCase {
         // Given
         let content = """
         import ProjectDescription
-        let config = TuistConfig(generationOptions: [.generateManifestElements])
+        let config = TuistConfig(generationOptions: [.generateManifest])
         """
 
         let manifestPath = fileHandler.currentPath.appending(component: Manifest.tuistConfig.fileName)
@@ -56,7 +56,7 @@ final class GraphManifestLoaderTests: XCTestCase {
         let got = try subject.loadTuistConfig(at: fileHandler.currentPath)
 
         // Then
-        XCTAssertTrue(got.generationOptions.contains(.generateManifestElements))
+        XCTAssertTrue(got.generationOptions.contains(.generateManifest))
     }
 
     func test_loadProject() throws {

@@ -31,7 +31,7 @@ import ProjectDescription
 
 let config = TuistConfig(
   generationOptions: [
-    .generateManifestElements
+    .generateManifest
   ]
 )
 ```
@@ -60,7 +60,7 @@ Generation options allow customizing the generation of Xcode projects.
 <EnumTable
   cases={[
     {
-      case: '.generateManifestElements',
+      case: '.generateManifest',
       description:
         'Generate the target, schemes, and file elements to build compile the project manifest files.',
     },

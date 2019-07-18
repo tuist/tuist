@@ -145,7 +145,7 @@ class GeneratorModelLoaderTests: XCTestCase {
     func test_loadTuistConfig() throws {
         // Given
         let manifests = [
-            path: TuistConfigManifest.test(generationOptions: [.generateManifestElements]),
+            path: TuistConfigManifest.test(generationOptions: [.generateManifest]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -157,7 +157,7 @@ class GeneratorModelLoaderTests: XCTestCase {
         let model = try subject.loadTuistConfig(at: path)
 
         // Then
-        XCTAssertTrue(model.generationOptions.contains(.generateManifestElements))
+        XCTAssertTrue(model.generationOptions.contains(.generateManifest))
     }
 
     func test_loadWorkspace() throws {

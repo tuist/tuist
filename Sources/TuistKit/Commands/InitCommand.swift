@@ -268,7 +268,7 @@ class InitCommand: NSObject, Command {
         import ProjectDescription
 
         let config = TuistConfig(generationOptions: [
-            .generateManifestElements
+            .generateManifest
         ])
         """
         let setupPath = path.appending(component: Manifest.tuistConfig.fileName)

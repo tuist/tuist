@@ -6,7 +6,7 @@ public class TuistConfig: Codable {
     ///
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
     public enum GenerationOption: String, Codable {
-        case generateManifestElements
+        case generateManifest
     }
 
     /// Generation options.

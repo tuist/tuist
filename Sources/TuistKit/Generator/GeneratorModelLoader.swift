@@ -56,7 +56,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
                                                       printer: printer)
         let tuistConfig = try loadTuistConfig(at: path)
 
-        if let manifestTargetGenerator = manifestTargetGenerator, tuistConfig.generationOptions.contains(.generateManifestElements) {
+        if let manifestTargetGenerator = manifestTargetGenerator, tuistConfig.generationOptions.contains(.generateManifest) {
             let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
                                                                                     at: path)
             return project.adding(target: manifestTarget)
@@ -121,8 +121,8 @@ extension TuistGenerator.TuistConfig.GenerationOption {
     static func from(manifest: ProjectDescription.TuistConfig.GenerationOption,
                      path _: AbsolutePath) throws -> TuistGenerator.TuistConfig.GenerationOption {
         switch manifest {
-        case .generateManifestElements:
-            return .generateManifestElements
+        case .generateManifest:
+            return .generateManifest
         }
     }
 }
