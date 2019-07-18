@@ -175,6 +175,7 @@ begin
   system('curl', '-LSs', '--output', download_path, download_url)
   system("unzip -o #{download_path} -d #{uncompressed_path} > /dev/null")
   system('mv', File.join(uncompressed_path, 'tuistenv'), installation_path)
+  system('ln', '-fs', installation_path, '/usr/local/bin/swift-project')
   system('chmod', '+x', installation_path)
 ensure
   # remove the directory.
