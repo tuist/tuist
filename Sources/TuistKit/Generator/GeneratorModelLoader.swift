@@ -359,6 +359,9 @@ extension TuistGenerator.InfoPlist {
             return .dictionary(
                 dictionary.mapValues { TuistGenerator.InfoPlist.Value.from(manifest: $0) }
             )
+        case let .extendingDefault(dictionary):
+            return .extendingDefault(with:
+                dictionary.mapValues { TuistGenerator.InfoPlist.Value.from(manifest: $0) })
         }
     }
 }

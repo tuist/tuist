@@ -70,8 +70,14 @@ public enum InfoPlist: Codable, Equatable {
         }
     }
 
+    /// Use an existing Info.plist file.
     case file(path: String)
+
+    /// Generate an Info.plist file with the content in the given dictionary.
     case dictionary([String: Value])
+
+    /// Generate an Info.plist file with the default content for the target product extended with the values in the given dictionary.
+    case extendingDefault(with: [String: Value])
 
     // MARK: - Error
 
@@ -105,6 +111,8 @@ public enum InfoPlist: Codable, Equatable {
             return lhsPath == rhsPath
         case let (.dictionary(lhsDictionary), .dictionary(rhsDictionary)):
             return lhsDictionary == rhsDictionary
+        case let (.extendingDefault(lhsDictionary), .extendingDefault(rhsDictionary)):
+            return lhsDictionary == rhsDictionary
         default:
             return false
         }
@@ -121,6 +129,9 @@ public enum InfoPlist: Codable, Equatable {
         case let .dictionary(dictionary):
             try container.encode("dictionary", forKey: .type)
             try container.encode(dictionary, forKey: .value)
+        case let .extendingDefault(dictionary):
+            try container.encode("extended", forKey: .type)
+            try container.encode(dictionary, forKey: .value)
         }
     }
 
@@ -132,6 +143,8 @@ public enum InfoPlist: Codable, Equatable {
             self = .file(path: try container.decode(String.self, forKey: .value))
         case "dictionary":
             self = .dictionary(try container.decode([String: Value].self, forKey: .value))
+        case "extended":
+            self = .extendingDefault(with: try container.decode([String: Value].self, forKey: .value))
         default:
             preconditionFailure("unsupported type")
         }

@@ -45,6 +45,7 @@ public enum InfoPlist: Equatable {
 
     case file(path: AbsolutePath)
     case dictionary([String: Value])
+    case extendingDefault(with: [String: Value])
 
     // MARK: - Equatable
 
@@ -53,6 +54,8 @@ public enum InfoPlist: Equatable {
         case let (.file(lhsPath), .file(rhsPath)):
             return lhsPath == rhsPath
         case let (.dictionary(lhsDictionary), .dictionary(rhsDictionary)):
+            return lhsDictionary == rhsDictionary
+        case let (.extendingDefault(lhsDictionary), .extendingDefault(rhsDictionary)):
             return lhsDictionary == rhsDictionary
         default:
             return false
