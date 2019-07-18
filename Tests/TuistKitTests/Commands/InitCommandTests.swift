@@ -106,6 +106,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "TuistConfig.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -128,6 +129,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "TuistConfig.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -172,6 +174,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "TuistConfig.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -195,6 +198,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
 
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "TuistConfig.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
@@ -217,6 +221,7 @@ final class InitCommandTests: XCTestCase {
         let name = fileHandler.currentPath.components.last!
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: ".gitignore")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Project.swift")))
+        XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "TuistConfig.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Setup.swift")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Info.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
