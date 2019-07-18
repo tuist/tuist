@@ -5,9 +5,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Added
+
 - `tuist graph` command https://github.com/tuist/tuist/pull/427 by @pepibumur.
 - Allow customisation of `productName` in the project Manifest https://github.com/tuist/tuist/pull/435 by @ollieatkinson
 - Adding support for static products depending on dynamic frameworks https://github.com/tuist/tuist/pull/439 by @kwridan
+- Support for executing Tuist by running `swift project ...` https://github.com/tuist/tuist/pull/447 by @pepibumur.
 
 ### Fixed
 
@@ -16,11 +18,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Update manifest target name such that its product has a valid name https://github.com/tuist/tuist/pull/426 by @kwridan
 
 ### Changed
+
 - Update XcodeProj to 7.0.0 https://github.com/tuist/tuist/pull/421 by @pepibumur.
 
 ## 0.16.0
 
 ### Added
+
 - `DefaultSettings.none` to disable the generation of default build settings https://github.com/tuist/tuist/pull/395 by @pepibumur.
 - Version information for tuistenv https://github.com/tuist/tuist/pull/399 by @ollieatkinson
 - Add input & output paths for target action https://github.com/tuist/tuist/pull/353 by Rag0n
@@ -43,6 +47,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## 0.15.0
 
 ### Changed
+
 - Introduce the `InfoPlist` file https://github.com/tuist/tuist/pull/373 by @pepibumur.
 - Add `defaultSettings` option to `Settings` definition to control default settings generation https://github.com/tuist/tuist/pull/378 by @marciniwanicki
 
@@ -58,13 +63,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fixing unstable diff (products and embedded frameworks) https://github.com/tuist/tuist/pull/357 by @marciniwanicki
 - Set Code Sign On Copy to true for Embed Frameworks https://github.com/tuist/tuist/pull/333 by @dangthaison91
 - Fixing files getting mistaken for folders https://github.com/tuist/tuist/pull/338 by @kwridan
-- Updating init template to avoid warnings https://github.com/tuist/tuist/pull/339 by @kwridan 
-- Fixing generation failures due to asset catalog & `**/*.png` glob patterns handling https://github.com/tuist/tuist/pull/346 by @kwridan 
-- Supporting bundle target dependencies that reside in different projects (in `TuistGenerator`) https://github.com/tuist/tuist/pull/348 by @kwridan 
+- Updating init template to avoid warnings https://github.com/tuist/tuist/pull/339 by @kwridan
+- Fixing generation failures due to asset catalog & `**/*.png` glob patterns handling https://github.com/tuist/tuist/pull/346 by @kwridan
+- Supporting bundle target dependencies that reside in different projects (in `TuistGenerator`) https://github.com/tuist/tuist/pull/348 by @kwridan
 - Fixing header paths including folders and non-header files https://github.com/tuist/tuist/pull/356 by @kwridan
 - Fix duplicate localized resource files https://github.com/tuist/tuist/pull/363 by @kwridan
 - Update static dependency lint rule https://github.com/tuist/tuist/pull/360 by @kwridan
-- Ensure resource bundles in other projects get built https://github.com/tuist/tuist/pull/374 by @kwridan 
+- Ensure resource bundles in other projects get built https://github.com/tuist/tuist/pull/374 by @kwridan
 
 ## 0.14.0
 
