@@ -12,7 +12,8 @@ import Foundation
 public protocol GeneratorModelLoading {
     /// Load a Project model at the specified path
     ///
-    /// - Parameter path: The absolute path for the project model to load
+    /// - Parameters:
+    ///   - path: The absolute path for the project model to load.
     /// - Returns: The Project loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     func loadProject(at path: AbsolutePath) throws -> Project

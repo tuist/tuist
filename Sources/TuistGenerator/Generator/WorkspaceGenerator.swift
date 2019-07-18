@@ -21,10 +21,20 @@ enum WorkspaceGeneratorError: FatalError {
 }
 
 protocol WorkspaceGenerating: AnyObject {
+    /// Generates the given workspace.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - path: Path to the directory where the generation command is executed from.
+    ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration.
+    /// - Returns: Path to the generated workspace.
+    /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath
+                  graph: Graphing,
+                  tuistConfig: TuistConfig) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -70,10 +80,20 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - WorkspaceGenerating
 
+    /// Generates the given workspace.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - path: Path to the directory where the generation command is executed from.
+    ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration.
+    /// - Returns: Path to the generated workspace.
+    /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath {
+                  graph: Graphing,
+                  tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
         printer.print(section: "Generating workspace \(workspaceName)")
 

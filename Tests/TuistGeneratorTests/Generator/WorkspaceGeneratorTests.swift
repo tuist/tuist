@@ -51,7 +51,8 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // When
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
-                                                 graph: graph)
+                                                 graph: graph,
+                                                 tuistConfig: .test())
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
@@ -77,7 +78,8 @@ final class WorkspaceGeneratorTests: XCTestCase {
         XCTAssertNoThrow(
             try subject.generate(workspace: workspace,
                                  path: path,
-                                 graph: graph)
+                                 graph: graph,
+                                 tuistConfig: .test())
         )
     }
 
@@ -95,7 +97,8 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // When
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
-                                                 graph: graph)
+                                                 graph: graph,
+                                                 tuistConfig: .test())
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)

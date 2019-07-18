@@ -16,7 +16,7 @@ public class TuistConfig: Equatable, Hashable {
 
     /// Returns the default Tuist configuration.
     public static var `default`: TuistConfig {
-        return TuistConfig(generationOptions: [])
+        return TuistConfig(generationOptions: [.generateManifestElements])
     }
 
     /// Initializes the tuist cofiguration.
@@ -27,40 +27,13 @@ public class TuistConfig: Equatable, Hashable {
         self.generationOptions = generationOptions
     }
 
-    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, modelLoader: GeneratorModelLoading, fileHandler: FileHandling) throws -> TuistConfig {
-        guard let tuistConfigPath = locateDirectoryTraversingParents(from: path, path: "TuistConfig.swift", fileHandler: fileHandler) else {
-            return .default
-        }
-
-        /// Directory that contains the TuistConfig.swift
-        let path = tuistConfigPath.parentDirectory
-
+    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, modelLoader: GeneratorModelLoading, fileHandler _: FileHandling) throws -> TuistConfig {
         if let tuistConfig = cache.tuistConfig(path) {
             return tuistConfig
         } else {
             let tuistConfig = try modelLoader.loadTuistConfig(at: path)
             cache.add(tuistConfig: tuistConfig, path: path)
             return tuistConfig
-        }
-    }
-
-    // MARK: - Fileprivate
-
-    /// Traverses the parent directories until the given path is found.
-    ///
-    /// - Parameters:
-    ///   - from: A path to a directory from which search the TuistConfig.swift.
-    ///   - fileHandler: An instance to interact with the file system.
-    /// - Returns: The found path.
-    fileprivate static func locateDirectoryTraversingParents(from: AbsolutePath, path: String, fileHandler: FileHandling) -> AbsolutePath? {
-        let tuistConfigPath = from.appending(component: path)
-
-        if fileHandler.exists(tuistConfigPath) {
-            return tuistConfigPath
-        } else if from == AbsolutePath("/") {
-            return nil
-        } else {
-            return locateDirectoryTraversingParents(from: from.parentDirectory, path: path, fileHandler: fileHandler)
         }
     }
 

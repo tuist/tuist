@@ -72,8 +72,8 @@ public class Generator: Generating {
 
     public func generateProject(at path: AbsolutePath,
                                 workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
-        let (graph, project) = try graphLoader.loadProject(path: path)
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
+        let (graph, project) = try graphLoader.loadProject(path: path)
 
         let workspace = Workspace(name: project.name,
                                   projects: graph.projectPaths,
@@ -81,7 +81,8 @@ public class Generator: Generating {
 
         return try workspaceGenerator.generate(workspace: workspace,
                                                path: path,
-                                               graph: graph)
+                                               graph: graph,
+                                               tuistConfig: tuistConfig)
     }
 
     public func generateWorkspace(at path: AbsolutePath,
@@ -95,6 +96,7 @@ public class Generator: Generating {
 
         return try workspaceGenerator.generate(workspace: updatedWorkspace,
                                                path: path,
-                                               graph: graph)
+                                               graph: graph,
+                                               tuistConfig: tuistConfig)
     }
 }
