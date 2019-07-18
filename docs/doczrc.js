@@ -56,7 +56,8 @@ export default {
   },
   menu: [
     'Getting started',
-    'Manifest format',
+    'Project & workspace',
+    'Configuration',
     'Dependencies',
     'Up tasks',
     'Graph',
