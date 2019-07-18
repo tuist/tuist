@@ -1,16 +1,8 @@
 import Foundation
-#if canImport(Sentry)
-    import Sentry
-#endif
 
 /// Objects that conform this protocol provide a way of handling fatal errors
 /// that are thrown during the execution of an app.
 public protocol ErrorHandling: AnyObject {
-    /// Configures the crash reporting to observe and report unhandled exceptions.
-    ///
-    /// - Throws: An error if the error handler can't be initialized.
-    func setup() throws
-
     /// When called, this method delegates the error handling
     /// to the entity that conforms this protocol.
     ///
@@ -52,19 +44,6 @@ public final class ErrorHandler: ErrorHandling {
     }
 
     // MARK: - Public
-
-    /// Configures the crash reporting to observe and report unhandled exceptions.
-    ///
-    /// - Throws: An error if the error handler can't be initialized.
-    public func setup() throws {
-        #if canImport(Sentry)
-            if !isDisabled(), !sentryDsn.isEmpty {
-                Client.logLevel = .none
-                Client.shared = try Client(dsn: sentryDsn)
-                try Client.shared?.startCrashHandler()
-            }
-        #endif
-    }
 
     /// When called, this method delegates the error handling
     /// to the entity that conforms this protocol.

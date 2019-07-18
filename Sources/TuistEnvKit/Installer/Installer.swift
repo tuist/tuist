@@ -94,9 +94,7 @@ final class Installer: Installing {
 
         if let release = githubRelease(version: version),
             let bundleURL = bundleURL(release: release) {
-            let sentryBundleURL = self.sentryBundleURL(release: release)
             try installFromBundle(bundleURL: bundleURL,
-                                  sentryBundleURL: sentryBundleURL,
                                   version: version,
                                   temporaryDirectory: temporaryDirectory)
         } else {
@@ -121,12 +119,7 @@ final class Installer: Installing {
         return bundleAsset.downloadURL
     }
 
-    func sentryBundleURL(release: Release) -> URL? {
-        return release.assets.first(where: { $0.name == Constants.sentryBundleName })?.downloadURL
-    }
-
     func installFromBundle(bundleURL: URL,
-                           sentryBundleURL: URL?,
                            version: String,
                            temporaryDirectory: TemporaryDirectory) throws {
         try versionsController.install(version: version, installation: { installationDirectory in
@@ -134,18 +127,11 @@ final class Installer: Installing {
             // Download bundle
             printer.print("Downloading version from \(bundleURL.absoluteString)")
             let tuistDownloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            let sentryDownloadPath = temporaryDirectory.path.appending(component: Constants.sentryBundleName)
             try system.run("/usr/bin/curl", "-LSs", "--output", tuistDownloadPath.pathString, bundleURL.absoluteString)
-            if let sentryBundleURL = sentryBundleURL {
-                try system.run("/usr/bin/curl", "-LSs", "--output", sentryDownloadPath.pathString, sentryBundleURL.absoluteString)
-            }
 
             // Unzip
             printer.print("Installing...")
             try system.run("/usr/bin/unzip", "-q", tuistDownloadPath.pathString, "-d", installationDirectory.pathString)
-            if sentryBundleURL != nil {
-                try system.run("/usr/bin/unzip", "-q", sentryDownloadPath.pathString, "-d", installationDirectory.pathString)
-            }
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")
@@ -194,8 +180,6 @@ final class Installer: Installing {
 
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
-            try buildCopier.copyFrameworks(from: temporaryDirectory.path.appending(component: "Frameworks"),
-                                           to: installationDirectory)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             printer.print("Version \(version) installed")

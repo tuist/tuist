@@ -44,18 +44,4 @@ final class BuildCopierTests: XCTestCase {
         XCTAssertEqual(toPath.glob("*").count, BuildCopier.files.count)
         XCTAssertFalse(fileHandler.exists(toPath.appending(component: "test")))
     }
-
-    func test_copyFrameworks() throws {
-        // Given
-        let fromPath = fileHandler.currentPath
-        let toDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let toPath = toDir.path
-        try fileHandler.touch(fromPath.appending(component: "Sentry.framework"))
-
-        // When
-        try subject.copyFrameworks(from: fromPath, to: toPath)
-
-        // Then
-        XCTAssertTrue(fileHandler.exists(toPath.appending(component: "Sentry.framework")))
-    }
 }

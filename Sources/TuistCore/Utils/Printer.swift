@@ -10,6 +10,7 @@ public protocol Printing: AnyObject {
     func print(error: Error)
     func print(success: String)
     func print(errorMessage: String)
+    func print(importantText: String)
 
     /// Prints a deprecation message (yellow color)
     ///
@@ -27,6 +28,12 @@ public class Printer: Printing {
     public func print(_ text: String) {
         let writer = InteractiveWriter.stdout
         writer.write(text)
+        writer.write("\n")
+    }
+
+    public func print(importantText: String) {
+        let writer = InteractiveWriter.stdout
+        writer.write(importantText, inColor: .cyan, bold: true)
         writer.write("\n")
     }
 

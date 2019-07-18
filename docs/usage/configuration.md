@@ -6,7 +6,7 @@ name: Configuration
 
 ## Disable error tracking
 
-By default, Tuist reports unhandled exceptions and bugs anonymously to [Sentry](https://sentry.io). This feature can be disabled by defining the variable `TUIST_ANALYTICS_DISABLED=1` in your environment or passing it when calling Tuist:
+By default, Tuist reports unhandled exceptions and bugs anonymously by creating GitHub issues. This feature can be disabled by defining the variable `TUIST_ANALYTICS_DISABLED=1` in your environment or passing it when calling Tuist:
 
 ```bash
 TUIST_ANALYTICS_DISABLED=1 tuist generate

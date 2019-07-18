@@ -40,7 +40,7 @@ let package = Package(
         ),
         .target(
             name: "tuist",
-            dependencies: ["TuistKit"]
+            dependencies: ["TuistKit", "TuistCore"]
         ),
         .target(
             name: "TuistEnvKit",
@@ -52,7 +52,7 @@ let package = Package(
         ),
         .target(
             name: "tuistenv",
-            dependencies: ["TuistEnvKit"]
+            dependencies: ["TuistEnvKit", "TuistCore"]
         ),
         .target(
             name: "ProjectDescription",

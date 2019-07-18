@@ -8,5 +8,4 @@ public class Constants {
     public static let version = "0.16.0"
     public static let swiftVersion: String = "5.0"
     public static let bundleName: String = "tuist.zip"
-    public static let sentryBundleName: String = "Sentry.framework.zip"
 }

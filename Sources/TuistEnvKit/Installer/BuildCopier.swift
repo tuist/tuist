@@ -9,14 +9,6 @@ protocol BuildCopying: AnyObject {
     ///   - from: Absolute path to the project's Framework folder.
     ///   - to: Installation directory where the binaries are.
     /// - Throws: An error if the copy of the frameworks fails.
-    func copyFrameworks(from: AbsolutePath, to: AbsolutePath) throws
-
-    /// Copies the frameworks under the project's Framework directory to the installation directory.
-    ///
-    /// - Parameters:
-    ///   - from: Absolute path to the project's Framework folder.
-    ///   - to: Installation directory where the binaries are.
-    /// - Throws: An error if the copy of the frameworks fails.
     func copy(from: AbsolutePath, to: AbsolutePath) throws
 }
 
@@ -68,26 +60,6 @@ class BuildCopier: BuildCopying {
             if file == "tuist" {
                 try system.run("/bin/chmod", "+x", toPath.pathString)
             }
-        }
-    }
-
-    /// Copies the frameworks under the project's Framework directory to the installation directory.
-    ///
-    /// - Parameters:
-    ///   - from: Absolute path to the project's Framework folder.
-    ///   - to: Installation directory where the binaries are.
-    /// - Throws: An error if the copy of the frameworks fails.
-    func copyFrameworks(from: AbsolutePath, to: AbsolutePath) throws {
-        let frameworks = ["Sentry.framework"]
-        try frameworks.map { from.appending(component: $0) }.forEach { frameworkPath in
-
-            /// We might use tuistenv to install older versions of Tuist that might
-            /// not have all the frameworks listed here. For that reason, we can't
-            /// require the framework to be present.
-            if !fileHandler.exists(frameworkPath) { return }
-
-            let toPath = to.appending(component: frameworkPath.components.last!)
-            try system.run("/bin/cp", "-rf", frameworkPath.pathString, toPath.pathString)
         }
     }
 }

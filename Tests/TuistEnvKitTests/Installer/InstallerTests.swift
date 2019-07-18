@@ -33,65 +33,6 @@ final class InstallerTests: XCTestCase {
                             githubClient: githubClient)
     }
 
-    func test_install_when_bundled_release_with_sentry() throws {
-        // Given
-        let version = "3.2.1"
-        stubLocalAndRemoveSwiftVersions()
-        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let tuistDownloadURL = URL(string: "https://test.com/tuist.zip")!
-        let sentryDownloadURL = URL(string: "https://test.com/Sentry.framework.zip")!
-
-        let tuistAsset = Release.Asset(downloadURL: tuistDownloadURL,
-                                       name: "tuist.zip")
-        let sentryAsset = Release.Asset(downloadURL: sentryDownloadURL,
-                                        name: "Sentry.framework.zip")
-        let release = Release.test(assets: [tuistAsset, sentryAsset])
-
-        githubClient.releaseWithTagStub = {
-            if $0 == version { return release }
-            else { throw NSError.test() }
-        }
-
-        versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
-        }
-
-        let tuistDownloadPath = temporaryDirectory
-            .path
-            .appending(component: Constants.bundleName)
-        let sentryDownloadPath = temporaryDirectory
-            .path
-            .appending(component: Constants.sentryBundleName)
-
-        system.succeedCommand("/usr/bin/curl", "-LSs",
-                              "--output", tuistDownloadPath.pathString,
-                              tuistDownloadURL.absoluteString)
-        system.succeedCommand("/usr/bin/curl", "-LSs",
-                              "--output", sentryDownloadPath.pathString,
-                              sentryDownloadURL.absoluteString)
-        system.succeedCommand("/usr/bin/unzip",
-                              "-q",
-                              tuistDownloadPath.pathString,
-                              "-d", fileHandler.currentPath.pathString)
-        system.succeedCommand("/usr/bin/unzip",
-                              "-q",
-                              sentryDownloadPath.pathString,
-                              "-d", fileHandler.currentPath.pathString)
-
-        // When
-        try subject.install(version: version,
-                            temporaryDirectory: temporaryDirectory)
-
-        // Then
-        XCTAssertEqual(printer.printArgs.count, 3)
-        XCTAssertEqual(printer.printArgs[0], "Downloading version from \(tuistDownloadURL.absoluteString)")
-        XCTAssertEqual(printer.printArgs[1], "Installing...")
-        XCTAssertEqual(printer.printArgs[2], "Version \(version) installed")
-
-        let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
-        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
-    }
-
     func test_install_when_bundled_release() throws {
         // Given
         let version = "3.2.1"
@@ -240,9 +181,6 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(printer.printArgs[2], "Version 3.2.1 installed")
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
-        XCTAssertEqual(buildCopier.copyFrameworksArgs.count, 1)
-        XCTAssertEqual(buildCopier.copyFrameworksArgs.first!.from, temporaryDirectory.path.appending(component: "Frameworks"))
-        XCTAssertEqual(buildCopier.copyFrameworksArgs.first!.to, installationDirectory)
     }
 
     func test_install_when_force() throws {
@@ -287,9 +225,6 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(printer.printArgs[3], "Version 3.2.1 installed")
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
-        XCTAssertEqual(buildCopier.copyFrameworksArgs.count, 1)
-        XCTAssertEqual(buildCopier.copyFrameworksArgs.first!.from, temporaryDirectory.path.appending(component: "Frameworks"))
-        XCTAssertEqual(buildCopier.copyFrameworksArgs.first!.to, installationDirectory)
     }
 
     func test_install_when_no_bundled_release_and_invalid_reference() throws {
