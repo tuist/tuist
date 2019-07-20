@@ -38,6 +38,12 @@ extension BuildConfiguration: Hashable {
     }
 }
 
+extension BuildConfiguration: Comparable {
+    public static func < (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
+        return lhs.name < rhs.name
+    }
+}
+
 extension BuildConfiguration: XcodeRepresentable {
     public var xcodeValue: String { return name }
 }
