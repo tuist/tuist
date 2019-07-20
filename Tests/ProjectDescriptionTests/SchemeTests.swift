@@ -57,7 +57,7 @@ final class SchemeTests: XCTestCase {
                         "run": true
                     }
                 },
-                "config": "debug",
+                "config": { "name": "Debug", "variant": "debug" },
                 "executable": "executable"
             },
             "shared": true,
@@ -70,7 +70,7 @@ final class SchemeTests: XCTestCase {
                         "test": true
                     }
                 },
-                "config": "debug",
+                "config": { "name": "Debug", "variant": "debug" },
                 "coverage": true,
                 "targets": [
                     "target"
