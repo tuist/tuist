@@ -342,14 +342,23 @@ extension TuistGenerator.InfoPlist.Value {
 }
 
 extension TuistGenerator.Settings {
+    typealias BuildConfigurationTuple = (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?)
+    
     static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistGenerator.Settings {
         let base = manifest.base
-        let debug = manifest.debug.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
-        let release = manifest.release.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
+        let configurationTuples = manifest.configurations.map { buildConfigurationTuple(from: $0, path: path) }
+        let configurations = Dictionary(configurationTuples, uniquingKeysWith: { $1 })
         let defaultSettings = TuistGenerator.DefaultSettings.from(manifest: manifest.defaultSettings)
         return TuistGenerator.Settings(base: base,
-                                       configurations: [.debug: debug, .release: release],
+                                       configurations: configurations,
                                        defaultSettings: defaultSettings)
+    }
+    
+    private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
+                                                path: AbsolutePath) -> BuildConfigurationTuple {
+        let buildConfigruation = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration.buildConfiguration)
+        let configuration = customConfiguration.configuration.map { TuistGenerator.Configuration.from(manifest: $0, path: path) }
+        return (buildConfigruation, configuration)
     }
 }
 
@@ -539,12 +548,14 @@ extension TuistGenerator.Arguments {
 
 extension TuistGenerator.BuildConfiguration {
     static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistGenerator.BuildConfiguration {
-        switch manifest {
+        let variant: TuistGenerator.BuildConfiguration.Variant
+        switch manifest.variant {
         case .debug:
-            return .debug
+            variant = .debug
         case .release:
-            return .release
+            variant = .release
         }
+        return TuistGenerator.BuildConfiguration(name: manifest.name, variant: variant)
     }
 }
 
