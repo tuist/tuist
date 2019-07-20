@@ -10,6 +10,11 @@ let settings = Settings(base: [
     "PROJECT_BASE": "PROJECT_BASE",
 ], configurations: configurations)
 
+let betaScheme = Scheme(name: "App-Beta",
+                         shared: true,
+                         buildAction: BuildAction(targets: ["App"]),
+                         runAction: RunAction(config: .release(name: "Beta"), executable: "App"))
+
 let project = Project(name: "MainApp",
                       settings: settings,
                       targets: [
@@ -32,4 +37,4 @@ let project = Project(name: "MainApp",
                                  dependencies: [
                                      .target(name: "App"),
                           ]),
-                      ])
+                      ], schemes: [betaScheme])
