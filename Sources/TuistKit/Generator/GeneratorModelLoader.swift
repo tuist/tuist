@@ -343,7 +343,7 @@ extension TuistGenerator.InfoPlist.Value {
 
 extension TuistGenerator.Settings {
     typealias BuildConfigurationTuple = (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?)
-    
+
     static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistGenerator.Settings {
         let base = manifest.base
         let configurationTuples = manifest.configurations.map { buildConfigurationTuple(from: $0, path: path) }
@@ -353,7 +353,7 @@ extension TuistGenerator.Settings {
                                        configurations: configurations,
                                        defaultSettings: defaultSettings)
     }
-    
+
     private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
                                                 path: AbsolutePath) -> BuildConfigurationTuple {
         let buildConfigruation = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration.buildConfiguration)

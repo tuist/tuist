@@ -147,7 +147,7 @@ final class SchemesGenerator: SchemesGenerating {
                                                       buildableReference: reference)
             testables.append(testable)
         }
-        
+
         let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
         return XCScheme.TestAction(buildConfiguration: buildConfiguration,
                                    macroExpansion: nil,
@@ -199,7 +199,7 @@ final class SchemesGenerator: SchemesGenerating {
         }
 
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
-        
+
         return XCScheme.TestAction(buildConfiguration: testAction.config.name,
                                    macroExpansion: nil,
                                    testables: testables,
@@ -286,12 +286,12 @@ final class SchemesGenerator: SchemesGenerating {
 
         var commandlineArguments: XCScheme.CommandLineArguments?
         var environments: [XCScheme.EnvironmentVariable]?
-        
+
         if let arguments = scheme.runAction?.arguments {
             commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
             environments = environmentVariables(arguments.environment)
         }
-        
+
         let buildConfiguration = scheme.runAction?.config.name ?? defaultDebugBuildConfigurationName(in: project)
         return XCScheme.LaunchAction(runnable: buildableProductRunnable,
                                      buildConfiguration: buildConfiguration,
@@ -328,7 +328,7 @@ final class SchemesGenerator: SchemesGenerating {
         } else {
             macroExpansion = buildableReference
         }
-        
+
         let buildConfiguration = defaultReleaseBuildConfigurationName(in: project)
         return XCScheme.ProfileAction(buildableProductRunnable: buildableProductRunnable,
                                       buildConfiguration: buildConfiguration,
@@ -441,18 +441,18 @@ final class SchemesGenerator: SchemesGenerating {
         }
         return path
     }
-    
+
     private func defaultDebugBuildConfigurationName(in project: Project) -> String {
         let debugConfiguration = project.settings.defaultDebugBuildConfiguration()
         let buildConfiguration = debugConfiguration ?? project.settings.configurations.keys.first
-        
+
         return buildConfiguration?.name ?? "Debug"
     }
-    
+
     private func defaultReleaseBuildConfigurationName(in project: Project) -> String {
         let releaseConfiguration = project.settings.defaultReleaseBuildConfiguration()
         let buildConfiguration = releaseConfiguration ?? project.settings.configurations.keys.first
-        
+
         return buildConfiguration?.name ?? "Release"
     }
 }

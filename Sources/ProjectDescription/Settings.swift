@@ -16,7 +16,6 @@ public struct Configuration: Equatable, Codable {
     }
 }
 
-
 /// A custom configuration which associats a `BuildConfiguration` and `Configruation`.
 ///
 /// `BuildConfiguration` contains information regarding the configuration name and variant, while
@@ -25,7 +24,7 @@ public struct Configuration: Equatable, Codable {
 public struct CustomConfiguration: Equatable, Codable {
     public let buildConfiguration: BuildConfiguration
     public let configuration: Configuration?
-    
+
     /// Creates a custom configuration which associated a `BuildConfiguration` and `Configruation`.
     ///
     /// - Parameters:
@@ -38,7 +37,6 @@ public struct CustomConfiguration: Equatable, Codable {
 }
 
 public extension CustomConfiguration {
-    
     /// Creates a custom debug configuration
     ///
     /// - Parameters:
@@ -50,7 +48,7 @@ public extension CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
         return CustomConfiguration(buildConfiguration: .debug(name: name), configuration: configuration)
     }
-    
+
     /// Creates a custom release configuration
     ///
     /// - Parameters:
@@ -83,7 +81,7 @@ public struct Settings: Equatable, Codable {
     public let base: [String: String]
     public let configurations: [CustomConfiguration]
     public let defaultSettings: DefaultSettings
-    
+
     /// Creates settings with the default `Debug` and `Release` configurations.
     ///
     /// - Parameters:
@@ -100,15 +98,14 @@ public struct Settings: Equatable, Codable {
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
                 defaultSettings: DefaultSettings = .recommended) {
-        
-        self.configurations = [
+        configurations = [
             CustomConfiguration(buildConfiguration: .debug, configuration: debug),
             CustomConfiguration(buildConfiguration: .release, configuration: release),
         ]
         self.base = base
         self.defaultSettings = defaultSettings
     }
-    
+
     /// Creates settings with any number of custom configurations.
     ///
     /// - Parameters:

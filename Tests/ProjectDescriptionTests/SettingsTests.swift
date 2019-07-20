@@ -17,10 +17,10 @@ final class SettingsTests: XCTestCase {
         let subject = Settings(base: ["base": "base"],
                                debug: debug,
                                release: release)
-        
+
         // When
         let data = try encoder.encode(subject)
-        
+
         // Then
         let decoded = try decoder.decode(Settings.self, from: data)
         XCTAssertEqual(decoded, subject)
@@ -29,7 +29,7 @@ final class SettingsTests: XCTestCase {
             "Release",
         ])
     }
-    
+
     func test_codable_multi_configs() throws {
         // Given
         let configurations: [CustomConfiguration] = [
@@ -40,10 +40,10 @@ final class SettingsTests: XCTestCase {
         ]
         let subject = Settings(base: ["base": "base"],
                                configurations: configurations)
-        
+
         // When
         let data = try encoder.encode(subject)
-        
+
         // Then
         let decoded = try decoder.decode(Settings.self, from: data)
         XCTAssertEqual(decoded, subject)
@@ -51,7 +51,7 @@ final class SettingsTests: XCTestCase {
             "Debug",
             "CustomDebug",
             "Release",
-            "CustomRelease"
+            "CustomRelease",
         ])
     }
 }
