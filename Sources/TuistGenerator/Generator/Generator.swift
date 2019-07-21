@@ -4,10 +4,19 @@ import TuistCore
 
 /// A component responsible for generating Xcode projects & workspaces
 public protocol Generating {
-    /// Generate an Xcode project at a given path.
+    /// Generates an Xcode project at a given path. Only the specified project is generated (excluding its dependencies).
     ///
     /// - Parameters:
-    ///   - path: The absolute path to the directory where an Xcode project should be generated.
+    ///   - path: The absolute path to the directory where an Xcode project should be generated
+    /// - Returns: An absolute path to the generated Xcode project many of which adopt `FatalError`
+    /// - Throws: Errors encountered during the generation process
+    /// - seealso: TuistCore.FatalError
+    func generateProject(at path: AbsolutePath) throws -> AbsolutePath
+
+    /// Generate an Xcode workspace for the project at a given path. All the project's dependencies will also be generated and included.
+    ///
+    /// - Parameters:
+    ///   - path: The absolute path to the directory where an Xcode workspace should be generated
     ///           (e.g. /path/to/directory)
     ///   - workspaceFiles: Additional files to include in the final generated workspace
     /// - Returns: An absolute path to the generated Xcode workspace
@@ -16,12 +25,12 @@ public protocol Generating {
     ///           many of which adopt `FatalError`
     /// - seealso: TuistCore.FatalError
     @discardableResult
-    func generateProject(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath
+    func generateProjectWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath
 
-    /// Generate an Xcode workspace at a given path.
+    /// Generate an Xcode workspace at a given path. All referenced projects and their dependencies will be generated and included.
     ///
     /// - Parameters:
-    ///   - path: The absolute path to the directory where an Xcode project should be generated.
+    ///   - path: The absolute path to the directory where an Xcode workspace should be generated
     ///           (e.g. /path/to/directory)
     ///   - workspaceFiles: Additional files to include in the final generated workspace
     /// - Returns: An absolute path to the generated Xcode workspace
@@ -36,9 +45,11 @@ public protocol Generating {
 /// A default implementation of `Generating`
 ///
 /// - seealso: Generating
+/// - seealso: GeneratorModelLoading
 public class Generator: Generating {
     private let graphLoader: GraphLoading
     private let workspaceGenerator: WorkspaceGenerating
+    private let projectGenerator: ProjectGenerating
 
     public convenience init(system: Systeming = System(),
                             printer: Printing = Printer(),
@@ -61,17 +72,29 @@ public class Generator: Generating {
                                                     fileHandler: fileHandler,
                                                     workspaceStructureGenerator: workspaceStructureGenerator)
         self.init(graphLoader: graphLoader,
-                  workspaceGenerator: workspaceGenerator)
+                  workspaceGenerator: workspaceGenerator,
+                  projectGenerator: projectGenerator)
     }
 
     init(graphLoader: GraphLoading,
-         workspaceGenerator: WorkspaceGenerating) {
+         workspaceGenerator: WorkspaceGenerating,
+         projectGenerator: ProjectGenerating) {
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
+        self.projectGenerator = projectGenerator
     }
 
-    public func generateProject(at path: AbsolutePath,
-                                workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+    public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
+        let (graph, project) = try graphLoader.loadProject(path: path)
+
+        let generatedProject = try projectGenerator.generate(project: project,
+                                                             graph: graph,
+                                                             sourceRootPath: path)
+        return generatedProject.path
+    }
+
+    public func generateProjectWorkspace(at path: AbsolutePath,
+                                         workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
         let (graph, project) = try graphLoader.loadProject(path: path)
 

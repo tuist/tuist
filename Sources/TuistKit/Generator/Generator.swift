@@ -11,7 +11,7 @@ extension Generating {
         if manifests.contains(.workspace) {
             return try generateWorkspace(at: path, workspaceFiles: workspaceFiles)
         } else if manifests.contains(.project) {
-            return try generateProject(at: path, workspaceFiles: workspaceFiles)
+            return try generateProjectWorkspace(at: path, workspaceFiles: workspaceFiles)
         } else {
             throw GraphManifestLoaderError.manifestNotFound(path)
         }
