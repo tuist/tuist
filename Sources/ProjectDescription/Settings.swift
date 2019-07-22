@@ -16,7 +16,7 @@ public struct Configuration: Equatable, Codable {
     }
 }
 
-/// A custom configuration which associats a `BuildConfiguration` and `Configruation`.
+/// A custom configuration which associats a `BuildConfiguration` and `Configuration`.
 ///
 /// `BuildConfiguration` contains information regarding the configuration name and variant, while
 /// the `Configuration` contains the build settings and any associated xcconfig file.
@@ -25,7 +25,7 @@ public struct CustomConfiguration: Equatable, Codable {
     public let buildConfiguration: BuildConfiguration
     public let configuration: Configuration?
 
-    /// Creates a custom configuration which associated a `BuildConfiguration` and `Configruation`.
+    /// Creates a custom configuration which associated a `BuildConfiguration` and `Configuration`.
     ///
     /// - Parameters:
     ///   - buildConfiguration: The build configuration to use
@@ -90,7 +90,7 @@ public struct Settings: Equatable, Codable {
     ///   - release: The release configuration
     ///   - defaultSettings: The default settings to apply during generation
     ///
-    /// - Note: To specify additional custom configruations, you can use the alternate initializer `init(base:configurations:defaultSettings:)`.
+    /// - Note: To specify additional custom configurations, you can use the alternate initializer `init(base:configurations:defaultSettings:)`.
     ///
     /// - seealso: Configuration
     /// - seealso: DefaultSettings

@@ -356,9 +356,9 @@ extension TuistGenerator.Settings {
 
     private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
                                                 path: AbsolutePath) -> BuildConfigurationTuple {
-        let buildConfigruation = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration.buildConfiguration)
+        let buildConfiguration = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration.buildConfiguration)
         let configuration = customConfiguration.configuration.map { TuistGenerator.Configuration.from(manifest: $0, path: path) }
-        return (buildConfigruation, configuration)
+        return (buildConfiguration, configuration)
     }
 }
 
