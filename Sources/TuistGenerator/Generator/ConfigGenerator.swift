@@ -6,8 +6,7 @@ import XcodeProj
 protocol ConfigGenerating: AnyObject {
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               fileElements: ProjectFileElements,
-                               options: GenerationOptions) throws -> XCConfigurationList
+                               fileElements: ProjectFileElements) throws -> XCConfigurationList
 
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
@@ -15,7 +14,6 @@ protocol ConfigGenerating: AnyObject {
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
-                              options: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws
 }
 
@@ -37,8 +35,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               fileElements: ProjectFileElements,
-                               options _: GenerationOptions) throws -> XCConfigurationList {
+                               fileElements: ProjectFileElements) throws -> XCConfigurationList {
         /// Configuration list
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
@@ -61,7 +58,6 @@ final class ConfigGenerator: ConfigGenerating {
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
-                              options _: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)

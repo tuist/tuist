@@ -148,11 +148,9 @@ final class ConfigGeneratorTests: XCTestCase {
                                    settings: Settings(base: ["Base": "Base"], configurations: configurations),
                                    targets: [])
         let fileElements = ProjectFileElements()
-        let options = GenerationOptions()
         _ = try subject.generateProjectConfig(project: project,
                                               pbxproj: pbxproj,
-                                              fileElements: fileElements,
-                                              options: options)
+                                              fileElements: fileElements)
     }
 
     private func generateTargetConfig() throws {
@@ -183,14 +181,12 @@ final class ConfigGeneratorTests: XCTestCase {
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: project.path)
-        let options = GenerationOptions()
         _ = try subject.generateTargetConfig(target,
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
                                              projectSettings: project.settings,
                                              fileElements: fileElements,
                                              graph: graph,
-                                             options: options,
                                              sourceRootPath: AbsolutePath("/"))
     }
 
@@ -213,7 +209,6 @@ final class ConfigGeneratorTests: XCTestCase {
                                              projectSettings: project.settings,
                                              fileElements: .init(),
                                              graph: graph,
-                                             options: .init(),
                                              sourceRootPath: dir.path)
     }
 

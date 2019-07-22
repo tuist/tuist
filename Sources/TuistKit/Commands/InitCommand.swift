@@ -113,6 +113,7 @@ class InitCommand: NSObject, Command {
         try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateGitIgnore(path: path)
         try generateSetup(path: path)
+        try generateTuistConfig(path: path)
         printer.print(success: "Project generated at path \(path.pathString).")
     }
 
@@ -258,7 +259,19 @@ class InitCommand: NSObject, Command {
             // .carthage()
         ])
         """
-        let setupPath = path.appending(component: "Setup.swift")
+        let setupPath = path.appending(component: Manifest.setup.fileName)
+        try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
+    }
+
+    private func generateTuistConfig(path: AbsolutePath) throws {
+        let content = """
+        import ProjectDescription
+
+        let config = TuistConfig(generationOptions: [
+            .generateManifest
+        ])
+        """
+        let setupPath = path.appending(component: Manifest.tuistConfig.fileName)
         try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
     }
 

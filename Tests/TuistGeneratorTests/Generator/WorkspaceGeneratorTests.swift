@@ -17,13 +17,9 @@ final class WorkspaceGeneratorTests: XCTestCase {
             fileHandler = try MockFileHandler()
             path = fileHandler.currentPath
 
-            let projectDirectoryHelper = ProjectDirectoryHelper(environmentController: try MockEnvironmentController(),
-                                                                fileHandler: fileHandler)
-
             subject = WorkspaceGenerator(
                 system: MockSystem(),
                 printer: MockPrinter(),
-                projectDirectoryHelper: projectDirectoryHelper,
                 fileHandler: fileHandler
             )
 
@@ -56,7 +52,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
                                                  graph: graph,
-                                                 options: GenerationOptions())
+                                                 tuistConfig: .test())
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
@@ -83,7 +79,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
             try subject.generate(workspace: workspace,
                                  path: path,
                                  graph: graph,
-                                 options: GenerationOptions())
+                                 tuistConfig: .test())
         )
     }
 
@@ -102,7 +98,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
                                                  graph: graph,
-                                                 options: GenerationOptions())
+                                                 tuistConfig: .test())
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)

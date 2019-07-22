@@ -22,14 +22,15 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
         let settings = Settings(base: try manifestTargetBuildSettings(),
                                 configurations: Settings.default.configurations,
                                 defaultSettings: .recommended)
-        let manifest = try manifestLoader.manifestPath(at: path, manifest: .project)
+        let manifests = manifestLoader.manifests(at: path)
+
         return Target(name: "\(project)_Manifest",
                       platform: .macOS,
                       product: .staticFramework,
                       productName: "\(project)_Manifest",
                       bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
                       settings: settings,
-                      sources: [(path: manifest, compilerFlags: nil)],
+                      sources: manifests.map { (path: path.appending(component: $0.fileName), compilerFlags: nil) },
                       filesGroup: .group(name: "Manifest"))
     }
 

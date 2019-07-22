@@ -34,9 +34,7 @@ class GeneratorTests: XCTestCase {
         }
 
         // When
-        _ = try subject.generateWorkspace(at: "/path/to",
-                                          config: GeneratorConfig(),
-                                          workspaceFiles: [])
+        _ = try subject.generateWorkspace(at: "/path/to", workspaceFiles: [])
 
         // Then
         let projectPaths = workspaceGenerator.generateWorkspaces.flatMap {
@@ -62,9 +60,7 @@ class GeneratorTests: XCTestCase {
         }
 
         // When
-        _ = try subject.generateProject(at: "/path/to",
-                                        config: GeneratorConfig(),
-                                        workspaceFiles: [])
+        _ = try subject.generateProject(at: "/path/to", workspaceFiles: [])
 
         // Then
         let projectPaths = workspaceGenerator.generateWorkspaces.flatMap {
@@ -92,9 +88,7 @@ class GeneratorTests: XCTestCase {
         }
 
         // When
-        _ = try subject.generateProject(at: "/path/to",
-                                        config: GeneratorConfig(),
-                                        workspaceFiles: workspaceFiles)
+        _ = try subject.generateProject(at: "/path/to", workspaceFiles: workspaceFiles)
 
         // Then
         let additionalFiles = workspaceGenerator.generateWorkspaces.flatMap {
@@ -121,7 +115,6 @@ class GeneratorTests: XCTestCase {
 
         // When
         _ = try subject.generateWorkspace(at: "/path/to",
-                                          config: GeneratorConfig(),
                                           workspaceFiles: [
                                               "/path/to/D",
                                               "/path/to/E",

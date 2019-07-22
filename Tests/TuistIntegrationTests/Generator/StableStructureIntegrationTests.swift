@@ -33,7 +33,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
         try (0 ..< 10).forEach { _ in
             let subject = Generator(printer: MockPrinter(), modelLoader: try createModelLoader())
 
-            let workspacePath = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
+            let workspacePath = try subject.generateWorkspace(at: path, workspaceFiles: [])
 
             let workspace = try XCWorkspace(path: workspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: workspace)
@@ -87,9 +87,16 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
                                     targets: [appTarget] + frameworkTargets,
                                     schemes: [])
         let workspace = createWorkspace(projects: ["App"])
+        let tuistConfig = createTuistConfig()
+
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
+        modelLoader.mockTuistConfig { _ in tuistConfig }
         return modelLoader
+    }
+
+    private func createTuistConfig() -> TuistConfig {
+        return TuistConfig(generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) -> Workspace {

@@ -21,12 +21,20 @@ enum WorkspaceGeneratorError: FatalError {
 }
 
 protocol WorkspaceGenerating: AnyObject {
+    /// Generates the given workspace.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - path: Path to the directory where the generation command is executed from.
+    ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration.
+    /// - Returns: Path to the generated workspace.
+    /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
                   graph: Graphing,
-                  options: GenerationOptions,
-                  directory: GenerationDirectory) throws -> AbsolutePath
+                  tuistConfig: TuistConfig) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -35,7 +43,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let projectGenerator: ProjectGenerating
     private let system: Systeming
     private let printer: Printing
-    private let projectDirectoryHelper: ProjectDirectoryHelping
     private let fileHandler: FileHandling
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
 
@@ -43,7 +50,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     convenience init(system: Systeming = System(),
                      printer: Printing = Printer(),
-                     projectDirectoryHelper: ProjectDirectoryHelping = ProjectDirectoryHelper(),
                      fileHandler: FileHandling = FileHandler(),
                      defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
@@ -55,7 +61,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                 fileHandler: fileHandler)
         self.init(system: system,
                   printer: printer,
-                  projectDirectoryHelper: projectDirectoryHelper,
                   projectGenerator: projectGenerator,
                   fileHandler: fileHandler,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler))
@@ -63,13 +68,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     init(system: Systeming,
          printer: Printing,
-         projectDirectoryHelper: ProjectDirectoryHelping,
          projectGenerator: ProjectGenerating,
          fileHandler: FileHandling,
          workspaceStructureGenerator: WorkspaceStructureGenerating) {
         self.system = system
         self.printer = printer
-        self.projectDirectoryHelper = projectDirectoryHelper
         self.projectGenerator = projectGenerator
         self.fileHandler = fileHandler
         self.workspaceStructureGenerator = workspaceStructureGenerator
@@ -77,15 +80,20 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - WorkspaceGenerating
 
+    /// Generates the given workspace.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - path: Path to the directory where the generation command is executed from.
+    ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration.
+    /// - Returns: Path to the generated workspace.
+    /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
                   graph: Graphing,
-                  options: GenerationOptions,
-                  directory: GenerationDirectory = .manifest) throws -> AbsolutePath {
-        let workspaceRootPath = try projectDirectoryHelper.setupDirectory(name: graph.name,
-                                                                          path: graph.entryPath,
-                                                                          directory: directory)
+                  tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
         printer.print(section: "Generating workspace \(workspaceName)")
 
@@ -93,13 +101,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()
         try graph.projects.forEach { project in
-            let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
-                                                                                  directory: directory)
             let generatedProject = try projectGenerator.generate(project: project,
-                                                                 options: options,
                                                                  graph: graph,
-                                                                 sourceRootPath: sourceRootPath)
-
+                                                                 sourceRootPath: project.path)
             generatedProjects[project.path] = generatedProject
         }
 
@@ -108,7 +112,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let structure = workspaceStructureGenerator.generateStructure(path: path,
                                                                       workspace: workspace)
 
-        let workspacePath = workspaceRootPath.appending(component: workspaceName)
+        let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {

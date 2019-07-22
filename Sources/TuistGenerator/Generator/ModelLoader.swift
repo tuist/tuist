@@ -12,15 +12,23 @@ import Foundation
 public protocol GeneratorModelLoading {
     /// Load a Project model at the specified path
     ///
-    /// - Parameter path: The absolute path for the project modal to load
+    /// - Parameters:
+    ///   - path: The absolute path for the project model to load.
     /// - Returns: The Project loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     func loadProject(at path: AbsolutePath) throws -> Project
 
     /// Load a Workspace model at the specified path
     ///
-    /// - Parameter path: The absolute path for the workspace modal to load
+    /// - Parameter path: The absolute path for the workspace model to load
     /// - Returns: The workspace loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing workspace)
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace
+
+    /// Load a TusitConfig model at the specified path
+    ///
+    /// - Parameter path: The absolute path for the tuistconfig model to load
+    /// - Returns: The tuistconfig loaded from the specified path
+    /// - Throws: Error encountered during the loading process (e.g. Missing tuistconfig)
+    func loadTuistConfig(at path: AbsolutePath) throws -> TuistGenerator.TuistConfig
 }

@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Allow customisation of `productName` in the project Manifest https://github.com/tuist/tuist/pull/435 by @ollieatkinson
 - Adding support for static products depending on dynamic frameworks https://github.com/tuist/tuist/pull/439 by @kwridan
 - Support for executing Tuist by running `swift project ...` https://github.com/tuist/tuist/pull/447 by @pepibumur.
+- New manifest model, `TuistConfig`, to easily configure Tuist's functionalities https://github.com/tuist/tuist/pull/446 by @pepibumur.
 
 ### Fixed
 

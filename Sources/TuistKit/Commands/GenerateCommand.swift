@@ -72,9 +72,7 @@ class GenerateCommand: NSObject, Command {
         let timer = clock.startTimer()
         let path = self.path(arguments: arguments)
 
-        _ = try generator.generate(at: path,
-                                   config: .default,
-                                   manifestLoader: manifestLoader)
+        _ = try generator.generate(at: path, manifestLoader: manifestLoader)
 
         let time = String(format: "%.3f", timer.stop())
         printer.print(success: "Project generated.")
