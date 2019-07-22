@@ -734,7 +734,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(testAction.targets, manifest.targets, file: file, line: line)
-        XCTAssertTrue(testAction.config == manifest.config, file: file, line: line)
+        XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
         XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)
         optionalAssert(testAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
@@ -746,7 +746,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(runAction.executable, manifest.executable, file: file, line: line)
-        XCTAssertTrue(runAction.config == manifest.config, file: file, line: line)
+        XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
         optionalAssert(runAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
         }

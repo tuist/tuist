@@ -22,20 +22,21 @@ private extension SchemeLinter {
 
     func lintScheme(scheme: Scheme, buildConfigurations: [BuildConfiguration]) -> [LintingIssue] {
         var issues: [LintingIssue] = []
+        let buildConfigurationNames = buildConfigurations.map(\.name)
 
         if let runAction = scheme.runAction {
-            if !buildConfigurations.contains(runAction.config) {
+            if !buildConfigurationNames.contains(runAction.configurationName) {
                 issues.append(
-                    missingBuildConfigurationIssue(buildConfigurations: runAction.config,
+                    missingBuildConfigurationIssue(buildConfigurationName: runAction.configurationName,
                                                    actionDescription: "the scheme's run action")
                 )
             }
         }
 
         if let testAction = scheme.testAction {
-            if !buildConfigurations.contains(testAction.config) {
+            if !buildConfigurationNames.contains(testAction.configurationName) {
                 issues.append(
-                    missingBuildConfigurationIssue(buildConfigurations: testAction.config,
+                    missingBuildConfigurationIssue(buildConfigurationName: testAction.configurationName,
                                                    actionDescription: "the scheme's test action")
                 )
             }
@@ -44,14 +45,8 @@ private extension SchemeLinter {
         return issues
     }
 
-    func missingBuildConfigurationIssue(buildConfigurations: BuildConfiguration, actionDescription: String) -> LintingIssue {
-        let reason = "The \(buildConfigurations.linterDescription) specified in \(actionDescription) isn't defined in the project."
+    func missingBuildConfigurationIssue(buildConfigurationName: String, actionDescription: String) -> LintingIssue {
+        let reason = "The build configuration '\(buildConfigurationName)' specified in \(actionDescription) isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
-    }
-}
-
-private extension BuildConfiguration {
-    var linterDescription: String {
-        return "\(variant) configuration '\(name)'"
     }
 }

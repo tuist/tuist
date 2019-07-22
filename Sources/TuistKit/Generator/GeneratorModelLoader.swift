@@ -507,14 +507,14 @@ extension TuistGenerator.TestAction {
     static func from(manifest: ProjectDescription.TestAction) -> TuistGenerator.TestAction {
         let targets = manifest.targets
         let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
-        let config = BuildConfiguration.from(manifest: manifest.config)
+        let configurationName = manifest.configurationName
         let coverage = manifest.coverage
         let preActions = manifest.preActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
         let postActions = manifest.postActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
 
         return TestAction(targets: targets,
                           arguments: arguments,
-                          config: config,
+                          configurationName: configurationName,
                           coverage: coverage,
                           preActions: preActions,
                           postActions: postActions)
@@ -523,11 +523,11 @@ extension TuistGenerator.TestAction {
 
 extension TuistGenerator.RunAction {
     static func from(manifest: ProjectDescription.RunAction) -> TuistGenerator.RunAction {
-        let config = BuildConfiguration.from(manifest: manifest.config)
+        let configurationName = manifest.configurationName
         let executable = manifest.executable
         let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
 
-        return RunAction(config: config,
+        return RunAction(configurationName: configurationName,
                          executable: executable,
                          arguments: arguments)
     }

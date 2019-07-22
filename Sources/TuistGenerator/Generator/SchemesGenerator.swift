@@ -45,14 +45,15 @@ final class SchemesGenerator: SchemesGenerating {
         }
 
         /// Generate scheme for every targets in Project that is not defined in Manifest
+        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
         try project.targets.forEach { target in
 
             if !project.schemes.contains(where: { $0.name == target.name }) {
                 let scheme = Scheme(name: target.name,
                                     shared: true,
                                     buildAction: BuildAction(targets: [target.name]),
-                                    testAction: TestAction(targets: [target.name]),
-                                    runAction: RunAction(config: .debug,
+                                    testAction: TestAction(targets: [target.name], configurationName: buildConfiguration),
+                                    runAction: RunAction(configurationName: buildConfiguration,
                                                          executable: target.productName,
                                                          arguments: Arguments(environment: target.environment)))
 
@@ -200,7 +201,7 @@ final class SchemesGenerator: SchemesGenerating {
 
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
 
-        return XCScheme.TestAction(buildConfiguration: testAction.config.name,
+        return XCScheme.TestAction(buildConfiguration: testAction.configurationName,
                                    macroExpansion: nil,
                                    testables: testables,
                                    preActions: preActions,
@@ -292,7 +293,7 @@ final class SchemesGenerator: SchemesGenerating {
             environments = environmentVariables(arguments.environment)
         }
 
-        let buildConfiguration = scheme.runAction?.config.name ?? defaultDebugBuildConfigurationName(in: project)
+        let buildConfiguration = scheme.runAction?.configurationName ?? defaultDebugBuildConfigurationName(in: project)
         return XCScheme.LaunchAction(runnable: buildableProductRunnable,
                                      buildConfiguration: buildConfiguration,
                                      macroExpansion: macroExpansion,
