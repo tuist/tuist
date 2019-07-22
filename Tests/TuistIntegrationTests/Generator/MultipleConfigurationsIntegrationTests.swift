@@ -314,9 +314,17 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         let appTarget = createAppTarget(settings: targetSettings)
         let project = createProject(path: pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
         let workspace = createWorkspace(projects: ["App"])
+        let tuistConfig = createTuistConfig()
+
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
+        modelLoader.mockTuistConfig { _ in tuistConfig }
+
         return modelLoader
+    }
+
+    private func createTuistConfig() -> TuistConfig {
+        return TuistConfig(generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) -> Workspace {

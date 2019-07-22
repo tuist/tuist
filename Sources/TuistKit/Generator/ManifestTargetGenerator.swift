@@ -22,8 +22,7 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
         let settings = Settings(base: try manifestTargetBuildSettings(),
                                 configurations: Settings.default.configurations,
                                 defaultSettings: .recommended)
-        let projectManifestPath = manifestLoader.manifests(at: path)
-            .filter { [Manifest.project, Manifest.tuistConfig].contains($0) }
+        let manifests = manifestLoader.manifests(at: path)
 
         return Target(name: "\(project)_Manifest",
                       platform: .macOS,
@@ -31,7 +30,7 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
                       productName: "\(project)_Manifest",
                       bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
                       settings: settings,
-                      sources: projectManifestPath.map { (path: path.appending(component: $0.fileName), compilerFlags: nil) },
+                      sources: manifests.map { (path: path.appending(component: $0.fileName), compilerFlags: nil) },
                       filesGroup: .group(name: "Manifest"))
     }
 

@@ -87,9 +87,16 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
                                     targets: [appTarget] + frameworkTargets,
                                     schemes: [])
         let workspace = createWorkspace(projects: ["App"])
+        let tuistConfig = createTuistConfig()
+
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
+        modelLoader.mockTuistConfig { _ in tuistConfig }
         return modelLoader
+    }
+
+    private func createTuistConfig() -> TuistConfig {
+        return TuistConfig(generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) -> Workspace {

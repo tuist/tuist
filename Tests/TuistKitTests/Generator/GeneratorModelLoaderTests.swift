@@ -7,8 +7,7 @@ import TuistGenerator
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-class GeneratorModelLoaderTests: XCTestCase {
-    typealias TuistConfigManifest = ProjectDescription.TuistConfig
+class GeneratorModelLoaderTest: XCTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target
@@ -41,7 +40,7 @@ class GeneratorModelLoaderTests: XCTestCase {
     }
 
     override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+        fileHandler = nil
     }
 
     func test_loadProject() throws {
@@ -89,6 +88,38 @@ class GeneratorModelLoaderTests: XCTestCase {
         assert(target: model.targets[0], matches: targetA, at: path)
         assert(target: model.targets[1], matches: targetB, at: path)
         XCTAssertEqual(model.targets[2].name, "Project-Manifest")
+    }
+
+    func test_loadProject_withManifestTargetOptionDisabled() throws {
+        // Given
+        try fileHandler.createFiles([
+            "TuistConfig.swift",
+        ])
+        let projects = [
+            path: ProjectManifest.test(name: "Project",
+                                       targets: [
+                                           .test(name: "A"),
+                                           .test(name: "B"),
+                                       ]),
+        ]
+
+        let configs = [
+            path: TuistConfig.test(generationOptions: []),
+        ]
+
+        let manifestLoader = createManifestLoader(with: projects, configs: configs)
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
+                                           manifestLoader: manifestLoader,
+                                           manifestTargetGenerator: manifestTargetGenerator)
+
+        // When
+        let model = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(model.targets.map(\.name), [
+            "A",
+            "B",
+        ])
     }
 
     func test_loadProject_withAdditionalFiles() throws {
@@ -140,24 +171,6 @@ class GeneratorModelLoaderTests: XCTestCase {
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
-    }
-
-    func test_loadTuistConfig() throws {
-        // Given
-        let manifests = [
-            path: TuistConfigManifest.test(generationOptions: [.generateManifest]),
-        ]
-
-        let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
-
-        // When
-        let model = try subject.loadTuistConfig(at: path)
-
-        // Then
-        XCTAssertTrue(model.generationOptions.contains(.generateManifest))
     }
 
     func test_loadWorkspace() throws {
@@ -514,7 +527,8 @@ class GeneratorModelLoaderTests: XCTestCase {
 
     // MARK: - Helpers
 
-    func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project]) -> GraphManifestLoading {
+    func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
+                              configs: [AbsolutePath: ProjectDescription.TuistConfig] = [:]) -> GraphManifestLoading {
         let manifestLoader = MockGraphManifestLoader()
         manifestLoader.loadProjectStub = { path in
             guard let manifest = projects[path] else {
@@ -522,11 +536,22 @@ class GeneratorModelLoaderTests: XCTestCase {
             }
             return manifest
         }
-        manifestLoader.manifestsAtStub = { path in
-            guard let _ = projects[path] else {
-                return Set([])
+        manifestLoader.loadTuistConfigStub = { path in
+            guard let manifest = configs[path] else {
+                throw GraphManifestLoaderError.manifestNotFound(path)
             }
-            return Set([.project])
+            return manifest
+        }
+        manifestLoader.manifestsAtStub = { path in
+            var manifests = Set<Manifest>()
+            if projects[path] != nil {
+                manifests.insert(.project)
+            }
+
+            if configs[path] != nil {
+                manifests.insert(.tuistConfig)
+            }
+            return manifests
         }
         return manifestLoader
     }
@@ -542,17 +567,6 @@ class GeneratorModelLoaderTests: XCTestCase {
         }
         manifestLoader.manifestsAtStub = { path in
             projects.contains(path) ? Set([.project]) : Set([])
-        }
-        return manifestLoader
-    }
-
-    func createManifestLoader(with tuistConfigs: [AbsolutePath: ProjectDescription.TuistConfig]) -> GraphManifestLoading {
-        let manifestLoader = MockGraphManifestLoader()
-        manifestLoader.loadTuistConfigStub = { path in
-            guard let manifest = tuistConfigs[path] else {
-                throw GraphManifestLoaderError.manifestNotFound(path)
-            }
-            return manifest
         }
         return manifestLoader
     }
