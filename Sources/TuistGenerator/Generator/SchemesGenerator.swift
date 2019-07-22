@@ -88,8 +88,8 @@ final class SchemesGenerator: SchemesGenerating {
                               testAction: generatedTestAction,
                               launchAction: generatedLaunchAction,
                               profileAction: generatedProfileAction,
-                              analyzeAction: schemeAnalyzeAction(),
-                              archiveAction: schemeArchiveAction())
+                              analyzeAction: schemeAnalyzeAction(for: project),
+                              archiveAction: schemeArchiveAction(for: project))
         try scheme.write(path: schemePath.path, override: true)
     }
 
@@ -408,15 +408,17 @@ final class SchemesGenerator: SchemesGenerating {
     /// Returns the scheme analyze action
     ///
     /// - Returns: Scheme analyze action.
-    func schemeAnalyzeAction() -> XCScheme.AnalyzeAction {
-        return XCScheme.AnalyzeAction(buildConfiguration: "Debug")
+    func schemeAnalyzeAction(for project: Project) -> XCScheme.AnalyzeAction {
+        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
+        return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
     }
 
     /// Returns the scheme archive action
     ///
     /// - Returns: Scheme archive action.
-    func schemeArchiveAction() -> XCScheme.ArchiveAction {
-        return XCScheme.ArchiveAction(buildConfiguration: "Release",
+    func schemeArchiveAction(for project: Project) -> XCScheme.ArchiveAction {
+        let buildConfiguration = defaultReleaseBuildConfigurationName(in: project)
+        return XCScheme.ArchiveAction(buildConfiguration: buildConfiguration,
                                       revealArchiveInOrganizer: true)
     }
 
@@ -446,13 +448,13 @@ final class SchemesGenerator: SchemesGenerating {
         let debugConfiguration = project.settings.defaultDebugBuildConfiguration()
         let buildConfiguration = debugConfiguration ?? project.settings.configurations.keys.first
 
-        return buildConfiguration?.name ?? "Debug"
+        return buildConfiguration?.name ?? BuildConfiguration.debug.name
     }
 
     private func defaultReleaseBuildConfigurationName(in project: Project) -> String {
         let releaseConfiguration = project.settings.defaultReleaseBuildConfiguration()
         let buildConfiguration = releaseConfiguration ?? project.settings.configurations.keys.first
 
-        return buildConfiguration?.name ?? "Release"
+        return buildConfiguration?.name ?? BuildConfiguration.release.name
     }
 }
