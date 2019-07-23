@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Adding support for static products depending on dynamic frameworks https://github.com/tuist/tuist/pull/439 by @kwridan
 - Support for executing Tuist by running `swift project ...` https://github.com/tuist/tuist/pull/447 by @pepibumur.
 - New manifest model, `TuistConfig`, to easily configure Tuist's functionalities https://github.com/tuist/tuist/pull/446 by @pepibumur.
+- Adding ability to re-generate individual projects https://github.com/tuist/tuist/pull/457 by @kwridan
 
 ### Fixed
 
