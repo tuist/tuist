@@ -56,7 +56,7 @@ export default {
   },
   menu: [
     'Getting started',
-    'Project & workspace',
+    'Project & Workspace',
     'Configuration',
     'Dependencies',
     'Up tasks',
