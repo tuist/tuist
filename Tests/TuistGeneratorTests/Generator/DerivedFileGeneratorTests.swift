@@ -54,7 +54,7 @@ final class DerivedFileGeneratorTests: XCTestCase {
         // Then
         XCTAssertFalse(fileHandler.exists(oldPlistPath))
     }
-    
+
     func test_generate_checkFolderNotCreated_whenNoGeneratedInfoPlist() throws {
         // Given
         let sourceRootPath = fileHandler.currentPath
@@ -62,11 +62,11 @@ final class DerivedFileGeneratorTests: XCTestCase {
         let project = Project.test(name: "App", targets: [target])
         let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
         let path = infoPlistsPath.appending(component: "Target.plist")
-        
+
         // When
         _ = try subject.generate(project: project,
                                  sourceRootPath: sourceRootPath)
-        
+
         // Then
         XCTAssertFalse(fileHandler.exists(path))
         XCTAssertFalse(fileHandler.exists(infoPlistsPath))

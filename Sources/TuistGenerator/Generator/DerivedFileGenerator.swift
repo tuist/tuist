@@ -70,7 +70,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         }
         let toDelete = Set(existing).subtracting(new)
 
-        if !fileHandler.exists(infoPlistsPath) && !targetsWithGeneratableInfoPlists.isEmpty {
+        if !fileHandler.exists(infoPlistsPath), !targetsWithGeneratableInfoPlists.isEmpty {
             try fileHandler.createFolder(infoPlistsPath)
         }
 
