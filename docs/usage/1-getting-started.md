@@ -82,6 +82,14 @@ tuist generate
 We'll get a `MyApp.xcodeproj`and `MyApp.xcworkspace` files. As we'll see in the dependencies section, the workspace is necessary to add other projects `MyApp` project is depending on.  
 If you open `MyApp.xcworkspace` and try to run the `MyApp` scheme, it should build the app and run it on the simulator 📱 successfully 🎉.
 
+By default all projects that `MyApp` depends on will also be generated, this ensures the generated workspace is complete. Sometimes we may want to only re-generate individual projects in our workspace without re-generating all their dependencies too. Tuist supports this workflow via including the `--project-only` flag:
+
+```bash
+tuist generate --project-only
+```
+
+This will generate an Xcode project for the local project only.
+
 ### Editing the Project.swift
 
-Did you realize that there's a target, `MyAppDescription`, which contains the manifest file? Thanks to the Swift types system and Xcode, you can edit the manifest file from Xcode and get syntax auto**-**completion, documentation and errors while you are modifying the definition. Isn't it great?
+Did you realize that there's a target, `MyApp_Manifest`, which contains the manifest file? Thanks to the Swift types system and Xcode, you can edit the manifest file from Xcode and get syntax auto**-**completion, documentation and errors while you are modifying the definition. Isn't it great?
