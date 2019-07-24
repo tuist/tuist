@@ -133,7 +133,7 @@ final class TargetTests: XCTestCase {
                              productName: "product_name",
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
-                             sources: FileList(globs: ["sources/*"]),
+                             sources: SourceFilesList(globs: ["sources/*"]),
                              resources: ["resources/*"],
                              headers: Headers(public: "public/*",
                                               private: "private/*",

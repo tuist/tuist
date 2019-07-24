@@ -14,7 +14,6 @@ public final class Headers: Codable {
     public init(public: FileList? = nil,
                 private: FileList? = nil,
                 project: FileList? = nil) {
-        
         self.public = `public`
         self.private = `private`
         self.project = project
