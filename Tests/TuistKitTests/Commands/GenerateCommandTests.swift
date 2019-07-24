@@ -99,7 +99,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _ in
+        generator.generateProjectWorkspaceStub = { path, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
         }
@@ -118,7 +118,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _ in
+        generator.generateProjectWorkspaceStub = { path, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
         }
@@ -137,9 +137,28 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _ in
+        generator.generateProjectWorkspaceStub = { path, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
+        }
+
+        // When
+        try subject.run(with: result)
+
+        // Then
+        XCTAssertEqual(generationPath, fileHandler.currentPath)
+    }
+
+    func test_run_withProjectOnlyParameter() throws {
+        // Given
+        let result = try parser.parse([GenerateCommand.command, "--project-only"])
+        var generationPath: AbsolutePath?
+        manifestLoader.manifestsAtStub = { _ in
+            Set([.project])
+        }
+        generator.generateProjectStub = { path in
+            generationPath = path
+            return path.appending(component: "project.xcodeproj")
         }
 
         // When
@@ -170,7 +189,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { _, _ in
+        generator.generateProjectWorkspaceStub = { _, _ in
             throw error
         }
 

@@ -75,7 +75,7 @@ The list of actions will likely grow as we get feedback from you.
 
 ```bash
 tuist init --platform ios --product application
-tuist generate # Generates Xcode project
+tuist generate # Generates Xcode project & workspace
 ```
 
 [Check out](https://docs.tuist.io) the project "Getting Started" guide to learn more about Tuist and all its features.

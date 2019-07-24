@@ -19,6 +19,7 @@ class GenerateCommand: NSObject, Command {
     private let clock: Clock
 
     let pathArgument: OptionArgument<String>
+    let projectOnlyArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -66,13 +67,20 @@ class GenerateCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path where the project will be generated.",
                                      completion: .filename)
+
+        projectOnlyArgument = subParser.add(option: "--project-only",
+                                            kind: Bool.self,
+                                            usage: "Only generate the local project (without generating its dependencies).")
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let timer = clock.startTimer()
         let path = self.path(arguments: arguments)
+        let projectOnly = arguments.get(projectOnlyArgument) ?? false
 
-        _ = try generator.generate(at: path, manifestLoader: manifestLoader)
+        _ = try generator.generate(at: path,
+                                   manifestLoader: manifestLoader,
+                                   projectOnly: projectOnly)
 
         let time = String(format: "%.3f", timer.stop())
         printer.print(success: "Project generated.")

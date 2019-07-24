@@ -5,15 +5,18 @@ import XCTest
 
 class GeneratorTests: XCTestCase {
     var workspaceGenerator: MockWorkspaceGenerator!
+    var projectGenerator: MockProjectGenerator!
     var graphLoader: MockGraphLoader!
     var subject: Generator!
 
     override func setUp() {
         graphLoader = MockGraphLoader()
         workspaceGenerator = MockWorkspaceGenerator()
+        projectGenerator = MockProjectGenerator()
 
         subject = Generator(graphLoader: graphLoader,
-                            workspaceGenerator: workspaceGenerator)
+                            workspaceGenerator: workspaceGenerator,
+                            projectGenerator: projectGenerator)
     }
 
     // MARK: - Tests
@@ -47,7 +50,7 @@ class GeneratorTests: XCTestCase {
         ]))
     }
 
-    func test_generateProject_workspaceIncludesDependencies() throws {
+    func test_generateProjectWorkspace_workspaceIncludesDependencies() throws {
         // Given
         let project = Project.test(path: "/path/to/A")
         let graph = createGraph(with: [
@@ -60,7 +63,7 @@ class GeneratorTests: XCTestCase {
         }
 
         // When
-        _ = try subject.generateProject(at: "/path/to", workspaceFiles: [])
+        _ = try subject.generateProjectWorkspace(at: "/path/to", workspaceFiles: [])
 
         // Then
         let projectPaths = workspaceGenerator.generateWorkspaces.flatMap {
@@ -73,7 +76,7 @@ class GeneratorTests: XCTestCase {
         ]))
     }
 
-    func test_generateProject_workspaceFiles() throws {
+    func test_generateProjectWorkspace_workspaceFiles() throws {
         // Given
         let project = Project.test(path: "/path/to/A")
 
@@ -88,7 +91,7 @@ class GeneratorTests: XCTestCase {
         }
 
         // When
-        _ = try subject.generateProject(at: "/path/to", workspaceFiles: workspaceFiles)
+        _ = try subject.generateProjectWorkspace(at: "/path/to", workspaceFiles: workspaceFiles)
 
         // Then
         let additionalFiles = workspaceGenerator.generateWorkspaces.flatMap {
@@ -130,6 +133,31 @@ class GeneratorTests: XCTestCase {
             .file(path: "/path/to/c"),
             .file(path: "/path/to/D"),
             .file(path: "/path/to/E"),
+        ])
+    }
+
+    func test_generateProject() throws {
+        // Given
+        let project = Project.test(path: "/path/to/A")
+        let graph = createGraph(with: [
+            Project.test(path: "/path/to/A"),
+            Project.test(path: "/path/to/B"),
+            Project.test(path: "/path/to/C"),
+        ])
+        graphLoader.loadProjectStub = { _ in
+            (graph, project)
+        }
+
+        // When
+        _ = try subject.generateProject(at: "/path/to")
+
+        // Then
+        XCTAssertTrue(workspaceGenerator.generateWorkspaces.isEmpty)
+        let projectPaths = projectGenerator.generatedProjects.map {
+            $0.path
+        }
+        XCTAssertEqual(projectPaths, [
+            "/path/to/A",
         ])
     }
 
