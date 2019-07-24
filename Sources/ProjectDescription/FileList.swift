@@ -8,7 +8,6 @@ public final class FileGlob: ExpressibleByStringLiteral, Codable {
     ///
     /// - Parameters:
     ///   - glob: Relative glob pattern.
-    ///   - compilerFlags: Compiler flags.
     public init(_ glob: String) {
         self.glob = glob
     }
