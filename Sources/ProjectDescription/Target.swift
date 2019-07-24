@@ -33,7 +33,7 @@ public class Target: Codable {
     public let dependencies: [TargetDependency]
 
     /// Relative paths to the sources directory.
-    public let sources: FileList?
+    public let sources: SourceFilesList?
 
     /// Relative paths to the resources directory.
     public let resources: [FileElement]?
@@ -91,7 +91,7 @@ public class Target: Codable {
                 productName: String? = nil,
                 bundleId: String,
                 infoPlist: InfoPlist,
-                sources: FileList? = nil,
+                sources: SourceFilesList? = nil,
                 resources: [FileElement]? = nil,
                 headers: Headers? = nil,
                 entitlements: String? = nil,
