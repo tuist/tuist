@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for executing Tuist by running `swift project ...` https://github.com/tuist/tuist/pull/447 by @pepibumur.
 - New manifest model, `TuistConfig`, to easily configure Tuist's functionalities https://github.com/tuist/tuist/pull/446 by @pepibumur.
 - Adding ability to re-generate individual projects https://github.com/tuist/tuist/pull/457 by @kwridan
+- Support multiple header paths https://github.com/tuist/tuist/pull/459 by @adamkhazi
 
 ### Fixed
 
