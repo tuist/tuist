@@ -422,9 +422,18 @@ extension TuistGenerator.CoreDataModel {
 
 extension TuistGenerator.Headers {
     static func from(manifest: ProjectDescription.Headers, path: AbsolutePath, fileHandler: FileHandling) -> TuistGenerator.Headers {
-        let `public` = manifest.public.map { headerFiles(path: path, glob: $0, fileHandler: fileHandler) } ?? []
-        let `private` = manifest.private.map { headerFiles(path: path, glob: $0, fileHandler: fileHandler) } ?? []
-        let project = manifest.project.map { headerFiles(path: path, glob: $0, fileHandler: fileHandler) } ?? []
+        let `public` = manifest.public?.globs.flatMap {
+            headerFiles(path: path, glob: $0, fileHandler: fileHandler)
+        } ?? []
+
+        let `private` = manifest.private?.globs.flatMap {
+            headerFiles(path: path, glob: $0, fileHandler: fileHandler)
+        } ?? []
+
+        let project = manifest.project?.globs.flatMap {
+            headerFiles(path: path, glob: $0, fileHandler: fileHandler)
+        } ?? []
+
         return Headers(public: `public`, private: `private`, project: project)
     }
 

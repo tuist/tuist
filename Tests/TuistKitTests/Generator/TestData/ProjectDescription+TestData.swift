@@ -36,7 +36,7 @@ extension Target {
                      productName: String? = nil,
                      bundleId: String = "com.some.bundle.id",
                      infoPlist: InfoPlist = .file(path: "Info.plist"),
-                     sources: FileList = "Sources/**",
+                     sources: SourceFilesList = "Sources/**",
                      resources: [FileElement] = "Resources/**",
                      headers: Headers? = nil,
                      entitlements: String? = "app.entitlements",

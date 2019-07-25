@@ -38,9 +38,9 @@ final class TargetTests: XCTestCase {
         let expected = """
         {
             "headers": {
-                "public": "public\\/*",
-                "private": "private\\/*",
-                "project": "project\\/*"
+                "public": { "globs": ["public\\/*"] },
+                "private": { "globs": ["private\\/*"] },
+                "project": { "globs": ["project\\/*"] }
             },
             "bundle_id": "bundle_id",
             "core_data_models": [
@@ -133,11 +133,11 @@ final class TargetTests: XCTestCase {
                              productName: "product_name",
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
-                             sources: FileList(globs: ["sources/*"]),
+                             sources: SourceFilesList(globs: ["sources/*"]),
                              resources: ["resources/*"],
-                             headers: Headers(public: "public/*",
-                                              private: "private/*",
-                                              project: "project/*"),
+                             headers: Headers(public: ["public/*"],
+                                              private: ["private/*"],
+                                              project: ["project/*"]),
                              entitlements: "entitlement",
                              actions: [
                                  TargetAction.post(path: "path", arguments: ["arg"], name: "name"),
@@ -159,9 +159,9 @@ final class TargetTests: XCTestCase {
         let expected = """
         {
             "headers": {
-                "public": "public\\/*",
-                "private": "private\\/*",
-                "project": "project\\/*"
+                "public": { "globs": ["public\\/*"] },
+                "private": { "globs": ["private\\/*"] },
+                "project": { "globs": ["project\\/*"] }
             },
             "bundle_id": "bundle_id",
             "core_data_models": [

@@ -358,6 +358,78 @@ class GeneratorModelLoaderTest: XCTestCase {
         ].map { fileHandler.currentPath.appending(RelativePath($0)) })
     }
 
+    func test_headersArray() throws {
+        // Given
+        try fileHandler.createFiles([
+            "Sources/public/A/A1.h",
+            "Sources/public/A/A1.m",
+            "Sources/public/B/B1.h",
+            "Sources/public/B/B1.m",
+
+            "Sources/private/C/C1.h",
+            "Sources/private/C/C1.m",
+            "Sources/private/D/D1.h",
+            "Sources/private/D/D1.m",
+
+            "Sources/project/E/E1.h",
+            "Sources/project/E/E1.m",
+            "Sources/project/F/F1.h",
+            "Sources/project/F/F1.m",
+        ])
+
+        let manifest = HeadersManifest(public: ["Sources/public/A/*.h", "Sources/public/B/*.h"],
+                                       private: ["Sources/private/C/*.h", "Sources/private/D/*.h"],
+                                       project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
+
+        // When
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
+
+        // Then
+        XCTAssertEqual(model.public, [
+            "Sources/public/A/A1.h",
+            "Sources/public/B/B1.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.private, [
+            "Sources/private/C/C1.h",
+            "Sources/private/D/D1.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.project, [
+            "Sources/project/E/E1.h",
+            "Sources/project/F/F1.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+    }
+
+    func test_headersStringAndArrayMix() throws {
+        // Given
+        try fileHandler.createFiles([
+            "Sources/public/A/A1.h",
+            "Sources/public/A/A1.m",
+
+            "Sources/project/C/C1.h",
+            "Sources/project/C/C1.m",
+            "Sources/project/D/D1.h",
+            "Sources/project/D/D1.m",
+        ])
+
+        let manifest = HeadersManifest(public: "Sources/public/A/*.h",
+                                       project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
+
+        // When
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
+
+        // Then
+        XCTAssertEqual(model.public, [
+            "Sources/public/A/A1.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.project, [
+            "Sources/project/C/C1.h",
+            "Sources/project/D/D1.h",
+        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+    }
+
     func test_coreDataModel() throws {
         // Given
         try fileHandler.touch(path.appending(component: "model.xcdatamodeld"))

@@ -54,6 +54,9 @@ let project = Project(name: "MyApp",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
                                resources: ["Resources/**"],
+                               headers: Headers(public: ["Sources/public/A/**", "Sources/public/B/**"],
+                                                private: "Sources/private/**",
+                                                project: ["Sources/project/A/**", "Sources/project/B/**"]),
                                dependencies: [
                                     /* Target dependencies can be defined here */
                                     /* .framework(path: "framework") */
