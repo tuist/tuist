@@ -480,7 +480,7 @@ The following example shows the definition of an action that runs the `my_custom
 .pre(path: "my_custom_script.sh", name: "My Custom Script Phase", inputFileListPaths: [ "Data/Cars.raw.json", "Data/Drivers.raw.json" ], outputFileListPaths: [ "Data/Cars.swift", "Data/Drivers.swift" ])
 ```
 
-## Build Configuration
+## Preset Build Configuration
 
 It represents the default build configurations available:
 
@@ -597,8 +597,8 @@ It represents the scheme action that runs the built products on the supported pl
       name: 'Config',
       description:
         'Indicates the build configuration the product should run with.',
-      type: 'BuildConfiguration',
-      typeLink: '#build-configuration',
+      type: 'PresetBuildConfiguration',
+      typeLink: '#preset-build-configuration',
       optional: true,
       default: '.debug',
     },
@@ -617,6 +617,21 @@ It represents the scheme action that runs the built products on the supported pl
       typeLink: '#arguments',
       optional: true,
       default: 'nil',
+    },
+  ]}
+/>
+
+Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
+
+<PropertiesTable
+  props={[
+    {
+      name: 'Configuration Name',
+      description:
+        'Indicates the build configuration the product should run with.',
+      type: 'String',
+      optional: false,
+      default: '',
     },
   ]}
 />
@@ -645,8 +660,8 @@ It represents the scheme action that runs the built products on the supported pl
     {
       name: 'Build configuration',
       description: 'Build configuration to run the test with.',
-      type: 'BuildConfiguration',
-      typeLink: '#build-configuration',
+      type: 'PresetBuildConfiguration',
+      typeLink: '#preset-build-configuration',
       optional: true,
       default: '.debug',
     },
@@ -675,6 +690,21 @@ It represents the scheme action that runs the built products on the supported pl
       typeLink: '#execution-action',
       optional: true,
       default: '[]',
+    },
+  ]}
+/>
+
+Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
+
+<PropertiesTable
+  props={[
+    {
+      name: 'Configuration Name',
+      description:
+        'Indicates the build configuration to run the test with.',
+      type: 'String',
+      optional: false,
+      default: '',
     },
   ]}
 />
@@ -776,6 +806,39 @@ A `Settings` object contains an optional dictionary with build settings and rela
   ]}
 />
 
+To specify multiple configurations beyond the default Debug and Release configuration (e.g. Debug, Beta, Release), `Settings` can alternatively be initialized with the following attributes:
+
+<PropertiesTable
+  props={[
+    {
+      name: 'Base',
+      description:
+        'A dictionary with build settings that are inherited from all the configurations.',
+      type: '[String: String]',
+      optional: true,
+      default: '[:]',
+    },
+    {
+      name: 'Configurations',
+      description: 'A list of custom configurations',
+      type: '[CustomConfiguration]',
+      typeLink: '#custom-configuration',
+      optional: false,
+      default: '',
+    },
+    {
+      name: 'Default settings',
+      description: 'An enum specifying the set of default settings.',
+      type: 'DefaultSettings',
+      typeLink: '#defaultsettings',
+      optional: true,
+      default: '.recommended',
+    },
+  ]}
+/>
+
+<Message warning title="Custom Configurations" description="The list of custom configurations should have unique names and can't be empty. Please use the alternate settings initializer to leverage the default Debug & Release configurations."/>
+
 ## Configuration
 
 A `Configuration` object describes the build settings and the `.xcconfig` file of a project or target. It is initialized with the following attributes:
@@ -795,6 +858,27 @@ A `Configuration` object describes the build settings and the `.xcconfig` file o
       type: 'String',
       optional: true,
       default: 'nil',
+    },
+  ]}
+/>
+
+## Custom Configuration
+
+A `CustomConfiguration` allows specifying a named build configuration. 
+
+This is similar to `Configuration`, however allows specifying a custom name (e.g. "Beta") and configuration variant (`.debug` or `.release`) to help Tuist select the most appropriate default build settings. 
+
+For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Onone` whereas a `.release` would get `SWIFT_OPTIMIZATION_LEVEL = -Owholemodule`.
+
+<EnumTable
+  cases={[
+    {
+      case: '.debug(name: String, settings: [String: String], xcconfig: String?)',
+      description: 'A custom debug configuration',
+    },
+    {
+      case: '.release(name: String, settings: [String: String], xcconfig: String?)',
+      description: ''A custom release configuration',',
     },
   ]}
 />
