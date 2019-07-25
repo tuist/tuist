@@ -27,6 +27,20 @@ Feature: Generate a new project using Tuist
     Then I should be able to build the scheme Framework1
     Then the product 'Framework1.framework' with destination 'Debug-iphoneos' contains the Info.plist key 'Test'
 
+  Scenario: The project is an iOS application with headers (ios_app_with_headers)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_headers into the working directory
+    Then tuist generates the project
+    Then I should be able to build the scheme App
+    Then I should be able to test the scheme AppTests
+    Then I should be able to build the scheme Framework1-iOS
+    Then I should be able to build the scheme Framework1-macOS
+    Then I should be able to test the scheme Framework1Tests
+    Then I should be able to build the scheme MainApp_Manifest
+    Then I should be able to build the scheme Framework1_Manifest
+    Then I should be able to build the scheme Framework1_Manifest
+
   Scenario: The project is a directory without valid manifest file (invalid_workspace_manifest_name)
     Given that tuist is available
     And I have a working directory
