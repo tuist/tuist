@@ -72,10 +72,8 @@ final class TargetTests: XCTestCase {
                 },
                 "configurations": [
                     {
-                        "buildConfiguration": {
-                            "name": "Debug",
-                            "variant": "debug"
-                        },
+                        "name": "Debug",
+                        "variant": "debug",
                         "configuration": {
                             "xcconfig": "config",
                             "settings": {
@@ -84,10 +82,8 @@ final class TargetTests: XCTestCase {
                         }
                     },
                     {
-                        "buildConfiguration": {
-                            "name": "Release",
-                            "variant": "release"
-                        },
+                        "name": "Release",
+                        "variant": "release",
                         "configuration": {
                             "xcconfig": "config",
                             "settings": {
@@ -207,10 +203,8 @@ final class TargetTests: XCTestCase {
                 },
                 "configurations": [
                     {
-                        "buildConfiguration": {
-                            "name": "Debug",
-                            "variant": "debug"
-                        },
+                        "name": "Debug",
+                        "variant": "debug",
                         "configuration": {
                             "xcconfig": "config",
                             "settings": {
@@ -219,10 +213,8 @@ final class TargetTests: XCTestCase {
                         }
                     },
                     {
-                        "buildConfiguration": {
-                            "name": "Release",
-                            "variant": "release"
-                        },
+                        "name": "Release",
+                        "variant": "release",
                         "configuration": {
                             "xcconfig": "config",
                             "settings": {

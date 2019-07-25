@@ -16,22 +16,25 @@ public struct Configuration: Equatable, Codable {
     }
 }
 
-/// A custom configuration which associats a `BuildConfiguration` and `Configuration`.
+/// A custom configuration allows declaring a named build configuration along with its settings.
 ///
-/// `BuildConfiguration` contains information regarding the configuration name and variant, while
-/// the `Configuration` contains the build settings and any associated xcconfig file.
+/// Additionally, a custom configuration specifies the configuration variant (debug or release)
+/// to help Tuist select the most appropriate default settings.
 ///
+/// - seealso: Configuration
 public struct CustomConfiguration: Equatable, Codable {
-    public let buildConfiguration: BuildConfiguration
+    public enum Variant: String, Codable {
+        case debug
+        case release
+    }
+
+    public let name: String
+    public let variant: Variant
     public let configuration: Configuration?
 
-    /// Creates a custom configuration which associated a `BuildConfiguration` and `Configuration`.
-    ///
-    /// - Parameters:
-    ///   - buildConfiguration: The build configuration to use
-    ///   - configuration: The configuration to use
-    public init(buildConfiguration: BuildConfiguration, configuration: Configuration? = nil) {
-        self.buildConfiguration = buildConfiguration
+    init(name: String, variant: Variant, configuration: Configuration? = nil) {
+        self.name = name
+        self.variant = variant
         self.configuration = configuration
     }
 }
@@ -40,25 +43,25 @@ public extension CustomConfiguration {
     /// Creates a custom debug configuration
     ///
     /// - Parameters:
-    ///   - name: The name of the configuration to use (defaults to "Debug")
+    ///   - name: The name of the configuration to use
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    static func debug(name: String = "Debug", settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func debug(name: String, settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
-        return CustomConfiguration(buildConfiguration: .debug(name: name), configuration: configuration)
+        return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
     }
 
     /// Creates a custom release configuration
     ///
     /// - Parameters:
-    ///   - name: The name of the configuration to use (defaults to "Release")
+    ///   - name: The name of the configuration to use
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    static func release(name: String = "Release", settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func release(name: String, settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
-        return CustomConfiguration(buildConfiguration: .release(name: name), configuration: configuration)
+        return CustomConfiguration(name: name, variant: .release, configuration: configuration)
     }
 }
 
@@ -90,7 +93,8 @@ public struct Settings: Equatable, Codable {
     ///   - release: The release configuration
     ///   - defaultSettings: The default settings to apply during generation
     ///
-    /// - Note: To specify additional custom configurations, you can use the alternate initializer `init(base:configurations:defaultSettings:)`.
+    /// - Note: To specify additional custom configurations, you can use the
+    ///         alternate initializer `init(base:configurations:defaultSettings:)`.
     ///
     /// - seealso: Configuration
     /// - seealso: DefaultSettings
@@ -99,8 +103,8 @@ public struct Settings: Equatable, Codable {
                 release: Configuration? = nil,
                 defaultSettings: DefaultSettings = .recommended) {
         configurations = [
-            CustomConfiguration(buildConfiguration: .debug, configuration: debug),
-            CustomConfiguration(buildConfiguration: .release, configuration: release),
+            CustomConfiguration(name: "Debug", variant: .debug, configuration: debug),
+            CustomConfiguration(name: "Release", variant: .release, configuration: release),
         ]
         self.base = base
         self.defaultSettings = defaultSettings
@@ -113,8 +117,9 @@ public struct Settings: Equatable, Codable {
     ///   - configurations: A list of custom configurations to use
     ///   - defaultSettings: The default settings to apply during generation
     ///
-    /// - Note: Configurations shouldn't be empty, please use the alternate initializer `init(base:debug:release:defaultSettings:)`
-    ///              to leverage the default configurations if you don't have any custom configurations.
+    /// - Note: Configurations shouldn't be empty, please use the alternate initializer
+    ///         `init(base:debug:release:defaultSettings:)` to leverage the default configurations
+    ///          if you don't have any custom configurations.
     ///
     /// - seealso: CustomConfiguration
     /// - seealso: DefaultSettings

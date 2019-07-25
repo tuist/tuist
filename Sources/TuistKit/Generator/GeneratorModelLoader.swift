@@ -31,13 +31,16 @@ class GeneratorModelLoader: GeneratorModelLoading {
     private let manifestLoader: GraphManifestLoading
     private let manifestTargetGenerator: ManifestTargetGenerating?
     private let printer: Printing
+    private let manifestLinter: ManifestLinting
 
     init(fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
+         manifestLinter: ManifestLinting,
          manifestTargetGenerator: ManifestTargetGenerating? = nil,
          printer: Printing = Printer()) {
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
+        self.manifestLinter = manifestLinter
         self.manifestTargetGenerator = manifestTargetGenerator
         self.printer = printer
     }
@@ -50,6 +53,10 @@ class GeneratorModelLoader: GeneratorModelLoading {
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     func loadProject(at path: AbsolutePath) throws -> TuistGenerator.Project {
         let manifest = try manifestLoader.loadProject(at: path)
+
+        try manifestLinter.lint(project: manifest)
+            .printAndThrowIfNeeded(printer: printer)
+
         let project = try TuistGenerator.Project.from(manifest: manifest,
                                                       path: path,
                                                       fileHandler: fileHandler,
@@ -356,7 +363,7 @@ extension TuistGenerator.Settings {
 
     private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
                                                 path: AbsolutePath) -> BuildConfigurationTuple {
-        let buildConfiguration = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration.buildConfiguration)
+        let buildConfiguration = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration)
         let configuration = customConfiguration.configuration.map { TuistGenerator.Configuration.from(manifest: $0, path: path) }
         return (buildConfiguration, configuration)
     }
@@ -547,7 +554,7 @@ extension TuistGenerator.Arguments {
 }
 
 extension TuistGenerator.BuildConfiguration {
-    static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistGenerator.BuildConfiguration {
+    static func from(manifest: ProjectDescription.CustomConfiguration) -> TuistGenerator.BuildConfiguration {
         let variant: TuistGenerator.BuildConfiguration.Variant
         switch manifest.variant {
         case .debug:

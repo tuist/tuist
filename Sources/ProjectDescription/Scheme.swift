@@ -91,7 +91,7 @@ public struct TestAction: Equatable, Codable {
 
     public init(targets: [String],
                 arguments: Arguments? = nil,
-                config: BuildConfiguration = .debug,
+                config: PresetBuildConfiguration = .debug,
                 coverage: Bool = false,
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
@@ -119,7 +119,7 @@ public struct RunAction: Equatable, Codable {
         self.arguments = arguments
     }
 
-    public init(config: BuildConfiguration = .debug,
+    public init(config: PresetBuildConfiguration = .debug,
                 executable: String? = nil,
                 arguments: Arguments? = nil) {
         self.init(configurationName: config.name,

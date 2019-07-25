@@ -13,7 +13,7 @@ let settings = Settings(base: [
 let betaScheme = Scheme(name: "App-Beta",
                          shared: true,
                          buildAction: BuildAction(targets: ["App"]),
-                         runAction: RunAction(config: .release(name: "Beta"), executable: "App"))
+                         runAction: RunAction(configurationName: "Beta", executable: "App"))
 
 let project = Project(name: "MainApp",
                       settings: settings,
