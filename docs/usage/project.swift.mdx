@@ -23,7 +23,10 @@ let project = Project(name: "MyProject",
                                  resources: [
                                    "Resources/**",
                                    .folderReference(path: "Stubs")
-                                  ],
+                                 ],
+                                 headers: Headers(public: ["Sources/public/A/**", "Sources/public/B/**"],
+                                                  private: "Sources/private/**",
+                                                  project: ["Sources/project/A/**", "Sources/project/B/**"]),
                                  dependencies: [
                                      .project(target: "Framework1", path: "../Framework1"),
                                      .project(target: "Framework2", path: "../Framework2")
@@ -305,7 +308,6 @@ It represents the target headers:
       name: 'Public',
       description: 'Relative glob pattern that points to the public headers',
       type: 'FileList',
-      typeLink: '#file-list',
       optional: true,
       default: 'nil',
     },
@@ -313,7 +315,6 @@ It represents the target headers:
       name: 'Private',
       description: 'Relative glob pattern that points to the private headers',
       type: 'FileList',
-      typeLink: '#file-list',
       optional: true,
       default: 'nil',
     },
@@ -321,7 +322,6 @@ It represents the target headers:
       name: 'Project',
       description: 'Relative glob pattern that points to the project headers',
       type: 'FileList',
-      typeLink: '#file-list',
       optional: true,
       default: 'nil',
     },
