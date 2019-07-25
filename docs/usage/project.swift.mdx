@@ -304,24 +304,43 @@ It represents the target headers:
     {
       name: 'Public',
       description: 'Relative glob pattern that points to the public headers',
-      type: 'String',
+      type: 'FileList',
+      typeLink: '#file-list',
       optional: true,
       default: 'nil',
     },
     {
       name: 'Private',
       description: 'Relative glob pattern that points to the private headers',
-      type: 'String',
+      type: 'FileList',
+      typeLink: '#file-list',
       optional: true,
       default: 'nil',
     },
     {
       name: 'Project',
       description: 'Relative glob pattern that points to the project headers',
-      type: 'String',
+      type: 'FileList',
+      typeLink: '#file-list',
       optional: true,
       default: 'nil',
     },
+  ]}
+/>
+
+## File List
+
+It represents a list of glob patterns that refer to files:
+
+<PropertiesTable
+  props={[
+    {
+      name: 'Globs',
+      description: 'Glob pattern to the files.',
+      type: '[String]',
+      optional: false,
+      default: '',
+    }
   ]}
 />
 
