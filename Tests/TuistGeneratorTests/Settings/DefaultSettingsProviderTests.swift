@@ -204,7 +204,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
 
-        XCTAssertBuildConfig(got, containsAll: projectEssentialDebugSettings)
+        XCTAssertSettings(got, containsAll: projectEssentialDebugSettings)
         XCTAssertEqual(got.count, 47)
     }
 
@@ -221,7 +221,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
                                               buildConfiguration: buildConfiguration)
 
         // Then
-        XCTAssertBuildConfig(got, containsAll: projectEssentialReleaseSettings)
+        XCTAssertSettings(got, containsAll: projectEssentialReleaseSettings)
         XCTAssertEqual(got.count, 43)
     }
 
@@ -270,7 +270,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
                                              buildConfiguration: buildConfiguration)
 
         // Then
-        XCTAssertBuildConfig(got, containsAll: appTargetEssentialDebugSettings)
+        XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
         XCTAssertEqual(got.count, 8)
     }
 
@@ -287,7 +287,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
                                              buildConfiguration: buildConfiguration)
 
         // Then
-        XCTAssertBuildConfig(got, containsAll: appTargetEssentialReleaseSettings)
+        XCTAssertSettings(got, containsAll: appTargetEssentialReleaseSettings)
         XCTAssertEqual(got.count, 8)
     }
 
@@ -304,7 +304,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
                                              buildConfiguration: buildConfiguration)
 
         // Then
-        XCTAssertBuildConfig(got, containsAll: frameworkTargetEssentialDebugSettings)
+        XCTAssertSettings(got, containsAll: frameworkTargetEssentialDebugSettings)
         XCTAssertEqual(got.count, 17)
     }
 
@@ -321,7 +321,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
                                              buildConfiguration: buildConfiguration)
 
         // Then
-        XCTAssertBuildConfig(got, containsAll: frameworkTargetEssentialReleaseSettings)
+        XCTAssertSettings(got, containsAll: frameworkTargetEssentialReleaseSettings)
         XCTAssertEqual(got.count, 17)
     }
 
@@ -359,7 +359,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 }
 
 private extension XCTestCase {
-    func XCTAssertBuildConfig(_ first: [String: Configuration.Value],
+    func XCTAssertSettings(_ first: [String: Configuration.Value],
                               containsAll second: [String: Configuration.Value],
                               file: StaticString = #file,
                               line: UInt = #line) {
