@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import XCTest
 import TuistCoreTesting
+import XCTest
 @testable import TuistGenerator
 
 final class ConfigurationTests: XCTestCase {
@@ -195,18 +195,17 @@ final class SettingsTests: XCTestCase {
 }
 
 final class ConfigurationValueTests: XCTestCase {
-
     func testToAny() {
         // Given
         let buildConfig: [String: Configuration.Value] = [
             "A": ["A_VALUE_1", "A_VALUE_2"],
             "B": "B_VALUE",
-            "C": ["C_VALUE"]
+            "C": ["C_VALUE"],
         ]
         let expected: [String: Any] = [
             "A": ["A_VALUE_1", "A_VALUE_2"],
             "B": "B_VALUE",
-            "C": ["C_VALUE"]
+            "C": ["C_VALUE"],
         ]
 
         // When

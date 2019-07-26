@@ -3,7 +3,6 @@ import Foundation
 // MARK: - Configuration
 
 public class Configuration: Codable {
-
     public enum Value: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
         case string(String)
         case array([String])
@@ -24,7 +23,7 @@ public class Configuration: Codable {
                 self = .string(value)
                 return
             }
-            if let value: Array<String> = try? singleValueContainer.decode([String].self) {
+            if let value: [String] = try? singleValueContainer.decode([String].self) {
                 self = .array(value)
                 return
             }
@@ -42,10 +41,6 @@ public class Configuration: Codable {
             }
         }
     }
-
-
-
-
 
     public let settings: [String: Value]
     public let xcconfig: String?

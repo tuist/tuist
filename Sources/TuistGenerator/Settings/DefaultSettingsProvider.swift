@@ -1,6 +1,6 @@
 import Foundation
-import XcodeProj
 import TuistCore
+import XcodeProj
 
 public protocol DefaultSettingsProviding {
     func projectSettings(project: Project,
@@ -136,13 +136,12 @@ enum BuildSettingsError: FatalError {
 }
 
 private extension BuildSettings {
-
     func toConfiguration() throws -> [String: Configuration.Value] {
         return try mapValues { value in
             switch value {
             case let value as String:
                 return .string(value)
-            case let value as Array<String>:
+            case let value as [String]:
                 return .array(value)
             default:
                 throw BuildSettingsError.invalidValue(value)

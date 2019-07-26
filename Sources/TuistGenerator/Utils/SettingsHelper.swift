@@ -41,7 +41,7 @@ final class SettingsHelper {
 
     // MARK: - Private
 
-    private func resolveValue(oldValue: Configuration.Value?, newValue: Configuration.Value)  -> Configuration.Value {
+    private func resolveValue(oldValue: Configuration.Value?, newValue: Configuration.Value) -> Configuration.Value {
         guard let oldValue = oldValue else {
             return newValue
         }

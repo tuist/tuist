@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 public class Configuration: Equatable {
-
     public enum Value: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
         case string(String)
         case array([String])
@@ -43,7 +42,6 @@ public enum DefaultSettings {
 }
 
 public class Settings: Equatable {
-
     public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
                                            defaultSettings: .recommended)
 
@@ -55,7 +53,7 @@ public class Settings: Equatable {
 
     // MARK: - Init
 
-    public init(base: [String:  Configuration.Value] = [:],
+    public init(base: [String: Configuration.Value] = [:],
                 configurations: [BuildConfiguration: Configuration?],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base
@@ -107,7 +105,7 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
 }
 
 extension Dictionary where Key == String, Value == Configuration.Value {
-    func toAny() ->  [String: Any] {
+    func toAny() -> [String: Any] {
         return mapValues { value in
             switch value {
             case let .array(array):

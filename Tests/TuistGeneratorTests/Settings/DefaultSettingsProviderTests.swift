@@ -359,7 +359,6 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 }
 
 private extension XCTestCase {
-
     func XCTAssertBuildConfig(_ first: [String: Configuration.Value],
                               containsAll second: [String: Configuration.Value],
                               file: StaticString = #file,
