@@ -89,8 +89,7 @@ public class Generator: Generating {
 
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
-                                                             sourceRootPath: path,
-                                                             xcodeProjName: project.fileName)
+                                                             sourceRootPath: path)
         return generatedProject.path
     }
 
@@ -99,7 +98,7 @@ public class Generator: Generating {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
         let (graph, project) = try graphLoader.loadProject(path: path)
 
-        let workspace = Workspace(name: project.name,
+        let workspace = Workspace(name: project.fileName,
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
 

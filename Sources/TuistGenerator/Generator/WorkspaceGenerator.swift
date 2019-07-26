@@ -103,8 +103,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         try graph.projects.forEach { project in
             let generatedProject = try projectGenerator.generate(project: project,
                                                                  graph: graph,
-                                                                 sourceRootPath: project.path,
-                                                                 xcodeProjName: project.fileName)
+                                                                 sourceRootPath: project.path)
             generatedProjects[project.path] = generatedProject
         }
 

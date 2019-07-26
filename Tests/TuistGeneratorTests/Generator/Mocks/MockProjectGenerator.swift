@@ -9,8 +9,7 @@ final class MockProjectGenerator: ProjectGenerating {
 
     func generate(project: Project,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath?,
-                  xcodeProjName _: String) throws -> GeneratedProject {
+                  sourceRootPath: AbsolutePath?) throws -> GeneratedProject {
         generatedProjects.append(project)
         return try generateStub?(project, graph, sourceRootPath) ?? GeneratedProject.test()
     }

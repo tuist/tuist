@@ -38,7 +38,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        dependencies: [])])
 
         // When
-        let got = try subject.generate(project: project, graph: graph, xcodeProjName: project.name)
+        let got = try subject.generate(project: project, graph: graph)
 
         // Then
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
@@ -65,7 +65,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        dependencies: [])])
 
         // When
-        let got = try subject.generate(project: project, graph: graph, xcodeProjName: project.name)
+        let got = try subject.generate(project: project, graph: graph)
 
         // Then
         let schemesPath = got.path.appending(RelativePath("xcshareddata/xcschemes"))
@@ -91,7 +91,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        dependencies: [])])
 
         // When
-        let got = try subject.generate(project: project, graph: graph, xcodeProjName: project.name)
+        let got = try subject.generate(project: project, graph: graph)
 
         // Then
         let username = NSUserName()
@@ -123,7 +123,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        ])])
 
         // When
-        let generatedProject = try subject.generate(project: project, graph: graph, xcodeProjName: project.name)
+        let generatedProject = try subject.generate(project: project, graph: graph)
 
         // Then
         let pbxproject = try generatedProject.pbxproj.rootProject()
@@ -142,9 +142,12 @@ final class ProjectGeneratorTests: XCTestCase {
 
     func test_generate_testUsingFileName() throws {
         // Given
-        let project = Project.test(path: fileHandler.currentPath, name: "Project", targets: [])
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Project",
+                                   fileName: "SomeAwesomeName",
+                                   targets: [])
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
-
+        let target = Target.test()
         let cache = GraphLoaderCache()
         cache.add(project: project)
         let graph = Graph.test(entryPath: fileHandler.currentPath,
@@ -154,7 +157,7 @@ final class ProjectGeneratorTests: XCTestCase {
                                                        dependencies: [])])
 
         // When
-        let got = try subject.generate(project: project, graph: graph, xcodeProjName: "SomeAwesomeName")
+        let got = try subject.generate(project: project, graph: graph)
 
         // Then
         XCTAssertTrue(fileHandler.exists(got.path))
