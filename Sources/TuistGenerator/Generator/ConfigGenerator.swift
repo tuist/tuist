@@ -149,7 +149,7 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
 
-    private func updateTargetDerived(buildSettings settings: inout [String: Configuration.Value],
+    private func updateTargetDerived(buildSettings settings: inout [String: SettingValue],
                                      target: Target,
                                      graph: Graphing,
                                      sourceRootPath: AbsolutePath) {

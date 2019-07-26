@@ -5,7 +5,7 @@ import XCTest
 final class DefaultSettingsProvider_iOSTests: XCTestCase {
     private var subject: DefaultSettingsProvider!
 
-    private let projectEssentialDebugSettings: [String: Configuration.Value] = [
+    private let projectEssentialDebugSettings: [String: SettingValue] = [
         "CLANG_CXX_LIBRARY": "libc++",
         "GCC_PREPROCESSOR_DEFINITIONS": ["DEBUG=1", "$(inherited)"],
         "CLANG_ENABLE_OBJC_ARC": "YES",
@@ -28,7 +28,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "GCC_NO_COMMON_BLOCKS": "YES",
     ]
 
-    private let projectEssentialReleaseSettings: [String: Configuration.Value] = [
+    private let projectEssentialReleaseSettings: [String: SettingValue] = [
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "GCC_C_LANGUAGE_STANDARD": "gnu11",
         "ENABLE_STRICT_OBJC_MSGSEND": "YES",
@@ -47,7 +47,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
     ]
 
-    private let appTargetEssentialDebugSettings: [String: Configuration.Value] = [
+    private let appTargetEssentialDebugSettings: [String: SettingValue] = [
         "SDKROOT": "iphoneos",
         "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks",
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
@@ -56,7 +56,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "TARGETED_DEVICE_FAMILY": "1,2",
     ]
 
-    private let appTargetEssentialReleaseSettings: [String: Configuration.Value] = [
+    private let appTargetEssentialReleaseSettings: [String: SettingValue] = [
         "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks",
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "TARGETED_DEVICE_FAMILY": "1,2",
@@ -67,7 +67,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
     ]
 
-    private let frameworkTargetEssentialDebugSettings: [String: Configuration.Value] = [
+    private let frameworkTargetEssentialDebugSettings: [String: SettingValue] = [
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
         "SKIP_INSTALL": "YES",
         "CODE_SIGN_IDENTITY": "",
@@ -86,7 +86,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "DYLIB_COMPATIBILITY_VERSION": "1",
     ]
 
-    private let frameworkTargetEssentialReleaseSettings: [String: Configuration.Value] = [
+    private let frameworkTargetEssentialReleaseSettings: [String: SettingValue] = [
         "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
         "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks @loader_path/Frameworks",
         "DEFINES_MODULE": "YES",
@@ -359,8 +359,8 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 }
 
 private extension XCTestCase {
-    func XCTAssertSettings(_ first: [String: Configuration.Value],
-                              containsAll second: [String: Configuration.Value],
+    func XCTAssertSettings(_ first: [String: SettingValue],
+                              containsAll second: [String: SettingValue],
                               file: StaticString = #file,
                               line: UInt = #line) {
         let filteredFirst = first.filter { second.keys.contains($0.key) }

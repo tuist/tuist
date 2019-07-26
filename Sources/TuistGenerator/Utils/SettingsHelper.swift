@@ -2,8 +2,8 @@ import Foundation
 import XcodeProj
 
 final class SettingsHelper {
-    func extend(buildSettings: inout [String: Configuration.Value],
-                with other: [String: Configuration.Value]) {
+    func extend(buildSettings: inout [String: SettingValue],
+                with other: [String: SettingValue]) {
         other.forEach { key, newValue in
             buildSettings[key] = resolveValue(oldValue: buildSettings[key], newValue: newValue)
         }
@@ -41,7 +41,7 @@ final class SettingsHelper {
 
     // MARK: - Private
 
-    private func resolveValue(oldValue: Configuration.Value?, newValue: Configuration.Value) -> Configuration.Value {
+    private func resolveValue(oldValue: SettingValue?, newValue: SettingValue) -> SettingValue {
         guard let oldValue = oldValue else {
             return newValue
         }

@@ -1,48 +1,51 @@
 import Foundation
 
+// MARK: - SettingValue
+
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+    case string(String)
+    case array([String])
+
+    public init(stringLiteral value: String) {
+        self = .string(value)
+    }
+
+    public init(arrayLiteral elements: String...) {
+        self = .array(elements)
+    }
+
+    public init(from decoder: Decoder) throws {
+        guard let singleValueContainer = try? decoder.singleValueContainer() else {
+            preconditionFailure("Unsupported container type")
+        }
+        if let value: String = try? singleValueContainer.decode(String.self) {
+            self = .string(value)
+            return
+        }
+        if let value: [String] = try? singleValueContainer.decode([String].self) {
+            self = .array(value)
+            return
+        }
+
+        preconditionFailure("Unsupported encoded type")
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case let .string(value):
+            try container.encode(value)
+        case let .array(value):
+            try container.encode(value)
+        }
+    }
+}
+
+
 // MARK: - Configuration
 
 public class Configuration: Codable {
-    public enum Value: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
-        case string(String)
-        case array([String])
-
-        public init(stringLiteral value: String) {
-            self = .string(value)
-        }
-
-        public init(arrayLiteral elements: String...) {
-            self = .array(elements)
-        }
-
-        public init(from decoder: Decoder) throws {
-            guard let singleValueContainer = try? decoder.singleValueContainer() else {
-                preconditionFailure("Unsupported container type")
-            }
-            if let value: String = try? singleValueContainer.decode(String.self) {
-                self = .string(value)
-                return
-            }
-            if let value: [String] = try? singleValueContainer.decode([String].self) {
-                self = .array(value)
-                return
-            }
-
-            preconditionFailure("Unsupported encoded type")
-        }
-
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.singleValueContainer()
-            switch self {
-            case let .string(value):
-                try container.encode(value)
-            case let .array(value):
-                try container.encode(value)
-            }
-        }
-    }
-
-    public let settings: [String: Value]
+    public let settings: [String: SettingValue]
     public let xcconfig: String?
 
     public enum CodingKeys: String, CodingKey {
@@ -50,12 +53,12 @@ public class Configuration: Codable {
         case xcconfig
     }
 
-    public init(settings: [String: Value] = [:], xcconfig: String? = nil) {
+    public init(settings: [String: SettingValue] = [:], xcconfig: String? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
 
-    public static func settings(_ settings: [String: Value], xcconfig: String? = nil) -> Configuration {
+    public static func settings(_ settings: [String: SettingValue], xcconfig: String? = nil) -> Configuration {
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
@@ -125,12 +128,12 @@ public enum DefaultSettings: String, Codable {
 // MARK: - Settings
 
 public class Settings: Codable {
-    public let base: [String: Configuration.Value]
+    public let base: [String: SettingValue]
     public let debug: Configuration?
     public let release: Configuration?
     public let defaultSettings: DefaultSettings
 
-    public init(base: [String: Configuration.Value] = [:],
+    public init(base: [String: SettingValue] = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
                 defaultSettings: DefaultSettings = .recommended) {

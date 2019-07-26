@@ -5,7 +5,7 @@ import XCTest
 
 final class SettingsHelpersTests: XCTestCase {
     private var subject = SettingsHelper()
-    private var settings: [String: Configuration.Value] = [:]
+    private var settings: [String: SettingValue] = [:]
 
     override func setUp() {
         super.setUp()

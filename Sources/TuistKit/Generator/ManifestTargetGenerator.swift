@@ -36,9 +36,9 @@ final class ManifestTargetGenerator: ManifestTargetGenerating {
 
     // MARK: - Private
 
-    private func manifestTargetBuildSettings() throws -> [String: Configuration.Value] {
+    private func manifestTargetBuildSettings() throws -> [String: SettingValue] {
         let frameworkParentDirectory = try resourceLocator.projectDescription().parentDirectory
-        var buildSettings = [String: Configuration.Value]()
+        var buildSettings = [String: SettingValue]()
         buildSettings["FRAMEWORK_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["LIBRARY_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["SWIFT_INCLUDE_PATHS"] = .string(frameworkParentDirectory.pathString)

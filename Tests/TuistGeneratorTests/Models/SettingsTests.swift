@@ -197,7 +197,7 @@ final class SettingsTests: XCTestCase {
 final class ConfigurationValueTests: XCTestCase {
     func testToAny() {
         // Given
-        let buildConfig: [String: Configuration.Value] = [
+        let buildConfig: [String: SettingValue] = [
             "A": ["A_VALUE_1", "A_VALUE_2"],
             "B": "B_VALUE",
             "C": ["C_VALUE"],

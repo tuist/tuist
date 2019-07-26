@@ -2,28 +2,28 @@ import Basic
 import Foundation
 import TuistCore
 
-public class Configuration: Equatable {
-    public enum Value: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
-        case string(String)
-        case array([String])
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
+    case string(String)
+    case array([String])
 
-        public init(stringLiteral value: String) {
-            self = .string(value)
-        }
-
-        public init(arrayLiteral elements: String...) {
-            self = .array(elements)
-        }
+    public init(stringLiteral value: String) {
+        self = .string(value)
     }
 
+    public init(arrayLiteral elements: String...) {
+        self = .array(elements)
+    }
+}
+
+public class Configuration: Equatable {
     // MARK: - Attributes
 
-    public let settings: [String: Value]
+    public let settings: [String: SettingValue]
     public let xcconfig: AbsolutePath?
 
     // MARK: - Init
 
-    public init(settings: [String: Value] = [:], xcconfig: AbsolutePath? = nil) {
+    public init(settings: [String: SettingValue] = [:], xcconfig: AbsolutePath? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
@@ -47,13 +47,13 @@ public class Settings: Equatable {
 
     // MARK: - Attributes
 
-    public let base: [String: Configuration.Value]
+    public let base: [String: SettingValue]
     public let configurations: [BuildConfiguration: Configuration?]
     public let defaultSettings: DefaultSettings
 
     // MARK: - Init
 
-    public init(base: [String: Configuration.Value] = [:],
+    public init(base: [String: SettingValue] = [:],
                 configurations: [BuildConfiguration: Configuration?],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base
@@ -104,7 +104,7 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
     }
 }
 
-extension Dictionary where Key == String, Value == Configuration.Value {
+extension Dictionary where Key == String, Value == SettingValue {
     func toAny() -> [String: Any] {
         return mapValues { value in
             switch value {
