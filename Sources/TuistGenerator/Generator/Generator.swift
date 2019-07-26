@@ -89,7 +89,8 @@ public class Generator: Generating {
 
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
-                                                             sourceRootPath: path)
+                                                             sourceRootPath: path,
+                                                             xcodeProjName: project.fileName)
         return generatedProject.path
     }
 

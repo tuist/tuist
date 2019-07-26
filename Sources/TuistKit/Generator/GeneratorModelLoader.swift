@@ -232,6 +232,7 @@ extension TuistGenerator.Project {
 
         return Project(path: path,
                        name: name,
+                       fileName: name,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,

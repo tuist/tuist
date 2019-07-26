@@ -23,7 +23,8 @@ extension ProjectConstants {
 protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath?) throws -> GeneratedProject
+                  sourceRootPath: AbsolutePath?,
+                  xcodeProjName: String) throws -> GeneratedProject
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -82,12 +83,14 @@ final class ProjectGenerator: ProjectGenerating {
 
     func generate(project: Project,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
+                  sourceRootPath: AbsolutePath? = nil,
+                  xcodeProjName: String) throws -> GeneratedProject {
         printer.print("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path
-        let xcodeprojPath = sourceRootPath.appending(component: "\(project.name).xcodeproj")
+        
+        let xcodeprojPath = sourceRootPath.appending(component: "\(xcodeProjName).xcodeproj")
 
         // Derived files
         let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)
