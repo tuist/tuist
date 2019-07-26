@@ -2,16 +2,65 @@ import Foundation
 
 // MARK: - Configuration
 
-public struct Configuration: Equatable, Codable {
-    public let settings: [String: String]
+public class Configuration: Codable {
+
+    public enum Value: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+        case string(String)
+        case array([String])
+
+        public init(stringLiteral value: String) {
+            self = .string(value)
+        }
+
+        public init(arrayLiteral elements: String...) {
+            self = .array(elements)
+        }
+
+        public init(from decoder: Decoder) throws {
+            guard let singleValueContainer = try? decoder.singleValueContainer() else {
+                preconditionFailure("Unsupported container type")
+            }
+            if let value: String = try? singleValueContainer.decode(String.self) {
+                self = .string(value)
+                return
+            }
+            if let value: Array<String> = try? singleValueContainer.decode([String].self) {
+                self = .array(value)
+                return
+            }
+
+            preconditionFailure("Unsupported encoded type")
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            switch self {
+            case let .string(value):
+                try container.encode(value)
+            case let .array(value):
+                try container.encode(value)
+            }
+        }
+    }
+
+
+
+
+
+    public let settings: [String: Value]
     public let xcconfig: String?
 
-    public init(settings: [String: String] = [:], xcconfig: String? = nil) {
+    public enum CodingKeys: String, CodingKey {
+        case settings
+        case xcconfig
+    }
+
+    public init(settings: [String: Value] = [:], xcconfig: String? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
 
-    public static func settings(_ settings: [String: String], xcconfig: String? = nil) -> Configuration {
+    public static func settings(_ settings: [String: Value], xcconfig: String? = nil) -> Configuration {
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
@@ -80,25 +129,13 @@ public enum DefaultSettings: String, Codable {
 
 // MARK: - Settings
 
-public struct Settings: Equatable, Codable {
-    public let base: [String: String]
-    public let configurations: [CustomConfiguration]
+public class Settings: Codable {
+    public let base: [String: Configuration.Value]
+    public let debug: Configuration?
+    public let release: Configuration?
     public let defaultSettings: DefaultSettings
 
-    /// Creates settings with the default `Debug` and `Release` configurations.
-    ///
-    /// - Parameters:
-    ///   - base: Base build settings to use
-    ///   - debug: The debug configuration
-    ///   - release: The release configuration
-    ///   - defaultSettings: The default settings to apply during generation
-    ///
-    /// - Note: To specify additional custom configurations, you can use the
-    ///         alternate initializer `init(base:configurations:defaultSettings:)`.
-    ///
-    /// - seealso: Configuration
-    /// - seealso: DefaultSettings
-    public init(base: [String: String] = [:],
+    public init(base: [String: Configuration.Value] = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
                 defaultSettings: DefaultSettings = .recommended) {

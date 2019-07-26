@@ -74,9 +74,9 @@ final class ManifestTargetGeneratorTests: XCTestCase {
             return
         }
 
-        XCTAssertEqual(settings.base["FRAMEWORK_SEARCH_PATHS"], expectedSearchPath)
-        XCTAssertEqual(settings.base["LIBRARY_SEARCH_PATHS"], expectedSearchPath)
-        XCTAssertEqual(settings.base["SWIFT_INCLUDE_PATHS"], expectedSearchPath)
-        XCTAssertEqual(settings.base["SWIFT_VERSION"], Constants.swiftVersion)
+        XCTAssertEqual(settings.base["FRAMEWORK_SEARCH_PATHS"], .string(expectedSearchPath))
+        XCTAssertEqual(settings.base["LIBRARY_SEARCH_PATHS"], .string(expectedSearchPath))
+        XCTAssertEqual(settings.base["SWIFT_INCLUDE_PATHS"], .string(expectedSearchPath))
+        XCTAssertEqual(settings.base["SWIFT_VERSION"], .string(Constants.swiftVersion))
     }
 }

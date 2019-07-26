@@ -5,7 +5,7 @@ import XCTest
 
 final class SettingsHelpersTests: XCTestCase {
     private var subject = SettingsHelper()
-    private var settings: [String: Any] = [:]
+    private var settings: [String: Configuration.Value] = [:]
 
     override func setUp() {
         super.setUp()
@@ -18,7 +18,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: [:])
 
         // Then
-        XCTAssertEqualDictionaries(settings, [:])
+        XCTAssertEqual(settings, [:])
     }
 
     func testExtend_whenNoSettingsAndNewSettings() {
@@ -26,7 +26,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "A_VALUE"])
 
         // Then
-        XCTAssertEqualDictionaries(settings, ["A": "A_VALUE"])
+        XCTAssertEqual(settings, ["A": "A_VALUE"])
     }
 
     func testExtend_whenExistingSettingsAndNewSettings() {
@@ -37,7 +37,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["B": "B_VALUE"])
 
         // Then
-        XCTAssertEqualDictionaries(settings, ["A": "A_VALUE", "B": "B_VALUE"])
+        XCTAssertEqual(settings, ["A": "A_VALUE", "B": "B_VALUE"])
     }
 
     func testExtend_whenExistingSettingsAndNewWithDifferentValues() {
@@ -49,7 +49,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "A_VALUE_2", "C": "C_VALUE"])
 
         // Then
-        XCTAssertEqualDictionaries(settings, ["A": "A_VALUE_2", "B": "B_VALUE", "C": "C_VALUE"])
+        XCTAssertEqual(settings, ["A": "A_VALUE_2", "B": "B_VALUE", "C": "C_VALUE"])
     }
 
     func testExtend_whenExistingSettingsAndNewWithInheritedDeclaration() {
@@ -61,7 +61,21 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE_2", "C": "C_VALUE"])
 
         // Then
-        XCTAssertEqualDictionaries(settings, ["A": "A_VALUE $(inherited) A_VALUE_2", "B": "B_VALUE", "C": "C_VALUE"])
+        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited) A_VALUE_2"],
+                                  "B": "B_VALUE",
+                                  "C": "C_VALUE"])
+    }
+
+    func testExtend_whenArraySettings() {
+        // Given
+        settings["A"] = "A_VALUE"
+        settings["B"] = "B_VALUE"
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2"], "C": "C_VALUE"])
+
+        // Then
+        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited)", "A_VALUE_2"], "B": "B_VALUE", "C": "C_VALUE"])
     }
 
     func testNotExtend_whenExistingSettingsAndNewWithSameValues() {
@@ -73,7 +87,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "A_VALUE"])
 
         // Then
-        XCTAssertEqualDictionaries(settings, ["A": "A_VALUE", "B": "B_VALUE"])
+        XCTAssertEqual(settings, ["A": "A_VALUE", "B": "B_VALUE"])
     }
 
     func testNotExtend_whenExistingSettingsAndNewWithInheritedDeclarationAndSameValues() {
@@ -84,7 +98,51 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE"])
 
         // Then
-        XCTAssertEqualDictionaries(settings, ["A": "$(inherited) A_VALUE"])
+        XCTAssertEqual(settings, ["A": "$(inherited) A_VALUE"])
+    }
+
+    func testExtend_whenExistingSettingsArrayAndNewWithSomeStringValue() {
+        // Given
+        settings["A"] = ["A_VALUE"]
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": "A_VALUE_2 A_VALUE_3"])
+
+        // Then
+        XCTAssertEqual(settings, ["A": "A_VALUE_2 A_VALUE_3"])
+    }
+
+    func testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndSomeStringValue() {
+        // Given
+        settings["A"] = ["A_VALUE"]
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE_2 A_VALUE_3"])
+
+        // Then
+        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited) A_VALUE_2 A_VALUE_3"]])
+    }
+
+    func testExtend_whenExistingSettingsArrayAndNewWithSomeArrayValue() {
+        // Given
+        settings["A"] = ["A_VALUE"]
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": ["A_VALUE_2", "A_VALUE_3"]])
+
+        // Then
+        XCTAssertEqual(settings, ["A": ["A_VALUE_2", "A_VALUE_3"]])
+    }
+
+    func testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndSomeArrayValue() {
+        // Given
+        settings["A"] = ["A_VALUE"]
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2", "A_VALUE_3"]])
+
+        // Then
+        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited)", "A_VALUE_2", "A_VALUE_3"]])
     }
 
     func testSettingsProviderPlatform() {

@@ -387,9 +387,9 @@ extension TuistGenerator.Settings {
     typealias BuildConfigurationTuple = (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?)
 
     static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistGenerator.Settings {
-        let base = manifest.base
-        let configurationTuples = manifest.configurations.map { buildConfigurationTuple(from: $0, path: path) }
-        let configurations = Dictionary(configurationTuples, uniquingKeysWith: { $1 })
+        let base = manifest.base.mapValues(TuistGenerator.Configuration.Value.from)
+        let debug = manifest.debug.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
+        let release = manifest.release.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
         let defaultSettings = TuistGenerator.DefaultSettings.from(manifest: manifest.defaultSettings)
         return TuistGenerator.Settings(base: base,
                                        configurations: configurations,
@@ -415,9 +415,20 @@ extension TuistGenerator.DefaultSettings {
     }
 }
 
+extension TuistGenerator.Configuration.Value {
+    static func from(manifest: ProjectDescription.Configuration.Value) -> TuistGenerator.Configuration.Value {
+        switch manifest {
+        case let .string(value):
+            return .string(value)
+        case let .array(value):
+            return .array(value)
+        }
+    }
+}
+
 extension TuistGenerator.Configuration {
     static func from(manifest: ProjectDescription.Configuration, path: AbsolutePath) -> TuistGenerator.Configuration {
-        let settings = manifest.settings
+        let settings = manifest.settings.mapValues(TuistGenerator.Configuration.Value.from)
         let xcconfig = manifest.xcconfig.flatMap { path.appending(RelativePath($0)) }
         return Configuration(settings: settings, xcconfig: xcconfig)
     }

@@ -3,14 +3,28 @@ import Foundation
 import TuistCore
 
 public class Configuration: Equatable {
+
+    public enum Value: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
+        case string(String)
+        case array([String])
+
+        public init(stringLiteral value: String) {
+            self = .string(value)
+        }
+
+        public init(arrayLiteral elements: String...) {
+            self = .array(elements)
+        }
+    }
+
     // MARK: - Attributes
 
-    public let settings: [String: String]
+    public let settings: [String: Value]
     public let xcconfig: AbsolutePath?
 
     // MARK: - Init
 
-    public init(settings: [String: String] = [:], xcconfig: AbsolutePath? = nil) {
+    public init(settings: [String: Value] = [:], xcconfig: AbsolutePath? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
@@ -29,18 +43,19 @@ public enum DefaultSettings {
 }
 
 public class Settings: Equatable {
+
     public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
                                            defaultSettings: .recommended)
 
     // MARK: - Attributes
 
-    public let base: [String: String]
+    public let base: [String: Configuration.Value]
     public let configurations: [BuildConfiguration: Configuration?]
     public let defaultSettings: DefaultSettings
 
     // MARK: - Init
 
-    public init(base: [String: String] = [:],
+    public init(base: [String:  Configuration.Value] = [:],
                 configurations: [BuildConfiguration: Configuration?],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base
@@ -88,5 +103,18 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
         return sortedByBuildConfigurationName()
             .map { $0.value }
             .compactMap { $0?.xcconfig }
+    }
+}
+
+extension Dictionary where Key == String, Value == Configuration.Value {
+    func toAny() ->  [String: Any] {
+        return mapValues { value in
+            switch value {
+            case let .array(array):
+                return array
+            case let .string(string):
+                return string
+            }
+        }
     }
 }

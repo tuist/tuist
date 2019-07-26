@@ -703,7 +703,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                 at path: AbsolutePath,
                 file: StaticString = #file,
                 line: UInt = #line) {
-        XCTAssertEqual(settings.base, manifest.base, file: file, line: line)
+        XCTAssertEqual(settings.base.count, manifest.base.count, file: file, line: line)
 
         let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
         let sortedManifsetConfigurations = manifest.configurations.sorted(by: { $0.name < $1.name })
@@ -718,8 +718,8 @@ class GeneratorModelLoaderTest: XCTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertTrue(configuration.0 == manifest, file: file, line: line)
-        XCTAssertEqual(configuration.1?.settings, manifest.configuration?.settings, file: file, line: line)
-        XCTAssertEqual(configuration.1?.xcconfig, manifest.configuration?.xcconfig.map { path.appending(RelativePath($0)) }, file: file, line: line)
+        XCTAssertEqual(configuration.1?.settings.count, manifest.settings.count, file: file, line: line)
+        XCTAssertEqual(configuration.1?.xcconfig, manifest.xcconfig.map { path.appending(RelativePath($0)) }, file: file, line: line)
     }
 
     func assert(coreDataModels: [TuistGenerator.CoreDataModel],

@@ -42,16 +42,6 @@ public extension XCTestCase {
         """, file: file, line: line)
     }
 
-    func XCTAssertDictionary<T: Hashable>(_ first: [T: Any],
-                                          containsAll second: [T: Any],
-                                          file: StaticString = #file,
-                                          line: UInt = #line) {
-        let filteredFirst = first.filter { second.keys.contains($0.key) }
-        let firstDictionary = NSDictionary(dictionary: filteredFirst)
-        let secondDictioanry = NSDictionary(dictionary: second)
-        XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
-    }
-
     func XCTTry<T>(_ closure: @autoclosure @escaping () throws -> T, file: StaticString = #file, line: UInt = #line) -> T {
         var value: T!
         do {

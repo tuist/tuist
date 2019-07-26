@@ -2,16 +2,10 @@ import Foundation
 import XcodeProj
 
 final class SettingsHelper {
-    func extend(buildSettings: inout [String: Any], with other: [String: Any]) {
-        other.forEach { key, value in
-            if buildSettings[key] == nil || (value as? String)?.contains("$(inherited)") == false {
-                buildSettings[key] = value
-            } else if let previousValueString = buildSettings[key] as? String, let newValueString = value as? String,
-                previousValueString != newValueString {
-                buildSettings[key] = "\(previousValueString) \(newValueString)"
-            } else {
-                buildSettings[key] = value
-            }
+    func extend(buildSettings: inout [String: Configuration.Value],
+                with other: [String: Configuration.Value]) {
+        other.forEach { key, newValue in
+            buildSettings[key] = resolveValue(oldValue: buildSettings[key], newValue: newValue)
         }
     }
 
@@ -43,5 +37,29 @@ final class SettingsHelper {
 
     func variant(_ buildConfiguration: BuildConfiguration) -> BuildSettingsProvider.Variant {
         return buildConfiguration.variant == .debug ? .debug : .release
+    }
+
+    // MARK: - Private
+
+    private func resolveValue(oldValue: Configuration.Value?, newValue: Configuration.Value)  -> Configuration.Value {
+        guard let oldValue = oldValue else {
+            return newValue
+        }
+        guard oldValue != newValue else {
+            return oldValue
+        }
+
+        switch (oldValue, newValue) {
+        case let (.string(old), .string(new)) where new.contains("$(inherited)"):
+            return .array([old, new])
+        case let (.string(old), .array(new)) where new.contains("$(inherited)"):
+            return .array([old] + new)
+        case let (.array(old), .string(new)) where new.contains("$(inherited)"):
+            return .array(old + [new])
+        case let (.array(old), .array(new)) where new.contains("$(inherited)"):
+            return .array(old + new)
+        default:
+            return newValue
+        }
     }
 }
