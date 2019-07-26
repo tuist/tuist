@@ -89,7 +89,7 @@ final class ProjectGenerator: ProjectGenerating {
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path
-        
+
         let xcodeprojPath = sourceRootPath.appending(component: "\(xcodeProjName).xcodeproj")
 
         // Derived files

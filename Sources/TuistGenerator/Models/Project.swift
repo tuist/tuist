@@ -10,7 +10,7 @@ public class Project: Equatable, CustomStringConvertible {
 
     /// Project name.
     public let name: String
-    
+
     /// Project file name.
     public let fileName: String
 
