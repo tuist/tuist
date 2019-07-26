@@ -1,6 +1,6 @@
 import TuistCoreTesting
-@testable import TuistGenerator
 import XCTest
+@testable import TuistGenerator
 
 final class DefaultSettingsProvider_iOSTests: XCTestCase {
     private var subject: DefaultSettingsProvider!
@@ -359,7 +359,6 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 }
 
 final class DictionaryStringAnyExtensionTests: XCTestCase {
-
     func testToSettings_whenOnlyStrings() throws {
         // Given
         let subject: [String: Any] = ["A": "A_VALUE",
@@ -422,9 +421,9 @@ final class DictionaryStringAnyExtensionTests: XCTestCase {
 
 private extension XCTestCase {
     func XCTAssertSettings(_ first: [String: SettingValue],
-                              containsAll second: [String: SettingValue],
-                              file: StaticString = #file,
-                              line: UInt = #line) {
+                           containsAll second: [String: SettingValue],
+                           file: StaticString = #file,
+                           line: UInt = #line) {
         let filteredFirst = first.filter { second.keys.contains($0.key) }
         XCTAssertEqual(filteredFirst, second, file: file, line: line)
     }

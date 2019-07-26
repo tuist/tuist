@@ -41,7 +41,6 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
     }
 }
 
-
 // MARK: - Configuration
 
 public class Configuration: Codable {
