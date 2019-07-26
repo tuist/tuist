@@ -117,13 +117,13 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     }
 }
 
-private enum BuildSettingsError: FatalError {
+enum BuildSettingsError: FatalError {
     case invalidValue(Any)
 
     var description: String {
         switch self {
         case let .invalidValue(value):
-            return "Cannot convert \"\(value)\" to Configuration.Value type"
+            return "Cannot convert \"\(value)\" to SettingValue type"
         }
     }
 
@@ -135,7 +135,7 @@ private enum BuildSettingsError: FatalError {
     }
 }
 
-private extension BuildSettings {
+extension BuildSettings {
     func toSettings() throws -> [String: SettingValue] {
         return try mapValues { value in
             switch value {

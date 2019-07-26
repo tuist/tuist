@@ -194,7 +194,7 @@ final class SettingsTests: XCTestCase {
     }
 }
 
-final class ConfigurationValueTests: XCTestCase {
+final class DictionaryStringSettingValueExtensionTests: XCTestCase {
     func testToAny() {
         // Given
         let buildConfig: [String: SettingValue] = [

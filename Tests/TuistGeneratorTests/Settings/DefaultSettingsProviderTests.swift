@@ -1,5 +1,5 @@
 import TuistCoreTesting
-import TuistGenerator
+@testable import TuistGenerator
 import XCTest
 
 final class DefaultSettingsProvider_iOSTests: XCTestCase {
@@ -355,6 +355,68 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
         XCTAssertEqual(got.count, 0)
+    }
+}
+
+final class DictionaryStringAnyExtensionTests: XCTestCase {
+
+    func testToSettings_whenOnlyStrings() throws {
+        // Given
+        let subject: [String: Any] = ["A": "A_VALUE",
+                                      "B": "B_VALUE"]
+
+        // When
+        let got = try subject.toSettings()
+
+        // Then
+        XCTAssertEqual(got, ["A": .string("A_VALUE"),
+                             "B": .string("B_VALUE")])
+    }
+
+    func testToSettings_whenStringsAndArray() throws {
+        // Given
+        let subject: [String: Any] = ["A": "A_VALUE",
+                                      "B": "B_VALUE",
+                                      "C": ["C_1", "C_2"],
+                                      "D": ["D_1", "D_2"]]
+
+        // When
+        let got = try subject.toSettings()
+
+        // Then
+        XCTAssertEqual(got, ["A": .string("A_VALUE"),
+                             "B": .string("B_VALUE"),
+                             "C": .array(["C_1", "C_2"]),
+                             "D": .array(["D_1", "D_2"])])
+    }
+
+    func testToSettings_whenArraysOnly() throws {
+        // Given
+        let subject: [String: Any] = ["A": ["A_1", "A_2"],
+                                      "B": ["B_1", "B_2"]]
+
+        // When
+        let got = try subject.toSettings()
+
+        // Then
+        XCTAssertEqual(got, ["A": .array(["A_1", "A_2"]),
+                             "B": .array(["B_1", "B_2"])])
+    }
+
+    func testToSettings_whenInvaludContent() throws {
+        // Given
+        let subject: [String: Any] = ["A": ["A_1": ["A_2": "A_3"]]]
+
+        // When
+        XCTAssertThrowsError(try subject.toSettings()) { error in
+            // Then
+            guard let error = error as? BuildSettingsError else {
+                XCTFail("Unexpected error type")
+                return
+            }
+            XCTAssertEqual(error.description, "Cannot convert \"[\"A_1\": [\"A_2\": \"A_3\"]]\" to SettingValue type")
+            XCTAssertEqual(error.type, .bug)
+        }
     }
 }
 
