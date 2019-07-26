@@ -51,7 +51,7 @@ GEM
     danger-rubocop (0.6.1)
       danger
       rubocop
-    danger-swiftformat (0.5.0)
+    danger-swiftformat (0.6.0)
       danger-plugin-api (~> 1.0)
     danger-swiftlint (0.22.0)
       danger
@@ -163,7 +163,7 @@ DEPENDENCIES
   cucumber (~> 3.1)
   danger (~> 6.0)
   danger-rubocop (~> 0.6.1)
-  danger-swiftformat (~> 0.5.0)
+  danger-swiftformat (~> 0.6.0)
   danger-swiftlint (~> 0.22.0)
   encrypted-environment (~> 0.2.0)
   google-cloud-storage (~> 1.19)
