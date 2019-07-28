@@ -48,6 +48,12 @@ public enum TargetDependency: Codable, Equatable {
     ///   - status: The dependency status (optional dependencies are weakly linked)
     case sdk(name: String, status: SDKStatus)
 
+    /// Dependency on CocoaPods pods.
+    ///
+    /// - Parameters:
+    ///     - path: Path to the directory that contains the Podfile.
+    case cocoapods(path: String)
+
     /// Dependency on system library or framework
     ///
     /// - Parameters:
@@ -71,6 +77,8 @@ public enum TargetDependency: Codable, Equatable {
             return "library"
         case .sdk:
             return "sdk"
+        case .cocoapods:
+            return "cocoapods"
         }
     }
 }
@@ -125,6 +133,9 @@ extension TargetDependency {
             self = .sdk(name: try container.decode(String.self, forKey: .name),
                         status: try container.decode(SDKStatus.self, forKey: .status))
 
+        case "cocoapods":
+            self = .cocoapods(path: try container.decode(String.self, forKey: .path))
+
         default:
             throw CodingError.unknownType(type)
         }
@@ -150,6 +161,8 @@ extension TargetDependency {
         case let .sdk(name, status):
             try container.encode(name, forKey: .name)
             try container.encode(status, forKey: .status)
+        case let .cocoapods(path):
+            try container.encode(path, forKey: .path)
         }
     }
 }
