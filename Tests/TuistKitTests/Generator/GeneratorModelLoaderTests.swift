@@ -296,6 +296,21 @@ class GeneratorModelLoaderTest: XCTestCase {
         assert(settings: model, matches: manifest, at: path)
     }
 
+    func test_dependency_when_cocoaPods() throws {
+        // Given
+        let dependency = TargetDependency.cocoapods(path: "./path/to/project")
+
+        // When
+        let got = TuistGenerator.Dependency.from(manifest: dependency)
+
+        // Then
+        guard case let .cocoapods(path) = got else {
+            XCTFail("Dependency should be cocoapods")
+            return
+        }
+        XCTAssertEqual(path, RelativePath("./path/to/project"))
+    }
+
     func test_headers() throws {
         // Given
         try fileHandler.createFiles([

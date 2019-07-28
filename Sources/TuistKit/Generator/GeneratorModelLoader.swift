@@ -481,6 +481,8 @@ extension TuistGenerator.Dependency {
         case let .sdk(name, status):
             return .sdk(name: name,
                         status: .from(manifest: status))
+        case let .cocoapods(path):
+            return .cocoapods(path: RelativePath(path))
         }
     }
 }
