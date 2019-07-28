@@ -75,6 +75,11 @@ protocol Graphing: AnyObject, Encodable {
     var entryPath: AbsolutePath { get }
     var entryNodes: [GraphNode] { get }
     var projects: [Project] { get }
+
+    /// Returns all the CocoaPods nodes that are part of the graph.
+    var cocoapods: [CocoaPodsNode] { get }
+
+    /// Returns all the frameorks that are part of the graph.
     var frameworks: [FrameworkNode] { get }
 
     /// Returns all the precompiled nodes that are part of the graph.
@@ -133,6 +138,12 @@ class Graph: Graphing {
 
     // MARK: - Internal
 
+    /// Returns all the CocoaPods nodes that are part of the graph.
+    var cocoapods: [CocoaPodsNode] {
+        return Array(cache.cocoaPodsNodes.values)
+    }
+
+    /// Returns all the frameworks that are part of the graph
     var frameworks: [FrameworkNode] {
         return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
     }

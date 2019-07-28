@@ -18,6 +18,7 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     var targetNodeStub: ((AbsolutePath, String) -> TargetNode?)?
     var tuistConfigStub: [AbsolutePath: TuistConfig] = [:]
     var addTuistConfigArgs: [(tuistConfig: TuistConfig, path: AbsolutePath)] = []
+    var cocoaPodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
     var cocoapodsStub: [AbsolutePath: CocoaPodsNode] = [:]
     var addCococaPodsArgs: [CocoaPodsNode] = []
 

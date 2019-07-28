@@ -5,6 +5,7 @@ protocol GraphLoaderCaching: AnyObject {
     var projects: [AbsolutePath: Project] { get }
     var targetNodes: [AbsolutePath: [String: TargetNode]] { get }
     var precompiledNodes: [AbsolutePath: PrecompiledNode] { get }
+
     func project(_ path: AbsolutePath) -> Project?
     func add(project: Project)
     func add(precompiledNode: PrecompiledNode)
@@ -13,6 +14,9 @@ protocol GraphLoaderCaching: AnyObject {
     func targetNode(_ path: AbsolutePath, name: String) -> TargetNode?
     func tuistConfig(_ path: AbsolutePath) -> TuistConfig?
     func add(tuistConfig: TuistConfig, path: AbsolutePath)
+
+    /// Cached CocoaPods nodes
+    var cocoaPodsNodes: [AbsolutePath: CocoaPodsNode] { get }
 
     /// Returns, if it exists, the CocoaPods node at the given path.
     ///
