@@ -283,7 +283,6 @@ public final class System: Systeming {
     /// - Parameters:
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: String...,

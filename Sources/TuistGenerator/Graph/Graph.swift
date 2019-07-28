@@ -140,7 +140,7 @@ class Graph: Graphing {
 
     /// Returns all the CocoaPods nodes that are part of the graph.
     var cocoapods: [CocoaPodsNode] {
-        return Array(cache.cocoaPodsNodes.values)
+        return Array(cache.cocoapodsNodes.values)
     }
 
     /// Returns all the frameworks that are part of the graph

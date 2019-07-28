@@ -296,7 +296,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         assert(settings: model, matches: manifest, at: path)
     }
 
-    func test_dependency_when_cocoaPods() throws {
+    func test_dependency_when_cocoapods() throws {
         // Given
         let dependency = TargetDependency.cocoapods(path: "./path/to/project")
 

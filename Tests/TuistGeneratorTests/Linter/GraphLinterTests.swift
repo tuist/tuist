@@ -40,7 +40,7 @@ final class GraphLinterTests: XCTestCase {
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
         let cocoapods = CocoaPodsNode(path: fileHandler.currentPath)
-        cache.add(cocoaPods: cocoapods)
+        cache.add(cocoapods: cocoapods)
         let podfilePath = fileHandler.currentPath.appending(component: "Podfile")
 
         // When

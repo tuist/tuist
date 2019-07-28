@@ -66,7 +66,7 @@ class GraphLinter: GraphLinting {
     /// - Returns: Linting issues.
     private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
         return graph.cocoapods.compactMap { node in
-            let podfilePath = node.path.appending(component: "Podfile")
+            let podfilePath = node.podfilePath
             if !fileHandler.exists(podfilePath) {
                 return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
             }

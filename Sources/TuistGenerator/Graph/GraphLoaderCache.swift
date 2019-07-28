@@ -16,7 +16,7 @@ protocol GraphLoaderCaching: AnyObject {
     func add(tuistConfig: TuistConfig, path: AbsolutePath)
 
     /// Cached CocoaPods nodes
-    var cocoaPodsNodes: [AbsolutePath: CocoaPodsNode] { get }
+    var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] { get }
 
     /// Returns, if it exists, the CocoaPods node at the given path.
     ///
@@ -26,8 +26,8 @@ protocol GraphLoaderCaching: AnyObject {
 
     /// Adds a parsed CocoaPods graph node to the cache.
     ///
-    /// - Parameter cocoaPods: Node to be added to the cache.
-    func add(cocoaPods: CocoaPodsNode)
+    /// - Parameter cocoapods: Node to be added to the cache.
+    func add(cocoapods: CocoaPodsNode)
 }
 
 /// Graph loader cache.
@@ -40,21 +40,21 @@ class GraphLoaderCache: GraphLoaderCaching {
     var targetNodes: [AbsolutePath: [String: TargetNode]] = [:]
 
     /// Cached CocoaPods nodes
-    var cocoaPodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
+    var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
 
     /// Returns, if it exists, the CocoaPods node at the given path.
     ///
     /// - Parameter path: Path to the directory where the Podfile is defined.
     /// - Returns: The CocoaPods node if it exists in the cache.
     func cocoapods(_ path: AbsolutePath) -> CocoaPodsNode? {
-        return cocoaPodsNodes[path]
+        return cocoapodsNodes[path]
     }
 
     /// Adds a parsed CocoaPods graph node to the cache.
     ///
-    /// - Parameter cocoaPods: Node to be added to the cache.
-    func add(cocoaPods: CocoaPodsNode) {
-        cocoaPodsNodes[cocoaPods.path] = cocoaPods
+    /// - Parameter cocoapods: Node to be added to the cache.
+    func add(cocoapods: CocoaPodsNode) {
+        cocoapodsNodes[cocoapods.path] = cocoapods
     }
 
     func tuistConfig(_ path: AbsolutePath) -> TuistConfig? {

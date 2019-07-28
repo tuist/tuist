@@ -2,6 +2,11 @@ import Basic
 import Foundation
 
 class CocoaPodsNode: GraphNode {
+    /// Path to the Podfile.
+    var podfilePath: AbsolutePath {
+        return path.appending(component: "Podfile")
+    }
+
     /// Initializes the node with the path to the directory
     /// that contains the Podfile.
     ///
@@ -32,7 +37,7 @@ class CocoaPodsNode: GraphNode {
                      cache: GraphLoaderCaching) -> CocoaPodsNode {
         if let cached = cache.cocoapods(path) { return cached }
         let node = CocoaPodsNode(path: path)
-        cache.add(cocoaPods: node)
+        cache.add(cocoapods: node)
         return node
     }
 }
