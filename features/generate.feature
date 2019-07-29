@@ -157,3 +157,6 @@ Scenario: The project is an iOS application with multiple configurations (ios_ap
     Then the scheme App has a build setting CUSTOM_FLAG with value "Debug" for the configuration Debug
     Then the scheme App has a build setting CUSTOM_FLAG with value "Beta" for the configuration Beta
     Then the scheme App has a build setting CUSTOM_FLAG with value "Release" for the configuration Release
+    Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Debug" for the configuration Debug
+    Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Target.Beta" for the configuration Beta
+    Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Release" for the configuration Release

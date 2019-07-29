@@ -6,9 +6,15 @@ let configurations: [CustomConfiguration] = [
     .release(name: "Release", xcconfig: "../ConfigurationFiles/Release.xcconfig"),
 ]
 
-let settings = Settings(base: [
-    "PROJECT_BASE": "PROJECT_BASE",
-], configurations: configurations)
+let settings = Settings(configurations: configurations)
+
+// Targets can override select configurations if needed
+let targetSettings = Settings(base: [
+                                    "TARGET_BASE": "TARGET_BASE",
+                                ], 
+                              configurations: [
+       .release(name: "Beta", xcconfig: "../ConfigurationFiles/Target.Beta.xcconfig"),
+])
 
 let project = Project(name: "Framework2",
                       settings: settings,
@@ -19,7 +25,8 @@ let project = Project(name: "Framework2",
                                  bundleId: "io.tuist.Framework2",
                                  infoPlist: "Support/Framework2-Info.plist",
                                  sources: "Sources/**",
-                                 dependencies: []),
+                                 dependencies: [],
+                                 settings: targetSettings),
                           Target(name: "Framework2Tests",
                                  platform: .iOS,
                                  product: .unitTests,
