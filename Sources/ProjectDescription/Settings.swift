@@ -27,7 +27,7 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
             return
         }
 
-        preconditionFailure("Unsupported encoded type")
+        fatalError("Unsupported encoded type")
     }
 
     public func encode(to encoder: Encoder) throws {
