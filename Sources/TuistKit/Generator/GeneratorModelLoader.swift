@@ -50,11 +50,14 @@ class GeneratorModelLoader: GeneratorModelLoading {
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     func loadProject(at path: AbsolutePath) throws -> TuistGenerator.Project {
         let manifest = try manifestLoader.loadProject(at: path)
+        let tuistConfig = try loadTuistConfig(at: path)
+        
         let project = try TuistGenerator.Project.from(manifest: manifest,
                                                       path: path,
                                                       fileHandler: fileHandler,
-                                                      printer: printer)
-        let tuistConfig = try loadTuistConfig(at: path)
+                                                      printer: printer,
+                                                      tuistConfig: tuistConfig)
+        
 
         if let manifestTargetGenerator = manifestTargetGenerator, tuistConfig.generationOptions.contains(.generateManifest) {
             let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
@@ -123,6 +126,10 @@ extension TuistGenerator.TuistConfig.GenerationOption {
         switch manifest {
         case .generateManifest:
             return .generateManifest
+        case let .suffixProjectNames(suffixRaw):
+            return .suffixProjectNames(with: suffixRaw)
+        case let .prefixProjectNames(prefixRaw):
+            return .prefixProjectNames(with: prefixRaw)
         }
     }
 }
@@ -211,7 +218,8 @@ extension TuistGenerator.Project {
     static func from(manifest: ProjectDescription.Project,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
-                     printer: Printing) throws -> TuistGenerator.Project {
+                     printer: Printing,
+                     tuistConfig: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
         let name = manifest.name
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
         let targets = try manifest.targets.map {
@@ -229,10 +237,20 @@ extension TuistGenerator.Project {
                                             fileHandler: fileHandler,
                                             printer: printer)
         }
+        
+        let xcodeProjFileName = tuistConfig.generationOptions.reduce(name, { acc, item  in
+            if case .prefixProjectNames(let prefixRaw) = item {
+                return prefixRaw + acc
+            }
+            if case .suffixProjectNames(let suffixRaw) = item {
+                return acc + suffixRaw
+            }
+            return acc
+        })
 
         return Project(path: path,
                        name: name,
-                       fileName: name,
+                       fileName: xcodeProjFileName,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
@@ -243,6 +261,7 @@ extension TuistGenerator.Project {
     func adding(target: TuistGenerator.Target) -> TuistGenerator.Project {
         return Project(path: path,
                        name: name,
+                       fileName: fileName,
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets + [target],

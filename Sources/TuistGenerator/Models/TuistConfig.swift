@@ -7,8 +7,10 @@ public class TuistConfig: Equatable, Hashable {
     /// Contains options related to the project generation.
     ///
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
-    public enum GenerationOption: String, Codable, Equatable, Hashable {
+    public enum GenerationOption: Hashable {
         case generateManifest
+        case suffixProjectNames(with: String)
+        case prefixProjectNames(with: String)
     }
 
     /// Generation options.

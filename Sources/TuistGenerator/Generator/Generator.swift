@@ -86,7 +86,6 @@ public class Generator: Generating {
 
     public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
         let (graph, project) = try graphLoader.loadProject(path: path)
-
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
                                                              sourceRootPath: path)
@@ -112,7 +111,6 @@ public class Generator: Generating {
                                   workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-
         let updatedWorkspace = workspace
             .merging(projects: graph.projectPaths)
             .adding(files: workspaceFiles)
