@@ -61,7 +61,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE_2", "C": "C_VALUE"])
 
         // Then
-        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited) A_VALUE_2"],
+        XCTAssertEqual(settings, ["A": ["$(inherited) A_VALUE_2", "A_VALUE"],
                                   "B": "B_VALUE",
                                   "C": "C_VALUE"])
     }
@@ -75,7 +75,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2"], "C": "C_VALUE"])
 
         // Then
-        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited)", "A_VALUE_2"], "B": "B_VALUE", "C": "C_VALUE"])
+        XCTAssertEqual(settings, ["A": ["$(inherited)", "A_VALUE", "A_VALUE_2"], "B": "B_VALUE", "C": "C_VALUE"])
     }
 
     func testNotExtend_whenExistingSettingsAndNewWithSameValues() {
@@ -120,7 +120,7 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE_2 A_VALUE_3"])
 
         // Then
-        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited) A_VALUE_2 A_VALUE_3"]])
+        XCTAssertEqual(settings, ["A": ["$(inherited) A_VALUE_2 A_VALUE_3", "A_VALUE"]])
     }
 
     func testExtend_whenExistingSettingsArrayAndNewWithSomeArrayValue() {
@@ -142,7 +142,18 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2", "A_VALUE_3"]])
 
         // Then
-        XCTAssertEqual(settings, ["A": ["A_VALUE", "$(inherited)", "A_VALUE_2", "A_VALUE_3"]])
+        XCTAssertEqual(settings, ["A": ["$(inherited)", "A_VALUE", "A_VALUE_2", "A_VALUE_3"]])
+    }
+
+    func testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndArrayWithInheritedDeclaration() {
+        // Given
+        settings["A"] = ["$(inherited)", "A_VALUE"]
+
+        // When
+        subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2", "A_VALUE_3"]])
+
+        // Then
+        XCTAssertEqual(settings, ["A": ["$(inherited)", "A_VALUE", "A_VALUE_2", "A_VALUE_3"]])
     }
 
     func testSettingsProviderPlatform() {

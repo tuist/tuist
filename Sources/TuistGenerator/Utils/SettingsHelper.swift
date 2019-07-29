@@ -51,15 +51,22 @@ final class SettingsHelper {
 
         switch (oldValue, newValue) {
         case let (.string(old), .string(new)) where new.contains("$(inherited)"):
-            return .array([old, new])
+            return .array([old, new].uniqued())
         case let (.string(old), .array(new)) where new.contains("$(inherited)"):
-            return .array([old] + new)
+            return .array(([old] + new).uniqued())
         case let (.array(old), .string(new)) where new.contains("$(inherited)"):
-            return .array(old + [new])
+            return .array((old + [new]).uniqued())
         case let (.array(old), .array(new)) where new.contains("$(inherited)"):
-            return .array(old + new)
+            return .array((old + new).uniqued())
         default:
             return newValue
         }
+    }
+}
+
+private extension Array where Element == String {
+
+    func uniqued() -> Array<String> {
+        return Set(self).sorted()
     }
 }
