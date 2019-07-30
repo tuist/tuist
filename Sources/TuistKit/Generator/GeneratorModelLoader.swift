@@ -126,7 +126,7 @@ extension TuistGenerator.TuistConfig.GenerationOption {
         case .generateManifest:
             return .generateManifest
         case let .xcodeProjectName(templateString):
-            return .xcodeProjectName(TemplateString(templateString.description))
+            return .xcodeProjectName(templateString.description)
         }
     }
 }
@@ -242,7 +242,7 @@ extension TuistGenerator.Project {
             return nil
         }.first
 
-        let projectNameTemplate = TuistGenerator.TemplateString.Token.projectName.rawValue
+        let projectNameTemplate = ProjectDescription.TemplateString.Token.projectName.rawValue
         xcodeFilename = xcodeFilename?
             .replacingOccurrences(of: projectNameTemplate, with: manifest.name)
 

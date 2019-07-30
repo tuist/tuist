@@ -1,7 +1,7 @@
 import Foundation
 
 /// This model allows to configure Tuist.
-public class TuistConfig: Encodable, Decodable {
+public class TuistConfig: Encodable, Decodable, Equatable {
     /// Contains options related to the project generation.
     ///
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
@@ -23,7 +23,7 @@ public class TuistConfig: Encodable, Decodable {
     }
 }
 
-public struct TemplateString: Encodable, Decodable {
+public struct TemplateString: Encodable, Decodable, Equatable {
     /// Contains a string that can be interpolated with options.
     let rawString: String
 }
@@ -72,7 +72,7 @@ extension TemplateString {
 }
 
 extension TemplateString.Token: Equatable {
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case projectName
     }
 
@@ -128,6 +128,11 @@ extension TuistConfig.GenerationOption {
             try associatedValues.encode(associatedValue0)
         }
     }
+}
+
+public func == (lhs: TuistConfig, rhs: TuistConfig) -> Bool {
+    guard lhs.generationOptions == rhs.generationOptions else { return false }
+    return true
 }
 
 public func == (lhs: TemplateString.Token, rhs: TemplateString.Token) -> Bool {
