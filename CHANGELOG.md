@@ -31,6 +31,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support custom .xcodeproj name at the model level https://github.com/tuist/tuist/pull/462 by @adamkhazi
 - `TuistConfig.compatibleXcodeVersions` support https://github.com/tuist/tuist/pull/476 by @pepibumur.
 - Expose the `.bundle` product type https://github.com/tuist/tuist/pull/479 by @kwridan
+- Support for multi-line settings https://github.com/tuist/tuist/pull/464 by @marciniwanicki
 
 ### Fixed
 
