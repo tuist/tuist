@@ -51,13 +51,12 @@ class GeneratorModelLoader: GeneratorModelLoading {
     func loadProject(at path: AbsolutePath) throws -> TuistGenerator.Project {
         let manifest = try manifestLoader.loadProject(at: path)
         let tuistConfig = try loadTuistConfig(at: path)
-        
+
         let project = try TuistGenerator.Project.from(manifest: manifest,
                                                       path: path,
                                                       fileHandler: fileHandler,
                                                       printer: printer,
                                                       tuistConfig: tuistConfig)
-        
 
         if let manifestTargetGenerator = manifestTargetGenerator, tuistConfig.generationOptions.contains(.generateManifest) {
             let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
@@ -237,16 +236,16 @@ extension TuistGenerator.Project {
                                             fileHandler: fileHandler,
                                             printer: printer)
         }
-        
-        let xcodeProjFileName = tuistConfig.generationOptions.reduce(name, { acc, item  in
-            if case .prefixProjectNames(let prefixRaw) = item {
+
+        let xcodeProjFileName = tuistConfig.generationOptions.reduce(name) { acc, item in
+            if case let .prefixProjectNames(prefixRaw) = item {
                 return prefixRaw + acc
             }
-            if case .suffixProjectNames(let suffixRaw) = item {
+            if case let .suffixProjectNames(suffixRaw) = item {
                 return acc + suffixRaw
             }
             return acc
-        })
+        }
 
         return Project(path: path,
                        name: name,

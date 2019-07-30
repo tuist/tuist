@@ -24,17 +24,16 @@ public class TuistConfig: Encodable, Decodable {
 }
 
 extension TuistConfig.GenerationOption {
-    
     enum CodingKeys: String, CodingKey {
         case generateManifest
         case suffixProjectNames
         case prefixProjectNames
         case with
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
+
         if container.allKeys.contains(.generateManifest), try container.decodeNil(forKey: .generateManifest) == false {
             self = .generateManifest
             return
@@ -53,10 +52,10 @@ extension TuistConfig.GenerationOption {
         }
         throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        
+
         switch self {
         case .generateManifest:
             _ = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .generateManifest)
@@ -68,16 +67,15 @@ extension TuistConfig.GenerationOption {
             try associatedValues.encode(with, forKey: .with)
         }
     }
-    
 }
 
 public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
     switch (lhs, rhs) {
     case (.generateManifest, .generateManifest):
         return true
-    case (.suffixProjectNames(let lhs), .suffixProjectNames(let rhs)):
+    case let (.suffixProjectNames(lhs), .suffixProjectNames(rhs)):
         return lhs == rhs
-    case (.prefixProjectNames(let lhs), .prefixProjectNames(let rhs)):
+    case let (.prefixProjectNames(lhs), .prefixProjectNames(rhs)):
         return lhs == rhs
     default: return false
     }
