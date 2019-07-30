@@ -7,8 +7,7 @@ public class TuistConfig: Encodable, Decodable {
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
     public enum GenerationOption: Encodable, Decodable, Equatable {
         case generateManifest
-        case suffixProjectNames(with: String)
-        case prefixProjectNames(with: String)
+        case xcodeProjectName(TemplateString)
     }
 
     /// Generation options.
@@ -23,12 +22,82 @@ public class TuistConfig: Encodable, Decodable {
     }
 }
 
+public struct TemplateString: Encodable, Decodable {
+    let rawString: String
+}
+
+extension TemplateString: ExpressibleByStringLiteral {
+    public init(stringLiteral: String) {
+        rawString = stringLiteral
+    }
+}
+
+extension TemplateString: CustomStringConvertible {
+    public var description: String {
+        return rawString
+    }
+}
+
+extension TemplateString: ExpressibleByStringInterpolation {
+    public init(stringInterpolation: StringInterpolation) {
+        rawString = stringInterpolation.string
+    }
+
+    public struct StringInterpolation: StringInterpolationProtocol {
+        var string: String
+
+        public init(literalCapacity _: Int, interpolationCount _: Int) {
+            string = String()
+        }
+
+        public mutating func appendLiteral(_ literal: String) {
+            string.append(literal)
+        }
+
+        public func appendInterpolation(_: String) {}
+    }
+}
+
+extension TemplateString {
+    public enum Token: String {
+        case projectName = "${project_name}"
+    }
+}
+
+public extension TemplateString.StringInterpolation {
+    mutating func appendInterpolation(_ token: TemplateString.Token) {
+        string.append(token.rawValue)
+    }
+}
+
+extension TemplateString.Token {
+    enum CodingKeys: String, CodingKey {
+        case projectName
+    }
+
+    internal init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+
+        let enumCase = try container.decode(String.self)
+        switch enumCase {
+        case CodingKeys.projectName.rawValue: self = .projectName
+        default: throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case '\(enumCase)'"))
+        }
+    }
+
+    internal func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        switch self {
+        case .projectName: try container.encode(CodingKeys.projectName.rawValue)
+        }
+    }
+}
+
 extension TuistConfig.GenerationOption {
     enum CodingKeys: String, CodingKey {
         case generateManifest
-        case suffixProjectNames
-        case prefixProjectNames
-        case with
+        case xcodeProjectName
     }
 
     public init(from decoder: Decoder) throws {
@@ -38,16 +107,10 @@ extension TuistConfig.GenerationOption {
             self = .generateManifest
             return
         }
-        if container.allKeys.contains(.suffixProjectNames), try container.decodeNil(forKey: .suffixProjectNames) == false {
-            let associatedValues = try container.nestedContainer(keyedBy: CodingKeys.self, forKey: .suffixProjectNames)
-            let with = try associatedValues.decode(String.self, forKey: .with)
-            self = .suffixProjectNames(with: with)
-            return
-        }
-        if container.allKeys.contains(.prefixProjectNames), try container.decodeNil(forKey: .prefixProjectNames) == false {
-            let associatedValues = try container.nestedContainer(keyedBy: CodingKeys.self, forKey: .prefixProjectNames)
-            let with = try associatedValues.decode(String.self, forKey: .with)
-            self = .prefixProjectNames(with: with)
+        if container.allKeys.contains(.xcodeProjectName), try container.decodeNil(forKey: .xcodeProjectName) == false {
+            var associatedValues = try container.nestedUnkeyedContainer(forKey: .xcodeProjectName)
+            let associatedValue0 = try associatedValues.decode(TemplateString.self)
+            self = .xcodeProjectName(associatedValue0)
             return
         }
         throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
@@ -59,24 +122,29 @@ extension TuistConfig.GenerationOption {
         switch self {
         case .generateManifest:
             _ = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .generateManifest)
-        case let .suffixProjectNames(with):
-            var associatedValues = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .suffixProjectNames)
-            try associatedValues.encode(with, forKey: .with)
-        case let .prefixProjectNames(with):
-            var associatedValues = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .prefixProjectNames)
-            try associatedValues.encode(with, forKey: .with)
+        case let .xcodeProjectName(associatedValue0):
+            var associatedValues = container.nestedUnkeyedContainer(forKey: .xcodeProjectName)
+            try associatedValues.encode(associatedValue0)
         }
     }
 }
+
+extension TemplateString.Token: Equatable {}
+public func == (lhs: TemplateString.Token, rhs: TemplateString.Token) -> Bool {
+    switch (lhs, rhs) {
+    case (.projectName, .projectName):
+        return true
+    }
+}
+
+// MARK: - TuistConfig.GenerationOption AutoEquatable
 
 public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
     switch (lhs, rhs) {
     case (.generateManifest, .generateManifest):
         return true
-    case let (.suffixProjectNames(lhs), .suffixProjectNames(rhs)):
-        return lhs == rhs
-    case let (.prefixProjectNames(lhs), .prefixProjectNames(rhs)):
-        return lhs == rhs
+    case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
+        return lhs.rawString == rhs.rawString
     default: return false
     }
 }

@@ -125,10 +125,8 @@ extension TuistGenerator.TuistConfig.GenerationOption {
         switch manifest {
         case .generateManifest:
             return .generateManifest
-        case let .suffixProjectNames(suffixRaw):
-            return .suffixProjectNames(with: suffixRaw)
-        case let .prefixProjectNames(prefixRaw):
-            return .prefixProjectNames(with: prefixRaw)
+        case let .xcodeProjectName(templateString):
+            return .xcodeProjectName(TemplateString(rawString: templateString.description))
         }
     }
 }
@@ -237,19 +235,20 @@ extension TuistGenerator.Project {
                                             printer: printer)
         }
 
-        let xcodeProjFileName = tuistConfig.generationOptions.reduce(name) { acc, item in
-            if case let .prefixProjectNames(prefixRaw) = item {
-                return prefixRaw + acc
+        var xcodeFilename = tuistConfig.generationOptions.compactMap { (item) -> String? in
+            if case let .xcodeProjectName(projectName) = item {
+                return projectName.rawString
             }
-            if case let .suffixProjectNames(suffixRaw) = item {
-                return acc + suffixRaw
-            }
-            return acc
-        }
+            return nil
+        }.first
+
+        let projectNameTemplate = TuistGenerator.TemplateString.Token.projectName.rawValue
+        xcodeFilename = xcodeFilename?
+            .replacingOccurrences(of: projectNameTemplate, with: manifest.name)
 
         return Project(path: path,
                        name: name,
-                       fileName: xcodeProjFileName,
+                       fileName: xcodeFilename,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,

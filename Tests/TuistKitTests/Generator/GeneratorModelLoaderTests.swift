@@ -186,8 +186,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        ]),
         ]
         let configs = [
-            path: ProjectDescription.TuistConfig.test(generationOptions: [.prefixProjectNames(with: "something-"),
-                                                                          .suffixProjectNames(with: "-something")]),
+            path: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
@@ -198,7 +197,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let model = try subject.loadProject(at: path)
 
         // Then
-        XCTAssertEqual(model.fileName, "something-SomeProject-something")
+        XCTAssertEqual(model.fileName, "one SomeProject two")
     }
 
     func test_loadWorkspace() throws {
