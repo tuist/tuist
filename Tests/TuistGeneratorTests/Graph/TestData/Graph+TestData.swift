@@ -45,14 +45,19 @@ extension Graph {
     ///       The `dependencies` property is used to define the dependencies explicitly.
     ///       All targets need to be listed even if they don't have any dependencies.
     static func create(projects: [Project] = [],
+                       entryNodes: [Target]? = nil,
                        dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> Graph {
         let targetNodes = createTargetNodes(dependencies: dependencies)
+
+        let entryNodes = entryNodes.map { entryNodes in
+            targetNodes.filter { entryNodes.contains($0.target) }
+        }
 
         let cache = GraphLoaderCache()
         let graph = Graph.test(name: projects.first?.name ?? "Test",
                                entryPath: projects.first?.path ?? "/test/path",
                                cache: cache,
-                               entryNodes: targetNodes)
+                               entryNodes: entryNodes ?? targetNodes)
 
         targetNodes.forEach { cache.add(targetNode: $0) }
         projects.forEach { cache.add(project: $0) }

@@ -38,6 +38,7 @@ class GraphLinter: GraphLinting {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
         issues.append(contentsOf: lintDependencies(graph: graph))
+        issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         return issues
     }
 
@@ -148,6 +149,30 @@ class GraphLinter: GraphLinting {
         return [issue]
     }
 
+    private func lintMismatchingConfigurations(graph: Graphing) -> [LintingIssue] {
+        let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project }
+
+        let knownConfgiruations = entryNodeProjects.reduce(into: Set()) {
+            $0.formUnion(Set($1.settings.configurations.keys))
+        }
+
+        let projectBuildConfigurations = graph.projects.map {
+            (name: $0.name, buildConfigurations: Set($0.settings.configurations.keys))
+        }
+
+        let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
+            !knownConfgiruations.isSubset(of: $0.buildConfigurations)
+        }
+
+        return mismatchingBuildConfigurations.map {
+            let expectedConfigurations = knownConfgiruations.sorted()
+            let configurations = $0.buildConfigurations.sorted()
+            let reason = "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
+            return LintingIssue(reason: reason,
+                                severity: .warning)
+        }
+    }
+
     struct LintableTarget: Equatable, Hashable {
         let platform: Platform
         let product: Product
@@ -161,11 +186,11 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
-//            LintableTarget(platform: .iOS, product: .appExtension),
-//            LintableTarget(platform: .iOS, product: .messagesExtension),
-//            LintableTarget(platform: .iOS, product: .stickerPack),
-//            LintableTarget(platform: .watchOS, product: .watch2App),
-//            LintableTarget(platform: .watchOS, product: .watchApp),
+            //            LintableTarget(platform: .iOS, product: .appExtension),
+            //            LintableTarget(platform: .iOS, product: .messagesExtension),
+            //            LintableTarget(platform: .iOS, product: .stickerPack),
+            //            LintableTarget(platform: .watchOS, product: .watch2App),
+            //            LintableTarget(platform: .watchOS, product: .watchApp),
         ],
         LintableTarget(platform: .iOS, product: .staticLibrary): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
@@ -203,33 +228,33 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .bundle),
         ],
         //        LintableTarget(platform: .iOS, product: .appExtension): [
-//            LintableTarget(platform: .iOS, product: .staticLibrary),
-//            LintableTarget(platform: .iOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .iOS, product: .framework),
-//        ],
-//        LintableTarget(platform: .iOS, product: .messagesApplication): [
-//            LintableTarget(platform: .iOS, product: .messagesExtension),
-//            LintableTarget(platform: .iOS, product: .staticLibrary),
-//            LintableTarget(platform: .iOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .iOS, product: .framework),
-//        ],
-//        LintableTarget(platform: .iOS, product: .messagesExtension): [
-//            LintableTarget(platform: .iOS, product: .staticLibrary),
-//            LintableTarget(platform: .iOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .iOS, product: .framework),
-//        ],
-//        LintableTarget(platform: .iOS, product: .stickerPack): [
-//            LintableTarget(platform: .iOS, product: .staticLibrary),
-//            LintableTarget(platform: .iOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .iOS, product: .framework),
-//        ],
+        //            LintableTarget(platform: .iOS, product: .staticLibrary),
+        //            LintableTarget(platform: .iOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .iOS, product: .framework),
+        //        ],
+        //        LintableTarget(platform: .iOS, product: .messagesApplication): [
+        //            LintableTarget(platform: .iOS, product: .messagesExtension),
+        //            LintableTarget(platform: .iOS, product: .staticLibrary),
+        //            LintableTarget(platform: .iOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .iOS, product: .framework),
+        //        ],
+        //        LintableTarget(platform: .iOS, product: .messagesExtension): [
+        //            LintableTarget(platform: .iOS, product: .staticLibrary),
+        //            LintableTarget(platform: .iOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .iOS, product: .framework),
+        //        ],
+        //        LintableTarget(platform: .iOS, product: .stickerPack): [
+        //            LintableTarget(platform: .iOS, product: .staticLibrary),
+        //            LintableTarget(platform: .iOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .iOS, product: .framework),
+        //        ],
         // macOS
         LintableTarget(platform: .macOS, product: .app): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
-//            LintableTarget(platform: .macOS, product: .appExtension),
+            //            LintableTarget(platform: .macOS, product: .appExtension),
         ],
         LintableTarget(platform: .macOS, product: .staticLibrary): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
@@ -264,17 +289,17 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .staticFramework),
         ],
         //        LintableTarget(platform: .macOS, product: .appExtension): [
-//            LintableTarget(platform: .macOS, product: .staticLibrary),
-//            LintableTarget(platform: .macOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .macOS, product: .framework),
-//        ],
+        //            LintableTarget(platform: .macOS, product: .staticLibrary),
+        //            LintableTarget(platform: .macOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .macOS, product: .framework),
+        //        ],
         // tvOS
         LintableTarget(platform: .tvOS, product: .app): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .dynamicLibrary),
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
-//            LintableTarget(platform: .tvOS, product: .tvExtension),
+            //            LintableTarget(platform: .tvOS, product: .tvExtension),
         ],
         LintableTarget(platform: .tvOS, product: .staticLibrary): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
@@ -299,42 +324,42 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
         ],
-//        LintableTarget(platform: .tvOS, product: .tvExtension): [
-//            LintableTarget(platform: .tvOS, product: .staticLibrary),
-//            LintableTarget(platform: .tvOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .tvOS, product: .framework),
-//        ],
+        //        LintableTarget(platform: .tvOS, product: .tvExtension): [
+        //            LintableTarget(platform: .tvOS, product: .staticLibrary),
+        //            LintableTarget(platform: .tvOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .tvOS, product: .framework),
+        //        ],
         // watchOS
-//        LintableTarget(platform: .watchOS, product: .watchApp): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//            LintableTarget(platform: .watchOS, product: .watchExtension),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .watch2App): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//            LintableTarget(platform: .watchOS, product: .watch2Extension),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .staticLibrary): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .dynamicLibrary): [
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .framework): [
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .watchExtension): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .watch2Extension): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
+        //        LintableTarget(platform: .watchOS, product: .watchApp): [
+        //            LintableTarget(platform: .watchOS, product: .staticLibrary),
+        //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .watchOS, product: .framework),
+        //            LintableTarget(platform: .watchOS, product: .watchExtension),
+        //        ],
+        //        LintableTarget(platform: .watchOS, product: .watch2App): [
+        //            LintableTarget(platform: .watchOS, product: .staticLibrary),
+        //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .watchOS, product: .framework),
+        //            LintableTarget(platform: .watchOS, product: .watch2Extension),
+        //        ],
+        //        LintableTarget(platform: .watchOS, product: .staticLibrary): [
+        //            LintableTarget(platform: .watchOS, product: .staticLibrary),
+        //        ],
+        //        LintableTarget(platform: .watchOS, product: .dynamicLibrary): [
+        //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        //        ],
+        //        LintableTarget(platform: .watchOS, product: .framework): [
+        //            LintableTarget(platform: .watchOS, product: .framework),
+        //        ],
+        //        LintableTarget(platform: .watchOS, product: .watchExtension): [
+        //            LintableTarget(platform: .watchOS, product: .staticLibrary),
+        //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .watchOS, product: .framework),
+        //        ],
+        //        LintableTarget(platform: .watchOS, product: .watch2Extension): [
+        //            LintableTarget(platform: .watchOS, product: .staticLibrary),
+        //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .watchOS, product: .framework),
+        //        ],
     ]
 }
