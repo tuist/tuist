@@ -65,8 +65,7 @@ final class SettingsHelper {
 }
 
 private extension Array where Element == String {
-
-    func uniqued() -> Array<String> {
+    func uniqued() -> [String] {
         return Set(self).sorted()
     }
 }
