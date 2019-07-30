@@ -199,18 +199,18 @@ class GeneratorModelLoaderTest: XCTestCase {
         // Then
         XCTAssertEqual(model.fileName, "one SomeProject two")
     }
-    
+
     func test_loadProject_withCustomNameDuplicates() throws {
         // Given
         try fileHandler.createFiles([
             "TuistConfig.swift",
         ])
-        
+
         let manifests = [
             path: ProjectManifest.test(name: "SomeProject",
                                        additionalFiles: [
-                                        .folderReference(path: "Stubs"),
-                ]),
+                                           .folderReference(path: "Stubs"),
+                                       ]),
         ]
         let configs = [
             path: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
@@ -220,10 +220,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
                                            manifestTargetGenerator: manifestTargetGenerator)
-        
+
         // When
         let model = try subject.loadProject(at: path)
-        
+
         // Then
         XCTAssertEqual(model.fileName, "one SomeProject two")
     }

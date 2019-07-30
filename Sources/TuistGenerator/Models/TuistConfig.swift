@@ -86,19 +86,15 @@ extension TemplateString: ExpressibleByStringInterpolation {
             string.append(literal)
         }
 
-        public func appendInterpolation(_: String) {}
+        public mutating func appendInterpolation(_ token: TemplateString.Token) {
+            string.append(token.rawValue)
+        }
     }
 }
 
 extension TemplateString {
     public enum Token: String {
         case projectName = "${project_name}"
-    }
-}
-
-extension TemplateString.StringInterpolation {
-    public mutating func appendInterpolation(_ token: TemplateString.Token) {
-        string.append(token.rawValue)
     }
 }
 

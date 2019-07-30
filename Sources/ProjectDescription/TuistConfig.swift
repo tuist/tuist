@@ -56,12 +56,13 @@ extension TemplateString: ExpressibleByStringInterpolation {
             string.append(literal)
         }
 
-        public func appendInterpolation(_: String) {}
+        public mutating func appendInterpolation(_ token: TemplateString.Token) {
+            string.append(token.rawValue)
+        }
     }
 }
 
 extension TemplateString {
-    
     /// Provides a template for existing project properties.
     ///
     /// - projectName: The name of the project.
@@ -70,17 +71,11 @@ extension TemplateString {
     }
 }
 
-public extension TemplateString.StringInterpolation {
-    mutating func appendInterpolation(_ token: TemplateString.Token) {
-        string.append(token.rawValue)
-    }
-}
-
 extension TemplateString.Token: Equatable {
     enum CodingKeys: String, CodingKey {
         case projectName
     }
-    
+
     internal init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
