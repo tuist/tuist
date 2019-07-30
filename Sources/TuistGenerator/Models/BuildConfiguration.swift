@@ -1,9 +1,8 @@
 import Foundation
 
-
 /// A build configuration acts as a configuration identifier.
 ///
-/// 
+///
 ///
 /// It hosts the name as well as the variant of
 /// a configuration to help infer the appropriate
