@@ -5,6 +5,7 @@ public class TuistConfig: Encodable, Decodable {
     /// Contains options related to the project generation.
     ///
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
+    /// - xcodeProjectName(TemplateString): When passed, Tuist generates the project with the specific name on disk instead of using the project name.
     public enum GenerationOption: Encodable, Decodable, Equatable {
         case generateManifest
         case xcodeProjectName(TemplateString)
@@ -23,6 +24,7 @@ public class TuistConfig: Encodable, Decodable {
 }
 
 public struct TemplateString: Encodable, Decodable {
+    /// Contains a string that can be interpolated with options.
     let rawString: String
 }
 
@@ -59,6 +61,10 @@ extension TemplateString: ExpressibleByStringInterpolation {
 }
 
 extension TemplateString {
+    
+    /// Provides a template for existing project properties.
+    ///
+    /// - projectName: The name of the project.
     public enum Token: String {
         case projectName = "${project_name}"
     }
@@ -70,11 +76,11 @@ public extension TemplateString.StringInterpolation {
     }
 }
 
-extension TemplateString.Token {
+extension TemplateString.Token: Equatable {
     enum CodingKeys: String, CodingKey {
         case projectName
     }
-
+    
     internal init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
@@ -129,15 +135,12 @@ extension TuistConfig.GenerationOption {
     }
 }
 
-extension TemplateString.Token: Equatable {}
 public func == (lhs: TemplateString.Token, rhs: TemplateString.Token) -> Bool {
     switch (lhs, rhs) {
     case (.projectName, .projectName):
         return true
     }
 }
-
-// MARK: - TuistConfig.GenerationOption AutoEquatable
 
 public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
     switch (lhs, rhs) {

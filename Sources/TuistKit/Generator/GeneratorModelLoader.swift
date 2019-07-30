@@ -126,7 +126,7 @@ extension TuistGenerator.TuistConfig.GenerationOption {
         case .generateManifest:
             return .generateManifest
         case let .xcodeProjectName(templateString):
-            return .xcodeProjectName(TemplateString(rawString: templateString.description))
+            return .xcodeProjectName(TemplateString(templateString.description))
         }
     }
 }
@@ -237,7 +237,7 @@ extension TuistGenerator.Project {
 
         var xcodeFilename = tuistConfig.generationOptions.compactMap { (item) -> String? in
             if case let .xcodeProjectName(projectName) = item {
-                return projectName.rawString
+                return projectName.description
             }
             return nil
         }.first

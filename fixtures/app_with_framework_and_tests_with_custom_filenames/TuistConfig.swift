@@ -3,6 +3,6 @@ import ProjectDescription
 let config = TuistConfig(
   generationOptions: [
     .generateManifest,
-    .xcodeProjectName("AwesomePrefix-\(.projectName)-AwesomeSuffix")
+    .xcodeProjectName("AwesomePrefix-\(TemplateString.Token.projectName)-AwesomeSuffix")
   ]
 )
