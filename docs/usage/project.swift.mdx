@@ -824,7 +824,8 @@ A `Settings` object contains an optional dictionary with build settings and rela
       name: 'Base',
       description:
         'A dictionary with build settings that are inherited from all the configurations.',
-      type: '[String: String]',
+      type: '[String: SettingValue]',
+      typeLink: '#settingvalue',
       optional: true,
       default: '[:]',
     },
@@ -901,7 +902,8 @@ A `Configuration` object describes the build settings and the `.xcconfig` file o
     {
       name: 'Settings',
       description: 'A dictionary that contains the build settings',
-      type: '[String: String]',
+      type: '[String: SettingValue]',
+      typeLink: '#settingvalue',
       optional: true,
       default: '[:]',
     },
@@ -934,6 +936,23 @@ For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Ono
       case:
         '.release(name: String, settings: [String: String], xcconfig: String?)',
       description: 'A custom release configuration',
+    },
+  ]}
+/>
+
+### SettingValue
+
+A `SettingValue` can be one of the following options:
+
+<EnumTable
+  cases={[
+    {
+      case: '.string(String)',
+      description: 'A single setting value for example "DEBUG=1".',
+    },
+    {
+      case: '.array([String])',
+      description: 'Multi-value setting value for example ["${inherited}", "DEBUG=1"].',
     },
   ]}
 />
