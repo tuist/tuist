@@ -58,14 +58,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
                                                       printer: printer,
                                                       tuistConfig: tuistConfig)
 
-        if let manifestTargetGenerator = manifestTargetGenerator, tuistConfig.generationOptions.contains(.generateManifest) {
-            let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
-                                                                                    at: path)
-            return project.adding(target: manifestTarget)
-
-        } else {
-            return project
-        }
+        return try enriched(model: project, with: tuistConfig)
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> TuistGenerator.Workspace {
@@ -108,6 +101,42 @@ class GeneratorModelLoader: GeneratorModelLoading {
         } else {
             return locateDirectoryTraversingParents(from: from.parentDirectory, path: path, fileHandler: fileHandler)
         }
+    }
+
+    private func enriched(model: TuistGenerator.Project,
+                          with config: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
+        var enrichedModel = model
+
+        // Manifest target
+        if let manifestTargetGenerator = manifestTargetGenerator, config.generationOptions.contains(.generateManifest) {
+            let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: enrichedModel.name,
+                                                                                    at: enrichedModel.path)
+            enrichedModel = enrichedModel.adding(target: manifestTarget)
+        }
+
+        // Xcode project file name
+        let xcodeFileName = xcodeFileNameOverride(from: config, for: model)
+        enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)
+
+        return enrichedModel
+    }
+
+    private func xcodeFileNameOverride(from config: TuistGenerator.TuistConfig,
+                                       for model: TuistGenerator.Project) -> String? {
+        var xcodeFileName = config.generationOptions.compactMap { item -> String? in
+            switch item {
+            case let .xcodeProjectName(projectName):
+                return projectName.description
+            default:
+                return nil
+            }
+        }.first
+
+        let projectNameTemplate = TemplateString.Token.projectName.rawValue
+        xcodeFileName = xcodeFileName?.replacingOccurrences(of: projectNameTemplate,
+                                                            with: model.name)
+
+        return xcodeFileName
     }
 }
 
@@ -216,7 +245,7 @@ extension TuistGenerator.Project {
                      path: AbsolutePath,
                      fileHandler: FileHandling,
                      printer: Printing,
-                     tuistConfig: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
+                     tuistConfig _: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
         let name = manifest.name
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
         let targets = try manifest.targets.map {
@@ -235,20 +264,8 @@ extension TuistGenerator.Project {
                                             printer: printer)
         }
 
-        var xcodeFilename = tuistConfig.generationOptions.compactMap { (item) -> String? in
-            if case let .xcodeProjectName(projectName) = item {
-                return projectName.description
-            }
-            return nil
-        }.first
-
-        let projectNameTemplate = ProjectDescription.TemplateString.Token.projectName.rawValue
-        xcodeFilename = xcodeFilename?
-            .replacingOccurrences(of: projectNameTemplate, with: manifest.name)
-
         return Project(path: path,
                        name: name,
-                       fileName: xcodeFilename,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
@@ -263,6 +280,17 @@ extension TuistGenerator.Project {
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets + [target],
+                       schemes: schemes,
+                       additionalFiles: additionalFiles)
+    }
+
+    func replacing(fileName: String?) -> TuistGenerator.Project {
+        return Project(path: path,
+                       name: name,
+                       fileName: fileName,
+                       settings: settings,
+                       filesGroup: filesGroup,
+                       targets: targets,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
     }

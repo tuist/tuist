@@ -71,30 +71,6 @@ extension TemplateString {
     }
 }
 
-extension TemplateString.Token: Equatable {
-    public enum CodingKeys: String, CodingKey {
-        case projectName
-    }
-
-    internal init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-
-        let enumCase = try container.decode(String.self)
-        switch enumCase {
-        case CodingKeys.projectName.rawValue: self = .projectName
-        default: throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case '\(enumCase)'"))
-        }
-    }
-
-    internal func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-
-        switch self {
-        case .projectName: try container.encode(CodingKeys.projectName.rawValue)
-        }
-    }
-}
-
 extension TuistConfig.GenerationOption {
     enum CodingKeys: String, CodingKey {
         case generateManifest
