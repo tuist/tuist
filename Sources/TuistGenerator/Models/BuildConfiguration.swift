@@ -1,5 +1,12 @@
 import Foundation
 
+/// A build configuration acts as a configuration identifier.
+///
+///
+///
+/// It hosts the name as well as the variant of
+/// a configuration to help infer the appropriate
+/// default settings.
 public struct BuildConfiguration {
     public enum Variant: String {
         case debug, release
@@ -35,6 +42,12 @@ extension BuildConfiguration: Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name.lowercased())
         hasher.combine(variant)
+    }
+}
+
+extension BuildConfiguration: Comparable {
+    public static func < (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
+        return lhs.name < rhs.name
     }
 }
 

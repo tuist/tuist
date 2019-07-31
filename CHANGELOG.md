@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - New manifest model, `TuistConfig`, to easily configure Tuist's functionalities https://github.com/tuist/tuist/pull/446 by @pepibumur.
 - Adding ability to re-generate individual projects https://github.com/tuist/tuist/pull/457 by @kwridan
 - Support multiple header paths https://github.com/tuist/tuist/pull/459 by @adamkhazi
+- Allow specifying multiple configurations within project manifests https://github.com/tuist/tuist/pull/451 by @kwridan
 
 ### Fixed
 

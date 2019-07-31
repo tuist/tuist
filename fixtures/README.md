@@ -100,6 +100,10 @@ Dependencies:
   - Framework1 -> Framework3
   - Framework3 -> Framework4
 
+## ios_app_with_multi_configs
+
+An workspace that contains an application and frameworks that leverage multiple configurations (Debug, Beta and Release) each of which also has an associated xcconfig file within `ConfigurationFiles`.
+
 ## ios_app_with_sdk
 
 An application that contains an application target that depends on system libraries and frameworks (`.framework` and `.tbd`).

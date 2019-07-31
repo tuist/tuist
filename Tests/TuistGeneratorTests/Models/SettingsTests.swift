@@ -86,6 +86,106 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(got.map { $0.0.name }, ["A", "B", "C", "D"])
     }
 
+    func testDefaultDebugConfigurationWhenDefaultExists() {
+        // Given
+        // .debug (i.e. name: "Debug", variant: .debug) is the default debug
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .release("C"): nil,
+            .debug("A"): nil,
+            .release("B"): nil,
+            .debug: nil,
+        ]
+        let settings = Settings(configurations: configurations)
+
+        // When
+        let got = settings.defaultDebugBuildConfiguration()
+
+        // Then
+        XCTAssertEqual(got, .debug)
+    }
+
+    func testDefaultDebugConfigurationWhenDefaultDoesNotExist() {
+        // Given
+        // .debug (i.e. name: "Debug", variant: .debug) is the default debug
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .release("C"): nil,
+            .debug("A"): nil,
+            .release("B"): nil,
+        ]
+        let settings = Settings(configurations: configurations)
+
+        // When
+        let got = settings.defaultDebugBuildConfiguration()
+
+        // Then
+        XCTAssertEqual(got, .debug("A"))
+    }
+
+    func testDefaultDebugConfigurationWhenNoDebugConfigurationsExist() {
+        // Given
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .release("C"): nil,
+            .release("B"): nil,
+        ]
+        let settings = Settings(configurations: configurations)
+
+        // When
+        let got = settings.defaultDebugBuildConfiguration()
+
+        // Then
+        XCTAssertNil(got)
+    }
+
+    func testDefaultReleaseConfigurationWhenDefaultExist() {
+        // Given
+        // .release (i.e. name: "Release", variant: .release) is the default release
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .release("C"): nil,
+            .debug("A"): nil,
+            .release("B"): nil,
+            .release: nil,
+        ]
+        let settings = Settings(configurations: configurations)
+
+        // When
+        let got = settings.defaultReleaseBuildConfiguration()
+
+        // Then
+        XCTAssertEqual(got, .release)
+    }
+
+    func testDefaultReleaseConfigurationWhenDefaultDoesNotExist() {
+        // Given
+        // .release (i.e. name: "Release", variant: .release) is the default release
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .release("C"): nil,
+            .debug("A"): nil,
+            .release("B"): nil,
+        ]
+        let settings = Settings(configurations: configurations)
+
+        // When
+        let got = settings.defaultReleaseBuildConfiguration()
+
+        // Then
+        XCTAssertEqual(got, .release("B"))
+    }
+
+    func testDefaultReleaseConfigurationWhenNoReleaseConfigurationsExist() {
+        // Given
+        let configurations: [BuildConfiguration: Configuration?] = [
+            .debug("A"): nil,
+            .debug("B"): nil,
+        ]
+        let settings = Settings(configurations: configurations)
+
+        // When
+        let got = settings.defaultReleaseBuildConfiguration()
+
+        // Then
+        XCTAssertNil(got)
+    }
+
     // MARK: - Helpers
 
     private func emptyConfiguration() -> Configuration {

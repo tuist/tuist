@@ -31,13 +31,16 @@ class GeneratorModelLoader: GeneratorModelLoading {
     private let manifestLoader: GraphManifestLoading
     private let manifestTargetGenerator: ManifestTargetGenerating?
     private let printer: Printing
+    private let manifestLinter: ManifestLinting
 
     init(fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
+         manifestLinter: ManifestLinting,
          manifestTargetGenerator: ManifestTargetGenerating? = nil,
          printer: Printing = Printer()) {
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
+        self.manifestLinter = manifestLinter
         self.manifestTargetGenerator = manifestTargetGenerator
         self.printer = printer
     }
@@ -50,6 +53,10 @@ class GeneratorModelLoader: GeneratorModelLoading {
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     func loadProject(at path: AbsolutePath) throws -> TuistGenerator.Project {
         let manifest = try manifestLoader.loadProject(at: path)
+
+        try manifestLinter.lint(project: manifest)
+            .printAndThrowIfNeeded(printer: printer)
+
         let project = try TuistGenerator.Project.from(manifest: manifest,
                                                       path: path,
                                                       fileHandler: fileHandler,
@@ -342,14 +349,23 @@ extension TuistGenerator.InfoPlist.Value {
 }
 
 extension TuistGenerator.Settings {
+    typealias BuildConfigurationTuple = (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?)
+
     static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistGenerator.Settings {
         let base = manifest.base
-        let debug = manifest.debug.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
-        let release = manifest.release.flatMap { TuistGenerator.Configuration.from(manifest: $0, path: path) }
+        let configurationTuples = manifest.configurations.map { buildConfigurationTuple(from: $0, path: path) }
+        let configurations = Dictionary(configurationTuples, uniquingKeysWith: { $1 })
         let defaultSettings = TuistGenerator.DefaultSettings.from(manifest: manifest.defaultSettings)
         return TuistGenerator.Settings(base: base,
-                                       configurations: [.debug: debug, .release: release],
+                                       configurations: configurations,
                                        defaultSettings: defaultSettings)
+    }
+
+    private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
+                                                path: AbsolutePath) -> BuildConfigurationTuple {
+        let buildConfiguration = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration)
+        let configuration = customConfiguration.configuration.map { TuistGenerator.Configuration.from(manifest: $0, path: path) }
+        return (buildConfiguration, configuration)
     }
 }
 
@@ -498,14 +514,14 @@ extension TuistGenerator.TestAction {
     static func from(manifest: ProjectDescription.TestAction) -> TuistGenerator.TestAction {
         let targets = manifest.targets
         let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
-        let config = BuildConfiguration.from(manifest: manifest.config)
+        let configurationName = manifest.configurationName
         let coverage = manifest.coverage
         let preActions = manifest.preActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
         let postActions = manifest.postActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
 
         return TestAction(targets: targets,
                           arguments: arguments,
-                          config: config,
+                          configurationName: configurationName,
                           coverage: coverage,
                           preActions: preActions,
                           postActions: postActions)
@@ -514,11 +530,11 @@ extension TuistGenerator.TestAction {
 
 extension TuistGenerator.RunAction {
     static func from(manifest: ProjectDescription.RunAction) -> TuistGenerator.RunAction {
-        let config = BuildConfiguration.from(manifest: manifest.config)
+        let configurationName = manifest.configurationName
         let executable = manifest.executable
         let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
 
-        return RunAction(config: config,
+        return RunAction(configurationName: configurationName,
                          executable: executable,
                          arguments: arguments)
     }
@@ -538,13 +554,15 @@ extension TuistGenerator.Arguments {
 }
 
 extension TuistGenerator.BuildConfiguration {
-    static func from(manifest: ProjectDescription.BuildConfiguration) -> TuistGenerator.BuildConfiguration {
-        switch manifest {
+    static func from(manifest: ProjectDescription.CustomConfiguration) -> TuistGenerator.BuildConfiguration {
+        let variant: TuistGenerator.BuildConfiguration.Variant
+        switch manifest.variant {
         case .debug:
-            return .debug
+            variant = .debug
         case .release:
-            return .release
+            variant = .release
         }
+        return TuistGenerator.BuildConfiguration(name: manifest.name, variant: variant)
     }
 }
 

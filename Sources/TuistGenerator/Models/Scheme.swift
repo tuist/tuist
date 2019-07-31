@@ -112,7 +112,7 @@ public class TestAction: Equatable {
 
     public let targets: [String]
     public let arguments: Arguments?
-    public let config: BuildConfiguration
+    public let configurationName: String
     public let coverage: Bool
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
@@ -121,13 +121,13 @@ public class TestAction: Equatable {
 
     public init(targets: [String] = [],
                 arguments: Arguments? = nil,
-                config: BuildConfiguration = .debug,
+                configurationName: String,
                 coverage: Bool = false,
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
         self.arguments = arguments
-        self.config = config
+        self.configurationName = configurationName
         self.coverage = coverage
         self.preActions = preActions
         self.postActions = postActions
@@ -138,7 +138,7 @@ public class TestAction: Equatable {
     public static func == (lhs: TestAction, rhs: TestAction) -> Bool {
         return lhs.targets == rhs.targets &&
             lhs.arguments == rhs.arguments &&
-            lhs.config == rhs.config &&
+            lhs.configurationName == rhs.configurationName &&
             lhs.coverage == rhs.coverage &&
             lhs.preActions == rhs.preActions &&
             lhs.postActions == rhs.postActions
@@ -148,16 +148,16 @@ public class TestAction: Equatable {
 public class RunAction: Equatable {
     // MARK: - Attributes
 
-    public let config: BuildConfiguration
+    public let configurationName: String
     public let executable: String?
     public let arguments: Arguments?
 
     // MARK: - Init
 
-    public init(config: BuildConfiguration,
+    public init(configurationName: String,
                 executable: String? = nil,
                 arguments: Arguments? = nil) {
-        self.config = config
+        self.configurationName = configurationName
         self.executable = executable
         self.arguments = arguments
     }
@@ -165,7 +165,7 @@ public class RunAction: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: RunAction, rhs: RunAction) -> Bool {
-        return lhs.config == rhs.config &&
+        return lhs.configurationName == rhs.configurationName &&
             lhs.executable == rhs.executable &&
             lhs.arguments == rhs.arguments
     }
