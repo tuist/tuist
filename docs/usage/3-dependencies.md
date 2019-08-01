@@ -48,7 +48,11 @@ It defines a dependency with a target in another project. When the workspace get
 .framework(path: "Carthage/Build/iOS/Alamofire.framework")
 ```
 
-It defines a dependency with a pre-compiled framework, for example, a framework that has been compiled by Carthage. If the framework contains multiple architectures, Tuist will add an extra build phase to strip them.
+```swift
+.framework(path: "Carthage/Build/iOS/Alamofire.framework", embed: false)
+```
+
+It defines a dependency with a pre-compiled framework, for example, a framework that has been compiled by Carthage. If the framework contains multiple architectures, Tuist will add an extra build phase to strip them. You can also choose not to embed the framework.
 
 ## Library dependencies
 
