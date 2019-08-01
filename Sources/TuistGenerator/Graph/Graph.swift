@@ -284,7 +284,7 @@ class Graph: Graphing {
                 if let framework = node as? FrameworkNode, framework.embed == false {
                     return false
                 }
-                
+
                 return true
             }
             .map(\.path)

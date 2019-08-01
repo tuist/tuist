@@ -23,7 +23,7 @@ class FrameworkNode: PrecompiledNode {
         let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
         return path.appending(component: frameworkName)
     }
-    
+
     var embed: Bool = true
 
     /// Returns the library product.

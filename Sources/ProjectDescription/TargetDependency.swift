@@ -59,7 +59,7 @@ public enum TargetDependency: Codable, Equatable {
     public static func sdk(name: String) -> TargetDependency {
         return .sdk(name: name, status: .required)
     }
-    
+
     /// Dependency on a prebuilt framework
     ///
     /// - Parameters:
