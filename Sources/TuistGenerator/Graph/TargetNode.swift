@@ -116,9 +116,10 @@ class TargetNode: GraphNode {
             let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
             try circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        case let .framework(frameworkPath):
+        case let .framework(path: frameworkPath, embed: embed):
             return try FrameworkNode.parse(projectPath: path,
                                            path: frameworkPath,
+                                           embed: embed,
                                            cache: cache)
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
             return try LibraryNode.parse(publicHeaders: publicHeaders,

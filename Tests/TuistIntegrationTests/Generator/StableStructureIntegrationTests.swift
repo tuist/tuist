@@ -205,7 +205,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
     private func createDependencies(relativeTo path: AbsolutePath) throws -> [Dependency] {
         let prebuiltFrameworks = (0 ..< 10).map { "Frameworks/Framework\($0).framework" }
         let frameworks = try fileHandler.createFiles(prebuiltFrameworks)
-            .map { Dependency.framework(path: $0.relative(to: path)) }
+            .map { Dependency.framework(path: $0.relative(to: path), embed: true) }
 
         let libraries = try createLibraries(relativeTo: path)
 

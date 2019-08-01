@@ -30,7 +30,8 @@ public enum TargetDependency: Codable, Equatable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the prebuilt framework
-    case framework(path: String)
+    ///   - embed: Should be this framework embedded into aplication
+    case framework(path: String, embed: Bool)
 
     /// Dependency on prebuilt library
     ///
@@ -57,6 +58,16 @@ public enum TargetDependency: Codable, Equatable {
     /// Note: Defaults to using a `required` dependency status
     public static func sdk(name: String) -> TargetDependency {
         return .sdk(name: name, status: .required)
+    }
+    
+    /// Dependency on a prebuilt framework
+    ///
+    /// - Parameters:
+    ///   - path: Relative path to the prebuilt framework
+    ///
+    /// Note: Defaults to using a `true` for embedding
+    public static func framework(path: String) -> TargetDependency {
+        return .framework(path: path, embed: true)
     }
 
     public var typeName: String {
@@ -94,6 +105,7 @@ extension TargetDependency {
         case publicHeaders = "public_headers"
         case swiftModuleMap = "swift_module_map"
         case status
+        case embed
     }
 
     public init(from decoder: Decoder) throws {
@@ -112,7 +124,10 @@ extension TargetDependency {
             )
 
         case "framework":
-            self = .framework(path: try container.decode(String.self, forKey: .path))
+            self = .framework(
+                path: try container.decode(String.self, forKey: .path),
+                embed: try container.decodeIfPresent(Bool.self, forKey: .embed) ?? true
+            )
 
         case "library":
             self = .library(
@@ -141,8 +156,9 @@ extension TargetDependency {
         case let .project(target: target, path: path):
             try container.encode(target, forKey: .target)
             try container.encode(path, forKey: .path)
-        case let .framework(path: path):
+        case let .framework(path: path, embed: embed):
             try container.encode(path, forKey: .path)
+            try container.encode(embed, forKey: .embed)
         case let .library(path: path, publicHeaders: publicHeaders, swiftModuleMap: swiftModuleMap):
             try container.encode(path, forKey: .path)
             try container.encode(publicHeaders, forKey: .publicHeaders)

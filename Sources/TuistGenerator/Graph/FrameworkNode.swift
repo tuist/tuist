@@ -5,10 +5,12 @@ import TuistCore
 class FrameworkNode: PrecompiledNode {
     static func parse(projectPath: AbsolutePath,
                       path: RelativePath,
+                      embed: Bool,
                       cache: GraphLoaderCaching) throws -> FrameworkNode {
         let absolutePath = projectPath.appending(path)
         if let frameworkNode = cache.precompiledNode(absolutePath) as? FrameworkNode { return frameworkNode }
         let framewokNode = FrameworkNode(path: absolutePath)
+        framewokNode.embed = embed
         cache.add(precompiledNode: framewokNode)
         return framewokNode
     }
@@ -21,6 +23,8 @@ class FrameworkNode: PrecompiledNode {
         let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
         return path.appending(component: frameworkName)
     }
+    
+    var embed: Bool = true
 
     /// Returns the library product.
     ///

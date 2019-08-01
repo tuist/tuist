@@ -472,8 +472,8 @@ extension TuistGenerator.Dependency {
             return .target(name: name)
         case let .project(target, projectPath):
             return .project(target: target, path: RelativePath(projectPath))
-        case let .framework(frameworkPath):
-            return .framework(path: RelativePath(frameworkPath))
+        case let .framework(path: frameworkPath, embed: embed):
+            return .framework(path: RelativePath(frameworkPath), embed: embed)
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),

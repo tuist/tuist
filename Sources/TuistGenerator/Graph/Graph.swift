@@ -280,6 +280,13 @@ class Graph: Graphing {
         /// Precompiled frameworks
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable)
             .lazy
+            .filter { node in
+                if let framework = node as? FrameworkNode, framework.embed == false {
+                    return false
+                }
+                
+                return true
+            }
             .map(\.path)
             .map(DependencyReference.absolute)
 
