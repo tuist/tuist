@@ -129,7 +129,7 @@ GEM
       declarative-option (< 0.2.0)
       uber (< 0.2.0)
     retriable (3.1.2)
-    rubocop (0.73.0)
+    rubocop (0.74.0)
       jaro_winkler (~> 1.5.1)
       parallel (~> 1.10)
       parser (>= 2.6)
@@ -169,7 +169,7 @@ DEPENDENCIES
   google-cloud-storage (~> 1.19)
   minitest (~> 5.11)
   rake (~> 12.3)
-  rubocop (~> 0.73.0)
+  rubocop (~> 0.74.0)
   simctl (~> 1.6)
 
 BUNDLED WITH
