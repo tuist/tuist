@@ -101,7 +101,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
             var mightNeedRepoUpdate: Bool = false
             let outputClosure: ([UInt8]) -> Void = { bytes in
                 let content = String(data: Data(bytes), encoding: .utf8)
-                if content?.contains("could not find compatible versions") == true {
+                if content?.contains("CocoaPods could not find compatible versions for pod") == true {
                     mightNeedRepoUpdate = true
                 }
             }

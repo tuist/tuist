@@ -38,14 +38,14 @@ public class Printer: Printing {
 
     public func print(error: Error) {
         let writer = InteractiveWriter.stderr
-        writer.write("❌ Error: ", inColor: .red, bold: true)
+        writer.write("Error: ", inColor: .red, bold: true)
         writer.write(error.localizedDescription)
         writer.write("\n")
     }
 
     public func print(success: String) {
         let writer = InteractiveWriter.stdout
-        writer.write("✅ Success: ", inColor: .green, bold: true)
+        writer.write("Success: ", inColor: .green, bold: true)
         writer.write(success)
         writer.write("\n")
     }
@@ -62,14 +62,14 @@ public class Printer: Printing {
 
     public func print(warning: String) {
         let writer = InteractiveWriter.stdout
-        writer.write("⚠️  Warning: ", inColor: .yellow, bold: true)
+        writer.write("Warning: ", inColor: .yellow, bold: true)
         writer.write(warning, inColor: .yellow, bold: false)
         writer.write("\n")
     }
 
     public func print(errorMessage: String) {
         let writer = InteractiveWriter.stderr
-        writer.write("❌ Error: ", inColor: .red, bold: true)
+        writer.write("Error: ", inColor: .red, bold: true)
         writer.write(errorMessage, inColor: .red, bold: false)
         writer.write("\n")
     }

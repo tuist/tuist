@@ -339,7 +339,8 @@ public final class System: Systeming {
                               }), verbose: verbose,
                               startNewProcessGroup: false)
         try process.launch()
-        try process.waitUntilExit()
+        let result = try process.waitUntilExit()
+        try result.throwIfErrored()
     }
 
     /// Runs a command in the shell asynchronously.

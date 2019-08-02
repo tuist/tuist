@@ -160,3 +160,10 @@ Scenario: The project is an iOS application with multiple configurations (ios_ap
     Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Debug" for the configuration Debug
     Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Target.Beta" for the configuration Beta
     Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Release" for the configuration Release
+
+Scenario: The project is an iOS application with CocoaPods dependencies (ios_app_with_pods)
+  Given that tuist is available
+  And I have a working directory
+  Then I copy the fixture ios_app_with_pods into the working directory
+  Then tuist generates the project
+  Then I should be able to build the scheme App
