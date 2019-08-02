@@ -4,11 +4,14 @@ import TuistCore
 enum CocoaPodsInteractorError: FatalError, Equatable {
     /// Thrown when CocoaPods cannot be found.
     case cocoapodsNotFound
+    case outdatedRepository
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .cocoapodsNotFound:
+            return .abort
+        case .outdatedRepository:
             return .abort
         }
     }
@@ -18,6 +21,8 @@ enum CocoaPodsInteractorError: FatalError, Equatable {
         switch self {
         case .cocoapodsNotFound:
             return "CocoaPods was not found either in Bundler nor in the environment"
+        case .outdatedRepository:
+            return "The installation of CocoaPods dependencies might have failed because the CocoaPods repository is outdated"
         }
     }
 }
@@ -53,6 +58,23 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
     /// - Parameter graph: Project graph.
     /// - Throws: An error if the installation of the pods fails.
     func install(graph: Graphing) throws {
+        do {
+            try install(graph: graph, updatingRepo: false)
+        } catch let error as CocoaPodsInteractorError {
+            if case CocoaPodsInteractorError.outdatedRepository = error {
+                printer.print(warning: "The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
+                try self.install(graph: graph, updatingRepo: true)
+            } else {
+                throw error
+            }
+        }
+    }
+
+    fileprivate func install(graph: Graphing, updatingRepo: Bool) throws {
+        guard !graph.cocoapods.isEmpty else {
+            return
+        }
+
         let canUseBundler = canUseCocoaPodsThroughBundler()
         let canUseSystem = canUseSystemPod()
 
@@ -67,11 +89,35 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
                 throw CocoaPodsInteractorError.cocoapodsNotFound
             }
 
-            command.append(contentsOf: ["install", "--project-directory=\(node.path.pathString)", "--repo-update"])
+            command.append(contentsOf: ["install", "--project-directory=\(node.path.pathString)"])
 
+            if updatingRepo {
+                command.append("--repo-update")
+            }
+
+            // The installation of Pods might fail if the local repository that contains the specs
+            // is outdated.
             printer.print(section: "Installing CocoaPods dependencies defined in \(node.podfilePath)")
-
-            try system.runAndPrint(command)
+            var mightNeedRepoUpdate: Bool = false
+            let outputClosure: ([UInt8]) -> Void = { bytes in
+                let content = String(data: Data(bytes), encoding: .utf8)
+                if content?.contains("could not find compatible versions") == true {
+                    mightNeedRepoUpdate = true
+                }
+            }
+            do {
+                try system.runAndPrint(command,
+                                       verbose: false,
+                                       environment: system.env,
+                                       redirection: .stream(stdout: outputClosure,
+                                                            stderr: outputClosure))
+            } catch {
+                if mightNeedRepoUpdate {
+                    throw CocoaPodsInteractorError.outdatedRepository
+                } else {
+                    throw error
+                }
+            }
         }
     }
 
@@ -79,9 +125,9 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
     /// and shoudl be used instead of the global CocoaPods.
     ///
     /// - Returns: True if Bundler can execute CocoaPods.
-    func canUseCocoaPodsThroughBundler() -> Bool {
+    fileprivate func canUseCocoaPodsThroughBundler() -> Bool {
         do {
-            try system.runAndPrint(["bundle", "show", "cocoapods"])
+            try system.run(["bundle", "show", "cocoapods"])
             return true
         } catch {
             return false
@@ -91,7 +137,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
     /// Returns true if CocoaPods is avaiable in the environment.
     ///
     /// - Returns: True if CocoaPods is available globally in the system.
-    func canUseSystemPod() -> Bool {
+    fileprivate func canUseSystemPod() -> Bool {
         do {
             _ = try system.which("pod")
             return true
