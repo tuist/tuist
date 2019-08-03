@@ -31,9 +31,9 @@ public class Printer: Printing {
     // MARK: - Public
 
     public func print(_ text: String) {
-        self.print(text, output: .standardOputput)
+        print(text, output: .standardOputput)
     }
-    
+
     public func print(_ text: String, output: PrinterOutput) {
         var writer: InteractiveWriter!
         if output == .standardOputput {
@@ -41,7 +41,7 @@ public class Printer: Printing {
         } else {
             writer = .stderr
         }
-        
+
         writer.write(text)
         writer.write("\n")
     }
@@ -72,21 +72,21 @@ public class Printer: Printing {
     public func print(deprecation: String) {
         let writer = InteractiveWriter.stdout
         writer.write("Deprecated: ", inColor: .yellow, bold: true)
-        writer.write(deprecation, inColor: .yellow, bold: false)
+        writer.write(deprecation, inColor: .yellow, bold: true)
         writer.write("\n")
     }
 
     public func print(warning: String) {
         let writer = InteractiveWriter.stdout
         writer.write("Warning: ", inColor: .yellow, bold: true)
-        writer.write(warning, inColor: .yellow, bold: false)
+        writer.write(warning, inColor: .yellow, bold: true)
         writer.write("\n")
     }
 
     public func print(errorMessage: String) {
         let writer = InteractiveWriter.stderr
         writer.write("Error: ", inColor: .red, bold: true)
-        writer.write(errorMessage, inColor: .red, bold: false)
+        writer.write(errorMessage, inColor: .red, bold: true)
         writer.write("\n")
     }
 

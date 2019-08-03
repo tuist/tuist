@@ -172,4 +172,4 @@ Scenario: The project is an iOS application with an incompatible Xcode version (
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_incompatible_xcode into the working directory
-    Then tuist generates yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 10.3"
+    Then tuist generates yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 10.2.1"
