@@ -167,3 +167,9 @@ Scenario: The project is an iOS application with CocoaPods dependencies (ios_app
   Then I copy the fixture ios_app_with_pods into the working directory
   Then tuist generates the project
   Then I should be able to build the scheme App
+    
+Scenario: The project is an iOS application with an incompatible Xcode version (ios_app_with_incompatible_xcode)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_incompatible_xcode into the working directory
+    Then tuist generates yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 10.3"

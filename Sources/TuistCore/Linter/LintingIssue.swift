@@ -57,7 +57,7 @@ public extension Array where Element == LintingIssue {
             let prefix = !warningIssues.isEmpty ? "\n" : ""
             printer.print("\(prefix)The following critical issues have been found:", color: .red)
             let message = errorIssues.map { "  - \($0.description)" }.joined(separator: "\n")
-            printer.print(message)
+            printer.print(message, output: .standardError)
 
             throw LintingError()
         }

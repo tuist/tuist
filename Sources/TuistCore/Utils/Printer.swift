@@ -1,8 +1,14 @@
 import Basic
 import Foundation
 
+public enum PrinterOutput {
+    case standardOputput
+    case standardError
+}
+
 public protocol Printing: AnyObject {
     func print(_ text: String)
+    func print(_ text: String, output: PrinterOutput)
     func print(_ text: String, color: TerminalController.Color)
     func print(section: String)
     func print(subsection: String)
@@ -25,7 +31,17 @@ public class Printer: Printing {
     // MARK: - Public
 
     public func print(_ text: String) {
-        let writer = InteractiveWriter.stdout
+        self.print(text, output: .standardOputput)
+    }
+    
+    public func print(_ text: String, output: PrinterOutput) {
+        var writer: InteractiveWriter!
+        if output == .standardOputput {
+            writer = .stdout
+        } else {
+            writer = .stderr
+        }
+        
         writer.write(text)
         writer.write("\n")
     }
@@ -91,7 +107,7 @@ public class Printer: Printing {
 ///
 /// If underlying stream is a not tty, the string will be written in without any
 /// formatting.
-private final class InteractiveWriter {
+final class InteractiveWriter {
     /// The standard error writer.
     static let stderr = InteractiveWriter(stream: stderrStream)
 

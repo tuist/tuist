@@ -3,6 +3,7 @@ import Foundation
 import TuistCore
 
 public final class MockPrinter: Printing {
+    
     var standardOutput: String = ""
     var standardError: String = ""
 
@@ -17,8 +18,17 @@ public final class MockPrinter: Printing {
     public var printDeprecationArgs: [String] = []
 
     public func print(_ text: String) {
+        self.print(text, output: .standardOputput)
+    }
+    
+    public func print(_ text: String, output: PrinterOutput) {
         printArgs.append(text)
-        standardOutput.append(text)
+
+        if output == .standardOputput {
+            standardOutput.append(text)
+        } else {
+            standardError.append(text)
+        }
     }
 
     public func print(_ text: String, color: TerminalController.Color) {
