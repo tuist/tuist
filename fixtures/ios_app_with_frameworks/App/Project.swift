@@ -3,6 +3,7 @@ import ProjectDescription
 let settings = Settings(base: [
     "HEADER_SEARCH_PATHS": "path/to/lib/include",
 ])
+
 let project = Project(name: "MainApp",
                       settings: settings,
                       targets: [
@@ -10,7 +11,7 @@ let project = Project(name: "MainApp",
                                  platform: .iOS,
                                  product: .app,
                                  bundleId: "io.tuist.App",
-                                 infoPlist: "Config/App-Info.plist",
+                                 infoPlist: .extendingDefault(with: [:]),
                                  sources: "Sources/**",
                                  dependencies: [
                                      .project(target: "Framework1", path: "../Framework1"),
@@ -20,7 +21,7 @@ let project = Project(name: "MainApp",
                                  platform: .iOS,
                                  product: .unitTests,
                                  bundleId: "io.tuist.AppTests",
-                                 infoPlist: "Config/AppTests-Info.plist",
+                                 infoPlist: .extendingDefault(with: [:]),
                                  sources: "Tests/**",
                                  dependencies: [
                                      .target(name: "App"),
