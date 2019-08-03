@@ -44,7 +44,7 @@ Feature: Generate a new project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture invalid_workspace_manifest_name into the working directory
-    Then tuist generates reports error "❌ Error: Manifest not found at path ${ARG_PATH}"
+    Then tuist generates reports error "Error: Manifest not found at path ${ARG_PATH}"
 
   Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_libraries)
     Given that tuist is available
