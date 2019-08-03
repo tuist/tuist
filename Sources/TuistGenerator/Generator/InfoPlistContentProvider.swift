@@ -10,7 +10,7 @@ protocol InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]
+    func content(target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
 }
 
 final class InfoPlistContentProvider: InfoPlistContentProviding {
@@ -22,7 +22,11 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any] {
+    func content(target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
+        if target.product == .staticLibrary || target.product == .dynamicLibrary {
+            return nil
+        }
+
         var content = base()
 
         // Bundle package type
@@ -43,7 +47,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             extend(&content, with: macos())
         }
 
-        extend(&content, with: extendedWith)
+        extend(&content, with: extendedWith.unwrappingValues())
 
         return content
     }
@@ -106,7 +110,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
             ],
-            "UISupportedInterfaceOrientations": [
+            "UISupportedInterfaceOrientations~ipad": [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationPortraitUpsideDown",
                 "UIInterfaceOrientationLandscapeLeft",
