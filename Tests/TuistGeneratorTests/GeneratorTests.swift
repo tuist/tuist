@@ -7,16 +7,19 @@ class GeneratorTests: XCTestCase {
     var workspaceGenerator: MockWorkspaceGenerator!
     var projectGenerator: MockProjectGenerator!
     var graphLoader: MockGraphLoader!
+    var tuistConfigLinter: MockTuistConfigLinter!
     var subject: Generator!
 
     override func setUp() {
         graphLoader = MockGraphLoader()
         workspaceGenerator = MockWorkspaceGenerator()
         projectGenerator = MockProjectGenerator()
+        tuistConfigLinter = MockTuistConfigLinter()
 
         subject = Generator(graphLoader: graphLoader,
                             workspaceGenerator: workspaceGenerator,
-                            projectGenerator: projectGenerator)
+                            projectGenerator: projectGenerator,
+                            tuistConfigLinter: tuistConfigLinter)
     }
 
     // MARK: - Tests

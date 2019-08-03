@@ -324,7 +324,8 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     }
 
     private func createTuistConfig() -> TuistConfig {
-        return TuistConfig(generationOptions: [])
+        return TuistConfig(compatibleXcodeVersions: .all,
+                           generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) -> Workspace {
