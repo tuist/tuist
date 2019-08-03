@@ -3,9 +3,9 @@ import Foundation
 
 public struct Xcode {
     /// It represents the content of the Info.plist file inside the Xcode app bundle.
-    struct InfoPlist: Codable {
+    public struct InfoPlist: Codable {
         /// App version number (e.g. 10.3)
-        let version: String
+        public let version: String
 
         enum CodingKeys: String, CodingKey {
             case version = "CFBundleShortVersionString"
@@ -13,10 +13,10 @@ public struct Xcode {
     }
 
     /// Path to the Xcode app bundle.
-    let path: AbsolutePath
+    public let path: AbsolutePath
 
     /// Info plist content.
-    let infoPlist: InfoPlist
+    public let infoPlist: InfoPlist
 
     /// Initializes an Xcode instance by reading it from a local Xcode.app bundle.
     ///

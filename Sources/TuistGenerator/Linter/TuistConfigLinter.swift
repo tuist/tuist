@@ -10,20 +10,20 @@ protocol TuistConfigLinting {
 }
 
 class TuistConfigLinter: TuistConfigLinting {
-    /// Instance to run system commands.
-    let system: Systeming
+    /// Xcode controller.
+    let xcodeController: XcodeControlling
 
-    /// Instance to output messages to the user.
+    /// Printer to output messages to the user.
     let printer: Printing
 
-    /// Initializes the linter.
+    /// Initialies the linter.
     ///
-    /// - Parameters
-    ///   - system: Instance to run system commands.
-    ///   - printer: Instance to output messages to the user.
-    init(system: Systeming = System(),
+    /// - Parameters:
+    ///     - xcodeController: Xcode controller.
+    ///     - printer: Printer to output messages to the user.
+    init(xcodeController: XcodeControlling = XcodeController(),
          printer: Printing = Printer()) {
-        self.system = system
+        self.xcodeController = xcodeController
         self.printer = printer
     }
 
@@ -34,13 +34,34 @@ class TuistConfigLinter: TuistConfigLinting {
     func lint(config: TuistConfig) throws {
         var issues = [LintingIssue]()
 
-        issues.append(contentsOf: lintXcodeVersion(config: config))
+        issues.append(contentsOf: try lintXcodeVersion(config: config))
 
         try issues.printAndThrowIfNeeded(printer: printer)
     }
 
-    func lintXcodeVersion(config _: TuistConfig) -> [LintingIssue] {
-        // TODO:
-        return []
+    /// Returns a linting issue if the selected version of Xcode is not compatible with the
+    /// compatibility defined using the compatibleXcodeVersions attribute.
+    ///
+    /// - Parameter config: Tuist configuration.
+    /// - Returns: An array with a linting issue if the selected version is not compatible.
+    /// - Throws: An error if there's an error obtaining the selected Xcode version.
+    func lintXcodeVersion(config: TuistConfig) throws -> [LintingIssue] {
+        guard case let CompatibleXcodeVersions.list(compatibleVersions) = config.compatibleXcodeVersions else {
+            return []
+        }
+
+        guard let xcode = try xcodeController.selected() else {
+            return []
+        }
+
+        let version = xcode.infoPlist.version
+
+        if !compatibleVersions.contains(version) {
+            let versions = compatibleVersions.joined(separator: ", ")
+            let message = "The project, which only supports the versions of Xcode \(versions), is not compatible with your selected version of Xcode, \(version)"
+            return [LintingIssue(reason: message, severity: .error)]
+        } else {
+            return []
+        }
     }
 }

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-protocol XcodeControlling {
+public protocol XcodeControlling {
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
     ///
@@ -10,7 +10,7 @@ protocol XcodeControlling {
     func selected() throws -> Xcode?
 }
 
-class XcodeController: XcodeControlling {
+public class XcodeController: XcodeControlling {
     /// Instance to run commands in the system.
     let system: Systeming
 
@@ -18,7 +18,7 @@ class XcodeController: XcodeControlling {
     ///
     /// - Parameters:
     ///     - system: Instance to run commands in the system.
-    init(system: Systeming = System()) {
+    public init(system: Systeming = System()) {
         self.system = system
     }
 
@@ -27,7 +27,7 @@ class XcodeController: XcodeControlling {
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    func selected() throws -> Xcode? {
+    public func selected() throws -> Xcode? {
         // e.g. /Applications/Xcode.app/Contents/Developer
         guard let path = try? system.capture(["xcode-select", "-p"]).spm_chomp() else {
             return nil
