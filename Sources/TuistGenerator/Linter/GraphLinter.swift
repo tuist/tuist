@@ -152,7 +152,7 @@ class GraphLinter: GraphLinting {
     private func lintMismatchingConfigurations(graph: Graphing) -> [LintingIssue] {
         let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project }
 
-        let knownConfgiruations = entryNodeProjects.reduce(into: Set()) {
+        let knownConfigurations = entryNodeProjects.reduce(into: Set()) {
             $0.formUnion(Set($1.settings.configurations.keys))
         }
 
@@ -161,11 +161,11 @@ class GraphLinter: GraphLinting {
         }
 
         let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
-            !knownConfgiruations.isSubset(of: $0.buildConfigurations)
+            !knownConfigurations.isSubset(of: $0.buildConfigurations)
         }
 
         return mismatchingBuildConfigurations.map {
-            let expectedConfigurations = knownConfgiruations.sorted()
+            let expectedConfigurations = knownConfigurations.sorted()
             let configurations = $0.buildConfigurations.sorted()
             let reason = "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
             return LintingIssue(reason: reason,
