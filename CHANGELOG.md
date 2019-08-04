@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Adding ability to re-generate individual projects https://github.com/tuist/tuist/pull/457 by @kwridan
 - Support multiple header paths https://github.com/tuist/tuist/pull/459 by @adamkhazi
 - Allow specifying multiple configurations within project manifests https://github.com/tuist/tuist/pull/451 by @kwridan
+- Add linting for mismatching build configurations in a workspace https://github.com/tuist/tuist/pull/474 by @kwridan
 
 ### Fixed
 

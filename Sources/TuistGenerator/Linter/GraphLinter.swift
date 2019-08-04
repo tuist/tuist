@@ -38,6 +38,7 @@ class GraphLinter: GraphLinting {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
         issues.append(contentsOf: lintDependencies(graph: graph))
+        issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         return issues
     }
 
@@ -148,6 +149,30 @@ class GraphLinter: GraphLinting {
         return [issue]
     }
 
+    private func lintMismatchingConfigurations(graph: Graphing) -> [LintingIssue] {
+        let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project }
+
+        let knownConfigurations = entryNodeProjects.reduce(into: Set()) {
+            $0.formUnion(Set($1.settings.configurations.keys))
+        }
+
+        let projectBuildConfigurations = graph.projects.map {
+            (name: $0.name, buildConfigurations: Set($0.settings.configurations.keys))
+        }
+
+        let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
+            !knownConfigurations.isSubset(of: $0.buildConfigurations)
+        }
+
+        return mismatchingBuildConfigurations.map {
+            let expectedConfigurations = knownConfigurations.sorted()
+            let configurations = $0.buildConfigurations.sorted()
+            let reason = "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
+            return LintingIssue(reason: reason,
+                                severity: .warning)
+        }
+    }
+
     struct LintableTarget: Equatable, Hashable {
         let platform: Platform
         let product: Product
@@ -161,6 +186,7 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
+//            LintableTarget(platform: .iOS, product: .appExtension),
 //            LintableTarget(platform: .iOS, product: .appExtension),
 //            LintableTarget(platform: .iOS, product: .messagesExtension),
 //            LintableTarget(platform: .iOS, product: .stickerPack),

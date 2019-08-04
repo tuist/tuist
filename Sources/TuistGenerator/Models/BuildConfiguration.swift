@@ -54,3 +54,9 @@ extension BuildConfiguration: Comparable {
 extension BuildConfiguration: XcodeRepresentable {
     public var xcodeValue: String { return name }
 }
+
+extension BuildConfiguration: CustomStringConvertible {
+    public var description: String {
+        return "\(name) (\(variant.rawValue))"
+    }
+}
