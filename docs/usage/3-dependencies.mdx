@@ -2,6 +2,8 @@
 name: Dependencies
 ---
 
+import Message from '../components/message'
+
 # Dependencies
 
 **Setting up dependencies in Xcode projects isn't straightforward**. When dependencies have transitive dependencies things get complicated because it requires changes in the targets that are part of the branch where the transitive dependency is. To illustrate that, think about an app, depending on a dynamic framework `Search`, which has no dependencies. If at some point in the future we add a new dynamic framework `Core`, on which `Search` depends, well need to update not only `Search`, but the app to embed the framework into the product.
@@ -76,6 +78,27 @@ It defines a dependency with a pre-compiled library. It allows specifying the pa
 
 It defines a dependency on a system library (`.tbd`) or framework (`.framework`) and optionally if it is `required` or `optional` (i.e. gets weakly linked).
 
------
+## CocoaPods dependencies
+
+Targets can indicate that they have [CocoaPods](https://cocoapods.org) dependencies defined in a `Podfile`:
+
+```swift
+.cocoapods(path: ".") // Expects a Podfile in the directory of the target's project
+```
+
+Tuist looks up CocoaPods using Bundler. If it's not defined, it falls back to the system's CocoaPods. If CocoaPods can't be found in the environment, the installation of the dependencies will fail.
+
+<Message
+  info
+  title="Repository update"
+  description="The underlying 'pod install' is executed with the '--update-repo' argument to ensure the local repository of pod specs is up to date."
+/>
+<Message
+  warning
+  title="Podfile validation"
+  description="Tuist does not parse the CocoaPods dependency graph nor runs any validation. It's the user responsibility ensure the right format of the 'Podfile'."
+/>
+
+---
 
 As we mentioned, the beauty of defining your dependencies with Tuist is that when you generate the project, things are set up and ready for you to successfully compile your targets.

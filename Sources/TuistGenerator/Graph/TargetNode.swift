@@ -89,6 +89,8 @@ class TargetNode: GraphNode {
                 return targetDependency.target.name
             } else if let precompiledDependency = dependency as? PrecompiledNode {
                 return precompiledDependency.name
+            } else if let cocoapodsDependency = dependency as? CocoaPodsNode {
+                return cocoapodsDependency.name
             } else {
                 return nil
             }
@@ -128,6 +130,8 @@ class TargetNode: GraphNode {
                                          fileHandler: fileHandler, cache: cache)
         case let .sdk(name, status):
             return try SDKNode(name: name, platform: platform, status: status)
+        case let .cocoapods(podsPath):
+            return CocoaPodsNode.read(path: path.appending(podsPath), cache: cache)
         }
     }
 }

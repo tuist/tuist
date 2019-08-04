@@ -45,13 +45,15 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let printer: Printing
     private let fileHandler: FileHandling
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
+    private let cocoapodsInteractor: CocoaPodsInteracting
 
     // MARK: - Init
 
     convenience init(system: Systeming = System(),
                      printer: Printing = Printer(),
                      fileHandler: FileHandling = FileHandler(),
-                     defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+                     defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+                     cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
@@ -63,19 +65,22 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   printer: printer,
                   projectGenerator: projectGenerator,
                   fileHandler: fileHandler,
-                  workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler))
+                  workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler),
+                  cocoapodsInteractor: cocoapodsInteractor)
     }
 
     init(system: Systeming,
          printer: Printing,
          projectGenerator: ProjectGenerating,
          fileHandler: FileHandling,
-         workspaceStructureGenerator: WorkspaceStructureGenerating) {
+         workspaceStructureGenerator: WorkspaceStructureGenerating,
+         cocoapodsInteractor: CocoaPodsInteracting) {
         self.system = system
         self.printer = printer
         self.projectGenerator = projectGenerator
         self.fileHandler = fileHandler
         self.workspaceStructureGenerator = workspaceStructureGenerator
+        self.cocoapodsInteractor = cocoapodsInteractor
     }
 
     // MARK: - WorkspaceGenerating
@@ -122,6 +127,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
 
         try write(xcworkspace: xcWorkspace, to: workspacePath)
+
+        // CocoaPods
+
+        try cocoapodsInteractor.install(graph: graph)
 
         return workspacePath
     }

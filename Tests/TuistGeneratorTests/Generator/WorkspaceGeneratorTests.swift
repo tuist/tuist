@@ -9,6 +9,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
     var subject: WorkspaceGenerator!
     var path: AbsolutePath!
     var fileHandler: MockFileHandler!
+    var cocoapodsInteractor: MockCocoaPodsInteractor!
 
     override func setUp() {
         super.setUp()
@@ -16,11 +17,13 @@ final class WorkspaceGeneratorTests: XCTestCase {
         do {
             fileHandler = try MockFileHandler()
             path = fileHandler.currentPath
+            cocoapodsInteractor = MockCocoaPodsInteractor()
 
             subject = WorkspaceGenerator(
                 system: MockSystem(),
                 printer: MockPrinter(),
-                fileHandler: fileHandler
+                fileHandler: fileHandler,
+                cocoapodsInteractor: cocoapodsInteractor
             )
 
         } catch {
@@ -105,6 +108,27 @@ final class WorkspaceGeneratorTests: XCTestCase {
         XCTAssertEqual(xcworkspace.data.children, [
             .file(.init(location: .group("Test.xcodeproj"))),
         ])
+    }
+
+    func test_generate_runsPodInstall() throws {
+        // Given
+        let target = anyTarget()
+        let project = Project.test(path: path,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+        let workspace = Workspace.test(projects: [project.path])
+
+        // When
+        _ = try subject.generate(workspace: workspace,
+                                 path: path,
+                                 graph: graph,
+                                 tuistConfig: .test())
+
+        // Then
+        XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
     }
 
     // MARK: - Helpers

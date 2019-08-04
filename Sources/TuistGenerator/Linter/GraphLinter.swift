@@ -55,8 +55,23 @@ class GraphLinter: GraphLinting {
         }
 
         issues.append(contentsOf: lintCarthageDependencies(graph: graph))
+        issues.append(contentsOf: lintCocoaPodsDependencies(graph: graph))
 
         return issues
+    }
+
+    /// It verifies that the directory specified by the CocoaPods dependencies contains a Podfile file.
+    ///
+    /// - Parameter graph: Project graph.
+    /// - Returns: Linting issues.
+    private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
+        return graph.cocoapods.compactMap { node in
+            let podfilePath = node.podfilePath
+            if !fileHandler.exists(podfilePath) {
+                return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
+            }
+            return nil
+        }
     }
 
     private func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {

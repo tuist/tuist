@@ -44,7 +44,7 @@ Feature: Generate a new project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture invalid_workspace_manifest_name into the working directory
-    Then tuist generates reports error "❌ Error: Manifest not found at path ${ARG_PATH}"
+    Then tuist generates reports error "Error: Manifest not found at path ${ARG_PATH}"
 
   Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_libraries)
     Given that tuist is available
@@ -160,3 +160,10 @@ Scenario: The project is an iOS application with multiple configurations (ios_ap
     Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Debug" for the configuration Debug
     Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Target.Beta" for the configuration Beta
     Then the scheme Framework2 has a build setting CUSTOM_FLAG with value "Release" for the configuration Release
+
+Scenario: The project is an iOS application with CocoaPods dependencies (ios_app_with_pods)
+  Given that tuist is available
+  And I have a working directory
+  Then I copy the fixture ios_app_with_pods into the working directory
+  Then tuist generates the project
+  Then I should be able to build the scheme App

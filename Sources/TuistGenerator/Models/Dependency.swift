@@ -12,4 +12,5 @@ public enum Dependency: Equatable {
     case framework(path: RelativePath)
     case library(path: RelativePath, publicHeaders: RelativePath, swiftModuleMap: RelativePath?)
     case sdk(name: String, status: SDKStatus)
+    case cocoapods(path: RelativePath)
 }

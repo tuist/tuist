@@ -15,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support multiple header paths https://github.com/tuist/tuist/pull/459 by @adamkhazi
 - Allow specifying multiple configurations within project manifests https://github.com/tuist/tuist/pull/451 by @kwridan
 - Add linting for mismatching build configurations in a workspace https://github.com/tuist/tuist/pull/474 by @kwridan
+- Support for CocoaPods dependencies https://github.com/tuist/tuist/pull/465 by @pepibumur
 
 ### Fixed
 

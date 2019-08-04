@@ -1,4 +1,3 @@
-
 import Foundation
 import ProjectDescription
 import TuistCore

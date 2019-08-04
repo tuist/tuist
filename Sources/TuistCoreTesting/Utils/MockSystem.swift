@@ -1,4 +1,4 @@
-import struct Basic.AbsolutePath
+import Basic
 import Foundation
 import TuistCore
 
@@ -13,7 +13,7 @@ public final class MockSystem: Systeming {
     public init() {}
 
     public func errorCommand(_ arguments: String..., error: String? = nil) {
-        self.errorCommand(arguments, error: error)
+        errorCommand(arguments, error: error)
     }
 
     public func errorCommand(_ arguments: [String], error: String? = nil) {
@@ -21,7 +21,7 @@ public final class MockSystem: Systeming {
     }
 
     public func succeedCommand(_ arguments: String..., output: String? = nil) {
-        self.succeedCommand(arguments, output: output)
+        succeedCommand(arguments, output: output)
     }
 
     public func succeedCommand(_ arguments: [String], output: String? = nil) {
@@ -39,19 +39,19 @@ public final class MockSystem: Systeming {
     }
 
     public func run(_ arguments: String...) throws {
-        try self.run(arguments)
+        try run(arguments)
     }
 
     public func capture(_ arguments: [String]) throws -> String {
-        return try self.capture(arguments, verbose: false, environment: [:])
+        return try capture(arguments, verbose: false, environment: [:])
     }
 
     public func capture(_ arguments: String...) throws -> String {
-        return try self.capture(arguments, verbose: false, environment: [:])
+        return try capture(arguments, verbose: false, environment: [:])
     }
 
     public func capture(_ arguments: String..., verbose: Bool, environment: [String: String]) throws -> String {
-        return try self.capture(arguments, verbose: verbose, environment: environment)
+        return try capture(arguments, verbose: verbose, environment: environment)
     }
 
     public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
@@ -66,29 +66,36 @@ public final class MockSystem: Systeming {
     }
 
     public func runAndPrint(_ arguments: String...) throws {
-        try self.runAndPrint(arguments)
+        try runAndPrint(arguments)
     }
 
     public func runAndPrint(_ arguments: [String]) throws {
-        try self.runAndPrint(arguments, verbose: false, environment: [:])
+        try runAndPrint(arguments, verbose: false, environment: [:])
     }
 
     public func runAndPrint(_ arguments: String..., verbose: Bool, environment: [String: String]) throws {
-        try self.runAndPrint(arguments, verbose: verbose, environment: environment)
+        try runAndPrint(arguments, verbose: verbose, environment: environment)
     }
 
-    public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
+    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
+        try runAndPrint(arguments, verbose: verbose, environment: environment, redirection: .none)
+    }
+
+    public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String], redirection: Basic.Process.OutputRedirection) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {
             throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
+            if let error = stub.stderror {
+                redirection.outputClosures?.stderrClosure([UInt8](error.data(using: .utf8)!))
+            }
             throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
         }
     }
 
     public func async(_ arguments: [String]) throws {
-        try self.async(arguments, verbose: false, environment: [:])
+        try async(arguments, verbose: false, environment: [:])
     }
 
     public func async(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {

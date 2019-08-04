@@ -35,6 +35,21 @@ final class GraphLinterTests: XCTestCase {
         XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString). The path might be wrong or Carthage dependencies not fetched", severity: .warning)))
     }
 
+    func test_lint_when_podfiles_are_missing() throws {
+        // Given
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let cocoapods = CocoaPodsNode(path: fileHandler.currentPath)
+        cache.add(cocoapods: cocoapods)
+        let podfilePath = fileHandler.currentPath.appending(component: "Podfile")
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.contains(LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)))
+    }
+
     func test_lint_when_frameworks_are_missing() throws {
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
