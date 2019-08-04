@@ -198,20 +198,26 @@ final class LinkGenerator: LinkGenerating {
                   sourceRootPath: sourceRootPath)
     }
 
-    private func setup(setting: String,
+    private func setup(setting name: String,
                        paths: [AbsolutePath],
                        pbxTarget: PBXTarget,
                        sourceRootPath: AbsolutePath) throws {
-        let relativePaths = paths.sorted()
-            .map { $0.relative(to: sourceRootPath).pathString }
-            .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
-
-        let pathsValue = relativePaths.joined(separator: " ")
-        configurationList.buildConfigurations.forEach {
-            $0.append(setting: setting, value: pathsValue)
+        guard !paths.isEmpty else {
+            return
+        }
+        let value = SettingValue
+            .array(paths
+                .map { $0.relative(to: sourceRootPath).pathString }
+                .map { "$(SRCROOT)/\($0)" })
+        let newSetting = [name: value]
+        let inheritedSetting = [name: SettingValue.string("$(inherited)")]
+        let helper = SettingsHelper()
+        try configurationList.buildConfigurations.forEach { configuration in
+            try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
+            try helper.extend(buildSettings: &configuration.buildSettings, with: inheritedSetting)
         }
     }
 

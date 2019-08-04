@@ -5,8 +5,15 @@ final class SettingsHelper {
     func extend(buildSettings: inout [String: SettingValue],
                 with other: [String: SettingValue]) {
         other.forEach { key, newValue in
-            buildSettings[key] = resolveValue(oldValue: buildSettings[key], newValue: newValue)
+            buildSettings[key] = resolveValue(oldValue: buildSettings[key], newValue: newValue).normalize()
         }
+    }
+
+    func extend(buildSettings: inout [String: Any],
+                with other: [String: SettingValue]) throws {
+        var settings = try buildSettings.toSettings()
+        extend(buildSettings: &settings, with: other)
+        buildSettings = settings.toAny()
     }
 
     func settingsProviderPlatform(_ target: Target) -> BuildSettingsProvider.Platform? {
@@ -66,6 +73,6 @@ final class SettingsHelper {
 
 private extension Array where Element == String {
     func uniqued() -> [String] {
-        return Set(self).sorted()
+        return Set(self).sorted { $0.compare($1, options: .caseInsensitive) == .orderedAscending }
     }
 }

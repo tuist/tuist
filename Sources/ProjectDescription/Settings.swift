@@ -43,14 +43,9 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
 
 // MARK: - Configuration
 
-public class Configuration: Codable {
+public struct Configuration: Equatable, Codable {
     public let settings: [String: SettingValue]
     public let xcconfig: String?
-
-    public enum CodingKeys: String, CodingKey {
-        case settings
-        case xcconfig
-    }
 
     public init(settings: [String: SettingValue] = [:], xcconfig: String? = nil) {
         self.settings = settings
@@ -93,7 +88,7 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    static func debug(name: String, settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func debug(name: String, settings: [String: SettingValue] = [:], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
     }
@@ -105,7 +100,7 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    static func release(name: String, settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func release(name: String, settings: [String: SettingValue] = [:], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .release, configuration: configuration)
     }
@@ -126,12 +121,24 @@ public enum DefaultSettings: String, Codable {
 
 // MARK: - Settings
 
-public class Settings: Codable {
+public struct Settings: Equatable, Codable {
     public let base: [String: SettingValue]
-    public let debug: Configuration?
-    public let release: Configuration?
+    public let configurations: [CustomConfiguration]
     public let defaultSettings: DefaultSettings
 
+    /// Creates settings with the default `Debug` and `Release` configurations.
+    ///
+    /// - Parameters:
+    ///   - base: Base build settings to use
+    ///   - debug: The debug configuration
+    ///   - release: The release configuration
+    ///   - defaultSettings: The default settings to apply during generation
+    ///
+    /// - Note: To specify additional custom configurations, you can use the
+    ///         alternate initializer `init(base:configurations:defaultSettings:)`.
+    ///
+    /// - seealso: Configuration
+    /// - seealso: DefaultSettings
     public init(base: [String: SettingValue] = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
@@ -157,7 +164,7 @@ public class Settings: Codable {
     ///
     /// - seealso: CustomConfiguration
     /// - seealso: DefaultSettings
-    public init(base: [String: String] = [:],
+    public init(base: [String: SettingValue] = [:],
                 configurations: [CustomConfiguration],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base

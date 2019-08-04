@@ -13,6 +13,18 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
     public init(arrayLiteral elements: String...) {
         self = .array(elements)
     }
+
+    public func normalize() -> SettingValue {
+        switch self {
+        case let .array(currentValue):
+            if currentValue.count == 1 {
+                return .string(currentValue[0])
+            }
+            return self
+        case .string:
+            return self
+        }
+    }
 }
 
 public class Configuration: Equatable {
