@@ -183,6 +183,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
+                                           manifestLinter: manifestLinter,
                                            manifestTargetGenerator: manifestTargetGenerator)
 
         // When
@@ -211,6 +212,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(fileHandler: fileHandler,
                                            manifestLoader: manifestLoader,
+                                           manifestLinter: manifestLinter,
                                            manifestTargetGenerator: manifestTargetGenerator)
 
         // When
