@@ -149,7 +149,7 @@ extension TuistGenerator.TuistConfig {
 }
 
 extension TuistGenerator.TuistConfig.GenerationOption {
-    static func from(manifest: ProjectDescription.TuistConfig.GenerationOption,
+    static func from(manifest: ProjectDescription.TuistConfig.GenerationOptions,
                      path _: AbsolutePath) throws -> TuistGenerator.TuistConfig.GenerationOption {
         switch manifest {
         case .generateManifest:

@@ -6,72 +6,24 @@ public class TuistConfig: Encodable, Decodable, Equatable {
     ///
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
     /// - xcodeProjectName(TemplateString): When passed, Tuist generates the project with the specific name on disk instead of using the project name.
-    public enum GenerationOption: Encodable, Decodable, Equatable {
+    public enum GenerationOptions: Encodable, Decodable, Equatable {
         case generateManifest
         case xcodeProjectName(TemplateString)
     }
 
     /// Generation options.
-    public let generationOptions: [GenerationOption]
+    public let generationOptions: [GenerationOptions]
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameter generationOptions: Generation options.
-    public init(generationOptions: [GenerationOption]) {
+    public init(generationOptions: [GenerationOptions]) {
         self.generationOptions = generationOptions
         dumpIfNeeded(self)
     }
 }
 
-public struct TemplateString: Encodable, Decodable, Equatable {
-    /// Contains a string that can be interpolated with options.
-    let rawString: String
-}
-
-extension TemplateString: ExpressibleByStringLiteral {
-    public init(stringLiteral: String) {
-        rawString = stringLiteral
-    }
-}
-
-extension TemplateString: CustomStringConvertible {
-    public var description: String {
-        return rawString
-    }
-}
-
-extension TemplateString: ExpressibleByStringInterpolation {
-    public init(stringInterpolation: StringInterpolation) {
-        rawString = stringInterpolation.string
-    }
-
-    public struct StringInterpolation: StringInterpolationProtocol {
-        var string: String
-
-        public init(literalCapacity _: Int, interpolationCount _: Int) {
-            string = String()
-        }
-
-        public mutating func appendLiteral(_ literal: String) {
-            string.append(literal)
-        }
-
-        public mutating func appendInterpolation(_ token: TemplateString.Token) {
-            string.append(token.rawValue)
-        }
-    }
-}
-
-extension TemplateString {
-    /// Provides a template for existing project properties.
-    ///
-    /// - projectName: The name of the project.
-    public enum Token: String {
-        case projectName = "${project_name}"
-    }
-}
-
-extension TuistConfig.GenerationOption {
+extension TuistConfig.GenerationOptions {
     enum CodingKeys: String, CodingKey {
         case generateManifest
         case xcodeProjectName
@@ -86,8 +38,8 @@ extension TuistConfig.GenerationOption {
         }
         if container.allKeys.contains(.xcodeProjectName), try container.decodeNil(forKey: .xcodeProjectName) == false {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .xcodeProjectName)
-            let associatedValue0 = try associatedValues.decode(TemplateString.self)
-            self = .xcodeProjectName(associatedValue0)
+            let templateProjectName = try associatedValues.decode(TemplateString.self)
+            self = .xcodeProjectName(templateProjectName)
             return
         }
         throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
@@ -99,9 +51,9 @@ extension TuistConfig.GenerationOption {
         switch self {
         case .generateManifest:
             _ = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .generateManifest)
-        case let .xcodeProjectName(associatedValue0):
+        case let .xcodeProjectName(templateProjectName):
             var associatedValues = container.nestedUnkeyedContainer(forKey: .xcodeProjectName)
-            try associatedValues.encode(associatedValue0)
+            try associatedValues.encode(templateProjectName)
         }
     }
 }
@@ -111,14 +63,7 @@ public func == (lhs: TuistConfig, rhs: TuistConfig) -> Bool {
     return true
 }
 
-public func == (lhs: TemplateString.Token, rhs: TemplateString.Token) -> Bool {
-    switch (lhs, rhs) {
-    case (.projectName, .projectName):
-        return true
-    }
-}
-
-public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
+public func == (lhs: TuistConfig.GenerationOptions, rhs: TuistConfig.GenerationOptions) -> Bool {
     switch (lhs, rhs) {
     case (.generateManifest, .generateManifest):
         return true

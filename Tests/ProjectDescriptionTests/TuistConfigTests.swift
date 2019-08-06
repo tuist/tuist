@@ -8,9 +8,6 @@ final class TuistConfigTests: XCTestCase {
             [.generateManifest,
              .xcodeProjectName("someprefix-\(.projectName)")])
 
-        let encoded = try JSONEncoder().encode(tuistConfig)
-        let decoded = try JSONDecoder().decode(TuistConfig.self, from: encoded)
-
-        XCTAssertEqual(tuistConfig, decoded)
+        XCTAssertCodable(tuistConfig)
     }
 }

@@ -27,17 +27,6 @@ Feature: Generate a new project using Tuist
     Then I should be able to build the scheme Framework1
     Then the product 'Framework1.framework' with destination 'Debug-iphoneos' contains the Info.plist key 'Test'
 
-  Scenario: The project is an iOS application with tests (app_with_framework_and_tests_with_custom_filenames)
-    Given that tuist is available
-    And I have a working directory
-    Then I copy the fixture app_with_framework_and_tests_with_custom_filenames into the working directory
-    Then tuist generates the project
-    Then I should be able to build the scheme App
-    Then I should be able to test the scheme AppTests
-    Then I should be able to build the scheme App_Manifest
-    Then I should be able to build the scheme Framework
-    Then I should be able to build the scheme FrameworkTests
-
   Scenario: The project is an iOS application with headers (ios_app_with_headers)
     Given that tuist is available
     And I have a working directory
