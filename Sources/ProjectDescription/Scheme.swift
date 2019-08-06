@@ -2,20 +2,12 @@ import Foundation
 
 // MARK: - Scheme
 
-public class Scheme: Codable {
+public struct Scheme: Equatable, Codable {
     public let name: String
     public let shared: Bool
     public let buildAction: BuildAction?
     public let testAction: TestAction?
     public let runAction: RunAction?
-
-    public enum CodingKeys: String, CodingKey {
-        case name
-        case shared
-        case buildAction = "build_action"
-        case testAction = "test_action"
-        case runAction = "run_action"
-    }
 
     public init(name: String,
                 shared: Bool = true,
@@ -32,16 +24,10 @@ public class Scheme: Codable {
 
 // MARK: - ExecutionAction
 
-public class ExecutionAction: Codable {
+public struct ExecutionAction: Equatable, Codable {
     public let title: String
     public let scriptText: String
     public let target: String?
-
-    public enum CodingKeys: String, CodingKey {
-        case title
-        case scriptText = "script_text"
-        case target
-    }
 
     public init(title: String = "Run Script", scriptText: String, target: String? = nil) {
         self.title = title
@@ -52,14 +38,9 @@ public class ExecutionAction: Codable {
 
 // MARK: - Arguments
 
-public class Arguments: Codable {
+public struct Arguments: Equatable, Codable {
     public let environment: [String: String]
     public let launch: [String: Bool]
-
-    public enum CodingKeys: String, CodingKey {
-        case environment
-        case launch
-    }
 
     public init(environment: [String: String] = [:],
                 launch: [String: Bool] = [:]) {
@@ -70,16 +51,10 @@ public class Arguments: Codable {
 
 // MARK: - BuildAction
 
-public class BuildAction: Codable {
+public struct BuildAction: Equatable, Codable {
     public let targets: [String]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
-
-    public enum CodingKeys: String, CodingKey {
-        case targets
-        case preActions = "pre_actions"
-        case postActions = "post_actions"
-    }
 
     public init(targets: [String],
                 preActions: [ExecutionAction] = [],
@@ -92,56 +67,63 @@ public class BuildAction: Codable {
 
 // MARK: - TestAction
 
-public class TestAction: Codable {
+public struct TestAction: Equatable, Codable {
     public let targets: [String]
     public let arguments: Arguments?
-    public let config: BuildConfiguration
+    public let configurationName: String
     public let coverage: Bool
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
-    public enum CodingKeys: String, CodingKey {
-        case targets
-        case arguments
-        case config
-        case coverage
-        case preActions = "pre_actions"
-        case postActions = "post_actions"
-    }
-
     public init(targets: [String],
                 arguments: Arguments? = nil,
-                config: BuildConfiguration = .debug,
+                configurationName: String,
                 coverage: Bool = false,
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
         self.arguments = arguments
-        self.config = config
+        self.configurationName = configurationName
         self.coverage = coverage
         self.preActions = preActions
         self.postActions = postActions
+    }
+
+    public init(targets: [String],
+                arguments: Arguments? = nil,
+                config: PresetBuildConfiguration = .debug,
+                coverage: Bool = false,
+                preActions: [ExecutionAction] = [],
+                postActions: [ExecutionAction] = []) {
+        self.init(targets: targets,
+                  arguments: arguments,
+                  configurationName: config.name,
+                  coverage: coverage,
+                  preActions: preActions,
+                  postActions: postActions)
     }
 }
 
 // MARK: - RunAction
 
-public class RunAction: Codable {
-    public let config: BuildConfiguration
+public struct RunAction: Equatable, Codable {
+    public let configurationName: String
     public let executable: String?
     public let arguments: Arguments?
 
-    public enum CodingKeys: String, CodingKey {
-        case config
-        case executable
-        case arguments
-    }
-
-    public init(config: BuildConfiguration = .debug,
+    public init(configurationName: String,
                 executable: String? = nil,
                 arguments: Arguments? = nil) {
-        self.config = config
+        self.configurationName = configurationName
         self.executable = executable
         self.arguments = arguments
+    }
+
+    public init(config: PresetBuildConfiguration = .debug,
+                executable: String? = nil,
+                arguments: Arguments? = nil) {
+        self.init(configurationName: config.name,
+                  executable: executable,
+                  arguments: arguments)
     }
 }

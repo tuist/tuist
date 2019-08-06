@@ -9,7 +9,7 @@ Contains a single file `Workspac.swift`, incorrectly named workspace manifest fi
 
 ## ios_app_with_custom_workspace
 
-Contains a few projects and a `Workspace.swift` manifest file. 
+Contains a few projects and a `Workspace.swift` manifest file.
 
 The workspace manifest defines:
 
@@ -20,7 +20,7 @@ The workspace manifest defines:
 The App's project manifest leverages `additionalFiles` tha defines:
 
 - glob patterns to include documentation files
-- Includes a swift `Danger.swift` file that shouldn't get included in any buid phase 
+- Includes a swift `Danger.swift` file that shouldn't get included in any buid phase
 - folder references to a directory with json files
 
 ## ios_app_with_tests
@@ -49,9 +49,10 @@ Workspace:
 ```
 
 Dependencies:
-  - App -> Framework1
-  - App -> Framework2
-  - Framework1 -> Framework2
+
+- App -> Framework1
+- App -> Framework2
+- Framework1 -> Framework2
 
 ## ios_app_with_framework_and_resources
 
@@ -67,8 +68,9 @@ Workspace:
 ```
 
 Dependencies:
-  - App -> Framework1
-  
+
+- App -> Framework1
+
 ## ios_app_with_framework_linking_static_framework
 
 An example project demonstrating an iOS application linking a dynamic framework which itself depends on a static framework with transitive static dependencies.
@@ -95,10 +97,15 @@ Workspace:
 ```
 
 Dependencies:
-  - App -> Framework1
-  - Framework1 -> Framework2
-  - Framework1 -> Framework3
-  - Framework3 -> Framework4
+
+- App -> Framework1
+- Framework1 -> Framework2
+- Framework1 -> Framework3
+- Framework3 -> Framework4
+
+## ios_app_with_multi_configs
+
+An workspace that contains an application and frameworks that leverage multiple configurations (Debug, Beta and Release) each of which also has an associated xcconfig file within `ConfigurationFiles`.
 
 ## ios_app_with_sdk
 
@@ -124,6 +131,7 @@ Workspace:
 ```
 
 A standalone C project is used to generate a prebuilt static library:
+
 ```
   - C:
     - C (static library iOS)
@@ -131,11 +139,12 @@ A standalone C project is used to generate a prebuilt static library:
 ```
 
 Dependencies:
-  - App -> A
-  - A -> B
-  - A -> prebuild C (libC.a)
 
-  Note: to re-create `libC.a` run `fixtures/ios_app_with_static_libraries/Modules/C/build.sh`
+- App -> A
+- A -> B
+- A -> prebuild C (libC.a)
+
+Note: to re-create `libC.a` run `fixtures/ios_app_with_static_libraries/Modules/C/build.sh`
 
 ## ios_app_with_static_frameworks
 
@@ -160,11 +169,12 @@ Workspace:
 ```
 
 Dependencies:
-  - App -> A
-  - App -> C
-  - A -> B
-  - A -> C
-  - C -> D
+
+- App -> A
+- App -> C
+- A -> B
+- A -> C
+- C -> D
 
 ## ios_app_with_tests
 
@@ -183,14 +193,19 @@ Workspace:
 ```
 
 A standalone Framework2 project is used to generate a prebuilt dynamic framework :
+
 ```
   - Framework2:
     - Framework2 (dynamic iOS framework)
 ```
 
 Dependencies:
-  - App -> Framework1
-  - Framework1 -> Framework2 (prebuilt)
 
-  Note: to re-create `Framework2.framework` run `fixtures/ios_app_with_transitive_framework/Framework2/build.sh`
+- App -> Framework1
+- Framework1 -> Framework2 (prebuilt)
 
+Note: to re-create `Framework2.framework` run `fixtures/ios_app_with_transitive_framework/Framework2/build.sh`
+
+## ios_app_with_pods
+
+An iOS application with CocoaPods dependencies

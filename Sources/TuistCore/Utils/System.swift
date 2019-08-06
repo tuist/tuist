@@ -85,6 +85,16 @@ public protocol Systeming {
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
 
+    /// Runs a command in the shell printing its output.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the task.
+    ///   - redirection: Instance through which the output will be redirected.
+    /// - Throws: An error if the command fails.
+    func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: Basic.Process.OutputRedirection) throws
+
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -283,7 +293,6 @@ public final class System: Systeming {
     /// - Parameters:
     ///   - arguments: Arguments to be passed.
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    ///   - workingDirectoryPath: The working directory path the task is executed from.
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: String...,
@@ -304,16 +313,34 @@ public final class System: Systeming {
     public func runAndPrint(_ arguments: [String],
                             verbose: Bool,
                             environment: [String: String]) throws {
+        try runAndPrint(arguments,
+                        verbose: verbose,
+                        environment: environment,
+                        redirection: .none)
+    }
+
+    /// Runs a command in the shell printing its output.
+    ///
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the task.
+    ///   - redirection: Instance through which the output will be redirected.
+    /// - Throws: An error if the command fails.
+    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: Basic.Process.OutputRedirection) throws {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in
                                   FileHandle.standardOutput.write(Data(bytes))
+                                  redirection.outputClosures?.stdoutClosure(bytes)
                               }, stderr: { bytes in
                                   FileHandle.standardError.write(Data(bytes))
+                                  redirection.outputClosures?.stderrClosure(bytes)
                               }), verbose: verbose,
                               startNewProcessGroup: false)
         try process.launch()
-        try process.waitUntilExit()
+        let result = try process.waitUntilExit()
+        try result.throwIfErrored()
     }
 
     /// Runs a command in the shell asynchronously.

@@ -45,14 +45,15 @@ final class SchemesGenerator: SchemesGenerating {
         }
 
         /// Generate scheme for every targets in Project that is not defined in Manifest
+        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
         try project.targets.forEach { target in
 
             if !project.schemes.contains(where: { $0.name == target.name }) {
                 let scheme = Scheme(name: target.name,
                                     shared: true,
                                     buildAction: BuildAction(targets: [target.name]),
-                                    testAction: TestAction(targets: [target.name]),
-                                    runAction: RunAction(config: .debug,
+                                    testAction: TestAction(targets: [target.name], configurationName: buildConfiguration),
+                                    runAction: RunAction(configurationName: buildConfiguration,
                                                          executable: target.productName,
                                                          arguments: Arguments(environment: target.environment)))
 
@@ -88,8 +89,8 @@ final class SchemesGenerator: SchemesGenerating {
                               testAction: generatedTestAction,
                               launchAction: generatedLaunchAction,
                               profileAction: generatedProfileAction,
-                              analyzeAction: schemeAnalyzeAction(),
-                              archiveAction: schemeArchiveAction())
+                              analyzeAction: schemeAnalyzeAction(for: project),
+                              archiveAction: schemeArchiveAction(for: project))
         try scheme.write(path: schemePath.path, override: true)
     }
 
@@ -148,7 +149,8 @@ final class SchemesGenerator: SchemesGenerating {
             testables.append(testable)
         }
 
-        return XCScheme.TestAction(buildConfiguration: "Debug",
+        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
+        return XCScheme.TestAction(buildConfiguration: buildConfiguration,
                                    macroExpansion: nil,
                                    testables: testables)
     }
@@ -199,7 +201,7 @@ final class SchemesGenerator: SchemesGenerating {
 
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
 
-        return XCScheme.TestAction(buildConfiguration: "Debug",
+        return XCScheme.TestAction(buildConfiguration: testAction.configurationName,
                                    macroExpansion: nil,
                                    testables: testables,
                                    preActions: preActions,
@@ -291,8 +293,9 @@ final class SchemesGenerator: SchemesGenerating {
             environments = environmentVariables(arguments.environment)
         }
 
+        let buildConfiguration = scheme.runAction?.configurationName ?? defaultDebugBuildConfigurationName(in: project)
         return XCScheme.LaunchAction(runnable: buildableProductRunnable,
-                                     buildConfiguration: "Debug",
+                                     buildConfiguration: buildConfiguration,
                                      macroExpansion: macroExpansion,
                                      commandlineArguments: commandlineArguments,
                                      environmentVariables: environments)
@@ -326,8 +329,10 @@ final class SchemesGenerator: SchemesGenerating {
         } else {
             macroExpansion = buildableReference
         }
+
+        let buildConfiguration = defaultReleaseBuildConfigurationName(in: project)
         return XCScheme.ProfileAction(buildableProductRunnable: buildableProductRunnable,
-                                      buildConfiguration: "Release",
+                                      buildConfiguration: buildConfiguration,
                                       macroExpansion: macroExpansion)
     }
 
@@ -404,15 +409,17 @@ final class SchemesGenerator: SchemesGenerating {
     /// Returns the scheme analyze action
     ///
     /// - Returns: Scheme analyze action.
-    func schemeAnalyzeAction() -> XCScheme.AnalyzeAction {
-        return XCScheme.AnalyzeAction(buildConfiguration: "Debug")
+    func schemeAnalyzeAction(for project: Project) -> XCScheme.AnalyzeAction {
+        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
+        return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
     }
 
     /// Returns the scheme archive action
     ///
     /// - Returns: Scheme archive action.
-    func schemeArchiveAction() -> XCScheme.ArchiveAction {
-        return XCScheme.ArchiveAction(buildConfiguration: "Release",
+    func schemeArchiveAction(for project: Project) -> XCScheme.ArchiveAction {
+        let buildConfiguration = defaultReleaseBuildConfigurationName(in: project)
+        return XCScheme.ArchiveAction(buildConfiguration: buildConfiguration,
                                       revealArchiveInOrganizer: true)
     }
 
@@ -436,5 +443,19 @@ final class SchemesGenerator: SchemesGenerating {
             try fileHandler.createFolder(path)
         }
         return path
+    }
+
+    private func defaultDebugBuildConfigurationName(in project: Project) -> String {
+        let debugConfiguration = project.settings.defaultDebugBuildConfiguration()
+        let buildConfiguration = debugConfiguration ?? project.settings.configurations.keys.first
+
+        return buildConfiguration?.name ?? BuildConfiguration.debug.name
+    }
+
+    private func defaultReleaseBuildConfigurationName(in project: Project) -> String {
+        let releaseConfiguration = project.settings.defaultReleaseBuildConfiguration()
+        let buildConfiguration = releaseConfiguration ?? project.settings.configurations.keys.first
+
+        return buildConfiguration?.name ?? BuildConfiguration.release.name
     }
 }

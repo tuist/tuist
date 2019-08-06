@@ -34,8 +34,10 @@ class GenerateCommand: NSObject, Command {
                                                  deprecator: Deprecator(printer: printer))
         let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
                                                               resourceLocator: resourceLocator)
+        let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
                                                manifestLoader: manifestLoader,
+                                               manifestLinter: manifestLinter,
                                                manifestTargetGenerator: manifestTargetGenerator)
         let generator = Generator(system: system,
                                   printer: printer,

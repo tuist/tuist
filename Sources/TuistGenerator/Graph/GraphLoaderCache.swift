@@ -5,6 +5,7 @@ protocol GraphLoaderCaching: AnyObject {
     var projects: [AbsolutePath: Project] { get }
     var targetNodes: [AbsolutePath: [String: TargetNode]] { get }
     var precompiledNodes: [AbsolutePath: PrecompiledNode] { get }
+
     func project(_ path: AbsolutePath) -> Project?
     func add(project: Project)
     func add(precompiledNode: PrecompiledNode)
@@ -13,6 +14,20 @@ protocol GraphLoaderCaching: AnyObject {
     func targetNode(_ path: AbsolutePath, name: String) -> TargetNode?
     func tuistConfig(_ path: AbsolutePath) -> TuistConfig?
     func add(tuistConfig: TuistConfig, path: AbsolutePath)
+
+    /// Cached CocoaPods nodes
+    var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] { get }
+
+    /// Returns, if it exists, the CocoaPods node at the given path.
+    ///
+    /// - Parameter path: Path to the directory where the Podfile is defined.
+    /// - Returns: The CocoaPods node if it exists in the cache.
+    func cocoapods(_ path: AbsolutePath) -> CocoaPodsNode?
+
+    /// Adds a parsed CocoaPods graph node to the cache.
+    ///
+    /// - Parameter cocoapods: Node to be added to the cache.
+    func add(cocoapods: CocoaPodsNode)
 }
 
 /// Graph loader cache.
@@ -23,6 +38,24 @@ class GraphLoaderCache: GraphLoaderCaching {
     var projects: [AbsolutePath: Project] = [:]
     var precompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
     var targetNodes: [AbsolutePath: [String: TargetNode]] = [:]
+
+    /// Cached CocoaPods nodes
+    var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
+
+    /// Returns, if it exists, the CocoaPods node at the given path.
+    ///
+    /// - Parameter path: Path to the directory where the Podfile is defined.
+    /// - Returns: The CocoaPods node if it exists in the cache.
+    func cocoapods(_ path: AbsolutePath) -> CocoaPodsNode? {
+        return cocoapodsNodes[path]
+    }
+
+    /// Adds a parsed CocoaPods graph node to the cache.
+    ///
+    /// - Parameter cocoapods: Node to be added to the cache.
+    func add(cocoapods: CocoaPodsNode) {
+        cocoapodsNodes[cocoapods.path] = cocoapods
+    }
 
     func tuistConfig(_ path: AbsolutePath) -> TuistConfig? {
         return tuistConfigs[path]

@@ -19,21 +19,23 @@ class GeneratorModelLoaderTest: XCTestCase {
     typealias TestActionManifest = ProjectDescription.TestAction
     typealias RunActionManifest = ProjectDescription.RunAction
     typealias ArgumentsManifest = ProjectDescription.Arguments
-    typealias BuildConfigurationManifest = ProjectDescription.BuildConfiguration
 
-    var manifestTargetGenerator: MockManifestTargetGenerator!
-    var fileHandler: MockFileHandler!
-    var path: AbsolutePath {
+    private var manifestTargetGenerator: MockManifestTargetGenerator!
+    private var manifestLinter: MockManifestLinter!
+
+    private var fileHandler: MockFileHandler!
+    private var path: AbsolutePath {
         return fileHandler.currentPath
     }
 
-    var printer: MockPrinter!
+    private var printer: MockPrinter!
 
     override func setUp() {
         do {
             printer = MockPrinter()
             fileHandler = try MockFileHandler()
             manifestTargetGenerator = MockManifestTargetGenerator()
+            manifestLinter = MockManifestLinter()
         } catch {
             XCTFail("setup failed: \(error.localizedDescription)")
         }
@@ -51,9 +53,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadProject(at: path)
@@ -76,9 +76,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadProject(at: path)
@@ -108,9 +106,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: projects, configs: configs)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadProject(at: path)
@@ -137,9 +133,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadProject(at: path)
@@ -162,9 +156,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadProject(at: path)
@@ -235,9 +227,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -260,9 +250,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests, projects: projects)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -290,9 +278,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -318,9 +304,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -341,10 +325,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
-                                           manifestTargetGenerator: manifestTargetGenerator,
-                                           printer: printer)
+        let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
         let model = try subject.loadWorkspace(at: path)
@@ -368,6 +349,21 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // Then
         assert(settings: model, matches: manifest, at: path)
+    }
+
+    func test_dependency_when_cocoapods() throws {
+        // Given
+        let dependency = TargetDependency.cocoapods(path: "./path/to/project")
+
+        // When
+        let got = TuistGenerator.Dependency.from(manifest: dependency)
+
+        // Then
+        guard case let .cocoapods(path) = got else {
+            XCTFail("Dependency should be cocoapods")
+            return
+        }
+        XCTAssertEqual(path, RelativePath("./path/to/project"))
     }
 
     func test_headers() throws {
@@ -654,6 +650,14 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     // MARK: - Helpers
 
+    func createGeneratorModelLoader(with manifestLoader: GraphManifestLoading) -> GeneratorModelLoader {
+        return GeneratorModelLoader(fileHandler: fileHandler,
+                                    manifestLoader: manifestLoader,
+                                    manifestLinter: manifestLinter,
+                                    manifestTargetGenerator: manifestTargetGenerator,
+                                    printer: printer)
+    }
+
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
                               configs: [AbsolutePath: ProjectDescription.TuistConfig] = [:]) -> GraphManifestLoading {
         let manifestLoader = MockGraphManifestLoader()
@@ -724,19 +728,20 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(settings.base, manifest.base, file: file, line: line)
 
         let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
-        let sortedManifsetConfigurations = [manifest.debug, manifest.release].compactMap { $0 }
+        let sortedManifsetConfigurations = manifest.configurations.sorted(by: { $0.name < $1.name })
         for (configuration, manifestConfiguration) in zip(sortedConfigurations, sortedManifsetConfigurations) {
             assert(configuration: configuration, matches: manifestConfiguration, at: path, file: file, line: line)
         }
     }
 
     func assert(configuration: (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?),
-                matches manifest: ProjectDescription.Configuration,
+                matches manifest: ProjectDescription.CustomConfiguration,
                 at path: AbsolutePath,
                 file: StaticString = #file,
                 line: UInt = #line) {
-        XCTAssertEqual(configuration.1?.settings, manifest.settings, file: file, line: line)
-        XCTAssertEqual(configuration.1?.xcconfig, manifest.xcconfig.map { path.appending(RelativePath($0)) }, file: file, line: line)
+        XCTAssertTrue(configuration.0 == manifest, file: file, line: line)
+        XCTAssertEqual(configuration.1?.settings, manifest.configuration?.settings, file: file, line: line)
+        XCTAssertEqual(configuration.1?.xcconfig, manifest.configuration?.xcconfig.map { path.appending(RelativePath($0)) }, file: file, line: line)
     }
 
     func assert(coreDataModels: [TuistGenerator.CoreDataModel],
@@ -788,7 +793,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(testAction.targets, manifest.targets, file: file, line: line)
-        XCTAssertTrue(testAction.config == manifest.config, file: file, line: line)
+        XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
         XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)
         optionalAssert(testAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
@@ -800,7 +805,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(runAction.executable, manifest.executable, file: file, line: line)
-        XCTAssertTrue(runAction.config == manifest.config, file: file, line: line)
+        XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
         optionalAssert(runAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
         }
@@ -831,35 +836,36 @@ class GeneratorModelLoaderTest: XCTestCase {
 }
 
 private func == (_ lhs: TuistGenerator.Platform,
-                 _: ProjectDescription.Platform) -> Bool {
+                 _ rhs: ProjectDescription.Platform) -> Bool {
     let map: [TuistGenerator.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
         .tvOS: .tvOS,
     ]
-    return map[lhs] != nil
+    return map[lhs] == rhs
 }
 
 private func == (_ lhs: TuistGenerator.Product,
-                 _: ProjectDescription.Product) -> Bool {
+                 _ rhs: ProjectDescription.Product) -> Bool {
     let map: [TuistGenerator.Product: ProjectDescription.Product] = [
         .app: .app,
         .framework: .framework,
+        .staticFramework: .staticFramework,
         .unitTests: .unitTests,
         .uiTests: .uiTests,
         .staticLibrary: .staticLibrary,
         .dynamicLibrary: .dynamicLibrary,
     ]
-    return map[lhs] != nil
+    return map[lhs] == rhs
 }
 
-private func == (_ lhs: TuistGenerator.BuildConfiguration,
-                 _: ProjectDescription.BuildConfiguration) -> Bool {
-    let map: [TuistGenerator.BuildConfiguration: ProjectDescription.BuildConfiguration] = [
+private func == (_ lhs: BuildConfiguration,
+                 _ rhs: CustomConfiguration) -> Bool {
+    let map: [BuildConfiguration.Variant: CustomConfiguration.Variant] = [
         .debug: .debug,
         .release: .release,
     ]
-    return map[lhs] != nil
+    return map[lhs.variant] == rhs.variant && lhs.name == rhs.name
 }
 
 extension AbsolutePath: ExpressibleByStringLiteral {

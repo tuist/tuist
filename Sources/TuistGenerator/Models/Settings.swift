@@ -55,9 +55,33 @@ public class Settings: Equatable {
     }
 }
 
+extension Settings {
+    /// Finds the default debug `BuildConfiguration` if it exists, otherwise returns the first debug configuration available.
+    ///
+    /// - Returns: The default debug `BuildConfiguration`
+    func defaultDebugBuildConfiguration() -> BuildConfiguration? {
+        let debugConfigurations = configurations.keys
+            .filter { $0.variant == .debug }
+            .sorted()
+        let defaultConfiguration = debugConfigurations.first(where: { $0 == BuildConfiguration.debug })
+        return defaultConfiguration ?? debugConfigurations.first
+    }
+
+    /// Finds the default release `BuildConfiguration` if it exists, otherwise returns the first release configuration available.
+    ///
+    /// - Returns: The default release `BuildConfiguration`
+    func defaultReleaseBuildConfiguration() -> BuildConfiguration? {
+        let releaseConfigurations = configurations.keys
+            .filter { $0.variant == .release }
+            .sorted()
+        let defaultConfiguration = releaseConfigurations.first(where: { $0 == BuildConfiguration.release })
+        return defaultConfiguration ?? releaseConfigurations.first
+    }
+}
+
 extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
     func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
-        return sorted(by: { first, second -> Bool in first.key.name < second.key.name })
+        return sorted(by: { first, second -> Bool in first.key < second.key })
     }
 
     func xcconfigs() -> [AbsolutePath] {

@@ -102,7 +102,7 @@ extension BuildAction {
 extension TestAction {
     static func test(targets: [String] = [],
                      arguments: Arguments? = nil,
-                     config: BuildConfiguration = .debug,
+                     config: PresetBuildConfiguration = .debug,
                      coverage: Bool = true) -> TestAction {
         return TestAction(targets: targets,
                           arguments: arguments,
@@ -114,7 +114,7 @@ extension TestAction {
 }
 
 extension RunAction {
-    static func test(config: BuildConfiguration = .debug,
+    static func test(config: PresetBuildConfiguration = .debug,
                      executable: String? = nil,
                      arguments: Arguments? = nil) -> RunAction {
         return RunAction(config: config,

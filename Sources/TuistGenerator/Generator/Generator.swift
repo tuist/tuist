@@ -66,11 +66,13 @@ public class Generator: Generating {
                                                 system: system,
                                                 fileHandler: fileHandler)
         let workspaceStructureGenerator = WorkspaceStructureGenerator(fileHandler: fileHandler)
+        let cocoapodsInteractor = CocoaPodsInteractor()
         let workspaceGenerator = WorkspaceGenerator(system: system,
                                                     printer: printer,
                                                     projectGenerator: projectGenerator,
                                                     fileHandler: fileHandler,
-                                                    workspaceStructureGenerator: workspaceStructureGenerator)
+                                                    workspaceStructureGenerator: workspaceStructureGenerator,
+                                                    cocoapodsInteractor: cocoapodsInteractor)
         self.init(graphLoader: graphLoader,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator)
