@@ -21,18 +21,18 @@ extension TemplateString: ExpressibleByStringInterpolation {
     public init(stringInterpolation: StringInterpolation) {
         rawString = stringInterpolation.string
     }
-    
+
     public struct StringInterpolation: StringInterpolationProtocol {
         var string: String
-        
+
         public init(literalCapacity _: Int, interpolationCount _: Int) {
             string = String()
         }
-        
+
         public mutating func appendLiteral(_ literal: String) {
             string.append(literal)
         }
-        
+
         public mutating func appendInterpolation(_ token: TemplateString.Token) {
             string.append(token.rawValue)
         }
