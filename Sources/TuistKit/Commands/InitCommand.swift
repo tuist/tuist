@@ -251,7 +251,7 @@ class InitCommand: NSObject, Command {
             // .carthage()
         ])
         """
-        let setupPath = path.appending(component: Manifest.setup.fileName)
+        let setupPath = path.appending(component: ManifestFile.setup.fileName)
         try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
     }
 
@@ -263,7 +263,7 @@ class InitCommand: NSObject, Command {
             .generateManifest
         ])
         """
-        let setupPath = path.appending(component: Manifest.tuistConfig.fileName)
+        let setupPath = path.appending(component: ManifestFile.tuistConfig.fileName)
         try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
     }
 

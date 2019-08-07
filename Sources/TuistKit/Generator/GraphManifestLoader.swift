@@ -7,7 +7,7 @@ import TuistGenerator
 enum GraphManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
-    case manifestNotFound(Manifest?, AbsolutePath)
+    case manifestNotFound(ManifestFile?, AbsolutePath)
 
     static func manifestNotFound(_ path: AbsolutePath) -> GraphManifestLoaderError {
         return .manifestNotFound(nil, path)
@@ -51,26 +51,6 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     }
 }
 
-enum Manifest: CaseIterable {
-    case project
-    case workspace
-    case tuistConfig
-    case setup
-
-    var fileName: String {
-        switch self {
-        case .project:
-            return "Project.swift"
-        case .workspace:
-            return "Workspace.swift"
-        case .tuistConfig:
-            return "TuistConfig.swift"
-        case .setup:
-            return "Setup.swift"
-        }
-    }
-}
-
 protocol GraphManifestLoading {
     /// Loads the TuistConfig.swift in the given directory.
     ///
@@ -82,8 +62,8 @@ protocol GraphManifestLoading {
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
     func loadSetup(at path: AbsolutePath) throws -> [Upping]
-    func manifests(at path: AbsolutePath) -> Set<Manifest>
-    func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath
+    func manifests(at path: AbsolutePath) -> Set<ManifestFile>
+    func manifestPath(at path: AbsolutePath, manifest: ManifestFile) throws -> AbsolutePath
 }
 
 class GraphManifestLoader: GraphManifestLoading {
@@ -112,7 +92,7 @@ class GraphManifestLoader: GraphManifestLoading {
         decoder = JSONDecoder()
     }
 
-    func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
+    func manifestPath(at path: AbsolutePath, manifest: ManifestFile) throws -> AbsolutePath {
         let filePath = path.appending(component: manifest.fileName)
 
         if FileHandler.shared.exists(filePath) {
@@ -162,7 +142,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     // MARK: - Private
 
-    private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
+    private func loadManifest<T: Decodable>(_ manifest: ManifestFile, at path: AbsolutePath) throws -> T {
         let manifestPath = path.appending(component: manifest.fileName)
         guard FileHandler.shared.exists(manifestPath) else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
