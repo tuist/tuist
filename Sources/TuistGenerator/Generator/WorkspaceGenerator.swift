@@ -27,12 +27,14 @@ protocol WorkspaceGenerating: AnyObject {
     ///   - workspace: Workspace model.
     ///   - path: Path to the directory where the generation command is executed from.
     ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration
     /// - Returns: Path to the generated workspace.
     /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath
+                  graph: Graphing,
+                  tuistConfig: TuistConfig) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -42,29 +44,39 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let system: Systeming
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
 
+    /// Instance to generate the projects that compile the manifest files.
+    private let derivedManifestProjectGenerator: DerivedManifestProjectGenerating
+
     // MARK: - Init
 
-    convenience init(system: Systeming = System(),
-                     defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
+    convenience init() {
+        let system = System()
+        let defaultSettingsProvider = DefaultSettingsProvider()
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
+        let derivedManifestProjectGenerator = DerivedManifestProjectGenerator()
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
                                                 system: system)
+        let cocoapodsInteractor = CocoaPodsInteractor()
+
         self.init(system: system,
                   projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  cocoapodsInteractor: cocoapodsInteractor)
+                  cocoapodsInteractor: cocoapodsInteractor,
+                  derivedManifestProjectGenerator: derivedManifestProjectGenerator)
     }
 
     init(system: Systeming,
          projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         cocoapodsInteractor: CocoaPodsInteracting) {
+         cocoapodsInteractor: CocoaPodsInteracting,
+         derivedManifestProjectGenerator: DerivedManifestProjectGenerating) {
         self.system = system
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
+        self.cocoapodsInteractor = cocoapodsInteractor
+        self.derivedManifestProjectGenerator = derivedManifestProjectGenerator
     }
 
     // MARK: - WorkspaceGenerating
@@ -75,29 +87,41 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     ///   - workspace: Workspace model.
     ///   - path: Path to the directory where the generation command is executed from.
     ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration.
     /// - Returns: Path to the generated workspace.
     /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath {
+                  graph: Graphing,
+                  tuistConfig: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
 
         /// Projects
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()
+        var manifestProjectPaths = [AbsolutePath]()
+
         try graph.projects.forEach { project in
             let generatedProject = try projectGenerator.generate(project: project,
                                                                  graph: graph,
                                                                  sourceRootPath: project.path)
+
+            // Manifest project
+            if tuistConfig.generationOptions.contains(.generateManifest) {
+                let manifestProjectPath = try derivedManifestProjectGenerator.generate(project: project,
+                                                                                       sourceRootPath: project.path)
+                manifestProjectPaths.append(manifestProjectPath)
+            }
+
             generatedProjects[project.path] = generatedProject
         }
 
         // Workspace structure
         let structure = workspaceStructureGenerator.generateStructure(path: path,
                                                                       workspace: workspace,
-                                                                      fileHandler: FileHandler.shared)
+                                                                      manifestProjectPaths: manifestProjectPaths)
 
         let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
@@ -209,7 +233,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             return workspaceFileElement(path: folderPath.relative(to: path))
 
         case let .group(name: name, path: groupPath, contents: contents):
-            let location = XCWorkspaceDataElementLocationType.group(groupPath.relative(to: path).pathString)
+            let location: XCWorkspaceDataElementLocationType!
+            if let path = groupPath?.relative(to: path).pathString {
+                location = XCWorkspaceDataElementLocationType.group(path)
+            } else {
+                location = XCWorkspaceDataElementLocationType.group("container:")
+            }
 
             let groupReference = XCWorkspaceDataGroup(
                 location: location,
@@ -217,18 +246,17 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 children: try contents.map {
                     try recursiveChildElement(generatedProjects: generatedProjects,
                                               element: $0,
-                                              path: groupPath)
+                                              path: path)
                 }.sorted(by: workspaceDataElementSort)
             )
 
             return .group(groupReference)
 
         case let .project(path: projectPath):
-            guard let generatedProject = generatedProjects[projectPath] else {
+            if !fileHandler.exists(projectPath) {
                 throw WorkspaceGeneratorError.projectNotFound(path: projectPath)
             }
-            let relativePath = generatedProject.path.relative(to: path)
-            return workspaceFileElement(path: relativePath)
+            return workspaceFileElement(path: projectPath.relative(to: path))
         }
     }
 }

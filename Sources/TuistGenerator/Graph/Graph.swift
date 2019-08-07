@@ -128,8 +128,8 @@ class Graph: Graphing {
 
     init(name: String,
          entryPath: AbsolutePath,
-         cache: GraphLoaderCaching,
-         entryNodes: [GraphNode]) {
+         cache: GraphLoaderCaching = GraphLoaderCache(),
+         entryNodes: [GraphNode] = []) {
         self.name = name
         self.entryPath = entryPath
         self.cache = cache

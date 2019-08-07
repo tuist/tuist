@@ -51,7 +51,7 @@ public class Generator: Generating {
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating
 
-    /// Instance used to install the CocoaPods dependencies.
+    /// Instance to install the CocoaPods dependencies.
     private let cocoapodsInteractor: CocoaPodsInteracting
 
     /// Instance to lint the Tuist configuration against the system.
@@ -68,13 +68,9 @@ public class Generator: Generating {
                                                 configGenerator: configGenerator,
                                                 system: system)
         let environmentLinter = EnvironmentLinter()
-        let workspaceStructureGenerator = WorkspaceStructureGenerator()
         let cocoapodsInteractor = CocoaPodsInteractor()
-
-        let workspaceGenerator = WorkspaceGenerator(system: system,
-                                                    projectGenerator: projectGenerator,
-                                                    workspaceStructureGenerator: workspaceStructureGenerator,
-                                                    cocoapodsInteractor: cocoapodsInteractor)
+        let workspaceGenerator = WorkspaceGenerator()
+        
         self.init(graphLoader: graphLoader,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,
@@ -96,14 +92,19 @@ public class Generator: Generating {
 
     public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
+
+        // Environment linting
         try environmentLinter.lint(config: tuistConfig)
 
+        // Load project
         let (graph, project) = try graphLoader.loadProject(path: path)
 
+        // Generate
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
                                                              sourceRootPath: path)
 
+        // Post-generation tasks
         try cocoapodsInteractor.install(graph: graph)
 
         return generatedProject.path
@@ -112,17 +113,25 @@ public class Generator: Generating {
     public func generateProjectWorkspace(at path: AbsolutePath,
                                          workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
+
+        // Environment linting
         try environmentLinter.lint(config: tuistConfig)
 
+        // Project loading
         let (graph, project) = try graphLoader.loadProject(path: path)
+
+        // Workspace generation
+
         let workspace = Workspace(name: project.name,
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
 
         let workspacePath = try workspaceGenerator.generate(workspace: workspace,
                                                             path: path,
-                                                            graph: graph)
+                                                            graph: graph,
+                                                            tuistConfig: tuistConfig)
 
+        // Post-generation tasks
         try cocoapodsInteractor.install(graph: graph)
 
         return workspacePath
@@ -131,16 +140,24 @@ public class Generator: Generating {
     public func generateWorkspace(at path: AbsolutePath,
                                   workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
+
+        // Environment linting
         try environmentLinter.lint(config: tuistConfig)
+
+        // Workspace loading
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
 
         let updatedWorkspace = workspace
             .merging(projects: graph.projectPaths)
             .adding(files: workspaceFiles)
 
+        // Workspace generation
         let workspacePath = try workspaceGenerator.generate(workspace: updatedWorkspace,
                                                             path: path,
-                                                            graph: graph)
+                                                            graph: graph,
+                                                            tuistConfig: tuistConfig)
+
+        // Post-generation tasks
         try cocoapodsInteractor.install(graph: graph)
 
         return workspacePath
