@@ -6,7 +6,7 @@ public struct Xcode {
     public struct InfoPlist: Codable {
         /// App version number (e.g. 10.3)
         public let version: String
-        
+
         /// Initializes the InfoPlist object with its attributes.
         ///
         /// - Parameter version: Version.
@@ -44,7 +44,7 @@ public struct Xcode {
     /// - Parameters:
     ///     - path: Path to the Xcode app bundle.
     public init(path: AbsolutePath,
-         infoPlist: InfoPlist) {
+                infoPlist: InfoPlist) {
         self.path = path
         self.infoPlist = infoPlist
     }
