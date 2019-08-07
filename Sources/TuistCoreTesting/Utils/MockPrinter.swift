@@ -17,8 +17,17 @@ public final class MockPrinter: Printing {
     public var printDeprecationArgs: [String] = []
 
     public func print(_ text: String) {
+        print(text, output: .standardOputput)
+    }
+
+    public func print(_ text: String, output: PrinterOutput) {
         printArgs.append(text)
-        standardOutput.append(text)
+
+        if output == .standardOputput {
+            standardOutput.append("\(text)\n")
+        } else {
+            standardError.append("\(text)\n")
+        }
     }
 
     public func print(_ text: String, color: TerminalController.Color) {

@@ -209,3 +209,7 @@ Note: to re-create `Framework2.framework` run `fixtures/ios_app_with_transitive_
 ## ios_app_with_pods
 
 An iOS application with CocoaPods dependencies
+
+## ios_app_with_incompatible_xcode
+
+An iOS app whose TuistConfig file requires an Xcode version that is not available in the system.

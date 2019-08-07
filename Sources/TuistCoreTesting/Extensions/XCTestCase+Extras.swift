@@ -119,4 +119,8 @@ public extension XCTestCase {
             XCTFail("Failed comparing the subject to the given JSON. Has the JSON the right format?")
         }
     }
+
+    func XCTEmpty<S>(_ array: [S], file: StaticString = #file, line: UInt = #line) {
+        XCTAssertTrue(array.isEmpty, "Expected array to be empty but it's not. It contains the following elements: \(array)", file: file, line: line)
+    }
 }

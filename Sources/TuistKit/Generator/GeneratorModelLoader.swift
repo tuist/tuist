@@ -150,7 +150,10 @@ extension TuistGenerator.TuistConfig {
     static func from(manifest: ProjectDescription.TuistConfig,
                      path: AbsolutePath) throws -> TuistGenerator.TuistConfig {
         let generationOptions = try manifest.generationOptions.map { try TuistGenerator.TuistConfig.GenerationOption.from(manifest: $0, path: path) }
-        return TuistGenerator.TuistConfig(generationOptions: generationOptions)
+        let compatibleXcodeVersions = TuistGenerator.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
+
+        return TuistGenerator.TuistConfig(compatibleXcodeVersions: compatibleXcodeVersions,
+                                          generationOptions: generationOptions)
     }
 }
 
@@ -162,6 +165,17 @@ extension TuistGenerator.TuistConfig.GenerationOption {
             return .generateManifest
         case let .xcodeProjectName(templateString):
             return .xcodeProjectName(templateString.description)
+        }
+    }
+}
+
+extension TuistGenerator.CompatibleXcodeVersions {
+    static func from(manifest: ProjectDescription.CompatibleXcodeVersions) -> TuistGenerator.CompatibleXcodeVersions {
+        switch manifest {
+        case .all:
+            return .all
+        case let .list(versions):
+            return .list(versions)
         }
     }
 }

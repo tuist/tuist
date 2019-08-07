@@ -15,16 +15,23 @@ public class TuistConfig: Equatable, Hashable {
     /// Generation options.
     public let generationOptions: [GenerationOption]
 
+    /// List of Xcode versions the project or set of projects is compatible with.
+    public let compatibleXcodeVersions: CompatibleXcodeVersions
+
     /// Returns the default Tuist configuration.
     public static var `default`: TuistConfig {
-        return TuistConfig(generationOptions: [.generateManifest])
+        return TuistConfig(compatibleXcodeVersions: .all,
+                           generationOptions: [.generateManifest])
     }
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
+    ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - generationOptions: Generation options.
-    public init(generationOptions: [GenerationOption]) {
+    public init(compatibleXcodeVersions: CompatibleXcodeVersions,
+                generationOptions: [GenerationOption]) {
+        self.compatibleXcodeVersions = compatibleXcodeVersions
         self.generationOptions = generationOptions
     }
 

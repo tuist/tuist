@@ -120,11 +120,13 @@ final class SetupLoaderTests: XCTestCase {
         let expectedOutput = """
         The following issues have been found:
           - mockup2 warning
+        """
+        let expectedError = """
         The following critical issues have been found:
           - mockup1 error
           - mockup3 error
         """
-        XCTAssertEqual(printer.standardOutput, expectedOutput)
-        XCTAssertEqual(printer.standardError, "")
+        XCTAssertTrue(printer.standardOutput.contains(expectedOutput))
+        XCTAssertTrue(printer.standardError.contains(expectedError))
     }
 }

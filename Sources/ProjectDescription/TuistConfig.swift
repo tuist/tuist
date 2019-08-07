@@ -14,11 +14,18 @@ public class TuistConfig: Encodable, Decodable, Equatable {
     /// Generation options.
     public let generationOptions: [GenerationOptions]
 
+    /// List of Xcode versions that the project supports.
+    public let compatibleXcodeVersions: CompatibleXcodeVersions
+
     /// Initializes the tuist cofiguration.
     ///
-    /// - Parameter generationOptions: Generation options.
-    public init(generationOptions: [GenerationOptions]) {
+    /// - Parameters:
+    ///   - compatibleXcodeVersions: .
+    ///   - generationOptions: List of Xcode versions that the project supports. An empty list means that
+    public init(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+                generationOptions: [GenerationOptions]) {
         self.generationOptions = generationOptions
+        self.compatibleXcodeVersions = compatibleXcodeVersions
         dumpIfNeeded(self)
     }
 }
