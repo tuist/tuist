@@ -9,7 +9,6 @@ final class WorkspaceGeneratorTests: XCTestCase {
     var subject: WorkspaceGenerator!
     var path: AbsolutePath!
     var fileHandler: MockFileHandler!
-    var cocoapodsInteractor: MockCocoaPodsInteractor!
 
     override func setUp() {
         super.setUp()
@@ -48,8 +47,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // When
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
-                                                 graph: graph,
-                                                 tuistConfig: .test())
+                                                 graph: graph)
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
@@ -75,8 +73,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         XCTAssertNoThrow(
             try subject.generate(workspace: workspace,
                                  path: path,
-                                 graph: graph,
-                                 tuistConfig: .test())
+                                 graph: graph)
         )
     }
 
@@ -94,8 +91,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // When
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
-                                                 graph: graph,
-                                                 tuistConfig: .test())
+                                                 graph: graph)
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
@@ -118,11 +114,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // When
         _ = try subject.generate(workspace: workspace,
                                  path: path,
-                                 graph: graph,
-                                 tuistConfig: .test())
-
-        // Then
-        XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
+                                 graph: graph)
     }
 
     // MARK: - Helpers

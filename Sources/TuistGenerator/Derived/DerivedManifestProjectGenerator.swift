@@ -1,21 +1,13 @@
-import Foundation
 import Basic
+import Foundation
 
-protocol DerivedManifestProjectGenerating {
-    
-}
+protocol DerivedManifestProjectGenerating {}
 
 final class DerivedManifestProjectGenerator: DerivedManifestProjectGenerating {
-    
-    func generate(project: Project, sourceRootPath: AbsolutePath) {
-        
-    }
-    
-    
+    func generate(project _: Project, sourceRootPath _: AbsolutePath) {}
 }
 
-
-//class ManifestTargetGenerator: ManifestTargetGenerating {
+// class ManifestTargetGenerator: ManifestTargetGenerating {
 //    private let manifestLoader: GraphManifestLoading
 //    private let resourceLocator: ResourceLocating
 //
@@ -51,4 +43,4 @@ final class DerivedManifestProjectGenerator: DerivedManifestProjectGenerating {
 //        buildSettings["SWIFT_VERSION"] = Constants.swiftVersion
 //        return buildSettings
 //    }
-//}
+// }

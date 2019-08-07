@@ -99,7 +99,6 @@ class GeneratorModelLoader: GeneratorModelLoading {
                           with config: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
         var enrichedModel = model
 
-
         // Xcode project file name
         let xcodeFileName = xcodeFileNameOverride(from: config, for: model)
         enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)

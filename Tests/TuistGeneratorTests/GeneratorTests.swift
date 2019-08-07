@@ -8,6 +8,7 @@ class GeneratorTests: XCTestCase {
     var projectGenerator: MockProjectGenerator!
     var graphLoader: MockGraphLoader!
     var environmentLinter: MockEnvironmentLinter!
+    var cocoapodsInteractor: MockCocoaPodsInteractor!
     var subject: Generator!
 
     override func setUp() {
@@ -15,11 +16,13 @@ class GeneratorTests: XCTestCase {
         workspaceGenerator = MockWorkspaceGenerator()
         projectGenerator = MockProjectGenerator()
         environmentLinter = MockEnvironmentLinter()
+        cocoapodsInteractor = MockCocoaPodsInteractor()
 
         subject = Generator(graphLoader: graphLoader,
                             workspaceGenerator: workspaceGenerator,
                             projectGenerator: projectGenerator,
-                            environmentLinter: environmentLinter)
+                            environmentLinter: environmentLinter,
+                            cocoapodsInteractor: cocoapodsInteractor)
     }
 
     // MARK: - Tests
@@ -51,6 +54,19 @@ class GeneratorTests: XCTestCase {
             "/path/to/B",
             "/path/to/C",
         ]))
+    }
+
+    func test_generateWorkspace_runsPodInstall() throws {
+        // Given
+        let workpsace = Workspace.test(projects: ["/path/to/A"])
+        let graph = createGraph(with: [Project.test(path: "/path/to/A")])
+        graphLoader.loadWorkspaceStub = { _ in (graph, workpsace) }
+
+        // When
+        _ = try subject.generateWorkspace(at: "/path/to", workspaceFiles: [])
+
+        // Then
+        XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
     }
 
     func test_generateProjectWorkspace_workspaceIncludesDependencies() throws {
@@ -162,6 +178,19 @@ class GeneratorTests: XCTestCase {
         XCTAssertEqual(projectPaths, [
             "/path/to/A",
         ])
+    }
+
+    func test_generateProject_runsPodInstall() throws {
+        // Given
+        let project = Project.test(path: "/path/to/A")
+        let graph = createGraph(with: [Project.test(path: "/path/to/A")])
+        graphLoader.loadProjectStub = { _ in (graph, project) }
+
+        // When
+        _ = try subject.generateProject(at: "/path/to")
+
+        // Then
+        XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
     }
 
     // MARK: - Helpers

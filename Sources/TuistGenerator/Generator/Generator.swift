@@ -51,6 +51,9 @@ public class Generator: Generating {
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating
 
+    /// Instance used to install the CocoaPods dependencies.
+    private let cocoapodsInteractor: CocoaPodsInteracting
+
     /// Instance to lint the Tuist configuration against the system.
     private let environmentLinter: EnvironmentLinting
 
@@ -67,6 +70,7 @@ public class Generator: Generating {
         let environmentLinter = EnvironmentLinter()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
         let cocoapodsInteractor = CocoaPodsInteractor()
+
         let workspaceGenerator = WorkspaceGenerator(system: system,
                                                     projectGenerator: projectGenerator,
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
@@ -74,17 +78,20 @@ public class Generator: Generating {
         self.init(graphLoader: graphLoader,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,
-                  environmentLinter: environmentLinter)
+                  environmentLinter: environmentLinter,
+                  cocoapodsInteractor: cocoapodsInteractor)
     }
 
     init(graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
          projectGenerator: ProjectGenerating,
-         environmentLinter: EnvironmentLinting) {
+         environmentLinter: EnvironmentLinting,
+         cocoapodsInteractor: CocoaPodsInteracting) {
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
         self.projectGenerator = projectGenerator
         self.environmentLinter = environmentLinter
+        self.cocoapodsInteractor = cocoapodsInteractor
     }
 
     public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
@@ -92,9 +99,13 @@ public class Generator: Generating {
         try environmentLinter.lint(config: tuistConfig)
 
         let (graph, project) = try graphLoader.loadProject(path: path)
+
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
                                                              sourceRootPath: path)
+
+        try cocoapodsInteractor.install(graph: graph)
+
         return generatedProject.path
     }
 
@@ -108,10 +119,13 @@ public class Generator: Generating {
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
 
-        return try workspaceGenerator.generate(workspace: workspace,
-                                               path: path,
-                                               graph: graph,
-                                               tuistConfig: tuistConfig)
+        let workspacePath = try workspaceGenerator.generate(workspace: workspace,
+                                                            path: path,
+                                                            graph: graph)
+
+        try cocoapodsInteractor.install(graph: graph)
+
+        return workspacePath
     }
 
     public func generateWorkspace(at path: AbsolutePath,
@@ -124,9 +138,11 @@ public class Generator: Generating {
             .merging(projects: graph.projectPaths)
             .adding(files: workspaceFiles)
 
-        return try workspaceGenerator.generate(workspace: updatedWorkspace,
-                                               path: path,
-                                               graph: graph,
-                                               tuistConfig: tuistConfig)
+        let workspacePath = try workspaceGenerator.generate(workspace: updatedWorkspace,
+                                                            path: path,
+                                                            graph: graph)
+        try cocoapodsInteractor.install(graph: graph)
+
+        return workspacePath
     }
 }

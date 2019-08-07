@@ -5,13 +5,12 @@ import TuistCore
 
 final class MockWorkspaceGenerator: WorkspaceGenerating {
     var generateWorkspaces: [Workspace] = []
-    var generateStub: ((Workspace, AbsolutePath, Graphing, TuistConfig) throws -> AbsolutePath)?
+    var generateStub: ((Workspace, AbsolutePath, Graphing) throws -> AbsolutePath)?
 
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing,
-                  tuistConfig: TuistConfig) throws -> AbsolutePath {
+                  graph: Graphing) throws -> AbsolutePath {
         generateWorkspaces.append(workspace)
-        return (try generateStub?(workspace, path, graph, tuistConfig)) ?? AbsolutePath("/test")
+        return (try generateStub?(workspace, path, graph)) ?? AbsolutePath("/test")
     }
 }
