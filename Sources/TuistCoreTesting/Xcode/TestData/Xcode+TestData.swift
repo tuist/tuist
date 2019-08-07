@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-@testable import TuistCore
+import TuistCore
 
 extension Xcode {
     static func test(path: AbsolutePath = AbsolutePath("/Applications/Xcode.app"),

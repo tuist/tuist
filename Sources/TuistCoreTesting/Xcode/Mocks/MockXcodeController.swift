@@ -1,6 +1,6 @@
 import Foundation
 
-@testable import TuistCore
+import TuistCore
 
 final class MockXcodeController: XcodeControlling {
     var selectedStub: Result<Xcode, Error>?
