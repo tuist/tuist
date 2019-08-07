@@ -52,7 +52,7 @@ public class Generator: Generating {
     private let projectGenerator: ProjectGenerating
 
     /// Instance to lint the Tuist configuration against the system.
-    private let tuistConfigLinter: TuistConfigLinting
+    private let environmentLinter: EnvironmentLinting
 
     public convenience init(system: Systeming = System(),
                             printer: Printing = Printer(),
@@ -68,7 +68,7 @@ public class Generator: Generating {
                                                 printer: printer,
                                                 system: system,
                                                 fileHandler: fileHandler)
-        let tuistConfigLinter = TuistConfigLinter()
+        let environmentLinter = EnvironmentLinter()
         let workspaceStructureGenerator = WorkspaceStructureGenerator(fileHandler: fileHandler)
         let cocoapodsInteractor = CocoaPodsInteractor()
         let workspaceGenerator = WorkspaceGenerator(system: system,
@@ -80,22 +80,22 @@ public class Generator: Generating {
         self.init(graphLoader: graphLoader,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,
-                  tuistConfigLinter: tuistConfigLinter)
+                  environmentLinter: environmentLinter)
     }
 
     init(graphLoader: GraphLoading,
          workspaceGenerator: WorkspaceGenerating,
          projectGenerator: ProjectGenerating,
-         tuistConfigLinter: TuistConfigLinting) {
+         environmentLinter: EnvironmentLinting) {
         self.graphLoader = graphLoader
         self.workspaceGenerator = workspaceGenerator
         self.projectGenerator = projectGenerator
-        self.tuistConfigLinter = tuistConfigLinter
+        self.environmentLinter = environmentLinter
     }
 
     public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-        try tuistConfigLinter.lint(config: tuistConfig)
+        try environmentLinter.lint(config: tuistConfig)
 
         let (graph, project) = try graphLoader.loadProject(path: path)
         let generatedProject = try projectGenerator.generate(project: project,
@@ -107,7 +107,7 @@ public class Generator: Generating {
     public func generateProjectWorkspace(at path: AbsolutePath,
                                          workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-        try tuistConfigLinter.lint(config: tuistConfig)
+        try environmentLinter.lint(config: tuistConfig)
 
         let (graph, project) = try graphLoader.loadProject(path: path)
         let workspace = Workspace(name: project.name,
@@ -123,7 +123,7 @@ public class Generator: Generating {
     public func generateWorkspace(at path: AbsolutePath,
                                   workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-        try tuistConfigLinter.lint(config: tuistConfig)
+        try environmentLinter.lint(config: tuistConfig)
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
 
         let updatedWorkspace = workspace

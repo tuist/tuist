@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
 
-protocol TuistConfigLinting {
+protocol EnvironmentLinting {
     /// Lints a given Tuist configuration.
     ///
     /// - Parameter config: Tuist configuration to be linted against the system.
@@ -9,7 +9,7 @@ protocol TuistConfigLinting {
     func lint(config: TuistConfig) throws
 }
 
-class TuistConfigLinter: TuistConfigLinting {
+class EnvironmentLinter: EnvironmentLinting {
     /// Xcode controller.
     let xcodeController: XcodeControlling
 

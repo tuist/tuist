@@ -2,7 +2,7 @@ import Foundation
 
 @testable import TuistGenerator
 
-final class MockTuistConfigLinter: TuistConfigLinting {
+final class MockEnvironmentLinter: EnvironmentLinting {
     var lintStub: Error?
     var lintArgs: [TuistConfig] = []
 
