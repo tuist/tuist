@@ -23,7 +23,7 @@ public class TuistConfig: Encodable, Decodable, Equatable {
     ///   - compatibleXcodeVersions: .
     ///   - generationOptions: List of Xcode versions that the project supports. An empty list means that
     public init(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-                generationOptions: [GenerationOption]) {
+                generationOptions: [GenerationOptions]) {
         self.generationOptions = generationOptions
         self.compatibleXcodeVersions = compatibleXcodeVersions
         dumpIfNeeded(self)

@@ -94,6 +94,9 @@ public class Generator: Generating {
     }
 
     public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
+        let tuistConfig = try graphLoader.loadTuistConfig(path: path)
+        try tuistConfigLinter.lint(config: tuistConfig)
+
         let (graph, project) = try graphLoader.loadProject(path: path)
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
@@ -104,10 +107,9 @@ public class Generator: Generating {
     public func generateProjectWorkspace(at path: AbsolutePath,
                                          workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-        let (graph, project) = try graphLoader.loadProject(path: path)
-
         try tuistConfigLinter.lint(config: tuistConfig)
 
+        let (graph, project) = try graphLoader.loadProject(path: path)
         let workspace = Workspace(name: project.name,
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
@@ -120,9 +122,9 @@ public class Generator: Generating {
 
     public func generateWorkspace(at path: AbsolutePath,
                                   workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
-        let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
         try tuistConfigLinter.lint(config: tuistConfig)
+        let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
 
         let updatedWorkspace = workspace
             .merging(projects: graph.projectPaths)

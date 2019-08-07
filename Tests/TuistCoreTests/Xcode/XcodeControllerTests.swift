@@ -32,11 +32,12 @@ final class XcodeControllerTests: XCTestCase {
         let contentsPath = fileHandler.currentPath.appending(component: "Contents")
         try fileHandler.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
+        let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
         let infoPlistData = try PropertyListEncoder().encode(infoPlist)
         try infoPlistData.write(to: infoPlistPath.url)
 
-        system.succeedCommand(["xcode-select", "-p"], output: infoPlistPath.pathString)
+        system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
 
         // When
         let xcode = try subject.selected()

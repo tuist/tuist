@@ -35,7 +35,7 @@ public class Printer: Printing {
     }
 
     public func print(_ text: String, output: PrinterOutput) {
-        var writer: InteractiveWriter!
+        let writer: InteractiveWriter!
         if output == .standardOputput {
             writer = .stdout
         } else {

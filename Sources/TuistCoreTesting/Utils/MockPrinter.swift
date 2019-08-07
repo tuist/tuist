@@ -24,9 +24,9 @@ public final class MockPrinter: Printing {
         printArgs.append(text)
 
         if output == .standardOputput {
-            standardOutput.append(text)
+            standardOutput.append("\(text)\n")
         } else {
-            standardError.append(text)
+            standardError.append("\(text)\n")
         }
     }
 

@@ -25,13 +25,14 @@ final class LintingIssueTests: XCTestCase {
 
         XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded(printer: printer))
 
-        XCTAssertEqual(printer.printWithColorArgs.first?.0, "The following issues have been found:")
-        XCTAssertEqual(printer.printWithColorArgs.first?.1, .yellow)
-        XCTAssertEqual(printer.printArgs.first, "  - warning")
-
-        XCTAssertEqual(printer.printWithColorArgs.last?.0, "\nThe following critical issues have been found:")
-        XCTAssertEqual(printer.printWithColorArgs.last?.1, .red)
-        XCTAssertEqual(printer.printArgs.last, "  - error")
+        XCTAssertTrue(printer.standardOutput.contains("""
+        The following issues have been found:
+          - warning
+        """))
+        XCTAssertTrue(printer.standardError.contains("""
+        The following critical issues have been found:
+          - error
+        """))
     }
 
     func test_printAndThrowIfNeeded_whenErrorsOnly() throws {
@@ -40,8 +41,9 @@ final class LintingIssueTests: XCTestCase {
 
         XCTAssertThrowsError(try [first].printAndThrowIfNeeded(printer: printer))
 
-        XCTAssertEqual(printer.printWithColorArgs.last?.0, "The following critical issues have been found:")
-        XCTAssertEqual(printer.printWithColorArgs.last?.1, .red)
-        XCTAssertEqual(printer.printArgs.last, "  - error")
+        XCTAssertTrue(printer.standardError.contains("""
+        The following critical issues have been found:
+          - error
+        """))
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Enum that represents all the Xcode versions that a project or set of projects is compatible with.
-public enum CompatibleXcodeVersions: Equatable, Hashable {
+public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLiteral {
     /// The project supports all Xcode versions.
     case all
 
