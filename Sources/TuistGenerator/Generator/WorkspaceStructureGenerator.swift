@@ -124,7 +124,7 @@ private class DirectoryStructure {
 
         // Manifest projects
         let manifestProjectNodes = Graph(nodes: manifestProjectPaths.map(projectNode))
-        let manifestNode = Node.group(name: "Manifests", graph: manifestProjectNodes)
+        let manifestNode = Node.group(name: "Projects", graph: manifestProjectNodes)
         root.add(manifestNode)
 
         return root

@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import ProjectDescription
 import TuistCore
+import TuistGenerator
 
 enum GraphManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
