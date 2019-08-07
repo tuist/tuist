@@ -28,15 +28,12 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
 
 class GeneratorModelLoader: GeneratorModelLoading {
     private let manifestLoader: GraphManifestLoading
-    private let manifestTargetGenerator: ManifestTargetGenerating?
     private let manifestLinter: ManifestLinting
 
     init(manifestLoader: GraphManifestLoading,
-         manifestLinter: ManifestLinting,
-         manifestTargetGenerator: ManifestTargetGenerating? = nil) {
+         manifestLinter: ManifestLinting) {
         self.manifestLoader = manifestLoader
         self.manifestLinter = manifestLinter
-        self.manifestTargetGenerator = manifestTargetGenerator
     }
 
     /// Load a Project model at the specified path
@@ -102,12 +99,6 @@ class GeneratorModelLoader: GeneratorModelLoading {
                           with config: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
         var enrichedModel = model
 
-        // Manifest target
-        if let manifestTargetGenerator = manifestTargetGenerator, config.generationOptions.contains(.generateManifest) {
-            let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: enrichedModel.name,
-                                                                                    at: enrichedModel.path)
-            enrichedModel = enrichedModel.adding(target: manifestTarget)
-        }
 
         // Xcode project file name
         let xcodeFileName = xcodeFileNameOverride(from: config, for: model)

@@ -36,12 +36,11 @@ class FocusCommand: NSObject, Command {
         let manifestLoader = GraphManifestLoader(system: system,
                                                  resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
-        let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
-                                                              resourceLocator: resourceLocator)
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                               manifestLinter: manifestLinter,
-                                               manifestTargetGenerator: manifestTargetGenerator)
-        let generator = Generator(modelLoader: modelLoader)
+                                               manifestLinter: manifestLinter)
+        let generator = Generator(system: system,
+                                  printer: printer,
+                                  modelLoader: modelLoader)
         self.init(parser: parser,
                   generator: generator,
                   manifestLoader: manifestLoader,

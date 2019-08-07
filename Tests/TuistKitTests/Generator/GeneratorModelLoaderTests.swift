@@ -20,7 +20,6 @@ class GeneratorModelLoaderTest: XCTestCase {
     typealias RunActionManifest = ProjectDescription.RunAction
     typealias ArgumentsManifest = ProjectDescription.Arguments
 
-    private var manifestTargetGenerator: MockManifestTargetGenerator!
     private var manifestLinter: MockManifestLinter!
 
     private var fileHandler: MockFileHandler!
@@ -33,7 +32,6 @@ class GeneratorModelLoaderTest: XCTestCase {
         mockEnvironment()
         fileHandler = sharedMockFileHandler()
 
-        manifestTargetGenerator = MockManifestTargetGenerator()
         manifestLinter = MockManifestLinter()
     }
 
@@ -56,7 +54,6 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeProject")
-        XCTAssertEqual(model.targets.map { $0.name }, ["SomeProject-Manifest"])
     }
 
     func test_loadProject_withTargets() throws {
@@ -78,10 +75,9 @@ class GeneratorModelLoaderTest: XCTestCase {
         let model = try subject.loadProject(at: path)
 
         // Then
-        XCTAssertEqual(model.targets.count, 3)
+        XCTAssertEqual(model.targets.count, 2)
         assert(target: model.targets[0], matches: targetA, at: path)
         assert(target: model.targets[1], matches: targetB, at: path)
-        XCTAssertEqual(model.targets[2].name, "Project-Manifest")
     }
 
     func test_loadProject_withManifestTargetOptionDisabled() throws {
@@ -178,8 +174,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                           manifestLinter: manifestLinter,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+                                           manifestLinter: manifestLinter)
 
         // When
         let model = try subject.loadProject(at: path)
@@ -206,8 +201,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                           manifestLinter: manifestLinter,
-                                           manifestTargetGenerator: manifestTargetGenerator)
+                                           manifestLinter: manifestLinter)
 
         // When
         let model = try subject.loadProject(at: path)
@@ -632,8 +626,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func createGeneratorModelLoader(with manifestLoader: GraphManifestLoading) -> GeneratorModelLoader {
         return GeneratorModelLoader(manifestLoader: manifestLoader,
-                                    manifestLinter: manifestLinter,
-                                    manifestTargetGenerator: manifestTargetGenerator)
+                                    manifestLinter: manifestLinter)
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
