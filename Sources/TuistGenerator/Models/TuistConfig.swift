@@ -7,8 +7,9 @@ public class TuistConfig: Equatable, Hashable {
     /// Contains options related to the project generation.
     ///
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
-    public enum GenerationOption: String, Codable, Equatable, Hashable {
+    public enum GenerationOption: Hashable, Equatable {
         case generateManifest
+        case xcodeProjectName(String)
     }
 
     /// Generation options.
@@ -47,5 +48,15 @@ public class TuistConfig: Equatable, Hashable {
 
     public static func == (lhs: TuistConfig, rhs: TuistConfig) -> Bool {
         return lhs.generationOptions == rhs.generationOptions
+    }
+}
+
+public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
+    switch (lhs, rhs) {
+    case (.generateManifest, .generateManifest):
+        return true
+    case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
+        return lhs == rhs
+    default: return false
     }
 }

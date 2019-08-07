@@ -87,7 +87,8 @@ final class ProjectGenerator: ProjectGenerating {
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path
-        let xcodeprojPath = sourceRootPath.appending(component: "\(project.name).xcodeproj")
+
+        let xcodeprojPath = sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
 
         // Derived files
         let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)

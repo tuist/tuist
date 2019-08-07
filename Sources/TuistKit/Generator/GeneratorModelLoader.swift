@@ -53,6 +53,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     func loadProject(at path: AbsolutePath) throws -> TuistGenerator.Project {
         let manifest = try manifestLoader.loadProject(at: path)
+        let tuistConfig = try loadTuistConfig(at: path)
 
         try manifestLinter.lint(project: manifest)
             .printAndThrowIfNeeded(printer: printer)
@@ -60,17 +61,10 @@ class GeneratorModelLoader: GeneratorModelLoading {
         let project = try TuistGenerator.Project.from(manifest: manifest,
                                                       path: path,
                                                       fileHandler: fileHandler,
-                                                      printer: printer)
-        let tuistConfig = try loadTuistConfig(at: path)
+                                                      printer: printer,
+                                                      tuistConfig: tuistConfig)
 
-        if let manifestTargetGenerator = manifestTargetGenerator, tuistConfig.generationOptions.contains(.generateManifest) {
-            let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: project.name,
-                                                                                    at: path)
-            return project.adding(target: manifestTarget)
-
-        } else {
-            return project
-        }
+        return try enriched(model: project, with: tuistConfig)
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> TuistGenerator.Workspace {
@@ -114,6 +108,42 @@ class GeneratorModelLoader: GeneratorModelLoading {
             return locateDirectoryTraversingParents(from: from.parentDirectory, path: path, fileHandler: fileHandler)
         }
     }
+
+    private func enriched(model: TuistGenerator.Project,
+                          with config: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
+        var enrichedModel = model
+
+        // Manifest target
+        if let manifestTargetGenerator = manifestTargetGenerator, config.generationOptions.contains(.generateManifest) {
+            let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: enrichedModel.name,
+                                                                                    at: enrichedModel.path)
+            enrichedModel = enrichedModel.adding(target: manifestTarget)
+        }
+
+        // Xcode project file name
+        let xcodeFileName = xcodeFileNameOverride(from: config, for: model)
+        enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)
+
+        return enrichedModel
+    }
+
+    private func xcodeFileNameOverride(from config: TuistGenerator.TuistConfig,
+                                       for model: TuistGenerator.Project) -> String? {
+        var xcodeFileName = config.generationOptions.compactMap { item -> String? in
+            switch item {
+            case let .xcodeProjectName(projectName):
+                return projectName.description
+            default:
+                return nil
+            }
+        }.first
+
+        let projectNameTemplate = TemplateString.Token.projectName.rawValue
+        xcodeFileName = xcodeFileName?.replacingOccurrences(of: projectNameTemplate,
+                                                            with: model.name)
+
+        return xcodeFileName
+    }
 }
 
 extension TuistGenerator.TuistConfig {
@@ -125,11 +155,13 @@ extension TuistGenerator.TuistConfig {
 }
 
 extension TuistGenerator.TuistConfig.GenerationOption {
-    static func from(manifest: ProjectDescription.TuistConfig.GenerationOption,
+    static func from(manifest: ProjectDescription.TuistConfig.GenerationOptions,
                      path _: AbsolutePath) throws -> TuistGenerator.TuistConfig.GenerationOption {
         switch manifest {
         case .generateManifest:
             return .generateManifest
+        case let .xcodeProjectName(templateString):
+            return .xcodeProjectName(templateString.description)
         }
     }
 }
@@ -218,7 +250,8 @@ extension TuistGenerator.Project {
     static func from(manifest: ProjectDescription.Project,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
-                     printer: Printing) throws -> TuistGenerator.Project {
+                     printer: Printing,
+                     tuistConfig _: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
         let name = manifest.name
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
         let targets = try manifest.targets.map {
@@ -249,9 +282,21 @@ extension TuistGenerator.Project {
     func adding(target: TuistGenerator.Target) -> TuistGenerator.Project {
         return Project(path: path,
                        name: name,
+                       fileName: fileName,
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets + [target],
+                       schemes: schemes,
+                       additionalFiles: additionalFiles)
+    }
+
+    func replacing(fileName: String?) -> TuistGenerator.Project {
+        return Project(path: path,
+                       name: name,
+                       fileName: fileName,
+                       settings: settings,
+                       filesGroup: filesGroup,
+                       targets: targets,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
     }

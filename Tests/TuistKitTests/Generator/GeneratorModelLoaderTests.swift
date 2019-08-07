@@ -165,6 +165,63 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
     }
 
+    func test_loadProject_withCustomName() throws {
+        // Given
+        try fileHandler.createFiles([
+            "TuistConfig.swift",
+        ])
+
+        let manifests = [
+            path: ProjectManifest.test(name: "SomeProject",
+                                       additionalFiles: [
+                                           .folderReference(path: "Stubs"),
+                                       ]),
+        ]
+        let configs = [
+            path: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two")]),
+        ]
+        let manifestLoader = createManifestLoader(with: manifests, configs: configs)
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
+                                           manifestLoader: manifestLoader,
+                                           manifestLinter: manifestLinter,
+                                           manifestTargetGenerator: manifestTargetGenerator)
+
+        // When
+        let model = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(model.fileName, "one SomeProject two")
+    }
+
+    func test_loadProject_withCustomNameDuplicates() throws {
+        // Given
+        try fileHandler.createFiles([
+            "TuistConfig.swift",
+        ])
+
+        let manifests = [
+            path: ProjectManifest.test(name: "SomeProject",
+                                       additionalFiles: [
+                                           .folderReference(path: "Stubs"),
+                                       ]),
+        ]
+        let configs = [
+            path: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
+                                                                          .xcodeProjectName("two \(.projectName) three")]),
+        ]
+        let manifestLoader = createManifestLoader(with: manifests, configs: configs)
+        let subject = GeneratorModelLoader(fileHandler: fileHandler,
+                                           manifestLoader: manifestLoader,
+                                           manifestLinter: manifestLinter,
+                                           manifestTargetGenerator: manifestTargetGenerator)
+
+        // When
+        let model = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(model.fileName, "one SomeProject two")
+    }
+
     func test_loadWorkspace() throws {
         // Given
         let manifests = [

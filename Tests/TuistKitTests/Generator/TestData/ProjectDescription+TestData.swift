@@ -2,7 +2,7 @@ import Foundation
 @testable import ProjectDescription
 
 extension TuistConfig {
-    static func test(generationOptions: [TuistConfig.GenerationOption] = []) -> TuistConfig {
+    static func test(generationOptions: [TuistConfig.GenerationOptions] = []) -> TuistConfig {
         return TuistConfig(generationOptions: generationOptions)
     }
 }

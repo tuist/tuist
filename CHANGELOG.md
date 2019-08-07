@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Allow specifying multiple configurations within project manifests https://github.com/tuist/tuist/pull/451 by @kwridan
 - Add linting for mismatching build configurations in a workspace https://github.com/tuist/tuist/pull/474 by @kwridan
 - Support for CocoaPods dependencies https://github.com/tuist/tuist/pull/465 by @pepibumur
+- Support custom .xcodeproj name at the model level https://github.com/tuist/tuist/pull/462 by @adamkhazi
 
 ### Fixed
 

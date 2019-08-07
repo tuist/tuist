@@ -139,4 +139,29 @@ final class ProjectGeneratorTests: XCTestCase {
 
         }, "Test target is missing from target attributes.")
     }
+
+    func test_generate_testUsingFileName() throws {
+        // Given
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Project",
+                                   fileName: "SomeAwesomeName",
+                                   targets: [])
+        try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
+        let target = Target.test()
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        let graph = Graph.test(entryPath: fileHandler.currentPath,
+                               cache: cache,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: target,
+                                                       dependencies: [])])
+
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+
+        // Then
+        XCTAssertTrue(fileHandler.exists(got.path))
+        XCTAssertEqual(got.path.components.last, "SomeAwesomeName.xcodeproj")
+        XCTAssertEqual(project.name, "Project")
+    }
 }
