@@ -25,6 +25,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Ensuring the correct platform SDK dependencies path is set https://github.com/tuist/tuist/pull/419 by @kwridan
 - Update manifest target name such that its product has a valid name https://github.com/tuist/tuist/pull/426 by @kwridan
 - Do not create `Derived/InfoPlists` folder when no InfoPlist dictionary is specified https://github.com/tuist/tuist/pull/456 by @adamkhazi
+- Set the correct lastKnownFileType for localized files https://github.com/tuist/tuist/pull/478 by @kwridan
 
 ### Changed
 
