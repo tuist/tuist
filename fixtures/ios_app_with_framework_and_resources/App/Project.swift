@@ -20,6 +20,8 @@ let project = Project(
             ],
             dependencies: [
                 .project(target: "Framework1", path: "../Framework1"),
+                .project(target: "StaticFramework", path: "../StaticFramework"),
+                .project(target: "StaticFrameworkResources", path: "../StaticFramework"),
             ]
         ),
         Target(
