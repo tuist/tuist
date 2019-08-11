@@ -470,6 +470,9 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertNil(variantGroup?.path)
         XCTAssertEqual(variantGroup?.children.map { $0.name }, ["en"])
         XCTAssertEqual(variantGroup?.children.map { $0.path }, ["en.lproj/App.strings"])
+        XCTAssertEqual(variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType }, [
+            Xcode.filetype(extension: "strings"),
+        ])
     }
 
     func test_addVersionGroupElement() throws {
