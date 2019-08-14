@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 0.17.0
+
 ### Added
 
 - `tuist graph` command https://github.com/tuist/tuist/pull/427 by @pepibumur.
