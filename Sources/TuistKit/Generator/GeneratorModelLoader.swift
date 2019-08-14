@@ -644,6 +644,8 @@ extension TuistGenerator.Product {
             return .unitTests
         case .uiTests:
             return .uiTests
+        case .bundle:
+            return .bundle
         }
     }
 }

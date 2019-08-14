@@ -65,11 +65,16 @@ Workspace:
     - MainAppTests (iOS unit tests)
   - Framework1:
     - Framework1 (dynamic iOS framework)
+  - StaticFramework
+    - StaticFramework (static iOS framework)
+    - StaticFrameworkResources (iOS bundle)
 ```
 
 Dependencies:
 
 - App -> Framework1
+- App -> StaticFramework
+- App -> StaticFrameworkResources
 
 ## ios_app_with_framework_linking_static_framework
 

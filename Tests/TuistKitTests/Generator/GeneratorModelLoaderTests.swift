@@ -857,6 +857,7 @@ private func == (_ lhs: TuistGenerator.Product,
         .uiTests: .uiTests,
         .staticLibrary: .staticLibrary,
         .dynamicLibrary: .dynamicLibrary,
+        .bundle: .bundle,
     ]
     return map[lhs] == rhs
 }
