@@ -401,7 +401,7 @@ class ProjectFileElements {
                                          localizedContainer: AbsolutePath,
                                          pbxproj: PBXProj) {
         let localizedFilePath = localizedFile.relative(to: localizedContainer.parentDirectory)
-        let lastKnownFileType = Xcode.filetype(extension: localizedFile.basename)
+        let lastKnownFileType = localizedFile.extension.flatMap { Xcode.filetype(extension: $0) }
         let name = localizedContainer.basename.split(separator: ".").first
         let localizedFileReference = PBXFileReference(sourceTree: .group,
                                                       name: name.map { String($0) },
