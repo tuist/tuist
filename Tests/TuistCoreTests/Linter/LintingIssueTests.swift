@@ -5,6 +5,13 @@ import XCTest
 @testable import TuistCoreTesting
 
 final class LintingIssueTests: XCTestCase {
+    var context: MockContext!
+
+    override func setUp() {
+        super.setUp()
+        context = Context.mockSharedContext()
+    }
+
     func test_description() {
         let subject = LintingIssue(reason: "whatever", severity: .error)
         XCTAssertEqual(subject.description, "whatever")
@@ -19,29 +26,27 @@ final class LintingIssueTests: XCTestCase {
     }
 
     func test_printAndThrowIfNeeded() throws {
-        let printer = MockPrinter()
         let first = LintingIssue(reason: "error", severity: .error)
         let second = LintingIssue(reason: "warning", severity: .warning)
 
-        XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded(printer: printer))
+        XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
 
-        XCTAssertTrue(printer.standardOutput.contains("""
+        XCTAssertTrue(context.mockPrinter.standardOutput.contains("""
         The following issues have been found:
           - warning
         """))
-        XCTAssertTrue(printer.standardError.contains("""
+        XCTAssertTrue(context.mockPrinter.standardError.contains("""
         The following critical issues have been found:
           - error
         """))
     }
 
     func test_printAndThrowIfNeeded_whenErrorsOnly() throws {
-        let printer = MockPrinter()
         let first = LintingIssue(reason: "error", severity: .error)
 
-        XCTAssertThrowsError(try [first].printAndThrowIfNeeded(printer: printer))
+        XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
 
-        XCTAssertTrue(printer.standardError.contains("""
+        XCTAssertTrue(context.mockPrinter.standardError.contains("""
         The following critical issues have been found:
           - error
         """))

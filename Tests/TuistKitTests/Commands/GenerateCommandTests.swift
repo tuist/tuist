@@ -8,18 +8,19 @@ import XCTest
 @testable import TuistKit
 
 final class GenerateCommandTests: XCTestCase {
+    var context: MockContext!
     var subject: GenerateCommand!
     var generator: MockGenerator!
     var parser: ArgumentParser!
-    var printer: MockPrinter!
     var fileHandler: MockFileHandler!
     var manifestLoader: MockGraphManifestLoader!
     var clock: StubClock!
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
+
         do {
-            printer = MockPrinter()
             generator = MockGenerator()
             parser = ArgumentParser.test()
             fileHandler = try MockFileHandler()
@@ -27,7 +28,6 @@ final class GenerateCommandTests: XCTestCase {
             clock = StubClock()
 
             subject = GenerateCommand(parser: parser,
-                                      printer: printer,
                                       fileHandler: fileHandler,
                                       generator: generator,
                                       manifestLoader: manifestLoader,
@@ -56,7 +56,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
+        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated.")
     }
 
     func test_run_withWorkspacetManifestPrints() throws {
@@ -70,7 +70,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
+        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated.")
     }
 
     func test_run_timeIsPrinted() throws {
@@ -88,7 +88,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(printer.printWithColorArgs.first?.0, "Total time taken: 0.234s")
+        XCTAssertEqual(context.mockPrinter.printWithColorArgs.first?.0, "Total time taken: 0.234s")
     }
 
     func test_run_withRelativePathParameter() throws {

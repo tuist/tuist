@@ -17,9 +17,9 @@ final class CommandRunnerErrorTests: XCTestCase {
 }
 
 final class CommandRunnerTests: XCTestCase {
+    var context: MockContext!
     var versionResolver: MockVersionResolver!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
     var system: MockSystem!
     var updater: MockUpdater!
     var versionsController: MockVersionsController!
@@ -30,16 +30,16 @@ final class CommandRunnerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
+
         versionResolver = MockVersionResolver()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
         system = MockSystem()
         updater = MockUpdater()
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         subject = CommandRunner(versionResolver: versionResolver,
                                 fileHandler: fileHandler,
-                                printer: printer,
                                 system: system,
                                 updater: updater,
                                 installer: installer,
@@ -84,9 +84,9 @@ final class CommandRunnerTests: XCTestCase {
 
         try subject.run()
 
-        XCTAssertEqual(printer.printArgs.count, 2)
-        XCTAssertEqual(printer.printArgs.first, "Using version 3.2.1 defined at \(fileHandler.currentPath.pathString)")
-        XCTAssertEqual(printer.printArgs.last, "Version 3.2.1 not found locally. Installing...")
+        XCTAssertEqual(context.mockPrinter.printArgs.count, 2)
+        XCTAssertEqual(context.mockPrinter.printArgs.first, "Using version 3.2.1 defined at \(fileHandler.currentPath.pathString)")
+        XCTAssertEqual(context.mockPrinter.printArgs.last, "Version 3.2.1 not found locally. Installing...")
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
     }

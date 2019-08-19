@@ -1,6 +1,8 @@
 import Basic
 import Foundation
+import TuistCore
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistKit
 
@@ -29,15 +31,15 @@ final class ManifestTests: XCTestCase {
 
 final class GraphManifestLoaderTests: XCTestCase {
     var fileHandler: MockFileHandler!
-    var deprecator: MockDeprecator!
     var subject: GraphManifestLoader!
+    var context: MockContext!
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
+
         fileHandler = try! MockFileHandler()
-        deprecator = MockDeprecator()
-        subject = GraphManifestLoader(fileHandler: fileHandler,
-                                      deprecator: deprecator)
+        subject = GraphManifestLoader(fileHandler: fileHandler)
     }
 
     func test_loadTuistConfig() throws {

@@ -21,7 +21,6 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
             subject = WorkspaceGenerator(
                 system: MockSystem(),
-                printer: MockPrinter(),
                 fileHandler: fileHandler,
                 cocoapodsInteractor: cocoapodsInteractor
             )

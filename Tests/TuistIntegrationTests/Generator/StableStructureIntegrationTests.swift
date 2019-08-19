@@ -7,11 +7,15 @@ import XCTest
 
 final class StableXcodeProjIntegrationTests: XCTestCase {
     private var fileHandler: MockFileHandler!
+    var context: MockContext!
     private var path: AbsolutePath {
         return fileHandler.currentPath
     }
 
     override func setUp() {
+        super.setUp()
+        context = Context.mockSharedContext()
+
         do {
             fileHandler = try MockFileHandler()
             try setupTestProject()
@@ -31,7 +35,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
 
         // When
         try (0 ..< 10).forEach { _ in
-            let subject = Generator(printer: MockPrinter(), modelLoader: try createModelLoader())
+            let subject = Generator(modelLoader: try createModelLoader())
 
             let workspacePath = try subject.generateWorkspace(at: path, workspaceFiles: [])
 

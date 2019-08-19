@@ -9,13 +9,14 @@ import XCTest
 final class UpHomebrewTests: XCTestCase {
     var system: MockSystem!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
+    var context: MockContext!
 
     override func setUp() {
+        super.setUp()
+        context = Context.mockSharedContext()
+
         system = MockSystem()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
-        super.setUp()
     }
 
     func test_isMet_when_homebrew_is_missing() throws {
@@ -60,9 +61,9 @@ final class UpHomebrewTests: XCTestCase {
                               "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"")
         system.succeedCommand("/usr/local/bin/brew", "install", "swiftlint")
 
-        try subject.meet(system: system, printer: printer, projectPath: fileHandler.currentPath)
+        try subject.meet(system: system, projectPath: fileHandler.currentPath)
 
-        XCTAssertTrue(printer.printArgs.contains("Installing Homebrew"))
-        XCTAssertTrue(printer.printArgs.contains("Installing Homebrew package: swiftlint"))
+        XCTAssertTrue(context.mockPrinter.printArgs.contains("Installing Homebrew"))
+        XCTAssertTrue(context.mockPrinter.printArgs.contains("Installing Homebrew package: swiftlint"))
     }
 }

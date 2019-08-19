@@ -8,21 +8,20 @@ final class SetupLoaderTests: XCTestCase {
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
     var graphManifestLoader: MockGraphManifestLoader!
     var system: MockSystem!
+    var context: MockContext!
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
 
         upLinter = MockUpLinter()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
         graphManifestLoader = MockGraphManifestLoader()
         system = MockSystem()
         subject = SetupLoader(upLinter: upLinter,
                               fileHandler: fileHandler,
-                              printer: printer,
                               graphManifestLoader: graphManifestLoader,
                               system: system)
     }
@@ -41,8 +40,8 @@ final class SetupLoaderTests: XCTestCase {
 
         XCTAssertEqual(receivedPaths, ["/test/test1"])
         XCTAssertEqual(upLinter.lintCount, 0)
-        XCTAssertEqual(printer.standardOutput, "")
-        XCTAssertEqual(printer.standardError, "")
+        XCTAssertEqual(context.mockPrinter.standardOutput, "")
+        XCTAssertEqual(context.mockPrinter.standardError, "")
     }
 
     func test_meet_when_actions_provided() {
@@ -65,8 +64,8 @@ final class SetupLoaderTests: XCTestCase {
         XCTAssertEqual(lintedUps.count, 2)
         XCTAssertTrue(mockUp1 === lintedUps[0])
         XCTAssertTrue(mockUp2 === lintedUps[1])
-        XCTAssertEqual(printer.standardOutput, "Configuring 2\n")
-        XCTAssertEqual(printer.standardError, "")
+        XCTAssertEqual(context.mockPrinter.standardOutput, "Configuring 2\n")
+        XCTAssertEqual(context.mockPrinter.standardError, "")
     }
 
     func test_meet_when_loadSetup_throws() {
@@ -126,7 +125,7 @@ final class SetupLoaderTests: XCTestCase {
           - mockup1 error
           - mockup3 error
         """
-        XCTAssertTrue(printer.standardOutput.contains(expectedOutput))
-        XCTAssertTrue(printer.standardError.contains(expectedError))
+        XCTAssertTrue(context.mockPrinter.standardOutput.contains(expectedOutput))
+        XCTAssertTrue(context.mockPrinter.standardError.contains(expectedError))
     }
 }

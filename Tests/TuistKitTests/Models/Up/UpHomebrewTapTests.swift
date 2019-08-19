@@ -9,15 +9,16 @@ import XCTest
 final class UpHomebrewTapTests: XCTestCase {
     var system: MockSystem!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
+    var context: MockContext!
     var upHomebrew: MockUp!
 
     override func setUp() {
+        super.setUp()
+        context = Context.mockSharedContext()
+
         system = MockSystem()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
         upHomebrew = MockUp()
-        super.setUp()
     }
 
     func test_isMet_when_homebrewIsNotMet() throws {
@@ -64,15 +65,15 @@ final class UpHomebrewTapTests: XCTestCase {
         system.succeedCommand(["brew", "tap"], output: "")
         system.succeedCommand(["brew", "tap", "repo"])
         var homebrewUpped = false
-        upHomebrew.meetStub = { _, _, _ in
+        upHomebrew.meetStub = { _, _ in
             homebrewUpped = true
         }
 
         // When
-        try subject.meet(system: system, printer: printer, projectPath: fileHandler.currentPath)
+        try subject.meet(system: system, projectPath: fileHandler.currentPath)
 
         // Then
         XCTAssertTrue(homebrewUpped)
-        XCTAssertTrue(printer.printArgs.contains("Adding repository tap: repo"))
+        XCTAssertTrue(context.mockPrinter.printArgs.contains("Adding repository tap: repo"))
     }
 }

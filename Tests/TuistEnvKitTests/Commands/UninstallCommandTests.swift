@@ -7,22 +7,22 @@ import XCTest
 @testable import TuistEnvKit
 
 final class UninstallCommandTests: XCTestCase {
+    var context: MockContext!
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
-    var printer: MockPrinter!
     var subject: UninstallCommand!
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
+
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        printer = MockPrinter()
         subject = UninstallCommand(parser: parser,
                                    versionsController: versionsController,
-                                   installer: installer,
-                                   printer: printer)
+                                   installer: installer)
     }
 
     func test_command() {
@@ -48,7 +48,7 @@ final class UninstallCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(printer.printSuccessArgs.first, "Version 3.2.1 uninstalled")
+        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Version 3.2.1 uninstalled")
         XCTAssertEqual(uninstalledVersion, "3.2.1")
     }
 
@@ -72,6 +72,6 @@ final class UninstallCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(printer.printWarningArgs.first, "Version 3.2.1 cannot be uninstalled because it's not installed")
+        XCTAssertEqual(context.mockPrinter.printWarningArgs.first, "Version 3.2.1 cannot be uninstalled because it's not installed")
     }
 }

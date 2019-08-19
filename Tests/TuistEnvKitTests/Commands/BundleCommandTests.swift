@@ -19,26 +19,26 @@ final class BundleCommandErrorTests: XCTestCase {
 }
 
 final class BundleCommandTests: XCTestCase {
+    var context: MockContext!
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
     var installer: MockInstaller!
     var subject: BundleCommand!
     var tmpDir: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
+
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
         installer = MockInstaller()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         subject = BundleCommand(parser: parser,
                                 versionsController: versionsController,
                                 fileHandler: fileHandler,
-                                printer: printer,
                                 installer: installer)
     }
 
@@ -110,13 +110,13 @@ final class BundleCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(printer.printSectionArgs.count, 1)
-        XCTAssertEqual(printer.printSectionArgs.first, "Bundling the version 3.2.1 in the directory \(binPath.pathString)")
+        XCTAssertEqual(context.mockPrinter.printSectionArgs.count, 1)
+        XCTAssertEqual(context.mockPrinter.printSectionArgs.first, "Bundling the version 3.2.1 in the directory \(binPath.pathString)")
 
-        XCTAssertEqual(printer.printArgs.count, 1)
-        XCTAssertEqual(printer.printArgs.first, "Version 3.2.1 not available locally. Installing...")
+        XCTAssertEqual(context.mockPrinter.printArgs.count, 1)
+        XCTAssertEqual(context.mockPrinter.printArgs.first, "Version 3.2.1 not available locally. Installing...")
 
-        XCTAssertEqual(printer.printSuccessArgs.count, 1)
-        XCTAssertEqual(printer.printSuccessArgs.first, "tuist bundled successfully at \(binPath.pathString)")
+        XCTAssertEqual(context.mockPrinter.printSuccessArgs.count, 1)
+        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "tuist bundled successfully at \(binPath.pathString)")
     }
 }

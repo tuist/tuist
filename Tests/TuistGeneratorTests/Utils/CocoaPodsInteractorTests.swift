@@ -18,15 +18,16 @@ final class CocoaPodsInteractorErrorTests: XCTestCase {
 }
 
 final class CocoaPodsInteractorTests: XCTestCase {
-    var printer: MockPrinter!
     var system: MockSystem!
     var subject: CocoaPodsInteractor!
+    var context: MockContext!
 
     override func setUp() {
         super.setUp()
-        printer = MockPrinter()
+        context = Context.mockSharedContext()
+
         system = MockSystem()
-        subject = CocoaPodsInteractor(printer: printer, system: system)
+        subject = CocoaPodsInteractor(system: system)
     }
 
     func test_install_when_cocoapods_cannot_be_found() {
@@ -60,7 +61,7 @@ final class CocoaPodsInteractorTests: XCTestCase {
         try subject.install(graph: graph)
 
         // Then
-        XCTAssertTrue(printer.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
+        XCTAssertTrue(context.mockPrinter.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
     }
 
     func test_install_when_theCocoaPodsFromTheSystemCanBeUsed() throws {
@@ -81,7 +82,7 @@ final class CocoaPodsInteractorTests: XCTestCase {
         try subject.install(graph: graph)
 
         // Then
-        XCTAssertTrue(printer.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
+        XCTAssertTrue(context.mockPrinter.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
     }
 
     func test_install_when_theCocoaPodsSpecsRepoIsOutdated() throws {
@@ -99,7 +100,7 @@ final class CocoaPodsInteractorTests: XCTestCase {
         try subject.install(graph: graph)
 
         // Then
-        XCTAssertTrue(printer.printWarningArgs.contains("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository."))
-        XCTAssertTrue(printer.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
+        XCTAssertTrue(context.mockPrinter.printWarningArgs.contains("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository."))
+        XCTAssertTrue(context.mockPrinter.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
     }
 }

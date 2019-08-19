@@ -8,24 +8,23 @@ import XCTest
 @testable import TuistKit
 
 final class GraphCommandTests: XCTestCase {
+    var context: MockContext!
     var subject: GraphCommand!
     var dotGraphGenerator: MockDotGraphGenerator!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
     var manifestLoader: MockGraphManifestLoader!
     var parser: ArgumentParser!
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
+
         dotGraphGenerator = MockDotGraphGenerator()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
         manifestLoader = MockGraphManifestLoader()
         parser = ArgumentParser.test()
-
         subject = GraphCommand(parser: parser,
                                fileHandler: fileHandler,
-                               printer: printer,
                                dotGraphGenerator: dotGraphGenerator,
                                manifestLoader: manifestLoader)
     }
@@ -60,7 +59,7 @@ final class GraphCommandTests: XCTestCase {
 
         // Then
         XCTAssertEqual(try fileHandler.readTextFile(graphPath), graph)
-        XCTAssertTrue(printer.printArgs.contains("Deleting existing graph at \(graphPath.pathString)"))
-        XCTAssertTrue(printer.printSuccessArgs.contains("Graph exported to \(graphPath.pathString)"))
+        XCTAssertTrue(context.mockPrinter.printArgs.contains("Deleting existing graph at \(graphPath.pathString)"))
+        XCTAssertTrue(context.mockPrinter.printSuccessArgs.contains("Graph exported to \(graphPath.pathString)"))
     }
 }

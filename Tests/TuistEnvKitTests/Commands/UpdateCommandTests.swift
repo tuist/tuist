@@ -1,4 +1,5 @@
 import Foundation
+import TuistCore
 import XCTest
 
 @testable import SPMUtility
@@ -6,19 +7,19 @@ import XCTest
 @testable import TuistEnvKit
 
 final class UpdateCommandTests: XCTestCase {
+    var context: MockContext!
     var parser: ArgumentParser!
     var subject: UpdateCommand!
     var updater: MockUpdater!
-    var printer: MockPrinter!
 
     override func setUp() {
         super.setUp()
+        context = Context.mockSharedContext()
+
         parser = ArgumentParser(usage: "test", overview: "overview")
         updater = MockUpdater()
-        printer = MockPrinter()
         subject = UpdateCommand(parser: parser,
-                                updater: updater,
-                                printer: printer)
+                                updater: updater)
     }
 
     func test_command() {
@@ -45,7 +46,7 @@ final class UpdateCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(printer.printSectionArgs, ["Checking for updates..."])
+        XCTAssertEqual(context.mockPrinter.printSectionArgs, ["Checking for updates..."])
         XCTAssertEqual(updateCalls, [true])
     }
 }
