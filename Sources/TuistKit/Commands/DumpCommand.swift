@@ -13,7 +13,6 @@ class DumpCommand: NSObject, Command {
 
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
-    private let printer: Printing
     let pathArgument: OptionArgument<String>
 
     // MARK: - Init
@@ -21,18 +20,15 @@ class DumpCommand: NSObject, Command {
     public required convenience init(parser: ArgumentParser) {
         self.init(fileHandler: FileHandler(),
                   manifestLoader: GraphManifestLoader(),
-                  printer: Printer(),
                   parser: parser)
     }
 
     init(fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
-         printer: Printing,
          parser: ArgumentParser) {
         let subParser = parser.add(subparser: DumpCommand.command, overview: DumpCommand.overview)
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
-        self.printer = printer
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -51,6 +47,6 @@ class DumpCommand: NSObject, Command {
         }
         let project = try manifestLoader.loadProject(at: path)
         let json: JSON = try project.toJSON()
-        printer.print(json.toString(prettyPrint: true))
+        Context.shared.printer.print(json.toString(prettyPrint: true))
     }
 }

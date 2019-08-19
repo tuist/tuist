@@ -97,9 +97,6 @@ class GraphManifestLoader: GraphManifestLoading {
     /// Resource locator to look up Tuist-related resources.
     let resourceLocator: ResourceLocating
 
-    /// Depreactor to notify about deprecations.
-    let deprecator: Deprecating
-
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
 
@@ -111,15 +108,12 @@ class GraphManifestLoader: GraphManifestLoading {
     ///   - fileHandler: File handler to interact with the file system.
     ///   - system: Instance to run commands in the system.
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
-    ///   - deprecator: Depreactor to notify about deprecations.
     init(fileHandler: FileHandling = FileHandler(),
          system: Systeming = System(),
-         resourceLocator: ResourceLocating = ResourceLocator(),
-         deprecator: Deprecating = Deprecator()) {
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         self.fileHandler = fileHandler
         self.system = system
         self.resourceLocator = resourceLocator
-        self.deprecator = deprecator
         decoder = JSONDecoder()
     }
 

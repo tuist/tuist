@@ -21,19 +21,12 @@ class BuildCommand: NSObject, RawCommand {
     /// Command description.
     static var overview: String = "Builds a project target."
 
-    /// Printer instance to output the information to the user.
-    let printer: Printing
-
-    init(printer: Printing) {
-        self.printer = printer
+    /// Default constructor.
+    required override init() {
+        super.init()
     }
 
-    /// Main constructor.
-    required convenience override init() {
-        self.init(printer: Printer())
-    }
-
-    func run(arguments: [String]) throws {
-        print(arguments)
+    func run(arguments _: [String]) throws {
+        Context.shared.printer.print("Command not available yet")
     }
 }

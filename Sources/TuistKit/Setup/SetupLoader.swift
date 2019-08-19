@@ -20,9 +20,6 @@ class SetupLoader: SetupLoading {
     /// File handler instance to interact with the file system.
     private let fileHandler: FileHandling
 
-    /// Printer instance to output information to the user.
-    private let printer: Printing
-
     /// Graph manifset loader instance to load the setup.
     private let graphManifestLoader: GraphManifestLoading
 
@@ -34,7 +31,6 @@ class SetupLoader: SetupLoading {
         let graphManifestLoader = GraphManifestLoader()
         self.init(upLinter: upLinter,
                   fileHandler: fileHandler,
-                  printer: Printer(),
                   graphManifestLoader: graphManifestLoader,
                   system: System())
     }
@@ -44,17 +40,14 @@ class SetupLoader: SetupLoading {
     /// - Parameters:
     ///   - upLinter: Linter for up commands.
     ///   - fileHandler: File handler instance to interact with the file system.
-    ///   - printer: Printer instance to output information to the user.
     ///   - graphManifestLoader: Graph manifset loader instance to load the setup.
     ///   - system: System instance to run commands on the system.
     init(upLinter: UpLinting,
          fileHandler: FileHandling,
-         printer: Printing,
          graphManifestLoader: GraphManifestLoading,
          system: Systeming) {
         self.upLinter = upLinter
         self.fileHandler = fileHandler
-        self.printer = printer
         self.graphManifestLoader = graphManifestLoader
         self.system = system
     }
@@ -68,11 +61,11 @@ class SetupLoader: SetupLoading {
         let setup = try graphManifestLoader.loadSetup(at: path)
         try setup.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }
-            .printAndThrowIfNeeded(printer: printer)
+            .printAndThrowIfNeeded()
         try setup.forEach { command in
             if try !command.isMet(system: system, projectPath: path) {
-                printer.print(subsection: "Configuring \(command.name)")
-                try command.meet(system: system, printer: printer, projectPath: path)
+                Context.shared.printer.print(subsection: "Configuring \(command.name)")
+                try command.meet(system: system, projectPath: path)
             }
         }
     }

@@ -42,7 +42,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     private let projectGenerator: ProjectGenerating
     private let system: Systeming
-    private let printer: Printing
     private let fileHandler: FileHandling
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting
@@ -50,7 +49,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - Init
 
     convenience init(system: Systeming = System(),
-                     printer: Printing = Printer(),
                      fileHandler: FileHandling = FileHandler(),
                      defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                      cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
@@ -58,11 +56,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
-                                                printer: printer,
                                                 system: system,
                                                 fileHandler: fileHandler)
         self.init(system: system,
-                  printer: printer,
                   projectGenerator: projectGenerator,
                   fileHandler: fileHandler,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler),
@@ -70,13 +66,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     }
 
     init(system: Systeming,
-         printer: Printing,
          projectGenerator: ProjectGenerating,
          fileHandler: FileHandling,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          cocoapodsInteractor: CocoaPodsInteracting) {
         self.system = system
-        self.printer = printer
         self.projectGenerator = projectGenerator
         self.fileHandler = fileHandler
         self.workspaceStructureGenerator = workspaceStructureGenerator
@@ -100,7 +94,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   graph: Graphing,
                   tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
-        printer.print(section: "Generating workspace \(workspaceName)")
+        Context.shared.printer.print(section: "Generating workspace \(workspaceName)")
 
         /// Projects
 

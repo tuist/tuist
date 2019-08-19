@@ -55,24 +55,21 @@ public class Generator: Generating {
     private let environmentLinter: EnvironmentLinting
 
     public convenience init(system: Systeming = System(),
-                            printer: Printing = Printer(),
                             fileHandler: FileHandling = FileHandler(),
                             defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                             modelLoader: GeneratorModelLoading) {
         let graphLinter = GraphLinter(fileHandler: fileHandler)
-        let graphLoader = GraphLoader(linter: graphLinter, printer: printer, fileHandler: fileHandler, modelLoader: modelLoader)
+        let graphLoader = GraphLoader(linter: graphLinter, fileHandler: fileHandler, modelLoader: modelLoader)
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
-                                                printer: printer,
                                                 system: system,
                                                 fileHandler: fileHandler)
         let environmentLinter = EnvironmentLinter()
         let workspaceStructureGenerator = WorkspaceStructureGenerator(fileHandler: fileHandler)
         let cocoapodsInteractor = CocoaPodsInteractor()
         let workspaceGenerator = WorkspaceGenerator(system: system,
-                                                    printer: printer,
                                                     projectGenerator: projectGenerator,
                                                     fileHandler: fileHandler,
                                                     workspaceStructureGenerator: workspaceStructureGenerator,

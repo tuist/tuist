@@ -11,7 +11,6 @@ final class UninstallCommand: Command {
     // MARK: - Attributes
 
     private let versionsController: VersionsControlling
-    private let printer: Printing
     private let installer: Installing
     let versionArgument: PositionalArgument<String>
 
@@ -20,18 +19,15 @@ final class UninstallCommand: Command {
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   versionsController: VersionsController(),
-                  installer: Installer(),
-                  printer: Printer())
+                  installer: Installer())
     }
 
     init(parser: ArgumentParser,
          versionsController: VersionsControlling,
-         installer: Installing,
-         printer: Printing) {
+         installer: Installing) {
         let subParser = parser.add(subparser: UninstallCommand.command,
                                    overview: UninstallCommand.overview)
         self.versionsController = versionsController
-        self.printer = printer
         self.installer = installer
         versionArgument = subParser.add(positional: "version",
                                         kind: String.self,
@@ -44,9 +40,9 @@ final class UninstallCommand: Command {
         let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {
             try versionsController.uninstall(version: version)
-            printer.print(success: "Version \(version) uninstalled")
+            Context.shared.printer.print(success: "Version \(version) uninstalled")
         } else {
-            printer.print(warning: "Version \(version) cannot be uninstalled because it's not installed")
+            Context.shared.printer.print(warning: "Version \(version) cannot be uninstalled because it's not installed")
         }
     }
 }

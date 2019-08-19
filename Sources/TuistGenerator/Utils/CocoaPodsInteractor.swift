@@ -36,20 +36,14 @@ protocol CocoaPodsInteracting {
 }
 
 final class CocoaPodsInteractor: CocoaPodsInteracting {
-    /// Instance to output information to the user.
-    let printer: Printing
-
     /// Instance to run commands in the system.
     let system: Systeming
 
     /// Initializes the CocoaPods
     ///
     /// - Parameters:
-    ///   - printer: Instance to output information to the user.
     ///   - system: Instance to run commands in the system.
-    init(printer: Printing = Printer(),
-         system: Systeming = System()) {
-        self.printer = printer
+    init(system: Systeming = System()) {
         self.system = system
     }
 
@@ -62,7 +56,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
             try install(graph: graph, updatingRepo: false)
         } catch let error as CocoaPodsInteractorError {
             if case CocoaPodsInteractorError.outdatedRepository = error {
-                printer.print(warning: "The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
+                Context.shared.printer.print(warning: "The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
                 try self.install(graph: graph, updatingRepo: true)
             } else {
                 throw error
@@ -97,7 +91,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
 
             // The installation of Pods might fail if the local repository that contains the specs
             // is outdated.
-            printer.print(section: "Installing CocoaPods dependencies defined in \(node.podfilePath)")
+            Context.shared.printer.print(section: "Installing CocoaPods dependencies defined in \(node.podfilePath)")
             var mightNeedRepoUpdate: Bool = false
             let outputClosure: ([UInt8]) -> Void = { bytes in
                 let content = String(data: Data(bytes), encoding: .utf8)

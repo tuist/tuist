@@ -23,10 +23,10 @@ public protocol Printing: AnyObject {
     func print(deprecation: String)
 }
 
-public class Printer: Printing {
+class Printer: Printing {
     // MARK: - Init
 
-    public init() {}
+    init() {}
 
     // MARK: - Public
 

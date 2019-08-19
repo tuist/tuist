@@ -44,19 +44,18 @@ class UpHomebrew: Up, GraphInitiatable {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer: Printing, projectPath _: AbsolutePath) throws {
+    override func meet(system: Systeming, projectPath _: AbsolutePath) throws {
         if !toolInstalled("brew", system: system) {
-            printer.print("Installing Homebrew")
+            Context.shared.printer.print("Installing Homebrew")
             try system.runAndPrint("/usr/bin/ruby", "-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
                                    verbose: true,
                                    environment: system.env)
         }
         let nonInstalledPackages = packages.filter { !toolInstalled($0, system: system) }
         try nonInstalledPackages.forEach { package in
-            printer.print("Installing Homebrew package: \(package)")
+            Context.shared.printer.print("Installing Homebrew package: \(package)")
             try system.runAndPrint("/usr/local/bin/brew", "install", package,
                                    verbose: true,
                                    environment: system.env)

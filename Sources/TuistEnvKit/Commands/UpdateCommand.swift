@@ -17,9 +17,6 @@ final class UpdateCommand: Command {
     /// Updater instance that runs the update.
     private let updater: Updating
 
-    /// Printer instance to output updates during the process.
-    private let printer: Printing
-
     /// Force argument (-f). When passed, it re-installs the latest version compiling it from the source.
     let forceArgument: OptionArgument<Bool>
 
@@ -30,8 +27,7 @@ final class UpdateCommand: Command {
     /// - Parameter parser: Argument parser where the command should be registered.
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  updater: Updater(),
-                  printer: Printer())
+                  updater: Updater())
     }
 
     /// Initializes the update command.
@@ -39,12 +35,9 @@ final class UpdateCommand: Command {
     /// - Parameters:
     ///   - parser: Argument parser where the command should be registered.
     ///   - updater: Updater instance that runs the update.
-    ///   - printer: Printer instance to output updates during the process.
     init(parser: ArgumentParser,
-         updater: Updating,
-         printer: Printing) {
+         updater: Updating) {
         let subParser = parser.add(subparser: UpdateCommand.command, overview: UpdateCommand.overview)
-        self.printer = printer
         self.updater = updater
         forceArgument = subParser.add(option: "--force",
                                       shortName: "-f",
@@ -58,7 +51,7 @@ final class UpdateCommand: Command {
     /// - Throws: An error if the update process fails.
     func run(with result: ArgumentParser.Result) throws {
         let force = result.get(forceArgument) ?? false
-        printer.print(section: "Checking for updates...")
+        Context.shared.printer.print(section: "Checking for updates...")
         try updater.update(force: force)
     }
 }

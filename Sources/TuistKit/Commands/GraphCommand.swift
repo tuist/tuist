@@ -15,9 +15,6 @@ class GraphCommand: NSObject, Command {
     /// File handler.
     let fileHandler: FileHandling
 
-    /// Printer.
-    let printer: Printing
-
     /// Dot graph generator.
     let dotGraphGenerator: DotGraphGenerating
 
@@ -27,33 +24,28 @@ class GraphCommand: NSObject, Command {
     required convenience init(parser: ArgumentParser) {
         let fileHandler = FileHandler()
         let system = System()
-        let printer = Printer()
         let resourceLocator = ResourceLocator(fileHandler: fileHandler)
         let manifestLoader = GraphManifestLoader(fileHandler: fileHandler,
                                                  system: system,
-                                                 resourceLocator: resourceLocator,
-                                                 deprecator: Deprecator(printer: printer))
+                                                 resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
                                                manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
 
-        let dotGraphGenerator = DotGraphGenerator(modelLoader: modelLoader, printer: printer, fileHandler: fileHandler)
+        let dotGraphGenerator = DotGraphGenerator(modelLoader: modelLoader, fileHandler: fileHandler)
         self.init(parser: parser,
                   fileHandler: fileHandler,
-                  printer: printer,
                   dotGraphGenerator: dotGraphGenerator,
                   manifestLoader: manifestLoader)
     }
 
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
-         printer: Printing,
          dotGraphGenerator: DotGraphGenerating,
          manifestLoader: GraphManifestLoading) {
         parser.add(subparser: GraphCommand.command, overview: GraphCommand.overview)
         self.fileHandler = fileHandler
-        self.printer = printer
         self.dotGraphGenerator = dotGraphGenerator
         self.manifestLoader = manifestLoader
     }
@@ -64,11 +56,11 @@ class GraphCommand: NSObject, Command {
 
         let path = fileHandler.currentPath.appending(component: "graph.dot")
         if fileHandler.exists(path) {
-            printer.print("Deleting existing graph at \(path.pathString)")
+            Context.shared.printer.print("Deleting existing graph at \(path.pathString)")
             try fileHandler.delete(path)
         }
 
         try fileHandler.write(graph, path: path, atomically: true)
-        printer.print(success: "Graph exported to \(path.pathString)")
+        Context.shared.printer.print(success: "Graph exported to \(path.pathString)")
     }
 }

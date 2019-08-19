@@ -36,12 +36,10 @@ class FocusCommand: NSObject, Command {
     required convenience init(parser: ArgumentParser) {
         let fileHandler = FileHandler()
         let system = System()
-        let printer = Printer()
         let resourceLocator = ResourceLocator(fileHandler: fileHandler)
         let manifestLoader = GraphManifestLoader(fileHandler: fileHandler,
                                                  system: system,
-                                                 resourceLocator: resourceLocator,
-                                                 deprecator: Deprecator(printer: printer))
+                                                 resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
                                                               resourceLocator: resourceLocator)
@@ -50,7 +48,6 @@ class FocusCommand: NSObject, Command {
                                                manifestLinter: manifestLinter,
                                                manifestTargetGenerator: manifestTargetGenerator)
         let generator = Generator(system: system,
-                                  printer: printer,
                                   fileHandler: fileHandler,
                                   modelLoader: modelLoader)
         self.init(parser: parser,

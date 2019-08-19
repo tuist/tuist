@@ -31,25 +31,21 @@ final class EmbedCommand: HiddenCommand {
     private let embedder: FrameworkEmbedding
     private let parser: ArgumentParser
     private let fileHandler: FileHandling
-    private let printer: Printing
 
     // MARK: - Init
 
     convenience init() {
         self.init(embedder: FrameworkEmbedder(),
                   parser: ArgumentParser(usage: "embed", overview: ""),
-                  fileHandler: FileHandler(),
-                  printer: Printer())
+                  fileHandler: FileHandler())
     }
 
     init(embedder: FrameworkEmbedding,
          parser: ArgumentParser,
-         fileHandler: FileHandling,
-         printer: Printing) {
+         fileHandler: FileHandling) {
         self.embedder = embedder
         self.parser = parser
         self.fileHandler = fileHandler
-        self.printer = printer
     }
 
     func run(arguments: [String]) throws {
@@ -57,8 +53,8 @@ final class EmbedCommand: HiddenCommand {
             throw EmbedCommandError.missingFrameworkPath
         }
         let path = RelativePath(pathString)
-        printer.print("Embedding framework \(path.pathString)")
+        Context.shared.printer.print("Embedding framework \(path.pathString)")
         try embedder.embed(path: path)
-        printer.print(success: "Framework embedded")
+        Context.shared.printer.print(success: "Framework embedded")
     }
 }

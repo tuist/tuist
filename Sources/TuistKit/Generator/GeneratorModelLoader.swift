@@ -30,19 +30,16 @@ class GeneratorModelLoader: GeneratorModelLoading {
     private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
     private let manifestTargetGenerator: ManifestTargetGenerating?
-    private let printer: Printing
     private let manifestLinter: ManifestLinting
 
     init(fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
          manifestLinter: ManifestLinting,
-         manifestTargetGenerator: ManifestTargetGenerating? = nil,
-         printer: Printing = Printer()) {
+         manifestTargetGenerator: ManifestTargetGenerating? = nil) {
         self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
         self.manifestLinter = manifestLinter
         self.manifestTargetGenerator = manifestTargetGenerator
-        self.printer = printer
     }
 
     /// Load a Project model at the specified path
@@ -56,12 +53,11 @@ class GeneratorModelLoader: GeneratorModelLoading {
         let tuistConfig = try loadTuistConfig(at: path)
 
         try manifestLinter.lint(project: manifest)
-            .printAndThrowIfNeeded(printer: printer)
+            .printAndThrowIfNeeded()
 
         let project = try TuistGenerator.Project.from(manifest: manifest,
                                                       path: path,
                                                       fileHandler: fileHandler,
-                                                      printer: printer,
                                                       tuistConfig: tuistConfig)
 
         return try enriched(model: project, with: tuistConfig)
@@ -72,8 +68,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
         let workspace = try TuistGenerator.Workspace.from(manifest: manifest,
                                                           path: path,
                                                           fileHandler: fileHandler,
-                                                          manifestLoader: manifestLoader,
-                                                          printer: printer)
+                                                          manifestLoader: manifestLoader)
         return workspace
     }
 
@@ -184,8 +179,7 @@ extension TuistGenerator.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
-                     manifestLoader: GraphManifestLoading,
-                     printer: Printing) throws -> TuistGenerator.Workspace {
+                     manifestLoader: GraphManifestLoading) throws -> TuistGenerator.Workspace {
         func globProjects(_ string: String) -> [AbsolutePath] {
             let projects = fileHandler.glob(path, glob: string)
                 .lazy
@@ -195,7 +189,7 @@ extension TuistGenerator.Workspace {
                 }
 
             if projects.isEmpty {
-                printer.print(warning: "No projects found at: \(string)")
+                Context.shared.printer.print(warning: "No projects found at: \(string)")
             }
 
             return Array(projects)
@@ -204,8 +198,7 @@ extension TuistGenerator.Workspace {
         let additionalFiles = manifest.additionalFiles.flatMap {
             TuistGenerator.FileElement.from(manifest: $0,
                                             path: path,
-                                            fileHandler: fileHandler,
-                                            printer: printer)
+                                            fileHandler: fileHandler)
         }
 
         return TuistGenerator.Workspace(name: manifest.name,
@@ -218,7 +211,6 @@ extension TuistGenerator.FileElement {
     static func from(manifest: ProjectDescription.FileElement,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
-                     printer: Printing,
                      includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) -> [TuistGenerator.FileElement] {
         func globFiles(_ string: String) -> [AbsolutePath] {
             let files = fileHandler.glob(path, glob: string)
@@ -226,9 +218,9 @@ extension TuistGenerator.FileElement {
 
             if files.isEmpty {
                 if fileHandler.isFolder(path.appending(RelativePath(string))) {
-                    printer.print(warning: "'\(string)' is a directory, try using: '\(string)/**' to list its files")
+                    Context.shared.printer.print(warning: "'\(string)' is a directory, try using: '\(string)/**' to list its files")
                 } else {
-                    printer.print(warning: "No files found at: \(string)")
+                    Context.shared.printer.print(warning: "No files found at: \(string)")
                 }
             }
 
@@ -239,12 +231,12 @@ extension TuistGenerator.FileElement {
             let folderReferencePath = path.appending(RelativePath(relativePath))
 
             guard fileHandler.exists(folderReferencePath) else {
-                printer.print(warning: "\(relativePath) does not exist")
+                Context.shared.printer.print(warning: "\(relativePath) does not exist")
                 return []
             }
 
             guard fileHandler.isFolder(folderReferencePath) else {
-                printer.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
+                Context.shared.printer.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 
@@ -264,15 +256,13 @@ extension TuistGenerator.Project {
     static func from(manifest: ProjectDescription.Project,
                      path: AbsolutePath,
                      fileHandler: FileHandling,
-                     printer: Printing,
                      tuistConfig _: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
         let name = manifest.name
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
         let targets = try manifest.targets.map {
             try TuistGenerator.Target.from(manifest: $0,
                                            path: path,
-                                           fileHandler: fileHandler,
-                                           printer: printer)
+                                           fileHandler: fileHandler)
         }
 
         let schemes = manifest.schemes.map { TuistGenerator.Scheme.from(manifest: $0) }
@@ -280,8 +270,7 @@ extension TuistGenerator.Project {
         let additionalFiles = manifest.additionalFiles.flatMap {
             TuistGenerator.FileElement.from(manifest: $0,
                                             path: path,
-                                            fileHandler: fileHandler,
-                                            printer: printer)
+                                            fileHandler: fileHandler)
         }
 
         return Project(path: path,
@@ -319,8 +308,7 @@ extension TuistGenerator.Project {
 extension TuistGenerator.Target {
     static func from(manifest: ProjectDescription.Target,
                      path: AbsolutePath,
-                     fileHandler: FileHandling,
-                     printer: Printing) throws -> TuistGenerator.Target {
+                     fileHandler: FileHandling) throws -> TuistGenerator.Target {
         let name = manifest.name
         let platform = try TuistGenerator.Platform.from(manifest: manifest.platform)
         let product = TuistGenerator.Product.from(manifest: manifest.product)
@@ -345,7 +333,6 @@ extension TuistGenerator.Target {
             TuistGenerator.FileElement.from(manifest: $0,
                                             path: path,
                                             fileHandler: fileHandler,
-                                            printer: printer,
                                             includeFiles: resourceFilter)
         }
 
