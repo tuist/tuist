@@ -31,14 +31,16 @@ final class LintingIssueTests: XCTestCase {
 
         XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
 
-        XCTAssertTrue(context.mockPrinter.standardOutput.contains("""
+        XCTAssertPrinterOutputContains("""
         The following issues have been found:
           - warning
-        """))
-        XCTAssertTrue(context.mockPrinter.standardError.contains("""
+        """
+        )
+        XCTAssertPrinterErrorContains("""
         The following critical issues have been found:
           - error
-        """))
+        """
+        )
     }
 
     func test_printAndThrowIfNeeded_whenErrorsOnly() throws {
@@ -46,9 +48,10 @@ final class LintingIssueTests: XCTestCase {
 
         XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
 
-        XCTAssertTrue(context.mockPrinter.standardError.contains("""
+        XCTAssertPrinterErrorContains("""
         The following critical issues have been found:
           - error
-        """))
+        """
+        )
     }
 }

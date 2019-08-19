@@ -335,7 +335,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let model = try subject.loadWorkspace(at: path)
 
         // Then
-        XCTAssertPrinterOutputContains(context, expected: """
+        XCTAssertPrinterOutputContains("""
         No projects found at: A
         No projects found at: B
         """)
@@ -587,7 +587,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     includeFiles: { !self.fileHandler.isFolder($0) })
 
         // Then
-        XCTAssertPrinterOutputContains(context, expected: "'Documentation' is a directory, try using: 'Documentation/**' to list its files")
+        XCTAssertPrinterOutputContains("'Documentation' is a directory, try using: 'Documentation/**' to list its files")
         XCTAssertEqual(model, [])
     }
 
@@ -602,7 +602,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertPrinterOutputContains(context, expected: "No files found at: Documentation/**")
+        XCTAssertPrinterOutputContains("No files found at: Documentation/**")
         XCTAssertEqual(model, [])
     }
 
@@ -621,7 +621,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertPrinterOutputContains(context, expected: "README.md is not a directory - folder reference paths need to point to directories")
+        XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
         XCTAssertEqual(model, [])
     }
 
@@ -636,7 +636,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertPrinterOutputContains(context, expected: "Documentation does not exist")
+        XCTAssertPrinterOutputContains("Documentation does not exist")
         XCTAssertEqual(model, [])
     }
 

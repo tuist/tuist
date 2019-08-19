@@ -46,7 +46,7 @@ final class UpdateCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertPrinterOutputContains(context, expected: "Checking for updates...")
+        XCTAssertPrinterOutputContains("Checking for updates...")
         XCTAssertEqual(updateCalls, [true])
     }
 }

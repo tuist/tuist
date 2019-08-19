@@ -110,7 +110,7 @@ final class BundleCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertPrinterOutputContains(context, expected: """
+        XCTAssertPrinterOutputContains("""
         Bundling the version 3.2.1 in the directory \(binPath.pathString)
         Version 3.2.1 not available locally. Installing...
         tuist bundled successfully at \(binPath.pathString)

@@ -40,8 +40,6 @@ final class SetupLoaderTests: XCTestCase {
 
         XCTAssertEqual(receivedPaths, ["/test/test1"])
         XCTAssertEqual(upLinter.lintCount, 0)
-        XCTAssertEqual(context.mockPrinter.standardOutput, "")
-        XCTAssertEqual(context.mockPrinter.standardError, "")
     }
 
     func test_meet_when_actions_provided() {
@@ -64,8 +62,7 @@ final class SetupLoaderTests: XCTestCase {
         XCTAssertEqual(lintedUps.count, 2)
         XCTAssertTrue(mockUp1 === lintedUps[0])
         XCTAssertTrue(mockUp2 === lintedUps[1])
-        XCTAssertEqual(context.mockPrinter.standardOutput, "Configuring 2\n")
-        XCTAssertEqual(context.mockPrinter.standardError, "")
+        XCTAssertPrinterOutputContains("Configuring 2\n")
     }
 
     func test_meet_when_loadSetup_throws() {
@@ -125,7 +122,7 @@ final class SetupLoaderTests: XCTestCase {
           - mockup1 error
           - mockup3 error
         """
-        XCTAssertTrue(context.mockPrinter.standardOutput.contains(expectedOutput))
-        XCTAssertTrue(context.mockPrinter.standardError.contains(expectedError))
+        XCTAssertPrinterOutputContains(expectedOutput)
+        XCTAssertPrinterErrorContains(expectedError)
     }
 }

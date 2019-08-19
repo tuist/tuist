@@ -84,7 +84,7 @@ final class CommandRunnerTests: XCTestCase {
 
         try subject.run()
 
-        XCTAssertPrinterOutputContains(context, expected: """
+        XCTAssertPrinterOutputContains("""
         Using version 3.2.1 defined at \(fileHandler.currentPath.pathString)
         Version 3.2.1 not found locally. Installing...
         """)

@@ -50,7 +50,7 @@ final class InstallerTests: XCTestCase {
                                                  temporaryDirectory: temporaryDirectory)) { error in
             XCTAssertEqual(error as? InstallerError, expectedError)
         }
-        XCTAssertPrinterOutputContains(context, expected: "Verifying the Swift version is compatible with your version 4.2.1")
+        XCTAssertPrinterOutputContains("Verifying the Swift version is compatible with your version 4.2.1")
     }
 
     func test_install_when_bundled_release() throws {
@@ -84,7 +84,7 @@ final class InstallerTests: XCTestCase {
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
 
-        XCTAssertPrinterOutputContains(context, expected: """
+        XCTAssertPrinterOutputContains("""
         Verifying the Swift version is compatible with your version 5.0.0
         Downloading version from \(downloadURL.absoluteString)
         Installing...
@@ -181,7 +181,7 @@ final class InstallerTests: XCTestCase {
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
-        XCTAssertPrinterOutputContains(context, expected: """
+        XCTAssertPrinterOutputContains("""
         Verifying the Swift version is compatible with your version 5.0.0
         The release \(version) is not bundled
         Pulling source code
@@ -221,7 +221,7 @@ final class InstallerTests: XCTestCase {
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
 
-        XCTAssertPrinterOutputContains(context, expected: """
+        XCTAssertPrinterOutputContains("""
         Forcing the installation of 3.2.1 from the source code
         Pulling source code
         Building using Swift (it might take a while)

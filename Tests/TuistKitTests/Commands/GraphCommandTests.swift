@@ -59,7 +59,7 @@ final class GraphCommandTests: XCTestCase {
 
         // Then
         XCTAssertEqual(try fileHandler.readTextFile(graphPath), graph)
-        XCTAssertPrinterOutputContains(context, expected: """
+        XCTAssertPrinterOutputContains("""
         Deleting existing graph at \(graphPath.pathString)
         Graph exported to \(graphPath.pathString)
         """)
