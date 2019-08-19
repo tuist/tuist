@@ -25,7 +25,7 @@ final class ErrorHandlerTests: XCTestCase {
     func test_fatalError_printsTheDescription_whenPrintableError() {
         let error = TestError(type: .abort)
         subject.fatal(error: error)
-        XCTAssertEqual(context.mockPrinter.printErrorMessageArgs.first, error.description)
+        XCTAssertPrinterError(context, expected: error.description)
     }
 
     func test_fatalError_exitsWith1() {
@@ -41,6 +41,6 @@ final class ErrorHandlerTests: XCTestCase {
         An unexpected error happened. We've opened an issue to fix it as soon as possible.
         We are sorry for any inconveniences it might have caused.
         """
-        XCTAssertEqual(context.mockPrinter.printErrorMessageArgs.first, expected)
+        XCTAssertPrinterError(context, expected: expected)
     }
 }

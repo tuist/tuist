@@ -110,13 +110,10 @@ final class BundleCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(context.mockPrinter.printSectionArgs.count, 1)
-        XCTAssertEqual(context.mockPrinter.printSectionArgs.first, "Bundling the version 3.2.1 in the directory \(binPath.pathString)")
-
-        XCTAssertEqual(context.mockPrinter.printArgs.count, 1)
-        XCTAssertEqual(context.mockPrinter.printArgs.first, "Version 3.2.1 not available locally. Installing...")
-
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.count, 1)
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "tuist bundled successfully at \(binPath.pathString)")
+        XCTAssertPrinterOutput(context, expected: """
+        Bundling the version 3.2.1 in the directory \(binPath.pathString)
+        Version 3.2.1 not available locally. Installing...
+        tuist bundled successfully at \(binPath.pathString)
+        """)
     }
 }

@@ -335,10 +335,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         let model = try subject.loadWorkspace(at: path)
 
         // Then
-        XCTAssertEqual(context.mockPrinter.printWarningArgs, [
-            "No projects found at: A",
-            "No projects found at: B",
-        ])
+        XCTAssertPrinterOutput(context, expected: """
+        No projects found at: A
+        No projects found at: B
+        """)
         XCTAssertEqual(model.projects, [])
     }
 
@@ -587,9 +587,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     includeFiles: { !self.fileHandler.isFolder($0) })
 
         // Then
-        XCTAssertEqual(context.mockPrinter.printWarningArgs, [
-            "'Documentation' is a directory, try using: 'Documentation/**' to list its files",
-        ])
+        XCTAssertPrinterOutput(context, expected: "'Documentation' is a directory, try using: 'Documentation/**' to list its files")
         XCTAssertEqual(model, [])
     }
 
@@ -604,9 +602,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertEqual(context.mockPrinter.printWarningArgs, [
-            "No files found at: Documentation/**",
-        ])
+        XCTAssertPrinterOutput(context, expected: "No files found at: Documentation/**")
         XCTAssertEqual(model, [])
     }
 
@@ -625,9 +621,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertEqual(context.mockPrinter.printWarningArgs, [
-            "README.md is not a directory - folder reference paths need to point to directories",
-        ])
+        XCTAssertPrinterOutput(context, expected: "README.md is not a directory - folder reference paths need to point to directories")
         XCTAssertEqual(model, [])
     }
 
@@ -642,9 +636,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertEqual(context.mockPrinter.printWarningArgs, [
-            "Documentation does not exist",
-        ])
+        XCTAssertPrinterOutput(context, expected: "Documentation does not exist")
         XCTAssertEqual(model, [])
     }
 

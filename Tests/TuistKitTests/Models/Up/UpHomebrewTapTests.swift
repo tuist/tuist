@@ -74,6 +74,6 @@ final class UpHomebrewTapTests: XCTestCase {
 
         // Then
         XCTAssertTrue(homebrewUpped)
-        XCTAssertTrue(context.mockPrinter.printArgs.contains("Adding repository tap: repo"))
+        XCTAssertPrinterOutput(context, expected: "Adding repository tap: repo")
     }
 }

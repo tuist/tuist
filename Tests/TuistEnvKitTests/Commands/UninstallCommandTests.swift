@@ -48,7 +48,7 @@ final class UninstallCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Version 3.2.1 uninstalled")
+        XCTAssertPrinterOutput(context, expected: "Version 3.2.1 uninstalled")
         XCTAssertEqual(uninstalledVersion, "3.2.1")
     }
 
@@ -72,6 +72,6 @@ final class UninstallCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(context.mockPrinter.printWarningArgs.first, "Version 3.2.1 cannot be uninstalled because it's not installed")
+        XCTAssertPrinterOutput(context, expected: "Version 3.2.1 cannot be uninstalled because it's not installed")
     }
 }

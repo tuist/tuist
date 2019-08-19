@@ -114,7 +114,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.pathString).")
+        XCTAssertPrinterOutput(context, expected: "Project generated at path \(fileHandler.currentPath.pathString).")
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
@@ -137,7 +137,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.pathString).")
+        XCTAssertPrinterOutput(context, expected: "Project generated at path \(fileHandler.currentPath.pathString).")
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
@@ -159,7 +159,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/AppDelegate.swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.pathString).")
+        XCTAssertPrinterOutput(context, expected: "Project generated at path \(fileHandler.currentPath.pathString).")
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
@@ -182,7 +182,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.pathString).")
+        XCTAssertPrinterOutput(context, expected: "Project generated at path \(fileHandler.currentPath.pathString).")
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
@@ -206,7 +206,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.pathString).")
+        XCTAssertPrinterOutput(context, expected: "Project generated at path \(fileHandler.currentPath.pathString).")
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))
@@ -229,7 +229,7 @@ final class InitCommandTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(component: "Tests.plist")))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Sources/\(name).swift"))))
         XCTAssertTrue(fileHandler.exists(fileHandler.currentPath.appending(RelativePath("Tests/\(name)Tests.swift"))))
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.first, "Project generated at path \(fileHandler.currentPath.pathString).")
+        XCTAssertPrinterOutput(context, expected: "Project generated at path \(fileHandler.currentPath.pathString).")
 
         let playgroundsPath = fileHandler.currentPath.appending(component: "Playgrounds")
         XCTAssertTrue(fileHandler.exists(playgroundsPath))

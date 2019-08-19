@@ -46,7 +46,7 @@ final class UpdateCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(context.mockPrinter.printSectionArgs, ["Checking for updates..."])
+        XCTAssertPrinterOutput(context, expected: "Checking for updates...")
         XCTAssertEqual(updateCalls, [true])
     }
 }

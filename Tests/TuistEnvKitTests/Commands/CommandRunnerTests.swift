@@ -84,9 +84,10 @@ final class CommandRunnerTests: XCTestCase {
 
         try subject.run()
 
-        XCTAssertEqual(context.mockPrinter.printArgs.count, 2)
-        XCTAssertEqual(context.mockPrinter.printArgs.first, "Using version 3.2.1 defined at \(fileHandler.currentPath.pathString)")
-        XCTAssertEqual(context.mockPrinter.printArgs.last, "Version 3.2.1 not found locally. Installing...")
+        XCTAssertPrinterOutput(context, expected: """
+        Using version 3.2.1 defined at \(fileHandler.currentPath.pathString)
+        Version 3.2.1 not found locally. Installing...
+        """)
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
     }

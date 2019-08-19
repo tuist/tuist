@@ -54,11 +54,10 @@ final class LocalCommandTests: XCTestCase {
 
         let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
 
-        XCTAssertEqual(context.mockPrinter.printSectionArgs.count, 1)
-        XCTAssertEqual(context.mockPrinter.printSectionArgs.first, "Generating \(Constants.versionFileName) file with version 3.2.1")
-
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.count, 1)
-        XCTAssertEqual(context.mockPrinter.printSuccessArgs.last, "File generated at path \(versionPath.pathString)")
+        XCTAssertPrinterOutput(context, expected: """
+        Generating \(Constants.versionFileName) file with version 3.2.1
+        File generated at path \(versionPath.pathString)
+        """)
     }
 
     func test_run_prints_when_no_argument_is_passed() throws {
@@ -66,10 +65,10 @@ final class LocalCommandTests: XCTestCase {
         versionController.semverVersionsStub = [Version(string: "1.2.3")!, Version(string: "3.2.1")!]
         try subject.run(with: result)
 
-        XCTAssertEqual(context.mockPrinter.printSectionArgs.count, 1)
-        XCTAssertEqual(context.mockPrinter.printSectionArgs.first, "The following versions are available in the local environment:")
-
-        XCTAssertEqual(context.mockPrinter.printArgs.count, 1)
-        XCTAssertEqual(context.mockPrinter.printArgs.last, "- 3.2.1\n- 1.2.3")
+        XCTAssertPrinterOutput(context, expected: """
+        The following versions are available in the local environment:
+        - 3.2.1
+        - 1.2.3
+        """)
     }
 }

@@ -17,6 +17,6 @@ final class DeprecatorTests: XCTestCase {
 
     func test_notify() {
         subject.notify(deprecation: "foo", suggestion: "bar")
-        XCTAssertEqual(context.mockPrinter.printDeprecationArgs, ["foo will be deprecated in the next major release. Use bar instead."])
+        XCTAssertPrinterOutput(context, expected: "foo will be deprecated in the next major release. Use bar instead.")
     }
 }

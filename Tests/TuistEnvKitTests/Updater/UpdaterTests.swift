@@ -30,7 +30,8 @@ final class UpdaterTests: XCTestCase {
     func test_update_when_no_remote_releases() throws {
         githubClient.releasesStub = { [] }
         try subject.update(force: false)
-        XCTAssertEqual(context.mockPrinter.printArgs, ["No remote versions found"])
+
+        XCTAssertPrinterOutput(context, expected: "No remote versions found")
         XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 
@@ -41,7 +42,7 @@ final class UpdaterTests: XCTestCase {
 
         try subject.update(force: true)
 
-        XCTAssertEqual(context.mockPrinter.printArgs, ["Forcing the update of version 3.2.1"])
+        XCTAssertPrinterOutput(context, expected: "Forcing the update of version 3.2.1")
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
         XCTAssertEqual(installArgs.first?.force, true)
@@ -54,7 +55,7 @@ final class UpdaterTests: XCTestCase {
 
         try subject.update(force: false)
 
-        XCTAssertEqual(context.mockPrinter.printArgs, ["There are no updates available"])
+        XCTAssertPrinterOutput(context, expected: "There are no updates available")
         XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 
@@ -66,7 +67,7 @@ final class UpdaterTests: XCTestCase {
 
         try subject.update(force: false)
 
-        XCTAssertEqual(context.mockPrinter.printArgs, ["Installing new version available 3.2.1"])
+        XCTAssertPrinterOutput(context, expected: "Installing new version available 3.2.1")
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
         XCTAssertEqual(installArgs.first?.force, false)
@@ -81,7 +82,7 @@ final class UpdaterTests: XCTestCase {
 
         try subject.update(force: false)
 
-        XCTAssertEqual(context.mockPrinter.printArgs, ["No local versions available. Installing the latest version 3.2.1"])
+        XCTAssertPrinterOutput(context, expected: "No local versions available. Installing the latest version 3.2.1")
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
         XCTAssertEqual(installArgs.first?.force, false)

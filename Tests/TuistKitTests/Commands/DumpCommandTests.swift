@@ -68,6 +68,7 @@ final class DumpCommandTests: XCTestCase {
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
         try subject.run(with: result)
         let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
-        XCTAssertEqual(context.mockPrinter.printArgs.first, expected)
+
+        XCTAssertPrinterOutput(context, expected: expected)
     }
 }

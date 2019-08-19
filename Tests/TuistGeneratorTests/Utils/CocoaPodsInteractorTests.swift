@@ -61,7 +61,7 @@ final class CocoaPodsInteractorTests: XCTestCase {
         try subject.install(graph: graph)
 
         // Then
-        XCTAssertTrue(context.mockPrinter.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
+        XCTAssertPrinterOutput(context, expected: "Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)")
     }
 
     func test_install_when_theCocoaPodsFromTheSystemCanBeUsed() throws {
@@ -82,7 +82,7 @@ final class CocoaPodsInteractorTests: XCTestCase {
         try subject.install(graph: graph)
 
         // Then
-        XCTAssertTrue(context.mockPrinter.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
+        XCTAssertPrinterOutput(context, expected: "Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)")
     }
 
     func test_install_when_theCocoaPodsSpecsRepoIsOutdated() throws {
@@ -100,7 +100,7 @@ final class CocoaPodsInteractorTests: XCTestCase {
         try subject.install(graph: graph)
 
         // Then
-        XCTAssertTrue(context.mockPrinter.printWarningArgs.contains("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository."))
-        XCTAssertTrue(context.mockPrinter.printSectionArgs.contains("Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)"))
+        XCTAssertPrinterOutput(context, expected: "The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
+        XCTAssertPrinterOutput(context, expected: "Installing CocoaPods dependencies defined in \(cocoapods.podfilePath)")
     }
 }

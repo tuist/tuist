@@ -63,7 +63,9 @@ final class UpHomebrewTests: XCTestCase {
 
         try subject.meet(system: system, projectPath: fileHandler.currentPath)
 
-        XCTAssertTrue(context.mockPrinter.printArgs.contains("Installing Homebrew"))
-        XCTAssertTrue(context.mockPrinter.printArgs.contains("Installing Homebrew package: swiftlint"))
+        XCTAssertPrinterOutput(context, expected: """
+        Installing Homebrew
+        Installing Homebrew package: swiftlint
+        """)
     }
 }

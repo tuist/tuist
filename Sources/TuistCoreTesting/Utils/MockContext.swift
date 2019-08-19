@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import XCTest
 
 public final class MockContext: Contexting {
     // Printer
@@ -21,5 +22,33 @@ extension Context {
         let mock = MockContext()
         shared = mock
         return mock
+    }
+}
+
+extension XCTestCase {
+    func XCTAssertPrinterOutput(_ context: MockContext, expected: String, file: StaticString = #file, line: UInt = #line) {
+        let message = """
+        The standard output:
+        ===========
+        \(context.mockPrinter.standardOutput)
+        
+        Doesn't contain the expected output:
+        ===========
+        \(expected)
+        """
+        XCTAssertTrue(context.mockPrinter.standardOutputMatches(with: expected), message, file: file, line: line)
+    }
+
+    func XCTAssertPrinterError(_ context: MockContext, expected: String, file: StaticString = #file, line: UInt = #line) {
+        let message = """
+        The standard error:
+        ===========
+        \(context.mockPrinter.standardError)
+        
+        Doesn't contain the expected output:
+        ===========
+        \(expected)
+        """
+        XCTAssertTrue(context.mockPrinter.standardErrorMatches(with: expected), message, file: file, line: line)
     }
 }
