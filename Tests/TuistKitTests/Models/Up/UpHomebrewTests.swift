@@ -63,7 +63,7 @@ final class UpHomebrewTests: XCTestCase {
 
         try subject.meet(system: system, projectPath: fileHandler.currentPath)
 
-        XCTAssertPrinterOutput(context, expected: """
+        XCTAssertPrinterOutputContains(context, expected: """
         Installing Homebrew
         Installing Homebrew package: swiftlint
         """)

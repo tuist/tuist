@@ -54,7 +54,7 @@ final class LocalCommandTests: XCTestCase {
 
         let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
 
-        XCTAssertPrinterOutput(context, expected: """
+        XCTAssertPrinterOutputContains(context, expected: """
         Generating \(Constants.versionFileName) file with version 3.2.1
         File generated at path \(versionPath.pathString)
         """)
@@ -65,7 +65,7 @@ final class LocalCommandTests: XCTestCase {
         versionController.semverVersionsStub = [Version(string: "1.2.3")!, Version(string: "3.2.1")!]
         try subject.run(with: result)
 
-        XCTAssertPrinterOutput(context, expected: """
+        XCTAssertPrinterOutputContains(context, expected: """
         The following versions are available in the local environment:
         - 3.2.1
         - 1.2.3

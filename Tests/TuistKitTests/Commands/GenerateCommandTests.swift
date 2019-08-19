@@ -56,7 +56,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertPrinterOutput(context, expected: "Project generated.")
+        XCTAssertPrinterOutputContains(context, expected: "Project generated.")
     }
 
     func test_run_withWorkspacetManifestPrints() throws {
@@ -70,7 +70,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertPrinterOutput(context, expected: "Project generated.")
+        XCTAssertPrinterOutputContains(context, expected: "Project generated.")
     }
 
     func test_run_timeIsPrinted() throws {
@@ -88,7 +88,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertPrinterOutput(context, expected: "Total time taken: 0.234s")
+        XCTAssertPrinterOutputContains(context, expected: "Total time taken: 0.234s")
     }
 
     func test_run_withRelativePathParameter() throws {

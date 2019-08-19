@@ -335,7 +335,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         let model = try subject.loadWorkspace(at: path)
 
         // Then
-        XCTAssertPrinterOutput(context, expected: """
+        XCTAssertPrinterOutputContains(context, expected: """
         No projects found at: A
         No projects found at: B
         """)
@@ -587,7 +587,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     includeFiles: { !self.fileHandler.isFolder($0) })
 
         // Then
-        XCTAssertPrinterOutput(context, expected: "'Documentation' is a directory, try using: 'Documentation/**' to list its files")
+        XCTAssertPrinterOutputContains(context, expected: "'Documentation' is a directory, try using: 'Documentation/**' to list its files")
         XCTAssertEqual(model, [])
     }
 
@@ -602,7 +602,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertPrinterOutput(context, expected: "No files found at: Documentation/**")
+        XCTAssertPrinterOutputContains(context, expected: "No files found at: Documentation/**")
         XCTAssertEqual(model, [])
     }
 
@@ -621,7 +621,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertPrinterOutput(context, expected: "README.md is not a directory - folder reference paths need to point to directories")
+        XCTAssertPrinterOutputContains(context, expected: "README.md is not a directory - folder reference paths need to point to directories")
         XCTAssertEqual(model, [])
     }
 
@@ -636,7 +636,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                     fileHandler: fileHandler)
 
         // Then
-        XCTAssertPrinterOutput(context, expected: "Documentation does not exist")
+        XCTAssertPrinterOutputContains(context, expected: "Documentation does not exist")
         XCTAssertEqual(model, [])
     }
 

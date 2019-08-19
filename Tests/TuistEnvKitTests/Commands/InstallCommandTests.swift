@@ -46,7 +46,7 @@ final class InstallCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertPrinterOutput(context, expected: "Version 3.2.1 already installed, skipping")
+        XCTAssertPrinterOutputContains(context, expected: "Version 3.2.1 already installed, skipping")
     }
 
     func test_run() throws {

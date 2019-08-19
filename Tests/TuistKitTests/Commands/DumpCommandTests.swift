@@ -69,6 +69,6 @@ final class DumpCommandTests: XCTestCase {
         try subject.run(with: result)
         let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
 
-        XCTAssertPrinterOutput(context, expected: expected)
+        XCTAssertPrinterOutputContains(context, expected: expected)
     }
 }

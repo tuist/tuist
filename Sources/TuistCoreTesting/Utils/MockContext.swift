@@ -26,7 +26,7 @@ extension Context {
 }
 
 extension XCTestCase {
-    func XCTAssertPrinterOutput(_ context: MockContext, expected: String, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertPrinterOutputContains(_ context: MockContext, expected: String, file: StaticString = #file, line: UInt = #line) {
         let message = """
         The standard output:
         ===========
@@ -39,7 +39,7 @@ extension XCTestCase {
         XCTAssertTrue(context.mockPrinter.standardOutputMatches(with: expected), message, file: file, line: line)
     }
 
-    func XCTAssertPrinterError(_ context: MockContext, expected: String, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertPrinterErrorContains(_ context: MockContext, expected: String, file: StaticString = #file, line: UInt = #line) {
         let message = """
         The standard error:
         ===========
