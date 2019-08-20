@@ -224,12 +224,12 @@ class Graph: Graphing {
         var staticLibraryTargetNodes = [TargetNode]()
         if targetNode.target.canLinkStaticProducts() {
             var staticLibraries = [DependencyReference]()
-            
+
             findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).forEach {
                 staticLibraries.append(DependencyReference.product(target: $0.target.name))
                 staticLibraryTargetNodes.append($0)
             }
-            
+
             references = references.union(staticLibraries)
         }
 
@@ -238,7 +238,7 @@ class Graph: Graphing {
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
             .map { DependencyReference.product(target: $0.target.name) }
-        
+
         let staticDependenciesDynamicLibraries = staticLibraryTargetNodes.flatMap {
             $0.targetDependencies
                 .filter(or(isFramework, isDynamicLibrary))
