@@ -223,10 +223,17 @@ class Graph: Graphing {
         // Static libraries and frameworks
 
         if targetNode.target.canLinkStaticProducts() {
-            let staticLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
-                .map { DependencyReference.product(target: $0.target.name) }
-
-            references = references.union(staticLibraries)
+            var transitiveDynamicDependencies = [DependencyReference]()
+            var staticLibraries = [DependencyReference]()
+            
+            findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).forEach {
+                staticLibraries.append(DependencyReference.product(target: $0.target.name))
+                transitiveDynamicDependencies.append(contentsOf: $0.targetDependencies
+                                             .filter(or(isFramework, isDynamicLibrary))
+                                             .map { DependencyReference.product(target: $0.target.name) })
+            }
+            
+            references = references.union(staticLibraries + transitiveDynamicDependencies)
         }
 
         // Link dynamic libraries and frameworks

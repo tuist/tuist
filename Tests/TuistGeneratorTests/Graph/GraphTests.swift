@@ -126,6 +126,112 @@ final class GraphTests: XCTestCase {
         XCTAssertEqual(frameworkGot.count, 1)
         XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency")))
     }
+    
+    func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
+        // Given
+        let staticFramework = Target.test(name: "StaticFramework",
+                                           product: .staticFramework,
+                                           dependencies: [])
+        let dynamicFramework = Target.test(name: "DynamicFramework",
+                                           product: .framework,
+                                           dependencies: [])
+        
+        let app = Target.test(name: "App", product: .app)
+        
+        let projectA = Project.test(path: "/path/a")
+        
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                    (target: app, dependencies: [staticFramework]),
+                                    (target: staticFramework, dependencies: [dynamicFramework]),
+                                    (target: dynamicFramework, dependencies: [])
+        ])
+        
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        
+        // Then
+        XCTAssertEqual(result, [DependencyReference.product(target: "DynamicFramework"),
+                                DependencyReference.product(target: "StaticFramework")])
+    }
+    
+    func test_linkableDependencies_transitiveDynamicLibrariesTwoHops() throws {
+        // Given
+        let dynamicFramework1 = Target.test(name: "DynamicFramework1",
+                                           product: .framework,
+                                           dependencies: [])
+        let dynamicFramework2 = Target.test(name: "DynamicFramework2",
+                                            product: .framework,
+                                            dependencies: [])
+        let staticFramework1 = Target.test(name: "StaticFramework1",
+                                            product: .staticLibrary,
+                                            dependencies: [])
+        let staticFramework2 = Target.test(name: "StaticFramework2",
+                                            product: .staticLibrary,
+                                            dependencies: [])
+        
+        let app = Target.test(name: "App", product: .app)
+        
+        let projectA = Project.test(path: "/path/a")
+        
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                    (target: app, dependencies: [dynamicFramework1]),
+                                    (target: dynamicFramework1, dependencies: [staticFramework1]),
+                                    (target: staticFramework1, dependencies: [staticFramework2]),
+                                    (target: staticFramework2, dependencies: [dynamicFramework2]),
+                                    (target: dynamicFramework2, dependencies: []),
+        ])
+        
+        // When
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name, system: system)
+        
+        // Then
+        XCTAssertEqual(appResult, [DependencyReference.product(target: "DynamicFramework1")])
+        XCTAssertEqual(dynamicFramework1Result, [DependencyReference.product(target: "DynamicFramework2"),
+                                                 DependencyReference.product(target: "StaticFramework1"),
+                                                 DependencyReference.product(target: "StaticFramework2")])
+    }
+    
+    func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
+        // Given
+        let dynamicFramework1 = Target.test(name: "DynamicFramework1",
+                                            product: .framework,
+                                            dependencies: [])
+        let dynamicFramework2 = Target.test(name: "DynamicFramework2",
+                                            product: .framework,
+                                            dependencies: [])
+        let dynamicFramework3 = Target.test(name: "DynamicFramework3",
+                                            product: .framework,
+                                            dependencies: [])
+        let staticFramework1 = Target.test(name: "StaticFramework1",
+                                           product: .staticLibrary,
+                                           dependencies: [])
+        let staticFramework2 = Target.test(name: "StaticFramework2",
+                                           product: .staticLibrary,
+                                           dependencies: [])
+        
+        let app = Target.test(name: "App", product: .app)
+        
+        let projectA = Project.test(path: "/path/a")
+        
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                    (target: app, dependencies: [dynamicFramework1]),
+                                    (target: dynamicFramework1, dependencies: [dynamicFramework2]),
+                                    (target: dynamicFramework2, dependencies: [staticFramework1]),
+                                    (target: staticFramework1, dependencies: [staticFramework2]),
+                                    (target: staticFramework2, dependencies: [dynamicFramework3]),
+                                    (target: dynamicFramework3, dependencies: []),
+        ])
+        
+        // When
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name, system: system)
+        
+        // Then
+        XCTAssertEqual(dynamicFramework1Result, [DependencyReference.product(target: "DynamicFramework2")])
+    }
 
     func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
         // Given
