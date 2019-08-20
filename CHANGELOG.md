@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+- Transitively link static dependency's dynamic dependencies correctly https://github.com/tuist/tuist/pull/484 by @adamkhazi
+
 ## 0.17.0
 
 ### Added
