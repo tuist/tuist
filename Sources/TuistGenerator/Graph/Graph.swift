@@ -221,19 +221,16 @@ class Graph: Graphing {
         references = references.union(precompiledLibrariesAndFrameworks)
 
         // Static libraries and frameworks
-
+        var staticLibraryTargetNodes = [TargetNode]()
         if targetNode.target.canLinkStaticProducts() {
-            var transitiveDynamicDependencies = [DependencyReference]()
             var staticLibraries = [DependencyReference]()
             
             findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).forEach {
                 staticLibraries.append(DependencyReference.product(target: $0.target.name))
-                transitiveDynamicDependencies.append(contentsOf: $0.targetDependencies
-                                             .filter(or(isFramework, isDynamicLibrary))
-                                             .map { DependencyReference.product(target: $0.target.name) })
+                staticLibraryTargetNodes.append($0)
             }
             
-            references = references.union(staticLibraries + transitiveDynamicDependencies)
+            references = references.union(staticLibraries)
         }
 
         // Link dynamic libraries and frameworks
@@ -241,9 +238,14 @@ class Graph: Graphing {
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
             .map { DependencyReference.product(target: $0.target.name) }
+        
+        let staticDependenciesDynamicLibraries = staticLibraryTargetNodes.flatMap {
+            $0.targetDependencies
+                .filter(or(isFramework, isDynamicLibrary))
+                .map { DependencyReference.product(target: $0.target.name) }
+        }
 
-        references = references.union(dynamicLibrariesAndFrameworks)
-
+        references = references.union(dynamicLibrariesAndFrameworks + staticDependenciesDynamicLibraries)
         return Array(references).sorted()
     }
 
