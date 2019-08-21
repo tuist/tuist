@@ -155,7 +155,7 @@ final class GraphTests: XCTestCase {
                                 DependencyReference.product(target: "StaticFramework")])
     }
 
-    func test_linkableDependencies_transitiveDynamicLibrariesTwoHops() throws {
+    func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
         // Given
         let dynamicFramework1 = Target.test(name: "DynamicFramework1",
                                             product: .framework,
@@ -194,7 +194,7 @@ final class GraphTests: XCTestCase {
                                                  DependencyReference.product(target: "StaticFramework2")])
     }
 
-    func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
+    func test_linkableDependencies_transitiveDynamicLibrariesCheckNoDuplicatesInParentDynamic() throws {
         // Given
         let dynamicFramework1 = Target.test(name: "DynamicFramework1",
                                             product: .framework,

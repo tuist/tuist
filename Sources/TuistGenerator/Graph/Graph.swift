@@ -220,17 +220,21 @@ class Graph: Graphing {
 
         references = references.union(precompiledLibrariesAndFrameworks)
 
-        // Static libraries and frameworks
-        var staticLibraryTargetNodes = [TargetNode]()
-        if targetNode.target.canLinkStaticProducts() {
-            var staticLibraries = [DependencyReference]()
+        // Static libraries and frameworks / Static libraries' dynamic libraries
 
-            findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).forEach {
-                staticLibraries.append(DependencyReference.product(target: $0.target.name))
-                staticLibraryTargetNodes.append($0)
+        if targetNode.target.canLinkStaticProducts() {
+            let staticLibraryTargetNodes = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
+            let staticLibraries = staticLibraryTargetNodes.map {
+                DependencyReference.product(target: $0.target.name)
             }
 
-            references = references.union(staticLibraries)
+            let staticDependenciesDynamicLibraries = staticLibraryTargetNodes.flatMap {
+                $0.targetDependencies
+                    .filter(or(isFramework, isDynamicLibrary))
+                    .map { DependencyReference.product(target: $0.target.name) }
+            }
+
+            references = references.union(staticLibraries + staticDependenciesDynamicLibraries)
         }
 
         // Link dynamic libraries and frameworks
@@ -239,13 +243,7 @@ class Graph: Graphing {
             .filter(or(isFramework, isDynamicLibrary))
             .map { DependencyReference.product(target: $0.target.name) }
 
-        let staticDependenciesDynamicLibraries = staticLibraryTargetNodes.flatMap {
-            $0.targetDependencies
-                .filter(or(isFramework, isDynamicLibrary))
-                .map { DependencyReference.product(target: $0.target.name) }
-        }
-
-        references = references.union(dynamicLibrariesAndFrameworks + staticDependenciesDynamicLibraries)
+        references = references.union(dynamicLibrariesAndFrameworks)
         return Array(references).sorted()
     }
 
