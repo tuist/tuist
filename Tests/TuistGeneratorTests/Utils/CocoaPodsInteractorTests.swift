@@ -20,11 +20,10 @@ final class CocoaPodsInteractorErrorTests: XCTestCase {
 final class CocoaPodsInteractorTests: XCTestCase {
     var system: MockSystem!
     var subject: CocoaPodsInteractor!
-    var context: MockContext!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         system = MockSystem()
         subject = CocoaPodsInteractor(system: system)

@@ -13,11 +13,9 @@ final class UpCarthageTests: XCTestCase {
     var subject: UpCarthage!
     var fileHandler: MockFileHandler!
     var system: MockSystem!
-    var context: MockContext!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
 
         platforms = [.iOS, .macOS]
         carthage = MockCarthage()

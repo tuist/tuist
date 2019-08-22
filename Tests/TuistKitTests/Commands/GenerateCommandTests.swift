@@ -8,7 +8,6 @@ import XCTest
 @testable import TuistKit
 
 final class GenerateCommandTests: XCTestCase {
-    var context: MockContext!
     var subject: GenerateCommand!
     var generator: MockGenerator!
     var parser: ArgumentParser!
@@ -18,7 +17,7 @@ final class GenerateCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         do {
             generator = MockGenerator()

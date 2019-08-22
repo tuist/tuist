@@ -8,7 +8,6 @@ import XCTest
 @testable import TuistKit
 
 final class GraphCommandTests: XCTestCase {
-    var context: MockContext!
     var subject: GraphCommand!
     var dotGraphGenerator: MockDotGraphGenerator!
     var fileHandler: MockFileHandler!
@@ -17,7 +16,7 @@ final class GraphCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         dotGraphGenerator = MockDotGraphGenerator()
         fileHandler = try! MockFileHandler()

@@ -47,6 +47,6 @@ class DumpCommand: NSObject, Command {
         }
         let project = try manifestLoader.loadProject(at: path)
         let json: JSON = try project.toJSON()
-        Context.shared.printer.print(json.toString(prettyPrint: true))
+        Printer.shared.print(json.toString(prettyPrint: true))
     }
 }

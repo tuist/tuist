@@ -8,11 +8,9 @@ import XCTest
 final class EnvironmentLinterTests: XCTestCase {
     var xcodeController: MockXcodeController!
     var subject: EnvironmentLinter!
-    var context: MockContext!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
 
         xcodeController = MockXcodeController()
         subject = EnvironmentLinter(xcodeController: xcodeController)

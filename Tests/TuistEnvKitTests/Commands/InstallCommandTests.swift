@@ -7,7 +7,6 @@ import XCTest
 @testable import TuistEnvKit
 
 final class InstallCommandTests: XCTestCase {
-    var context: MockContext!
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
@@ -15,7 +14,7 @@ final class InstallCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()

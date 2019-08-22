@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import XCTest
 
 public final class MockPrinter: Printing {
     var standardOutput: String = ""
@@ -58,5 +59,45 @@ public final class MockPrinter: Printing {
     func standardErrorMatches(with pattern: String) -> Bool {
         // swiftlint:disable:next force_try
         return standardError.contains(pattern)
+    }
+}
+
+extension XCTestCase {
+    func XCTAssertPrinterOutputContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
+        guard let printer = sharedMockPrinter(file: file, line: line) else { return }
+
+        let message = """
+        The standard output:
+        ===========
+        \(printer.standardOutput)
+        
+        Doesn't contain the expected output:
+        ===========
+        \(expected)
+        """
+        XCTAssertTrue(printer.standardOutputMatches(with: expected), message, file: file, line: line)
+    }
+
+    func XCTAssertPrinterErrorContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
+        guard let printer = sharedMockPrinter(file: file, line: line) else { return }
+
+        let message = """
+        The standard error:
+        ===========
+        \(printer.standardError)
+        
+        Doesn't contain the expected output:
+        ===========
+        \(expected)
+        """
+        XCTAssertTrue(printer.standardErrorMatches(with: expected), message, file: file, line: line)
+    }
+
+    fileprivate func sharedMockPrinter(file: StaticString = #file, line: UInt = #line) -> MockPrinter? {
+        guard let mock = Printer.shared as? MockPrinter else {
+            XCTFail("Printer.shared hasn't been mocked. You can call mockPrinter(), or mockEnvironment() to mock the printer or the environment respectively.", file: file, line: line)
+            return nil
+        }
+        return mock
     }
 }

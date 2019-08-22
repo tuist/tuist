@@ -70,13 +70,13 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        Context.shared.printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.pathString)")
+        Printer.shared.print(section: "Bundling the version \(version) in the directory \(binFolderPath.pathString)")
 
         let versionPath = versionsController.path(version: version)
 
         // Installing
         if !fileHandler.exists(versionPath) {
-            Context.shared.printer.print("Version \(version) not available locally. Installing...")
+            Printer.shared.print("Version \(version) not available locally. Installing...")
             try installer.install(version: version, force: false)
         }
 
@@ -86,6 +86,6 @@ final class BundleCommand: Command {
         }
         try fileHandler.copy(from: versionPath, to: binFolderPath)
 
-        Context.shared.printer.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
+        Printer.shared.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
     }
 }

@@ -48,14 +48,14 @@ class UpHomebrew: Up, GraphInitiatable {
     /// - Throws: An error if any error is thrown while running it.
     override func meet(system: Systeming, projectPath _: AbsolutePath) throws {
         if !toolInstalled("brew", system: system) {
-            Context.shared.printer.print("Installing Homebrew")
+            Printer.shared.print("Installing Homebrew")
             try system.runAndPrint("/usr/bin/ruby", "-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
                                    verbose: true,
                                    environment: system.env)
         }
         let nonInstalledPackages = packages.filter { !toolInstalled($0, system: system) }
         try nonInstalledPackages.forEach { package in
-            Context.shared.printer.print("Installing Homebrew package: \(package)")
+            Printer.shared.print("Installing Homebrew package: \(package)")
             try system.runAndPrint("/usr/local/bin/brew", "install", package,
                                    verbose: true,
                                    environment: system.env)

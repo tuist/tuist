@@ -53,8 +53,8 @@ final class EmbedCommand: HiddenCommand {
             throw EmbedCommandError.missingFrameworkPath
         }
         let path = RelativePath(pathString)
-        Context.shared.printer.print("Embedding framework \(path.pathString)")
+        Printer.shared.print("Embedding framework \(path.pathString)")
         try embedder.embed(path: path)
-        Context.shared.printer.print(success: "Framework embedded")
+        Printer.shared.print(success: "Framework embedded")
     }
 }

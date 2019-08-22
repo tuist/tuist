@@ -66,9 +66,9 @@ class CommandRunner: CommandRunning {
 
         switch resolvedVersion {
         case let .bin(path):
-            Context.shared.printer.print("Using bundled version at path \(path.pathString)")
+            Printer.shared.print("Using bundled version at path \(path.pathString)")
         case let .versionFile(path, value):
-            Context.shared.printer.print("Using version \(value) defined at \(path.pathString)")
+            Printer.shared.print("Using version \(value) defined at \(path.pathString)")
         default:
             break
         }
@@ -103,7 +103,7 @@ class CommandRunner: CommandRunning {
 
     func runVersion(_ version: String) throws {
         if !versionsController.versions().contains(where: { $0.description == version }) {
-            Context.shared.printer.print("Version \(version) not found locally. Installing...")
+            Printer.shared.print("Version \(version) not found locally. Installing...")
             try installer.install(version: version, force: false)
         }
 

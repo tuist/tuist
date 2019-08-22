@@ -48,16 +48,16 @@ public extension Array where Element == LintingIssue {
         let warningIssues = filter { $0.severity == .warning }
 
         if !warningIssues.isEmpty {
-            Context.shared.printer.print("The following issues have been found:", color: .yellow)
+            Printer.shared.print("The following issues have been found:", color: .yellow)
             let message = warningIssues.map { "  - \($0.description)" }.joined(separator: "\n")
-            Context.shared.printer.print(message)
+            Printer.shared.print(message)
         }
 
         if !errorIssues.isEmpty {
             let prefix = !warningIssues.isEmpty ? "\n" : ""
-            Context.shared.printer.print("\(prefix)The following critical issues have been found:", output: .standardError)
+            Printer.shared.print("\(prefix)The following critical issues have been found:", output: .standardError)
             let message = errorIssues.map { "  - \($0.description)" }.joined(separator: "\n")
-            Context.shared.printer.print(message, output: .standardError)
+            Printer.shared.print(message, output: .standardError)
 
             throw LintingError()
         }

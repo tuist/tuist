@@ -7,7 +7,6 @@ import XCTest
 @testable import TuistEnvKit
 
 final class InstallerTests: XCTestCase {
-    var context: MockContext!
     var fileHandler: MockFileHandler!
     var buildCopier: MockBuildCopier!
     var versionsController: MockVersionsController!
@@ -18,7 +17,7 @@ final class InstallerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         system = MockSystem()
         fileHandler = try! MockFileHandler()

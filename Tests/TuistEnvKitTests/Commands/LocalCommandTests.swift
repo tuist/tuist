@@ -7,7 +7,6 @@ import XCTest
 @testable import TuistEnvKit
 
 final class LocalCommandTests: XCTestCase {
-    var context: MockContext!
     var argumentParser: ArgumentParser!
     var subject: LocalCommand!
     var fileHandler: MockFileHandler!
@@ -15,7 +14,7 @@ final class LocalCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         argumentParser = ArgumentParser(usage: "test", overview: "overview")
         fileHandler = try! MockFileHandler()

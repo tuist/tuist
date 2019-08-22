@@ -9,13 +9,12 @@ private struct TestError: FatalError {
 }
 
 final class ErrorHandlerTests: XCTestCase {
-    var context: MockContext!
     var subject: ErrorHandler!
     var exited: Int32?
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         subject = ErrorHandler {
             self.exited = $0

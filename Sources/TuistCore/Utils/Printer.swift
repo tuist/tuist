@@ -23,7 +23,10 @@ public protocol Printing: AnyObject {
     func print(deprecation: String)
 }
 
-class Printer: Printing {
+public class Printer: Printing {
+    /// Shared instance
+    public static var shared: Printing = Printer()
+
     // MARK: - Init
 
     init() {}

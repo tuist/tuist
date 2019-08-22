@@ -5,12 +5,11 @@ import XCTest
 @testable import TuistCoreTesting
 
 final class DeprecatorTests: XCTestCase {
-    var context: MockContext!
     var subject: Deprecator!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         subject = Deprecator()
     }

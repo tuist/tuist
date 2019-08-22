@@ -77,7 +77,7 @@ final class ProjectGenerator: ProjectGenerating {
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
-        Context.shared.printer.print("Generating project \(project.name)")
+        Printer.shared.print("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path

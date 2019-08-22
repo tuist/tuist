@@ -8,7 +8,6 @@ import XCTest
 @testable import TuistKit
 
 final class DumpCommandTests: XCTestCase {
-    var context: MockContext!
     var errorHandler: MockErrorHandler!
     var fileHandler: MockFileHandler!
     var subject: DumpCommand!
@@ -17,7 +16,7 @@ final class DumpCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         errorHandler = MockErrorHandler()
         parser = ArgumentParser.test()

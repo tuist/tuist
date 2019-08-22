@@ -110,7 +110,7 @@ class InitCommand: NSObject, Command {
         try generateGitIgnore(path: path)
         try generateSetup(path: path)
         try generateTuistConfig(path: path)
-        Context.shared.printer.print(success: "Project generated at path \(path.pathString).")
+        Printer.shared.print(success: "Project generated at path \(path.pathString).")
     }
 
     // MARK: - Fileprivate

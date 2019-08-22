@@ -32,11 +32,9 @@ final class ManifestTests: XCTestCase {
 final class GraphManifestLoaderTests: XCTestCase {
     var fileHandler: MockFileHandler!
     var subject: GraphManifestLoader!
-    var context: MockContext!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
 
         fileHandler = try! MockFileHandler()
         subject = GraphManifestLoader(fileHandler: fileHandler)

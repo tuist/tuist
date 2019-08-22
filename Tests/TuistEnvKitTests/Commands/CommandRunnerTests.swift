@@ -17,7 +17,6 @@ final class CommandRunnerErrorTests: XCTestCase {
 }
 
 final class CommandRunnerTests: XCTestCase {
-    var context: MockContext!
     var versionResolver: MockVersionResolver!
     var fileHandler: MockFileHandler!
     var system: MockSystem!
@@ -30,7 +29,7 @@ final class CommandRunnerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         versionResolver = MockVersionResolver()
         fileHandler = try! MockFileHandler()

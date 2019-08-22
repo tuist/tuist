@@ -10,11 +10,10 @@ final class SetupLoaderTests: XCTestCase {
     var fileHandler: MockFileHandler!
     var graphManifestLoader: MockGraphManifestLoader!
     var system: MockSystem!
-    var context: MockContext!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         upLinter = MockUpLinter()
         fileHandler = try! MockFileHandler()

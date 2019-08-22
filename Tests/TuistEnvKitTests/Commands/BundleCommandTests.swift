@@ -19,7 +19,6 @@ final class BundleCommandErrorTests: XCTestCase {
 }
 
 final class BundleCommandTests: XCTestCase {
-    var context: MockContext!
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
     var fileHandler: MockFileHandler!
@@ -29,7 +28,7 @@ final class BundleCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()

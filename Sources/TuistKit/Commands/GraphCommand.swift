@@ -56,11 +56,11 @@ class GraphCommand: NSObject, Command {
 
         let path = fileHandler.currentPath.appending(component: "graph.dot")
         if fileHandler.exists(path) {
-            Context.shared.printer.print("Deleting existing graph at \(path.pathString)")
+            Printer.shared.print("Deleting existing graph at \(path.pathString)")
             try fileHandler.delete(path)
         }
 
         try fileHandler.write(graph, path: path, atomically: true)
-        Context.shared.printer.print(success: "Graph exported to \(path.pathString)")
+        Printer.shared.print(success: "Graph exported to \(path.pathString)")
     }
 }

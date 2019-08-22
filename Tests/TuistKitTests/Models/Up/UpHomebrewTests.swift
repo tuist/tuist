@@ -9,11 +9,10 @@ import XCTest
 final class UpHomebrewTests: XCTestCase {
     var system: MockSystem!
     var fileHandler: MockFileHandler!
-    var context: MockContext!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         system = MockSystem()
         fileHandler = try! MockFileHandler()

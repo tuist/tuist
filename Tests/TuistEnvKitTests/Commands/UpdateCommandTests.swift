@@ -7,14 +7,13 @@ import XCTest
 @testable import TuistEnvKit
 
 final class UpdateCommandTests: XCTestCase {
-    var context: MockContext!
     var parser: ArgumentParser!
     var subject: UpdateCommand!
     var updater: MockUpdater!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         parser = ArgumentParser(usage: "test", overview: "overview")
         updater = MockUpdater()

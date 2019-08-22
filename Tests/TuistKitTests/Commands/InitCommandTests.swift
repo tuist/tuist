@@ -20,7 +20,6 @@ final class InitCommandErrorTests: XCTestCase {
 }
 
 final class InitCommandTests: XCTestCase {
-    var context: MockContext!
     var subject: InitCommand!
     var parser: ArgumentParser!
     var fileHandler: MockFileHandler!
@@ -29,7 +28,7 @@ final class InitCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         parser = ArgumentParser.test()
         fileHandler = try! MockFileHandler()

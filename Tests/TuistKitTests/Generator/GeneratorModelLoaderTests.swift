@@ -28,12 +28,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         return fileHandler.currentPath
     }
 
-    private var context: MockContext!
-
     override func setUp() {
         super.setUp()
+        mockEnvironment()
 
-        context = Context.mockSharedContext()
         do {
             fileHandler = try MockFileHandler()
             manifestTargetGenerator = MockManifestTargetGenerator()

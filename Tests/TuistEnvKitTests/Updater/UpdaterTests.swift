@@ -6,7 +6,6 @@ import XCTest
 @testable import TuistEnvKit
 
 final class UpdaterTests: XCTestCase {
-    var context: MockContext!
     var githubClient: MockGitHubClient!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
@@ -15,7 +14,7 @@ final class UpdaterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
 
         githubClient = MockGitHubClient()
         versionsController = try! MockVersionsController()

@@ -27,7 +27,7 @@ public final class ErrorHandler: ErrorHandling {
     /// Default error handler initializer.
     ///
     /// - Parameters:
-    ///   - exiter: <#exiter description#>
+    ///   - exiter: Closure to exit the execution.
     init(exiter: @escaping (Int32) -> Void) {
         self.exiter = exiter
     }
@@ -41,13 +41,13 @@ public final class ErrorHandler: ErrorHandling {
     public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
-            Context.shared.printer.print(errorMessage: error.description)
+            Printer.shared.print(errorMessage: error.description)
         } else if isSilent {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconveniences it might have caused.
             """
-            Context.shared.printer.print(errorMessage: message)
+            Printer.shared.print(errorMessage: message)
         }
         exiter(1)
     }

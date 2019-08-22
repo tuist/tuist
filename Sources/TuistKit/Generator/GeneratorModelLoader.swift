@@ -189,7 +189,7 @@ extension TuistGenerator.Workspace {
                 }
 
             if projects.isEmpty {
-                Context.shared.printer.print(warning: "No projects found at: \(string)")
+                Printer.shared.print(warning: "No projects found at: \(string)")
             }
 
             return Array(projects)
@@ -218,9 +218,9 @@ extension TuistGenerator.FileElement {
 
             if files.isEmpty {
                 if fileHandler.isFolder(path.appending(RelativePath(string))) {
-                    Context.shared.printer.print(warning: "'\(string)' is a directory, try using: '\(string)/**' to list its files")
+                    Printer.shared.print(warning: "'\(string)' is a directory, try using: '\(string)/**' to list its files")
                 } else {
-                    Context.shared.printer.print(warning: "No files found at: \(string)")
+                    Printer.shared.print(warning: "No files found at: \(string)")
                 }
             }
 
@@ -231,12 +231,12 @@ extension TuistGenerator.FileElement {
             let folderReferencePath = path.appending(RelativePath(relativePath))
 
             guard fileHandler.exists(folderReferencePath) else {
-                Context.shared.printer.print(warning: "\(relativePath) does not exist")
+                Printer.shared.print(warning: "\(relativePath) does not exist")
                 return []
             }
 
             guard fileHandler.isFolder(folderReferencePath) else {
-                Context.shared.printer.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
+                Printer.shared.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 

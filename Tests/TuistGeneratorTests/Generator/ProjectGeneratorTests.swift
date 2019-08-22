@@ -8,14 +8,12 @@ import XCTest
 @testable import TuistGenerator
 
 final class ProjectGeneratorTests: XCTestCase {
-    var context: MockContext!
     var subject: ProjectGenerator!
     var system: MockSystem!
     var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
 
         system = MockSystem()
         fileHandler = try! MockFileHandler()

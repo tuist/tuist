@@ -10,14 +10,17 @@ public protocol Deprecating {
     func notify(deprecation: String, suggestion: String)
 }
 
-final class Deprecator: Deprecating {
+public final class Deprecator: Deprecating {
+    /// Shared instance.
+    public static var shared: Deprecating = Deprecator()
+
     /// Notifies the user about deprecations by printing a warning message.
     ///
     /// - Parameters:
     ///   - deprecation: Feature that will be deprecated.
     ///   - suggestion: Suggestions for the user to migrate.
-    func notify(deprecation: String, suggestion: String) {
+    public func notify(deprecation: String, suggestion: String) {
         let message = "\(deprecation) will be deprecated in the next major release. Use \(suggestion) instead."
-        Context.shared.printer.print(deprecation: message)
+        Printer.shared.print(deprecation: message)
     }
 }

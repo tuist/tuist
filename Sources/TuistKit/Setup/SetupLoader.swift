@@ -64,7 +64,7 @@ class SetupLoader: SetupLoading {
             .printAndThrowIfNeeded()
         try setup.forEach { command in
             if try !command.isMet(system: system, projectPath: path) {
-                Context.shared.printer.print(subsection: "Configuring \(command.name)")
+                Printer.shared.print(subsection: "Configuring \(command.name)")
                 try command.meet(system: system, projectPath: path)
             }
         }

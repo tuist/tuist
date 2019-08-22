@@ -5,11 +5,9 @@ import XCTest
 @testable import TuistCoreTesting
 
 final class LintingIssueTests: XCTestCase {
-    var context: MockContext!
-
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
+        mockEnvironment()
     }
 
     func test_description() {

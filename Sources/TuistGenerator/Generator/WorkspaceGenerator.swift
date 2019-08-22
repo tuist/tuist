@@ -94,7 +94,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   graph: Graphing,
                   tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
-        Context.shared.printer.print(section: "Generating workspace \(workspaceName)")
+        Printer.shared.print(section: "Generating workspace \(workspaceName)")
 
         /// Projects
 

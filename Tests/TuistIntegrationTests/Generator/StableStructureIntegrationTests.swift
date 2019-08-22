@@ -7,14 +7,12 @@ import XCTest
 
 final class StableXcodeProjIntegrationTests: XCTestCase {
     private var fileHandler: MockFileHandler!
-    var context: MockContext!
     private var path: AbsolutePath {
         return fileHandler.currentPath
     }
 
     override func setUp() {
         super.setUp()
-        context = Context.mockSharedContext()
 
         do {
             fileHandler = try MockFileHandler()

@@ -27,6 +27,6 @@ class BuildCommand: NSObject, RawCommand {
     }
 
     func run(arguments _: [String]) throws {
-        Context.shared.printer.print("Command not available yet")
+        Printer.shared.print("Command not available yet")
     }
 }
