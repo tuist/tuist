@@ -95,7 +95,9 @@ extension XCTestCase {
 
     fileprivate func sharedMockPrinter(file: StaticString = #file, line: UInt = #line) -> MockPrinter? {
         guard let mock = Printer.shared as? MockPrinter else {
-            XCTFail("Printer.shared hasn't been mocked. You can call mockPrinter(), or mockEnvironment() to mock the printer or the environment respectively.", file: file, line: line)
+            let message = "Printer.shared hasn't been mocked." +
+                "You can call mockPrinter(), or mockEnvironment() to mock the printer or the environment respectively."
+            XCTFail(message, file: file, line: line)
             return nil
         }
         return mock
