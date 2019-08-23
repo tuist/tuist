@@ -18,15 +18,14 @@ final class InstallerTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         system = MockSystem()
-        fileHandler = try! MockFileHandler()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         githubClient = MockGitHubClient()
         subject = Installer(system: system,
-                            fileHandler: fileHandler,
                             buildCopier: buildCopier,
                             versionsController: versionsController,
                             githubClient: githubClient)

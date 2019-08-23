@@ -14,9 +14,9 @@ final class UpHomebrewTapTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         system = MockSystem()
-        fileHandler = try! MockFileHandler()
         upHomebrew = MockUp()
     }
 

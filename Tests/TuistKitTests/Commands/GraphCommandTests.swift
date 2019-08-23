@@ -17,13 +17,12 @@ final class GraphCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         dotGraphGenerator = MockDotGraphGenerator()
-        fileHandler = try! MockFileHandler()
         manifestLoader = MockGraphManifestLoader()
         parser = ArgumentParser.test()
         subject = GraphCommand(parser: parser,
-                               fileHandler: fileHandler,
                                dotGraphGenerator: dotGraphGenerator,
                                manifestLoader: manifestLoader)
     }

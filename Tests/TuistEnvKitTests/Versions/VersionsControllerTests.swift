@@ -19,10 +19,11 @@ final class VersionsControllerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         environmentController = try! MockEnvironmentController()
-        fileHandler = try! MockFileHandler()
-        subject = VersionsController(environmentController: environmentController,
-                                     fileHandler: fileHandler)
+        subject = VersionsController(environmentController: environmentController)
     }
 
     func test_install() throws {

@@ -101,9 +101,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
 
         // Workspace structure
-
         let structure = workspaceStructureGenerator.generateStructure(path: path,
-                                                                      workspace: workspace)
+                                                                      workspace: workspace,
+                                                                      fileHandler: FileHandler.shared)
 
         let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])

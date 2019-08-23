@@ -30,15 +30,14 @@ final class CommandRunnerTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         versionResolver = MockVersionResolver()
-        fileHandler = try! MockFileHandler()
         system = MockSystem()
         updater = MockUpdater()
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         subject = CommandRunner(versionResolver: versionResolver,
-                                fileHandler: fileHandler,
                                 system: system,
                                 updater: updater,
                                 installer: installer,

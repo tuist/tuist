@@ -20,8 +20,10 @@ final class PlaygroundGeneratorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        subject = PlaygroundGenerator(fileHandler: fileHandler)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = PlaygroundGenerator()
     }
 
     func test_generate_throws_when_playground_exists() throws {

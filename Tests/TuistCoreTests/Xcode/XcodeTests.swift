@@ -10,8 +10,10 @@ final class XcodeTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         plistEncoder = PropertyListEncoder()
-        fileHandler = try! MockFileHandler()
     }
 
     func test_read() throws {

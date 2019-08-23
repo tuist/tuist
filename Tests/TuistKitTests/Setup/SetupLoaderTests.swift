@@ -14,13 +14,12 @@ final class SetupLoaderTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         upLinter = MockUpLinter()
-        fileHandler = try! MockFileHandler()
         graphManifestLoader = MockGraphManifestLoader()
         system = MockSystem()
         subject = SetupLoader(upLinter: upLinter,
-                              fileHandler: fileHandler,
                               graphManifestLoader: graphManifestLoader,
                               system: system)
     }

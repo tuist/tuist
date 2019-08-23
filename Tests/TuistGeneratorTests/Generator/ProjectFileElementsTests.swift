@@ -16,7 +16,9 @@ final class ProjectFileElementsTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         playgrounds = MockPlaygrounds()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(project: .test(),

@@ -13,9 +13,9 @@ final class UpHomebrewTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         system = MockSystem()
-        fileHandler = try! MockFileHandler()
     }
 
     func test_isMet_when_homebrew_is_missing() throws {

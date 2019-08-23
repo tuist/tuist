@@ -29,15 +29,14 @@ final class BundleCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
-        fileHandler = try! MockFileHandler()
         installer = MockInstaller()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         subject = BundleCommand(parser: parser,
                                 versionsController: versionsController,
-                                fileHandler: fileHandler,
                                 installer: installer)
     }
 

@@ -31,14 +31,10 @@ class GeneratorModelLoaderTest: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
-        do {
-            fileHandler = try MockFileHandler()
-            manifestTargetGenerator = MockManifestTargetGenerator()
-            manifestLinter = MockManifestLinter()
-        } catch {
-            XCTFail("setup failed: \(error.localizedDescription)")
-        }
+        manifestTargetGenerator = MockManifestTargetGenerator()
+        manifestLinter = MockManifestLinter()
     }
 
     override func tearDown() {
@@ -181,8 +177,7 @@ class GeneratorModelLoaderTest: XCTestCase {
             path: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
+        let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
                                            manifestLinter: manifestLinter,
                                            manifestTargetGenerator: manifestTargetGenerator)
 
@@ -210,8 +205,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                                           .xcodeProjectName("two \(.projectName) three")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
-        let subject = GeneratorModelLoader(fileHandler: fileHandler,
-                                           manifestLoader: manifestLoader,
+        let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
                                            manifestLinter: manifestLinter,
                                            manifestTargetGenerator: manifestTargetGenerator)
 
@@ -392,7 +386,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        project: "Sources/project/**")
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: path)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -435,7 +429,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: path)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -470,7 +464,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: path)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -490,7 +484,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: path, fileHandler: fileHandler)
+        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: path)
 
         // Then
         XCTAssertTrue(coreDataModel(model, matches: manifest, at: path))
@@ -581,7 +575,6 @@ class GeneratorModelLoaderTest: XCTestCase {
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
                                                     path: path,
-                                                    fileHandler: fileHandler,
                                                     includeFiles: { !self.fileHandler.isFolder($0) })
 
         // Then
@@ -596,8 +589,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: path,
-                                                    fileHandler: fileHandler)
+                                                    path: path)
 
         // Then
         XCTAssertPrinterOutputContains("No files found at: Documentation/**")
@@ -615,8 +607,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: path,
-                                                    fileHandler: fileHandler)
+                                                    path: path)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -630,8 +621,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: path,
-                                                    fileHandler: fileHandler)
+                                                    path: path)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -641,8 +631,7 @@ class GeneratorModelLoaderTest: XCTestCase {
     // MARK: - Helpers
 
     func createGeneratorModelLoader(with manifestLoader: GraphManifestLoading) -> GeneratorModelLoader {
-        return GeneratorModelLoader(fileHandler: fileHandler,
-                                    manifestLoader: manifestLoader,
+        return GeneratorModelLoader(manifestLoader: manifestLoader,
                                     manifestLinter: manifestLinter,
                                     manifestTargetGenerator: manifestTargetGenerator)
     }

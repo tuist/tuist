@@ -10,8 +10,9 @@ final class UpTests: XCTestCase {
     var fileHandler: MockFileHandler!
 
     override func setUp() {
-        fileHandler = try! MockFileHandler()
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
     }
 
     func test_with_when_custom() throws {
@@ -22,8 +23,7 @@ final class UpTests: XCTestCase {
             "meet": JSON.array([JSON.string("meet")]),
         ])
         let got = try Up.with(dictionary: dictionary,
-                              projectPath: fileHandler.currentPath,
-                              fileHandler: fileHandler) as? UpCustom
+                              projectPath: fileHandler.currentPath) as? UpCustom
         XCTAssertEqual(got?.name, "name")
         XCTAssertEqual(got?.meet, ["meet"])
         XCTAssertEqual(got?.isMet, ["is_met"])
@@ -35,8 +35,7 @@ final class UpTests: XCTestCase {
             "packages": JSON.array([JSON.string("swiftlint")]),
         ])
         let got = try Up.with(dictionary: dictionary,
-                              projectPath: fileHandler.currentPath,
-                              fileHandler: fileHandler) as? UpHomebrew
+                              projectPath: fileHandler.currentPath) as? UpHomebrew
         XCTAssertEqual(got?.name, "Homebrew")
         XCTAssertEqual(got?.packages, ["swiftlint"])
     }
@@ -47,8 +46,7 @@ final class UpTests: XCTestCase {
             "repositories": JSON.array([JSON.string("repository")]),
         ])
         let got = try Up.with(dictionary: dictionary,
-                              projectPath: fileHandler.currentPath,
-                              fileHandler: fileHandler) as? UpHomebrewTap
+                              projectPath: fileHandler.currentPath) as? UpHomebrewTap
         XCTAssertEqual(got?.name, "Homebrew tap")
         XCTAssertEqual(got?.repositories, ["repository"])
     }
@@ -59,8 +57,7 @@ final class UpTests: XCTestCase {
             "platforms": JSON.array([JSON.string("macos")]),
         ])
         let got = try Up.with(dictionary: dictionary,
-                              projectPath: fileHandler.currentPath,
-                              fileHandler: fileHandler) as? UpCarthage
+                              projectPath: fileHandler.currentPath) as? UpCarthage
         XCTAssertEqual(got?.name, "Carthage update")
         XCTAssertEqual(got?.platforms, [.macOS])
     }

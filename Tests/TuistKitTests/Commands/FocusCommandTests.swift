@@ -17,15 +17,16 @@ final class FocusCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         parser = ArgumentParser.test()
-        fileHandler = try! MockFileHandler()
         opener = MockOpener()
         generator = MockGenerator()
         manifestLoader = MockGraphManifestLoader()
 
         subject = FocusCommand(parser: parser,
                                generator: generator,
-                               fileHandler: fileHandler,
                                manifestLoader: manifestLoader,
                                opener: opener)
     }

@@ -12,10 +12,11 @@ final class TargetActionLinterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         system = System()
-        fileHandler = try! MockFileHandler()
-        subject = TargetActionLinter(system: system,
-                                     fileHandler: fileHandler)
+        subject = TargetActionLinter(system: system)
     }
 
     func test_lint_whenTheToolDoesntExist() {

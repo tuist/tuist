@@ -12,8 +12,11 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     }
 
     override func setUp() {
+        super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         do {
-            fileHandler = try MockFileHandler()
             try setupTestProject()
         } catch {
             XCTFail(error.localizedDescription)

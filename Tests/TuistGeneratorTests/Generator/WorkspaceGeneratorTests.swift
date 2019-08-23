@@ -13,21 +13,16 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
-        do {
-            fileHandler = try MockFileHandler()
-            path = fileHandler.currentPath
-            cocoapodsInteractor = MockCocoaPodsInteractor()
+        path = fileHandler.currentPath
+        cocoapodsInteractor = MockCocoaPodsInteractor()
 
-            subject = WorkspaceGenerator(
-                system: MockSystem(),
-                fileHandler: fileHandler,
-                cocoapodsInteractor: cocoapodsInteractor
-            )
-
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
+        subject = WorkspaceGenerator(
+            system: MockSystem(),
+            cocoapodsInteractor: cocoapodsInteractor
+        )
     }
 
     // MARK: - Tests

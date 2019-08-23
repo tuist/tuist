@@ -29,13 +29,12 @@ final class InitCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         parser = ArgumentParser.test()
-        fileHandler = try! MockFileHandler()
         infoplistProvisioner = InfoPlistProvisioner()
         playgroundGenerator = MockPlaygroundGenerator()
         subject = InitCommand(parser: parser,
-                              fileHandler: fileHandler,
                               infoplistProvisioner: infoplistProvisioner,
                               playgroundGenerator: playgroundGenerator)
     }

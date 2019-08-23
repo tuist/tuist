@@ -5,12 +5,11 @@ import XCTest
 
 final class TargetTests: XCTestCase {
     var fileHandler: MockFileHandler!
+
     override func setUp() {
-        do {
-            fileHandler = try MockFileHandler()
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
+        super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
     }
 
     func test_validSourceExtensions() {
@@ -103,7 +102,7 @@ final class TargetTests: XCTestCase {
         let paths = folders + files
 
         // When
-        let resources = paths.filter { Target.isResource(path: $0, fileHandler: fileHandler) }
+        let resources = paths.filter { Target.isResource(path: $0) }
 
         // Then
         let relativeResources = resources.map { $0.relative(to: fileHandler.currentPath).pathString }

@@ -15,14 +15,15 @@ struct WorkspaceStructure {
 }
 
 protocol WorkspaceStructureGenerating {
-    func generateStructure(path: AbsolutePath, workspace: Workspace) -> WorkspaceStructure
+    func generateStructure(path: AbsolutePath, workspace: Workspace, fileHandler: FileHandling) -> WorkspaceStructure
 }
 
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
-    func generateStructure(path: AbsolutePath, workspace: Workspace) -> WorkspaceStructure {
+    func generateStructure(path: AbsolutePath, workspace: Workspace, fileHandler: FileHandling) -> WorkspaceStructure {
         let graph = DirectoryStructure(path: path,
                                        projects: workspace.projects,
-                                       files: workspace.additionalFiles).buildGraph()
+                                       files: workspace.additionalFiles,
+                                       fileHandler: fileHandler).buildGraph()
         return WorkspaceStructure(name: workspace.name,
                                   contents: graph.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
     }
@@ -47,6 +48,7 @@ private class DirectoryStructure {
     let path: AbsolutePath
     let projects: [AbsolutePath]
     let files: [FileElement]
+    let fileHandler: FileHandling
 
     private let containers: [String] = [
         ".playground",
@@ -55,10 +57,12 @@ private class DirectoryStructure {
 
     init(path: AbsolutePath,
          projects: [AbsolutePath],
-         files: [FileElement]) {
+         files: [FileElement],
+         fileHandler: FileHandling = FileHandler.shared) {
         self.path = path
         self.projects = projects
         self.files = files
+        self.fileHandler = fileHandler
     }
 
     func buildGraph() -> Graph {
@@ -107,7 +111,7 @@ private class DirectoryStructure {
         case .folderReference:
             return true
         case let .file(path):
-            if FileHandler.shared.isFolder(path) {
+            if fileHandler.isFolder(path) {
                 return path.suffix.map(containers.contains) ?? false
             }
             return true

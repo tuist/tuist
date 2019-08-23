@@ -11,8 +11,10 @@ final class SettingsLinterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        subject = SettingsLinter(fileHandler: fileHandler)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = SettingsLinter()
     }
 
     func test_lint_project_when_config_files_are_missing() {
