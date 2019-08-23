@@ -1,8 +1,7 @@
 import Basic
 import Foundation
+import TuistCore
 import XCTest
-
-@testable import TuistCore
 
 public final class MockFileHandler: FileHandling {
     private let fileHandler: FileHandling
