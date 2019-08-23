@@ -13,6 +13,7 @@ extension XCTestCase {
     }
 
     func mockFileHandler() {
+        // swiftlint:disable force_try
         FileHandler.shared = try! MockFileHandler()
     }
 }
