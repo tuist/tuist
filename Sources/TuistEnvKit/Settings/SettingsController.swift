@@ -23,18 +23,12 @@ class SettingsController: SettingsControlling {
     /// Environment controller.
     let environmentController: EnvironmentControlling
 
-    /// File handler.
-    let fileHandler: FileHandling
-
     /// Default constructor.
     ///
     /// - Parameter environmentController: environment controller used to get the directory where
     ///   the settings will be stored.
-    /// - Parameter fileHandler: file handler.
-    init(environmentController: EnvironmentControlling = EnvironmentController(),
-         fileHandler: FileHandling = FileHandler()) {
+    init(environmentController: EnvironmentControlling = EnvironmentController()) {
         self.environmentController = environmentController
-        self.fileHandler = fileHandler
     }
 
     /// It fetches the current settings.
@@ -43,7 +37,7 @@ class SettingsController: SettingsControlling {
     /// - Throws: an error if the settings cannot be fetched.
     func settings() throws -> Settings {
         let path = environmentController.settingsPath
-        if !fileHandler.exists(path) { return Settings() }
+        if !FileHandler.shared.exists(path) { return Settings() }
         let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
         let decoder = JSONDecoder()
         return try decoder.decode(Settings.self, from: data)
@@ -57,7 +51,7 @@ class SettingsController: SettingsControlling {
         let encoder = JSONEncoder()
         let data = try encoder.encode(settings)
         let path = environmentController.settingsPath
-        if fileHandler.exists(path) { try fileHandler.delete(path) }
+        if FileHandler.shared.exists(path) { try FileHandler.shared.delete(path) }
         let url = URL(fileURLWithPath: path.pathString)
         try data.write(to: url, options: Data.WritingOptions.atomic)
     }

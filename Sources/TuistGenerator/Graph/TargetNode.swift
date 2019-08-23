@@ -104,8 +104,7 @@ class TargetNode: GraphNode {
                      platform: Platform,
                      cache: GraphLoaderCaching,
                      circularDetector: GraphCircularDetecting,
-                     modelLoader: GeneratorModelLoading,
-                     fileHandler: FileHandling = FileHandler()) throws -> GraphNode {
+                     modelLoader: GeneratorModelLoading) throws -> GraphNode {
         switch dependency {
         case let .target(target):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
@@ -127,7 +126,7 @@ class TargetNode: GraphNode {
                                          swiftModuleMap: swiftModuleMap,
                                          projectPath: path,
                                          path: libraryPath,
-                                         fileHandler: fileHandler, cache: cache)
+                                         cache: cache)
         case let .sdk(name, status):
             return try SDKNode(name: name, platform: platform, status: status)
         case let .cocoapods(podsPath):

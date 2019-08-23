@@ -46,7 +46,6 @@ class InitCommand: NSObject, Command {
     let productArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
-    let fileHandler: FileHandling
     let infoplistProvisioner: InfoPlistProvisioning
     let playgroundGenerator: PlaygroundGenerating
 
@@ -54,13 +53,11 @@ class InitCommand: NSObject, Command {
 
     public required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  fileHandler: FileHandler(),
                   infoplistProvisioner: InfoPlistProvisioner(),
                   playgroundGenerator: PlaygroundGenerator())
     }
 
     init(parser: ArgumentParser,
-         fileHandler: FileHandling,
          infoplistProvisioner: InfoPlistProvisioning,
          playgroundGenerator: PlaygroundGenerating) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
@@ -91,7 +88,6 @@ class InitCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
-        self.fileHandler = fileHandler
         self.infoplistProvisioner = infoplistProvisioner
         self.playgroundGenerator = playgroundGenerator
     }
@@ -275,7 +271,7 @@ class InitCommand: NSObject, Command {
     private func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
         let path = path.appending(component: "Sources")
 
-        try fileHandler.createFolder(path)
+        try FileHandler.shared.createFolder(path)
 
         var content: String!
         var filename: String!
@@ -342,7 +338,7 @@ class InitCommand: NSObject, Command {
     private func generateTests(name: String, path: AbsolutePath) throws {
         let path = path.appending(component: "Tests")
 
-        try fileHandler.createFolder(path)
+        try FileHandler.shared.createFolder(path)
 
         let content = """
         import Foundation
@@ -359,7 +355,7 @@ class InitCommand: NSObject, Command {
 
     private func generatePlaygrounds(name: String, path: AbsolutePath, platform: Platform) throws {
         let playgroundsPath = path.appending(component: "Playgrounds")
-        try fileHandler.createFolder(playgroundsPath)
+        try FileHandler.shared.createFolder(playgroundsPath)
         try playgroundGenerator.generate(path: playgroundsPath,
                                          name: name,
                                          platform: platform,
@@ -378,9 +374,9 @@ class InitCommand: NSObject, Command {
 
     private func path(arguments: ArgumentParser.Result) throws -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
-            return AbsolutePath(path, relativeTo: fileHandler.currentPath)
+            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
-            return fileHandler.currentPath
+            return FileHandler.shared.currentPath
         }
     }
 

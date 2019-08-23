@@ -54,7 +54,6 @@ final class Installer: Installing {
     // MARK: - Attributes
 
     let system: Systeming
-    let fileHandler: FileHandling
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
     let githubClient: GitHubClienting
@@ -62,12 +61,10 @@ final class Installer: Installing {
     // MARK: - Init
 
     init(system: Systeming = System(),
-         fileHandler: FileHandling = FileHandler(),
          buildCopier: BuildCopying = BuildCopier(),
          versionsController: VersionsControlling = VersionsController(),
          githubClient: GitHubClienting = GitHubClient()) {
         self.system = system
-        self.fileHandler = fileHandler
         self.buildCopier = buildCopier
         self.versionsController = versionsController
         self.githubClient = githubClient
@@ -191,10 +188,10 @@ final class Installer: Installing {
                            "--package-path", temporaryDirectory.path.pathString,
                            "--configuration", "release")
 
-            if fileHandler.exists(installationDirectory) {
-                try fileHandler.delete(installationDirectory)
+            if FileHandler.shared.exists(installationDirectory) {
+                try FileHandler.shared.delete(installationDirectory)
             }
-            try fileHandler.createFolder(installationDirectory)
+            try FileHandler.shared.createFolder(installationDirectory)
 
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)

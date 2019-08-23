@@ -13,19 +13,16 @@ class LocalCommand: Command {
     // MARK: - Attributes
 
     let versionArgument: PositionalArgument<String>
-    let fileHandler: FileHandling
     let versionController: VersionsControlling
 
     // MARK: - Init
 
     required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  fileHandler: FileHandler(),
                   versionController: VersionsController())
     }
 
     init(parser: ArgumentParser,
-         fileHandler: FileHandling,
          versionController: VersionsControlling) {
         let subParser = parser.add(subparser: LocalCommand.command,
                                    overview: LocalCommand.overview)
@@ -33,7 +30,6 @@ class LocalCommand: Command {
                                         kind: String.self,
                                         optional: true,
                                         usage: "The version that you would like to pin your current directory to")
-        self.fileHandler = fileHandler
         self.versionController = versionController
     }
 
@@ -57,7 +53,7 @@ class LocalCommand: Command {
     }
 
     private func createVersionFile(version: String) throws {
-        let currentPath = fileHandler.currentPath
+        let currentPath = FileHandler.shared.currentPath
         Printer.shared.print(section: "Generating \(Constants.versionFileName) file with version \(version)")
         let tuistVersionPath = currentPath.appending(component: Constants.versionFileName)
         try "\(version)".write(to: URL(fileURLWithPath: tuistVersionPath.pathString),

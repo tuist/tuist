@@ -35,7 +35,7 @@ public class TuistConfig: Equatable, Hashable {
         self.generationOptions = generationOptions
     }
 
-    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, modelLoader: GeneratorModelLoading, fileHandler _: FileHandling) throws -> TuistConfig {
+    static func at(_ path: AbsolutePath, cache: GraphLoaderCaching, modelLoader: GeneratorModelLoading) throws -> TuistConfig {
         if let tuistConfig = cache.tuistConfig(path) {
             return tuistConfig
         } else {

@@ -82,8 +82,16 @@ public protocol FileHandling: AnyObject {
 }
 
 public final class FileHandler: FileHandling {
+    /// Shared instance.
+    public static var shared: FileHandling = FileHandler()
+
+    /// File manager.
     private let fileManager: FileManager
-    public init(fileManager: FileManager = .default) {
+
+    /// Initializes the file handler with its attributes.
+    ///
+    /// - Parameter fileManager: File manager instance.
+    init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
     }
 

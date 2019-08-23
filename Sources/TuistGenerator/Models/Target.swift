@@ -110,8 +110,8 @@ public class Target: Equatable, Hashable {
         return Array(sourceFiles.values)
     }
 
-    public static func isResource(path: AbsolutePath, fileHandler: FileHandling) -> Bool {
-        if !fileHandler.isFolder(path) {
+    public static func isResource(path: AbsolutePath) -> Bool {
+        if !FileHandler.shared.isFolder(path) {
             return true
             // We filter out folders that are not Xcode supported bundles such as .app or .framework.
         } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {

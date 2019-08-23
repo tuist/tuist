@@ -18,16 +18,6 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
 
-    /// File handler instance.
-    let fileHandler: FileHandling
-
-    /// Initializes the generator with its attributes.
-    ///
-    /// - Parameter fileHandler: File handler instance.
-    init(fileHandler: FileHandling = FileHandler()) {
-        self.fileHandler = fileHandler
-    }
-
     /// Generates the derived files that are associated to the given project.
     ///
     /// - Parameters:
@@ -43,7 +33,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         toDelete.formUnion(try generateInfoPlists(project: project, sourceRootPath: sourceRootPath))
 
         return {
-            try toDelete.forEach { try self.fileHandler.delete($0) }
+            try toDelete.forEach { try FileHandler.shared.delete($0) }
         }
     }
 
@@ -64,14 +54,14 @@ final class DerivedFileGenerator: DerivedFileGenerating {
 
         // Getting the Info.plist files that need to be deleted
         let glob = "\(DerivedFileGenerator.derivedFolderName)/\(DerivedFileGenerator.infoPlistsFolderName)/*.plist"
-        let existing = fileHandler.glob(sourceRootPath, glob: glob)
+        let existing = FileHandler.shared.glob(sourceRootPath, glob: glob)
         let new: [AbsolutePath] = targetsWithGeneratableInfoPlists.map {
             DerivedFileGenerator.infoPlistPath(target: $0, sourceRootPath: sourceRootPath)
         }
         let toDelete = Set(existing).subtracting(new)
 
-        if !fileHandler.exists(infoPlistsPath), !targetsWithGeneratableInfoPlists.isEmpty {
-            try fileHandler.createFolder(infoPlistsPath)
+        if !FileHandler.shared.exists(infoPlistsPath), !targetsWithGeneratableInfoPlists.isEmpty {
+            try FileHandler.shared.createFolder(infoPlistsPath)
         }
 
         // Generate the Info.plist
@@ -80,7 +70,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
             guard case let InfoPlist.dictionary(dictionary) = infoPlist else { return }
 
             let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
-            if fileHandler.exists(path) { try fileHandler.delete(path) }
+            if FileHandler.shared.exists(path) { try FileHandler.shared.delete(path) }
 
             let outputDictionary = dictionary.mapValues { $0.value }
             let data = try PropertyListSerialization.data(fromPropertyList: outputDictionary,

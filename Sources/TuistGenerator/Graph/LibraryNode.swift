@@ -41,21 +41,20 @@ class LibraryNode: PrecompiledNode {
                       swiftModuleMap: RelativePath?,
                       projectPath: AbsolutePath,
                       path: RelativePath,
-                      fileHandler: FileHandling,
                       cache: GraphLoaderCaching) throws -> LibraryNode {
         let libraryAbsolutePath = projectPath.appending(path)
-        if !fileHandler.exists(libraryAbsolutePath) {
+        if !FileHandler.shared.exists(libraryAbsolutePath) {
             throw GraphLoadingError.missingFile(libraryAbsolutePath)
         }
         if let libraryNode = cache.precompiledNode(libraryAbsolutePath) as? LibraryNode { return libraryNode }
         let publicHeadersPath = projectPath.appending(publicHeaders)
-        if !fileHandler.exists(publicHeadersPath) {
+        if !FileHandler.shared.exists(publicHeadersPath) {
             throw GraphLoadingError.missingFile(publicHeadersPath)
         }
         var swiftModuleMapPath: AbsolutePath?
         if let swiftModuleMapRelativePath = swiftModuleMap {
             swiftModuleMapPath = projectPath.appending(swiftModuleMapRelativePath)
-            if !fileHandler.exists(swiftModuleMapPath!) {
+            if !FileHandler.shared.exists(swiftModuleMapPath!) {
                 throw GraphLoadingError.missingFile(swiftModuleMapPath!)
             }
         }

@@ -19,15 +19,8 @@ protocol WorkspaceStructureGenerating {
 }
 
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
-    private let fileHandler: FileHandling
-
-    init(fileHandler: FileHandling) {
-        self.fileHandler = fileHandler
-    }
-
     func generateStructure(path: AbsolutePath, workspace: Workspace) -> WorkspaceStructure {
         let graph = DirectoryStructure(path: path,
-                                       fileHandler: fileHandler,
                                        projects: workspace.projects,
                                        files: workspace.additionalFiles).buildGraph()
         return WorkspaceStructure(name: workspace.name,
@@ -52,8 +45,6 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
 
 private class DirectoryStructure {
     let path: AbsolutePath
-    let fileHandler: FileHandling
-
     let projects: [AbsolutePath]
     let files: [FileElement]
 
@@ -63,11 +54,9 @@ private class DirectoryStructure {
     ]
 
     init(path: AbsolutePath,
-         fileHandler: FileHandling,
          projects: [AbsolutePath],
          files: [FileElement]) {
         self.path = path
-        self.fileHandler = fileHandler
         self.projects = projects
         self.files = files
     }
@@ -118,7 +107,7 @@ private class DirectoryStructure {
         case .folderReference:
             return true
         case let .file(path):
-            if fileHandler.isFolder(path) {
+            if FileHandler.shared.isFolder(path) {
                 return path.suffix.map(containers.contains) ?? false
             }
             return true

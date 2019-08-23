@@ -16,18 +16,13 @@ class TargetActionLinter: TargetActionLinting {
     /// System instance to run any commands in the system.
     private let system: Systeming
 
-    /// File handler to check wheter files exists or not in the system.
-    private let fileHandler: FileHandling
-
     // MARK: - Init
 
     /// Default initializer.
     ///
     /// - Parameter system: System instance to run any commands in the system.
-    init(system: Systeming = System(),
-         fileHandler: FileHandling = FileHandler()) {
+    init(system: Systeming = System()) {
         self.system = system
-        self.fileHandler = fileHandler
     }
 
     func lint(_ action: TargetAction) -> [LintingIssue] {
@@ -54,7 +49,7 @@ class TargetActionLinter: TargetActionLinting {
 
     func lintPathExistence(_ action: TargetAction) -> [LintingIssue] {
         guard let path = action.path else { return [] }
-        if fileHandler.exists(path) { return [] }
+        if FileHandler.shared.exists(path) { return [] }
         return [LintingIssue(reason: "The action path \(path.pathString) doesn't exist",
                              severity: .error)]
     }

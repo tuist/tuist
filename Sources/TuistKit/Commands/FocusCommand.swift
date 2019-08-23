@@ -19,9 +19,6 @@ class FocusCommand: NSObject, Command {
     /// Generator instance to generate the project workspace.
     private let generator: Generating
 
-    /// File handler instance to interact with the file system.
-    private let fileHandler: FileHandling
-
     /// Manifest loader instance that can load project maifests from disk
     private let manifestLoader: GraphManifestLoading
 
@@ -34,25 +31,19 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
-        let fileHandler = FileHandler()
         let system = System()
-        let resourceLocator = ResourceLocator(fileHandler: fileHandler)
-        let manifestLoader = GraphManifestLoader(fileHandler: fileHandler,
-                                                 system: system,
+        let resourceLocator = ResourceLocator()
+        let manifestLoader = GraphManifestLoader(system: system,
                                                  resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
                                                               resourceLocator: resourceLocator)
-        let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
-                                               manifestLoader: manifestLoader,
+        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter,
                                                manifestTargetGenerator: manifestTargetGenerator)
-        let generator = Generator(system: system,
-                                  fileHandler: fileHandler,
-                                  modelLoader: modelLoader)
+        let generator = Generator(modelLoader: modelLoader)
         self.init(parser: parser,
                   generator: generator,
-                  fileHandler: fileHandler,
                   manifestLoader: manifestLoader,
                   opener: Opener())
     }
@@ -62,23 +53,20 @@ class FocusCommand: NSObject, Command {
     /// - Parameters:
     ///   - parser: Argument parser that parses the CLI arguments.
     ///   - generator: Generator instance to generate the project workspace.
-    ///   - fileHandler: File handler instance to interact with the file system.
     ///   - manifestLoader: Manifest loader instance that can load project maifests from disk
     ///   - opener: Opener instance to run open in the system.
     init(parser: ArgumentParser,
          generator: Generating,
-         fileHandler: FileHandling,
          manifestLoader: GraphManifestLoading,
          opener: Opening) {
         parser.add(subparser: FocusCommand.command, overview: FocusCommand.overview)
         self.generator = generator
-        self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
         self.opener = opener
     }
 
     func run(with _: ArgumentParser.Result) throws {
-        let path = fileHandler.currentPath
+        let path = FileHandler.shared.currentPath
 
         let workspacePath = try generator.generate(at: path,
                                                    manifestLoader: manifestLoader,

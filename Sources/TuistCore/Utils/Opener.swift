@@ -34,20 +34,17 @@ public class Opener: Opening {
     // MARK: - Attributes
 
     private let system: Systeming
-    private let fileHandler: FileHandling
 
     // MARK: - Init
 
-    public init(system: Systeming = System(),
-                fileHandler: FileHandling = FileHandler()) {
+    public init(system: Systeming = System()) {
         self.system = system
-        self.fileHandler = fileHandler
     }
 
     // MARK: - Opening
 
     public func open(path: AbsolutePath) throws {
-        if !fileHandler.exists(path) {
+        if !FileHandler.shared.exists(path) {
             throw OpeningError.notFound(path)
         }
         try system.runAndPrint("/usr/bin/open", path.pathString)

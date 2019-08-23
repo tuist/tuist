@@ -12,13 +12,11 @@ protocol FrameworkEmbedding: AnyObject {
 final class FrameworkEmbedder: FrameworkEmbedding {
     // MARK: - Attributes
 
-    private let fileHandler: FileHandling
     private let system: Systeming
 
     // MARK: - Init
 
-    init(fileHandler: FileHandling = FileHandler(), system: Systeming = System()) {
-        self.fileHandler = fileHandler
+    init(system: Systeming = System()) {
         self.system = system
     }
 
@@ -57,8 +55,8 @@ final class FrameworkEmbedder: FrameworkEmbedding {
             return
         }
 
-        if !fileHandler.exists(productFrameworksPath) {
-            try fileHandler.createFolder(productFrameworksPath)
+        if !FileHandler.shared.exists(productFrameworksPath) {
+            try FileHandler.shared.createFolder(productFrameworksPath)
         }
 
         let copiedFramework = try copyFramework(productFrameworksPath: productFrameworksPath, frameworkAbsolutePath: frameworkAbsolutePath, validArchs: validArchs)
@@ -84,11 +82,11 @@ final class FrameworkEmbedder: FrameworkEmbedding {
 
     private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws -> AbsolutePath {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
-        if fileHandler.exists(frameworkOutputPath) {
-            try fileHandler.delete(frameworkOutputPath)
+        if FileHandler.shared.exists(frameworkOutputPath) {
+            try FileHandler.shared.delete(frameworkOutputPath)
         }
-        try fileHandler.copy(from: frameworkAbsolutePath,
-                             to: frameworkOutputPath)
+        try FileHandler.shared.copy(from: frameworkAbsolutePath,
+                                    to: frameworkOutputPath)
         let embeddable = Embeddable(path: frameworkOutputPath)
         if try embeddable.architectures().count > 1 {
             try embeddable.strip(keepingArchitectures: validArchs)
@@ -109,19 +107,19 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         if action == .install {
             let embeddable = Embeddable(path: frameworkAbsolutePath)
             try embeddable.bcSymbolMapsForFramework().forEach { bcInputPath in
-                if !fileHandler.exists(bcInputPath) {
+                if !FileHandler.shared.exists(bcInputPath) {
                     return
                 }
 
                 let bcOutputPath = builtProductsDir.appending(component: bcInputPath.components.last!)
-                if !fileHandler.exists(bcOutputPath.parentDirectory) {
-                    try fileHandler.createFolder(bcOutputPath.parentDirectory)
+                if !FileHandler.shared.exists(bcOutputPath.parentDirectory) {
+                    try FileHandler.shared.createFolder(bcOutputPath.parentDirectory)
                 }
-                if fileHandler.exists(bcOutputPath) {
-                    try fileHandler.delete(bcOutputPath)
+                if FileHandler.shared.exists(bcOutputPath) {
+                    try FileHandler.shared.delete(bcOutputPath)
                 }
 
-                try fileHandler.copy(from: bcInputPath, to: bcOutputPath)
+                try FileHandler.shared.copy(from: bcInputPath, to: bcOutputPath)
             }
         }
     }
@@ -129,13 +127,13 @@ final class FrameworkEmbedder: FrameworkEmbedding {
     private func copySymbols(frameworkDsymPath: AbsolutePath,
                              destinationPath: AbsolutePath!,
                              validArchs: [String]) throws {
-        if fileHandler.exists(frameworkDsymPath) {
+        if FileHandler.shared.exists(frameworkDsymPath) {
             let frameworkDsymOutputPath = destinationPath.appending(component: frameworkDsymPath.components.last!)
-            if fileHandler.exists(frameworkDsymOutputPath) {
-                try fileHandler.delete(frameworkDsymOutputPath)
+            if FileHandler.shared.exists(frameworkDsymOutputPath) {
+                try FileHandler.shared.delete(frameworkDsymOutputPath)
             }
-            try fileHandler.copy(from: frameworkDsymPath,
-                                 to: frameworkDsymOutputPath)
+            try FileHandler.shared.copy(from: frameworkDsymPath,
+                                        to: frameworkDsymOutputPath)
             let embeddable = Embeddable(path: frameworkDsymOutputPath)
             if try embeddable.architectures().count > 1 {
                 try embeddable.strip(keepingArchitectures: validArchs)

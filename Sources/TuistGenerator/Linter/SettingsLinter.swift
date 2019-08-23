@@ -8,16 +8,6 @@ protocol SettingsLinting: AnyObject {
 }
 
 final class SettingsLinter: SettingsLinting {
-    // MARK: - Attributes
-
-    let fileHandler: FileHandling
-
-    // MARK: - Init
-
-    init(fileHandler: FileHandling = FileHandler()) {
-        self.fileHandler = fileHandler
-    }
-
     // MARK: - SettingsLinting
 
     func lint(project: Project) -> [LintingIssue] {
@@ -41,7 +31,7 @@ final class SettingsLinter: SettingsLinting {
         var issues: [LintingIssue] = []
 
         let lintPath: (AbsolutePath) -> Void = { path in
-            if !self.fileHandler.exists(path) {
+            if !FileHandler.shared.exists(path) {
                 issues.append(LintingIssue(reason: "Configuration file not found at path \(path.pathString)", severity: .error))
             }
         }

@@ -29,11 +29,9 @@ public final class DotGraphGenerator: DotGraphGenerating {
     ///
     /// - Parameters:
     ///   - modelLoader: Instance to load the models.
-    ///   - fileHandler: Instance to handle files.
-    public convenience init(modelLoader: GeneratorModelLoading,
-                            fileHandler: FileHandling = FileHandler()) {
-        let graphLinter = GraphLinter(fileHandler: fileHandler)
-        let graphLoader = GraphLoader(linter: graphLinter, fileHandler: fileHandler, modelLoader: modelLoader)
+    public convenience init(modelLoader: GeneratorModelLoading) {
+        let graphLinter = GraphLinter()
+        let graphLoader = GraphLoader(linter: graphLinter, modelLoader: modelLoader)
         self.init(graphLoader: graphLoader, graphToDotGraphMapper: GraphToDotGraphMapper())
     }
 

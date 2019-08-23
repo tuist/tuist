@@ -18,22 +18,18 @@ class GraphLoader: GraphLoading {
     // MARK: - Attributes
 
     let linter: GraphLinting?
-    let fileHandler: FileHandling
     let modelLoader: GeneratorModelLoading
 
     // MARK: - Init
 
     convenience init(modelLoader: GeneratorModelLoading) {
         self.init(linter: GraphLinter(),
-                  fileHandler: FileHandler(),
                   modelLoader: modelLoader)
     }
 
     init(linter: GraphLinting? = nil,
-         fileHandler: FileHandling,
          modelLoader: GeneratorModelLoading) {
         self.linter = linter
-        self.fileHandler = fileHandler
         self.modelLoader = modelLoader
     }
 
@@ -82,8 +78,7 @@ class GraphLoader: GraphLoading {
         let cache = GraphLoaderCache()
         return try TuistConfig.at(path,
                                   cache: cache,
-                                  modelLoader: modelLoader,
-                                  fileHandler: fileHandler)
+                                  modelLoader: modelLoader)
     }
 
     private func lint(graph: Graph) throws {

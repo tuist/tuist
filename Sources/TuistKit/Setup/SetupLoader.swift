@@ -17,20 +17,16 @@ class SetupLoader: SetupLoading {
     /// Linter for up commands.
     private let upLinter: UpLinting
 
-    /// File handler instance to interact with the file system.
-    private let fileHandler: FileHandling
-
     /// Graph manifset loader instance to load the setup.
     private let graphManifestLoader: GraphManifestLoading
 
     /// System instance to run commands on the system.
     private let system: Systeming
 
-    convenience init(fileHandler: FileHandling = FileHandler()) {
+    convenience init() {
         let upLinter = UpLinter()
         let graphManifestLoader = GraphManifestLoader()
         self.init(upLinter: upLinter,
-                  fileHandler: fileHandler,
                   graphManifestLoader: graphManifestLoader,
                   system: System())
     }
@@ -39,15 +35,12 @@ class SetupLoader: SetupLoading {
     ///
     /// - Parameters:
     ///   - upLinter: Linter for up commands.
-    ///   - fileHandler: File handler instance to interact with the file system.
     ///   - graphManifestLoader: Graph manifset loader instance to load the setup.
     ///   - system: System instance to run commands on the system.
     init(upLinter: UpLinting,
-         fileHandler: FileHandling,
          graphManifestLoader: GraphManifestLoading,
          system: Systeming) {
         self.upLinter = upLinter
-        self.fileHandler = fileHandler
         self.graphManifestLoader = graphManifestLoader
         self.system = system
     }

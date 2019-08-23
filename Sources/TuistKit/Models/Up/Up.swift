@@ -66,19 +66,18 @@ class Up: Upping {
     /// - Parameters:
     ///   - dictionary: Dictionary with the command representation.
     ///   - projectPath: Path to the folder that contains the project.
-    ///   - fileHandler: File handler instance to interact with the file system.
     /// - Returns: Initialized command.
     /// - Throws: An error if the representation has an invalid format
-    static func with(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws -> Up? {
+    static func with(dictionary: JSON, projectPath: AbsolutePath) throws -> Up? {
         let type: String = try dictionary.get("type")
         if type == "custom" {
-            return try UpCustom(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpCustom(dictionary: dictionary, projectPath: projectPath)
         } else if type == "homebrew" {
-            return try UpHomebrew(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpHomebrew(dictionary: dictionary, projectPath: projectPath)
         } else if type == "homebrew-tap" {
-            return try UpHomebrewTap(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpHomebrewTap(dictionary: dictionary, projectPath: projectPath)
         } else if type == "carthage" {
-            return try UpCarthage(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpCarthage(dictionary: dictionary, projectPath: projectPath)
         }
         return nil
     }

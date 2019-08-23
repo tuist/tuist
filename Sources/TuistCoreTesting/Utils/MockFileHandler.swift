@@ -1,6 +1,8 @@
 import Basic
 import Foundation
-import TuistCore
+import XCTest
+
+@testable import TuistCore
 
 public final class MockFileHandler: FileHandling {
     private let fileHandler: FileHandling
@@ -77,5 +79,17 @@ extension MockFileHandler {
             try createFolder($0)
         }
         return paths
+    }
+}
+
+extension XCTestCase {
+    func sharedMockFileHandler(file: StaticString = #file, line: UInt = #line) -> MockFileHandler? {
+        guard let mock = FileHandler.shared as? MockFileHandler else {
+            let message = "FileHandler.shared hasn't been mocked." +
+                "You can call mockFileHandler(), or mockEnvironment() to mock the file handler or the environment respectively."
+            XCTFail(message, file: file, line: line)
+            return nil
+        }
+        return mock
     }
 }

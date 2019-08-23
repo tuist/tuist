@@ -42,37 +42,31 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     private let projectGenerator: ProjectGenerating
     private let system: Systeming
-    private let fileHandler: FileHandling
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting
 
     // MARK: - Init
 
     convenience init(system: Systeming = System(),
-                     fileHandler: FileHandling = FileHandler(),
                      defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                      cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
-                                                system: system,
-                                                fileHandler: fileHandler)
+                                                system: system)
         self.init(system: system,
                   projectGenerator: projectGenerator,
-                  fileHandler: fileHandler,
-                  workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler),
+                  workspaceStructureGenerator: WorkspaceStructureGenerator(),
                   cocoapodsInteractor: cocoapodsInteractor)
     }
 
     init(system: Systeming,
          projectGenerator: ProjectGenerating,
-         fileHandler: FileHandling,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          cocoapodsInteractor: CocoaPodsInteracting) {
         self.system = system
         self.projectGenerator = projectGenerator
-        self.fileHandler = fileHandler
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.cocoapodsInteractor = cocoapodsInteractor
     }
@@ -132,7 +126,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
         // If the workspace doesn't exist we can write it because there isn't any
         // Xcode instance that might depend on it.
-        if !fileHandler.exists(to.appending(component: "contents.xcworkspacedata")) {
+        if !FileHandler.shared.exists(to.appending(component: "contents.xcworkspacedata")) {
             try xcworkspace.write(path: to.path)
             return
         }
@@ -140,7 +134,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         // If the workspace exists, we want to reduce the likeliness of causing
         // Xcode not to be able to reload the workspace.
         // We only replace the current one if something has changed.
-        try fileHandler.inTemporaryDirectory { temporaryPath in
+        try FileHandler.shared.inTemporaryDirectory { temporaryPath in
             try xcworkspace.write(path: temporaryPath.path)
 
             let workspaceData: (AbsolutePath) throws -> Data = {
@@ -152,7 +146,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             let currentWorkspaceData = try workspaceData(temporaryPath)
 
             if currentData != currentWorkspaceData {
-                try fileHandler.replace(to, with: temporaryPath)
+                try FileHandler.shared.replace(to, with: temporaryPath)
             }
         }
     }

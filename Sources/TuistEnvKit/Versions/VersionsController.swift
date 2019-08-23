@@ -40,14 +40,11 @@ class VersionsController: VersionsControlling {
     // MARK: - Attributes
 
     let environmentController: EnvironmentControlling
-    let fileHandler: FileHandling
 
     // MARK: - Init
 
-    init(environmentController: EnvironmentControlling = EnvironmentController(),
-         fileHandler: FileHandling = FileHandler()) {
+    init(environmentController: EnvironmentControlling = EnvironmentController()) {
         self.environmentController = environmentController
-        self.fileHandler = fileHandler
     }
 
     // MARK: - VersionsControlling
@@ -60,17 +57,17 @@ class VersionsController: VersionsControlling {
         // Copy only if there's file in the folder
         if !tmpDir.path.glob("*").isEmpty {
             let dstPath = path(version: version)
-            if fileHandler.exists(dstPath) {
-                try fileHandler.delete(dstPath)
+            if FileHandler.shared.exists(dstPath) {
+                try FileHandler.shared.delete(dstPath)
             }
-            try fileHandler.copy(from: tmpDir.path, to: dstPath)
+            try FileHandler.shared.copy(from: tmpDir.path, to: dstPath)
         }
     }
 
     func uninstall(version: String) throws {
         let path = self.path(version: version)
-        if fileHandler.exists(path) {
-            try fileHandler.delete(path)
+        if FileHandler.shared.exists(path) {
+            try FileHandler.shared.delete(path)
         }
     }
 
