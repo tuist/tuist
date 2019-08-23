@@ -41,9 +41,6 @@ final class ProjectGenerator: ProjectGenerating {
     /// Generator for the project derived files.
     let derivedFileGenerator: DerivedFileGenerating
 
-    /// Printer instance to output messages to the user.
-    let printer: Printing
-
     /// System instance to run commands in the system.
     let system: Systeming
 
@@ -59,21 +56,18 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemesGenerator: Generator for the project schemes.
     ///   - derivedFileGenerator: Generator for the project derived files.
-    ///   - printer: Printer instance to output messages to the user.
     ///   - system: System instance to run commands in the system.
     ///   - fileHandler: File handler instance to interact with the system files.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
          schemesGenerator: SchemesGenerating = SchemesGenerator(),
          derivedFileGenerator: DerivedFileGenerating = DerivedFileGenerator(),
-         printer: Printing = Printer(),
          system: Systeming = System(),
          fileHandler: FileHandling = FileHandler()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
         self.derivedFileGenerator = derivedFileGenerator
-        self.printer = printer
         self.system = system
         self.fileHandler = fileHandler
     }
@@ -83,7 +77,7 @@ final class ProjectGenerator: ProjectGenerating {
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
-        printer.print("Generating project \(project.name)")
+        Printer.shared.print("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path

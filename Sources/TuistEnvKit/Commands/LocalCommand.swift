@@ -14,7 +14,6 @@ class LocalCommand: Command {
 
     let versionArgument: PositionalArgument<String>
     let fileHandler: FileHandling
-    let printer: Printing
     let versionController: VersionsControlling
 
     // MARK: - Init
@@ -22,13 +21,11 @@ class LocalCommand: Command {
     required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   fileHandler: FileHandler(),
-                  printer: Printer(),
                   versionController: VersionsController())
     }
 
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
-         printer: Printing,
          versionController: VersionsControlling) {
         let subParser = parser.add(subparser: LocalCommand.command,
                                    overview: LocalCommand.overview)
@@ -37,7 +34,6 @@ class LocalCommand: Command {
                                         optional: true,
                                         usage: "The version that you would like to pin your current directory to")
         self.fileHandler = fileHandler
-        self.printer = printer
         self.versionController = versionController
     }
 
@@ -54,19 +50,19 @@ class LocalCommand: Command {
     // MARK: - Fileprivate
 
     private func printLocalVersions() throws {
-        printer.print(section: "The following versions are available in the local environment:")
+        Printer.shared.print(section: "The following versions are available in the local environment:")
         let versions = versionController.semverVersions()
         let output = versions.sorted().reversed().map { "- \($0)" }.joined(separator: "\n")
-        printer.print(output)
+        Printer.shared.print(output)
     }
 
     private func createVersionFile(version: String) throws {
         let currentPath = fileHandler.currentPath
-        printer.print(section: "Generating \(Constants.versionFileName) file with version \(version)")
+        Printer.shared.print(section: "Generating \(Constants.versionFileName) file with version \(version)")
         let tuistVersionPath = currentPath.appending(component: Constants.versionFileName)
         try "\(version)".write(to: URL(fileURLWithPath: tuistVersionPath.pathString),
                                atomically: true,
                                encoding: .utf8)
-        printer.print(success: "File generated at path \(tuistVersionPath.pathString)")
+        Printer.shared.print(success: "File generated at path \(tuistVersionPath.pathString)")
     }
 }

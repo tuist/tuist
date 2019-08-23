@@ -39,7 +39,6 @@ final class BundleCommand: Command {
     private let versionsController: VersionsControlling
     private let fileHandler: FileHandling
     private let installer: Installing
-    private let printer: Printing
 
     // MARK: - Init
 
@@ -47,19 +46,16 @@ final class BundleCommand: Command {
         self.init(parser: parser,
                   versionsController: VersionsController(),
                   fileHandler: FileHandler(),
-                  printer: Printer(),
                   installer: Installer())
     }
 
     init(parser: ArgumentParser,
          versionsController: VersionsControlling,
          fileHandler: FileHandling,
-         printer: Printing,
          installer: Installing) {
         _ = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
         self.versionsController = versionsController
         self.fileHandler = fileHandler
-        self.printer = printer
         self.installer = installer
     }
 
@@ -74,13 +70,13 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        printer.print(section: "Bundling the version \(version) in the directory \(binFolderPath.pathString)")
+        Printer.shared.print(section: "Bundling the version \(version) in the directory \(binFolderPath.pathString)")
 
         let versionPath = versionsController.path(version: version)
 
         // Installing
         if !fileHandler.exists(versionPath) {
-            printer.print("Version \(version) not available locally. Installing...")
+            Printer.shared.print("Version \(version) not available locally. Installing...")
             try installer.install(version: version, force: false)
         }
 
@@ -90,6 +86,6 @@ final class BundleCommand: Command {
         }
         try fileHandler.copy(from: versionPath, to: binFolderPath)
 
-        printer.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
+        Printer.shared.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
     }
 }

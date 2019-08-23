@@ -7,7 +7,7 @@ import TuistCore
 final class MockUp: Upping {
     var isMetStub: ((Systeming, AbsolutePath) throws -> Bool)?
     var isMetCallCount: UInt = 0
-    var meetStub: ((Systeming, Printing, AbsolutePath) throws -> Void)?
+    var meetStub: ((Systeming, AbsolutePath) throws -> Void)?
     var meetCallCount: UInt = 0
     let name: String
 
@@ -20,8 +20,8 @@ final class MockUp: Upping {
         return try isMetStub?(system, projectPath) ?? false
     }
 
-    func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws {
+    func meet(system: Systeming, projectPath: AbsolutePath) throws {
         meetCallCount += 1
-        try meetStub?(system, printer, projectPath)
+        try meetStub?(system, projectPath)
     }
 }

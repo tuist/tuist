@@ -54,7 +54,6 @@ final class Installer: Installing {
     // MARK: - Attributes
 
     let system: Systeming
-    let printer: Printing
     let fileHandler: FileHandling
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
@@ -63,13 +62,11 @@ final class Installer: Installing {
     // MARK: - Init
 
     init(system: Systeming = System(),
-         printer: Printing = Printer(),
          fileHandler: FileHandling = FileHandler(),
          buildCopier: BuildCopying = BuildCopier(),
          versionsController: VersionsControlling = VersionsController(),
          githubClient: GitHubClienting = GitHubClient()) {
         self.system = system
-        self.printer = printer
         self.fileHandler = fileHandler
         self.buildCopier = buildCopier
         self.versionsController = versionsController
@@ -86,7 +83,7 @@ final class Installer: Installing {
     func install(version: String, temporaryDirectory: TemporaryDirectory, force: Bool = false) throws {
         // We ignore the Swift version and install from the soruce code
         if force {
-            printer.print("Forcing the installation of \(version) from the source code")
+            Printer.shared.print("Forcing the installation of \(version) from the source code")
             try installFromSource(version: version,
                                   temporaryDirectory: temporaryDirectory)
             return
@@ -111,12 +108,12 @@ final class Installer: Installing {
 
     func verifySwiftVersion(version: String) throws {
         guard let localVersionString = try system.swiftVersion() else { return }
-        printer.print("Verifying the Swift version is compatible with your version \(localVersionString)")
+        Printer.shared.print("Verifying the Swift version is compatible with your version \(localVersionString)")
         var remoteVersionString: String!
         do {
             remoteVersionString = try githubClient.getContent(ref: version, path: ".swift-version").spm_chomp()
         } catch is GitHubClientError {
-            printer.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
+            Printer.shared.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
         }
 
         let localVersion = SwiftVersion(localVersionString)
@@ -134,11 +131,11 @@ final class Installer: Installing {
 
     func bundleURL(version: String) throws -> URL? {
         guard let release = try? githubClient.release(tag: version) else {
-            printer.print(warning: "The release \(version) couldn't be obtained from GitHub")
+            Printer.shared.print(warning: "The release \(version) couldn't be obtained from GitHub")
             return nil
         }
         guard let bundleAsset = release.assets.first(where: { $0.name == Constants.bundleName }) else {
-            printer.print(warning: "The release \(version) is not bundled")
+            Printer.shared.print(warning: "The release \(version) is not bundled")
             return nil
         }
         return bundleAsset.downloadURL
@@ -150,16 +147,16 @@ final class Installer: Installing {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
-            printer.print("Downloading version from \(bundleURL.absoluteString)")
+            Printer.shared.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
             try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 
             // Unzip
-            printer.print("Installing...")
+            Printer.shared.print("Installing...")
             try system.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
-            printer.print("Version \(version) installed")
+            Printer.shared.print("Version \(version) installed")
         })
     }
 
@@ -170,7 +167,7 @@ final class Installer: Installing {
             let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
 
             // Cloning and building
-            printer.print("Pulling source code")
+            Printer.shared.print("Pulling source code")
             try system.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString)
 
             do {
@@ -182,7 +179,7 @@ final class Installer: Installing {
                 throw error
             }
 
-            printer.print("Building using Swift (it might take a while)")
+            Printer.shared.print("Building using Swift (it might take a while)")
             let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift").spm_chuzzle()!
 
             try system.run(swiftPath, "build",
@@ -203,7 +200,7 @@ final class Installer: Installing {
                                  to: installationDirectory)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
-            printer.print("Version \(version) installed")
+            Printer.shared.print("Version \(version) installed")
         }
     }
 

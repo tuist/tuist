@@ -20,10 +20,9 @@ protocol Upping: AnyObject {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws
+    func meet(system: Systeming, projectPath: AbsolutePath) throws
 }
 
 /// It represents a command that configures the environment for the project to work.
@@ -49,10 +48,9 @@ class Up: Upping {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system _: Systeming, printer _: Printing, projectPath _: AbsolutePath) throws {
+    func meet(system _: Systeming, projectPath _: AbsolutePath) throws {
         fatalError("This method should be overriden")
     }
 

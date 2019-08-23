@@ -9,17 +9,15 @@ import XCTest
 
 final class ProjectGeneratorTests: XCTestCase {
     var subject: ProjectGenerator!
-    var printer: MockPrinter!
     var system: MockSystem!
     var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        printer = MockPrinter()
+
         system = MockSystem()
         fileHandler = try! MockFileHandler()
-        subject = ProjectGenerator(printer: printer,
-                                   system: system)
+        subject = ProjectGenerator(system: system)
     }
 
     func test_generate() throws {

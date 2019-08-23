@@ -63,13 +63,12 @@ class UpCarthage: Up, GraphInitiatable {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws {
+    override func meet(system: Systeming, projectPath: AbsolutePath) throws {
         // Installing Carthage
         if try !upHomebrew.isMet(system: system, projectPath: projectPath) {
-            try upHomebrew.meet(system: system, printer: printer, projectPath: projectPath)
+            try upHomebrew.meet(system: system, projectPath: projectPath)
         }
 
         /// Updating Carthage dependencies.

@@ -7,15 +7,13 @@ import XCTest
 
 final class EnvironmentLinterTests: XCTestCase {
     var xcodeController: MockXcodeController!
-    var printer: MockPrinter!
     var subject: EnvironmentLinter!
 
     override func setUp() {
         super.setUp()
+
         xcodeController = MockXcodeController()
-        printer = MockPrinter()
-        subject = EnvironmentLinter(xcodeController: xcodeController,
-                                    printer: printer)
+        subject = EnvironmentLinter(xcodeController: xcodeController)
     }
 
     func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws {

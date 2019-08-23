@@ -47,7 +47,6 @@ class InitCommand: NSObject, Command {
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
     let fileHandler: FileHandling
-    let printer: Printing
     let infoplistProvisioner: InfoPlistProvisioning
     let playgroundGenerator: PlaygroundGenerating
 
@@ -56,14 +55,12 @@ class InitCommand: NSObject, Command {
     public required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   fileHandler: FileHandler(),
-                  printer: Printer(),
                   infoplistProvisioner: InfoPlistProvisioner(),
                   playgroundGenerator: PlaygroundGenerator())
     }
 
     init(parser: ArgumentParser,
          fileHandler: FileHandling,
-         printer: Printing,
          infoplistProvisioner: InfoPlistProvisioning,
          playgroundGenerator: PlaygroundGenerating) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
@@ -95,7 +92,6 @@ class InitCommand: NSObject, Command {
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
         self.fileHandler = fileHandler
-        self.printer = printer
         self.infoplistProvisioner = infoplistProvisioner
         self.playgroundGenerator = playgroundGenerator
     }
@@ -114,7 +110,7 @@ class InitCommand: NSObject, Command {
         try generateGitIgnore(path: path)
         try generateSetup(path: path)
         try generateTuistConfig(path: path)
-        printer.print(success: "Project generated at path \(path.pathString).")
+        Printer.shared.print(success: "Project generated at path \(path.pathString).")
     }
 
     // MARK: - Fileprivate

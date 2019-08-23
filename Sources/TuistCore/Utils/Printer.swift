@@ -24,9 +24,12 @@ public protocol Printing: AnyObject {
 }
 
 public class Printer: Printing {
+    /// Shared instance
+    public static var shared: Printing = Printer()
+
     // MARK: - Init
 
-    public init() {}
+    init() {}
 
     // MARK: - Public
 

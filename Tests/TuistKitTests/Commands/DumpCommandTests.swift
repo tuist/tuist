@@ -1,12 +1,13 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistCore
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistKit
 
 final class DumpCommandTests: XCTestCase {
-    var printer: MockPrinter!
     var errorHandler: MockErrorHandler!
     var fileHandler: MockFileHandler!
     var subject: DumpCommand!
@@ -14,14 +15,15 @@ final class DumpCommandTests: XCTestCase {
     var manifestLoading: GraphManifestLoading!
 
     override func setUp() {
-        printer = MockPrinter()
+        super.setUp()
+        mockEnvironment()
+
         errorHandler = MockErrorHandler()
         parser = ArgumentParser.test()
         fileHandler = try! MockFileHandler()
         manifestLoading = GraphManifestLoader()
         subject = DumpCommand(fileHandler: fileHandler,
                               manifestLoader: manifestLoading,
-                              printer: printer,
                               parser: parser)
     }
 
@@ -65,6 +67,7 @@ final class DumpCommandTests: XCTestCase {
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
         try subject.run(with: result)
         let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
-        XCTAssertEqual(printer.printArgs.first, expected)
+
+        XCTAssertPrinterOutputContains(expected)
     }
 }

@@ -11,21 +11,19 @@ final class GraphCommandTests: XCTestCase {
     var subject: GraphCommand!
     var dotGraphGenerator: MockDotGraphGenerator!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
     var manifestLoader: MockGraphManifestLoader!
     var parser: ArgumentParser!
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+
         dotGraphGenerator = MockDotGraphGenerator()
         fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
         manifestLoader = MockGraphManifestLoader()
         parser = ArgumentParser.test()
-
         subject = GraphCommand(parser: parser,
                                fileHandler: fileHandler,
-                               printer: printer,
                                dotGraphGenerator: dotGraphGenerator,
                                manifestLoader: manifestLoader)
     }
@@ -60,7 +58,9 @@ final class GraphCommandTests: XCTestCase {
 
         // Then
         XCTAssertEqual(try fileHandler.readTextFile(graphPath), graph)
-        XCTAssertTrue(printer.printArgs.contains("Deleting existing graph at \(graphPath.pathString)"))
-        XCTAssertTrue(printer.printSuccessArgs.contains("Graph exported to \(graphPath.pathString)"))
+        XCTAssertPrinterOutputContains("""
+        Deleting existing graph at \(graphPath.pathString)
+        Graph exported to \(graphPath.pathString)
+        """)
     }
 }

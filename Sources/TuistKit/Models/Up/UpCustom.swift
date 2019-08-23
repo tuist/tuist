@@ -42,10 +42,9 @@ class UpCustom: Up, GraphInitiatable {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer _: Printing, projectPath: AbsolutePath) throws {
+    override func meet(system: Systeming, projectPath: AbsolutePath) throws {
         let launchPath = try self.launchPath(command: meet, projectPath: projectPath, system: system)
 
         var arguments = [launchPath.pathString]

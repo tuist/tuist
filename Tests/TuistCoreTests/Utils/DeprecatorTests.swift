@@ -5,17 +5,17 @@ import XCTest
 @testable import TuistCoreTesting
 
 final class DeprecatorTests: XCTestCase {
-    var printer: MockPrinter!
     var subject: Deprecator!
 
     override func setUp() {
         super.setUp()
-        printer = MockPrinter()
-        subject = Deprecator(printer: printer)
+        mockEnvironment()
+
+        subject = Deprecator()
     }
 
     func test_notify() {
         subject.notify(deprecation: "foo", suggestion: "bar")
-        XCTAssertEqual(printer.printDeprecationArgs, ["foo will be deprecated in the next major release. Use bar instead."])
+        XCTAssertPrinterOutputContains("foo will be deprecated in the next major release. Use bar instead.")
     }
 }

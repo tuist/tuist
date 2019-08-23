@@ -13,18 +13,12 @@ class EnvironmentLinter: EnvironmentLinting {
     /// Xcode controller.
     let xcodeController: XcodeControlling
 
-    /// Printer to output messages to the user.
-    let printer: Printing
-
     /// Initialies the linter.
     ///
     /// - Parameters:
     ///     - xcodeController: Xcode controller.
-    ///     - printer: Printer to output messages to the user.
-    init(xcodeController: XcodeControlling = XcodeController(),
-         printer: Printing = Printer()) {
+    init(xcodeController: XcodeControlling = XcodeController()) {
         self.xcodeController = xcodeController
-        self.printer = printer
     }
 
     /// Lints a given Tuist configuration.
@@ -36,7 +30,7 @@ class EnvironmentLinter: EnvironmentLinting {
 
         issues.append(contentsOf: try lintXcodeVersion(config: config))
 
-        try issues.printAndThrowIfNeeded(printer: printer)
+        try issues.printAndThrowIfNeeded()
     }
 
     /// Returns a linting issue if the selected version of Xcode is not compatible with the

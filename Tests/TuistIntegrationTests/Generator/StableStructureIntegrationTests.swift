@@ -12,6 +12,8 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
     }
 
     override func setUp() {
+        super.setUp()
+
         do {
             fileHandler = try MockFileHandler()
             try setupTestProject()
@@ -31,7 +33,7 @@ final class StableXcodeProjIntegrationTests: XCTestCase {
 
         // When
         try (0 ..< 10).forEach { _ in
-            let subject = Generator(printer: MockPrinter(), modelLoader: try createModelLoader())
+            let subject = Generator(modelLoader: try createModelLoader())
 
             let workspacePath = try subject.generateWorkspace(at: path, workspaceFiles: [])
 

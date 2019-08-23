@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-import XCTest
-
+import TuistCore
 import TuistGenerator
+import XCTest
 @testable import ProjectDescription
 @testable import TuistCoreTesting
 @testable import TuistKit
@@ -28,11 +28,11 @@ class GeneratorModelLoaderTest: XCTestCase {
         return fileHandler.currentPath
     }
 
-    private var printer: MockPrinter!
-
     override func setUp() {
+        super.setUp()
+        mockEnvironment()
+
         do {
-            printer = MockPrinter()
             fileHandler = try MockFileHandler()
             manifestTargetGenerator = MockManifestTargetGenerator()
             manifestLinter = MockManifestLinter()
@@ -333,10 +333,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         let model = try subject.loadWorkspace(at: path)
 
         // Then
-        XCTAssertEqual(printer.printWarningArgs, [
-            "No projects found at: A",
-            "No projects found at: B",
-        ])
+        XCTAssertPrinterOutputContains("""
+        No projects found at: A
+        No projects found at: B
+        """)
         XCTAssertEqual(model.projects, [])
     }
 
@@ -582,13 +582,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         let model = TuistGenerator.FileElement.from(manifest: manifest,
                                                     path: path,
                                                     fileHandler: fileHandler,
-                                                    printer: printer,
                                                     includeFiles: { !self.fileHandler.isFolder($0) })
 
         // Then
-        XCTAssertEqual(printer.printWarningArgs, [
-            "'Documentation' is a directory, try using: 'Documentation/**' to list its files",
-        ])
+        XCTAssertPrinterOutputContains("'Documentation' is a directory, try using: 'Documentation/**' to list its files")
         XCTAssertEqual(model, [])
     }
 
@@ -600,13 +597,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
                                                     path: path,
-                                                    fileHandler: fileHandler,
-                                                    printer: printer)
+                                                    fileHandler: fileHandler)
 
         // Then
-        XCTAssertEqual(printer.printWarningArgs, [
-            "No files found at: Documentation/**",
-        ])
+        XCTAssertPrinterOutputContains("No files found at: Documentation/**")
         XCTAssertEqual(model, [])
     }
 
@@ -622,13 +616,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
                                                     path: path,
-                                                    fileHandler: fileHandler,
-                                                    printer: printer)
+                                                    fileHandler: fileHandler)
 
         // Then
-        XCTAssertEqual(printer.printWarningArgs, [
-            "README.md is not a directory - folder reference paths need to point to directories",
-        ])
+        XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
         XCTAssertEqual(model, [])
     }
 
@@ -640,13 +631,10 @@ class GeneratorModelLoaderTest: XCTestCase {
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
                                                     path: path,
-                                                    fileHandler: fileHandler,
-                                                    printer: printer)
+                                                    fileHandler: fileHandler)
 
         // Then
-        XCTAssertEqual(printer.printWarningArgs, [
-            "Documentation does not exist",
-        ])
+        XCTAssertPrinterOutputContains("Documentation does not exist")
         XCTAssertEqual(model, [])
     }
 
@@ -656,8 +644,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         return GeneratorModelLoader(fileHandler: fileHandler,
                                     manifestLoader: manifestLoader,
                                     manifestLinter: manifestLinter,
-                                    manifestTargetGenerator: manifestTargetGenerator,
-                                    printer: printer)
+                                    manifestTargetGenerator: manifestTargetGenerator)
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],

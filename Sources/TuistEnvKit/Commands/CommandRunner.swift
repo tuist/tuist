@@ -29,7 +29,6 @@ class CommandRunner: CommandRunning {
 
     let versionResolver: VersionResolving
     let fileHandler: FileHandling
-    let printer: Printing
     let system: Systeming
     let updater: Updating
     let versionsController: VersionsControlling
@@ -41,7 +40,6 @@ class CommandRunner: CommandRunning {
 
     init(versionResolver: VersionResolving = VersionResolver(),
          fileHandler: FileHandling = FileHandler(),
-         printer: Printing = Printer(),
          system: Systeming = System(),
          updater: Updating = Updater(),
          installer: Installing = Installer(),
@@ -50,7 +48,6 @@ class CommandRunner: CommandRunning {
          exiter: @escaping (Int) -> Void = { exit(Int32($0)) }) {
         self.versionResolver = versionResolver
         self.fileHandler = fileHandler
-        self.printer = printer
         self.system = system
         self.versionsController = versionsController
         self.arguments = arguments
@@ -69,9 +66,9 @@ class CommandRunner: CommandRunning {
 
         switch resolvedVersion {
         case let .bin(path):
-            printer.print("Using bundled version at path \(path.pathString)")
+            Printer.shared.print("Using bundled version at path \(path.pathString)")
         case let .versionFile(path, value):
-            printer.print("Using version \(value) defined at \(path.pathString)")
+            Printer.shared.print("Using version \(value) defined at \(path.pathString)")
         default:
             break
         }
@@ -106,7 +103,7 @@ class CommandRunner: CommandRunning {
 
     func runVersion(_ version: String) throws {
         if !versionsController.versions().contains(where: { $0.description == version }) {
-            printer.print("Version \(version) not found locally. Installing...")
+            Printer.shared.print("Version \(version) not found locally. Installing...")
             try installer.install(version: version, force: false)
         }
 
