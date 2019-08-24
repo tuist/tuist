@@ -11,8 +11,10 @@ final class XcodeControllerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         system = MockSystem()
-        fileHandler = try! MockFileHandler()
         subject = XcodeController(system: system)
     }
 

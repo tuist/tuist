@@ -11,23 +11,19 @@ class DumpCommand: NSObject, Command {
 
     // MARK: - Attributes
 
-    private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
     let pathArgument: OptionArgument<String>
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
-        self.init(fileHandler: FileHandler(),
-                  manifestLoader: GraphManifestLoader(),
+        self.init(manifestLoader: GraphManifestLoader(),
                   parser: parser)
     }
 
-    init(fileHandler: FileHandling,
-         manifestLoader: GraphManifestLoading,
+    init(manifestLoader: GraphManifestLoading,
          parser: ArgumentParser) {
         let subParser = parser.add(subparser: DumpCommand.command, overview: DumpCommand.overview)
-        self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",

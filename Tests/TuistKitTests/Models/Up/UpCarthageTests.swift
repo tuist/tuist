@@ -16,11 +16,12 @@ final class UpCarthageTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         platforms = [.iOS, .macOS]
         carthage = MockCarthage()
         upHomebrew = MockUp()
-        fileHandler = try! MockFileHandler()
         system = MockSystem()
         subject = UpCarthage(platforms: platforms,
                              upHomebrew: upHomebrew,
@@ -29,9 +30,7 @@ final class UpCarthageTests: XCTestCase {
 
     func test_init() throws {
         let json = JSON(["platforms": JSON.array([JSON.string("ios")])])
-        let got = try UpCarthage(dictionary: json,
-                                 projectPath: fileHandler.currentPath,
-                                 fileHandler: fileHandler)
+        let got = try UpCarthage(dictionary: json, projectPath: fileHandler.currentPath)
         XCTAssertEqual(got.platforms, [.iOS])
     }
 

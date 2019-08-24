@@ -35,27 +35,17 @@ protocol PlaygroundGenerating: AnyObject {
 }
 
 final class PlaygroundGenerator: PlaygroundGenerating {
-    // MARK: - Attributes
-
-    private let fileHandler: FileHandling
-
-    // MARK: - Init
-
-    init(fileHandler: FileHandling = FileHandler()) {
-        self.fileHandler = fileHandler
-    }
-
     func generate(path: AbsolutePath,
                   name: String,
                   platform: Platform,
                   content: String = PlaygroundGenerator.defaultContent()) throws {
         let playgroundPath = path.appending(component: "\(name).playground")
 
-        if fileHandler.exists(playgroundPath) {
+        if FileHandler.shared.exists(playgroundPath) {
             throw PlaygroundGenerationError.alreadyExisting(playgroundPath)
         }
 
-        try fileHandler.createFolder(playgroundPath)
+        try FileHandler.shared.createFolder(playgroundPath)
 
         let xcplaygroundPath = playgroundPath.appending(component: "contents.xcplayground")
         let contentsPath = playgroundPath.appending(component: "Contents.swift")

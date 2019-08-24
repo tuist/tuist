@@ -186,10 +186,9 @@ final class Embeddable {
     }
 
     private func stripDirectory(name: String, from frameworkPath: AbsolutePath) throws {
-        let fileHandler = FileHandler()
         let path = frameworkPath.appending(RelativePath(name))
-        if fileHandler.exists(path) {
-            try fileHandler.delete(path)
+        if FileHandler.shared.exists(path) {
+            try FileHandler.shared.delete(path)
         }
     }
 

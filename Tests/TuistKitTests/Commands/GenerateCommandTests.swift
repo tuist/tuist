@@ -18,22 +18,17 @@ final class GenerateCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
-        do {
-            generator = MockGenerator()
-            parser = ArgumentParser.test()
-            fileHandler = try MockFileHandler()
-            manifestLoader = MockGraphManifestLoader()
-            clock = StubClock()
+        generator = MockGenerator()
+        parser = ArgumentParser.test()
+        manifestLoader = MockGraphManifestLoader()
+        clock = StubClock()
 
-            subject = GenerateCommand(parser: parser,
-                                      fileHandler: fileHandler,
-                                      generator: generator,
-                                      manifestLoader: manifestLoader,
-                                      clock: clock)
-        } catch {
-            XCTFail("failed to setup test: \(error.localizedDescription)")
-        }
+        subject = GenerateCommand(parser: parser,
+                                  generator: generator,
+                                  manifestLoader: manifestLoader,
+                                  clock: clock)
     }
 
     func test_command() {

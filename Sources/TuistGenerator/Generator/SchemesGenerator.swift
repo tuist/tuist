@@ -22,16 +22,6 @@ final class SchemesGenerator: SchemesGenerating {
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
 
-    /// Instance to interact with the file system.
-    let fileHandler: FileHandling
-
-    /// Initializes the schemes generator with its attributes.
-    ///
-    /// - Parameter fileHandler: File handler.
-    init(fileHandler: FileHandling = FileHandler()) {
-        self.fileHandler = fileHandler
-    }
-
     /// Generates the schemes for the project manifest.
     ///
     /// - Parameters:
@@ -439,8 +429,8 @@ final class SchemesGenerator: SchemesGenerating {
             let username = NSUserName()
             path = projectPath.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
-        if !fileHandler.exists(path) {
-            try fileHandler.createFolder(path)
+        if !FileHandler.shared.exists(path) {
+            try FileHandler.shared.createFolder(path)
         }
         return path
     }

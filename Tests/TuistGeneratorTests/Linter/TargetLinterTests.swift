@@ -11,8 +11,10 @@ final class TargetLinterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        subject = TargetLinter(fileHandler: fileHandler)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = TargetLinter()
     }
 
     func test_lint_when_target_has_invalid_product_name() {

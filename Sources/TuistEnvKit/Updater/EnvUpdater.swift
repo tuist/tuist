@@ -15,9 +15,6 @@ final class EnvUpdater: EnvUpdating {
     /// System instance to run commands.
     let system: Systeming
 
-    /// Instance to interact with the file system.
-    let fileHandler: FileHandling
-
     /// GitHub API client.
     let githubClient: GitHubClienting
 
@@ -25,13 +22,10 @@ final class EnvUpdater: EnvUpdating {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands.
-    ///   - fileHandler: Instance to interact with the file system.
     ///   - githubClient: GitHub API client.
     init(system: Systeming = System(),
-         fileHandler: FileHandling = FileHandler(),
          githubClient: GitHubClienting = GitHubClient()) {
         self.system = system
-        self.fileHandler = fileHandler
         self.githubClient = githubClient
     }
 
@@ -45,7 +39,7 @@ final class EnvUpdater: EnvUpdating {
             return
         }
 
-        try fileHandler.inTemporaryDirectory { directory in
+        try FileHandler.shared.inTemporaryDirectory { directory in
             // Download
             let fileName = asset.downloadURL.lastPathComponent
             let downloadPath = directory.appending(component: fileName)

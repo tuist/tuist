@@ -88,9 +88,6 @@ protocol GraphManifestLoading {
 class GraphManifestLoader: GraphManifestLoading {
     // MARK: - Attributes
 
-    /// File handler to interact with the file system.
-    let fileHandler: FileHandling
-
     /// Instance to run commands in the system.
     let system: Systeming
 
@@ -105,13 +102,10 @@ class GraphManifestLoader: GraphManifestLoading {
     /// Initializes the manifest loader with its attributes.
     ///
     /// - Parameters:
-    ///   - fileHandler: File handler to interact with the file system.
     ///   - system: Instance to run commands in the system.
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
-    init(fileHandler: FileHandling = FileHandler(),
-         system: Systeming = System(),
+    init(system: Systeming = System(),
          resourceLocator: ResourceLocating = ResourceLocator()) {
-        self.fileHandler = fileHandler
         self.system = system
         self.resourceLocator = resourceLocator
         decoder = JSONDecoder()
@@ -120,7 +114,7 @@ class GraphManifestLoader: GraphManifestLoading {
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
         let filePath = path.appending(component: manifest.fileName)
 
-        if fileHandler.exists(filePath) {
+        if FileHandler.shared.exists(filePath) {
             return filePath
         } else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
@@ -129,7 +123,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {
         return .init(Manifest.allCases.filter {
-            fileHandler.exists(path.appending(component: $0.fileName))
+            FileHandler.shared.exists(path.appending(component: $0.fileName))
         })
     }
 
@@ -152,7 +146,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
         let setupPath = path.appending(component: Manifest.setup.fileName)
-        guard fileHandler.exists(setupPath) else {
+        guard FileHandler.shared.exists(setupPath) else {
             throw GraphManifestLoaderError.manifestNotFound(.setup, path)
         }
 
@@ -161,8 +155,7 @@ class GraphManifestLoader: GraphManifestLoading {
         let actionsJson: [JSON] = try setupJson.get("actions")
         return try actionsJson.compactMap {
             try Up.with(dictionary: $0,
-                        projectPath: path,
-                        fileHandler: fileHandler)
+                        projectPath: path)
         }
     }
 
@@ -170,7 +163,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
         let manifestPath = path.appending(component: manifest.fileName)
-        guard fileHandler.exists(manifestPath) else {
+        guard FileHandler.shared.exists(manifestPath) else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
         }
         let data = try loadManifestData(at: manifestPath)

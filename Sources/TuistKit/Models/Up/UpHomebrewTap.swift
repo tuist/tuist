@@ -31,9 +31,8 @@ class UpHomebrewTap: Up, GraphInitiatable {
     ///   - dictionary: Dictionary with the object representation.
     ///   - projectPath: Absolute path to the folder that contains the manifest.
     ///     This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
-    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
     /// - Throws: A decoding error if an expected property is missing or has an invalid value.
-    required convenience init(dictionary: JSON, projectPath _: AbsolutePath, fileHandler _: FileHandling) throws {
+    required convenience init(dictionary: JSON, projectPath _: AbsolutePath) throws {
         self.init(repositories: try dictionary.get("repositories"))
     }
 

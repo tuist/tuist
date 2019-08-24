@@ -8,17 +8,14 @@ protocol TargetLinting: AnyObject {
 class TargetLinter: TargetLinting {
     // MARK: - Attributes
 
-    private let fileHandler: FileHandling
     private let settingsLinter: SettingsLinting
     private let targetActionLinter: TargetActionLinting
 
     // MARK: - Init
 
     init(settingsLinter: SettingsLinting = SettingsLinter(),
-         fileHandler: FileHandling = FileHandler(),
          targetActionLinter: TargetActionLinting = TargetActionLinter()) {
         self.settingsLinter = settingsLinter
-        self.fileHandler = fileHandler
         self.targetActionLinter = targetActionLinter
     }
 
@@ -111,7 +108,7 @@ class TargetLinter: TargetLinting {
 
     private func lintInfoplistExists(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        if let infoPlist = target.infoPlist, let path = infoPlist.path, !fileHandler.exists(path) {
+        if let infoPlist = target.infoPlist, let path = infoPlist.path, !FileHandler.shared.exists(path) {
             issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
         return issues
@@ -119,7 +116,7 @@ class TargetLinter: TargetLinting {
 
     private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        if let path = target.entitlements, !fileHandler.exists(path) {
+        if let path = target.entitlements, !FileHandler.shared.exists(path) {
             issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
         }
         return issues

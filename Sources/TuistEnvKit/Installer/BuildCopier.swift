@@ -20,14 +20,11 @@ class BuildCopier: BuildCopying {
 
     // MARK: - Attributes
 
-    private let fileHandler: FileHandling
     private let system: Systeming
 
     // MARK: - Init
 
-    init(fileHandler: FileHandling = FileHandler(),
-         system: Systeming = System()) {
-        self.fileHandler = fileHandler
+    init(system: Systeming = System()) {
         self.system = system
     }
 
@@ -35,7 +32,7 @@ class BuildCopier: BuildCopying {
         try BuildCopier.files.forEach { file in
             let filePath = from.appending(component: file)
             let toPath = to.appending(component: file)
-            if !fileHandler.exists(filePath) { return }
+            if !FileHandler.shared.exists(filePath) { return }
             try system.run("/bin/cp", "-rf", filePath.pathString, toPath.pathString)
             if file == "tuist" {
                 try system.run("/bin/chmod", "+x", toPath.pathString)

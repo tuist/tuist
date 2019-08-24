@@ -17,13 +17,12 @@ final class DumpCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         errorHandler = MockErrorHandler()
         parser = ArgumentParser.test()
-        fileHandler = try! MockFileHandler()
         manifestLoading = GraphManifestLoader()
-        subject = DumpCommand(fileHandler: fileHandler,
-                              manifestLoader: manifestLoading,
+        subject = DumpCommand(manifestLoader: manifestLoading,
                               parser: parser)
     }
 

@@ -24,10 +24,11 @@ final class OpenerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         system = MockSystem()
-        fileHandler = try! MockFileHandler()
-        subject = Opener(system: system,
-                         fileHandler: fileHandler)
+        subject = Opener(system: system)
     }
 
     func test_open_when_path_doesnt_exist() throws {

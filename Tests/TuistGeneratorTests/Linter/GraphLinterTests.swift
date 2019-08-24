@@ -11,8 +11,10 @@ final class GraphLinterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        subject = GraphLinter(fileHandler: fileHandler)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = GraphLinter()
     }
 
     func test_lint_when_carthage_frameworks_are_missing() throws {

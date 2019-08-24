@@ -37,7 +37,6 @@ final class BundleCommand: Command {
     // MARK: - Attributes
 
     private let versionsController: VersionsControlling
-    private let fileHandler: FileHandling
     private let installer: Installing
 
     // MARK: - Init
@@ -45,28 +44,25 @@ final class BundleCommand: Command {
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   versionsController: VersionsController(),
-                  fileHandler: FileHandler(),
                   installer: Installer())
     }
 
     init(parser: ArgumentParser,
          versionsController: VersionsControlling,
-         fileHandler: FileHandling,
          installer: Installing) {
         _ = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
         self.versionsController = versionsController
-        self.fileHandler = fileHandler
         self.installer = installer
     }
 
     // MARK: - Internal
 
     func run(with _: ArgumentParser.Result) throws {
-        let versionFilePath = fileHandler.currentPath.appending(component: Constants.versionFileName)
-        let binFolderPath = fileHandler.currentPath.appending(component: Constants.binFolderName)
+        let versionFilePath = FileHandler.shared.currentPath.appending(component: Constants.versionFileName)
+        let binFolderPath = FileHandler.shared.currentPath.appending(component: Constants.binFolderName)
 
-        if !fileHandler.exists(versionFilePath) {
-            throw BundleCommandError.missingVersionFile(fileHandler.currentPath)
+        if !FileHandler.shared.exists(versionFilePath) {
+            throw BundleCommandError.missingVersionFile(FileHandler.shared.currentPath)
         }
 
         let version = try String(contentsOf: versionFilePath.url)
@@ -75,16 +71,16 @@ final class BundleCommand: Command {
         let versionPath = versionsController.path(version: version)
 
         // Installing
-        if !fileHandler.exists(versionPath) {
+        if !FileHandler.shared.exists(versionPath) {
             Printer.shared.print("Version \(version) not available locally. Installing...")
             try installer.install(version: version, force: false)
         }
 
         // Copying
-        if fileHandler.exists(binFolderPath) {
-            try fileHandler.delete(binFolderPath)
+        if FileHandler.shared.exists(binFolderPath) {
+            try FileHandler.shared.delete(binFolderPath)
         }
-        try fileHandler.copy(from: versionPath, to: binFolderPath)
+        try FileHandler.shared.copy(from: versionPath, to: binFolderPath)
 
         Printer.shared.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
     }

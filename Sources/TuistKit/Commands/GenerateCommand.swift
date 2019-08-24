@@ -13,47 +13,38 @@ class GenerateCommand: NSObject, Command {
     // MARK: - Attributes
 
     private let generator: Generating
-    private let fileHandler: FileHandling
     private let manifestLoader: GraphManifestLoading
     private let clock: Clock
-
     let pathArgument: OptionArgument<String>
     let projectOnlyArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
     required convenience init(parser: ArgumentParser) {
-        let fileHandler = FileHandler()
         let system = System()
-        let resourceLocator = ResourceLocator(fileHandler: fileHandler)
-        let manifestLoader = GraphManifestLoader(fileHandler: fileHandler,
-                                                 system: system,
+        let resourceLocator = ResourceLocator()
+        let manifestLoader = GraphManifestLoader(system: system,
                                                  resourceLocator: resourceLocator)
         let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
                                                               resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
-        let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
-                                               manifestLoader: manifestLoader,
+        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter,
                                                manifestTargetGenerator: manifestTargetGenerator)
         let generator = Generator(system: system,
-                                  fileHandler: fileHandler,
                                   modelLoader: modelLoader)
         self.init(parser: parser,
-                  fileHandler: fileHandler,
                   generator: generator,
                   manifestLoader: manifestLoader,
                   clock: WallClock())
     }
 
     init(parser: ArgumentParser,
-         fileHandler: FileHandling,
          generator: Generating,
          manifestLoader: GraphManifestLoading,
          clock: Clock) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.generator = generator
-        self.fileHandler = fileHandler
         self.manifestLoader = manifestLoader
         self.clock = clock
 
@@ -86,9 +77,9 @@ class GenerateCommand: NSObject, Command {
 
     private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
-            return AbsolutePath(path, relativeTo: fileHandler.currentPath)
+            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
-            return fileHandler.currentPath
+            return FileHandler.shared.currentPath
         }
     }
 }

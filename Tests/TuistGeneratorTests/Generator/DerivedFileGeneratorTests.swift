@@ -11,8 +11,10 @@ final class DerivedFileGeneratorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        subject = DerivedFileGenerator(fileHandler: fileHandler)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = DerivedFileGenerator()
     }
 
     func test_generate_generatesTheInfoPlistFiles_whenDictionaryInfoPlist() throws {

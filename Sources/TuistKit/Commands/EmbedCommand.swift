@@ -30,22 +30,18 @@ final class EmbedCommand: HiddenCommand {
 
     private let embedder: FrameworkEmbedding
     private let parser: ArgumentParser
-    private let fileHandler: FileHandling
 
     // MARK: - Init
 
     convenience init() {
         self.init(embedder: FrameworkEmbedder(),
-                  parser: ArgumentParser(usage: "embed", overview: ""),
-                  fileHandler: FileHandler())
+                  parser: ArgumentParser(usage: "embed", overview: ""))
     }
 
     init(embedder: FrameworkEmbedding,
-         parser: ArgumentParser,
-         fileHandler: FileHandling) {
+         parser: ArgumentParser) {
         self.embedder = embedder
         self.parser = parser
-        self.fileHandler = fileHandler
     }
 
     func run(arguments: [String]) throws {

@@ -15,13 +15,11 @@ final class LocalCommandTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         argumentParser = ArgumentParser(usage: "test", overview: "overview")
-        fileHandler = try! MockFileHandler()
         versionController = try! MockVersionsController()
-        subject = LocalCommand(parser: argumentParser,
-                               fileHandler: fileHandler,
-                               versionController: versionController)
+        subject = LocalCommand(parser: argumentParser, versionController: versionController)
     }
 
     func test_command() {

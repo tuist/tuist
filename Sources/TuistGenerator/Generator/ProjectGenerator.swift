@@ -44,9 +44,6 @@ final class ProjectGenerator: ProjectGenerating {
     /// System instance to run commands in the system.
     let system: Systeming
 
-    /// File handler instance to interact with the system files.
-    let fileHandler: FileHandling
-
     // MARK: - Init
 
     /// Initializes the project generator with its attributes.
@@ -57,19 +54,16 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - schemesGenerator: Generator for the project schemes.
     ///   - derivedFileGenerator: Generator for the project derived files.
     ///   - system: System instance to run commands in the system.
-    ///   - fileHandler: File handler instance to interact with the system files.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
          schemesGenerator: SchemesGenerating = SchemesGenerator(),
          derivedFileGenerator: DerivedFileGenerating = DerivedFileGenerator(),
-         system: Systeming = System(),
-         fileHandler: FileHandling = FileHandler()) {
+         system: Systeming = System()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
         self.derivedFileGenerator = derivedFileGenerator
         self.system = system
-        self.fileHandler = fileHandler
     }
 
     // MARK: - ProjectGenerating
@@ -224,7 +218,7 @@ final class ProjectGenerator: ProjectGenerating {
                        graph _: Graphing) throws -> GeneratedProject {
         var generatedProject: GeneratedProject!
 
-        try fileHandler.inTemporaryDirectory { temporaryPath in
+        try FileHandler.shared.inTemporaryDirectory { temporaryPath in
 
             try writeXcodeproj(workspace: workspace,
                                pbxproj: pbxproj,
@@ -235,7 +229,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 name: xcodeprojPath.components.last!)
             try writeSchemes(project: project,
                              generatedProject: generatedProject)
-            try fileHandler.replace(xcodeprojPath, with: temporaryPath)
+            try FileHandler.shared.replace(xcodeprojPath, with: temporaryPath)
         }
 
         return try generatedProject.at(path: xcodeprojPath)

@@ -15,10 +15,12 @@ final class ConfigGeneratorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         pbxproj = PBXProj()
         pbxTarget = PBXNativeTarget(name: "Test")
         pbxproj.add(object: pbxTarget)
-        fileHandler = try! MockFileHandler()
         subject = ConfigGenerator()
     }
 

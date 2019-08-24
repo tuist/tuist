@@ -28,7 +28,6 @@ class CommandRunner: CommandRunning {
     // MARK: - Attributes
 
     let versionResolver: VersionResolving
-    let fileHandler: FileHandling
     let system: Systeming
     let updater: Updating
     let versionsController: VersionsControlling
@@ -39,7 +38,6 @@ class CommandRunner: CommandRunning {
     // MARK: - Init
 
     init(versionResolver: VersionResolving = VersionResolver(),
-         fileHandler: FileHandling = FileHandler(),
          system: Systeming = System(),
          updater: Updating = Updater(),
          installer: Installing = Installer(),
@@ -47,7 +45,6 @@ class CommandRunner: CommandRunning {
          arguments: @escaping () -> [String] = CommandRunner.arguments,
          exiter: @escaping (Int) -> Void = { exit(Int32($0)) }) {
         self.versionResolver = versionResolver
-        self.fileHandler = fileHandler
         self.system = system
         self.versionsController = versionsController
         self.arguments = arguments
@@ -59,7 +56,7 @@ class CommandRunner: CommandRunning {
     // MARK: - CommandRunning
 
     func run() throws {
-        let currentPath = fileHandler.currentPath
+        let currentPath = FileHandler.shared.currentPath
 
         // Version resolving
         let resolvedVersion = try versionResolver.resolve(path: currentPath)

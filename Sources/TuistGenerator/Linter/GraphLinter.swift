@@ -9,14 +9,11 @@ class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     let projectLinter: ProjectLinting
-    let fileHandler: FileHandling
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter(),
-         fileHandler: FileHandling = FileHandler()) {
+    init(projectLinter: ProjectLinting = ProjectLinter()) {
         self.projectLinter = projectLinter
-        self.fileHandler = fileHandler
     }
 
     struct StaticDepedencyWarning: Hashable {
@@ -67,7 +64,7 @@ class GraphLinter: GraphLinting {
     private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
         return graph.cocoapods.compactMap { node in
             let podfilePath = node.podfilePath
-            if !fileHandler.exists(podfilePath) {
+            if !FileHandler.shared.exists(podfilePath) {
                 return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
             }
             return nil
@@ -80,10 +77,10 @@ class GraphLinter: GraphLinting {
         let nonCarthageFrameworks = frameworks.filter { !$0.isCarthage }
 
         let carthageIssues = carthageFrameworks
-            .filter { !fileHandler.exists($0.path) }
+            .filter { !FileHandler.shared.exists($0.path) }
             .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString). The path might be wrong or Carthage dependencies not fetched", severity: .warning) }
         let nonCarthageIssues = nonCarthageFrameworks
-            .filter { !fileHandler.exists($0.path) }
+            .filter { !FileHandler.shared.exists($0.path) }
             .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString)", severity: .error) }
 
         var issues: [LintingIssue] = []

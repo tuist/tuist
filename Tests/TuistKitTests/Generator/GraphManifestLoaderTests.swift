@@ -35,9 +35,10 @@ final class GraphManifestLoaderTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
-        fileHandler = try! MockFileHandler()
-        subject = GraphManifestLoader(fileHandler: fileHandler)
+        subject = GraphManifestLoader()
     }
 
     func test_loadTuistConfig() throws {
