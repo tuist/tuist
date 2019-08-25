@@ -98,7 +98,13 @@ final class ProjectGenerator: ProjectGenerating {
                                                 sourceRootPath: sourceRootPath,
                                                 options: options,
                                                 graph: graph)
-
+        
+        let symbolicPackagePath = sourceRootPath.appending(component: "Package.resolved")
+        if !fileHandler.exists(symbolicPackagePath) {
+            let packagePath = sourceRootPath.appending(RelativePath("\(project.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
+            try system.runAndPrint("ln", "-s", packagePath.pathString, symbolicPackagePath.pathString)
+        }
+        
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
