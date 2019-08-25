@@ -98,7 +98,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 sourceRootPath: sourceRootPath,
                                                 options: options,
                                                 graph: graph)
-        
+
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)

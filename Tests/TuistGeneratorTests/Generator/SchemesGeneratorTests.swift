@@ -227,6 +227,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let got = subject.schemeLaunchAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         XCTAssertNil(got?.macroExpansion)
+        // TODO: Fix tests
 //        let buildableReference = got?.buildableProductRunnable?.buildableReference
 //
 //        XCTAssertEqual(got?.buildConfiguration, "Debug")
@@ -251,6 +252,7 @@ final class SchemeGeneratorTests: XCTestCase {
 
         let got = subject.schemeLaunchAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
+        // TODO: Fix test
 //        XCTAssertNil(got?.buildableProductRunnable?.buildableReference)
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
