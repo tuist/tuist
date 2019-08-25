@@ -88,6 +88,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                           directory: directory)
         let workspaceName = "\(graph.name).xcworkspace"
         printer.print(section: "Generating workspace \(workspaceName)")
+        
+        let updatedWorkspace = try generatePackageDependencyManager(at: path,
+                                                                workspace: workspace,
+                                                                workspaceName: workspaceName,
+                                                                graph: graph)
 
         /// Projects
 
@@ -106,7 +111,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         // Workspace structure
 
         let structure = workspaceStructureGenerator.generateStructure(path: path,
-                                                                      workspace: workspace)
+                                                                      workspace: updatedWorkspace)
 
         let workspacePath = workspaceRootPath.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
@@ -120,6 +125,22 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         try write(xcworkspace: xcWorkspace, to: workspacePath)
 
         return workspacePath
+    }
+   
+    private func generatePackageDependencyManager(at path: AbsolutePath,
+                                                  workspace: Workspace,
+                                                  workspaceName: String,
+                                                  graph: Graphing) throws -> Workspace {
+        let hasPackages: Bool = try !graph.packages(path: path, name: workspace.name).isEmpty
+        guard hasPackages else { return workspace }
+        // TODO: createSymbolicLink(atPath:withDestinationPath:)
+        let symbolicPackagePath = path.appending(component: "Package.resolved")
+        if !fileHandler.exists(symbolicPackagePath) {
+            let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
+            try system.runAndPrint("ln", packagePath.pathString, symbolicPackagePath.pathString)
+        }
+        
+        return workspace.adding(files: [symbolicPackagePath])
     }
 
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
