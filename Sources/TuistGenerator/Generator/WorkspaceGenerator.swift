@@ -133,11 +133,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                   graph: Graphing) throws -> Workspace {
         let hasPackages: Bool = try !graph.packages(path: path, name: workspace.name).isEmpty
         guard hasPackages else { return workspace }
-        // TODO: createSymbolicLink(atPath:withDestinationPath:)
+        
         let symbolicPackagePath = path.appending(component: "Package.resolved")
         if !fileHandler.exists(symbolicPackagePath) {
             let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
-            try system.runAndPrint("ln", packagePath.pathString, symbolicPackagePath.pathString)
+            try fileHandler.createSymbolicLink(symbolicPackagePath, destination: packagePath)
         }
         
         return workspace.adding(files: [symbolicPackagePath])

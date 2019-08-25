@@ -34,6 +34,10 @@ public final class MockFileHandler: FileHandling {
     public func createFolder(_ path: AbsolutePath) throws {
         try fileHandler.createFolder(path)
     }
+    
+    public func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
+        try fileHandler.createSymbolicLink(path, destination: destination)
+    }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try fileHandler.copy(from: from, to: to)

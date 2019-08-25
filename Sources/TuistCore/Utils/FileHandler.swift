@@ -60,6 +60,7 @@ public protocol FileHandling: AnyObject {
     func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
+    func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws
     func createFolder(_ path: AbsolutePath) throws
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
@@ -139,6 +140,10 @@ public final class FileHandler: FileHandling {
         } else {
             throw FileHandlerError.invalidTextEncoding(at)
         }
+    }
+    
+    public func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
+        try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {

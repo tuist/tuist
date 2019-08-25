@@ -302,6 +302,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
                 cache[pathSoFar] = .folder
             }
         }
+        
+        func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
+            try touch(destination)
+        }
 
         func delete(_ path: AbsolutePath) throws {
             cache.removeValue(forKey: path)
