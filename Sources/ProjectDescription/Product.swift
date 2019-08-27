@@ -21,5 +21,5 @@ public enum Product: String, Codable {
 //    case tvExtension
 //    case messagesApplication
 //    case messagesExtension
-//    case stickerPack
+    case stickerPack = "sticker_pack"
 }

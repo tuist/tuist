@@ -96,6 +96,7 @@ protocol Graphing: AnyObject, Encodable {
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
+    func appExtensionDependencies(path: AbsolutePath, name: String) -> [TargetNode]
 
     // MARK: - Depth First Search
 
@@ -319,6 +320,19 @@ class Graph: Graphing {
         references.append(contentsOf: transitiveFrameworks)
 
         return Set(references).sorted()
+    }
+
+    func appExtensionDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        let validProducts: [Product] = [
+            .stickerPack,
+        ]
+
+        return targetNode.targetDependencies
+            .filter { validProducts.contains($0.target.product) }
     }
 
     // MARK: - Fileprivate

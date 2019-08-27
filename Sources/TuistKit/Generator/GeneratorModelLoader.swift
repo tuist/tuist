@@ -617,6 +617,8 @@ extension TuistGenerator.Product {
             return .uiTests
         case .bundle:
             return .bundle
+        case .stickerPack:
+            return .stickerPack
         }
     }
 }

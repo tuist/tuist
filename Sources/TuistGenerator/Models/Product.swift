@@ -18,7 +18,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 //    case tvExtension = "tv_extension"
 //    case messagesApplication = "messages_application"
 //    case messagesExtension = "messages_extension"
-//    case stickerPack = "sticker_pack"
+    case stickerPack = "sticker_pack"
 
     public var caseValue: String {
         switch self {
@@ -54,8 +54,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 //            return "messagesApplication"
 //        case .messagesExtension:
 //            return "messagesExtension"
-//        case .stickerPack:
-//            return "stickerPack"
+        case .stickerPack:
+            return "stickerPack"
         }
     }
 
@@ -93,8 +93,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 //            return "iMessage application"
 //        case .messagesExtension:
 //            return "iMessage extension"
-//        case .stickerPack:
-//            return "stickers pack"
+        case .stickerPack:
+            return "stickers pack"
         }
     }
 
@@ -123,7 +123,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 
         if platform == .iOS {
 //            base.append(.appExtension)
-//            base.append(.stickerPack)
+            base.append(.stickerPack)
 //            base.append(.messagesApplication)
 //            base.append(.messagesExtension)
         }
@@ -186,8 +186,8 @@ extension Product {
 //            return .messagesApplication
 //        case .messagesExtension:
 //            return .messagesExtension
-//        case .stickerPack:
-//            return .stickerPack
+        case .stickerPack:
+            return .stickerPack
         }
     }
 }

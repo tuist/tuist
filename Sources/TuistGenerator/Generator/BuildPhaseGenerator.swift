@@ -72,6 +72,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
 
+        try generateAppExtensionsBuildPhase(path: path,
+                                            target: target,
+                                            graph: graph,
+                                            pbxTarget: pbxTarget,
+                                            fileElements: fileElements,
+                                            pbxproj: pbxproj)
+
         try generateActions(actions: target.actions.postActions,
                             pbxTarget: pbxTarget,
                             pbxproj: pbxproj,
@@ -251,6 +258,29 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let pbxBuildFile = PBXBuildFile(file: $0)
             pbxproj.add(object: pbxBuildFile)
             resourcesBuildPhase.files?.append(pbxBuildFile)
+        }
+    }
+
+    func generateAppExtensionsBuildPhase(path: AbsolutePath,
+                                         target: Target,
+                                         graph: Graphing,
+                                         pbxTarget: PBXTarget,
+                                         fileElements: ProjectFileElements,
+                                         pbxproj: PBXProj) throws {
+        let appExtensions = graph.appExtensionDependencies(path: path, name: target.name)
+        guard !appExtensions.isEmpty else { return }
+        
+        let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .plugins, name: "Embed App Extensions")
+        pbxproj.add(object: appExtensionsBuildPhase)
+        pbxTarget.buildPhases.append(appExtensionsBuildPhase)
+
+        let sortedAppExtensions = appExtensions.sorted { $0.target.name < $1.target.name }
+        let refs = sortedAppExtensions.compactMap { fileElements.product(target: $0.target.name) }
+
+        refs.forEach {
+            let pbxBuildFile = PBXBuildFile(file: $0)
+            pbxproj.add(object: pbxBuildFile)
+            appExtensionsBuildPhase.files?.append(pbxBuildFile)
         }
     }
 }
