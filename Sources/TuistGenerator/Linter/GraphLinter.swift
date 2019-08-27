@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import SPMUtility
 
 protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]
@@ -53,8 +54,44 @@ class GraphLinter: GraphLinting {
 
         issues.append(contentsOf: lintCarthageDependencies(graph: graph))
         issues.append(contentsOf: lintCocoaPodsDependencies(graph: graph))
+        issues.append(contentsOf: lintPackageDependencies(graph: graph))
 
         return issues
+    }
+    
+    enum PackageLintError: Swift.Error {
+        case noXcode
+        case noVersion
+    }
+    
+    private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
+        
+        let containsPackageDependency = graph.packages.count > 0
+        
+        do {
+            
+            guard let xcode = try XcodeController(system: System()).selected() else {
+                throw PackageLintError.noXcode
+            }
+            
+            guard let version = Version(string: xcode.infoPlist.version) else {
+                throw PackageLintError.noVersion
+            }
+            
+            if version.major < 11 && containsPackageDependency {
+                return [
+                    .init(reason: "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatiable. Need at least 11 but got \(version)", severity: .error)
+                ]
+            }
+            
+        } catch {
+            return [
+                .init(reason: "Could not determine Xcode version", severity: .error)
+            ]
+        }
+        
+        return [ ]
+        
     }
 
     /// It verifies that the directory specified by the CocoaPods dependencies contains a Podfile file.
