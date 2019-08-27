@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 import XcodeProj
+import SPMUtility
 
 struct ProjectConstants {
     var objectVersion: UInt
@@ -247,13 +248,33 @@ final class ProjectGenerator: ProjectGenerating {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
     }
+    
+    enum XcodeVersionError: Swift.Error {
+        case noXcode
+        case noVersion
+    }
 
     private func determineProjectConstants() -> ProjectConstants {
-        // TODO:
-        //
-        // To maintain backwards compatibility with Xcode 10
-        // the Xcode10 constants are used unless the use of Xcode 11
-        // features are detected (e.g Swift PM dependencies)
-        return .xcode10
+        
+        do {
+
+            guard let xcode = try XcodeController(system: system).selected() else {
+                throw XcodeVersionError.noXcode
+            }
+            
+            guard let version = Version(string: xcode.infoPlist.version) else {
+                throw XcodeVersionError.noVersion
+            }
+            
+            if version.major >= 11 {
+                return .xcode11
+            } else {
+                return .xcode10
+            }
+
+        } catch {
+            return .xcode10
+        }
+
     }
 }
