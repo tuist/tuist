@@ -85,10 +85,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         try actions.forEach { action in
             let buildPhase = try PBXShellScriptBuildPhase(files: [],
                                                           name: action.name,
-                                                          inputPaths: [],
-                                                          outputPaths: [],
-                                                          inputFileListPaths: [],
-                                                          outputFileListPaths: [],
+                                                          inputPaths: action.inputPaths,
+                                                          outputPaths: action.outputPaths,
+                                                          inputFileListPaths: action.inputFileListPaths,
+                                                          outputFileListPaths: action.outputFileListPaths,
                                                           shellPath: "/bin/sh",
                                                           shellScript: action.shellScript(sourceRootPath: sourceRootPath))
             pbxproj.add(object: buildPhase)
@@ -103,13 +103,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         pbxproj.add(object: sourcesBuildPhase)
         pbxTarget.buildPhases.append(sourcesBuildPhase)
-        try files.forEach { buildFile in
+
+        let sortedFiles = files.sorted(by: { $0.path < $1.path })
+        try sortedFiles.forEach { buildFile in
             guard let fileReference = fileElements.file(path: buildFile.path) else {
                 throw BuildPhaseGenerationError.missingFileReference(buildFile.path)
             }
-            var settings: [String: Any] = [:]
+            var settings: [String: Any]?
             if let compilerFlags = buildFile.compilerFlags {
-                settings["COMPILER_FLAGS"] = compilerFlags
+                settings = [
+                    "COMPILER_FLAGS": compilerFlags,
+                ]
             }
 
             let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
@@ -137,9 +141,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             headersBuildPhase.files?.append(pbxBuildFile)
         }
 
-        try headers.private.forEach { try addHeader($0, "private") }
-        try headers.public.forEach { try addHeader($0, "public") }
-        try headers.project.forEach { try addHeader($0, "project") }
+        try headers.private.sorted().forEach { try addHeader($0, "private") }
+        try headers.public.sorted().forEach { try addHeader($0, "public") }
+        try headers.project.sorted().forEach { try addHeader($0, "project") }
     }
 
     func generateResourcesBuildPhase(path: AbsolutePath,
@@ -164,7 +168,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                pbxproj: pbxproj,
                                resourcesBuildPhase: resourcesBuildPhase)
 
-        target.coreDataModels.forEach {
+        let coreDataModels = target.coreDataModels.sorted { $0.path < $1.path }
+        coreDataModels.forEach {
             self.generateCoreDataModel(coreDataModel: $0,
                                        fileElements: fileElements,
                                        pbxproj: pbxproj,
@@ -177,7 +182,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                             pbxproj: PBXProj,
                                             resourcesBuildPhase: PBXResourcesBuildPhase) throws {
         var buildFilesCache = Set<AbsolutePath>()
-        try files.forEach { buildFilePath in
+        try files.sorted().forEach { buildFilePath in
             let pathString = buildFilePath.pathString
             let pathRange = NSRange(location: 0, length: pathString.count)
             let isLocalized = ProjectFileElements.localizedRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
@@ -239,7 +244,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         pbxproj: PBXProj,
                                         resourcesBuildPhase: PBXResourcesBuildPhase) {
         let bundles = graph.resourceBundleDependencies(path: path, name: target.name)
-        let refs = bundles.compactMap { fileElements.product(name: $0.target.productNameWithExtension) }
+        let sortedBundles = bundles.sorted { $0.target.name < $1.target.name }
+        let refs = sortedBundles.compactMap { fileElements.product(target: $0.target.name) }
+
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)
             pbxproj.add(object: pbxBuildFile)

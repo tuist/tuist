@@ -27,13 +27,13 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateEmbedPhase() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product("waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
         let wakaFile = PBXFileReference()
         pbxproj.add(object: wakaFile)
-        fileElements.products["waka.framework"] = wakaFile
+        fileElements.products["Test"] = wakaFile
         let sourceRootPath = AbsolutePath("/")
 
         try subject.generateEmbedPhase(dependencies: dependencies,
@@ -58,7 +58,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product("waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -69,7 +69,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                                             pbxproj: pbxproj,
                                                             fileElements: fileElements,
                                                             sourceRootPath: sourceRootPath)) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
+            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
 
@@ -217,7 +217,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateLinkingPhase() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product("waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -225,7 +225,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         pbxproj.add(object: testFile)
         let wakaFile = PBXFileReference()
         pbxproj.add(object: wakaFile)
-        fileElements.products["waka.framework"] = wakaFile
+        fileElements.products["Test"] = wakaFile
         fileElements.elements[AbsolutePath("/test.framework")] = testFile
 
         try subject.generateLinkingPhase(dependencies: dependencies,
@@ -233,7 +233,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                          pbxproj: pbxproj,
                                          fileElements: fileElements)
 
-        let buildPhase: PBXFrameworksBuildPhase? = pbxTarget.buildPhases.last as? PBXFrameworksBuildPhase
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
         let wakaBuildFile: PBXBuildFile? = buildPhase?.files?.last
@@ -259,7 +259,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product("waka.framework"))
+        dependencies.append(DependencyReference.product(target: "Test"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -268,8 +268,42 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                                               pbxTarget: pbxTarget,
                                                               pbxproj: pbxproj,
                                                               fileElements: fileElements)) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "waka.framework"))
+            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
+    }
+
+    func test_generateLinkingPhase_sdkNodes() throws {
+        // Given
+        let dependencies: [DependencyReference] = [
+            .sdk("/Strong/Foo.framework", .required),
+            .sdk("/Weak/Bar.framework", .optional),
+        ]
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let fileElements = ProjectFileElements()
+        let requiredFile = PBXFileReference(name: "required")
+        let optionalFile = PBXFileReference(name: "optional")
+        fileElements.sdks["/Strong/Foo.framework"] = requiredFile
+        fileElements.sdks["/Weak/Bar.framework"] = optionalFile
+
+        // When
+        try subject.generateLinkingPhase(dependencies: dependencies,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         fileElements: fileElements)
+
+        // Then
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        XCTAssertNotNil(buildPhase)
+        XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
+            requiredFile,
+            optionalFile,
+        ])
+        XCTAssertEqual(buildPhase?.files?.map { $0.settings?.description }, [
+            nil,
+            "[\"ATTRIBUTES\": [\"Weak\"]]",
+        ])
     }
 
     func test_generateCopyProductsdBuildPhase_staticTargetDependsOnStaticProducts() throws {
@@ -401,7 +435,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func createProjectFileElements(for targets: [Target]) -> ProjectFileElements {
         let projectFileElements = ProjectFileElements(playgrounds: MockPlaygrounds())
         targets.forEach {
-            projectFileElements.products[$0.productNameWithExtension] = PBXFileReference(path: $0.productNameWithExtension)
+            projectFileElements.products[$0.name] = PBXFileReference(path: $0.productNameWithExtension)
         }
 
         return projectFileElements

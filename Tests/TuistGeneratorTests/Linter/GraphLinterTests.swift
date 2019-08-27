@@ -11,8 +11,10 @@ final class GraphLinterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        subject = GraphLinter(fileHandler: fileHandler)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = GraphLinter()
     }
 
     func test_lint_when_carthage_frameworks_are_missing() throws {
@@ -33,6 +35,21 @@ final class GraphLinterTests: XCTestCase {
         let result = subject.lint(graph: graph)
 
         XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString). The path might be wrong or Carthage dependencies not fetched", severity: .warning)))
+    }
+
+    func test_lint_when_podfiles_are_missing() throws {
+        // Given
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let cocoapods = CocoaPodsNode(path: fileHandler.currentPath)
+        cache.add(cocoapods: cocoapods)
+        let podfilePath = fileHandler.currentPath.appending(component: "Podfile")
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.contains(LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)))
     }
 
     func test_lint_when_frameworks_are_missing() throws {
@@ -208,5 +225,158 @@ final class GraphLinterTests: XCTestCase {
             LintingIssue(reason: "Target staticFramework has a dependency with target bundle of type bundle for platform 'iOS' which is invalid or not supported yet.", severity: .error),
             LintingIssue(reason: "Target staticLibrary has a dependency with target bundle of type bundle for platform 'iOS' which is invalid or not supported yet.", severity: .error),
         ])
+    }
+
+    func test_lint_staticProductsCanDependOnDynamicFrameworks() throws {
+        // Given
+        let staticFramework = Target.empty(name: "StaticFramework", product: .staticFramework)
+        let staticLibrary = Target.empty(name: "StaticLibrary", product: .staticLibrary)
+        let dynamicFramework = Target.empty(name: "DynamicFramework", product: .framework)
+        let graph = Graph.create(project: .empty(),
+                                 dependencies: [
+                                     (target: staticLibrary, dependencies: [dynamicFramework]),
+                                     (target: staticFramework, dependencies: [dynamicFramework]),
+                                     (target: dynamicFramework, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_lint_macStaticProductsCantDependOniOSStaticProducts() throws {
+        // Given
+        let macStaticFramework = Target.empty(name: "MacStaticFramework", platform: .macOS, product: .staticFramework)
+        let iosStaticFramework = Target.empty(name: "iOSStaticFramework", platform: .iOS, product: .staticFramework)
+        let iosStaticLibrary = Target.empty(name: "iOSStaticLibrary", platform: .iOS, product: .staticLibrary)
+        let graph = Graph.create(project: .empty(),
+                                 dependencies: [
+                                     (target: macStaticFramework, dependencies: [iosStaticFramework, iosStaticLibrary]),
+                                     (target: iosStaticFramework, dependencies: []),
+                                     (target: iosStaticLibrary, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertFalse(result.isEmpty)
+    }
+
+    func test_lint_missingProjectConfigurationsFromDependencyProjects() throws {
+        // Given
+        let customConfigurations: [BuildConfiguration: Configuration?] = [
+            .debug("Debug"): nil,
+            .debug("Testing"): nil,
+            .release("Beta"): nil,
+            .release("Release"): nil,
+        ]
+        let targetA = Target.empty(name: "TargetA", product: .framework)
+        let projectA = Project.empty(path: "/path/to/a", name: "ProjectA", settings: Settings(configurations: customConfigurations))
+
+        let targetB = Target.empty(name: "TargetB", product: .framework)
+        let projectB = Project.empty(path: "/path/to/b", name: "ProjectB", settings: Settings(configurations: customConfigurations))
+
+        let targetC = Target.empty(name: "TargetC", product: .framework)
+        let projectC = Project.empty(path: "/path/to/c", name: "ProjectC", settings: .default)
+
+        let graph = Graph.create(projects: [projectA, projectB, projectC],
+                                 dependencies: [
+                                     (project: projectA, target: targetA, dependencies: [targetB]),
+                                     (project: projectB, target: targetB, dependencies: [targetC]),
+                                     (project: projectC, target: targetC, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(result, [
+            LintingIssue(reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Debug (debug), Release (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
+                         severity: .warning),
+        ])
+    }
+
+    func test_lint_mismatchingProjectConfigurationsFromDependencyProjects() throws {
+        // Given
+        let customConfigurations: [BuildConfiguration: Configuration?] = [
+            .debug("Debug"): nil,
+            .debug("Testing"): nil,
+            .release("Beta"): nil,
+            .release("Release"): nil,
+        ]
+        let targetA = Target.empty(name: "TargetA", product: .framework)
+        let projectA = Project.empty(path: "/path/to/a", name: "ProjectA", settings: Settings(configurations: customConfigurations))
+
+        let targetB = Target.empty(name: "TargetB", product: .framework)
+        let projectB = Project.empty(path: "/path/to/b", name: "ProjectB", settings: Settings(configurations: customConfigurations))
+
+        let mismatchingConfigurations: [BuildConfiguration: Configuration?] = [
+            .release("Debug"): nil,
+            .release("Testing"): nil,
+            .release("Beta"): nil,
+            .release("Release"): nil,
+        ]
+        let targetC = Target.empty(name: "TargetC", product: .framework)
+        let projectC = Project.empty(path: "/path/to/c", name: "ProjectC", settings: Settings(configurations: mismatchingConfigurations))
+
+        let graph = Graph.create(projects: [projectA, projectB, projectC],
+                                 entryNodes: [targetA],
+                                 dependencies: [
+                                     (project: projectA, target: targetA, dependencies: [targetB]),
+                                     (project: projectB, target: targetB, dependencies: [targetC]),
+                                     (project: projectC, target: targetC, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(result, [
+            LintingIssue(reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Beta (release), Debug (release), Release (release), Testing (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
+                         severity: .warning),
+        ])
+    }
+
+    func test_lint_doesNotFlagDependenciesWithExtraConfigurations() throws {
+        // Lower level dependencies could be shared by projects in different workspaces as such
+        // it is ok for them to contain more configurations than the entry node projects
+
+        // Given
+        let customConfigurations: [BuildConfiguration: Configuration?] = [
+            .debug("Debug"): nil,
+            .release("Beta"): nil,
+            .release("Release"): nil,
+        ]
+        let targetA = Target.empty(name: "TargetA", product: .framework)
+        let projectA = Project.empty(path: "/path/to/a", name: "ProjectA", settings: Settings(configurations: customConfigurations))
+
+        let targetB = Target.empty(name: "TargetB", product: .framework)
+        let projectB = Project.empty(path: "/path/to/b", name: "ProjectB", settings: Settings(configurations: customConfigurations))
+
+        let additionalConfigurations: [BuildConfiguration: Configuration?] = [
+            .debug("Debug"): nil,
+            .debug("Testing"): nil,
+            .release("Beta"): nil,
+            .release("Release"): nil,
+        ]
+        let targetC = Target.empty(name: "TargetC", product: .framework)
+        let projectC = Project.empty(path: "/path/to/c", name: "ProjectC", settings: Settings(configurations: additionalConfigurations))
+
+        let graph = Graph.create(projects: [projectA, projectB, projectC],
+                                 entryNodes: [targetA],
+                                 dependencies: [
+                                     (project: projectA, target: targetA, dependencies: [targetB]),
+                                     (project: projectB, target: targetB, dependencies: [targetC]),
+                                     (project: projectC, target: targetC, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(result, [])
     }
 }

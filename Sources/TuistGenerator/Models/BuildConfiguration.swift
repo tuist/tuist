@@ -1,5 +1,12 @@
 import Foundation
 
+/// A build configuration acts as a configuration identifier.
+///
+///
+///
+/// It hosts the name as well as the variant of
+/// a configuration to help infer the appropriate
+/// default settings.
 public struct BuildConfiguration {
     public enum Variant: String {
         case debug, release
@@ -38,6 +45,18 @@ extension BuildConfiguration: Hashable {
     }
 }
 
+extension BuildConfiguration: Comparable {
+    public static func < (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
+        return lhs.name < rhs.name
+    }
+}
+
 extension BuildConfiguration: XcodeRepresentable {
     public var xcodeValue: String { return name }
+}
+
+extension BuildConfiguration: CustomStringConvertible {
+    public var description: String {
+        return "\(name) (\(variant.rawValue))"
+    }
 }

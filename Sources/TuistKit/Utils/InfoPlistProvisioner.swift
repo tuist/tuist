@@ -9,18 +9,6 @@ protocol InfoPlistProvisioning: AnyObject {
 
 /// Creates a base Info.plist. This is intended to be used from the init command.
 class InfoPlistProvisioner: InfoPlistProvisioning {
-    // MARK: - Attributes
-
-    /// File handler.
-    private let fileHandler: FileHandling
-
-    /// Initializes the provisioner with its attributes.
-    ///
-    /// - Parameter fileHandler: file handler.
-    init(fileHandler: FileHandling = FileHandler()) {
-        self.fileHandler = fileHandler
-    }
-
     /// Generates the Info.plist at the given path.
     ///
     /// - Parameters:

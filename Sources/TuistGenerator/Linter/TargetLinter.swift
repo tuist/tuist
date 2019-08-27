@@ -8,17 +8,14 @@ protocol TargetLinting: AnyObject {
 class TargetLinter: TargetLinting {
     // MARK: - Attributes
 
-    private let fileHandler: FileHandling
     private let settingsLinter: SettingsLinting
     private let targetActionLinter: TargetActionLinting
 
     // MARK: - Init
 
     init(settingsLinter: SettingsLinting = SettingsLinter(),
-         fileHandler: FileHandling = FileHandler(),
          targetActionLinter: TargetActionLinting = TargetActionLinter()) {
         self.settingsLinter = settingsLinter
-        self.fileHandler = fileHandler
         self.targetActionLinter = targetActionLinter
     }
 
@@ -26,6 +23,7 @@ class TargetLinter: TargetLinting {
 
     func lint(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
+        issues.append(contentsOf: lintProductName(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
@@ -59,6 +57,18 @@ class TargetLinter: TargetLinting {
 
             return [LintingIssue(reason: reason, severity: .error)]
         }
+        return []
+    }
+
+    private func lintProductName(target: Target) -> [LintingIssue] {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+
+        if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
+            let reason = "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+
+            return [LintingIssue(reason: reason, severity: .error)]
+        }
+
         return []
     }
 
@@ -98,15 +108,15 @@ class TargetLinter: TargetLinting {
 
     private func lintInfoplistExists(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        if let infoPlist = target.infoPlist, !fileHandler.exists(infoPlist.path) {
-            issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path.pathString)", severity: .error))
+        if let infoPlist = target.infoPlist, let path = infoPlist.path, !FileHandler.shared.exists(path) {
+            issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
         return issues
     }
 
     private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        if let path = target.entitlements, !fileHandler.exists(path) {
+        if let path = target.entitlements, !FileHandler.shared.exists(path) {
             issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
         }
         return issues

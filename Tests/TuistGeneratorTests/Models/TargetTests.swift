@@ -5,16 +5,15 @@ import XCTest
 
 final class TargetTests: XCTestCase {
     var fileHandler: MockFileHandler!
+
     override func setUp() {
-        do {
-            fileHandler = try MockFileHandler()
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
+        super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
     }
 
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c"])
+        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d"])
     }
 
     func test_productName_when_staticLibrary() {
@@ -25,6 +24,11 @@ final class TargetTests: XCTestCase {
     func test_productName_when_dynamicLibrary() {
         let target = Target.test(name: "Test", product: .dynamicLibrary)
         XCTAssertEqual(target.productNameWithExtension, "libTest.dylib")
+    }
+
+    func test_productName_when_nil() {
+        let target = Target.test(name: "Test-Module", productName: nil)
+        XCTAssertEqual(target.productName, "Test_Module")
     }
 
     func test_productName_when_app() {
@@ -98,7 +102,7 @@ final class TargetTests: XCTestCase {
         let paths = folders + files
 
         // When
-        let resources = paths.filter { Target.isResource(path: $0, fileHandler: fileHandler) }
+        let resources = paths.filter { Target.isResource(path: $0) }
 
         // Then
         let relativeResources = resources.map { $0.relative(to: fileHandler.currentPath).pathString }

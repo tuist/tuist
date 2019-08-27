@@ -68,14 +68,14 @@ The list of actions will likely grow as we get feedback from you.
 ### Running script (Recommended)
 
 ```bash
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/install/master/install)"
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/tuist/master/install/install)"
 ```
 
 ## Bootstrap your first project 🌀
 
 ```bash
 tuist init --platform ios --product application
-tuist generate # Generates Xcode project
+tuist generate # Generates Xcode project & workspace
 ```
 
 [Check out](https://docs.tuist.io) the project "Getting Started" guide to learn more about Tuist and all its features.
@@ -86,7 +86,7 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Setup for development 👩‍💻
 
-1.  Git clone: `git@github.com:tuist/tuist.git`
+1.  Git clone: `git clone git@github.com:tuist/tuist.git`
 2.  Generate Xcode project with `swift package generate-xcodeproj`.
 3.  Open `tuist.xcodeproj`.
 4.  Have fun 🤖

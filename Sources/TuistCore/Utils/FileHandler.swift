@@ -3,10 +3,14 @@ import Foundation
 
 enum FileHandlerError: FatalError {
     case invalidTextEncoding(AbsolutePath)
+    case writingError(AbsolutePath)
+
     var description: String {
         switch self {
         case let .invalidTextEncoding(path):
             return "The file at \(path.pathString) is not a utf8 text file"
+        case let .writingError(path):
+            return "Couldn't write to the file \(path.pathString)"
         }
     }
 
@@ -14,6 +18,8 @@ enum FileHandlerError: FatalError {
         switch self {
         case .invalidTextEncoding:
             return .bug
+        case .writingError:
+            return .abort
         }
     }
 }
@@ -59,6 +65,15 @@ public protocol FileHandling: AnyObject {
     /// - Throws: An error if the temporary directory cannot be created or the closure throws.
     func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
 
+    /// Writes a string into the given path (using the utf8 encoding)
+    ///
+    /// - Parameters:
+    ///   - content: Content to be written.
+    ///   - path: Path where the content will be written into.
+    ///   - atomically: Whether the content should be written atomically.
+    /// - Throws: An error if the writing fails.
+    func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
+
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws
     func createFolder(_ path: AbsolutePath) throws
@@ -68,7 +83,15 @@ public protocol FileHandling: AnyObject {
 }
 
 public final class FileHandler: FileHandling {
+    /// Shared instance.
+    public static var shared: FileHandling = FileHandler()
+
+    /// File manager.
     private let fileManager: FileManager
+
+    /// Initializes the file handler with its attributes.
+    ///
+    /// - Parameter fileManager: File manager instance.
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
     }
@@ -91,11 +114,13 @@ public final class FileHandler: FileHandling {
         // References:
         // - https://developer.apple.com/documentation/foundation/filemanager/2293212-replaceitemat
         // - https://developer.apple.com/documentation/foundation/filemanager/1407693-url
-        let tempUrl = try fileManager.url(for: .itemReplacementDirectory,
-                                          in: .userDomainMask,
-                                          appropriateFor: to.url,
-                                          create: true).appendingPathComponent("temp")
-        defer { try? fileManager.removeItem(at: tempUrl) }
+        // - https://openradar.appspot.com/50553219
+        let rootTempDir = try fileManager.url(for: .itemReplacementDirectory,
+                                              in: .userDomainMask,
+                                              appropriateFor: to.url,
+                                              create: true)
+        let tempUrl = rootTempDir.appendingPathComponent("temp")
+        defer { try? fileManager.removeItem(at: rootTempDir) }
         try fileManager.copyItem(at: with.url, to: tempUrl)
         _ = try fileManager.replaceItemAt(to.url, withItemAt: tempUrl)
     }
@@ -144,6 +169,19 @@ public final class FileHandler: FileHandling {
     
     public func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
         try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
+    }
+
+    /// Writes a string into the given path (using the utf8 encoding)
+    ///
+    /// - Parameters:
+    ///   - content: Content to be written.
+    ///   - path: Path where the content will be written into.
+    ///   - atomically: Whether the content should be written atomically.
+    /// - Throws: An error if the writing fails.
+    public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        do {
+            try content.write(to: path.url, atomically: atomically, encoding: .utf8)
+        } catch {}
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {

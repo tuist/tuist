@@ -1,6 +1,8 @@
 import Basic
 import Foundation
+import TuistCore
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistKit
 
@@ -29,15 +31,33 @@ final class ManifestTests: XCTestCase {
 
 final class GraphManifestLoaderTests: XCTestCase {
     var fileHandler: MockFileHandler!
-    var deprecator: MockDeprecator!
     var subject: GraphManifestLoader!
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        deprecator = MockDeprecator()
-        subject = GraphManifestLoader(fileHandler: fileHandler,
-                                      deprecator: deprecator)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = GraphManifestLoader()
+    }
+
+    func test_loadTuistConfig() throws {
+        // Given
+        let content = """
+        import ProjectDescription
+        let config = TuistConfig(generationOptions: [.generateManifest])
+        """
+
+        let manifestPath = fileHandler.currentPath.appending(component: Manifest.tuistConfig.fileName)
+        try content.write(to: manifestPath.url,
+                          atomically: true,
+                          encoding: .utf8)
+
+        // When
+        let got = try subject.loadTuistConfig(at: fileHandler.currentPath)
+
+        // Then
+        XCTAssertTrue(got.generationOptions.contains(.generateManifest))
     }
 
     func test_loadProject() throws {
@@ -151,6 +171,7 @@ final class GraphManifestLoaderTests: XCTestCase {
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Project.swift"))
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Workspace.swift"))
         try fileHandler.touch(fileHandler.currentPath.appending(component: "Setup.swift"))
+        try fileHandler.touch(fileHandler.currentPath.appending(component: "TuistConfig.swift"))
 
         // When
         let got = subject.manifests(at: fileHandler.currentPath)
@@ -159,5 +180,6 @@ final class GraphManifestLoaderTests: XCTestCase {
         XCTAssertTrue(got.contains(.project))
         XCTAssertTrue(got.contains(.workspace))
         XCTAssertTrue(got.contains(.setup))
+        XCTAssertTrue(got.contains(.tuistConfig))
     }
 }

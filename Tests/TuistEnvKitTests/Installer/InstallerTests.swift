@@ -7,7 +7,6 @@ import XCTest
 @testable import TuistEnvKit
 
 final class InstallerTests: XCTestCase {
-    var printer: MockPrinter!
     var fileHandler: MockFileHandler!
     var buildCopier: MockBuildCopier!
     var versionsController: MockVersionsController!
@@ -18,16 +17,15 @@ final class InstallerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         system = MockSystem()
-        printer = MockPrinter()
-        fileHandler = try! MockFileHandler()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         githubClient = MockGitHubClient()
         subject = Installer(system: system,
-                            printer: printer,
-                            fileHandler: fileHandler,
                             buildCopier: buildCopier,
                             versionsController: versionsController,
                             githubClient: githubClient)
@@ -50,7 +48,7 @@ final class InstallerTests: XCTestCase {
                                                  temporaryDirectory: temporaryDirectory)) { error in
             XCTAssertEqual(error as? InstallerError, expectedError)
         }
-        XCTAssertTrue(printer.printArgs.contains("Verifying the Swift version is compatible with your version 4.2.1"))
+        XCTAssertPrinterOutputContains("Verifying the Swift version is compatible with your version 4.2.1")
     }
 
     func test_install_when_bundled_release() throws {
@@ -76,17 +74,20 @@ final class InstallerTests: XCTestCase {
         system.succeedCommand("/usr/bin/curl", "-LSs",
                               "--output", downloadPath.pathString,
                               downloadURL.absoluteString)
-        system.succeedCommand("/usr/bin/unzip", downloadPath.pathString,
+        system.succeedCommand("/usr/bin/unzip",
+                              "-q",
+                              downloadPath.pathString,
                               "-d", fileHandler.currentPath.pathString)
 
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
 
-        XCTAssertEqual(printer.printArgs.count, 4)
-        XCTAssertEqual(printer.printArgs[0], "Verifying the Swift version is compatible with your version 5.0.0")
-        XCTAssertEqual(printer.printArgs[1], "Downloading version from \(downloadURL.absoluteString)")
-        XCTAssertEqual(printer.printArgs[2], "Installing...")
-        XCTAssertEqual(printer.printArgs[3], "Version \(version) installed")
+        XCTAssertPrinterOutputContains("""
+        Verifying the Swift version is compatible with your version 5.0.0
+        Downloading version from \(downloadURL.absoluteString)
+        Installing...
+        Version \(version) installed
+        """)
 
         let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
@@ -170,8 +171,7 @@ final class InstallerTests: XCTestCase {
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "tuist",
                               "--package-path", temporaryDirectory.path.pathString,
-                              "--configuration", "release",
-                              "-Xswiftc", "-static-stdlib")
+                              "--configuration", "release")
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
                               "--package-path", temporaryDirectory.path.pathString,
@@ -179,14 +179,13 @@ final class InstallerTests: XCTestCase {
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
-        XCTAssertEqual(printer.printWarningArgs.count, 1)
-        XCTAssertEqual(printer.printWarningArgs.first, "The release \(version) is not bundled")
-
-        XCTAssertEqual(printer.printArgs.count, 4)
-        XCTAssertEqual(printer.printArgs[0], "Verifying the Swift version is compatible with your version 5.0.0")
-        XCTAssertEqual(printer.printArgs[1], "Pulling source code")
-        XCTAssertEqual(printer.printArgs[2], "Building using Swift (it might take a while)")
-        XCTAssertEqual(printer.printArgs[3], "Version 3.2.1 installed")
+        XCTAssertPrinterOutputContains("""
+        Verifying the Swift version is compatible with your version 5.0.0
+        The release \(version) is not bundled
+        Pulling source code
+        Building using Swift (it might take a while)
+        Version 3.2.1 installed
+        """)
 
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
@@ -212,8 +211,7 @@ final class InstallerTests: XCTestCase {
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "tuist",
                               "--package-path", temporaryDirectory.path.pathString,
-                              "--configuration", "release",
-                              "-Xswiftc", "-static-stdlib")
+                              "--configuration", "release")
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
                               "--package-path", temporaryDirectory.path.pathString,
@@ -221,13 +219,12 @@ final class InstallerTests: XCTestCase {
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
 
-        XCTAssertEqual(printer.printArgs.count, 4)
-
-        XCTAssertEqual(printer.printArgs[0], "Forcing the installation of 3.2.1 from the source code")
-        XCTAssertEqual(printer.printArgs[1], "Pulling source code")
-        XCTAssertEqual(printer.printArgs[2], "Building using Swift (it might take a while)")
-        XCTAssertEqual(printer.printArgs[3], "Version 3.2.1 installed")
-
+        XCTAssertPrinterOutputContains("""
+        Forcing the installation of 3.2.1 from the source code
+        Pulling source code
+        Building using Swift (it might take a while)
+        Version 3.2.1 installed
+        """)
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
         XCTAssertTrue(fileHandler.exists(tuistVersionPath))
     }

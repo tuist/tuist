@@ -1,6 +1,12 @@
 import Foundation
 @testable import ProjectDescription
 
+extension TuistConfig {
+    static func test(generationOptions: [TuistConfig.GenerationOptions] = []) -> TuistConfig {
+        return TuistConfig(generationOptions: generationOptions)
+    }
+}
+
 extension Workspace {
     static func test(name: String = "Workspace",
                      projects: [String] = [],
@@ -27,9 +33,10 @@ extension Target {
     static func test(name: String = "Target",
                      platform: Platform = .iOS,
                      product: Product = .framework,
+                     productName: String? = nil,
                      bundleId: String = "com.some.bundle.id",
                      infoPlist: InfoPlist = .file(path: "Info.plist"),
-                     sources: FileList = "Sources/**",
+                     sources: SourceFilesList = "Sources/**",
                      resources: [FileElement] = "Resources/**",
                      headers: Headers? = nil,
                      entitlements: String? = "app.entitlements",
@@ -41,6 +48,7 @@ extension Target {
         return Target(name: name,
                       platform: platform,
                       product: product,
+                      productName: productName,
                       bundleId: bundleId,
                       infoPlist: infoPlist,
                       sources: sources,
@@ -94,7 +102,7 @@ extension BuildAction {
 extension TestAction {
     static func test(targets: [String] = [],
                      arguments: Arguments? = nil,
-                     config: BuildConfiguration = .debug,
+                     config: PresetBuildConfiguration = .debug,
                      coverage: Bool = true) -> TestAction {
         return TestAction(targets: targets,
                           arguments: arguments,
@@ -106,7 +114,7 @@ extension TestAction {
 }
 
 extension RunAction {
-    static func test(config: BuildConfiguration = .debug,
+    static func test(config: PresetBuildConfiguration = .debug,
                      executable: String? = nil,
                      arguments: Arguments? = nil) -> RunAction {
         return RunAction(config: config,

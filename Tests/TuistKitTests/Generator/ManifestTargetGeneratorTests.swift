@@ -13,6 +13,9 @@ final class ManifestTargetGeneratorTests: XCTestCase {
         manifestLoader.manifestPathStub = { _, _ in
             path.appending(component: "Project.swift")
         }
+        manifestLoader.manifestsAtStub = { _ in
+            Set([.project])
+        }
         let resourceLocator = MockResourceLocator()
         resourceLocator.projectDescriptionStub = {
             AbsolutePath("/test/ProjectDescription.dylib")
@@ -24,12 +27,42 @@ final class ManifestTargetGeneratorTests: XCTestCase {
         let target = try subject.generateManifestTarget(for: "MyProject", at: path)
 
         // Then
-        XCTAssertEqual(target.name, "MyProject-Manifest")
+        XCTAssertEqual(target.name, "MyProject_Manifest")
         XCTAssertEqual(target.product, .staticFramework)
         XCTAssertEqual(target.sources.map { $0.path.pathString }, ["/test/Project.swift"])
         XCTAssertNil(target.infoPlist)
         assertValidManifestBuildSettings(for: target,
                                          expectedSearchPath: "/test")
+    }
+
+    func test_generateManifestTarget_containsAllManifestFiles() throws {
+        // Given
+        let path = AbsolutePath("/test")
+        let manifestLoader = MockGraphManifestLoader()
+        manifestLoader.manifestPathStub = { _, _ in
+            path.appending(component: "Project.swift")
+        }
+        manifestLoader.manifestsAtStub = { _ in
+            Set([.project, .tuistConfig, .workspace, .setup])
+        }
+        let resourceLocator = MockResourceLocator()
+        resourceLocator.projectDescriptionStub = {
+            AbsolutePath("/test/ProjectDescription.dylib")
+        }
+
+        let subject = ManifestTargetGenerator(manifestLoader: manifestLoader,
+                                              resourceLocator: resourceLocator)
+        // When
+        let target = try subject.generateManifestTarget(for: "MyProject", at: path)
+
+        // Then
+        let sources = Set(target.sources.map { $0.path.pathString })
+        XCTAssertEqual(sources, Set([
+            "/test/Workspace.swift",
+            "/test/Setup.swift",
+            "/test/TuistConfig.swift",
+            "/test/Project.swift",
+        ]))
     }
 
     // MARK: - Helpers

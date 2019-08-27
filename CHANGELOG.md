@@ -2,17 +2,68 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
-## Next version
+## Next
+
+### Fixed
+- Transitively link static dependency's dynamic dependencies correctly https://github.com/tuist/tuist/pull/484 by @adamkhazi
+
+## 0.17.0
+
+### Added
+
+- `tuist graph` command https://github.com/tuist/tuist/pull/427 by @pepibumur.
+- Allow customisation of `productName` in the project Manifest https://github.com/tuist/tuist/pull/435 by @ollieatkinson
+- Adding support for static products depending on dynamic frameworks https://github.com/tuist/tuist/pull/439 by @kwridan
+- Support for executing Tuist by running `swift project ...` https://github.com/tuist/tuist/pull/447 by @pepibumur.
+- New manifest model, `TuistConfig`, to easily configure Tuist's functionalities https://github.com/tuist/tuist/pull/446 by @pepibumur.
+- Adding ability to re-generate individual projects https://github.com/tuist/tuist/pull/457 by @kwridan
+- Support multiple header paths https://github.com/tuist/tuist/pull/459 by @adamkhazi
+- Allow specifying multiple configurations within project manifests https://github.com/tuist/tuist/pull/451 by @kwridan
+- Add linting for mismatching build configurations in a workspace https://github.com/tuist/tuist/pull/474 by @kwridan
+- Support for CocoaPods dependencies https://github.com/tuist/tuist/pull/465 by @pepibumur
+- Support custom .xcodeproj name at the model level https://github.com/tuist/tuist/pull/462 by @adamkhazi
+- `TuistConfig.compatibleXcodeVersions` support https://github.com/tuist/tuist/pull/476 by @pepibumur.
+- Expose the `.bundle` product type https://github.com/tuist/tuist/pull/479 by @kwridan
+
+### Fixed
+
+- Ensuring transitive SDK dependencies are added correctly https://github.com/tuist/tuist/pull/441 by @adamkhazi
+- Ensuring the correct platform SDK dependencies path is set https://github.com/tuist/tuist/pull/419 by @kwridan
+- Update manifest target name such that its product has a valid name https://github.com/tuist/tuist/pull/426 by @kwridan
+- Do not create `Derived/InfoPlists` folder when no InfoPlist dictionary is specified https://github.com/tuist/tuist/pull/456 by @adamkhazi
+- Set the correct lastKnownFileType for localized files https://github.com/tuist/tuist/pull/478 by @kwridan
+
+### Changed
+
+- Update XcodeProj to 7.0.0 https://github.com/tuist/tuist/pull/421 by @pepibumur.
+
+## 0.16.0
+
+### Added
+
+- `DefaultSettings.none` to disable the generation of default build settings https://github.com/tuist/tuist/pull/395 by @pepibumur.
+- Version information for tuistenv https://github.com/tuist/tuist/pull/399 by @ollieatkinson
+- Add input & output paths for target action https://github.com/tuist/tuist/pull/353 by Rag0n
+- Adding support for linking system libraries and frameworks https://github.com/tuist/tuist/pull/353 by @steprescott
+- Support passing the `Info.plist` as a dictionary https://github.com/tuist/tuist/pull/380 by @pepibumur.
 
 ### Fixed
 
 - Ensuring the correct default settings provider dependency is used https://github.com/tuist/tuist/pull/389 by @kwridan
-- Fixing build settings repeated same value https://github.com/tuist/tuist/pull/391 @platonsi
+- Fixing build settings repeated same value https://github.com/tuist/tuist/pull/391 by @platonsi
 - Duplicated files in the sources build phase when different glob patterns match the same files https://github.com/tuist/tuist/pull/388 by @pepibumur.
+- Support `.d` source files https://github.com/tuist/tuist/pull/396 by @pepibumur.
+- Codesign frameworks when copying during the embed phase https://github.com/tuist/tuist/pull/398 by @ollieatkinson
+- 'tuist local' failed when trying to install from source https://github.com/tuist/tuist/pull/402 by @ollieatkinson
+- Omitting unzip logs during installation https://github.com/tuist/tuist/pull/404 by @kwridan
+- Fix "The file couldn’t be saved." error https://github.com/tuist/tuist/pull/408 by @marciniwanicki
+- Ensure generated projects are stable https://github.com/tuist/tuist/pull/410 by @kwridan
+- Stop generating empty `PBXBuildFile` settings https://github.com/tuist/tuist/pull/415 by @marciniwanicki
 
 ## 0.15.0
 
 ### Changed
+
 - Introduce the `InfoPlist` file https://github.com/tuist/tuist/pull/373 by @pepibumur.
 - Add `defaultSettings` option to `Settings` definition to control default settings generation https://github.com/tuist/tuist/pull/378 by @marciniwanicki
 
@@ -28,13 +79,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fixing unstable diff (products and embedded frameworks) https://github.com/tuist/tuist/pull/357 by @marciniwanicki
 - Set Code Sign On Copy to true for Embed Frameworks https://github.com/tuist/tuist/pull/333 by @dangthaison91
 - Fixing files getting mistaken for folders https://github.com/tuist/tuist/pull/338 by @kwridan
-- Updating init template to avoid warnings https://github.com/tuist/tuist/pull/339 by @kwridan 
-- Fixing generation failures due to asset catalog & `**/*.png` glob patterns handling https://github.com/tuist/tuist/pull/346 by @kwridan 
-- Supporting bundle target dependencies that reside in different projects (in `TuistGenerator`) https://github.com/tuist/tuist/pull/348 by @kwridan 
+- Updating init template to avoid warnings https://github.com/tuist/tuist/pull/339 by @kwridan
+- Fixing generation failures due to asset catalog & `**/*.png` glob patterns handling https://github.com/tuist/tuist/pull/346 by @kwridan
+- Supporting bundle target dependencies that reside in different projects (in `TuistGenerator`) https://github.com/tuist/tuist/pull/348 by @kwridan
 - Fixing header paths including folders and non-header files https://github.com/tuist/tuist/pull/356 by @kwridan
 - Fix duplicate localized resource files https://github.com/tuist/tuist/pull/363 by @kwridan
 - Update static dependency lint rule https://github.com/tuist/tuist/pull/360 by @kwridan
-- Ensure resource bundles in other projects get built https://github.com/tuist/tuist/pull/374 by @kwridan 
+- Ensure resource bundles in other projects get built https://github.com/tuist/tuist/pull/374 by @kwridan
 
 ## 0.14.0
 

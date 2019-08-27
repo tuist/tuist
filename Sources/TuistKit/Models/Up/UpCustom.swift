@@ -30,9 +30,8 @@ class UpCustom: Up, GraphInitiatable {
     ///   - dictionary: Dictionary with the object representation.
     ///   - projectPath: Absolute path to the folder that contains the manifest.
     ///     This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
-    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
     /// - Throws: A decoding error if an expected property is missing or has an invalid value.
-    required init(dictionary: JSON, projectPath _: AbsolutePath, fileHandler _: FileHandling) throws {
+    required init(dictionary: JSON, projectPath _: AbsolutePath) throws {
         isMet = try dictionary.get("is_met")
         meet = try dictionary.get("meet")
         super.init(name: try dictionary.get("name"))
@@ -42,10 +41,9 @@ class UpCustom: Up, GraphInitiatable {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer _: Printing, projectPath: AbsolutePath) throws {
+    override func meet(system: Systeming, projectPath: AbsolutePath) throws {
         let launchPath = try self.launchPath(command: meet, projectPath: projectPath, system: system)
 
         var arguments = [launchPath.pathString]

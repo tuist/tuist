@@ -17,9 +17,6 @@ final class InstallCommand: Command {
     /// Controller to manage system versions.
     private let versionsController: VersionsControlling
 
-    /// Printer instance to output messages to the user.
-    private let printer: Printing
-
     /// Installer instance to run the installation.
     private let installer: Installing
 
@@ -34,18 +31,15 @@ final class InstallCommand: Command {
     convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   versionsController: VersionsController(),
-                  installer: Installer(),
-                  printer: Printer())
+                  installer: Installer())
     }
 
     init(parser: ArgumentParser,
          versionsController: VersionsControlling,
-         installer: Installing,
-         printer: Printing) {
+         installer: Installing) {
         let subParser = parser.add(subparser: InstallCommand.command,
                                    overview: InstallCommand.overview)
         self.versionsController = versionsController
-        self.printer = printer
         self.installer = installer
         versionArgument = subParser.add(positional: "version",
                                         kind: String.self,
@@ -66,7 +60,7 @@ final class InstallCommand: Command {
         let version = result.get(versionArgument)!
         let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {
-            printer.print(warning: "Version \(version) already installed, skipping")
+            Printer.shared.print(warning: "Version \(version) already installed, skipping")
             return
         }
         try installer.install(version: version, force: force)

@@ -11,6 +11,9 @@ public class Project: Equatable, CustomStringConvertible {
     /// Project name.
     public let name: String
 
+    /// Project file name.
+    public let fileName: String
+
     /// Project targets.
     public let targets: [Target]
 
@@ -40,6 +43,7 @@ public class Project: Equatable, CustomStringConvertible {
     ///                      *(Those won't be included in any build phases)*
     public init(path: AbsolutePath,
                 name: String,
+                fileName: String? = nil,
                 settings: Settings,
                 filesGroup: ProjectGroup,
                 targets: [Target],
@@ -47,6 +51,7 @@ public class Project: Equatable, CustomStringConvertible {
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
+        self.fileName = fileName ?? name
         self.targets = targets
         self.schemes = schemes
         self.settings = settings

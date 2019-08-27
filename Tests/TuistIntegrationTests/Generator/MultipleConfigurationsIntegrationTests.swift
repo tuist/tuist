@@ -12,8 +12,11 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     }
 
     override func setUp() {
+        super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         do {
-            fileHandler = try MockFileHandler()
             try setupTestProject()
         } catch {
             XCTFail(error.localizedDescription)
@@ -31,7 +34,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         let subject = Generator(modelLoader: modelLoader)
 
         // When / Then
-        XCTAssertThrowsError(try subject.generateWorkspace(at: path, config: .default, workspaceFiles: []))
+        XCTAssertThrowsError(try subject.generateWorkspace(at: path, workspaceFiles: []))
     }
 
     func testGenerateWhenSingleDebugConfigurationInProject() throws {
@@ -294,7 +297,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {
         let modelLoader = createModelLoader(projectSettings: projectSettings, targetSettings: targetSettings)
         let subject = Generator(modelLoader: modelLoader)
-        _ = try subject.generateWorkspace(at: path, config: .default, workspaceFiles: [])
+        _ = try subject.generateWorkspace(at: path, workspaceFiles: [])
     }
 
     private func setupTestProject() throws {
@@ -314,9 +317,18 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         let appTarget = createAppTarget(settings: targetSettings)
         let project = createProject(path: pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
         let workspace = createWorkspace(projects: ["App"])
+        let tuistConfig = createTuistConfig()
+
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
+        modelLoader.mockTuistConfig { _ in tuistConfig }
+
         return modelLoader
+    }
+
+    private func createTuistConfig() -> TuistConfig {
+        return TuistConfig(compatibleXcodeVersions: .all,
+                           generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) -> Workspace {
@@ -336,6 +348,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
         return Target(name: "AppTarget",
                       platform: .iOS,
                       product: .app,
+                      productName: "AppTarget",
                       bundleId: "test.bundle",
                       settings: settings,
                       sources: [(path: pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],

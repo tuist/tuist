@@ -15,6 +15,11 @@ public class Target: Codable {
     /// Bundle identifier.
     public let bundleId: String
 
+    /// The name of the product output by this target.
+    /// passing nil in the initialiser will default
+    /// this value to the name of the target.
+    public let productName: String?
+
     /// Relative path to the Info.plist file.
     public let infoPlist: InfoPlist
 
@@ -28,7 +33,7 @@ public class Target: Codable {
     public let dependencies: [TargetDependency]
 
     /// Relative paths to the sources directory.
-    public let sources: FileList?
+    public let sources: SourceFilesList?
 
     /// Relative paths to the resources directory.
     public let resources: [FileElement]?
@@ -49,6 +54,7 @@ public class Target: Codable {
         case name
         case platform
         case product
+        case productName = "product_name"
         case bundleId = "bundle_id"
         case infoPlist = "info_plist"
         case entitlements
@@ -82,9 +88,10 @@ public class Target: Codable {
     public init(name: String,
                 platform: Platform,
                 product: Product,
+                productName: String? = nil,
                 bundleId: String,
                 infoPlist: InfoPlist,
-                sources: FileList? = nil,
+                sources: SourceFilesList? = nil,
                 resources: [FileElement]? = nil,
                 headers: Headers? = nil,
                 entitlements: String? = nil,
@@ -96,6 +103,7 @@ public class Target: Codable {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId
+        self.productName = productName
         self.product = product
         self.infoPlist = infoPlist
         self.entitlements = entitlements

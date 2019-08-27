@@ -6,8 +6,7 @@ import XcodeProj
 protocol ConfigGenerating: AnyObject {
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               fileElements: ProjectFileElements,
-                               options: GenerationOptions) throws -> XCConfigurationList
+                               fileElements: ProjectFileElements) throws -> XCConfigurationList
 
     func generateTargetConfig(_ target: Target,
                               pbxTarget: PBXTarget,
@@ -15,7 +14,6 @@ protocol ConfigGenerating: AnyObject {
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
-                              options: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws
 }
 
@@ -37,8 +35,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               fileElements: ProjectFileElements,
-                               options _: GenerationOptions) throws -> XCConfigurationList {
+                               fileElements: ProjectFileElements) throws -> XCConfigurationList {
         /// Configuration list
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
@@ -61,7 +58,6 @@ final class ConfigGenerator: ConfigGenerating {
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graphing,
-                              options _: GenerationOptions,
                               sourceRootPath: AbsolutePath) throws {
         let configurationList = XCConfigurationList(buildConfigurations: [])
         pbxproj.add(object: configurationList)
@@ -158,9 +154,13 @@ final class ConfigGenerator: ConfigGenerating {
                                      graph: Graphing,
                                      sourceRootPath: AbsolutePath) {
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = target.bundleId
-        if let infoPlist = target.infoPlist {
-            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(infoPlist.path.relative(to: sourceRootPath).pathString)"
+
+        // Info.plist
+        if let infoPlist = target.infoPlist, let path = infoPlist.path {
+            let relativePath = path.relative(to: sourceRootPath).pathString
+            settings["INFOPLIST_FILE"] = "$(SRCROOT)/\(relativePath)"
         }
+
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = "$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)"
         }
@@ -175,16 +175,18 @@ final class ConfigGenerator: ConfigGenerating {
             settings["MACH_O_TYPE"] = "staticlib"
         }
 
+        settings["PRODUCT_NAME"] = target.productName
+
         if target.product.testsBundle {
             let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
                 targetNode.target.product == .app
             }
 
             if let app = appDependency {
-                settings["TEST_TARGET_NAME"] = "\(app.target.name)"
+                settings["TEST_TARGET_NAME"] = "\(app.target.productName)"
 
                 if target.product == .unitTests {
-                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.name)"
+                    settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.productName)"
                     settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
                 }
             }

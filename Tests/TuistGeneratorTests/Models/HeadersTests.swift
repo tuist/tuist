@@ -11,6 +11,7 @@ final class HeadersTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
     }
 }

@@ -36,13 +36,8 @@ final class Carthage: Carthaging {
     /// System instance to run run commands in the shell.
     private let system: Systeming
 
-    /// File handler to interact with the file system.
-    private let fileHandler: FileHandling
-
-    init(system: Systeming = System(),
-         fileHandler: FileHandling = FileHandler()) {
+    init(system: Systeming = System()) {
         self.system = system
-        self.fileHandler = fileHandler
     }
 
     /// Updates the dependencies in the given directory.
@@ -78,12 +73,12 @@ final class Carthage: Carthaging {
     func outdated(path: AbsolutePath) throws -> [String]? {
         let cartfileResolvedPath = path.appending(component: "Cartfile.resolved")
 
-        if !fileHandler.exists(cartfileResolvedPath) {
+        if !FileHandler.shared.exists(cartfileResolvedPath) {
             return nil
         }
 
         var outdated: [String] = []
-        let carfileResolved = try fileHandler.readTextFile(cartfileResolvedPath)
+        let carfileResolved = try FileHandler.shared.readTextFile(cartfileResolvedPath)
         let carfileResolvedNSString = carfileResolved as NSString
         let jsonDecoder = JSONDecoder()
 
@@ -100,7 +95,7 @@ final class Carthage: Carthaging {
             let dependencyVersionFilePath = path.appending(RelativePath("Carthage/Build/.\(dependencyName).version"))
 
             // We consider missing dependencies outdated
-            if !fileHandler.exists(dependencyVersionFilePath) {
+            if !FileHandler.shared.exists(dependencyVersionFilePath) {
                 outdated.append(dependencyName)
                 return
             }

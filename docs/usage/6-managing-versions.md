@@ -93,6 +93,15 @@ Installing...
 Version 0.4.0 installed
 ```
 
+### tuist envversion
+
+To check the current installed version of `tuistenv`, the command is:
+
+```sh
+tuist envversion
+0.15.0
+```
+
 ## Running Tuist
 
 As we mentioned earlier, Tuist version management works **transparently**. Any of the commands mentioned above are necessary to use Tuist.

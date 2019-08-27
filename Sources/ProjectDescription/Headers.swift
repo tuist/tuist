@@ -1,19 +1,19 @@
 import Foundation
 
 /// Headers
-public class Headers: Codable {
+public final class Headers: Codable {
     /// Relative path to public headers.
-    public let `public`: String?
+    public let `public`: FileList?
 
     /// Relative path to private headers.
-    public let `private`: String?
+    public let `private`: FileList?
 
     /// Relative path to project headers.
-    public let project: String?
+    public let project: FileList?
 
-    public init(public: String? = nil,
-                private: String? = nil,
-                project: String? = nil) {
+    public init(public: FileList? = nil,
+                private: FileList? = nil,
+                project: FileList? = nil) {
         self.public = `public`
         self.private = `private`
         self.project = project

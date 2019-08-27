@@ -21,12 +21,20 @@ enum WorkspaceGeneratorError: FatalError {
 }
 
 protocol WorkspaceGenerating: AnyObject {
+    /// Generates the given workspace.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - path: Path to the directory where the generation command is executed from.
+    ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration.
+    /// - Returns: Path to the generated workspace.
+    /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
                   graph: Graphing,
-                  options: GenerationOptions,
-                  directory: GenerationDirectory) throws -> AbsolutePath
+                  tuistConfig: TuistConfig) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -34,60 +42,56 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     private let projectGenerator: ProjectGenerating
     private let system: Systeming
-    private let printer: Printing
-    private let projectDirectoryHelper: ProjectDirectoryHelping
-    private let fileHandler: FileHandling
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
+    private let cocoapodsInteractor: CocoaPodsInteracting
+    
+    internal var fileHandler: FileHandling = FileHandler.shared
 
     // MARK: - Init
 
     convenience init(system: Systeming = System(),
-                     printer: Printing = Printer(),
-                     projectDirectoryHelper: ProjectDirectoryHelping = ProjectDirectoryHelper(),
-                     fileHandler: FileHandling = FileHandler(),
-                     defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+                     defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+                     cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
-                                                printer: printer,
-                                                system: system,
-                                                fileHandler: fileHandler)
+                                                system: system)
         self.init(system: system,
-                  printer: printer,
-                  projectDirectoryHelper: projectDirectoryHelper,
                   projectGenerator: projectGenerator,
-                  fileHandler: fileHandler,
-                  workspaceStructureGenerator: WorkspaceStructureGenerator(fileHandler: fileHandler))
+                  workspaceStructureGenerator: WorkspaceStructureGenerator(),
+                  cocoapodsInteractor: cocoapodsInteractor)
     }
 
     init(system: Systeming,
-         printer: Printing,
-         projectDirectoryHelper: ProjectDirectoryHelping,
          projectGenerator: ProjectGenerating,
-         fileHandler: FileHandling,
-         workspaceStructureGenerator: WorkspaceStructureGenerating) {
+         workspaceStructureGenerator: WorkspaceStructureGenerating,
+         cocoapodsInteractor: CocoaPodsInteracting) {
         self.system = system
-        self.printer = printer
-        self.projectDirectoryHelper = projectDirectoryHelper
         self.projectGenerator = projectGenerator
-        self.fileHandler = fileHandler
         self.workspaceStructureGenerator = workspaceStructureGenerator
+        self.cocoapodsInteractor = cocoapodsInteractor
     }
 
     // MARK: - WorkspaceGenerating
 
+    /// Generates the given workspace.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - path: Path to the directory where the generation command is executed from.
+    ///   - graph: In-memory representation of the graph.
+    ///   - tuistConfig: Tuist configuration.
+    /// - Returns: Path to the generated workspace.
+    /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
                   graph: Graphing,
-                  options: GenerationOptions,
-                  directory: GenerationDirectory = .manifest) throws -> AbsolutePath {
-        let workspaceRootPath = try projectDirectoryHelper.setupDirectory(name: graph.name,
-                                                                          path: graph.entryPath,
-                                                                          directory: directory)
+                  tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
-        printer.print(section: "Generating workspace \(workspaceName)")
+        
+        Printer.shared.print(section: "Generating workspace \(workspaceName)")
         
         let updatedWorkspace = try generatePackageDependencyManager(at: path,
                                                                 workspace: workspace,
@@ -98,22 +102,18 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()
         try graph.projects.forEach { project in
-            let sourceRootPath = try projectDirectoryHelper.setupProjectDirectory(project: project,
-                                                                                  directory: directory)
             let generatedProject = try projectGenerator.generate(project: project,
-                                                                 options: options,
                                                                  graph: graph,
-                                                                 sourceRootPath: sourceRootPath)
-
+                                                                 sourceRootPath: project.path)
             generatedProjects[project.path] = generatedProject
         }
 
         // Workspace structure
-
         let structure = workspaceStructureGenerator.generateStructure(path: path,
-                                                                      workspace: updatedWorkspace)
+                                                                      workspace: workspace,
+                                                                      fileHandler: FileHandler.shared)
 
-        let workspacePath = workspaceRootPath.appending(component: workspaceName)
+        let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
@@ -123,6 +123,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
 
         try write(xcworkspace: xcWorkspace, to: workspacePath)
+
+        // CocoaPods
+
+        try cocoapodsInteractor.install(graph: graph)
 
         return workspacePath
     }
@@ -146,7 +150,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
         // If the workspace doesn't exist we can write it because there isn't any
         // Xcode instance that might depend on it.
-        if !fileHandler.exists(to.appending(component: "contents.xcworkspacedata")) {
+        if !FileHandler.shared.exists(to.appending(component: "contents.xcworkspacedata")) {
             try xcworkspace.write(path: to.path)
             return
         }
@@ -154,7 +158,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         // If the workspace exists, we want to reduce the likeliness of causing
         // Xcode not to be able to reload the workspace.
         // We only replace the current one if something has changed.
-        try fileHandler.inTemporaryDirectory { temporaryPath in
+        try FileHandler.shared.inTemporaryDirectory { temporaryPath in
             try xcworkspace.write(path: temporaryPath.path)
 
             let workspaceData: (AbsolutePath) throws -> Data = {
@@ -166,7 +170,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             let currentWorkspaceData = try workspaceData(temporaryPath)
 
             if currentData != currentWorkspaceData {
-                try fileHandler.replace(to, with: temporaryPath)
+                try FileHandler.shared.replace(to, with: temporaryPath)
             }
         }
     }

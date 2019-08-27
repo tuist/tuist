@@ -2,8 +2,19 @@ import Foundation
 
 // MARK: - TargetDependency
 
-public enum TargetDependency: Codable {
-    public enum VersionRules: Codable, Equatable {
+/// Dependency status used by `.sdk` target dependencies
+public enum SDKStatus: String {
+    /// Required dependency
+    case required
+
+    /// Optional dependency (weakly linked)
+    case optional
+}
+
+/// Defines the target dependencies supported by Tuist
+public enum TargetDependency: Codable, Equatable {
+
+    public enum VersionRequirement: Codable, Equatable {
         case upToNextMajorVersion(String)
         case upToNextMinorVersion(String)
         case range(from: String, to: String)
@@ -73,11 +84,60 @@ public enum TargetDependency: Codable {
         }
     }
 
+    /// Dependency on another target within the same project
+    ///
+    /// - Parameters:
+    ///   - name: Name of the target to depend on
     case target(name: String)
+
+    /// Dependency on a target within another project
+    ///
+    /// - Parameters:
+    ///   - target: Name of the target to depend on
+    ///   - path: Relative path to the other project directory
     case project(target: String, path: String)
+
+    /// Dependency on a prebuilt framework
+    ///
+    /// - Parameters:
+    ///   - path: Relative path to the prebuilt framework
     case framework(path: String)
+
+    /// Dependency on prebuilt library
+    ///
+    /// - Parameters:
+    ///   - path: Relative path to the prebuilt library
+    ///   - publicHeaders: Relative path to the library's public headers directory
+    ///   - swiftModuleMap: Relative path to the library's swift module map file
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
-    case package(url: String, productName: String, version: VersionRules)
+    
+    
+    case package(url: String, productName: String, version: VersionRequirement)
+
+    /// Dependency on system library or framework
+    ///
+    /// - Parameters:
+    ///   - name: Name of the system library or framework (including extension)
+    ///            e.g. `ARKit.framework`, `libc++.tbd`
+    ///   - status: The dependency status (optional dependencies are weakly linked)
+    case sdk(name: String, status: SDKStatus)
+
+    /// Dependency on CocoaPods pods.
+    ///
+    /// - Parameters:
+    ///     - path: Path to the directory that contains the Podfile.
+    case cocoapods(path: String)
+
+    /// Dependency on system library or framework
+    ///
+    /// - Parameters:
+    ///   - name: Name of the system library or framework (including extension)
+    ///            e.g. `ARKit.framework`, `libc++.tbd`
+    ///
+    /// Note: Defaults to using a `required` dependency status
+    public static func sdk(name: String) -> TargetDependency {
+        return .sdk(name: name, status: .required)
+    }
 
     public var typeName: String {
         switch self {
@@ -91,9 +151,17 @@ public enum TargetDependency: Codable {
             return "library"
         case .package:
             return "package"
+        case .sdk:
+            return "sdk"
+        case .cocoapods:
+            return "cocoapods"
         }
     }
 }
+
+// MARK: - SDKStatus (Coding)
+
+extension SDKStatus: Codable {}
 
 // MARK: - TargetDependency (Coding)
 
@@ -109,9 +177,10 @@ extension TargetDependency {
         case path
         case url
         case productName
-        case versionRules = "version_rules"
+        case versionRequirement = "version_requirement"
         case publicHeaders = "public_headers"
         case swiftModuleMap = "swift_module_map"
+        case status
     }
 
     public init(from decoder: Decoder) throws {
@@ -142,8 +211,15 @@ extension TargetDependency {
         case "package":
             self = .package(url: try container.decode(String.self, forKey: .url),
                             productName: try container.decode(String.self, forKey: .productName),
-                            version: try container.decode(VersionRules.self, forKey: .versionRules))
+                            version: try container.decode(VersionRequirement.self, forKey: .versionRequirement))
+        
+        case "sdk":
+            self = .sdk(name: try container.decode(String.self, forKey: .name),
+                        status: try container.decode(SDKStatus.self, forKey: .status))
 
+        case "cocoapods":
+            self = .cocoapods(path: try container.decode(String.self, forKey: .path))
+        
         default:
             throw CodingError.unknownType(type)
         }
@@ -169,7 +245,12 @@ extension TargetDependency {
         case let .package(url, productName, version):
             try container.encode(url, forKey: .url)
             try container.encode(productName, forKey: .productName)
-            try container.encode(version, forKey: .versionRules)
+            try container.encode(version, forKey: .versionRequirement)
+        case let .sdk(name, status):
+            try container.encode(name, forKey: .name)
+            try container.encode(status, forKey: .status)
+        case let .cocoapods(path):
+            try container.encode(path, forKey: .path)
         }
     }
 }

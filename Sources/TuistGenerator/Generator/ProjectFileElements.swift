@@ -30,6 +30,7 @@ class ProjectFileElements {
 
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
+    var sdks: [AbsolutePath: PBXFileReference] = [:]
     let playgrounds: Playgrounding
     let filesSortener: ProjectFilesSortening
 
@@ -51,7 +52,7 @@ class ProjectFileElements {
         var files = Set<GroupFileElement>()
         var products = Set<String>()
         project.targets.forEach { target in
-            files.formUnion(targetFiles(target: target))
+            files.formUnion(targetFiles(target: target, sourceRootPath: sourceRootPath))
             products.formUnion(targetProducts(target: target))
         }
         let projectFileElements = projectFiles(project: project)
@@ -117,7 +118,7 @@ class ProjectFileElements {
         return products
     }
 
-    func targetFiles(target: Target) -> Set<GroupFileElement> {
+    func targetFiles(target: Target, sourceRootPath _: AbsolutePath) -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources.map { $0.path })
         files.formUnion(target.coreDataModels.map { $0.path })
@@ -130,8 +131,8 @@ class ProjectFileElements {
         }
 
         // Support files
-        if let infoPlist = target.infoPlist {
-            files.insert(infoPlist.path)
+        if let infoPlist = target.infoPlist, let path = infoPlist.path {
+            files.insert(path)
         }
 
         if let entitlements = target.entitlements {
@@ -188,23 +189,23 @@ class ProjectFileElements {
                           groups: ProjectGroups,
                           pbxproj: PBXProj) throws {
         try prepareProductsFileReferences(project: project, dependencies: dependencies).forEach { pair in
-            guard self.products[pair.productName] == nil else { return }
+            guard self.products[pair.targetName] == nil else { return }
             pbxproj.add(object: pair.fileReference)
             groups.products.children.append(pair.fileReference)
-            self.products[pair.productName] = pair.fileReference
+            self.products[pair.targetName] = pair.fileReference
         }
     }
 
     func prepareProductsFileReferences(project: Project, dependencies: Set<GraphNode>)
-        throws -> [(productName: String, fileReference: PBXFileReference)] {
+        throws -> [(targetName: String, fileReference: PBXFileReference)] {
         let targetsProducts = project.targets
-            .map { ($0.productNameWithExtension, $0.product) }
+            .map { ($0, $0.product) }
         let dependenciesProducts = dependencies
             .compactMap { $0 as? TargetNode }
             .map { $0.target }
-            .map { ($0.productNameWithExtension, $0.product) }
+            .map { ($0, $0.product) }
         let mergeStrategy: (Product, Product) -> Product = { first, _ in first }
-        let sortByName: ((String, Product), (String, Product)) -> Bool = { first, second in first.0 < second.0 }
+        let sortByName: ((Target, Product), (Target, Product)) -> Bool = { first, second in first.0.productNameWithExtension < second.0.productNameWithExtension }
 
         let targetsProductsDictionary = Dictionary(targetsProducts, uniquingKeysWith: mergeStrategy)
         let dependenciesProductsDictionary = Dictionary(dependenciesProducts, uniquingKeysWith: mergeStrategy)
@@ -212,12 +213,12 @@ class ProjectFileElements {
                                                                    uniquingKeysWith: mergeStrategy)
         return productsDictionary
             .sorted(by: sortByName)
-            .map { productName, product in
+            .map { target, product in
                 let fileType = Xcode.filetype(extension: product.xcodeValue.fileExtension!)
-                return (productName: productName,
+                return (targetName: target.name,
                         fileReference: PBXFileReference(sourceTree: .buildProductsDir,
                                                         explicitFileType: fileType,
-                                                        path: productName,
+                                                        path: target.productNameWithExtension,
                                                         includeInIndex: false))
             }
     }
@@ -228,14 +229,23 @@ class ProjectFileElements {
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath,
                   filesGroup: ProjectGroup) throws {
-        try dependencies.forEach { node in
-            if let precompiledNode = node as? PrecompiledNode {
+        let sortedDependencies = dependencies.sorted(by: { $0.path < $1.path })
+        try sortedDependencies.forEach { node in
+            switch node {
+            case let precompiledNode as PrecompiledNode:
                 let fileElement = GroupFileElement(path: precompiledNode.path,
                                                    group: filesGroup)
                 try generate(fileElement: fileElement,
                              groups: groups,
                              pbxproj: pbxproj,
                              sourceRootPath: sourceRootPath)
+                return
+            case let sdkNode as SDKNode:
+                generateSDKFileElement(node: sdkNode,
+                                       toGroup: groups.frameworks,
+                                       pbxproj: pbxproj)
+            default:
+                return
             }
         }
     }
@@ -391,7 +401,7 @@ class ProjectFileElements {
                                          localizedContainer: AbsolutePath,
                                          pbxproj: PBXProj) {
         let localizedFilePath = localizedFile.relative(to: localizedContainer.parentDirectory)
-        let lastKnownFileType = Xcode.filetype(extension: localizedFile.basename)
+        let lastKnownFileType = localizedFile.extension.flatMap { Xcode.filetype(extension: $0) }
         let name = localizedContainer.basename.split(separator: ".").first
         let localizedFileReference = PBXFileReference(sourceTree: .group,
                                                       name: name.map { String($0) },
@@ -445,12 +455,41 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
     }
 
+    private func generateSDKFileElement(node: SDKNode,
+                                        toGroup: PBXGroup,
+                                        pbxproj: PBXProj) {
+        guard sdks[node.path] == nil else {
+            return
+        }
+
+        addSDKElement(node: node, toGroup: toGroup, pbxproj: pbxproj)
+    }
+
+    private func addSDKElement(node: SDKNode,
+                               toGroup: PBXGroup,
+                               pbxproj: PBXProj) {
+        let sdkPath = node.path.relative(to: AbsolutePath("/")) // SDK paths are relative
+
+        let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
+        let file = PBXFileReference(sourceTree: .developerDir,
+                                    name: sdkPath.basename,
+                                    lastKnownFileType: lastKnownFileType,
+                                    path: sdkPath.pathString)
+        pbxproj.add(object: file)
+        toGroup.children.append(file)
+        sdks[node.path] = file
+    }
+
     func group(path: AbsolutePath) -> PBXGroup? {
         return elements[path] as? PBXGroup
     }
 
-    func product(name: String) -> PBXFileReference? {
+    func product(target name: String) -> PBXFileReference? {
         return products[name]
+    }
+
+    func sdk(path: AbsolutePath) -> PBXFileReference? {
+        return sdks[path]
     }
 
     func file(path: AbsolutePath) -> PBXFileReference? {

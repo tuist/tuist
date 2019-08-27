@@ -110,6 +110,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             return { key, _ in essentialKeys.contains(key) }
         case .recommended:
             return { _, _ in true }
+        case .none:
+            return { _, _ in false }
         }
     }
 }

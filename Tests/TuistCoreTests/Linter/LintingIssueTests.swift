@@ -5,6 +5,11 @@ import XCTest
 @testable import TuistCoreTesting
 
 final class LintingIssueTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        mockEnvironment()
+    }
+
     func test_description() {
         let subject = LintingIssue(reason: "whatever", severity: .error)
         XCTAssertEqual(subject.description, "whatever")
@@ -19,29 +24,32 @@ final class LintingIssueTests: XCTestCase {
     }
 
     func test_printAndThrowIfNeeded() throws {
-        let printer = MockPrinter()
         let first = LintingIssue(reason: "error", severity: .error)
         let second = LintingIssue(reason: "warning", severity: .warning)
 
-        XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded(printer: printer))
+        XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
 
-        XCTAssertEqual(printer.printWithColorArgs.first?.0, "The following issues have been found:")
-        XCTAssertEqual(printer.printWithColorArgs.first?.1, .yellow)
-        XCTAssertEqual(printer.printArgs.first, "  - warning")
-
-        XCTAssertEqual(printer.printWithColorArgs.last?.0, "\nThe following critical issues have been found:")
-        XCTAssertEqual(printer.printWithColorArgs.last?.1, .red)
-        XCTAssertEqual(printer.printArgs.last, "  - error")
+        XCTAssertPrinterOutputContains("""
+        The following issues have been found:
+          - warning
+        """
+        )
+        XCTAssertPrinterErrorContains("""
+        The following critical issues have been found:
+          - error
+        """
+        )
     }
 
     func test_printAndThrowIfNeeded_whenErrorsOnly() throws {
-        let printer = MockPrinter()
         let first = LintingIssue(reason: "error", severity: .error)
 
-        XCTAssertThrowsError(try [first].printAndThrowIfNeeded(printer: printer))
+        XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
 
-        XCTAssertEqual(printer.printWithColorArgs.last?.0, "The following critical issues have been found:")
-        XCTAssertEqual(printer.printWithColorArgs.last?.1, .red)
-        XCTAssertEqual(printer.printArgs.last, "  - error")
+        XCTAssertPrinterErrorContains("""
+        The following critical issues have been found:
+          - error
+        """
+        )
     }
 }

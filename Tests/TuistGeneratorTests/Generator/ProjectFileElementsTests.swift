@@ -16,7 +16,9 @@ final class ProjectFileElementsTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         playgrounds = MockPlaygrounds()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(project: .test(),
@@ -69,7 +71,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/a.png",
         ])
     }
@@ -87,7 +89,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
             "my.folder/resources/a.png",
         ])
     }
@@ -106,7 +108,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/generated_images",
         ])
     }
@@ -124,7 +126,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
             "another/path/resources/a.png",
         ])
     }
@@ -142,7 +144,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/assets.xcassets",
         ])
     }
@@ -170,7 +172,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/assets.xcassets",
         ])
     }
@@ -200,7 +202,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.debugChildPaths, [
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
             "resources/App.strings/en",
             "resources/App.strings/fr",
             "resources/Extension.strings/en",
@@ -220,6 +222,8 @@ final class ProjectFileElementsTests: XCTestCase {
     }
 
     func test_targetFiles() {
+        let sourceRootPath = AbsolutePath("/a/project/")
+
         let settings = Settings.test(
             base: [:],
             debug: Configuration(settings: ["Configuration": "A"], xcconfig: AbsolutePath("/project/debug.xcconfig")),
@@ -246,7 +250,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                                   project: [AbsolutePath("/project/project.h")]),
                                  dependencies: [])
 
-        let files = subject.targetFiles(target: target)
+        let files = subject.targetFiles(target: target, sourceRootPath: sourceRootPath)
         XCTAssertTrue(files.isSuperset(of: [
             GroupFileElement(path: "/project/debug.xcconfig", group: target.filesGroup),
             GroupFileElement(path: "/project/release.xcconfig", group: target.filesGroup),
@@ -273,7 +277,7 @@ final class ProjectFileElementsTests: XCTestCase {
                                      groups: groups,
                                      pbxproj: pbxproj)
         XCTAssertEqual(groups.products.children.count, 1)
-        let fileReference = subject.product(name: "Target.app")
+        let fileReference = subject.product(target: "Target")
         XCTAssertNotNil(fileReference)
         XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
         XCTAssertEqual(fileReference?.path, "Target.app")
@@ -468,6 +472,9 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertNil(variantGroup?.path)
         XCTAssertEqual(variantGroup?.children.map { $0.name }, ["en"])
         XCTAssertEqual(variantGroup?.children.map { $0.path }, ["en.lproj/App.strings"])
+        XCTAssertEqual(variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType }, [
+            Xcode.filetype(extension: "strings"),
+        ])
     }
 
     func test_addVersionGroupElement() throws {
@@ -585,6 +592,38 @@ final class ProjectFileElementsTests: XCTestCase {
                                                      sourceRootPath: AbsolutePath("/a/b/c/project"))
         XCTAssertEqual(got, RelativePath("../../../framework"))
     }
+
+    func test_generateDependencies_sdks() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let project = Project.test()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            sourceRootPath: sourceRootPath)
+
+        let sdk = try SDKNode(name: "ARKit.framework",
+                              platform: .iOS,
+                              status: .required)
+
+        // When
+        try subject.generate(dependencies: [sdk],
+                             path: sourceRootPath,
+                             groups: groups, pbxproj: pbxproj,
+                             sourceRootPath: sourceRootPath,
+                             filesGroup: .group(name: "Project"))
+
+        // Then
+        XCTAssertEqual(groups.frameworks.flattenedChildren, [
+            "ARKit.framework",
+        ])
+
+        let sdkElement = subject.sdks[sdk.path]
+        XCTAssertNotNil(sdkElement)
+        XCTAssertEqual(sdkElement?.sourceTree, .developerDir)
+        XCTAssertEqual(sdkElement?.path, sdk.path.relative(to: "/").pathString)
+        XCTAssertEqual(sdkElement?.name, sdk.path.basename)
+    }
 }
 
 private extension PBXGroup {
@@ -597,11 +636,11 @@ private extension PBXGroup {
     ///    -- D
     /// Would return:
     ///         ["A/B", "A/C/D"]
-    var debugChildPaths: [String] {
+    var flattenedChildren: [String] {
         return children.flatMap { (element: PBXFileElement) -> [String] in
             switch element {
             case let group as PBXGroup:
-                return group.debugChildPaths.map { group.nameOrPath + "/" + $0 }
+                return group.flattenedChildren.map { group.nameOrPath + "/" + $0 }
             default:
                 return [element.nameOrPath]
             }

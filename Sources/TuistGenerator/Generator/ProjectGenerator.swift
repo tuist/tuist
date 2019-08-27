@@ -3,9 +3,25 @@ import Foundation
 import TuistCore
 import XcodeProj
 
+struct ProjectConstants {
+    var objectVersion: UInt
+    var archiveVersion: UInt
+}
+
+extension ProjectConstants {
+    static var xcode10: ProjectConstants {
+        return ProjectConstants(objectVersion: 50,
+                                archiveVersion: Xcode.LastKnown.archiveVersion)
+    }
+
+    static var xcode11: ProjectConstants {
+        return ProjectConstants(objectVersion: 52,
+                                archiveVersion: Xcode.LastKnown.archiveVersion)
+    }
+}
+
 protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
-                  options: GenerationOptions,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath?) throws -> GeneratedProject
 }
@@ -22,14 +38,11 @@ final class ProjectGenerator: ProjectGenerating {
     /// Generator for the project schemes.
     let schemesGenerator: SchemesGenerating
 
-    /// Printer instance to output messages to the user.
-    let printer: Printing
+    /// Generator for the project derived files.
+    let derivedFileGenerator: DerivedFileGenerating
 
     /// System instance to run commands in the system.
     let system: Systeming
-
-    /// File handler instance to interact with the system files.
-    let fileHandler: FileHandling
 
     // MARK: - Init
 
@@ -39,40 +52,41 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemesGenerator: Generator for the project schemes.
-    ///   - printer: Printer instance to output messages to the user.
+    ///   - derivedFileGenerator: Generator for the project derived files.
     ///   - system: System instance to run commands in the system.
-    ///   - fileHandler: File handler instance to interact with the system files.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
          schemesGenerator: SchemesGenerating = SchemesGenerator(),
-         printer: Printing = Printer(),
-         system: Systeming = System(),
-         fileHandler: FileHandling = FileHandler()) {
+         derivedFileGenerator: DerivedFileGenerating = DerivedFileGenerator(),
+         system: Systeming = System()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
-        self.printer = printer
+        self.derivedFileGenerator = derivedFileGenerator
         self.system = system
-        self.fileHandler = fileHandler
     }
 
     // MARK: - ProjectGenerating
 
     func generate(project: Project,
-                  options: GenerationOptions,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
-        printer.print("Generating project \(project.name)")
+        Printer.shared.print("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path
-        let xcodeprojPath = sourceRootPath.appending(component: "\(project.name).xcodeproj")
+
+        let xcodeprojPath = sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
+
+        // Derived files
+        let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)
 
         // Project and workspace.
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        let pbxproj = PBXProj(objectVersion: Xcode.Default.objectVersion,
-                              archiveVersion: Xcode.LastKnown.archiveVersion,
+        let projectConstants = determineProjectConstants()
+        let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
+                              archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
@@ -83,8 +97,7 @@ final class ProjectGenerator: ProjectGenerating {
                                               sourceRootPath: sourceRootPath)
         let configurationList = try configGenerator.generateProjectConfig(project: project,
                                                                           pbxproj: pbxproj,
-                                                                          fileElements: fileElements,
-                                                                          options: options)
+                                                                          fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 configurationList: configurationList,
                                                 groups: groups,
@@ -96,12 +109,13 @@ final class ProjectGenerator: ProjectGenerating {
                                                 groups: groups,
                                                 fileElements: fileElements,
                                                 sourceRootPath: sourceRootPath,
-                                                options: options,
                                                 graph: graph)
 
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
+
+        try deleteOldDerivedFiles()
 
         return try write(xcodeprojPath: xcodeprojPath,
                          nativeTargets: nativeTargets,
@@ -138,10 +152,9 @@ final class ProjectGenerator: ProjectGenerating {
     private func generateTargets(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
-                                 groups: ProjectGroups,
+                                 groups _: ProjectGroups,
                                  fileElements: ProjectFileElements,
                                  sourceRootPath: AbsolutePath,
-                                 options: GenerationOptions,
                                  graph: Graphing) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
@@ -149,11 +162,9 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   pbxproj: pbxproj,
                                                                   pbxProject: pbxProject,
                                                                   projectSettings: project.settings,
-                                                                  groups: groups,
                                                                   fileElements: fileElements,
                                                                   path: project.path,
                                                                   sourceRootPath: sourceRootPath,
-                                                                  options: options,
                                                                   graph: graph,
                                                                   system: system)
             nativeTargets[target.name] = nativeTarget
@@ -207,7 +218,7 @@ final class ProjectGenerator: ProjectGenerating {
                        graph _: Graphing) throws -> GeneratedProject {
         var generatedProject: GeneratedProject!
 
-        try fileHandler.inTemporaryDirectory { temporaryPath in
+        try FileHandler.shared.inTemporaryDirectory { temporaryPath in
 
             try writeXcodeproj(workspace: workspace,
                                pbxproj: pbxproj,
@@ -218,7 +229,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 name: xcodeprojPath.components.last!)
             try writeSchemes(project: project,
                              generatedProject: generatedProject)
-            try fileHandler.replace(xcodeprojPath, with: temporaryPath)
+            try FileHandler.shared.replace(xcodeprojPath, with: temporaryPath)
         }
 
         return try generatedProject.at(path: xcodeprojPath)
@@ -235,5 +246,14 @@ final class ProjectGenerator: ProjectGenerating {
                               generatedProject: GeneratedProject) throws {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
+    }
+
+    private func determineProjectConstants() -> ProjectConstants {
+        // TODO:
+        //
+        // To maintain backwards compatibility with Xcode 10
+        // the Xcode10 constants are used unless the use of Xcode 11
+        // features are detected (e.g Swift PM dependencies)
+        return .xcode10
     }
 }

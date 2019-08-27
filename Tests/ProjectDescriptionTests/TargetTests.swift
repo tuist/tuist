@@ -1,5 +1,7 @@
 import Foundation
+import TuistCoreTesting
 import XCTest
+
 @testable import ProjectDescription
 
 final class TargetTests: XCTestCase {
@@ -7,6 +9,7 @@ final class TargetTests: XCTestCase {
         let subject = Target(name: "name",
                              platform: .iOS,
                              product: .app,
+                             productName: "product_name",
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
                              sources: "sources/*",
@@ -35,9 +38,9 @@ final class TargetTests: XCTestCase {
         let expected = """
         {
             "headers": {
-                "public": "public\\/*",
-                "private": "private\\/*",
-                "project": "project\\/*"
+                "public": { "globs": ["public\\/*"] },
+                "private": { "globs": ["private\\/*"] },
+                "project": { "globs": ["project\\/*"] }
             },
             "bundle_id": "bundle_id",
             "core_data_models": [
@@ -57,6 +60,7 @@ final class TargetTests: XCTestCase {
                 }
             ],
             "product": "app",
+            "product_name": "product_name",
             "sources": [
                 {
                     "glob": "sources\\/*"
@@ -66,18 +70,28 @@ final class TargetTests: XCTestCase {
                 "base": {
                     "a": "b"
                 },
-                "debug": {
-                    "xcconfig": "config",
-                    "settings": {
-                        "a": "b"
-                    }
-                },
-                "release": {
-                    "xcconfig": "config",
-                    "settings": {
-                        "a": "b"
-                    }
-                },
+                "configurations": [
+                    {
+                        "name": "Debug",
+                        "variant": "debug",
+                        "configuration": {
+                            "xcconfig": "config",
+                            "settings": {
+                                "a": "b"
+                            }
+                        }
+                    },
+                    {
+                        "name": "Release",
+                        "variant": "release",
+                        "configuration": {
+                            "xcconfig": "config",
+                            "settings": {
+                                "a": "b"
+                            }
+                        }
+                    },
+                ],
                 "defaultSettings": "recommended"
             },
             "resources": [
@@ -90,7 +104,7 @@ final class TargetTests: XCTestCase {
             "entitlements": "entitlement",
             "info_plist": {
                 "type": "file",
-                "path": "info.plist"
+                "value": "info.plist"
             },
             "dependencies": [
                 {
@@ -119,20 +133,21 @@ final class TargetTests: XCTestCase {
             "name": "name"
         }
         """
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertCodableEqualToJson(subject, expected)
     }
 
     func test_toJSON_withFileList() {
         let subject = Target(name: "name",
                              platform: .iOS,
                              product: .app,
+                             productName: "product_name",
                              bundleId: "bundle_id",
                              infoPlist: "info.plist",
-                             sources: FileList(globs: ["sources/*"]),
+                             sources: SourceFilesList(globs: ["sources/*"]),
                              resources: ["resources/*"],
-                             headers: Headers(public: "public/*",
-                                              private: "private/*",
-                                              project: "project/*"),
+                             headers: Headers(public: ["public/*"],
+                                              private: ["private/*"],
+                                              project: ["project/*"]),
                              entitlements: "entitlement",
                              actions: [
                                  TargetAction.post(path: "path", arguments: ["arg"], name: "name"),
@@ -154,9 +169,9 @@ final class TargetTests: XCTestCase {
         let expected = """
         {
             "headers": {
-                "public": "public\\/*",
-                "private": "private\\/*",
-                "project": "project\\/*"
+                "public": { "globs": ["public\\/*"] },
+                "private": { "globs": ["private\\/*"] },
+                "project": { "globs": ["project\\/*"] }
             },
             "bundle_id": "bundle_id",
             "core_data_models": [
@@ -176,6 +191,7 @@ final class TargetTests: XCTestCase {
                 }
             ],
             "product": "app",
+            "product_name": "product_name",
             "sources": [
                 {
                     "glob": "sources\\/*"
@@ -185,18 +201,28 @@ final class TargetTests: XCTestCase {
                 "base": {
                     "a": "b"
                 },
-                "debug": {
-                    "xcconfig": "config",
-                    "settings": {
-                        "a": "b"
-                    }
-                },
-                "release": {
-                    "xcconfig": "config",
-                    "settings": {
-                        "a": "b"
-                    }
-                },
+                "configurations": [
+                    {
+                        "name": "Debug",
+                        "variant": "debug",
+                        "configuration": {
+                            "xcconfig": "config",
+                            "settings": {
+                                "a": "b"
+                            }
+                        }
+                    },
+                    {
+                        "name": "Release",
+                        "variant": "release",
+                        "configuration": {
+                            "xcconfig": "config",
+                            "settings": {
+                                "a": "b"
+                            }
+                        }
+                    },
+                ],
                 "defaultSettings": "recommended"
             },
             "resources": [
@@ -209,7 +235,7 @@ final class TargetTests: XCTestCase {
             "entitlements": "entitlement",
             "info_plist": {
                 "type": "file",
-                "path": "info.plist"
+                "value": "info.plist"
             },
             "dependencies": [
                 {
@@ -238,6 +264,6 @@ final class TargetTests: XCTestCase {
             "name": "name"
         }
         """
-        assertCodableEqualToJson(subject, expected)
+        XCTAssertCodableEqualToJson(subject, expected)
     }
 }

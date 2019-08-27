@@ -53,6 +53,7 @@ enum GraphManifestLoaderError: FatalError, Equatable {
 enum Manifest: CaseIterable {
     case project
     case workspace
+    case tuistConfig
     case setup
 
     var fileName: String {
@@ -61,6 +62,8 @@ enum Manifest: CaseIterable {
             return "Project.swift"
         case .workspace:
             return "Workspace.swift"
+        case .tuistConfig:
+            return "TuistConfig.swift"
         case .setup:
             return "Setup.swift"
         }
@@ -68,6 +71,13 @@ enum Manifest: CaseIterable {
 }
 
 protocol GraphManifestLoading {
+    /// Loads the TuistConfig.swift in the given directory.
+    ///
+    /// - Parameter path: Path to the directory that contains the TuistConfig.swift file.
+    /// - Returns: Loaded TuistConfig.swift file.
+    /// - Throws: An error if the file has a syntax error.
+    func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig
+
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
     func loadSetup(at path: AbsolutePath) throws -> [Upping]
@@ -78,17 +88,11 @@ protocol GraphManifestLoading {
 class GraphManifestLoader: GraphManifestLoading {
     // MARK: - Attributes
 
-    /// File handler to interact with the file system.
-    let fileHandler: FileHandling
-
     /// Instance to run commands in the system.
     let system: Systeming
 
     /// Resource locator to look up Tuist-related resources.
     let resourceLocator: ResourceLocating
-
-    /// Depreactor to notify about deprecations.
-    let deprecator: Deprecating
 
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
@@ -98,25 +102,19 @@ class GraphManifestLoader: GraphManifestLoading {
     /// Initializes the manifest loader with its attributes.
     ///
     /// - Parameters:
-    ///   - fileHandler: File handler to interact with the file system.
     ///   - system: Instance to run commands in the system.
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
-    ///   - deprecator: Depreactor to notify about deprecations.
-    init(fileHandler: FileHandling = FileHandler(),
-         system: Systeming = System(),
-         resourceLocator: ResourceLocating = ResourceLocator(),
-         deprecator: Deprecating = Deprecator()) {
-        self.fileHandler = fileHandler
+    init(system: Systeming = System(),
+         resourceLocator: ResourceLocating = ResourceLocator()) {
         self.system = system
         self.resourceLocator = resourceLocator
-        self.deprecator = deprecator
         decoder = JSONDecoder()
     }
 
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
         let filePath = path.appending(component: manifest.fileName)
 
-        if fileHandler.exists(filePath) {
+        if FileHandler.shared.exists(filePath) {
             return filePath
         } else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
@@ -125,8 +123,17 @@ class GraphManifestLoader: GraphManifestLoading {
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {
         return .init(Manifest.allCases.filter {
-            fileHandler.exists(path.appending(component: $0.fileName))
+            FileHandler.shared.exists(path.appending(component: $0.fileName))
         })
+    }
+
+    /// Loads the TuistConfig.swift in the given directory.
+    ///
+    /// - Parameter path: Path to the directory that contains the TuistConfig.swift file.
+    /// - Returns: Loaded TuistConfig.swift file.
+    /// - Throws: An error if the file has a syntax error.
+    func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig {
+        return try loadManifest(.tuistConfig, at: path)
     }
 
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
@@ -139,7 +146,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
         let setupPath = path.appending(component: Manifest.setup.fileName)
-        guard fileHandler.exists(setupPath) else {
+        guard FileHandler.shared.exists(setupPath) else {
             throw GraphManifestLoaderError.manifestNotFound(.setup, path)
         }
 
@@ -148,8 +155,7 @@ class GraphManifestLoader: GraphManifestLoading {
         let actionsJson: [JSON] = try setupJson.get("actions")
         return try actionsJson.compactMap {
             try Up.with(dictionary: $0,
-                        projectPath: path,
-                        fileHandler: fileHandler)
+                        projectPath: path)
         }
     }
 
@@ -157,7 +163,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
         let manifestPath = path.appending(component: manifest.fileName)
-        guard fileHandler.exists(manifestPath) else {
+        guard FileHandler.shared.exists(manifestPath) else {
             throw GraphManifestLoaderError.manifestNotFound(manifest, path)
         }
         let data = try loadManifestData(at: manifestPath)

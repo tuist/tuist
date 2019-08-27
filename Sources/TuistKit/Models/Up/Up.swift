@@ -20,10 +20,9 @@ protocol Upping: AnyObject {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws
+    func meet(system: Systeming, projectPath: AbsolutePath) throws
 }
 
 /// It represents a command that configures the environment for the project to work.
@@ -49,10 +48,9 @@ class Up: Upping {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system _: Systeming, printer _: Printing, projectPath _: AbsolutePath) throws {
+    func meet(system _: Systeming, projectPath _: AbsolutePath) throws {
         fatalError("This method should be overriden")
     }
 
@@ -68,19 +66,18 @@ class Up: Upping {
     /// - Parameters:
     ///   - dictionary: Dictionary with the command representation.
     ///   - projectPath: Path to the folder that contains the project.
-    ///   - fileHandler: File handler instance to interact with the file system.
     /// - Returns: Initialized command.
     /// - Throws: An error if the representation has an invalid format
-    static func with(dictionary: JSON, projectPath: AbsolutePath, fileHandler: FileHandling) throws -> Up? {
+    static func with(dictionary: JSON, projectPath: AbsolutePath) throws -> Up? {
         let type: String = try dictionary.get("type")
         if type == "custom" {
-            return try UpCustom(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpCustom(dictionary: dictionary, projectPath: projectPath)
         } else if type == "homebrew" {
-            return try UpHomebrew(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpHomebrew(dictionary: dictionary, projectPath: projectPath)
         } else if type == "homebrew-tap" {
-            return try UpHomebrewTap(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpHomebrewTap(dictionary: dictionary, projectPath: projectPath)
         } else if type == "carthage" {
-            return try UpCarthage(dictionary: dictionary, projectPath: projectPath, fileHandler: fileHandler)
+            return try UpCarthage(dictionary: dictionary, projectPath: projectPath)
         }
         return nil
     }

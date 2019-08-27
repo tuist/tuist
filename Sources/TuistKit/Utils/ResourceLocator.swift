@@ -33,14 +33,6 @@ enum ResourceLocatingError: FatalError {
 }
 
 final class ResourceLocator: ResourceLocating {
-    private let fileHandler: FileHandling
-
-    // MARK: - Init
-
-    init(fileHandler: FileHandling = FileHandler()) {
-        self.fileHandler = fileHandler
-    }
-
     // MARK: - ResourceLocating
 
     func projectDescription() throws -> AbsolutePath {
@@ -60,7 +52,7 @@ final class ResourceLocator: ResourceLocating {
         let candidates = paths.flatMap { path in
             frameworkNames.map { path.appending(component: $0) }
         }
-        guard let frameworkPath = candidates.first(where: { fileHandler.exists($0) }) else {
+        guard let frameworkPath = candidates.first(where: { FileHandler.shared.exists($0) }) else {
             throw ResourceLocatingError.notFound(name)
         }
         return frameworkPath
@@ -70,7 +62,7 @@ final class ResourceLocator: ResourceLocating {
         let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
         let paths = [bundlePath, bundlePath.parentDirectory]
         let candidates = paths.map { $0.appending(component: name) }
-        guard let path = candidates.first(where: { fileHandler.exists($0) }) else {
+        guard let path = candidates.first(where: { FileHandler.shared.exists($0) }) else {
             throw ResourceLocatingError.notFound(name)
         }
         return path

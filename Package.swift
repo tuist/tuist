@@ -26,7 +26,7 @@ let package = Package(
                  targets: ["TuistGenerator"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/tuist/xcodeproj.git", .revision("93b79c3fb81fc4323d5bb8f3ceda2f9a2c699e17")),
+        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMinor(from: "7.0.0")),
         .package(url: "https://github.com/apple/swift-package-manager", .branch("swift-5.0-RELEASE")),
     ],
     targets: [
@@ -60,7 +60,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ProjectDescriptionTests",
-            dependencies: ["ProjectDescription"]
+            dependencies: ["ProjectDescription", "TuistCoreTesting"]
         ),
         .target(
             name: "TuistCore",

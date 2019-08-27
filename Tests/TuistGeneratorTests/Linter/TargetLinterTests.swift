@@ -11,8 +11,32 @@ final class TargetLinterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
-        subject = TargetLinter(fileHandler: fileHandler)
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
+        subject = TargetLinter()
+    }
+
+    func test_lint_when_target_has_invalid_product_name() {
+        let XCTAssertInvalidProductName: (String) -> Void = { productName in
+            let target = Target.test(productName: productName)
+            let got = self.subject.lint(target: target)
+            let reason = "Invalid product name '\(productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+            XCTAssertTrue(got.contains(LintingIssue(reason: reason, severity: .error)))
+        }
+
+        let XCTAssertValidProductName: (String) -> Void = { bundleId in
+            let target = Target.test(bundleId: bundleId)
+            let got = self.subject.lint(target: target)
+            XCTAssertNil(got.first(where: { $0.description.contains("Invalid product name") }))
+        }
+
+        XCTAssertInvalidProductName("MyFramework-iOS")
+        XCTAssertInvalidProductName("My.Framework")
+        XCTAssertInvalidProductName("ⅫFramework")
+        XCTAssertInvalidProductName("ؼFramework")
+        XCTAssertValidProductName("MyFramework_iOS")
+        XCTAssertValidProductName("MyFramework")
     }
 
     func test_lint_when_target_has_invalid_bundle_identifier() {

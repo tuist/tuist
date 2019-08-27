@@ -17,15 +17,16 @@ final class FocusCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         parser = ArgumentParser.test()
-        fileHandler = try! MockFileHandler()
         opener = MockOpener()
         generator = MockGenerator()
         manifestLoader = MockGraphManifestLoader()
 
         subject = FocusCommand(parser: parser,
                                generator: generator,
-                               fileHandler: fileHandler,
                                manifestLoader: manifestLoader,
                                opener: opener)
     }
@@ -44,7 +45,7 @@ final class FocusCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { _, _, _ in
+        generator.generateProjectWorkspaceStub = { _, _ in
             throw error
         }
         XCTAssertThrowsError(try subject.run(with: result)) {
@@ -58,7 +59,7 @@ final class FocusCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { _, _, _ in
+        generator.generateProjectWorkspaceStub = { _, _ in
             workspacePath
         }
         try subject.run(with: result)

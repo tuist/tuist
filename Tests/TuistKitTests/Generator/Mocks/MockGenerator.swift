@@ -3,13 +3,18 @@ import Foundation
 import TuistGenerator
 
 class MockGenerator: Generating {
-    var generateProjectStub: ((AbsolutePath, GeneratorConfig, [AbsolutePath]) throws -> AbsolutePath)?
-    func generateProject(at path: AbsolutePath, config: GeneratorConfig, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
-        return try generateProjectStub?(path, config, workspaceFiles) ?? AbsolutePath("/test")
+    var generateProjectStub: ((AbsolutePath) throws -> AbsolutePath)?
+    func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
+        return try generateProjectStub?(path) ?? AbsolutePath("/test")
     }
 
-    var generateWorkspaceStub: ((AbsolutePath, GeneratorConfig, [AbsolutePath]) throws -> AbsolutePath)?
-    func generateWorkspace(at path: AbsolutePath, config: GeneratorConfig, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
-        return try generateWorkspaceStub?(path, config, workspaceFiles) ?? AbsolutePath("/test")
+    var generateProjectWorkspaceStub: ((AbsolutePath, [AbsolutePath]) throws -> AbsolutePath)?
+    func generateProjectWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+        return try generateProjectWorkspaceStub?(path, workspaceFiles) ?? AbsolutePath("/test")
+    }
+
+    var generateWorkspaceStub: ((AbsolutePath, [AbsolutePath]) throws -> AbsolutePath)?
+    func generateWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+        return try generateWorkspaceStub?(path, workspaceFiles) ?? AbsolutePath("/test")
     }
 }

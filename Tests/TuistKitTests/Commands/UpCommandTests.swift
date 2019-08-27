@@ -14,12 +14,13 @@ final class UpCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        fileHandler = try! MockFileHandler()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         parser = ArgumentParser.test()
         setupLoader = MockSetupLoader()
 
         subject = UpCommand(parser: parser,
-                            fileHandler: fileHandler,
                             setupLoader: setupLoader)
     }
 

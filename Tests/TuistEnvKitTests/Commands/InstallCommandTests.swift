@@ -10,19 +10,18 @@ final class InstallCommandTests: XCTestCase {
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
-    var printer: MockPrinter!
     var subject: InstallCommand!
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        printer = MockPrinter()
         subject = InstallCommand(parser: parser,
                                  versionsController: versionsController,
-                                 installer: installer,
-                                 printer: printer)
+                                 installer: installer)
     }
 
     func test_command() {
@@ -46,7 +45,7 @@ final class InstallCommandTests: XCTestCase {
 
         try subject.run(with: result)
 
-        XCTAssertEqual(printer.printWarningArgs.first, "Version 3.2.1 already installed, skipping")
+        XCTAssertPrinterOutputContains("Version 3.2.1 already installed, skipping")
     }
 
     func test_run() throws {

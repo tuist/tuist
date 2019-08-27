@@ -2,8 +2,13 @@ import Basic
 import Foundation
 import XcodeProj
 
+public enum SDKStatus {
+    case required
+    case optional
+}
+
 public enum Dependency: Equatable {
-    public enum VersionRules: Equatable {
+    public enum VersionRequirement: Equatable {
         case upToNextMajorVersion(String)
         case upToNextMinorVersion(String)
         case range(from: String, to: String)
@@ -11,7 +16,7 @@ public enum Dependency: Equatable {
         case branch(String)
         case revision(String)
 
-        var xcodeprojValue: XCRemoteSwiftPackageReference.VersionRules {
+        var xcodeprojValue: XCRemoteSwiftPackageReference.VersionRequirement {
             switch self {
             case let .branch(branch):
                 return .branch(branch)
@@ -33,5 +38,7 @@ public enum Dependency: Equatable {
     case project(target: String, path: RelativePath)
     case framework(path: RelativePath)
     case library(path: RelativePath, publicHeaders: RelativePath, swiftModuleMap: RelativePath?)
-    case package(url: String, productName: String, versionRules: VersionRules)
+    case package(url: String, productName: String, versionRequirement: VersionRequirement)
+    case sdk(name: String, status: SDKStatus)
+    case cocoapods(path: RelativePath)
 }

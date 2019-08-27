@@ -11,10 +11,10 @@ extension Arguments {
 }
 
 extension RunAction {
-    static func test(config: BuildConfiguration = .debug,
+    static func test(configurationName: String = BuildConfiguration.debug.name,
                      executable: String? = "App",
                      arguments: Arguments? = Arguments.test()) -> RunAction {
-        return RunAction(config: config,
+        return RunAction(configurationName: configurationName,
                          executable: executable,
                          arguments: arguments)
     }
@@ -23,13 +23,13 @@ extension RunAction {
 extension TestAction {
     static func test(targets: [String] = ["AppTests"],
                      arguments: Arguments? = Arguments.test(),
-                     config: BuildConfiguration = .debug,
+                     configurationName: String = BuildConfiguration.debug.name,
                      coverage: Bool = false,
                      preActions: [ExecutionAction] = [],
                      postActions: [ExecutionAction] = []) -> TestAction {
         return TestAction(targets: targets,
                           arguments: arguments,
-                          config: config,
+                          configurationName: configurationName,
                           coverage: coverage,
                           preActions: preActions,
                           postActions: postActions)

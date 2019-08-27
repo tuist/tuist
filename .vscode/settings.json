@@ -1,6 +1,22 @@
 {
-  "editor.formatOnSave": false,
+  "editor.formatOnSave": true,
   "[jsx]": {
     "editor.formatOnSave": true
+  },
+  // Enable per-language
+  "[javascript]": {
+    "editor.formatOnSave": true
+  },
+  "[typescript]": {
+    "editor.formatOnSave": true
+  },
+  "[ruby]": {
+    "editor.formatOnSave": true
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/.DS_Store": true
   }
 }

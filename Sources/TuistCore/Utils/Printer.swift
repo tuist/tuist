@@ -1,8 +1,14 @@
 import Basic
 import Foundation
 
+public enum PrinterOutput {
+    case standardOputput
+    case standardError
+}
+
 public protocol Printing: AnyObject {
     func print(_ text: String)
+    func print(_ text: String, output: PrinterOutput)
     func print(_ text: String, color: TerminalController.Color)
     func print(section: String)
     func print(subsection: String)
@@ -18,14 +24,27 @@ public protocol Printing: AnyObject {
 }
 
 public class Printer: Printing {
+    /// Shared instance
+    public static var shared: Printing = Printer()
+
     // MARK: - Init
 
-    public init() {}
+    init() {}
 
     // MARK: - Public
 
     public func print(_ text: String) {
-        let writer = InteractiveWriter.stdout
+        print(text, output: .standardOputput)
+    }
+
+    public func print(_ text: String, output: PrinterOutput) {
+        let writer: InteractiveWriter!
+        if output == .standardOputput {
+            writer = .stdout
+        } else {
+            writer = .stderr
+        }
+
         writer.write(text)
         writer.write("\n")
     }
@@ -38,14 +57,14 @@ public class Printer: Printing {
 
     public func print(error: Error) {
         let writer = InteractiveWriter.stderr
-        writer.write("❌ Error: ", inColor: .red, bold: true)
+        writer.write("Error: ", inColor: .red, bold: true)
         writer.write(error.localizedDescription)
         writer.write("\n")
     }
 
     public func print(success: String) {
         let writer = InteractiveWriter.stdout
-        writer.write("✅ Success: ", inColor: .green, bold: true)
+        writer.write("Success: ", inColor: .green, bold: true)
         writer.write(success)
         writer.write("\n")
     }
@@ -56,21 +75,21 @@ public class Printer: Printing {
     public func print(deprecation: String) {
         let writer = InteractiveWriter.stdout
         writer.write("Deprecated: ", inColor: .yellow, bold: true)
-        writer.write(deprecation, inColor: .yellow, bold: false)
+        writer.write(deprecation, inColor: .yellow, bold: true)
         writer.write("\n")
     }
 
     public func print(warning: String) {
         let writer = InteractiveWriter.stdout
-        writer.write("⚠️  Warning: ", inColor: .yellow, bold: true)
-        writer.write(warning, inColor: .yellow, bold: false)
+        writer.write("Warning: ", inColor: .yellow, bold: true)
+        writer.write(warning, inColor: .yellow, bold: true)
         writer.write("\n")
     }
 
     public func print(errorMessage: String) {
         let writer = InteractiveWriter.stderr
-        writer.write("❌ Error: ", inColor: .red, bold: true)
-        writer.write(errorMessage, inColor: .red, bold: false)
+        writer.write("Error: ", inColor: .red, bold: true)
+        writer.write(errorMessage, inColor: .red, bold: true)
         writer.write("\n")
     }
 
@@ -91,7 +110,7 @@ public class Printer: Printing {
 ///
 /// If underlying stream is a not tty, the string will be written in without any
 /// formatting.
-private final class InteractiveWriter {
+final class InteractiveWriter {
     /// The standard error writer.
     static let stderr = InteractiveWriter(stream: stderrStream)
 

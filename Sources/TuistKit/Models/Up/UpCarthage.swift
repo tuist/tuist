@@ -34,9 +34,8 @@ class UpCarthage: Up, GraphInitiatable {
     /// - Parameters:
     ///   - dictionary: Dictionary with the object representation.
     ///   - projectPath: Absolute path to the folder that contains the manifest. This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
-    ///   - fileHandler: File handler for any file operations like checking whether a file exists or not.
     /// - Throws: A decoding error if an expected property is missing or has an invalid value.
-    required convenience init(dictionary: JSON, projectPath _: AbsolutePath, fileHandler _: FileHandling) throws {
+    required convenience init(dictionary: JSON, projectPath _: AbsolutePath) throws {
         var platforms: [Platform] = []
         if let platformStrings: [String] = try? dictionary.get("platforms") {
             platforms = platformStrings.compactMap {
@@ -63,13 +62,12 @@ class UpCarthage: Up, GraphInitiatable {
     ///
     /// - Parameters:
     ///   - system: System instance to run commands on the shell.
-    ///   - printer: Printer instance to output information to the user.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, printer: Printing, projectPath: AbsolutePath) throws {
+    override func meet(system: Systeming, projectPath: AbsolutePath) throws {
         // Installing Carthage
         if try !upHomebrew.isMet(system: system, projectPath: projectPath) {
-            try upHomebrew.meet(system: system, printer: printer, projectPath: projectPath)
+            try upHomebrew.meet(system: system, projectPath: projectPath)
         }
 
         /// Updating Carthage dependencies.

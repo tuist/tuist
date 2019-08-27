@@ -11,15 +11,8 @@ public protocol Deprecating {
 }
 
 public final class Deprecator: Deprecating {
-    /// Printer instance to output the warning to the users.
-    private let printer: Printing
-
-    /// Constructs a deprecator with a printer instance.
-    ///
-    /// - Parameter printer: Printer instance to output the warning to the users.
-    public init(printer: Printing = Printer()) {
-        self.printer = printer
-    }
+    /// Shared instance.
+    public static var shared: Deprecating = Deprecator()
 
     /// Notifies the user about deprecations by printing a warning message.
     ///
@@ -28,6 +21,6 @@ public final class Deprecator: Deprecating {
     ///   - suggestion: Suggestions for the user to migrate.
     public func notify(deprecation: String, suggestion: String) {
         let message = "\(deprecation) will be deprecated in the next major release. Use \(suggestion) instead."
-        printer.print(deprecation: message)
+        Printer.shared.print(deprecation: message)
     }
 }

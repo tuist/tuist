@@ -24,8 +24,8 @@
         "repositoryURL": "https://github.com/tuist/Shell",
         "state": {
           "branch": null,
-          "revision": "ab06e1ae3fa52c26b076ff11dde60e950f6bbc7c",
-          "version": "2.0.1"
+          "revision": "d38121f89401db902b0d0bfc30b987e2c84c254e",
+          "version": "2.0.3"
         }
       },
       {
@@ -57,11 +57,11 @@
       },
       {
         "package": "XcodeProj",
-        "repositoryURL": "https://github.com/tuist/xcodeproj.git",
+        "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
           "branch": null,
-          "revision": "93b79c3fb81fc4323d5bb8f3ceda2f9a2c699e17",
-          "version": null
+          "revision": "b951777f42e9acbfb8f19da623b43aaa604422f9",
+          "version": "7.0.0"
         }
       }
     ]

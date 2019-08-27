@@ -329,12 +329,12 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_schemeAnalyzeAction() {
-        let got = subject.schemeAnalyzeAction()
+        let got = subject.schemeAnalyzeAction(for: .test())
         XCTAssertEqual(got.buildConfiguration, "Debug")
     }
 
     func test_schemeArchiveAction() {
-        let got = subject.schemeArchiveAction()
+        let got = subject.schemeArchiveAction(for: .test())
         XCTAssertEqual(got.buildConfiguration, "Release")
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }

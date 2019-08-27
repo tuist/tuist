@@ -9,27 +9,20 @@ final class WorkspaceGeneratorTests: XCTestCase {
     var subject: WorkspaceGenerator!
     var path: AbsolutePath!
     var fileHandler: MockFileHandler!
+    var cocoapodsInteractor: MockCocoaPodsInteractor!
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
-        do {
-            fileHandler = try MockFileHandler()
-            path = fileHandler.currentPath
+        path = fileHandler.currentPath
+        cocoapodsInteractor = MockCocoaPodsInteractor()
 
-            let projectDirectoryHelper = ProjectDirectoryHelper(environmentController: try MockEnvironmentController(),
-                                                                fileHandler: fileHandler)
-
-            subject = WorkspaceGenerator(
-                system: MockSystem(),
-                printer: MockPrinter(),
-                projectDirectoryHelper: projectDirectoryHelper,
-                fileHandler: fileHandler
-            )
-
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
+        subject = WorkspaceGenerator(
+            system: MockSystem(),
+            cocoapodsInteractor: cocoapodsInteractor
+        )
     }
 
     // MARK: - Tests
@@ -56,7 +49,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
                                                  graph: graph,
-                                                 options: GenerationOptions())
+                                                 tuistConfig: .test())
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
@@ -83,7 +76,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
             try subject.generate(workspace: workspace,
                                  path: path,
                                  graph: graph,
-                                 options: GenerationOptions())
+                                 tuistConfig: .test())
         )
     }
 
@@ -102,13 +95,34 @@ final class WorkspaceGeneratorTests: XCTestCase {
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: path,
                                                  graph: graph,
-                                                 options: GenerationOptions())
+                                                 tuistConfig: .test())
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
         XCTAssertEqual(xcworkspace.data.children, [
             .file(.init(location: .group("Test.xcodeproj"))),
         ])
+    }
+
+    func test_generate_runsPodInstall() throws {
+        // Given
+        let target = anyTarget()
+        let project = Project.test(path: path,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+        let workspace = Workspace.test(projects: [project.path])
+
+        // When
+        _ = try subject.generate(workspace: workspace,
+                                 path: path,
+                                 graph: graph,
+                                 tuistConfig: .test())
+
+        // Then
+        XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
     }
 
     // MARK: - Helpers

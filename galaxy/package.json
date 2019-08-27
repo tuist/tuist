@@ -1,0 +1,30 @@
+{
+  "name": "galaxy",
+  "private": true,
+  "scripts": {
+    "storybook": "start-storybook",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@rails/webpacker": "^4.0.7",
+    "@types/react": "^16.8.22",
+    "@types/react-dom": "^16.8.4",
+    "@types/webpack-env": "^1.13.9",
+    "react": "^16.8.6",
+    "react-dom": "^16.8.6",
+    "react_ujs": "^2.5.0",
+    "ts-loader": "^6.0.4",
+    "typescript": "^3.5.2"
+  },
+  "devDependencies": {
+    "@storybook/addon-info": "^5.1.9",
+    "@storybook/react": "^5.1.9",
+    "@types/jest": "^24.0.15",
+    "@types/storybook__react": "^4.0.2",
+    "awesome-typescript-loader": "^5.2.1",
+    "jest": "^24.8.0",
+    "react-docgen-typescript-loader": "^3.1.0",
+    "ts-jest": "^24.0.2",
+    "webpack-dev-server": "^3.7.2"
+  }
+}

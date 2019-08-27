@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import XCTest
 
 public final class MockFileHandler: FileHandling {
     private let fileHandler: FileHandling
@@ -58,6 +59,10 @@ public final class MockFileHandler: FileHandling {
     public func isFolder(_ path: AbsolutePath) -> Bool {
         return fileHandler.isFolder(path)
     }
+
+    public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        return try fileHandler.write(content, path: path, atomically: atomically)
+    }
 }
 
 extension MockFileHandler {
@@ -77,5 +82,17 @@ extension MockFileHandler {
             try createFolder($0)
         }
         return paths
+    }
+}
+
+extension XCTestCase {
+    func sharedMockFileHandler(file: StaticString = #file, line: UInt = #line) -> MockFileHandler? {
+        guard let mock = FileHandler.shared as? MockFileHandler else {
+            let message = "FileHandler.shared hasn't been mocked." +
+                "You can call mockFileHandler(), or mockEnvironment() to mock the file handler or the environment respectively."
+            XCTFail(message, file: file, line: line)
+            return nil
+        }
+        return mock
     }
 }

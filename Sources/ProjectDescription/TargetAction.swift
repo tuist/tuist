@@ -25,12 +25,28 @@ public struct TargetAction: Codable {
     /// Arguments that to be passed.
     public let arguments: [String]
 
+    /// List of input file paths
+    public let inputPaths: [String]
+
+    /// List of input filelist paths
+    public let inputFileListPaths: [String]
+
+    /// List of output file paths
+    public let outputPaths: [String]
+
+    /// List of output filelist paths
+    public let outputFileListPaths: [String]
+
     public enum CodingKeys: String, CodingKey {
         case name
         case tool
         case path
         case order
         case arguments
+        case inputPaths
+        case inputFileListPaths
+        case outputPaths
+        case outputFileListPaths
     }
 
     /// Initializes the target action with its attributes.
@@ -41,12 +57,28 @@ public struct TargetAction: Codable {
     ///   - path: Path to the script to execute.
     ///   - order: Target action order.
     ///   - arguments: Arguments that to be passed.
-    init(name: String, tool: String?, path: String?, order: Order, arguments: [String]) {
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    init(name: String,
+         tool: String?,
+         path: String?,
+         order: Order,
+         arguments: [String],
+         inputPaths: [String] = [],
+         inputFileListPaths: [String] = [],
+         outputPaths: [String] = [],
+         outputFileListPaths: [String] = []) {
         self.name = name
         self.path = path
         self.tool = tool
         self.order = order
         self.arguments = arguments
+        self.inputPaths = inputPaths
+        self.inputFileListPaths = inputFileListPaths
+        self.outputPaths = outputPaths
+        self.outputFileListPaths = outputFileListPaths
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -55,9 +87,27 @@ public struct TargetAction: Codable {
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(tool: String, arguments: String..., name: String) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .pre, arguments: arguments)
+    public static func pre(tool: String,
+                           arguments: String...,
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -66,9 +116,27 @@ public struct TargetAction: Codable {
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(tool: String, arguments: [String], name: String) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .pre, arguments: arguments)
+    public static func pre(tool: String,
+                           arguments: [String],
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -77,9 +145,27 @@ public struct TargetAction: Codable {
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(path: String, arguments: String..., name: String) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .pre, arguments: arguments)
+    public static func pre(path: String,
+                           arguments: String...,
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -88,9 +174,27 @@ public struct TargetAction: Codable {
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(path: String, arguments: [String], name: String) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .pre, arguments: arguments)
+    public static func pre(path: String,
+                           arguments: [String],
+                           name: String,
+                           inputPaths: [String] = [],
+                           inputFileListPaths: [String] = [],
+                           outputPaths: [String] = [],
+                           outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .pre,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -99,9 +203,27 @@ public struct TargetAction: Codable {
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(tool: String, arguments: String..., name: String) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .post, arguments: arguments)
+    public static func post(tool: String,
+                            arguments: String...,
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -110,9 +232,27 @@ public struct TargetAction: Codable {
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(tool: String, arguments: [String], name: String) -> TargetAction {
-        return TargetAction(name: name, tool: tool, path: nil, order: .post, arguments: arguments)
+    public static func post(tool: String,
+                            arguments: [String],
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: tool,
+                            path: nil,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -121,9 +261,27 @@ public struct TargetAction: Codable {
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(path: String, arguments: String..., name: String) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .post, arguments: arguments)
+    public static func post(path: String,
+                            arguments: String...,
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -132,9 +290,27 @@ public struct TargetAction: Codable {
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(path: String, arguments: [String], name: String) -> TargetAction {
-        return TargetAction(name: name, tool: nil, path: path, order: .post, arguments: arguments)
+    public static func post(path: String,
+                            arguments: [String],
+                            name: String,
+                            inputPaths: [String] = [],
+                            inputFileListPaths: [String] = [],
+                            outputPaths: [String] = [],
+                            outputFileListPaths: [String] = []) -> TargetAction {
+        return TargetAction(name: name,
+                            tool: nil,
+                            path: path,
+                            order: .post,
+                            arguments: arguments,
+                            inputPaths: inputPaths,
+                            inputFileListPaths: inputFileListPaths,
+                            outputPaths: outputPaths,
+                            outputFileListPaths: outputFileListPaths)
     }
 
     // MARK: - Codable
@@ -144,6 +320,10 @@ public struct TargetAction: Codable {
         name = try container.decode(String.self, forKey: .name)
         order = try container.decode(Order.self, forKey: .order)
         arguments = try container.decode([String].self, forKey: .arguments)
+        inputPaths = try container.decodeIfPresent([String].self, forKey: .inputPaths) ?? []
+        inputFileListPaths = try container.decodeIfPresent([String].self, forKey: .inputFileListPaths) ?? []
+        outputPaths = try container.decodeIfPresent([String].self, forKey: .outputPaths) ?? []
+        outputFileListPaths = try container.decodeIfPresent([String].self, forKey: .outputFileListPaths) ?? []
         if let path = try container.decodeIfPresent(String.self, forKey: .path) {
             self.path = path
             tool = nil
@@ -159,6 +339,10 @@ public struct TargetAction: Codable {
         try container.encode(name, forKey: .name)
         try container.encode(order, forKey: .order)
         try container.encode(arguments, forKey: .arguments)
+        try container.encode(inputPaths, forKey: .inputPaths)
+        try container.encode(inputFileListPaths, forKey: .inputFileListPaths)
+        try container.encode(outputPaths, forKey: .outputPaths)
+        try container.encode(outputFileListPaths, forKey: .outputFileListPaths)
 
         if let tool = tool {
             try container.encode(tool, forKey: .tool)

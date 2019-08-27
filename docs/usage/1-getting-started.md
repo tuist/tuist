@@ -12,7 +12,7 @@ Tuist is a command line tool \(CLI\) that aims to facilitate the generation, mai
 The first thing that we need to do to get started is installing the tool. There are two recommended ways of doing it: using [Homebrew](https://brew.sh) or running a script. In either way, you need to run the following commands in your terminal:
 
 ```bash
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/install/master/install)"
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/tuist/tuist/master/install/install)"
 ```
 
 The process is relatively fast because we are actually not installing the tool. We are installing `tuistenv` \(which gets renamed to `tuist`\) when you install it.
@@ -54,6 +54,9 @@ let project = Project(name: "MyApp",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
                                resources: ["Resources/**"],
+                               headers: Headers(public: ["Sources/public/A/**", "Sources/public/B/**"],
+                                                private: "Sources/private/**",
+                                                project: ["Sources/project/A/**", "Sources/project/B/**"]),
                                dependencies: [
                                     /* Target dependencies can be defined here */
                                     /* .framework(path: "framework") */
@@ -82,6 +85,14 @@ tuist generate
 We'll get a `MyApp.xcodeproj`and `MyApp.xcworkspace` files. As we'll see in the dependencies section, the workspace is necessary to add other projects `MyApp` project is depending on.  
 If you open `MyApp.xcworkspace` and try to run the `MyApp` scheme, it should build the app and run it on the simulator 📱 successfully 🎉.
 
+By default all projects that `MyApp` depends on will also be generated, this ensures the generated workspace is complete. Sometimes we may want to only re-generate individual projects in our workspace without re-generating all their dependencies too. Tuist supports this workflow via including the `--project-only` flag:
+
+```bash
+tuist generate --project-only
+```
+
+This will generate an Xcode project for the local project only.
+
 ### Editing the Project.swift
 
-Did you realize that there's a target, `MyAppDescription`, which contains the manifest file? Thanks to the Swift types system and Xcode, you can edit the manifest file from Xcode and get syntax auto**-**completion, documentation and errors while you are modifying the definition. Isn't it great?
+Did you realize that there's a target, `MyApp_Manifest`, which contains the manifest file? Thanks to the Swift types system and Xcode, you can edit the manifest file from Xcode and get syntax auto**-**completion, documentation and errors while you are modifying the definition. Isn't it great?

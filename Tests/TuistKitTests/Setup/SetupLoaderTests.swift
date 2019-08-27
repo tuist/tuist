@@ -8,21 +8,18 @@ final class SetupLoaderTests: XCTestCase {
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
     var fileHandler: MockFileHandler!
-    var printer: MockPrinter!
     var graphManifestLoader: MockGraphManifestLoader!
     var system: MockSystem!
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
         upLinter = MockUpLinter()
-        fileHandler = try! MockFileHandler()
-        printer = MockPrinter()
         graphManifestLoader = MockGraphManifestLoader()
         system = MockSystem()
         subject = SetupLoader(upLinter: upLinter,
-                              fileHandler: fileHandler,
-                              printer: printer,
                               graphManifestLoader: graphManifestLoader,
                               system: system)
     }
@@ -41,8 +38,6 @@ final class SetupLoaderTests: XCTestCase {
 
         XCTAssertEqual(receivedPaths, ["/test/test1"])
         XCTAssertEqual(upLinter.lintCount, 0)
-        XCTAssertEqual(printer.standardOutput, "")
-        XCTAssertEqual(printer.standardError, "")
     }
 
     func test_meet_when_actions_provided() {
@@ -65,8 +60,7 @@ final class SetupLoaderTests: XCTestCase {
         XCTAssertEqual(lintedUps.count, 2)
         XCTAssertTrue(mockUp1 === lintedUps[0])
         XCTAssertTrue(mockUp2 === lintedUps[1])
-        XCTAssertEqual(printer.standardOutput, "Configuring 2\n")
-        XCTAssertEqual(printer.standardError, "")
+        XCTAssertPrinterOutputContains("Configuring 2\n")
     }
 
     func test_meet_when_loadSetup_throws() {
@@ -120,11 +114,13 @@ final class SetupLoaderTests: XCTestCase {
         let expectedOutput = """
         The following issues have been found:
           - mockup2 warning
+        """
+        let expectedError = """
         The following critical issues have been found:
           - mockup1 error
           - mockup3 error
         """
-        XCTAssertEqual(printer.standardOutput, expectedOutput)
-        XCTAssertEqual(printer.standardError, "")
+        XCTAssertPrinterOutputContains(expectedOutput)
+        XCTAssertPrinterErrorContains(expectedError)
     }
 }

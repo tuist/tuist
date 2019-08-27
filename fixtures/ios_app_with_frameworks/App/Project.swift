@@ -14,7 +14,7 @@ let project = Project(name: "MainApp",
                                  sources: "Sources/**",
                                  dependencies: [
                                      .project(target: "Framework1", path: "../Framework1"),
-                                     .project(target: "Framework2", path: "../Framework2"),
+                                     .project(target: "Framework2-iOS", path: "../Framework2"),
                           ]),
                           Target(name: "AppTests",
                                  platform: .iOS,

@@ -224,6 +224,38 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         XCTAssertEqual(got.count, 43)
     }
 
+    func testProjectSettings_whenNoneDebug() {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .none)
+        let project = Project.test(settings: settings)
+
+        // When
+        let got = subject.projectSettings(project: project,
+                                          buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertEqual(got.count, 0)
+    }
+
+    func testProjectSettings_whenNoneRelease() {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .none)
+        let project = Project.test(settings: settings)
+
+        // When
+        let got = subject.projectSettings(project: project,
+                                          buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertEqual(got.count, 0)
+    }
+
     func testTargetSettings_whenRecommendedDebug() {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
@@ -290,5 +322,37 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         // Then
         XCTAssertDictionary(got, containsAll: frameworkTargetEssentialReleaseSettings)
         XCTAssertEqual(got.count, 17)
+    }
+
+    func testTargetSettings_whenNoneDebug_Framework() {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .none)
+        let target = Target.test(product: .framework, settings: settings)
+
+        // When
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertEqual(got.count, 0)
+    }
+
+    func testTargetSettings_whenNoneRelease_Framework() {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .none)
+        let target = Target.test(product: .framework, settings: settings)
+
+        // When
+        let got = subject.targetSettings(target: target,
+                                         buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertEqual(got.count, 0)
     }
 }

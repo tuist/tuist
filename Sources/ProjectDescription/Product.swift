@@ -10,6 +10,7 @@ public enum Product: String, Codable {
     case staticFramework
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
+    case bundle
 
     // Not supported yet
 //    case appExtension

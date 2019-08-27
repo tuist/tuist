@@ -8,17 +8,35 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     var precompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
     var projectStub: ((AbsolutePath) -> Project?)?
     var projectCount: UInt = 0
-    var addProjectCount: UInt = 0
     var addProjectArgs: [Project] = []
     var addConfigCount: UInt = 0
     var addPrecompiledNodeCount: UInt = 0
     var addPrecompiledArgs: [PrecompiledNode] = []
     var precompiledNodeCount: UInt = 0
     var precompiledNodeStub: ((AbsolutePath) -> PrecompiledNode?)?
-    var addTargetNodeCount: UInt = 0
     var addTargetNodeArgs: [TargetNode] = []
-    var targetNodeCount: UInt = 0
     var targetNodeStub: ((AbsolutePath, String) -> TargetNode?)?
+    var tuistConfigStub: [AbsolutePath: TuistConfig] = [:]
+    var addTuistConfigArgs: [(tuistConfig: TuistConfig, path: AbsolutePath)] = []
+    var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
+    var cocoapodsStub: [AbsolutePath: CocoaPodsNode] = [:]
+    var addCococaPodsArgs: [CocoaPodsNode] = []
+
+    func cocoapods(_ path: AbsolutePath) -> CocoaPodsNode? {
+        return cocoapodsStub[path]
+    }
+
+    func add(cocoapods: CocoaPodsNode) {
+        addCococaPodsArgs.append(cocoapods)
+    }
+
+    func tuistConfig(_ path: AbsolutePath) -> TuistConfig? {
+        return tuistConfigStub[path]
+    }
+
+    func add(tuistConfig: TuistConfig, path: AbsolutePath) {
+        addTuistConfigArgs.append((tuistConfig: tuistConfig, path: path))
+    }
 
     func project(_ path: AbsolutePath) -> Project? {
         projectCount += 1
@@ -26,7 +44,6 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     }
 
     func add(project: Project) {
-        addProjectCount += 1
         addProjectArgs.append(project)
     }
 
@@ -41,12 +58,10 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     }
 
     func add(targetNode: TargetNode) {
-        addTargetNodeCount += 1
         addTargetNodeArgs.append(targetNode)
     }
 
     func targetNode(_ path: AbsolutePath, name: String) -> TargetNode? {
-        targetNodeCount += 1
         return targetNodeStub?(path, name)
     }
 }

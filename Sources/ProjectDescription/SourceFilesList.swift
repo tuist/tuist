@@ -1,7 +1,5 @@
 // MARK: - FileList
 
-public typealias FileList = SourceFilesList
-
 /// A model to refer to source files that supports passing compiler flags.
 public final class SourceFileGlob: ExpressibleByStringLiteral, Codable {
     /// Relative glob pattern.
@@ -59,13 +57,13 @@ public final class SourceFilesList: Codable {
 }
 
 /// Support file as single string
-extension FileList: ExpressibleByStringLiteral {
+extension SourceFilesList: ExpressibleByStringLiteral {
     public convenience init(stringLiteral value: String) {
         self.init(globs: [value])
     }
 }
 
-extension FileList: ExpressibleByArrayLiteral {
+extension SourceFilesList: ExpressibleByArrayLiteral {
     public convenience init(arrayLiteral elements: SourceFileGlob...) {
         self.init(globs: elements)
     }

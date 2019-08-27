@@ -11,30 +11,24 @@ final class GenerateCommandTests: XCTestCase {
     var subject: GenerateCommand!
     var generator: MockGenerator!
     var parser: ArgumentParser!
-    var printer: MockPrinter!
     var fileHandler: MockFileHandler!
     var manifestLoader: MockGraphManifestLoader!
     var clock: StubClock!
 
     override func setUp() {
         super.setUp()
-        do {
-            printer = MockPrinter()
-            generator = MockGenerator()
-            parser = ArgumentParser.test()
-            fileHandler = try MockFileHandler()
-            manifestLoader = MockGraphManifestLoader()
-            clock = StubClock()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
 
-            subject = GenerateCommand(parser: parser,
-                                      printer: printer,
-                                      fileHandler: fileHandler,
-                                      generator: generator,
-                                      manifestLoader: manifestLoader,
-                                      clock: clock)
-        } catch {
-            XCTFail("failed to setup test: \(error.localizedDescription)")
-        }
+        generator = MockGenerator()
+        parser = ArgumentParser.test()
+        manifestLoader = MockGraphManifestLoader()
+        clock = StubClock()
+
+        subject = GenerateCommand(parser: parser,
+                                  generator: generator,
+                                  manifestLoader: manifestLoader,
+                                  clock: clock)
     }
 
     func test_command() {
@@ -56,7 +50,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
+        XCTAssertPrinterOutputContains("Project generated.")
     }
 
     func test_run_withWorkspacetManifestPrints() throws {
@@ -70,7 +64,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(printer.printSuccessArgs.first, "Project generated.")
+        XCTAssertPrinterOutputContains("Project generated.")
     }
 
     func test_run_timeIsPrinted() throws {
@@ -88,7 +82,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(printer.printWithColorArgs.first?.0, "Total time taken: 0.234s")
+        XCTAssertPrinterOutputContains("Total time taken: 0.234s")
     }
 
     func test_run_withRelativePathParameter() throws {
@@ -99,7 +93,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _, _ in
+        generator.generateProjectWorkspaceStub = { path, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
         }
@@ -118,7 +112,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _, _ in
+        generator.generateProjectWorkspaceStub = { path, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
         }
@@ -137,9 +131,28 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path, _, _ in
+        generator.generateProjectWorkspaceStub = { path, _ in
             generationPath = path
             return path.appending(component: "project.xcworkspace")
+        }
+
+        // When
+        try subject.run(with: result)
+
+        // Then
+        XCTAssertEqual(generationPath, fileHandler.currentPath)
+    }
+
+    func test_run_withProjectOnlyParameter() throws {
+        // Given
+        let result = try parser.parse([GenerateCommand.command, "--project-only"])
+        var generationPath: AbsolutePath?
+        manifestLoader.manifestsAtStub = { _ in
+            Set([.project])
+        }
+        generator.generateProjectStub = { path in
+            generationPath = path
+            return path.appending(component: "project.xcodeproj")
         }
 
         // When
@@ -170,7 +183,7 @@ final class GenerateCommandTests: XCTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { _, _, _ in
+        generator.generateProjectWorkspaceStub = { _, _ in
             throw error
         }
 

@@ -5,12 +5,12 @@ import XCTest
 @testable import TuistGenerator
 
 class WorkspaceStructureGeneratorTests: XCTestCase {
-    var fileHandler: InMemoryFileHandler!
+    fileprivate var fileHandler: InMemoryFileHandler!
     var subject: WorkspaceStructureGenerator!
 
     override func setUp() {
         fileHandler = InMemoryFileHandler()
-        subject = WorkspaceStructureGenerator(fileHandler: fileHandler)
+        subject = WorkspaceStructureGenerator()
     }
 
     override func tearDown() {
@@ -28,7 +28,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: Workspace.test(projects: projects))
+                                                  workspace: Workspace.test(projects: projects),
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -62,7 +63,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace)
+                                                  workspace: workspace,
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -103,7 +105,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace)
+                                                  workspace: workspace,
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -135,7 +138,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace)
+                                                  workspace: workspace,
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -163,7 +167,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace)
+                                                  workspace: workspace,
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [])
@@ -185,7 +190,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace)
+                                                  workspace: workspace,
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -208,7 +214,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace)
+                                                  workspace: workspace,
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -234,7 +241,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace)
+                                                  workspace: workspace,
+                                                  fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -267,7 +275,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         return paths
     }
 
-    class InMemoryFileHandler: FileHandling {
+    fileprivate class InMemoryFileHandler: FileHandling {
         private enum Node {
             case file
             case folder
@@ -293,6 +301,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
         func glob(_: AbsolutePath, glob _: String) -> [AbsolutePath] {
             return []
+        }
+
+        func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
+            // Do nothing
         }
 
         func createFolder(_ path: AbsolutePath) throws {

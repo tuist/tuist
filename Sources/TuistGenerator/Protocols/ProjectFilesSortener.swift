@@ -15,19 +15,9 @@ protocol ProjectFilesSortening {
 }
 
 class ProjectFilesSortener: ProjectFilesSortening {
-    /// Instance to interact with the file system.
-    private let fileHandler: FileHandling
-
     /// Lazily filled hash whose keys are paths and the values booleans
     /// indiocating whether the path is a directory or not.
     private var isDirectory: [AbsolutePath: Bool] = [:]
-
-    /// Initializes the sortener with its attributes.
-    ///
-    /// - Parameter fileHandler: Instance to interact with the file syste.
-    init(fileHandler: FileHandling = FileHandler()) {
-        self.fileHandler = fileHandler
-    }
 
     /// Sorting function that sorts the files and folders before
     /// adding them to the project.
@@ -44,7 +34,7 @@ class ProjectFilesSortener: ProjectFilesSortening {
         let commonPaths = lhsPathsSet.intersection(rhsPathsSet)
 
         guard let lhsPathFirst = lhsPathsSet.subtracting(commonPaths).sorted().first else { return false }
-        guard let rhsPathFirst = rhsPathsSet.subtracting(commonPaths).sorted().first else { return false }
+        guard let rhsPathFirst = rhsPathsSet.subtracting(commonPaths).sorted().first else { return true }
 
         let lhsIsDirectory = isDirectory(lhsPathFirst)
         let rhsIsDirectory = isDirectory(rhsPathFirst)
@@ -71,7 +61,7 @@ class ProjectFilesSortener: ProjectFilesSortening {
         if let isPathDirectory = isDirectory[path] {
             return isPathDirectory
         }
-        let isPathDirectory = fileHandler.isFolder(path)
+        let isPathDirectory = FileHandler.shared.isFolder(path)
         isDirectory[path] = isPathDirectory
         return isPathDirectory
     }

@@ -13,9 +13,6 @@ class UpCommand: NSObject, Command {
     /// Description of the command.
     static let overview = "Configures the environment for the project."
 
-    /// File handler instance to interact with the file system.
-    private let fileHandler: FileHandling
-
     /// Path to the project directory.
     let pathArgument: OptionArgument<String>
 
@@ -28,23 +25,18 @@ class UpCommand: NSObject, Command {
     ///
     /// - Parameter parser: CLI parser where the command should register itself.
     public required convenience init(parser: ArgumentParser) {
-        let fileHandler = FileHandler()
         self.init(parser: parser,
-                  fileHandler: FileHandler(),
-                  setupLoader: SetupLoader(fileHandler: fileHandler))
+                  setupLoader: SetupLoader())
     }
 
     /// Initializes the command with its arguments.
     ///
     /// - Parameters:
     ///   - parser: CLI parser where the command should register itself.
-    ///   - fileHandler: File handler instance to interact with the file system.
     ///   - setupLoader: Instance to load the setup manifest and perform the project setup.
     init(parser: ArgumentParser,
-         fileHandler: FileHandling,
          setupLoader: SetupLoading) {
         let subParser = parser.add(subparser: UpCommand.command, overview: UpCommand.overview)
-        self.fileHandler = fileHandler
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -67,8 +59,8 @@ class UpCommand: NSObject, Command {
     /// - Returns: Path to be used for the up command.
     private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         guard let path = arguments.get(pathArgument) else {
-            return fileHandler.currentPath
+            return FileHandler.shared.currentPath
         }
-        return AbsolutePath(path, relativeTo: fileHandler.currentPath)
+        return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
     }
 }

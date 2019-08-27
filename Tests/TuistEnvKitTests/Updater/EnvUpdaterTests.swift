@@ -12,12 +12,12 @@ final class EnvUpdaterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         system = MockSystem()
-        fileHandler = try! MockFileHandler()
         githubClient = MockGitHubClient()
-        subject = EnvUpdater(system: system,
-                             fileHandler: fileHandler,
-                             githubClient: githubClient)
+        subject = EnvUpdater(system: system, githubClient: githubClient)
     }
 
     func test_update() throws {

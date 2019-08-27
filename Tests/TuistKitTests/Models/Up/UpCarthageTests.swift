@@ -13,16 +13,16 @@ final class UpCarthageTests: XCTestCase {
     var subject: UpCarthage!
     var fileHandler: MockFileHandler!
     var system: MockSystem!
-    var printer: MockPrinter!
 
     override func setUp() {
         super.setUp()
+        mockEnvironment()
+        fileHandler = sharedMockFileHandler()
+
         platforms = [.iOS, .macOS]
         carthage = MockCarthage()
         upHomebrew = MockUp()
-        fileHandler = try! MockFileHandler()
         system = MockSystem()
-        printer = MockPrinter()
         subject = UpCarthage(platforms: platforms,
                              upHomebrew: upHomebrew,
                              carthage: carthage)
@@ -30,9 +30,7 @@ final class UpCarthageTests: XCTestCase {
 
     func test_init() throws {
         let json = JSON(["platforms": JSON.array([JSON.string("ios")])])
-        let got = try UpCarthage(dictionary: json,
-                                 projectPath: fileHandler.currentPath,
-                                 fileHandler: fileHandler)
+        let got = try UpCarthage(dictionary: json, projectPath: fileHandler.currentPath)
         XCTAssertEqual(got.platforms, [.iOS])
     }
 
@@ -67,10 +65,10 @@ final class UpCarthageTests: XCTestCase {
     func test_meet_when_homebrew_is_not_met() throws {
         upHomebrew.isMetStub = { _, _ in false }
 
-        upHomebrew.meetStub = { _, _, projectPath in
+        upHomebrew.meetStub = { _, projectPath in
             XCTAssertEqual(self.fileHandler.currentPath, projectPath)
         }
-        try subject.meet(system: system, printer: printer, projectPath: fileHandler.currentPath)
+        try subject.meet(system: system, projectPath: fileHandler.currentPath)
 
         XCTAssertEqual(upHomebrew.meetCallCount, 1)
     }
@@ -88,7 +86,6 @@ final class UpCarthageTests: XCTestCase {
         }
 
         try subject.meet(system: system,
-                         printer: printer,
                          projectPath: fileHandler.currentPath)
 
         XCTAssertEqual(upHomebrew.meetCallCount, 0)

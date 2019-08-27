@@ -15,21 +15,15 @@ struct WorkspaceStructure {
 }
 
 protocol WorkspaceStructureGenerating {
-    func generateStructure(path: AbsolutePath, workspace: Workspace) -> WorkspaceStructure
+    func generateStructure(path: AbsolutePath, workspace: Workspace, fileHandler: FileHandling) -> WorkspaceStructure
 }
 
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
-    private let fileHandler: FileHandling
-
-    init(fileHandler: FileHandling) {
-        self.fileHandler = fileHandler
-    }
-
-    func generateStructure(path: AbsolutePath, workspace: Workspace) -> WorkspaceStructure {
+    func generateStructure(path: AbsolutePath, workspace: Workspace, fileHandler: FileHandling) -> WorkspaceStructure {
         let graph = DirectoryStructure(path: path,
-                                       fileHandler: fileHandler,
                                        projects: workspace.projects,
-                                       files: workspace.additionalFiles).buildGraph()
+                                       files: workspace.additionalFiles,
+                                       fileHandler: fileHandler).buildGraph()
         return WorkspaceStructure(name: workspace.name,
                                   contents: graph.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
     }
@@ -52,10 +46,9 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
 
 private class DirectoryStructure {
     let path: AbsolutePath
-    let fileHandler: FileHandling
-
     let projects: [AbsolutePath]
     let files: [FileElement]
+    let fileHandler: FileHandling
 
     private let containers: [String] = [
         ".playground",
@@ -63,13 +56,13 @@ private class DirectoryStructure {
     ]
 
     init(path: AbsolutePath,
-         fileHandler: FileHandling,
          projects: [AbsolutePath],
-         files: [FileElement]) {
+         files: [FileElement],
+         fileHandler: FileHandling = FileHandler.shared) {
         self.path = path
-        self.fileHandler = fileHandler
         self.projects = projects
         self.files = files
+        self.fileHandler = fileHandler
     }
 
     func buildGraph() -> Graph {

@@ -1,10 +1,11 @@
-import doczPluginNetlify from "docz-plugin-netlify";
+import doczPluginNetlify from 'docz-plugin-netlify'
 
 export default {
   title: 'Tuist Documentation',
   description:
     'Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.',
   plugins: [doczPluginNetlify()],
+  // https://github.com/pedronauck/docz/issues/793
   themeConfig: {
     codemirrorTheme: 'swifty',
     colors: {
@@ -26,15 +27,15 @@ export default {
       width: 100,
     },
     styles: {
-      "body": `
+      body: `
         font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, Verdana, sans-serif;
       `,
       code: `
         font-size: 13px;
         font-family: Menlo, Consolas, Monaco, "Courier New", monospace, serif;
         background-color: white;
-      `
-    }
+      `,
+    },
   },
   public: './public',
   htmlContext: {
@@ -55,15 +56,18 @@ export default {
   },
   menu: [
     'Getting started',
-    'Manifest format',
+    'Project & Workspace',
+    'Configuration',
     'Dependencies',
     'Up tasks',
+    'Graph',
     'Managing versions',
     'Frequently asked questions',
     {
       name: 'Contributors',
       menu: [
-        'Getting started',
+        'Tuist',
+        'Galaxy',
         'Code of conduct',
         'Changelog guidelines',
         'Core team',
