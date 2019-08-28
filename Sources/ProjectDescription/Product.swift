@@ -13,7 +13,7 @@ public enum Product: String, Codable {
     case bundle
 
     // Not supported yet
-//    case appExtension
+    case appExtension = "app_extension"
 //    case watchApp
 //    case watch2App
 //    case watchExtension
@@ -21,5 +21,5 @@ public enum Product: String, Codable {
 //    case tvExtension
 //    case messagesApplication
 //    case messagesExtension
-    case stickerPack = "sticker_pack"
+    case stickerPackExtension = "sticker_pack_extension"
 }

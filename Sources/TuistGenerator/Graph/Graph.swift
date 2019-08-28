@@ -328,7 +328,7 @@ class Graph: Graphing {
         }
 
         let validProducts: [Product] = [
-            .stickerPack,
+            .appExtension, .stickerPackExtension,
         ]
 
         return targetNode.targetDependencies
