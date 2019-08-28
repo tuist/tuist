@@ -66,6 +66,10 @@ class GraphLinter: GraphLinting {
     
     private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
         
+        // TODO: Fix
+        
+        return []
+        
         let containsPackageDependency = graph.packages.count > 0
         
         do {
