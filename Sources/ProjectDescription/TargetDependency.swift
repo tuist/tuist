@@ -13,39 +13,9 @@ public enum SDKStatus: String {
 
 /// Defines the target dependencies supported by Tuist
 public enum TargetDependency: Codable, Equatable {
-    public enum PackageType: Codable, Equatable {
+    public enum PackageType: Equatable {
         case remote(url: String, productName: String, versionRequirement: VersionRequirement)
         case local(path: String)
-        
-        enum CodingKeys: String, CodingKey {
-            case path
-            case url
-            case productName
-            case versionRequirement
-        }
-        
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            if let path = try? container.decode(String.self, forKey: .path) {
-                self = .local(path: path)
-            } else {
-                self = .remote(url: try container.decode(String.self, forKey: .url),
-                                productName: try container.decode(String.self, forKey: .productName),
-                                versionRequirement: try container.decode(VersionRequirement.self, forKey: .versionRequirement))
-            }
-        }
-        
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            switch self {
-            case let .local(path: path):
-                try container.encode(path, forKey: .path)
-            case let .remote(url: url, productName: productName, versionRequirement: version):
-                try container.encode(url, forKey: .url)
-                try container.encode(productName, forKey: .productName)
-                try container.encode(version, forKey: .versionRequirement)
-            }
-        }
     }
 
     public enum VersionRequirement: Codable, Equatable {
@@ -260,7 +230,13 @@ extension TargetDependency {
             )
 
         case "package":
-            self = .package(try decoder.singleValueContainer().decode(PackageType.self))
+            if let path = try? container.decode(String.self, forKey: .path) {
+                self = .package(.local(path: path))
+            } else {
+                self = .package(.remote(url: try container.decode(String.self, forKey: .url),
+                                productName: try container.decode(String.self, forKey: .productName),
+                                versionRequirement: try container.decode(VersionRequirement.self, forKey: .versionRequirement)))
+            }
         case "sdk":
             self = .sdk(name: try container.decode(String.self, forKey: .name),
                         status: try container.decode(SDKStatus.self, forKey: .status))
@@ -291,8 +267,14 @@ extension TargetDependency {
             try container.encode(publicHeaders, forKey: .publicHeaders)
             try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
         case let .package(packageType):
-            var packageEncoder = encoder.singleValueContainer()
-            try packageEncoder.encode(packageType)
+            switch packageType {
+            case let .local(path: path):
+                try container.encode(path, forKey: .path)
+            case let .remote(url: url, productName: productName, versionRequirement: version):
+                try container.encode(url, forKey: .url)
+                try container.encode(productName, forKey: .productName)
+                try container.encode(version, forKey: .versionRequirement)
+            }
         case let .sdk(name, status):
             try container.encode(name, forKey: .name)
             try container.encode(status, forKey: .status)

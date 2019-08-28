@@ -139,11 +139,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         guard hasPackages else { return workspace }
         
         let symbolicPackagePath = path.appending(component: "Package.resolved")
+        // Does not work if `Package.resolved` is not created (this traverses symlink)
         if !fileHandler.exists(symbolicPackagePath) {
             let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
-            try fileHandler.createSymbolicLink(symbolicPackagePath, destination: packagePath)
+            //try fileHandler.createSymbolicLink(symbolicPackagePath, destination: packagePath)
         }
-        
+        return workspace
         return workspace.adding(files: [symbolicPackagePath])
     }
 
