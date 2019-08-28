@@ -406,6 +406,14 @@ The platform type represents the platform a target is built for. It can be any o
       case: '.bundle',
       description: 'A custom bundle. (Currently only iOS resource bundles are supported)',
     },
+    {
+      case: '.appExtension',
+      description: 'An application extension.',
+    },
+    {
+      case: '.stickerPackExtension',
+      description: 'A sticker pack extension.',
+    },
   ]}
 />
 
@@ -874,9 +882,9 @@ A `Configuration` object describes the build settings and the `.xcconfig` file o
 
 ## Custom Configuration
 
-A `CustomConfiguration` allows specifying a named build configuration. 
+A `CustomConfiguration` allows specifying a named build configuration.
 
-This is similar to `Configuration`, however allows specifying a custom name (e.g. "Beta") and configuration variant (`.debug` or `.release`) to help Tuist select the most appropriate default build settings. 
+This is similar to `Configuration`, however allows specifying a custom name (e.g. "Beta") and configuration variant (`.debug` or `.release`) to help Tuist select the most appropriate default build settings.
 
 For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Onone` whereas a `.release` would get `SWIFT_OPTIMIZATION_LEVEL = -Owholemodule`.
 
