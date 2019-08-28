@@ -3,15 +3,18 @@ import Foundation
 import TuistCore
 
 class PackageNode: GraphNode {
-    let url: String
-    let productName: String
-    let versionRequirement: Dependency.VersionRequirement
+    let packageType: Dependency.PackageType
 
-    init(url: String, productName: String, versionRequirement: Dependency.VersionRequirement, path: AbsolutePath) {
-        self.url = url
-        self.productName = productName
-        self.versionRequirement = versionRequirement
-        super.init(path: path, name: productName)
+    init(packageType: Dependency.PackageType, path: AbsolutePath) {
+        self.packageType = packageType
+        let name: String
+        switch packageType {
+        case let .local(path: packagePath):
+            name = String(path.appending(packagePath).path.string.split(separator: "/").last!)
+        case let .remote(url: _, productName: productName, versionRequirement: _):
+            name = productName
+        }
+        super.init(path: path, name: name)
     }
     
     /// Reads the Package node. If it it exists in the cache, it returns it from the cache.
@@ -22,16 +25,13 @@ class PackageNode: GraphNode {
     ///   - cache: Cache instance where the nodes are cached.
     /// - Returns: The initialized instance of the Package node.
     static func read(
-        url: String,
-        productName: String,
-        versionRequirement: Dependency.VersionRequirement,
+        packageType: Dependency.PackageType,
         path: AbsolutePath,
         cache: GraphLoaderCaching
     ) -> PackageNode {
         if let cached = cache.package(path) { return cached }
-        let node = PackageNode(url: url, productName: productName, versionRequirement: versionRequirement, path: path)
+        let node = PackageNode(packageType: packageType, path: path)
         cache.add(package: node)
         return node
     }
-    
 }

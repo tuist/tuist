@@ -527,10 +527,16 @@ extension TuistGenerator.Dependency {
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
-        case let .package(url, productName, versionRules):
-            return .package(url: url,
-                            productName: productName,
-                            versionRequirement: .from(manifest: versionRules))
+        case let .package(packageType):
+            switch packageType {
+            case let .local(path: packagePath):
+                return .package(.local(path: RelativePath(packagePath)))
+            case let .remote(url: url,
+                        productName: productName,
+                        versionRequirement: versionRules):
+                return .package(.remote(url: url, productName: productName, versionRequirement: .from(manifest: versionRules)))
+            }
+            
         case let .sdk(name, status):
             return .sdk(name: name,
                         status: .from(manifest: status))
