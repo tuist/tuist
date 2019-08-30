@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 - Transitively link static dependency's dynamic dependencies correctly https://github.com/tuist/tuist/pull/484 by @adamkhazi
+- Prevent embedding static frameworks https://github.com/tuist/tuist/pull/490 by @kwridan
 
 ## 0.17.0
 
