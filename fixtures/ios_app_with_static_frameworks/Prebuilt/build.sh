@@ -2,6 +2,7 @@
 
 tuist generate
 
+WORKSPACE_NAME="Prebuilt"
 FRAMEWORK_NAME="PrebuiltStaticFramework"
 TEMP_DIR="/tmp/tuist-$FRAMEWORK_NAME-fixture"
 IPHONE_SIM_DIR="$TEMP_DIR/Build/Products/Debug-iphoneos"
@@ -9,8 +10,8 @@ IPHONE_OS_DIR="$TEMP_DIR/Build/Products/Debug-iphonesimulator"
 
 mkdir -p $TEMP_DIR
 
-xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$FRAMEWORK_NAME.xcworkspace" -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath $TEMP_DIR
-xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$FRAMEWORK_NAME.xcworkspace" -sdk iphonesimulator -derivedDataPath $TEMP_DIR
+xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$WORKSPACE_NAME.xcworkspace" -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath $TEMP_DIR
+xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$WORKSPACE_NAME.xcworkspace" -sdk iphonesimulator -derivedDataPath $TEMP_DIR
 
 mkdir -p "prebuilt/$FRAMEWORK_NAME.framework"
 
