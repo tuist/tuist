@@ -57,9 +57,6 @@ public extension XCTestCase {
         let decoded = XCTTry(try decoder.decode(C.self, from: json.data(using: .utf8)!), file: file, line: line)
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
-        if #available(macOS 10.13, *) {
-            encoder.outputFormatting = .sortedKeys
-        }
         let jsonData = XCTTry(try encoder.encode(decoded), file: file, line: line)
         let subjectData = XCTTry(try encoder.encode(subject), file: file, line: line)
 
