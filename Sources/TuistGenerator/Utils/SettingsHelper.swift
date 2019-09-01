@@ -49,13 +49,25 @@ final class SettingsHelper {
     // MARK: - Private
 
     private func merge(oldValue: SettingValue?, newValue: SettingValue) -> SettingValue {
+        // No need to merge, just return newValue when the oldValue is nil (buildSettings[key] == nil).
         guard let oldValue = oldValue else {
             return newValue
         }
+
+        // No need to merge, just return oldValue when the newValue is exactly the same.
         guard oldValue != newValue else {
             return oldValue
         }
 
+        // Both the oldValue and newValue are not nil. If the newValue contains $(inherited),
+        // it will need to be merged with the oldValue, otherwise the oldValue will be discarded
+        // and the newValue returned without merging.
+        //
+        // The .uniqued() method ensures the result of merging does not contain duplicates
+        // and all the elements are sorted, i.e. merging the following values:
+        // oldValue = ["$(inherited)", "VALUE_1"]
+        // newValue = ["$(inherited)", "VALUE_2"]
+        // would result in ["$(inherited)", "$(inherited)", "VALUE_1", "VALUE_2"] if .uniqued() was not used.
         switch (oldValue, newValue) {
         case let (.string(old), .string(new)) where new.contains("$(inherited)"):
             return .array([old, new].uniqued())
@@ -66,6 +78,7 @@ final class SettingsHelper {
         case let (.array(old), .array(new)) where new.contains("$(inherited)"):
             return .array((old + new).uniqued())
         default:
+            // The newValue does not contain $(inherited) so the oldValue should be omitted
             return newValue
         }
     }
