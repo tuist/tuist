@@ -394,7 +394,7 @@ extension TuistGenerator.Settings {
                 let variant = TuistGenerator.BuildConfiguration.from(manifest: val)
                 result[variant] = TuistGenerator.Configuration.from(manifest: val.configuration, path: path)
                 return result
-        }
+            }
         let defaultSettings = TuistGenerator.DefaultSettings.from(manifest: manifest.defaultSettings)
         return TuistGenerator.Settings(base: base,
                                        configurations: configurations,
