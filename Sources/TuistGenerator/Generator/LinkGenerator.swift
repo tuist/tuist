@@ -127,11 +127,11 @@ final class LinkGenerator: LinkGenerating {
                           packages: [PackageNode]) throws {
         packages.forEach { package in
             switch package.packageType {
-            case let .local(path: packagePath):
+            case let .local(path: packagePath, productName: productName):
                 _ = pbxProject.addLocalSwiftPackage(path: packagePath.pathString,
-                                                    productName: "MyLibrary",
+                                                    productName: productName,
                                                     target: pbxTarget)
-                // TODO: Change version to versionRequirement
+            // TODO: Change version to versionRequirement
             case let .remote(url: url, productName: productName, versionRequirement: version):
                 _ = pbxProject.addSwiftPackage(repositoryURL: url,
                                                productName: productName,

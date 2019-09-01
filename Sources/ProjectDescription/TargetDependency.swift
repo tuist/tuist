@@ -13,9 +13,53 @@ public enum SDKStatus: String {
 
 /// Defines the target dependencies supported by Tuist
 public enum TargetDependency: Codable, Equatable {
-    public enum PackageType: Equatable {
+    public enum PackageType: Equatable, Codable {
         case remote(url: String, productName: String, versionRequirement: VersionRequirement)
-        case local(path: String)
+        case local(path: String, productName: String)
+
+        private enum Kind: String, Codable {
+            case remote
+            case local
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case kind
+            case url
+            case productName
+            case versionRequirement
+            case path
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let kind = try container.decode(Kind.self, forKey: .kind)
+            switch kind {
+            case .remote:
+                let url = try container.decode(String.self, forKey: .url)
+                let productName = try container.decode(String.self, forKey: .productName)
+                let versionRequirement = try container.decode(VersionRequirement.self, forKey: .versionRequirement)
+                self = .remote(url: url, productName: productName, versionRequirement: versionRequirement)
+            case .local:
+                let path = try container.decode(String.self, forKey: .path)
+                let productName = try container.decode(String.self, forKey: .productName)
+                self = .local(path: path, productName: productName)
+            }
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case let .remote(url, productName, versionRequirement):
+                try container.encode(Kind.remote, forKey: .kind)
+                try container.encode(url, forKey: .url)
+                try container.encode(productName, forKey: .productName)
+                try container.encode(versionRequirement, forKey: .versionRequirement)
+            case let .local(path, productName):
+                try container.encode(Kind.local, forKey: .kind)
+                try container.encode(path, forKey: .path)
+                try container.encode(productName, forKey: .productName)
+            }
+        }
     }
 
     public enum VersionRequirement: Codable, Equatable {
@@ -114,27 +158,28 @@ public enum TargetDependency: Codable, Equatable {
     ///   - publicHeaders: Relative path to the library's public headers directory
     ///   - swiftModuleMap: Relative path to the library's swift module map file
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
-    
+
     /// Dependency on remote package
     ///
     /// - Parameters:
     ///     - url: URL poiting to the repository
-    ///     - productName: Name of package
+    ///     - productName: Name of product
     ///     - version: `VersionRequirement` describing which version to resolve
     public static func package(url: String, productName: String, version: VersionRequirement) -> TargetDependency {
         return .package(.remote(url: url, productName: productName, versionRequirement: version))
     }
-    
+
     /// Dependency on local package
     ///
     /// - Parameters:
     ///     - path: Path to the directory that contains local package
-    public static func package(path: String) -> TargetDependency {
-        return .package(.local(path: path))
+    ///     - productName: Name of product
+    public static func package(path: String, productName: String) -> TargetDependency {
+        return .package(.local(path: path, productName: productName))
     }
-    
+
     case package(PackageType)
-    
+
     /// Dependency on system library or framework
     ///
     /// - Parameters:
@@ -202,6 +247,7 @@ extension TargetDependency {
         case publicHeaders = "public_headers"
         case swiftModuleMap = "swift_module_map"
         case status
+        case package
     }
 
     public init(from decoder: Decoder) throws {
@@ -230,20 +276,15 @@ extension TargetDependency {
             )
 
         case "package":
-            if let path = try? container.decode(String.self, forKey: .path) {
-                self = .package(.local(path: path))
-            } else {
-                self = .package(.remote(url: try container.decode(String.self, forKey: .url),
-                                productName: try container.decode(String.self, forKey: .productName),
-                                versionRequirement: try container.decode(VersionRequirement.self, forKey: .versionRequirement)))
-            }
+            let package = try container.decode(PackageType.self, forKey: .package)
+            self = .package(package)
         case "sdk":
             self = .sdk(name: try container.decode(String.self, forKey: .name),
                         status: try container.decode(SDKStatus.self, forKey: .status))
 
         case "cocoapods":
             self = .cocoapods(path: try container.decode(String.self, forKey: .path))
-        
+
         default:
             throw CodingError.unknownType(type)
         }
@@ -267,14 +308,7 @@ extension TargetDependency {
             try container.encode(publicHeaders, forKey: .publicHeaders)
             try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
         case let .package(packageType):
-            switch packageType {
-            case let .local(path: path):
-                try container.encode(path, forKey: .path)
-            case let .remote(url: url, productName: productName, versionRequirement: version):
-                try container.encode(url, forKey: .url)
-                try container.encode(productName, forKey: .productName)
-                try container.encode(version, forKey: .versionRequirement)
-            }
+            try container.encode(packageType, forKey: .package)
         case let .sdk(name, status):
             try container.encode(name, forKey: .name)
             try container.encode(status, forKey: .status)

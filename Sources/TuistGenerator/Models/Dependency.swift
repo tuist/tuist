@@ -10,9 +10,9 @@ public enum SDKStatus {
 public enum Dependency: Equatable {
     public enum PackageType: Equatable {
         case remote(url: String, productName: String, versionRequirement: VersionRequirement)
-        case local(path: RelativePath)
+        case local(path: RelativePath, productName: String)
     }
-    
+
     public enum VersionRequirement: Equatable {
         case upToNextMajorVersion(String)
         case upToNextMinorVersion(String)

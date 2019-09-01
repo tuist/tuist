@@ -9,14 +9,14 @@ class PackageNode: GraphNode {
         self.packageType = packageType
         let name: String
         switch packageType {
-        case let .local(path: packagePath):
-            name = String(path.appending(packagePath).path.string.split(separator: "/").last!)
+        case let .local(path: _, productName: productName):
+            name = productName
         case let .remote(url: _, productName: productName, versionRequirement: _):
             name = productName
         }
         super.init(path: path, name: name)
     }
-    
+
     /// Reads the Package node. If it it exists in the cache, it returns it from the cache.
     /// Otherwise, it initializes it, stores it in the cache, and then returns it.
     ///
