@@ -624,6 +624,57 @@ final class ProjectFileElementsTests: XCTestCase {
         XCTAssertEqual(sdkElement?.path, sdk.path.relative(to: "/").pathString)
         XCTAssertEqual(sdkElement?.name, sdk.path.basename)
     }
+
+    func test_generateDependencies_localSwiftPackage() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let groups = ProjectGroups.generate(project: .test(),
+                                            pbxproj: pbxproj,
+                                            sourceRootPath: sourceRootPath)
+
+        let package = PackageNode(packageType: .local(path: RelativePath("packages/A"),
+                                                      productName: "A"),
+                                  path: "/a/project/packages/A")
+
+        // When
+        try subject.generate(dependencies: [package],
+                             path: sourceRootPath,
+                             groups: groups, pbxproj: pbxproj,
+                             sourceRootPath: sourceRootPath,
+                             filesGroup: .group(name: "Project"))
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
+            "packages/A",
+        ])
+    }
+
+    func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let sourceRootPath = AbsolutePath("/a/project/")
+        let groups = ProjectGroups.generate(project: .test(),
+                                            pbxproj: pbxproj,
+                                            sourceRootPath: sourceRootPath)
+
+        let package = PackageNode(packageType: .remote(url: "url",
+                                                       productName: "A",
+                                                       versionRequirement: .branch("master")),
+                                  path: "/packages/url")
+
+        // When
+        try subject.generate(dependencies: [package],
+                             path: sourceRootPath,
+                             groups: groups, pbxproj: pbxproj,
+                             sourceRootPath: sourceRootPath,
+                             filesGroup: .group(name: "Project"))
+
+        // Then
+        let projectGroup = groups.main.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [])
+    }
 }
 
 private extension PBXGroup {

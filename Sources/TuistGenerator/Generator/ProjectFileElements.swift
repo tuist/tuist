@@ -239,11 +239,22 @@ class ProjectFileElements {
                              groups: groups,
                              pbxproj: pbxproj,
                              sourceRootPath: sourceRootPath)
-                return
             case let sdkNode as SDKNode:
                 generateSDKFileElement(node: sdkNode,
                                        toGroup: groups.frameworks,
                                        pbxproj: pbxproj)
+            case let packageNode as PackageNode:
+                switch packageNode.packageType {
+                case let .local(path: packagePath, productName: _):
+                    let fileElement = GroupFileElement(path: sourceRootPath.appending(packagePath),
+                                                       group: filesGroup)
+                    try generate(fileElement: fileElement,
+                                 groups: groups,
+                                 pbxproj: pbxproj,
+                                 sourceRootPath: sourceRootPath)
+                case .remote:
+                    break
+                }
             default:
                 return
             }
