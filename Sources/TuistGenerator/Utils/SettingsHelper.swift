@@ -17,14 +17,12 @@ final class SettingsHelper {
     }
 
     func settingsProviderPlatform(_ target: Target) -> BuildSettingsProvider.Platform? {
-        var platform: BuildSettingsProvider.Platform?
         switch target.platform {
-        case .iOS: platform = .iOS
-        case .macOS: platform = .macOS
-        case .tvOS: platform = .tvOS
-            // case .watchOS: platform = .watchOS
+        case .iOS: return .iOS
+        case .macOS: return .macOS
+        case .tvOS: return .tvOS
+            // case .watchOS: return .watchOS
         }
-        return platform
     }
 
     func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
@@ -70,13 +68,23 @@ final class SettingsHelper {
         // would result in ["$(inherited)", "$(inherited)", "VALUE_1", "VALUE_2"] if .uniqued() was not used.
         switch (oldValue, newValue) {
         case let (.string(old), .string(new)) where new.contains("$(inherited)"):
+            // Example: ("OLD", "$(inherited) NEW") -> ["$(inherited) NEW", "OLD"]
+            // This case shouldn't happen as all default multi-value settings are defined as NSArray<NSString>
             return .array([old, new].uniqued())
+
         case let (.string(old), .array(new)) where new.contains("$(inherited)"):
+            // Example: ("OLD", ["$(inherited)", "NEW"]) -> ["$(inherited)", "NEW", "OLD"]
             return .array(([old] + new).uniqued())
+
         case let (.array(old), .string(new)) where new.contains("$(inherited)"):
+            // Example: (["OLD", "OLD_2"], "$(inherited) NEW") -> ["$(inherited) NEW", "OLD", "OLD_2"]
+            // This case shouldn't happen as all default multi-value settings are defined as NSArray<NSString>
             return .array((old + [new]).uniqued())
+
         case let (.array(old), .array(new)) where new.contains("$(inherited)"):
+            // Example: (["OLD", "OLD_2"], ["$(inherited)", "NEW"]) -> ["$(inherited)", "NEW", "OLD", OLD_2"]
             return .array((old + new).uniqued())
+
         default:
             // The newValue does not contain $(inherited) so the oldValue should be omitted
             return newValue
