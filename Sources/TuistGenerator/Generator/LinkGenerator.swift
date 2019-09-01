@@ -130,7 +130,8 @@ final class LinkGenerator: LinkGenerating {
             case let .local(path: packagePath, productName: productName):
                 _ = pbxProject.addLocalSwiftPackage(path: packagePath.pathString,
                                                     productName: productName,
-                                                    target: pbxTarget)
+                                                    target: pbxTarget,
+                                                    addFileReference: false)
             // TODO: Change version to versionRequirement
             case let .remote(url: url, productName: productName, versionRequirement: version):
                 _ = pbxProject.addSwiftPackage(repositoryURL: url,

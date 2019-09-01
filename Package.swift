@@ -26,7 +26,7 @@ let package = Package(
                  targets: ["TuistGenerator"]),
     ],
     dependencies: [
-        .package(url: "file:///Users/marekfort/Development/XcodeProj", .branch("master")),
+        .package(url: "https://github.com/tuist/XcodeProj", .branch("local_package")),
         .package(url: "https://github.com/apple/swift-package-manager", .branch("swift-5.0-RELEASE")),
     ],
     targets: [
