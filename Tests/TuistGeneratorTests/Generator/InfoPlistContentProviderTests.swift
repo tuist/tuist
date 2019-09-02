@@ -117,12 +117,12 @@ final class InfoPlistContentProviderTests: XCTestCase {
     }
 
     func test_contentPackageType() {
-        assertPackageType(subject.content(target: Target.test(product: .app), extendedWith: [:]), "APPL")
-        assertPackageType(subject.content(target: Target.test(product: .unitTests), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(target: Target.test(product: .uiTests), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(target: Target.test(product: .bundle), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(target: Target.test(product: .framework), extendedWith: [:]), "FMWK")
-        assertPackageType(subject.content(target: Target.test(product: .staticFramework), extendedWith: [:]), "FMWK")
+        assertPackageType(subject.content(target: .test(product: .app), extendedWith: [:]), "APPL")
+        assertPackageType(subject.content(target: .test(product: .unitTests), extendedWith: [:]), "BNDL")
+        assertPackageType(subject.content(target: .test(product: .uiTests), extendedWith: [:]), "BNDL")
+        assertPackageType(subject.content(target: .test(product: .bundle), extendedWith: [:]), "BNDL")
+        assertPackageType(subject.content(target: .test(product: .framework), extendedWith: [:]), "FMWK")
+        assertPackageType(subject.content(target: .test(product: .staticFramework), extendedWith: [:]), "FMWK")
     }
 
     fileprivate func assertPackageType(_ lhs: [String: Any]?,

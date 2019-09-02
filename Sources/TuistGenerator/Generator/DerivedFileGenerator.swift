@@ -24,9 +24,8 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     /// Initializes the generator with its attributes.
     ///
     /// - Parameters:
-    ///   - fileHandler: Instance to interact with the file system.
+    ///   - infoPlistContentProvider: Info.plist content provider.
     init(infoPlistContentProvider: InfoPlistContentProviding = InfoPlistContentProvider()) {
-        self.fileHandler = fileHandler
         self.infoPlistContentProvider = infoPlistContentProvider
     }
 
@@ -59,7 +58,9 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     func generateInfoPlists(project: Project, sourceRootPath: AbsolutePath) throws -> Set<AbsolutePath> {
         let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
         let targetsWithGeneratableInfoPlists = project.targets.filter {
-            guard let _ = $0.infoPlist else { return false }
+            if let infoPlist = $0.infoPlist, case InfoPlist.file = infoPlist {
+                return false
+            }
             return true
         }
 
@@ -78,19 +79,22 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         // Generate the Info.plist
         try targetsWithGeneratableInfoPlists.forEach { target in
             guard let infoPlist = target.infoPlist else { return }
-            var dictionary: [String: Any]?
+
+            let dictionary: [String: Any]
 
             if case let InfoPlist.dictionary(_dictionary) = infoPlist {
                 dictionary = _dictionary.mapValues { $0.value }
-            } else if case let InfoPlist.extendingDefault(extended) = infoPlist {
-                dictionary = self.infoPlistContentProvider.content(target: target, extendedWith: extended)
+            } else if case let InfoPlist.extendingDefault(extended) = infoPlist,
+                let content = self.infoPlistContentProvider.content(target: target, extendedWith: extended) {
+                dictionary = content
+            } else {
+                return
             }
-            if dictionary == nil { return }
 
             let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
             if FileHandler.shared.exists(path) { try FileHandler.shared.delete(path) }
 
-            let data = try PropertyListSerialization.data(fromPropertyList: dictionary!,
+            let data = try PropertyListSerialization.data(fromPropertyList: dictionary,
                                                           format: .xml,
                                                           options: 0)
 

@@ -79,6 +79,11 @@ public enum InfoPlist: Codable, Equatable {
     /// Generate an Info.plist file with the default content for the target product extended with the values in the given dictionary.
     case extendingDefault(with: [String: Value])
 
+    /// Default value.
+    public static var `default`: InfoPlist {
+        return .extendingDefault(with: [:])
+    }
+
     // MARK: - Error
 
     public enum CodingError: Error {
