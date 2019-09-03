@@ -70,7 +70,7 @@ public class Generator: Generating {
         let environmentLinter = EnvironmentLinter()
         let cocoapodsInteractor = CocoaPodsInteractor()
         let workspaceGenerator = WorkspaceGenerator()
-        
+
         self.init(graphLoader: graphLoader,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,

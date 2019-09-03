@@ -95,13 +95,15 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         /// Projects
 
-        var generatedProjects = [AbsolutePath: GeneratedProject]()
+        var generatedProjectPaths = [AbsolutePath]()
         var manifestProjectPaths = [AbsolutePath]()
 
         try graph.projects.forEach { project in
+            // User-defined project
             let generatedProject = try projectGenerator.generate(project: project,
                                                                  graph: graph,
                                                                  sourceRootPath: project.path)
+            generatedProjectPaths.append(generatedProject.path)
 
             // Manifest project
             if tuistConfig.generationOptions.contains(.generateManifest) {
@@ -109,21 +111,19 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                                        sourceRootPath: project.path)
                 manifestProjectPaths.append(manifestProjectPath)
             }
-
-            generatedProjects[project.path] = generatedProject
         }
 
         // Workspace structure
         let structure = workspaceStructureGenerator.generateStructure(path: path,
                                                                       workspace: workspace,
+                                                                      generatedProjectPaths: generatedProjectPaths,
                                                                       manifestProjectPaths: manifestProjectPaths)
 
         let workspacePath = path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
-            try recursiveChildElement(generatedProjects: generatedProjects,
-                                      element: $0,
+            try recursiveChildElement(element: $0,
                                       path: path)
         }
 
@@ -217,8 +217,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
     }
 
-    private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
-                                       element: WorkspaceStructure.Element,
+    private func recursiveChildElement(element: WorkspaceStructure.Element,
                                        path: AbsolutePath) throws -> XCWorkspaceDataElement {
         switch element {
         case let .file(path: filePath):
@@ -239,8 +238,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 location: location,
                 name: name,
                 children: try contents.map {
-                    try recursiveChildElement(generatedProjects: generatedProjects,
-                                              element: $0,
+                    try recursiveChildElement(element: $0,
                                               path: path)
                 }.sorted(by: workspaceDataElementSort)
             )
@@ -248,9 +246,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             return .group(groupReference)
 
         case let .project(path: projectPath):
-            if !FileHandler.shared.exists(projectPath) {
-                throw WorkspaceGeneratorError.projectNotFound(path: projectPath)
-            }
             return workspaceFileElement(path: projectPath.relative(to: path))
         }
     }

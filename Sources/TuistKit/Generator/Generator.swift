@@ -16,13 +16,10 @@ extension Generating {
     func generateWorkspace(at path: AbsolutePath,
                            manifestLoader: GraphManifestLoading) throws -> AbsolutePath {
         let manifests = manifestLoader.manifests(at: path)
-        let workspaceFiles: [AbsolutePath] = [ManifestFile.workspace, ManifestFile.setup]
-            .compactMap { try? manifestLoader.manifestPath(at: path, manifest: $0) }
-
         if manifests.contains(.workspace) {
-            return try generateWorkspace(at: path, workspaceFiles: workspaceFiles)
+            return try generateWorkspace(at: path, workspaceFiles: [])
         } else if manifests.contains(.project) {
-            return try generateProjectWorkspace(at: path, workspaceFiles: workspaceFiles)
+            return try generateProjectWorkspace(at: path, workspaceFiles: [])
         } else {
             throw GraphManifestLoaderError.manifestNotFound(path)
         }

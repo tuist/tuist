@@ -20,26 +20,31 @@ protocol WorkspaceStructureGenerating {
     /// - Parameters:
     ///   - path: Path to the directory that will contain the generated workspace.
     ///   - workspace: Workspace manifest representation.
+    ///   - generatedProjectPaths: List of paths to the *.xcodeproj projects that have been generated.
     ///   - manifestProjectPaths: List of paths to the *.xcodeproj projects that have been generated for the manifest files.
     /// - Returns: A WorkspaceStructure that represents the workspace that needs to be generated.
-    func generateStructure(path: AbsolutePath, workspace: Workspace, manifestProjectPaths: [AbsolutePath]) -> WorkspaceStructure
+    func generateStructure(path: AbsolutePath,
+                           workspace: Workspace,
+                           generatedProjectPaths: [AbsolutePath],
+                           manifestProjectPaths: [AbsolutePath]) -> WorkspaceStructure
 }
 
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
-
     /// Generates a WorkspaceStructure instance which represents the structure of the workspace that needs to be generated.
     ///
     /// - Parameters:
     ///   - path: Path to the directory that will contain the generated workspace.
     ///   - workspace: Workspace manifest representation.
+    ///   - generatedProjectPaths: List of paths to the *.xcodeproj projects that have been generated.
     ///   - manifestProjectPaths: List of paths to the *.xcodeproj projects that have been generated for the manifest files.
     /// - Returns: A WorkspaceStructure that represents the workspace that needs to be generated.
     func generateStructure(path: AbsolutePath,
                            workspace: Workspace,
+                           generatedProjectPaths: [AbsolutePath],
                            manifestProjectPaths: [AbsolutePath]) -> WorkspaceStructure {
         let graph = DirectoryStructure(path: path,
-                                       projects: workspace.projects,
                                        files: workspace.additionalFiles,
+                                       generatedProjectPaths: generatedProjectPaths,
                                        manifestProjectPaths: manifestProjectPaths).buildGraph()
         return WorkspaceStructure(name: workspace.name,
                                   contents: graph.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
@@ -67,8 +72,8 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
 
 private class DirectoryStructure {
     let path: AbsolutePath
+    let generatedProjectPaths: [AbsolutePath]
     let manifestProjectPaths: [AbsolutePath]
-    let projects: [AbsolutePath]
     let files: [FileElement]
 
     private let containers: [String] = [
@@ -77,12 +82,12 @@ private class DirectoryStructure {
     ]
 
     init(path: AbsolutePath,
-         projects: [AbsolutePath],
          files: [FileElement],
+         generatedProjectPaths: [AbsolutePath],
          manifestProjectPaths: [AbsolutePath]) {
         self.path = path
-        self.projects = projects
         self.files = files
+        self.generatedProjectPaths = generatedProjectPaths
         self.manifestProjectPaths = manifestProjectPaths
     }
 
@@ -93,11 +98,13 @@ private class DirectoryStructure {
     private func buildGraph(path: AbsolutePath) -> Graph {
         let root = Graph()
 
-        // Projects & additional files
+        // Projects
+        generatedProjectPaths.forEach { root.add(projectNode(from: $0)) }
+
+        // Additional files
         let filesIncludingContainers = files.filter(isFileOrFolderReference)
         let fileNodes = filesIncludingContainers.map(fileNode)
-        let projectNodes = projects.map(projectNode)
-        let allNodes = (projectNodes + fileNodes).sorted(by: { $0.path! < $1.path! })
+        let allNodes = fileNodes.sorted(by: { $0.path! < $1.path! })
 
         let commonAncestor = allNodes.reduce(path) { $0.commonAncestor(with: $1.path!) }
         for node in allNodes {
@@ -111,6 +118,8 @@ private class DirectoryStructure {
 
             currentNode.add(node)
         }
+
+        // Generated projects
 
         // Manifest projects
         let manifestProjectNodes = Graph(nodes: manifestProjectPaths.map(projectNode))
