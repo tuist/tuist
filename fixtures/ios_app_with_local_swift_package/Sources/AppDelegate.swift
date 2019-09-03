@@ -1,5 +1,6 @@
 import UIKit
-import PackageA
+import LibraryA
+import LibraryB
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -22,6 +23,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func usePackageCode() {
-        print(PackageAClass().text)
+        print(LibraryAClass().text)
+        print(LibraryBClass().text)
     }
 }

@@ -13,7 +13,8 @@ let project = Project(name: "App",
                                        // "Resources/**"
                                ],
                                dependencies: [
-                                    .package(path: "Packages/PackageA", productName: "PackageA")
+                                    .package(path: "Packages/PackageA", productName: "LibraryA"),
+                                    .package(path: "Packages/PackageA", productName: "LibraryB"),
                                 ]),
                         Target(name: "AppTests",
                                platform: .iOS,
