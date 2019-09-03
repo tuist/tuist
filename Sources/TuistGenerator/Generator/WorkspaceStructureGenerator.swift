@@ -26,15 +26,6 @@ protocol WorkspaceStructureGenerating {
 }
 
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
-    /// Instance to interact with the file system.
-    private let fileHandler: FileHandling
-
-    /// Initializes the workspace structure generator with its attributes.
-    ///
-    /// - Parameter fileHandler: Instance to interact with the file system.
-    init(fileHandler: FileHandling) {
-        self.fileHandler = fileHandler
-    }
 
     /// Generates a WorkspaceStructure instance which represents the structure of the workspace that needs to be generated.
     ///
@@ -79,7 +70,6 @@ private class DirectoryStructure {
     let manifestProjectPaths: [AbsolutePath]
     let projects: [AbsolutePath]
     let files: [FileElement]
-    let fileHandler: FileHandling
 
     private let containers: [String] = [
         ".playground",
@@ -148,7 +138,7 @@ private class DirectoryStructure {
         case .folderReference:
             return true
         case let .file(path):
-            if fileHandler.isFolder(path) {
+            if FileHandler.shared.isFolder(path) {
                 return path.suffix.map(containers.contains) ?? false
             }
             return true

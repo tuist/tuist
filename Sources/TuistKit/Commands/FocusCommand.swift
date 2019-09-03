@@ -39,7 +39,6 @@ class FocusCommand: NSObject, Command {
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
         let generator = Generator(system: system,
-                                  printer: printer,
                                   modelLoader: modelLoader)
         self.init(parser: parser,
                   generator: generator,

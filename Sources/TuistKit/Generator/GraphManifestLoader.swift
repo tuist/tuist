@@ -102,8 +102,8 @@ class GraphManifestLoader: GraphManifestLoading {
         }
     }
 
-    func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        return .init(Manifest.allCases.filter {
+    func manifests(at path: AbsolutePath) -> Set<ManifestFile> {
+        return .init(ManifestFile.allCases.filter {
             FileHandler.shared.exists(path.appending(component: $0.fileName))
         })
     }
@@ -126,7 +126,7 @@ class GraphManifestLoader: GraphManifestLoading {
     }
 
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
-        let setupPath = path.appending(component: Manifest.setup.fileName)
+        let setupPath = path.appending(component: ManifestFile.setup.fileName)
         guard FileHandler.shared.exists(setupPath) else {
             throw GraphManifestLoaderError.manifestNotFound(.setup, path)
         }

@@ -22,15 +22,11 @@ class GenerateCommand: NSObject, Command {
 
     required convenience init(parser: ArgumentParser) {
         let system = System()
-        let printer = Printer()
-        let resourceLocator = ResourceLocator(fileHandler: fileHandler)
-        let manifestLoader = GraphManifestLoader(fileHandler: fileHandler,
-                                                 system: system,
-                                                 resourceLocator: resourceLocator,
-                                                 deprecator: Deprecator(printer: printer))
+        let resourceLocator = ResourceLocator()
+        let manifestLoader = GraphManifestLoader(system: system,
+                                                 resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
-        let modelLoader = GeneratorModelLoader(fileHandler: fileHandler,
-                                               manifestLoader: manifestLoader,
+        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
         let generator = Generator(system: system,
                                   modelLoader: modelLoader)

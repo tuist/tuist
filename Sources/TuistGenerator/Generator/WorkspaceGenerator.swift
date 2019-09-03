@@ -58,24 +58,19 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
                                                 system: system)
-        let cocoapodsInteractor = CocoaPodsInteractor()
-
         self.init(system: system,
                   projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  cocoapodsInteractor: cocoapodsInteractor,
                   derivedManifestProjectGenerator: derivedManifestProjectGenerator)
     }
 
     init(system: Systeming,
          projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         cocoapodsInteractor: CocoaPodsInteracting,
          derivedManifestProjectGenerator: DerivedManifestProjectGenerating) {
         self.system = system
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
-        self.cocoapodsInteractor = cocoapodsInteractor
         self.derivedManifestProjectGenerator = derivedManifestProjectGenerator
     }
 
@@ -253,7 +248,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             return .group(groupReference)
 
         case let .project(path: projectPath):
-            if !fileHandler.exists(projectPath) {
+            if !FileHandler.shared.exists(projectPath) {
                 throw WorkspaceGeneratorError.projectNotFound(path: projectPath)
             }
             return workspaceFileElement(path: projectPath.relative(to: path))
