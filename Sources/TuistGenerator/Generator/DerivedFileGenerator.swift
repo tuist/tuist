@@ -18,6 +18,17 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
 
+    /// Info.plist content provider.
+    let infoPlistContentProvider: InfoPlistContentProviding
+
+    /// Initializes the generator with its attributes.
+    ///
+    /// - Parameters:
+    ///   - infoPlistContentProvider: Info.plist content provider.
+    init(infoPlistContentProvider: InfoPlistContentProviding = InfoPlistContentProvider()) {
+        self.infoPlistContentProvider = infoPlistContentProvider
+    }
+
     /// Generates the derived files that are associated to the given project.
     ///
     /// - Parameters:
@@ -47,8 +58,9 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     func generateInfoPlists(project: Project, sourceRootPath: AbsolutePath) throws -> Set<AbsolutePath> {
         let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
         let targetsWithGeneratableInfoPlists = project.targets.filter {
-            guard let infoPlist = $0.infoPlist else { return false }
-            guard case InfoPlist.dictionary = infoPlist else { return false }
+            if let infoPlist = $0.infoPlist, case InfoPlist.file = infoPlist {
+                return false
+            }
             return true
         }
 
@@ -67,13 +79,22 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         // Generate the Info.plist
         try targetsWithGeneratableInfoPlists.forEach { target in
             guard let infoPlist = target.infoPlist else { return }
-            guard case let InfoPlist.dictionary(dictionary) = infoPlist else { return }
+
+            let dictionary: [String: Any]
+
+            if case let InfoPlist.dictionary(content) = infoPlist {
+                dictionary = content.mapValues { $0.value }
+            } else if case let InfoPlist.extendingDefault(extended) = infoPlist,
+                let content = self.infoPlistContentProvider.content(target: target, extendedWith: extended) {
+                dictionary = content
+            } else {
+                return
+            }
 
             let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
             if FileHandler.shared.exists(path) { try FileHandler.shared.delete(path) }
 
-            let outputDictionary = dictionary.mapValues { $0.value }
-            let data = try PropertyListSerialization.data(fromPropertyList: outputDictionary,
+            let data = try PropertyListSerialization.data(fromPropertyList: dictionary,
                                                           format: .xml,
                                                           options: 0)
 
