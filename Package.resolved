@@ -57,10 +57,10 @@
       },
       {
         "package": "XcodeProj",
-        "repositoryURL": "file:///Users/marekfort/Development/XcodeProj",
+        "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
-          "branch": "master",
-          "revision": "e21198710116ad95254bb41a9d33c6e6dd8dcfd7",
+          "branch": "local_package",
+          "revision": "a7aa3cbd75050aca7ee542145029c70035957c10",
           "version": null
         }
       }

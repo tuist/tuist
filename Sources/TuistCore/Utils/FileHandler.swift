@@ -41,7 +41,7 @@ public protocol FileHandling: AnyObject {
     ///
     /// - Parameter path: Path to check.
     /// - Returns: True if there's a folder or file at the given path.
-    func exists(_ path: AbsolutePath) -> Bool
+    func exists(_ path: AbsolutePath, followSymlink: Bool) -> Bool
 
     /// It copies a file or folder to another path.
     ///
@@ -80,6 +80,13 @@ public protocol FileHandling: AnyObject {
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
+}
+
+public extension FileHandling {
+    // Helper function with default argument
+    func exists(_ path: AbsolutePath, followSymlink: Bool = true) -> Bool {
+        return exists(path, followSymlink: followSymlink)
+    }
 }
 
 public final class FileHandler: FileHandling {
@@ -137,11 +144,18 @@ public final class FileHandler: FileHandling {
 
     /// Returns true if there's a folder or file at the given path.
     ///
-    /// - Parameter path: Path to check.
+    /// - Parameters:
+    ///     - path: Path to check.
+    ///     - followSymlink: Check file at the final destination if `false`, if `true` checks if the `symlink` itself exists
     /// - Returns: True if there's a folder or file at the given path.
-    public func exists(_ path: AbsolutePath) -> Bool {
-        return fileManager.fileExists(atPath: path.pathString)
+    public func exists(_ path: AbsolutePath, followSymlink: Bool = true) -> Bool {
+        if followSymlink {
+            return FileManager.default.fileExists(atPath: path.pathString)
+        } else {
+            return (try? FileManager.default.attributesOfItem(atPath: path.pathString)) != nil
+        }
     }
+    
 
     /// It copies a file or folder to another path.
     ///

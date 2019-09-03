@@ -24,8 +24,8 @@ public final class MockFileHandler: FileHandling {
         try closure(currentPath)
     }
 
-    public func exists(_ path: AbsolutePath) -> Bool {
-        return fileHandler.exists(path)
+    public func exists(_ path: AbsolutePath, followSymlink: Bool) -> Bool {
+        return fileHandler.exists(path, followSymlink: followSymlink)
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
