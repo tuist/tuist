@@ -10,13 +10,13 @@ class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     let projectLinter: ProjectLinting
-    let system: Systeming
+    let xcodeController: XcodeControlling
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter(), system: Systeming = System()) {
+    init(projectLinter: ProjectLinting = ProjectLinter(), xcodeController: XcodeControlling = XcodeController(system: System())) {
         self.projectLinter = projectLinter
-        self.system = system
+        self.xcodeController = xcodeController
     }
 
     struct StaticDepedencyWarning: Hashable {
@@ -68,16 +68,17 @@ class GraphLinter: GraphLinting {
     private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
         let containsPackageDependency = graph.packages.count > 0
         
-        guard
-            let xcode = try? XcodeController(system: system).selected(),
-            // Xcode versions with .0 patch tag omit it, but `Version` requires it,
-            // so if `Version`'s `init` fails, try to append 0 patch tag
-            let version = Version(string: xcode.infoPlist.version) ?? Version(string: xcode.infoPlist.version + ".0")
-        else {
+        guard containsPackageDependency else { return [] }
+        
+        let version: Version
+        do {
+            version = try xcodeController.selectedVersion()
+        }
+        catch {
             return [LintingIssue(reason: "Could not determine Xcode version", severity: .error)]
         }
         
-        if version.major < 11, containsPackageDependency {
+        if version.major < 11 {
             let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatiable. Need at least 11 but got \(version)"
             return [LintingIssue(reason: reason, severity: .error)]
         }

@@ -257,14 +257,7 @@ final class ProjectGenerator: ProjectGenerating {
     private func determineProjectConstants() -> ProjectConstants {
         
         do {
-
-            guard let xcode = try XcodeController(system: system).selected() else {
-                throw XcodeVersionError.noXcode
-            }
-            
-            guard let version = Version(string: xcode.infoPlist.version) else {
-                throw XcodeVersionError.noVersion
-            }
+            let version = try XcodeController(system: system).selectedVersion()
             
             if version.major >= 11 {
                 return .xcode11

@@ -8,13 +8,15 @@ import XCTest
 final class GraphLinterTests: XCTestCase {
     var subject: GraphLinter!
     var fileHandler: MockFileHandler!
+    var xcodeController: MockXcodeController!
 
     override func setUp() {
         super.setUp()
         mockEnvironment()
         fileHandler = sharedMockFileHandler()
-
-        subject = GraphLinter()
+        xcodeController = MockXcodeController()
+        
+        subject = GraphLinter(xcodeController: xcodeController)
     }
 
     func test_lint_when_carthage_frameworks_are_missing() throws {
@@ -50,6 +52,36 @@ final class GraphLinterTests: XCTestCase {
 
         // Then
         XCTAssertTrue(result.contains(LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)))
+    }
+    
+    func test_lint_when_packages_and_xcode_10() throws {
+        // Given
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let package = PackageNode(packageType: .local(path: RelativePath("A", productName: "A"), path: fileHandler.currentPath))
+        cache.add(package)
+        xcodeController.selectedVersion() = Version(10, 0, 0)
+        
+        // When
+        let result = subject.lint(graph: graph)
+        
+        // Then
+        XCTEmpty(result)
+    }
+    
+    func test_lint_when_no_version_available() throws {
+        // Given
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let package = PackageNode(packageType: .local(path: RelativePath("A", productName: "A"), path: fileHandler.currentPath))
+        cache.add(package)
+        xcodeController.selectedStub = .failure(Error.Protocol.)
+        
+        // When
+        let result = subject.lint(graph: graph)
+        
+        // Then
+        XCTEmpty(result)
     }
 
     func test_lint_when_frameworks_are_missing() throws {
