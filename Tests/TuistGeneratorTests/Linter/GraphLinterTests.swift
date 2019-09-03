@@ -1,4 +1,5 @@
 import Basic
+import SPMUtility
 import Foundation
 import TuistCore
 import XCTest
@@ -58,9 +59,27 @@ final class GraphLinterTests: XCTestCase {
         // Given
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
-        let package = PackageNode(packageType: .local(path: RelativePath("A", productName: "A"), path: fileHandler.currentPath))
-        cache.add(package)
-        xcodeController.selectedVersion() = Version(10, 0, 0)
+        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: fileHandler.currentPath)
+        cache.add(package: package)
+        let versionStub = Version(10, 0, 0)
+        xcodeController.selectedVersionStub = .success(versionStub)
+        
+        // When
+        let result = subject.lint(graph: graph)
+        
+        // Then
+        let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
+        XCTAssertTrue(result.contains(LintingIssue(reason: reason, severity: .error)))
+    }
+    
+    func test_lint_when_packages_and_xcode_11() throws {
+        // Given
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: fileHandler.currentPath)
+        cache.add(package: package)
+        let versionStub = Version(11, 0, 0)
+        xcodeController.selectedVersionStub = .success(versionStub)
         
         // When
         let result = subject.lint(graph: graph)
@@ -73,15 +92,16 @@ final class GraphLinterTests: XCTestCase {
         // Given
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
-        let package = PackageNode(packageType: .local(path: RelativePath("A", productName: "A"), path: fileHandler.currentPath))
-        cache.add(package)
-        xcodeController.selectedStub = .failure(Error.Protocol.)
+        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: fileHandler.currentPath)
+        cache.add(package: package)
+        let error = NSError.test()
+        xcodeController.selectedVersionStub = .failure(error)
         
         // When
         let result = subject.lint(graph: graph)
         
         // Then
-        XCTEmpty(result)
+        XCTAssertTrue(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)))
     }
 
     func test_lint_when_frameworks_are_missing() throws {

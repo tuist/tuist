@@ -4,7 +4,7 @@ import TuistCore
 
 final class MockXcodeController: XcodeControlling {
     var selectedStub: Result<Xcode, Error>?
-    var selectedVersionStub: Version = Version(0, 0, 0)
+    var selectedVersionStub: Result<Version, Error> = .success(Version(0, 0, 0))
     
     func selected() throws -> Xcode? {
         guard let selectedStub = selectedStub else { return nil }
@@ -16,6 +16,9 @@ final class MockXcodeController: XcodeControlling {
     }
     
     func selectedVersion() throws -> Version {
-        return selectedVersionStub
+        switch selectedVersionStub {
+        case let .failure(error): throw error
+        case let .success(version): return version
+        }
     }
 }

@@ -68,7 +68,7 @@ class GraphLinter: GraphLinting {
     private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
         let containsPackageDependency = graph.packages.count > 0
         
-        guard containsPackageDependency else { return [] }
+        guard containsPackageDependency else { return [] }
         
         let version: Version
         do {
@@ -79,7 +79,7 @@ class GraphLinter: GraphLinting {
         }
         
         if version.major < 11 {
-            let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatiable. Need at least 11 but got \(version)"
+            let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
             return [LintingIssue(reason: reason, severity: .error)]
         }
         
