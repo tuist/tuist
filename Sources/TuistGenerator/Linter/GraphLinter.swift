@@ -10,11 +10,13 @@ class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     let projectLinter: ProjectLinting
+    let system: Systeming
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter()) {
+    init(projectLinter: ProjectLinting = ProjectLinter(), system: Systeming = System()) {
         self.projectLinter = projectLinter
+        self.system = system
     }
 
     struct StaticDepedencyWarning: Hashable {
@@ -59,42 +61,28 @@ class GraphLinter: GraphLinting {
         return issues
     }
     
-    enum PackageLintError: Swift.Error {
-        case noXcode
-        case noVersion
-    }
-    
+    /// It verifies setup for packages
+    ///
+    /// - Parameter graph: Project graph.
+    /// - Returns: Linting issues.
     private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
-        
-        // TODO: Fix
-        
-        return []
-        
         let containsPackageDependency = graph.packages.count > 0
         
-        do {
-            
-            guard let xcode = try XcodeController(system: System()).selected() else {
-                throw PackageLintError.noXcode
-            }
-            
-            guard let version = Version(string: xcode.infoPlist.version) else {
-                throw PackageLintError.noVersion
-            }
-            
-            if version.major < 11 && containsPackageDependency {
-                return [
-                    .init(reason: "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatiable. Need at least 11 but got \(version)", severity: .error)
-                ]
-            }
-            
-        } catch {
-            return [
-                .init(reason: "Could not determine Xcode version", severity: .error)
-            ]
+        guard
+            let xcode = try? XcodeController(system: system).selected(),
+            // Xcode versions with .0 patch tag omit it, but `Version` requires it,
+            // so if `Version`'s `init` fails, try to append 0 patch tag
+            let version = Version(string: xcode.infoPlist.version) ?? Version(string: xcode.infoPlist.version + ".0")
+        else {
+            return [LintingIssue(reason: "Could not determine Xcode version", severity: .error)]
         }
         
-        return [ ]
+        if version.major < 11, containsPackageDependency {
+            let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatiable. Need at least 11 but got \(version)"
+            return [LintingIssue(reason: reason, severity: .error)]
+        }
+        
+        return []
         
     }
 
