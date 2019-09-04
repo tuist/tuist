@@ -124,13 +124,38 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
     }
+    
+    func test_generate_addsPackageDependencyManager() throws {
+        let name = "package_test"
+
+        // Given
+        let target = anyTarget(dependencies: [Dependency.package(.local(path: RelativePath("TestLibrary"), productName: "TestLibrary"))])
+        let project = Project.test(path: path,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+        
+        let workspace = Workspace.test(projects: [project.path])
+
+        // When
+        try subject.generate(workspace: workspace,
+                             path: path,
+                             graph: graph,
+                             tuistConfig: .test())
+        
+        // Then
+        XCTAssertTrue(fileHandler.exists(path.appending(component: "Package.resolved"), followSymlink: false))
+    }
 
     // MARK: - Helpers
 
-    func anyTarget() -> Target {
+    func anyTarget(dependencies: [Dependency] = []) -> Target {
         return Target.test(infoPlist: nil,
                            entitlements: nil,
-                           settings: nil)
+                           settings: nil,
+                           dependencies: dependencies)
     }
 }
 

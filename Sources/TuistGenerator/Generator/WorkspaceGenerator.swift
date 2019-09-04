@@ -135,7 +135,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                   workspace: Workspace,
                                                   workspaceName: String,
                                                   graph: Graphing) throws -> Workspace {
-        let hasPackages: Bool = try !graph.packages(path: path, name: workspace.name).isEmpty
+        let hasPackages: Bool = try !graph.targets.map { try graph.packages(path: $0.path, name: $0.name) }.isEmpty
         guard hasPackages else { return workspace }
         
         let symbolicPackagePath = path.appending(component: "Package.resolved")
