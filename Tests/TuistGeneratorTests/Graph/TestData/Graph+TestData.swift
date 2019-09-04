@@ -69,7 +69,7 @@ extension Graph {
         let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
             ($0.target.name, TargetNode(project: $0.project,
                                         target: $0.target,
-                                        dependencies: [PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: $0.project.path)]))
+                                        dependencies: []))
         })
 
         dependencies.forEach {

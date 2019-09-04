@@ -126,8 +126,6 @@ final class WorkspaceGeneratorTests: XCTestCase {
     }
     
     func test_generate_addsPackageDependencyManager() throws {
-        let name = "package_test"
-
         // Given
         let target = anyTarget(dependencies: [Dependency.package(.local(path: RelativePath("TestLibrary"), productName: "TestLibrary"))])
         let project = Project.test(path: path,
@@ -147,6 +145,33 @@ final class WorkspaceGeneratorTests: XCTestCase {
         
         // Then
         XCTAssertTrue(fileHandler.exists(path.appending(component: "Package.resolved"), followSymlink: false))
+        
+        XCTAssertNoThrow(try subject.generate(workspace: workspace,
+                             path: path,
+                             graph: graph,
+                             tuistConfig: .test()))
+    }
+    
+    func test_generate_doesNotAddPackageDependencyManager() throws {
+        // Given
+        let target = anyTarget()
+        let project = Project.test(path: path,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+        
+        let workspace = Workspace.test(projects: [project.path])
+
+        // When
+        try subject.generate(workspace: workspace,
+                             path: path,
+                             graph: graph,
+                             tuistConfig: .test())
+        
+        // Then
+        XCTAssertFalse(fileHandler.exists(path.appending(component: "Package.resolved"), followSymlink: false))
     }
 
     // MARK: - Helpers
