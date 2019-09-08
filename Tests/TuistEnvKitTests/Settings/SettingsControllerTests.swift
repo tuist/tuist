@@ -11,7 +11,7 @@ final class SettingsControllerTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockAllSystemInteractions()
-        
+
         environment = sharedMockEnvironment()
         subject = SettingsController()
     }

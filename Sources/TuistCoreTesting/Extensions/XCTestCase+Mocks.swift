@@ -17,7 +17,7 @@ extension XCTestCase {
         // swiftlint:disable force_try
         FileHandler.shared = try! MockFileHandler()
     }
-    
+
     func mockEnvironment() {
         // swiftlint:disable force_try
         Environment.shared = try! MockEnvironment()

@@ -8,4 +8,8 @@ public class Constants {
     public static let version = "0.17.0"
     public static let swiftVersion: String = "5.0"
     public static let bundleName: String = "tuist.zip"
+
+    public class EnvironmentVariables {
+        public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
+    }
 }

@@ -37,7 +37,6 @@ enum InstalledVersion: CustomStringConvertible, Equatable {
 }
 
 class VersionsController: VersionsControlling {
-
     // MARK: - VersionsControlling
 
     func install(version: String, installation: Installation) throws {

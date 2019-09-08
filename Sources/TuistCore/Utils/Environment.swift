@@ -12,13 +12,15 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the directory where all the derived projects are generated.
     var derivedProjectsDirectory: AbsolutePath { get }
+    
+    /// Returns true if the output of Tuist should be coloured.
+    var shouldOutputBeColoured: Bool { get }
 }
 
 /// Local environment controller.
 public class Environment: Environmenting {
-    
     public static var shared: Environmenting = Environment()
-    
+
     /// Returns the default local directory.
     static let defaultDirectory: AbsolutePath = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
 
@@ -57,6 +59,20 @@ public class Environment: Environmenting {
                 try! fileHandler.createFolder($0)
             }
         }
+    }
+
+    /// Returns true if the output of Tuist should be coloured.
+    public var shouldOutputBeColoured: Bool {
+        let enabledValues = ["1", "true", "TRUE", "yes", "YES"]
+        guard let colouredValue = ProcessInfo.processInfo.environment.first(where: { $0.key == Constants.EnvironmentVariables.colouredOutput })?.value else {
+            return false
+        }
+        let ciValue = ProcessInfo.processInfo.environment.first(where: { $0.key == "CI" })?.value ?? "0"
+
+        let isCI = enabledValues.contains(ciValue)
+        let isEnabled = enabledValues.contains(colouredValue)
+
+        return isEnabled && !isCI
     }
 
     /// Returns the directory where all the versions are.
