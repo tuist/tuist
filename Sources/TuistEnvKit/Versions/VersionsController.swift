@@ -37,15 +37,6 @@ enum InstalledVersion: CustomStringConvertible, Equatable {
 }
 
 class VersionsController: VersionsControlling {
-    // MARK: - Attributes
-
-    let environmentController: EnvironmentControlling
-
-    // MARK: - Init
-
-    init(environmentController: EnvironmentControlling = EnvironmentController()) {
-        self.environmentController = environmentController
-    }
 
     // MARK: - VersionsControlling
 
@@ -72,11 +63,11 @@ class VersionsController: VersionsControlling {
     }
 
     func path(version: String) -> AbsolutePath {
-        return environmentController.versionsDirectory.appending(component: version)
+        return Environment.shared.versionsDirectory.appending(component: version)
     }
 
     func versions() -> [InstalledVersion] {
-        return environmentController.versionsDirectory.glob("*").map { path in
+        return Environment.shared.versionsDirectory.glob("*").map { path in
             let versionStringValue = path.components.last!
             if let version = Version(string: versionStringValue) {
                 return InstalledVersion.semver(version)

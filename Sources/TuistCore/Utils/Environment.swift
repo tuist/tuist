@@ -3,7 +3,7 @@ import Foundation
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
-public protocol EnvironmentControlling: AnyObject {
+public protocol Environmenting: AnyObject {
     /// Returns the versions directory.
     var versionsDirectory: AbsolutePath { get }
 
@@ -15,7 +15,10 @@ public protocol EnvironmentControlling: AnyObject {
 }
 
 /// Local environment controller.
-public class EnvironmentController: EnvironmentControlling {
+public class Environment: Environmenting {
+    
+    public static var shared: Environmenting = Environment()
+    
     /// Returns the default local directory.
     static let defaultDirectory: AbsolutePath = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
 
@@ -28,9 +31,9 @@ public class EnvironmentController: EnvironmentControlling {
     private let fileHandler: FileHandling
 
     /// Default public constructor.
-    public convenience init() {
-        self.init(directory: EnvironmentController.defaultDirectory,
-                  fileHandler: FileHandler())
+    convenience init() {
+        self.init(directory: Environment.defaultDirectory,
+                  fileHandler: FileHandler.shared)
     }
 
     /// Default environment constroller constructor.

@@ -13,7 +13,7 @@ final class SetupLoaderTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         upLinter = MockUpLinter()

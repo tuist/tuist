@@ -12,7 +12,7 @@ final class DerivedFileGeneratorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
 
         fileHandler = sharedMockFileHandler()
         infoPlistContentProvider = MockInfoPlistContentProvider()

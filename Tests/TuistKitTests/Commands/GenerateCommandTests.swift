@@ -17,7 +17,7 @@ final class GenerateCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         generator = MockGenerator()

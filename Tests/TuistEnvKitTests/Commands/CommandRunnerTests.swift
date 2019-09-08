@@ -29,7 +29,7 @@ final class CommandRunnerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         versionResolver = MockVersionResolver()

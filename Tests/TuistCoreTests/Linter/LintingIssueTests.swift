@@ -7,7 +7,7 @@ import XCTest
 final class LintingIssueTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
     }
 
     func test_description() {

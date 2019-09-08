@@ -13,7 +13,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         do {

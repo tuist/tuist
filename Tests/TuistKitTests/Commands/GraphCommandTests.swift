@@ -16,7 +16,7 @@ final class GraphCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         dotGraphGenerator = MockDotGraphGenerator()
