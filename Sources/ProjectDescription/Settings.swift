@@ -63,7 +63,7 @@ public struct Configuration: Equatable, Codable {
     }
 
     @available(*, deprecated, message: "Please use settings(_ settings: [String: SettingValue], xcconfig: String?)")
-    public static func settings(_ settings:  [String: String], xcconfig: String? = nil) -> Configuration {
+    public static func settings(_ settings: [String: String], xcconfig: String? = nil) -> Configuration {
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
@@ -105,7 +105,7 @@ public extension CustomConfiguration {
     }
 
     @available(*, deprecated, message: "Please use debug(name: String, settings: [String: SettingValue], xcconfig: String?) instead")
-    static func debug(name: String, settings:  [String: String], xcconfig: String? = nil) -> CustomConfiguration {
+    static func debug(name: String, settings: [String: String], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings.mapValues { .string($0) }, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
     }
@@ -123,7 +123,7 @@ public extension CustomConfiguration {
     }
 
     @available(*, deprecated, message: "Please use release(name: String, settings: [String: SettingValue], xcconfig: String?) instead")
-    static func release(name: String, settings:  [String: String], xcconfig: String? = nil) -> CustomConfiguration {
+    static func release(name: String, settings: [String: String], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings.mapValues { .string($0) }, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .release, configuration: configuration)
     }
@@ -174,6 +174,7 @@ public struct Settings: Equatable, Codable {
         self.defaultSettings = defaultSettings
     }
 
+    // swiftlint:disable:next line_length
     @available(*, deprecated, message: "Please use init(base: [String: SettingValue], debug: Configuration?, release: Configuration?, defaultSettings: DefaultSettings) instead")
     public init(base: [String: String],
                 debug: Configuration? = nil,
@@ -208,6 +209,7 @@ public struct Settings: Equatable, Codable {
         self.defaultSettings = defaultSettings
     }
 
+    // swiftlint:disable:next line_length
     @available(*, deprecated, message: "Please use init(base: [String: SettingValue], configurations: [CustomConfiguration], defaultSettings: DefaultSettings) instead")
     public init(base: [String: String],
                 configurations: [CustomConfiguration],
