@@ -74,7 +74,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         /// We need to ensure the frameworks are codesigned after being copied to the built products directory.
         /// Passing `preserve-metadata=identifier,entitlements` ensures any signatures or entitlements which are
         /// already there are preserved.
-        try system.run([
+        try system.runAndPrint([
             "/usr/bin/xcrun",
             "codesign", "--force", "--sign", codeSigningIdentity, "--preserve-metadata=identifier,entitlements", frameworkPath.pathString,
         ])

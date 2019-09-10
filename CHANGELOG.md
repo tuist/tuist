@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - New InfoPlist type, `.extendingDefault([:])` https://github.com/tuist/tuist/pull/448 by @pepibumur
+- Forward the output of the `codesign` command to make debugging easier when the copy frameworks command fails https://github.com/tuist/tuist/pull/492 by @pepibumur.
 
 ### Fixed
 
