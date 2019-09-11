@@ -98,9 +98,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                              pbxTarget: pbxTarget,
                                              sourceRootPath: sourceRootPath)
 
-        let expected = "$(inherited) $(SRCROOT)/Dependencies $(SRCROOT)/Dependencies/C"
-        XCTAssertEqual(debugConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
-        XCTAssertEqual(releaseConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? String, expected)
+        let expected = ["$(inherited)", "$(SRCROOT)/Dependencies", "$(SRCROOT)/Dependencies/C"]
+        XCTAssertEqual(debugConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], expected)
+        XCTAssertEqual(releaseConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], expected)
     }
 
     func test_setupHeadersSearchPath() throws {
@@ -124,7 +124,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                            pbxTarget: pbxTarget,
                                            sourceRootPath: sourceRootPath)
 
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? String, "$(inherited) $(SRCROOT)/headers")
+        let expected = ["$(inherited)", "$(SRCROOT)/headers"]
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], expected)
     }
 
     func test_setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {
@@ -158,8 +159,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"] as? String,
-                       "$(inherited) $(SRCROOT)/to/libraries $(SRCROOT)/to/other/libraries")
+        let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
+        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"] as? [String], expected)
     }
 
     func test_setupLibrarySearchPaths_noPaths() throws {
@@ -194,8 +195,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"] as? String,
-                       "$(inherited) $(SRCROOT)/to/libraries $(SRCROOT)/to/other/libraries")
+        let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
+        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"] as? [String], expected)
     }
 
     func test_setupSwiftIncludePaths_noPaths() throws {

@@ -1,16 +1,68 @@
 import Foundation
 
+// MARK: - SettingValue
+
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+    case string(String)
+    case array([String])
+
+    public init(stringLiteral value: String) {
+        self = .string(value)
+    }
+
+    public init(arrayLiteral elements: String...) {
+        self = .array(elements)
+    }
+
+    public init(from decoder: Decoder) throws {
+        guard let singleValueContainer = try? decoder.singleValueContainer() else {
+            preconditionFailure("Unsupported container type")
+        }
+        if let value: String = try? singleValueContainer.decode(String.self) {
+            self = .string(value)
+            return
+        }
+        if let value: [String] = try? singleValueContainer.decode([String].self) {
+            self = .array(value)
+            return
+        }
+
+        fatalError("Unsupported encoded type")
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case let .string(value):
+            try container.encode(value)
+        case let .array(value):
+            try container.encode(value)
+        }
+    }
+}
+
 // MARK: - Configuration
 
 public struct Configuration: Equatable, Codable {
-    public let settings: [String: String]
+    public let settings: [String: SettingValue]
     public let xcconfig: String?
 
-    public init(settings: [String: String] = [:], xcconfig: String? = nil) {
+    public init(settings: [String: SettingValue] = [:], xcconfig: String? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
 
+    @available(*, deprecated, message: "Please use init(settings: [String: SettingValue], xcconfig: String?) instead")
+    public init(settings: [String: String], xcconfig: String? = nil) {
+        self.settings = settings.mapValues { .string($0) }
+        self.xcconfig = xcconfig
+    }
+
+    public static func settings(_ settings: [String: SettingValue], xcconfig: String? = nil) -> Configuration {
+        return Configuration(settings: settings, xcconfig: xcconfig)
+    }
+
+    @available(*, deprecated, message: "Please use settings(_ settings: [String: SettingValue], xcconfig: String?)")
     public static func settings(_ settings: [String: String], xcconfig: String? = nil) -> Configuration {
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
@@ -47,8 +99,14 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    static func debug(name: String, settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func debug(name: String, settings: [String: SettingValue] = [:], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
+        return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
+    }
+
+    @available(*, deprecated, message: "Please use debug(name: String, settings: [String: SettingValue], xcconfig: String?) instead")
+    static func debug(name: String, settings: [String: String], xcconfig: String? = nil) -> CustomConfiguration {
+        let configuration = Configuration(settings: settings.mapValues { .string($0) }, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
     }
 
@@ -59,8 +117,14 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    static func release(name: String, settings: [String: String] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func release(name: String, settings: [String: SettingValue] = [:], xcconfig: String? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
+        return CustomConfiguration(name: name, variant: .release, configuration: configuration)
+    }
+
+    @available(*, deprecated, message: "Please use release(name: String, settings: [String: SettingValue], xcconfig: String?) instead")
+    static func release(name: String, settings: [String: String], xcconfig: String? = nil) -> CustomConfiguration {
+        let configuration = Configuration(settings: settings.mapValues { .string($0) }, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .release, configuration: configuration)
     }
 }
@@ -81,7 +145,7 @@ public enum DefaultSettings: String, Codable {
 // MARK: - Settings
 
 public struct Settings: Equatable, Codable {
-    public let base: [String: String]
+    public let base: [String: SettingValue]
     public let configurations: [CustomConfiguration]
     public let defaultSettings: DefaultSettings
 
@@ -98,7 +162,7 @@ public struct Settings: Equatable, Codable {
     ///
     /// - seealso: Configuration
     /// - seealso: DefaultSettings
-    public init(base: [String: String] = [:],
+    public init(base: [String: SettingValue] = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
                 defaultSettings: DefaultSettings = .recommended) {
@@ -107,6 +171,20 @@ public struct Settings: Equatable, Codable {
             CustomConfiguration(name: "Release", variant: .release, configuration: release),
         ]
         self.base = base
+        self.defaultSettings = defaultSettings
+    }
+
+    // swiftlint:disable:next line_length
+    @available(*, deprecated, message: "Please use init(base: [String: SettingValue], debug: Configuration?, release: Configuration?, defaultSettings: DefaultSettings) instead")
+    public init(base: [String: String],
+                debug: Configuration? = nil,
+                release: Configuration? = nil,
+                defaultSettings: DefaultSettings = .recommended) {
+        configurations = [
+            CustomConfiguration(name: "Debug", variant: .debug, configuration: debug),
+            CustomConfiguration(name: "Release", variant: .release, configuration: release),
+        ]
+        self.base = base.mapValues { .string($0) }
         self.defaultSettings = defaultSettings
     }
 
@@ -123,10 +201,20 @@ public struct Settings: Equatable, Codable {
     ///
     /// - seealso: CustomConfiguration
     /// - seealso: DefaultSettings
-    public init(base: [String: String] = [:],
+    public init(base: [String: SettingValue] = [:],
                 configurations: [CustomConfiguration],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base
+        self.configurations = configurations
+        self.defaultSettings = defaultSettings
+    }
+
+    // swiftlint:disable:next line_length
+    @available(*, deprecated, message: "Please use init(base: [String: SettingValue], configurations: [CustomConfiguration], defaultSettings: DefaultSettings) instead")
+    public init(base: [String: String],
+                configurations: [CustomConfiguration],
+                defaultSettings: DefaultSettings = .recommended) {
+        self.base = base.mapValues { .string($0) }
         self.configurations = configurations
         self.defaultSettings = defaultSettings
     }
