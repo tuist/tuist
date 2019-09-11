@@ -64,8 +64,8 @@ class TargetLinter: TargetLinting {
         var productName = target.productName
         
         // Remove any interpolated variables
-        bundleIdentifier = productName.replacingOccurrences(of: "\\$\\{.+\\}", with: "", options: .regularExpression)
-        bundleIdentifier = productName.replacingOccurrences(of: "\\$\\(.+\\)", with: "", options: .regularExpression)
+        productName = productName.replacingOccurrences(of: "\\$\\{.+\\}", with: "", options: .regularExpression)
+        productName = productName.replacingOccurrences(of: "\\$\\(.+\\)", with: "", options: .regularExpression)
         
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 
