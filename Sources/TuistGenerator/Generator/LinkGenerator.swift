@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import TuistCore
 import XcodeProj
+import PathKit
 
 enum LinkGeneratorError: FatalError, Equatable {
     case missingProduct(name: String)
@@ -125,19 +126,18 @@ final class LinkGenerator: LinkGenerating {
                           pbxTarget: PBXTarget,
                           pbxProject: PBXProject,
                           packages: [PackageNode]) throws {
-        packages.forEach { package in
+        try packages.forEach { package in
             switch package.packageType {
             case let .local(path: packagePath, productName: productName):
-                _ = pbxProject.addLocalSwiftPackage(path: packagePath.pathString,
+                _ = try pbxProject.addLocalSwiftPackage(path: Path(packagePath.pathString),
                                                     productName: productName,
-                                                    target: pbxTarget,
+                                                    targetName: pbxTarget.name,
                                                     addFileReference: false)
-            // TODO: Change version to versionRequirement
-            case let .remote(url: url, productName: productName, versionRequirement: version):
-                _ = pbxProject.addSwiftPackage(repositoryURL: url,
-                                               productName: productName,
-                                               versionRequirement: version.xcodeprojValue,
-                                               target: pbxTarget)
+            case let .remote(url: url, productName: productName, versionRequirement: versionRequirement):
+                _ = try pbxProject.addSwiftPackage(repositoryURL: url,
+                                                   productName: productName,
+                                                   versionRequirement: versionRequirement.xcodeprojValue,
+                                                   targetName: pbxTarget.name)
             }
         }
     }

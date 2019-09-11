@@ -184,3 +184,4 @@ Scenario: The project is an iOS application with local Swift package (ios_app_wi
   Then I should be able to build the scheme App
   Then I should be able to test the scheme AppTests
   Then I should be able to build the scheme LibraryA
+  Then I should be able to build the scheme LibraryB

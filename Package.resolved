@@ -42,7 +42,7 @@
         "repositoryURL": "https://github.com/apple/swift-llbuild.git",
         "state": {
           "branch": "master",
-          "revision": "3d8e4d2f396f3460da3b02f5820e3a998b17b2f4",
+          "revision": "c67ef170774ff1b701de03386d5cf7c07271103a",
           "version": null
         }
       },
@@ -59,8 +59,8 @@
         "package": "XcodeProj",
         "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
-          "branch": "local_package",
-          "revision": "a7aa3cbd75050aca7ee542145029c70035957c10",
+          "branch": "master",
+          "revision": "bfb8291e5eb2745e0bacb7c5b2f649fefa36853d",
           "version": null
         }
       }
