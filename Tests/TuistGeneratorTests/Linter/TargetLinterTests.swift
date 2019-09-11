@@ -37,7 +37,7 @@ final class TargetLinterTests: XCTestCase {
         XCTAssertInvalidProductName("ؼFramework")
         XCTAssertValidProductName("MyFramework_iOS")
         XCTAssertValidProductName("MyFramework")
-        XCTAssertValidBundleId("${PRODUCT_NAME}")
+        XCTAssertValidProductName("${PRODUCT_DISPLAY_NAME}")
     }
 
     func test_lint_when_target_has_invalid_bundle_identifier() {
