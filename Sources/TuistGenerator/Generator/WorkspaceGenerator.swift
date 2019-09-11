@@ -93,10 +93,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
         
-        let updatedWorkspace = try generatePackageDependencyManager(at: path,
-                                                                workspace: workspace,
-                                                                workspaceName: workspaceName,
-                                                                graph: graph)
+        try generatePackageDependencyManager(at: path,
+                                             workspace: workspace,
+                                             workspaceName: workspaceName,
+                                             graph: graph)
 
         /// Projects
 
@@ -134,9 +134,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private func generatePackageDependencyManager(at path: AbsolutePath,
                                                   workspace: Workspace,
                                                   workspaceName: String,
-                                                  graph: Graphing) throws -> Workspace {
+                                                  graph: Graphing) throws {
         let hasPackages: Bool = try !graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }.isEmpty
-        guard hasPackages else { return workspace }
+        guard hasPackages else { return }
         
         let symbolicPackagePath = path.appending(component: "Package.resolved")
         
@@ -144,7 +144,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
             try fileHandler.createSymbolicLink(symbolicPackagePath, destination: packagePath)
         }
-        return workspace.adding(files: [symbolicPackagePath])
     }
 
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {

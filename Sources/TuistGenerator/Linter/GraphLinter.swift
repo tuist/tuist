@@ -14,7 +14,7 @@ class GraphLinter: GraphLinting {
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter(), xcodeController: XcodeControlling = XcodeController(system: System())) {
+    init(projectLinter: ProjectLinting = ProjectLinter(), xcodeController: XcodeControlling = XcodeController()) {
         self.projectLinter = projectLinter
         self.xcodeController = xcodeController
     }
