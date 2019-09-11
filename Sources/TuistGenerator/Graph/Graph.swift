@@ -325,15 +325,6 @@ class Graph: Graphing {
 
         references.append(contentsOf: otherTargetFrameworks)
 
-        /// Pre-built frameworks
-        let transitiveFrameworks = findAll(targetNode: targetNode)
-            .lazy
-            .filter(FrameworkNode.self)
-            .map(\.path)
-            .map(DependencyReference.absolute)
-
-        references.append(contentsOf: transitiveFrameworks)
-
         return Set(references).sorted()
     }
 
@@ -444,10 +435,8 @@ extension Graph {
 
             visited.insert(node)
 
-            // swiftlint:disable:next force_cast
-            if node != targetNode, node is T, test(node as! T) {
-                // swiftlint:disable:next force_cast
-                references.insert(node as! T)
+            if node != targetNode, let matchingNode = node as? T, test(matchingNode) {
+                references.insert(matchingNode)
             }
 
             if node != targetNode, let node = node as? T, skip(node) {

@@ -45,6 +45,7 @@ public enum InfoPlist: Equatable {
 
     case file(path: AbsolutePath)
     case dictionary([String: Value])
+    case extendingDefault(with: [String: Value])
 
     // MARK: - Equatable
 
@@ -53,6 +54,8 @@ public enum InfoPlist: Equatable {
         case let (.file(lhsPath), .file(rhsPath)):
             return lhsPath == rhsPath
         case let (.dictionary(lhsDictionary), .dictionary(rhsDictionary)):
+            return lhsDictionary == rhsDictionary
+        case let (.extendingDefault(lhsDictionary), .extendingDefault(rhsDictionary)):
             return lhsDictionary == rhsDictionary
         default:
             return false
@@ -116,5 +119,13 @@ extension InfoPlist.Value: ExpressibleByDictionaryLiteral {
 extension InfoPlist.Value: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: InfoPlist.Value...) {
         self = .array(elements)
+    }
+}
+
+// MARK: - Dictionary (InfoPlist.Value)
+
+extension Dictionary where Value == InfoPlist.Value {
+    func unwrappingValues() -> [Key: Any] {
+        return mapValues { $0.value }
     }
 }

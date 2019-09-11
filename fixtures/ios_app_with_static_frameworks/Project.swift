@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let project = Project(name: "iOSAppWithTransistiveStaticFrameworks",
+let project = Project(name: "App",
                       targets: [
                           Target(name: "App",
                                  platform: .iOS,
@@ -11,6 +11,7 @@ let project = Project(name: "iOSAppWithTransistiveStaticFrameworks",
                                  dependencies: [
                                      .project(target: "A", path: "Modules/A"),
                                      .project(target: "C", path: "Modules/C"),
+                                     .framework(path: "Prebuilt/prebuilt/PrebuiltStaticFramework.framework")
                           ]),
                           Target(name: "AppTests",
                                  platform: .iOS,

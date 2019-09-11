@@ -2,15 +2,40 @@ import Basic
 import Foundation
 import TuistCore
 
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
+    case string(String)
+    case array([String])
+
+    public init(stringLiteral value: String) {
+        self = .string(value)
+    }
+
+    public init(arrayLiteral elements: String...) {
+        self = .array(elements)
+    }
+
+    public func normalize() -> SettingValue {
+        switch self {
+        case let .array(currentValue):
+            if currentValue.count == 1 {
+                return .string(currentValue[0])
+            }
+            return self
+        case .string:
+            return self
+        }
+    }
+}
+
 public class Configuration: Equatable {
     // MARK: - Attributes
 
-    public let settings: [String: String]
+    public let settings: [String: SettingValue]
     public let xcconfig: AbsolutePath?
 
     // MARK: - Init
 
-    public init(settings: [String: String] = [:], xcconfig: AbsolutePath? = nil) {
+    public init(settings: [String: SettingValue] = [:], xcconfig: AbsolutePath? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
@@ -34,13 +59,13 @@ public class Settings: Equatable {
 
     // MARK: - Attributes
 
-    public let base: [String: String]
+    public let base: [String: SettingValue]
     public let configurations: [BuildConfiguration: Configuration?]
     public let defaultSettings: DefaultSettings
 
     // MARK: - Init
 
-    public init(base: [String: String] = [:],
+    public init(base: [String: SettingValue] = [:],
                 configurations: [BuildConfiguration: Configuration?],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base
@@ -88,5 +113,18 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
         return sortedByBuildConfigurationName()
             .map { $0.value }
             .compactMap { $0?.xcconfig }
+    }
+}
+
+extension Dictionary where Key == String, Value == SettingValue {
+    func toAny() -> [String: Any] {
+        return mapValues { value in
+            switch value {
+            case let .array(array):
+                return array
+            case let .string(string):
+                return string
+            }
+        }
     }
 }

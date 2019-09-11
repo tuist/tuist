@@ -483,6 +483,35 @@ final class GraphTests: XCTestCase {
         ])
     }
 
+    func test_embeddableFrameworks_when_precompiledStaticFramework() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        let frameworkNode = FrameworkNode(path: "/test/StaticFramework.framework")
+        let targetNode = TargetNode(
+            project: project,
+            target: target,
+            dependencies: [frameworkNode]
+        )
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+
+        system.succeedCommand("/usr/bin/file", "/test/StaticFramework.framework/StaticFramework",
+                              output: "current ar archive random library")
+
+        // When
+        let result = try graph.embeddableFrameworks(
+            path: project.path,
+            name: target.name,
+            system: system
+        )
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func test_embeddableFrameworks_ordered() throws {
         // Given
         let dependencyNames = (0 ..< 10).shuffled().map { "Dependency\($0)" }
