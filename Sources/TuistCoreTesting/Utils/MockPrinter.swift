@@ -40,12 +40,10 @@ public final class MockPrinter: Printing {
     }
 
     func standardOutputMatches(with pattern: String) -> Bool {
-        // swiftlint:disable:next force_try
         return standardOutput.contains(pattern)
     }
 
     func standardErrorMatches(with pattern: String) -> Bool {
-        // swiftlint:disable:next force_try
         return standardError.contains(pattern)
     }
 }

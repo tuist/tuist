@@ -5,6 +5,8 @@
 //  Created by Michał Tynior on 31/03/16.
 //  Copyright © 2016 Michal Tynior. All rights reserved.
 //
+// swiftlint:disable type_body_length
+// swiftlint:disable identifier_name
 import Foundation
 
 public typealias TerminalStyleCode = (open: String, close: String)
