@@ -8,18 +8,6 @@ public final class MockPrinter: Printing {
     var standardError: String = ""
 
     public func print(_ text: String) {
-        print(text, output: .standardOputput)
-    }
-
-    public func print(_ text: String, output: PrinterOutput) {
-        if output == .standardOputput {
-            standardOutput.append("\(text)\n")
-        } else {
-            standardError.append("\(text)\n")
-        }
-    }
-
-    public func print(_ text: String, color _: TerminalController.Color) {
         standardOutput.append("\(text)\n")
     }
 

@@ -112,7 +112,14 @@ class CommandRunner: CommandRunning {
         var args = [path.appending(component: Constants.binName).pathString]
         args.append(contentsOf: Array(arguments().dropFirst()))
 
-        try system.runAndPrint(args, verbose: false, environment: ProcessInfo.processInfo.environment)
+        var environment = ProcessInfo.processInfo.environment
+        environment[Constants.EnvironmentVariables.colouredOutput] = "1"
+
+        do {
+            try system.runAndPrint(args, verbose: false, environment: environment)
+        } catch {
+            exiter(1)
+        }
     }
 
     // MARK: - Static

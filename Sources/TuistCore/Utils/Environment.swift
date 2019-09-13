@@ -1,4 +1,5 @@
 import Basic
+import Darwin.C
 import Foundation
 
 /// Protocol that defines the interface of a local environment controller.
@@ -12,9 +13,12 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the directory where all the derived projects are generated.
     var derivedProjectsDirectory: AbsolutePath { get }
-    
+
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
+
+    /// Returns true if the standard output is interactive.
+    var isStandardOutputInteractive: Bool { get }
 }
 
 /// Local environment controller.
@@ -67,12 +71,16 @@ public class Environment: Environmenting {
         guard let colouredValue = ProcessInfo.processInfo.environment.first(where: { $0.key == Constants.EnvironmentVariables.colouredOutput })?.value else {
             return false
         }
-        let ciValue = ProcessInfo.processInfo.environment.first(where: { $0.key == "CI" })?.value ?? "0"
+        return enabledValues.contains(colouredValue) || isStandardOutputInteractive
+    }
 
-        let isCI = enabledValues.contains(ciValue)
-        let isEnabled = enabledValues.contains(colouredValue)
-
-        return isEnabled && !isCI
+    /// Returns true if the standard output is interactive.
+    public var isStandardOutputInteractive: Bool {
+        let termType = ProcessInfo.processInfo.environment["TERM"]
+        if let t = termType, t.lowercased() != "dumb", isatty(fileno(stdout)) != 0 {
+            return true
+        }
+        return false
     }
 
     /// Returns the directory where all the versions are.

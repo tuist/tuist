@@ -70,7 +70,7 @@ class GenerateCommand: NSObject, Command {
 
         let time = String(format: "%.3f", timer.stop())
         Printer.shared.print(success: "Project generated.")
-        Printer.shared.print("Total time taken: \(time)s", color: .white)
+        Printer.shared.print("Total time taken: \(time)s")
     }
 
     // MARK: - Fileprivate

@@ -15,6 +15,9 @@ public class MockEnvironment: Environmenting {
                                                 attributes: nil)
     }
 
+    public var shouldOutputBeColoured: Bool = false
+    public var isStandardOutputInteractive: Bool = false
+
     public var versionsDirectory: AbsolutePath {
         return directory.path.appending(component: "Versions")
     }
