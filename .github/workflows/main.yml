@@ -10,4 +10,3 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - uses: jzweifel/gatsby-cli-github-action@master
-      args: build
