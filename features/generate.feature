@@ -151,6 +151,16 @@ Scenario: The project is an iOS application that has resources (ios_app_with_cus
     Then I should be able to build the scheme Framework2
     Then I should be able to test the scheme Framework2Tests
 
+Scenario: The project is an iOS application with local Swift package (ios_app_with_local_swift_package)
+  Given that tuist is available
+  And I have a working directory
+  Then I copy the fixture ios_app_with_local_swift_package into the working directory
+  Then tuist generates the project
+  Then I should be able to build the scheme App
+  Then I should be able to test the scheme AppTests
+  Then I should be able to build the scheme LibraryA
+  Then I should be able to build the scheme LibraryB
+
 Scenario: The project is an iOS application with multiple configurations (ios_app_with_multi_configs)
     Given that tuist is available
     And I have a working directory
@@ -176,12 +186,10 @@ Scenario: The project is an iOS application with an incompatible Xcode version (
     Then I copy the fixture ios_app_with_incompatible_xcode into the working directory
     Then tuist generates yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode"
 
-Scenario: The project is an iOS application with local Swift package (ios_app_with_local_swift_package)
+Scenario: The project is an iOS application with remote Swift package (ios_app_with_remote_swift_package)
   Given that tuist is available
   And I have a working directory
-  Then I copy the fixture ios_app_with_local_swift_package into the working directory
+  Then I copy the fixture ios_app_with_remote_swift_package into the working directory
   Then tuist generates the project
   Then I should be able to build the scheme App
   Then I should be able to test the scheme AppTests
-  Then I should be able to build the scheme LibraryA
-  Then I should be able to build the scheme LibraryB
