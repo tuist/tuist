@@ -25,6 +25,8 @@ jobs:
         image: redis:4.0.6
 
     steps:
+      - uses: actions/checkout@master
+
       - name: Install Yarn dependencies
         run: cd galaxy && yarn install
 
