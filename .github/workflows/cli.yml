@@ -1,0 +1,11 @@
+name: Tuist CLI
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: macOS-10.14
+
+    steps:
+      - uses: actions/checkout@v1
+      - uses: jzweifel/gatsby-cli-github-action@master

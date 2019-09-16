@@ -1,0 +1,16 @@
+name: Tuist installation
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: macOS-10.14
+
+    steps:
+      - name: Install Tuist
+        run: |
+          ./install/install
+          tuist --help
+      - name: Uninstall Tuist
+        run: |
+          ./install/uninstall
