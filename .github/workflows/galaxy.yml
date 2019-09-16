@@ -4,6 +4,9 @@ on: [push]
 
 jobs:
   test:
+    container:
+      image: circleci/postgres:9.6.2-alpine
+
     services:
       postgres:
         image: circleci/postgres:9.6.2-alpine
@@ -23,5 +26,4 @@ jobs:
         uses: actions/checkout@v1
 
       - name: Install dependencies
-        uses: circleci/postgres:9.6.2-alpine
         run: yarn install --cwd galaxy
