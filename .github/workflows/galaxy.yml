@@ -26,9 +26,11 @@ jobs:
 
     steps:
       - name: Install Yarn dependencies
-        run: yarn install --cwd galaxy
+        working-directory: galaxy
+        run: yarn install
 
       - name: Install Bundler dependencies
+        working-directory: galaxy
         run: |
           sudo apt-get install -y cmake
           cd galaxy && bundle install --jobs=4 --retry=3
