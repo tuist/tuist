@@ -1,9 +1,9 @@
-name: Tuist installation
+name: Tuist Installation
 
 on: [push]
 
 jobs:
-  build:
+  run:
     runs-on: macOS-10.14
 
     steps:

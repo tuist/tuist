@@ -1,0 +1,28 @@
+name: Tuist Galaxy
+
+on: [push]
+
+services:
+  postgres:
+    image: circleci/postgres:9.6.2-alpine
+    ports:
+      - 8080:80
+    env:
+      POSTGRES_USER: runner
+      POSTGRES_DB: test_db
+      POSTGRES_PASSWORD: ''
+  redis:
+    image: redis:4.0.6
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v1
+
+      - name: Install dependencies
+        uses: circleci/postgres:9.6.2-alpine
+        working-directory: galaxy
+        run: yarn install

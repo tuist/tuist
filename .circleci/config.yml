@@ -1,10 +1,6 @@
 version: 2
 workflows:
   version: 2
-  install:
-    jobs:
-      - install:
-          context: tuist
   cli:
     jobs:
       - cli:
@@ -22,20 +18,6 @@ workflows:
               only: master
 
 jobs:
-  install:
-    macos:
-      xcode: '10.2.1'
-    steps:
-      - checkout
-      - run:
-          name: Install Tuist
-          command: |
-            ./install/install
-            tuist --help
-      - run:
-          name: Uninstall Tuist
-          command: |
-            ./install/uninstall
   cli:
     macos:
       xcode: '10.2.1'
