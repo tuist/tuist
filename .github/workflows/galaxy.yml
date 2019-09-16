@@ -24,5 +24,4 @@ jobs:
 
       - name: Install dependencies
         uses: circleci/postgres:9.6.2-alpine
-        working-directory: galaxy
-        run: yarn install
+        run: yarn install --cwd galaxy
