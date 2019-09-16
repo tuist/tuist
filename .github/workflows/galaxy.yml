@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-16.04
 
     container:
       image: circleci/ruby:2.6.3-node
