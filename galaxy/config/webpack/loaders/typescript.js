@@ -1,14 +1,17 @@
 const path = require('path')
-// const PnpWebpackPlugin = require('pnp-webpack-plugin')
 
 const configFile = path.join(__dirname, '../../../tsconfig.json')
 module.exports = {
-  test: /\.(ts|tsx)?(\.erb)?$/,
+  test: function(modulePath) {
+    return (
+      (modulePath.endsWith('.ts') || modulePath.endsWith('.tsx')) &&
+      !(modulePath.endsWith('test.ts') || modulePath.endsWith('test.tsx'))
+    )
+  },
   use: [
     {
       loader: 'ts-loader',
       options: {
-        // ...PnpWebpackPlugin.tsLoaderOptions(),
         configFile,
       },
     },
