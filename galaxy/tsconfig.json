@@ -14,13 +14,7 @@
     "sourceMap": true,
     "target": "es5"
   },
-  "exclude": [
-    "**/*.test.ts",
-    "**/*.spec.ts",
-    "stories",
-    "node_modules",
-    "vendor",
-    "public"
-  ],
+  "include": ["frontend/components"],
+  "exclude": ["**/*.test.ts", "stories", "node_modules", "vendor", "public"],
   "compileOnSave": false
 }
