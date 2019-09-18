@@ -24,4 +24,4 @@ if all_files.any? { |f| f =~ %r{Sources/} }
 end
 
 # Rubocop
-rubocop.lint(report_danger: true)
+rubocop.lint(report_danger: true, config: File.join(__dir__, '.rubocop.yml'))
