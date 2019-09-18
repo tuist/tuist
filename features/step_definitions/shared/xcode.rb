@@ -23,7 +23,7 @@ Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
   xcodebuild(*args)
 end
 
-Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configuration (.+)/) do |scheme, key, value, config|
+Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configuration (.+)/) do |scheme, key, value, config| # rubocop:disable Metrics/LineLength
   args = [
     "-scheme", scheme,
     "-workspace", @workspace_path,
