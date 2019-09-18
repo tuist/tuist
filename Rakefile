@@ -8,6 +8,7 @@ require 'fileutils'
 require "google/cloud/storage"
 require "encrypted/environment"
 require 'colorize'
+require 'highline'
 
 Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
@@ -29,10 +30,10 @@ task :style_ruby_correct do
   system("bundle", "exec", "rubocop", "-a")
 end
 
-desc("Builds tuist and tuistenv for release and archives them")
-task :package do
+desc("Builds, archives, and publishes tuist and tuistenv for release")
+task :release do
   decrypt_secrets
-  package
+  release
 end
 
 desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
@@ -62,7 +63,9 @@ def decrypt_secrets
   Encrypted::Environment.load_from_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
 end
 
-def package
+def release
+  version = cli.ask "Introduce the released version:"
+
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
   system("swift", "build", "--product", "tuist", "--configuration", "release")
@@ -80,10 +83,20 @@ def package
 
   FileUtils.cp(".build/release/tuist.zip", "build/tuist.zip")
   FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
+
+  bucket = storage.bucket("tuist-releases")
+
+  print_section("Uploading to the tuist-releases bucket on GCS")
+  bucket.create_file("build/tuist.zip", "#{version}/tuist.zip").acl.public!
+  bucket.create_file("build/tuistenv.zip", "#{version}/tuistenv.zip").acl.public!
 end
 
 def system(*args)
   Kernel.system(*args) || abort
+end
+
+def cli
+  @cli ||= HighLine.new
 end
 
 def storage
