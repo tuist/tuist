@@ -15,6 +15,5 @@
     "target": "es6"
   },
   "compileOnSave": false,
-  "include": ["./frontend/**/*"],
-  "exclude": ["node_modules/", "./frontend/**/*.test.ts"]
+  "exclude": ["**/*.test.ts", "node_modules", "vendor", "public"]
 }
