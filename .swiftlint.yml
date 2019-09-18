@@ -2,7 +2,7 @@ included:
   - Sources
 excluded:
   - Assets
-  - Fixtures
+  - fixtures
   - Tests
   - .build
 disabled_rules:

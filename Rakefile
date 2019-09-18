@@ -70,7 +70,11 @@ def package
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
 
   Dir.chdir(".build/release") do
-    system("zip", "-q", "-r", "--symlinks", "tuist.zip", "tuist", "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", " libProjectDescription.dylib")
+    system(
+      "zip", "-q", "-r", "--symlinks",
+      "tuist.zip", "tuist",
+      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", " libProjectDescription.dylib"
+    )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
 
