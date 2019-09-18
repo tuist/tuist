@@ -11,6 +11,7 @@ AllCops:
   DisplayCopNames: true
   DisplayStyleGuide: true
   Exclude:
+    - features/step_definitions/**/*
     - docs/**/*
     - .build/**/*
     - .circleci/**/*

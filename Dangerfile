@@ -11,7 +11,7 @@ if !git.modified_files.include?("CHANGELOG.md") && all_files.any? { |f| f.includ
 end
 
 # Linting
-swiftformat.additional_args = "--config .swiftformat"
+swiftformat.additional_args = "--config .swiftformat ."
 swiftformat.check_format(fail_on_error: true)
 swiftlint.lint_files(fail_on_error: true)
 
@@ -24,4 +24,4 @@ if all_files.any? { |f| f =~ %r{Sources/} }
 end
 
 # Rubocop
-rubocop.lint
+rubocop.lint(report_danger: true)
