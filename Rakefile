@@ -36,6 +36,12 @@ task :release do
   release
 end
 
+desc("Publishes the installation scripts")
+task :release_scripts do
+  decrypt_secrets
+  release_scripts
+end
+
 desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
 task :package_commit do
   decrypt_secrets
@@ -61,6 +67,13 @@ end
 
 def decrypt_secrets
   Encrypted::Environment.load_from_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
+end
+
+def release_scripts
+  bucket = storage.bucket("tuist-releases")
+  print_section("Uploading installation scripts to the tuist-releases bucket on GCS")
+  bucket.create_file("install/install", "scripts/install").acl.public!
+  bucket.create_file("install/uninstall", "scripts/uninstall").acl.public!
 end
 
 def release
