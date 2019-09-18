@@ -9,11 +9,12 @@
     "jsx": "react",
     "baseUrl": ".",
     "paths": {
-      "*": ["node_modules/*", "app/javascript/*"]
+      "*": ["node_modules/*", "frontend/*"]
     },
     "sourceMap": true,
-    "target": "es5"
+    "target": "es6"
   },
   "compileOnSave": false,
-  "exclude": ["node_modules", "*.test.ts"]
+  "include": ["frontend/**/*"],
+  "exclude": ["node_modules/**/*", "*.test.ts"]
 }

@@ -14,7 +14,7 @@
     "react-dom": "^16.8.6",
     "react_ujs": "^2.5.0",
     "ts-loader": "^6.0.4",
-    "typescript": "^3.5.2"
+    "typescript": "^3.6"
   },
   "devDependencies": {
     "@storybook/addon-info": "^5.1.9",
