@@ -100,8 +100,12 @@ def release
   bucket = storage.bucket("tuist-releases")
 
   print_section("Uploading to the tuist-releases bucket on GCS")
+  
   bucket.create_file("build/tuist.zip", "#{version}/tuist.zip").acl.public!
   bucket.create_file("build/tuistenv.zip", "#{version}/tuistenv.zip").acl.public!
+
+  bucket.create_file("build/tuist.zip", "latest/tuist.zip").acl.public!
+  bucket.create_file("build/tuistenv.zip", "latest/tuistenv.zip").acl.public!
 end
 
 def system(*args)
