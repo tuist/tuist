@@ -13,7 +13,7 @@
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
     "react_ujs": "^2.5.0",
-    "ts-loader": "^6.0.4",
+    "ts-loader": "^6.1.0",
     "tsc": "^1.20150623.0",
     "typescript": "^3.6"
   },
