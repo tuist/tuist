@@ -16,5 +16,5 @@
   },
   "compileOnSave": false,
   "include": ["frontend/**/*"],
-  "exclude": ["node_modules/**/*", "frontend/**/*.test.ts"]
+  "exclude": ["node_modules/", "frontend/**/*.test.ts"]
 }
