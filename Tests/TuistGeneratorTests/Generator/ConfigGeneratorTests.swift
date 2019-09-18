@@ -15,7 +15,7 @@ final class ConfigGeneratorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         pbxproj = PBXProj()

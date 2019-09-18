@@ -29,7 +29,7 @@ final class CommandRunnerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         versionResolver = MockVersionResolver()
@@ -62,7 +62,8 @@ final class CommandRunnerTests: XCTestCase {
         versionResolver.resolveStub = { _ in ResolvedVersion.bin(self.fileHandler.currentPath) }
         system.errorCommand(binaryPath.pathString, "--help", error: "error")
 
-        XCTAssertThrowsError(try subject.run())
+        try subject.run()
+        XCTAssertTrue(exited == 1)
     }
 
     func test_when_version_file() throws {
@@ -117,7 +118,8 @@ final class CommandRunnerTests: XCTestCase {
 
         system.errorCommand(binaryPath.pathString, "--help", error: "error")
 
-        XCTAssertThrowsError(try subject.run())
+        try subject.run()
+        XCTAssertTrue(exited == 1)
     }
 
     func test_when_highest_local_version_and_version_exists() throws {
@@ -187,6 +189,7 @@ final class CommandRunnerTests: XCTestCase {
 
         system.errorCommand(binaryPath.pathString, "--help", error: "error")
 
-        XCTAssertThrowsError(try subject.run())
+        try subject.run()
+        XCTAssertTrue(exited == 1)
     }
 }

@@ -24,7 +24,7 @@ final class OpenerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         system = MockSystem()

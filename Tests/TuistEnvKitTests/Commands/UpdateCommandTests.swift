@@ -13,7 +13,7 @@ final class UpdateCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
 
         parser = ArgumentParser(usage: "test", overview: "overview")
         updater = MockUpdater()

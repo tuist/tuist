@@ -28,7 +28,7 @@ final class BundleCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         parser = ArgumentParser(usage: "test", overview: "overview")

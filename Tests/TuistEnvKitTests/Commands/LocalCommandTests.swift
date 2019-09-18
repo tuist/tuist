@@ -14,7 +14,7 @@ final class LocalCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         argumentParser = ArgumentParser(usage: "test", overview: "overview")

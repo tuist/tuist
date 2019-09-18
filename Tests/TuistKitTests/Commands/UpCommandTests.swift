@@ -14,7 +14,7 @@ final class UpCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         parser = ArgumentParser.test()
