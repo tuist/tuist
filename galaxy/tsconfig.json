@@ -14,5 +14,6 @@
     "sourceMap": true,
     "target": "es5"
   },
-  "compileOnSave": false
+  "compileOnSave": false,
+  "exclude": ["node_modules", "*.test.ts"]
 }
