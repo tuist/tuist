@@ -7,7 +7,7 @@
   },
   "engies": {
     "node": "12.3.1",
-    "yarn": "1.16.0"
+    "yarn": "1.17.3"
   },
   "dependencies": {
     "@rails/webpacker": "4.0.7",
