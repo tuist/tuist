@@ -28,7 +28,7 @@ public class Printer: Printing {
 
     public func print(error: Error) {
         if Environment.shared.shouldOutputBeColoured {
-            printStandardErrorLine(error.localizedDescription.red().bold())
+            printStandardErrorLine("Error: \(error.localizedDescription)".localizedDescription.red().bold())
         } else {
             printStandardErrorLine("Error: \(error.localizedDescription)")
         }
@@ -36,7 +36,7 @@ public class Printer: Printing {
 
     public func print(success: String) {
         if Environment.shared.shouldOutputBeColoured {
-            printStandardOutputLine(success.green().bold())
+            printStandardOutputLine("Success: \(success)".green().bold())
         } else {
             printStandardOutputLine("Success: \(success)")
         }
@@ -47,7 +47,7 @@ public class Printer: Printing {
     /// - Parameter deprecation: Deprecation message.
     public func print(deprecation: String) {
         if Environment.shared.shouldOutputBeColoured {
-            printStandardOutputLine(deprecation.yellow().bold())
+            printStandardOutputLine("Deprecated: \(deprecation)".yellow().bold())
         } else {
             printStandardOutputLine("Deprecated: \(deprecation)")
         }
@@ -55,7 +55,7 @@ public class Printer: Printing {
 
     public func print(warning: String) {
         if Environment.shared.shouldOutputBeColoured {
-            printStandardOutputLine(warning.yellow().bold())
+            printStandardOutputLine("Warning: \(warning)".yellow().bold())
         } else {
             printStandardOutputLine("Warning: \(warning)")
         }
@@ -63,7 +63,7 @@ public class Printer: Printing {
 
     public func print(errorMessage: String) {
         if Environment.shared.shouldOutputBeColoured {
-            printStandardErrorLine(errorMessage.red().bold())
+            printStandardErrorLine("Error: \(errorMessage)".red().bold())
         } else {
             printStandardErrorLine("Error: \(errorMessage)")
         }

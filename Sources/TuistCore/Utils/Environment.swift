@@ -16,9 +16,6 @@ public protocol Environmenting: AnyObject {
 
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
-
-    /// Returns true if the standard output is interactive.
-    var isStandardOutputInteractive: Bool { get }
 }
 
 /// Local environment controller.
@@ -67,11 +64,10 @@ public class Environment: Environmenting {
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
-        let enabledValues = ["1", "true", "TRUE", "yes", "YES"]
         guard let colouredValue = ProcessInfo.processInfo.environment.first(where: { $0.key == Constants.EnvironmentVariables.colouredOutput })?.value else {
             return false
         }
-        return enabledValues.contains(colouredValue) || isStandardOutputInteractive
+        return Constants.trueValues.contains(colouredValue) || isStandardOutputInteractive
     }
 
     /// Returns true if the standard output is interactive.
