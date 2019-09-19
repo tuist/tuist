@@ -77,7 +77,7 @@ def release_scripts
 end
 
 def release
-  version = cli.ask "Introduce the released version:"
+  version = cli.ask("Introduce the released version:")
 
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
@@ -100,7 +100,7 @@ def release
   bucket = storage.bucket("tuist-releases")
 
   print_section("Uploading to the tuist-releases bucket on GCS")
-  
+
   bucket.create_file("build/tuist.zip", "#{version}/tuist.zip").acl.public!
   bucket.create_file("build/tuistenv.zip", "#{version}/tuistenv.zip").acl.public!
 
