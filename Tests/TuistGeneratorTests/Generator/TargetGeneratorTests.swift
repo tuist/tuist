@@ -108,7 +108,7 @@ final class TargetGeneratorTests: XCTestCase {
     }
 
     func test_generateTarget_actions() throws {
-        /// Given
+        // Given
         let graph = Graph.test()
         let target = Target.test(sources: [],
                                  resources: [],
@@ -127,7 +127,7 @@ final class TargetGeneratorTests: XCTestCase {
                                               pbxproj: pbxproj,
                                               sourceRootPath: path)
 
-        /// When
+        // When
         let pbxTarget = try subject.generateTarget(target: target,
                                                    pbxproj: pbxproj,
                                                    pbxProject: pbxProject,
@@ -137,7 +137,7 @@ final class TargetGeneratorTests: XCTestCase {
                                                    sourceRootPath: path,
                                                    graph: graph)
 
-        /// Then
+        // Then
         let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
         XCTAssertEqual(preBuildPhase?.name, "pre")
         XCTAssertEqual(preBuildPhase?.shellPath, "/bin/sh")

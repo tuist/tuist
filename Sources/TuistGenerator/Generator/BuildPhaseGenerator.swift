@@ -43,7 +43,7 @@ protocol BuildPhaseGenerating: AnyObject {
     ///   - actions: Actions to be generated as script build phases.
     ///   - pbxTarget: PBXTarget from the Xcode project.
     ///   - pbxproj: PBXProj instance.
-    ///   - sourceRootPath: Path to the directory that will contain the genreated project.
+    ///   - sourceRootPath: Path to the directory that will contain the generated project.
     /// - Throws: An error if the script phase can't be generated.
     func generateActions(actions: [TargetAction],
                          pbxTarget: PBXTarget,

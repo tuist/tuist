@@ -102,7 +102,7 @@ final class TargetGenerator: TargetGenerating {
                                         graph: graph,
                                         system: system)
 
-        /// Pos actions
+        /// Post actions
         try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
                                                 pbxTarget: pbxTarget,
                                                 pbxproj: pbxproj,
