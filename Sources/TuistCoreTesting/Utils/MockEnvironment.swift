@@ -1,8 +1,9 @@
 import Basic
 import Foundation
 import TuistCore
+import XCTest
 
-public class MockEnvironmentController: EnvironmentControlling {
+public class MockEnvironment: Environmenting {
     let directory: TemporaryDirectory
     var setupCallCount: UInt = 0
     var setupErrorStub: Error?
@@ -13,6 +14,9 @@ public class MockEnvironmentController: EnvironmentControlling {
                                                 withIntermediateDirectories: true,
                                                 attributes: nil)
     }
+
+    public var shouldOutputBeColoured: Bool = false
+    public var isStandardOutputInteractive: Bool = false
 
     public var versionsDirectory: AbsolutePath {
         return directory.path.appending(component: "Versions")
@@ -28,5 +32,17 @@ public class MockEnvironmentController: EnvironmentControlling {
 
     func path(version: String) -> AbsolutePath {
         return versionsDirectory.appending(component: version)
+    }
+}
+
+extension XCTestCase {
+    func sharedMockEnvironment(file: StaticString = #file, line: UInt = #line) -> MockEnvironment? {
+        guard let mock = Environment.shared as? MockEnvironment else {
+            let message = "Environment hasn't been mocked." +
+                "You can call mockEnvironment(), or mockSharedInstances() to mock the file handler or the environment respectively."
+            XCTFail(message, file: file, line: line)
+            return nil
+        }
+        return mock
     }
 }

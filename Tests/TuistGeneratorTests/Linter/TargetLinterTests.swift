@@ -11,7 +11,7 @@ final class TargetLinterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         subject = TargetLinter()

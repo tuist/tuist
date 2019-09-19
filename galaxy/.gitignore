@@ -1,9 +1,11 @@
 node_modules
 tmp
 log/
-/public/packs
-/public/packs-test
-/node_modules
-/yarn-error.log
+public/packs/
+public/packs-test
+public/assets/
+node_modules
+yarn-error.log
 yarn-debug.log*
 .yarn-integrity
+package-lock.json

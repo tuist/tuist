@@ -8,18 +8,6 @@ public final class MockPrinter: Printing {
     var standardError: String = ""
 
     public func print(_ text: String) {
-        print(text, output: .standardOputput)
-    }
-
-    public func print(_ text: String, output: PrinterOutput) {
-        if output == .standardOputput {
-            standardOutput.append("\(text)\n")
-        } else {
-            standardError.append("\(text)\n")
-        }
-    }
-
-    public func print(_ text: String, color _: TerminalController.Color) {
         standardOutput.append("\(text)\n")
     }
 
@@ -52,12 +40,10 @@ public final class MockPrinter: Printing {
     }
 
     func standardOutputMatches(with pattern: String) -> Bool {
-        // swiftlint:disable:next force_try
         return standardOutput.contains(pattern)
     }
 
     func standardErrorMatches(with pattern: String) -> Bool {
-        // swiftlint:disable:next force_try
         return standardError.contains(pattern)
     }
 }
@@ -96,7 +82,7 @@ extension XCTestCase {
     fileprivate func sharedMockPrinter(file: StaticString = #file, line: UInt = #line) -> MockPrinter? {
         guard let mock = Printer.shared as? MockPrinter else {
             let message = "Printer.shared hasn't been mocked." +
-                "You can call mockPrinter(), or mockEnvironment() to mock the printer or the environment respectively."
+                "You can call mockPrinter(), or mockSharedInstances() to mock the printer or the environment respectively."
             XCTFail(message, file: file, line: line)
             return nil
         }

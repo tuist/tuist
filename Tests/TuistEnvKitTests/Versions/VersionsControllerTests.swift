@@ -13,17 +13,17 @@ final class InstalledVersionTests: XCTestCase {
 }
 
 final class VersionsControllerTests: XCTestCase {
-    var environmentController: MockEnvironmentController!
+    var environment: MockEnvironment!
     var fileHandler: MockFileHandler!
     var subject: VersionsController!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
+        environment = sharedMockEnvironment()
 
-        environmentController = try! MockEnvironmentController()
-        subject = VersionsController(environmentController: environmentController)
+        subject = VersionsController()
     }
 
     func test_install() throws {
@@ -32,7 +32,7 @@ final class VersionsControllerTests: XCTestCase {
             try Data().write(to: testPath.url)
         }
 
-        let versionsPath = environmentController.versionsDirectory
+        let versionsPath = environment.versionsDirectory
         let testPath = versionsPath.appending(RelativePath("3.2.1/test"))
 
         XCTAssertTrue(fileHandler.exists(testPath))
@@ -41,12 +41,12 @@ final class VersionsControllerTests: XCTestCase {
     func test_path_for_version() {
         let got = subject.path(version: "ref")
 
-        XCTAssertEqual(got, environmentController.versionsDirectory.appending(component: "ref"))
+        XCTAssertEqual(got, environment.versionsDirectory.appending(component: "ref"))
     }
 
     func test_versions() throws {
-        try fileHandler.createFolder(environmentController.versionsDirectory.appending(component: "3.2.1"))
-        try fileHandler.createFolder(environmentController.versionsDirectory.appending(component: "ref"))
+        try fileHandler.createFolder(environment.versionsDirectory.appending(component: "3.2.1"))
+        try fileHandler.createFolder(environment.versionsDirectory.appending(component: "ref"))
 
         let versions = subject.versions()
 

@@ -1,8 +1,7 @@
 # file options
 
 --symlinks ignore
---exclude Tests/XCTestManifests.swift
---exclude fixtures/
+--exclude Tests/XCTestManifests.swift,fixtures/,features/
 
 # format options
 

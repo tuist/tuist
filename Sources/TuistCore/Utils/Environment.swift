@@ -1,9 +1,10 @@
 import Basic
+import Darwin.C
 import Foundation
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
-public protocol EnvironmentControlling: AnyObject {
+public protocol Environmenting: AnyObject {
     /// Returns the versions directory.
     var versionsDirectory: AbsolutePath { get }
 
@@ -12,10 +13,15 @@ public protocol EnvironmentControlling: AnyObject {
 
     /// Returns the directory where all the derived projects are generated.
     var derivedProjectsDirectory: AbsolutePath { get }
+
+    /// Returns true if the output of Tuist should be coloured.
+    var shouldOutputBeColoured: Bool { get }
 }
 
 /// Local environment controller.
-public class EnvironmentController: EnvironmentControlling {
+public class Environment: Environmenting {
+    public static var shared: Environmenting = Environment()
+
     /// Returns the default local directory.
     static let defaultDirectory: AbsolutePath = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
 
@@ -28,9 +34,9 @@ public class EnvironmentController: EnvironmentControlling {
     private let fileHandler: FileHandling
 
     /// Default public constructor.
-    public convenience init() {
-        self.init(directory: EnvironmentController.defaultDirectory,
-                  fileHandler: FileHandler())
+    convenience init() {
+        self.init(directory: Environment.defaultDirectory,
+                  fileHandler: FileHandler.shared)
     }
 
     /// Default environment constroller constructor.
@@ -56,6 +62,20 @@ public class EnvironmentController: EnvironmentControlling {
         }
     }
 
+    /// Returns true if the output of Tuist should be coloured.
+    public var shouldOutputBeColoured: Bool {
+        return isStandardOutputInteractive || isColouredOutputEnvironmentTrue
+    }
+
+    /// Returns true if the standard output is interactive.
+    public var isStandardOutputInteractive: Bool {
+        let termType = ProcessInfo.processInfo.environment["TERM"]
+        if let t = termType, t.lowercased() != "dumb", isatty(fileno(stdout)) != 0 {
+            return true
+        }
+        return false
+    }
+
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
         return directory.appending(component: "Versions")
@@ -69,5 +89,16 @@ public class EnvironmentController: EnvironmentControlling {
     /// Settings path.
     public var settingsPath: AbsolutePath {
         return directory.appending(component: "settings.json")
+    }
+
+    // MARK: - Fileprivate
+
+    /// Return true if the the coloured output is forced through an environment variable.
+    fileprivate var isColouredOutputEnvironmentTrue: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return !environment
+            .filter { $0.key == Constants.EnvironmentVariables.colouredOutput }
+            .filter { Constants.trueValues.contains($0.value) }
+            .isEmpty
     }
 }

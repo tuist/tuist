@@ -14,7 +14,7 @@ final class UpdaterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
 
         githubClient = MockGitHubClient()
         versionsController = try! MockVersionsController()

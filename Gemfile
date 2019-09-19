@@ -9,7 +9,7 @@ gem "byebug", "~> 11.0"
 gem "minitest", "~> 5.11"
 gem "simctl", "~> 1.6"
 gem "rubocop", "~> 0.74.0"
-gem "danger-rubocop", "~> 0.6.1"
+gem "danger-rubocop", git: 'git@github.com:tuist/danger-rubocop.git'
 gem "danger-swiftformat", "~> 0.6.0"
 gem "danger-swiftlint", "~> 0.23.0"
 gem "encrypted-environment", "~> 0.2.0"
