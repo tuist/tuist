@@ -107,6 +107,48 @@ final class TargetGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateTarget_actions() throws {
+        /// Given
+        let graph = Graph.test()
+        let target = Target.test(sources: [],
+                                 resources: [],
+                                 actions: [
+                                     TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"]),
+                                     TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
+                                 ])
+        let project = Project.test(path: path, targets: [target])
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            sourceRootPath: path,
+                                            playgrounds: MockPlaygrounds())
+        try fileElements.generateProjectFiles(project: project,
+                                              graph: graph,
+                                              groups: groups,
+                                              pbxproj: pbxproj,
+                                              sourceRootPath: path)
+
+        /// When
+        let pbxTarget = try subject.generateTarget(target: target,
+                                                   pbxproj: pbxproj,
+                                                   pbxProject: pbxProject,
+                                                   projectSettings: Settings.test(),
+                                                   fileElements: fileElements,
+                                                   path: path,
+                                                   sourceRootPath: path,
+                                                   graph: graph)
+
+        /// Then
+        let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
+        XCTAssertEqual(preBuildPhase?.name, "pre")
+        XCTAssertEqual(preBuildPhase?.shellPath, "/bin/sh")
+        XCTAssertEqual(preBuildPhase?.shellScript, "script.sh arg")
+
+        let postBuildPhase = pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase
+        XCTAssertEqual(postBuildPhase?.name, "post")
+        XCTAssertEqual(postBuildPhase?.shellPath, "/bin/sh")
+        XCTAssertEqual(postBuildPhase?.shellScript, "script.sh arg")
+    }
+
     // MARK: - Helpers
 
     private func createTargetNodes(project: Project,

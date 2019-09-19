@@ -175,3 +175,11 @@ Scenario: The project is an iOS application with an incompatible Xcode version (
     And I have a working directory
     Then I copy the fixture ios_app_with_incompatible_xcode into the working directory
     Then tuist generates yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode"
+
+Scenario: The project is an iOS application with target actions
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_actions into the working directory
+    Then tuist generates the project
+    Then the target App should have the build phase Tuist in the first position
+    Then the target App should have the build phase Rocks in the last position

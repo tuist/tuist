@@ -16,3 +16,5 @@ gem "encrypted-environment", "~> 0.2.0"
 gem "google-cloud-storage", "~> 1.21"
 gem "colorize", "~> 0.8.1"
 gem "cocoapods", "~> 1.7"
+
+gem "xcodeproj", "~> 1.12"

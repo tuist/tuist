@@ -7,11 +7,13 @@ end
 Then(/tuist generates the project/) do
   system("swift", "run", "tuist", "generate", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/tuist sets up the project/) do
   system("swift", "run", "tuist", "up", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/tuist generates yields error "(.+)"/) do |error|

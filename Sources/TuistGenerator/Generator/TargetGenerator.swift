@@ -67,6 +67,12 @@ final class TargetGenerator: TargetGenerating {
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 
+        /// Pre actions
+        try buildPhaseGenerator.generateActions(actions: target.actions.preActions,
+                                                pbxTarget: pbxTarget,
+                                                pbxproj: pbxproj,
+                                                sourceRootPath: sourceRootPath)
+
         /// Build configuration
         try configGenerator.generateTargetConfig(target,
                                                  pbxTarget: pbxTarget,
@@ -95,6 +101,12 @@ final class TargetGenerator: TargetGenerating {
                                         sourceRootPath: sourceRootPath,
                                         graph: graph,
                                         system: system)
+
+        /// Pos actions
+        try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
+                                                pbxTarget: pbxTarget,
+                                                pbxproj: pbxproj,
+                                                sourceRootPath: sourceRootPath)
         return pbxTarget
     }
 
