@@ -76,9 +76,7 @@ def release_scripts
   bucket.create_file("install/uninstall", "scripts/uninstall").acl.public!
 end
 
-def release
-  version = cli.ask("Introduce the released version:")
-
+def package
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
   system("swift", "build", "--product", "tuist", "--configuration", "release")
@@ -96,6 +94,12 @@ def release
 
   FileUtils.cp(".build/release/tuist.zip", "build/tuist.zip")
   FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
+end
+
+def release
+  version = cli.ask("Introduce the released version:")
+
+  package
 
   bucket = storage.bucket("tuist-releases")
 
