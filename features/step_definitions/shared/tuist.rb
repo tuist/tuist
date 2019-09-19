@@ -16,9 +16,8 @@ Then(/tuist sets up the project/) do
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(/tuist generates yields error "(.+)"/) do |error|
-  expected_msg = error.sub!("${ARG_PATH}", @dir)
-  system("swift", "build")
+Then(/tuist generate yields error "(.+)"/) do |error|
+  expected_msg = error.gsub("${ARG_PATH}", @dir)
   _, stderr, status = Open3.capture3("swift", "run", "--skip-build", "tuist", "generate", "--path", @dir)
   actual_msg = stderr.strip
 
