@@ -29,7 +29,7 @@ Then(/tuist generates yields error "(.+)"/) do |error|
     Does not contain the expected:
       #{error}
   EOD
-  assert actual_msg.include?(error), error_message
+  assert actual_msg.include?(expected_msg), error_message
   refute status.success?
 end
 
