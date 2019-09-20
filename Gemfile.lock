@@ -235,6 +235,7 @@ DEPENDENCIES
   rake (~> 12.3)
   rubocop (~> 0.74.0)
   simctl (~> 1.6)
+  xcodeproj (~> 1.12)
 
 BUNDLED WITH
    1.17.3
