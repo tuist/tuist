@@ -51,7 +51,7 @@ It requires putting ourselves in the user's shoes and imagine how the changes wo
 keeping the documentation up to date is crucial for developers to adopt them.
 Moreover,
 it's a very valuable asset for new adopters that are giving Tuist a try.
-Pull request that change the user interface of Tuist,
+Pull requests that change the user interface of Tuist,
 for example adding support for a new argument,
 must include documentation.
 
