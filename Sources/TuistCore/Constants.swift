@@ -13,4 +13,8 @@ public class Constants {
     public class EnvironmentVariables {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
     }
+
+    public class GoogleCloud {
+        public static let relasesBucketURL = "https://storage.googleapis.com/tuist-releases/"
+    }
 }
