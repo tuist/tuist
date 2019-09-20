@@ -21,7 +21,7 @@ class GraphLinter: GraphLinting {
 
     struct StaticDepedencyWarning: Hashable {
         let fromTargetNode: TargetNode
-        let toTargetNode: TargetNode
+        let toTargetNode: GraphNode
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(toTargetNode)
@@ -134,6 +134,10 @@ class GraphLinter: GraphLinting {
                 issues.append(contentsOf: lintDependency(from: targetNode,
                                                          to: toTargetNode,
                                                          linkedStaticProducts: &linkedStaticProducts))
+            } else if let toPackageNode = toNode as? PackageNode {
+                issues.append(contentsOf: lintPackageDependency(from: targetNode,
+                                                         to: toPackageNode,
+                                                         linkedStaticProducts: &linkedStaticProducts))
             }
             issues.append(contentsOf: lintGraphNode(node: toNode,
                                                     evaluatedNodes: &evaluatedNodes,
@@ -141,6 +145,25 @@ class GraphLinter: GraphLinting {
         }
 
         return issues
+    }
+    
+    /// Package dependencies are also static products, so we need to perform the same check as for them
+    private func lintPackageDependency(from: TargetNode,
+                                       to: PackageNode,
+                                       linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
+        guard from.target.canLinkStaticProducts() else {
+            return []
+        }
+        let warning = StaticDepedencyWarning(fromTargetNode: from,
+                                             toTargetNode: to)
+        let (inserted, oldMember) = linkedStaticProducts.insert(warning)
+        guard inserted == false else {
+            return []
+        }
+
+        let reason = "Package \(to.name) has been linked against \(oldMember.fromTargetNode.target.name) and \(from.target.name), it is a static product so may introduce unwanted side effects."
+        let issue = LintingIssue(reason: reason, severity: .warning)
+        return [issue]
     }
 
     private func lintDependency(from: TargetNode,

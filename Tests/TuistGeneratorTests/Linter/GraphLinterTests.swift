@@ -123,6 +123,34 @@ final class GraphLinterTests: XCTestCase {
 
         XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)))
     }
+    
+    func test_lint_when_package_dependency_linked_twice() throws {
+        let cache = GraphLoaderCache()
+
+        let appTarget = Target.test(name: "AppTarget", dependencies: [.package(.local(path: RelativePath("packageLibrary"), productName: "PackageLibrary")), .target(name: "frameworkA")])
+        let frameworkTarget = Target.test(name: "frameworkA", dependencies: [.target(name: "staticFramework")])
+
+        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
+        let projectFramework = Project.test(path: "/tmp/framework", name: "projectFramework", targets: [frameworkTarget])
+        
+        let package = PackageNode(packageType: .local(path: RelativePath("packageLibrary"), productName: "PackageLibrary"), path: "/tmp/packageLibrary")
+        let framework = TargetNode(project: projectFramework, target: frameworkTarget, dependencies: [package])
+        let appTargetNode = TargetNode(project: app, target: appTarget, dependencies: [package, framework])
+
+        cache.add(project: app)
+        cache.add(targetNode: appTargetNode)
+        cache.add(targetNode: framework)
+        cache.add(package: package)
+
+        let graph = Graph.test(cache: cache, entryNodes: [appTargetNode, framework, package])
+        
+        let versionStub = Version(11, 0, 0)
+        xcodeController.selectedVersionStub = .success(versionStub)
+
+        let result = subject.lint(graph: graph)
+
+        XCTAssertTrue(result.contains(LintingIssue(reason: "Package PackageLibrary has been linked against AppTarget and frameworkA, it is a static product so may introduce unwanted side effects.", severity: .warning)))
+    }
 
     func test_lint_when_static_product_linked_twice() throws {
         let cache = GraphLoaderCache()
