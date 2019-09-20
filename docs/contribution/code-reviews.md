@@ -41,7 +41,7 @@ A good test is a test that consistently produces the same result and that it's e
 Reviewers spend most of the review time in the implementation code,
 but tests are equally important because they are code too.
 
-**⚠️ Breaking changes:** Breaking changes are a bad user experience from Tuist.
+**⚠️ Breaking changes:** Breaking changes are a bad user experience for users of Tuist.
 Contributions should avoid introducing breaking changes unless it's strictly necessary.
 There are many language features that we can leverage to evolve the interface of Tuist without resorting to a breaking change.
 Whether a change is breaking or not might not be obvious.
