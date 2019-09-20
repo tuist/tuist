@@ -45,6 +45,7 @@ but tests are equally important because they are code too.
 Contributions should avoid introducing breaking changes unless it's strictly necessary.
 There are many language features that we can leverage to evolve the interface of Tuist without resorting to a breaking change.
 Whether a change is breaking or not might not be obvious.
+A method to verify whether the change is breaking is running Tuist against the fixture projects in the `fixtures` directory.
 It requires putting ourselves in the user's shoes and imagine how the changes would impact them.
 
 **📝 Documentation:** As the project grows and we continue to add more features,
