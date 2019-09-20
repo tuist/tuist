@@ -62,6 +62,9 @@ final class FileHandlerTests: XCTestCase {
         
         // Then
         XCTAssertEqual(try subject.readTextFile(destFile.path), try subject.readTextFile(symlinkPath))
+        
+        // Cleanup
+        try subject.delete(symlinkPath)
     }
     
     func test_exists_does_not_follow_symlink() throws {
@@ -76,6 +79,9 @@ final class FileHandlerTests: XCTestCase {
         // Then
         XCTAssertTrue(subject.exists(symlinkPath, followSymlink: false))
         XCTAssertFalse(subject.exists(symlinkPath, followSymlink: true))
+        
+        // Cleanup
+        try subject.delete(symlinkPath)
     }
 
     // MARK: - Private
