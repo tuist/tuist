@@ -55,7 +55,7 @@ Pull requests that change the user interface of Tuist,
 for example adding support for a new argument,
 must include documentation.
 
-**📝 Changelog:** The `CHANGELOG.md` file to put together a list of changes that are released with new versions.
+**📝 Changelog:** The `CHANGELOG.md` file contains a list of changes that are released with new versions.
 Pull requests should add an entry to that file describing in one sentence what the change is about.
 They should link to the pull request and mention the author or authors of the changes.
 
