@@ -1,2 +1,5 @@
 #!/bin/bash
 rm -rf /usr/local/bin/tuist
+rm -rf ~/.tuist
+
+echo "Tuist uninstalled"

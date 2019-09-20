@@ -69,7 +69,6 @@ The list of actions will likely grow as we get feedback from you.
 
 ```bash
 bash <(curl -Ls https://tuist.io/install)
-
 ```
 
 ## Bootstrap your first project 🌀
