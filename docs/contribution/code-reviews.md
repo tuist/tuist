@@ -36,7 +36,7 @@ suggest them to open an issue where we can discuss them further.
 
 **✅ Tests:** Tests allow changing code with confidence.
 The code on pull requests should be tested,
-and tests should be good.
+and all tests should pass.
 A good test is a test that consistently produces the same result and that it's easy to understand and maintain.
 Reviewers spend most of the review time in the implementation code,
 but tests are equally important because they are code too.
