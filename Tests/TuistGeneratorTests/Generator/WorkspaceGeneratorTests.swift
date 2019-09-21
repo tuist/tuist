@@ -13,7 +13,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         path = fileHandler.currentPath

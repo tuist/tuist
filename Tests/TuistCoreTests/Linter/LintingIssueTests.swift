@@ -7,7 +7,7 @@ import XCTest
 final class LintingIssueTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
     }
 
     func test_description() {
@@ -30,13 +30,11 @@ final class LintingIssueTests: XCTestCase {
         XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
 
         XCTAssertPrinterOutputContains("""
-        The following issues have been found:
-          - warning
+        - warning
         """
         )
         XCTAssertPrinterErrorContains("""
-        The following critical issues have been found:
-          - error
+        - error
         """
         )
     }
@@ -47,8 +45,7 @@ final class LintingIssueTests: XCTestCase {
         XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
 
         XCTAssertPrinterErrorContains("""
-        The following critical issues have been found:
-          - error
+        - error
         """
         )
     }

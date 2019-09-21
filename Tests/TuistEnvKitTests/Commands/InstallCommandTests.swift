@@ -14,7 +14,7 @@ final class InstallCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
 
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()

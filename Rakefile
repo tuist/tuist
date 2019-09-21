@@ -8,6 +8,7 @@ require 'fileutils'
 require "google/cloud/storage"
 require "encrypted/environment"
 require 'colorize'
+require 'highline'
 
 Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
@@ -29,10 +30,16 @@ task :style_ruby_correct do
   system("bundle", "exec", "rubocop", "-a")
 end
 
-desc("Builds tuist and tuistenv for release and archives them")
-task :package do
+desc("Builds, archives, and publishes tuist and tuistenv for release")
+task :release do
   decrypt_secrets
-  package
+  release
+end
+
+desc("Publishes the installation scripts")
+task :release_scripts do
+  decrypt_secrets
+  release_scripts
 end
 
 desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
@@ -62,6 +69,13 @@ def decrypt_secrets
   Encrypted::Environment.load_from_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
 end
 
+def release_scripts
+  bucket = storage.bucket("tuist-releases")
+  print_section("Uploading installation scripts to the tuist-releases bucket on GCS")
+  bucket.create_file("install/install", "scripts/install").acl.public!
+  bucket.create_file("install/uninstall", "scripts/uninstall").acl.public!
+end
+
 def package
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
@@ -70,7 +84,11 @@ def package
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
 
   Dir.chdir(".build/release") do
-    system("zip", "-q", "-r", "--symlinks", "tuist.zip", "tuist", "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", " libProjectDescription.dylib")
+    system(
+      "zip", "-q", "-r", "--symlinks",
+      "tuist.zip", "tuist",
+      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", " libProjectDescription.dylib"
+    )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
 
@@ -78,8 +96,28 @@ def package
   FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
 end
 
+def release
+  version = cli.ask("Introduce the released version:")
+
+  package
+
+  bucket = storage.bucket("tuist-releases")
+
+  print_section("Uploading to the tuist-releases bucket on GCS")
+
+  bucket.create_file("build/tuist.zip", "#{version}/tuist.zip").acl.public!
+  bucket.create_file("build/tuistenv.zip", "#{version}/tuistenv.zip").acl.public!
+
+  bucket.create_file("build/tuist.zip", "latest/tuist.zip").acl.public!
+  bucket.create_file("build/tuistenv.zip", "latest/tuistenv.zip").acl.public!
+end
+
 def system(*args)
   Kernel.system(*args) || abort
+end
+
+def cli
+  @cli ||= HighLine.new
 end
 
 def storage

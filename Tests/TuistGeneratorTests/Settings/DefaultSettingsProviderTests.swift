@@ -49,7 +49,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
     private let appTargetEssentialDebugSettings: [String: SettingValue] = [
         "SDKROOT": "iphoneos",
-        "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks",
+        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks"],
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
@@ -57,7 +57,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
     ]
 
     private let appTargetEssentialReleaseSettings: [String: SettingValue] = [
-        "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks",
+        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks"],
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SWIFT_COMPILATION_MODE": "wholemodule",
@@ -77,7 +77,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SDKROOT": "iphoneos",
-        "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks @loader_path/Frameworks",
+        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
         "DEFINES_MODULE": "YES",
         "VERSION_INFO_PREFIX": "",
         "CURRENT_PROJECT_VERSION": "1",
@@ -88,7 +88,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
     private let frameworkTargetEssentialReleaseSettings: [String: SettingValue] = [
         "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
-        "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks @loader_path/Frameworks",
+        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
         "DEFINES_MODULE": "YES",
         "DYLIB_INSTALL_NAME_BASE": "@rpath",
         "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",

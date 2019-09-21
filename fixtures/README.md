@@ -229,3 +229,7 @@ An iOS application with CocoaPods dependencies
 ## ios_app_with_incompatible_xcode
 
 An iOS app whose TuistConfig file requires an Xcode version that is not available in the system.
+
+## ios_app_with_actions
+
+An iOS app with a target that has pre and post actions.

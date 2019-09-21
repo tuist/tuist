@@ -23,7 +23,7 @@ final class CocoaPodsInteractorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
 
         system = MockSystem()
         subject = CocoaPodsInteractor(system: system)

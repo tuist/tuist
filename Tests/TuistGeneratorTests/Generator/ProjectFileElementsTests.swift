@@ -16,7 +16,7 @@ final class ProjectFileElementsTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         playgrounds = MockPlaygrounds()

@@ -14,7 +14,7 @@ final class ErrorHandlerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
 
         subject = ErrorHandler {
             self.exited = $0

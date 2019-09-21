@@ -36,6 +36,19 @@ protocol BuildPhaseGenerating: AnyObject {
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj,
                              sourceRootPath: AbsolutePath) throws
+
+    /// Generates target actions
+    ///
+    /// - Parameters:
+    ///   - actions: Actions to be generated as script build phases.
+    ///   - pbxTarget: PBXTarget from the Xcode project.
+    ///   - pbxproj: PBXProj instance.
+    ///   - sourceRootPath: Path to the directory that will contain the generated project.
+    /// - Throws: An error if the script phase can't be generated.
+    func generateActions(actions: [TargetAction],
+                         pbxTarget: PBXTarget,
+                         pbxproj: PBXProj,
+                         sourceRootPath: AbsolutePath) throws
 }
 
 final class BuildPhaseGenerator: BuildPhaseGenerating {
@@ -47,12 +60,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj,
-                             sourceRootPath: AbsolutePath) throws {
-        try generateActions(actions: target.actions.preActions,
-                            pbxTarget: pbxTarget,
-                            pbxproj: pbxproj,
-                            sourceRootPath: sourceRootPath)
-
+                             sourceRootPath _: AbsolutePath) throws {
         if let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
                                           pbxTarget: pbxTarget,
@@ -71,11 +79,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
-
-        try generateActions(actions: target.actions.postActions,
-                            pbxTarget: pbxTarget,
-                            pbxproj: pbxproj,
-                            sourceRootPath: sourceRootPath)
     }
 
     func generateActions(actions: [TargetAction],

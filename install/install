@@ -138,7 +138,13 @@ if should_install_command_line_tools?
   # This temporary file prompts the 'softwareupdate' utility to list the Command Line Tools
   clt_placeholder = '/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress'
   sudo('/usr/bin/touch', clt_placeholder)
-  clt_label = %x(/usr/sbin/softwareupdate -l | grep -B 1 -E "Command Line (Developer|Tools)" | awk -F"*" '/^ +\\*/ {print $2}' | sed 's/^ *//' | tail -n1).chomp
+  clt_label = %x(
+    /usr/sbin/softwareupdate -l \
+    | grep -B 1 -E "Command Line (Developer|Tools)" \
+    | awk -F"*" '/^ +\\*/ {print $2}' \
+    | sed 's/^ *//' \
+    | tail -n1
+  ).chomp
   ohai("Installing #{clt_label}")
   sudo('/usr/sbin/softwareupdate', '-i', clt_label)
   sudo('/bin/rm', '-f', clt_placeholder)
@@ -186,4 +192,4 @@ ohai('Tuist installed 🎉')
 
 puts '- Run `tuist --help` to get started'
 puts '- Further documentation: '
-puts "    #{Tty.underline}https://tuist.io#{Tty.reset}"
+puts "    #{Tty.underline}https://docs.tuist.io#{Tty.reset}"

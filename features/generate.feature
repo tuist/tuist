@@ -44,7 +44,7 @@ Feature: Generate a new project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture invalid_workspace_manifest_name into the working directory
-    Then tuist generates reports error "Error: Manifest not found at path ${ARG_PATH}"
+    Then tuist generate yields error "Error: Manifest not found at path ${ARG_PATH}"
 
   Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_libraries)
     Given that tuist is available
@@ -179,17 +179,25 @@ Scenario: The project is an iOS application with CocoaPods dependencies (ios_app
   Then I copy the fixture ios_app_with_pods into the working directory
   Then tuist generates the project
   Then I should be able to build the scheme App
-    
+
 Scenario: The project is an iOS application with an incompatible Xcode version (ios_app_with_incompatible_xcode)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_incompatible_xcode into the working directory
-    Then tuist generates yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode"
+    Then tuist generate yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode"
+
+Scenario: The project is an iOS application with target actions
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_actions into the working directory
+    Then tuist generates the project
+    Then the target App should have the build phase Tuist in the first position
+    Then the target App should have the build phase Rocks in the last position
 
 Scenario: The project is an iOS application with remote Swift package (ios_app_with_remote_swift_package)
-  Given that tuist is available
-  And I have a working directory
-  Then I copy the fixture ios_app_with_remote_swift_package into the working directory
-  Then tuist generates the project
-  Then I should be able to build the scheme App
-  Then I should be able to test the scheme AppTests
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_remote_swift_package into the working directory
+    Then tuist generates the project
+    Then I should be able to build the scheme App
+    Then I should be able to test the scheme AppTests

@@ -59,7 +59,7 @@ export default {
     'Project & Workspace',
     'Configuration',
     'Dependencies',
-    'Up tasks',
+    'Setup',
     'Graph',
     'Managing versions',
     'Frequently asked questions',

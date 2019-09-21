@@ -12,7 +12,7 @@ final class ProjectFilesSortenerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
 
         subject = ProjectFilesSortener()

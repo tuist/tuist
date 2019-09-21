@@ -6,14 +6,21 @@
     "lib": ["es6", "dom"],
     "module": "es6",
     "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
     "jsx": "react",
     "baseUrl": ".",
     "paths": {
-      "*": ["node_modules/*", "app/javascript/*"]
+      "*": ["node_modules/*", "frontend/*"]
     },
     "sourceMap": true,
     "target": "es5"
   },
-  "exclude": ["**/*.spec.ts", "node_modules", "vendor", "public"],
+  "exclude": [
+    "../../../**/*.spec.ts",
+    "stories",
+    "node_modules",
+    "vendor",
+    "public"
+  ],
   "compileOnSave": false
 }

@@ -1,5 +1,5 @@
 import UIKit
-import RxSwift
+import Pod
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -10,8 +10,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
-        // To make sure RxSwift is available
-        let observable = Observable.just("Test")
+        // To make sure Pod is available
+        let pod = Pod()
         
         window = UIWindow(frame: UIScreen.main.bounds)
         let viewController = UIViewController()

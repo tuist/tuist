@@ -42,7 +42,7 @@
         "repositoryURL": "https://github.com/apple/swift-llbuild.git",
         "state": {
           "branch": "master",
-          "revision": "c67ef170774ff1b701de03386d5cf7c07271103a",
+          "revision": "78d344a48f05fa91cf2734a5164174154d3dd680",
           "version": null
         }
       },
