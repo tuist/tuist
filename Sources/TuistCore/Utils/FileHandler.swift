@@ -76,6 +76,7 @@ public protocol FileHandling: AnyObject {
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws
+    func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
     func createFolder(_ path: AbsolutePath) throws
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
@@ -183,6 +184,10 @@ public final class FileHandler: FileHandling {
     
     public func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
         try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
+    }
+    
+    public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
+        try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }
 
     /// Writes a string into the given path (using the utf8 encoding)

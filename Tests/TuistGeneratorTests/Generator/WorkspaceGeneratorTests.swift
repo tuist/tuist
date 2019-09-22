@@ -10,6 +10,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
     var path: AbsolutePath!
     var fileHandler: MockFileHandler!
     var cocoapodsInteractor: MockCocoaPodsInteractor!
+    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
@@ -18,9 +19,11 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
         path = fileHandler.currentPath
         cocoapodsInteractor = MockCocoaPodsInteractor()
+        
+        system = MockSystem()
 
         subject = WorkspaceGenerator(
-            system: MockSystem(),
+            system: system,
             cocoapodsInteractor: cocoapodsInteractor
         )
     }
@@ -128,7 +131,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
     func test_generate_addsPackageDependencyManager() throws {
         // Given
         let target = anyTarget(dependencies: [Dependency.package(.local(path: RelativePath("TestLibrary"), productName: "TestLibrary"))])
-        let project = Project.test(path: path,
+        let project = Project.test(path: fileHandler.currentPath,
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])
@@ -136,20 +139,22 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                  dependencies: [(target, [])])
         
         let workspace = Workspace.test(projects: [project.path])
+        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies"])
+        try fileHandler.createFiles(["\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try subject.generate(workspace: workspace,
-                             path: path,
+                             path: fileHandler.currentPath,
                              graph: graph,
                              tuistConfig: .test())
         
         // Then
-        XCTAssertTrue(fileHandler.exists(path.appending(component: "Package.resolved"), followSymlink: false))
+        XCTAssertTrue(fileHandler.exists(path.appending(component: ".package.resolved")))
         
         XCTAssertNoThrow(try subject.generate(workspace: workspace,
-                             path: path,
-                             graph: graph,
-                             tuistConfig: .test()))
+                                              path: fileHandler.currentPath,
+                                              graph: graph,
+                                              tuistConfig: .test()))
     }
     
     func test_generate_doesNotAddPackageDependencyManager() throws {
@@ -171,7 +176,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                              tuistConfig: .test())
         
         // Then
-        XCTAssertFalse(fileHandler.exists(path.appending(component: "Package.resolved"), followSymlink: false))
+        XCTAssertFalse(fileHandler.exists(path.appending(component: ".package.resolved"), followSymlink: false))
     }
 
     // MARK: - Helpers

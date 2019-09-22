@@ -92,11 +92,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspaceName = "\(graph.name).xcworkspace"
         
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
-        
-        try generatePackageDependencyManager(at: path,
-                                             workspace: workspace,
-                                             workspaceName: workspaceName,
-                                             graph: graph)
 
         /// Projects
 
@@ -123,6 +118,13 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
 
         try write(xcworkspace: xcWorkspace, to: workspacePath)
+        
+        // SPM
+        
+        try generatePackageDependencyManager(at: path,
+                                             workspace: workspace,
+                                             workspaceName: workspaceName,
+                                             graph: graph)
 
         // CocoaPods
 
@@ -138,11 +140,16 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let hasPackages: Bool = try !graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }.isEmpty
         guard hasPackages else { return }
         
-        let symbolicPackagePath = path.appending(component: "Package.resolved")
+        let packageResolvedPath = path.appending(component: ".package.resolved")
+        let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
         
-        if !fileHandler.exists(symbolicPackagePath, followSymlink: false) {
-            let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
-            try fileHandler.createSymbolicLink(symbolicPackagePath, destination: packagePath)
+        if !fileHandler.exists(packageResolvedPath) {
+            try system.run(["xcodebuild", "-resolvePackageDependencies"])
+            try fileHandler.linkFile(atPath: packagePath, toPath: packageResolvedPath)
+        } else {
+            // Just in case Package.resolved was created by user before hard linking
+            try fileHandler.delete(packagePath)
+            try fileHandler.linkFile(atPath: packageResolvedPath, toPath: packagePath)
         }
     }
 
