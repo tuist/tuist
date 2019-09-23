@@ -525,15 +525,15 @@ extension TuistGenerator.Dependency.VersionRequirement {
         case let .branch(branch):
             return .branch(branch)
         case let .exact(version):
-            return .exact(version)
+            return .exact(version.description)
         case let .range(from, to):
-            return .range(from: from, to: to)
+            return .range(from: from.description, to: to.description)
         case let .revision(revision):
             return .revision(revision)
-        case let .upToNextMajorVersion(version):
-            return .upToNextMajorVersion(version)
-        case let .upToNextMinorVersion(version):
-            return .upToNextMinorVersion(version)
+        case let .upToNextMajor(version):
+            return .upToNextMajor(version.description)
+        case let .upToNextMinor(version):
+            return .upToNextMinor(version.description)
         }
     }
 }

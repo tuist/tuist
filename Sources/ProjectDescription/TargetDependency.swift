@@ -63,12 +63,22 @@ public enum TargetDependency: Codable, Equatable {
     }
 
     public enum VersionRequirement: Codable, Equatable {
-        case upToNextMajorVersion(String)
-        case upToNextMinorVersion(String)
-        case range(from: String, to: String)
-        case exact(String)
+        case upToNextMajor(from: Version)
+        case upToNextMinor(from: Version)
+        case range(from: Version, to: Version)
+        case exact(Version)
         case branch(String)
         case revision(String)
+        
+        @available(*, unavailable, message: "use upToNextMajor(from:) instead.")
+        static func upToNextMajor(_ version: Version) {
+            fatalError()
+        }
+        
+        @available(*, unavailable, message: "use upToNextMinor(from:) instead.")
+        static func upToNextMinor(_ version: Version) {
+            fatalError()
+        }
 
         enum CodingKeys: String, CodingKey {
             case kind
@@ -88,18 +98,18 @@ public enum TargetDependency: Codable, Equatable {
                 let branch = try container.decode(String.self, forKey: .branch)
                 self = .branch(branch)
             } else if kind == "exactVersion" {
-                let version = try container.decode(String.self, forKey: .minimumVersion)
+                let version = try container.decode(Version.self, forKey: .minimumVersion)
                 self = .exact(version)
             } else if kind == "versionRange" {
-                let minimumVersion = try container.decode(String.self, forKey: .minimumVersion)
-                let maximumVersion = try container.decode(String.self, forKey: .maximumVersion)
+                let minimumVersion = try container.decode(Version.self, forKey: .minimumVersion)
+                let maximumVersion = try container.decode(Version.self, forKey: .maximumVersion)
                 self = .range(from: minimumVersion, to: maximumVersion)
-            } else if kind == "upToNextMinorVersion" {
-                let version = try container.decode(String.self, forKey: .minimumVersion)
-                self = .upToNextMinorVersion(version)
-            } else if kind == "upToNextMajorVersion" {
-                let version = try container.decode(String.self, forKey: .minimumVersion)
-                self = .upToNextMajorVersion(version)
+            } else if kind == "upToNextMinor" {
+                let version = try container.decode(Version.self, forKey: .minimumVersion)
+                self = .upToNextMinor(from: version)
+            } else if kind == "upToNextMajor" {
+                let version = try container.decode(Version.self, forKey: .minimumVersion)
+                self = .upToNextMajor(from: version)
             } else {
                 fatalError("XCRemoteSwiftPackageReference kind '\(kind)' not supported")
             }
@@ -109,11 +119,11 @@ public enum TargetDependency: Codable, Equatable {
             var container = encoder.container(keyedBy: CodingKeys.self)
 
             switch self {
-            case let .upToNextMajorVersion(version):
-                try container.encode("upToNextMajorVersion", forKey: .kind)
+            case let .upToNextMajor(version):
+                try container.encode("upToNextMajor", forKey: .kind)
                 try container.encode(version, forKey: .minimumVersion)
-            case let .upToNextMinorVersion(version):
-                try container.encode("upToNextMinorVersion", forKey: .kind)
+            case let .upToNextMinor(version):
+                try container.encode("upToNextMinor", forKey: .kind)
                 try container.encode(version, forKey: .minimumVersion)
             case let .range(from, to):
                 try container.encode("versionRange", forKey: .kind)
@@ -158,25 +168,6 @@ public enum TargetDependency: Codable, Equatable {
     ///   - publicHeaders: Relative path to the library's public headers directory
     ///   - swiftModuleMap: Relative path to the library's swift module map file
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
-
-    /// Dependency on remote package
-    ///
-    /// - Parameters:
-    ///     - url: URL poiting to the repository
-    ///     - productName: Name of product
-    ///     - version: `VersionRequirement` describing which version to resolve
-    public static func package(url: String, productName: String, version: VersionRequirement) -> TargetDependency {
-        return .package(.remote(url: url, productName: productName, versionRequirement: version))
-    }
-
-    /// Dependency on local package
-    ///
-    /// - Parameters:
-    ///     - path: Path to the directory that contains local package
-    ///     - productName: Name of product
-    public static func package(path: String, productName: String) -> TargetDependency {
-        return .package(.local(path: path, productName: productName))
-    }
 
     case package(PackageType)
 
@@ -316,4 +307,144 @@ extension TargetDependency {
             try container.encode(path, forKey: .path)
         }
     }
+}
+
+extension TargetDependency {
+    
+    /// Dependency on remote package
+    ///
+    /// - Parameters:
+    ///     - url: URL poiting to the repository
+    ///     - productName: Name of product
+    ///     - version: `VersionRequirement` describing which version to resolve
+    public static func package(
+        url: String,
+        productName: String,
+        _ version: VersionRequirement
+    ) -> TargetDependency {
+        return .package(.remote(url: url, productName: productName, versionRequirement: version))
+    }
+
+    /// Dependency on local package
+    ///
+    /// - Parameters:
+    ///     - path: Path to the directory that contains local package
+    ///     - productName: Name of product
+    public static func package(
+        path: String,
+        productName: String
+    ) -> TargetDependency {
+        return .package(.local(path: path, productName: productName))
+    }
+    
+    /// Create a package dependency that uses the version requirement, starting with the given minimum version,
+    /// going up to the next major version.
+    ///
+    /// This is the recommended way to specify a remote package dependency.
+    /// It allows you to specify the minimum version you require, allows updates that include bug fixes
+    /// and backward-compatible feature updates, but requires you to explicitly update to a new major version of the dependency.
+    /// This approach provides the maximum flexibility on which version to use,
+    /// while making sure you don't update to a version with breaking changes,
+    /// and helps to prevent conflicts in your dependency graph.
+    ///
+    /// The following example allows the Swift package manager to select a version
+    /// like a  `1.2.3`, `1.2.4`, or `1.3.0`, but not `2.0.0`.
+    ///
+    ///    .package(url: "https://example.com/example-package.git", productName: "Example", from: "1.2.3"),
+    ///
+    /// - Parameters:
+    ///     - url: The valid Git URL of the package.
+    ///     - version: The minimum version requirement.
+    public static func package(
+        url: String,
+        productName: String,
+        from version: Version
+    ) -> TargetDependency {
+        return .package(url: url, productName: productName, .upToNextMajor(from: version))
+    }
+    
+    /// Add a package dependency starting with a specific minimum version, up to
+    /// but not including a specified maximum version.
+    ///
+    /// The following example allows the Swift package manager to pick
+    /// versions `1.2.3`, `1.2.4`, `1.2.5`, but not `1.2.6`.
+    ///
+    ///     .package(url: "https://example.com/example-package.git", productName: "Example", "1.2.3"..<"1.2.6"),
+    ///
+    /// - Parameters:
+    ///     - url: The valid Git URL of the package.
+    ///     - range: The custom version range requirement.
+    public static func package(
+        url: String,
+        productName: String,
+        _ range: Range<Version>
+    ) -> TargetDependency {
+        return .package(url: url, productName: productName, .range(from: range.lowerBound, to: range.upperBound))
+    }
+    
+    /// Add a package dependency starting with a specific minimum version, going
+    /// up to and including a specific maximum version.
+    ///
+    /// The following example allows the Swift package manager to pick
+    /// versions 1.2.3, 1.2.4, 1.2.5, as well as 1.2.6.
+    ///
+    ///     .package(url: "https://example.com/example-package.git", productName: "Example", "1.2.3"..."1.2.6"),
+    ///
+    /// - Parameters:
+    ///     - url: The valid Git URL of the package.
+    ///     - range: The closed version range requirement.
+    public static func package(
+        url: String,
+        productName: String,
+        _ range: ClosedRange<Version>
+    ) -> TargetDependency {
+        // Increase upperbound's patch version by one.
+        let upper = range.upperBound
+        let upperBound = Version(
+            upper.major, upper.minor, upper.patch + 1,
+            prereleaseIdentifiers: upper.prereleaseIdentifiers,
+            buildMetadataIdentifiers: upper.buildMetadataIdentifiers)
+        return .package(url: url, productName: productName, range.lowerBound..<upperBound)
+    }
+    
+    @available(*, unavailable, message: "use package(url:productName:version:) instead. You must specify a product name.")
+    public static func package(url: String, _ requirement: VersionRequirement) -> TargetDependency {
+        fatalError()
+    }
+
+    @available(*, unavailable, message: "use package(url:productName:_:) instead. You must specify a product name.")
+    public static func package(url: String, _ range: ClosedRange<Version>) -> TargetDependency {
+        fatalError()
+    }
+    
+    @available(*, unavailable, message: "use package(url:productName:_:) instead. You must specify a product name.")
+    public static func package(url: String, _ range: Range<Version>) -> TargetDependency {
+        fatalError()
+    }
+    
+    @available(*, unavailable, message: "use package(url:productName:_:) with the .exact(Version) initializer instead. You must specify a product name")
+    public static func package(url: String, version: Version) -> TargetDependency {
+        fatalError()
+    }
+    
+    @available(*, unavailable, message: "use package(url:productName:_:) with the .branch(String) initializer instead. You must specify a product name")
+    public static func package(url: String, branch: String) -> TargetDependency {
+        fatalError()
+    }
+    
+    @available(*, unavailable, message: "use package(url:productName:_:) with the .revision(String) initializer instead. You must specify a product name")
+    public static func package(url: String, revision: String) -> TargetDependency {
+        fatalError()
+    }
+    
+    @available(*, unavailable, message: "use package(url:productName:_:) instead. You must omit `range` and specify a product name.")
+    public static func package(url: String, range: ClosedRange<Version>) -> TargetDependency {
+        fatalError()
+    }
+    
+    @available(*, unavailable, message: "use package(url:productName:_:) instead. You must omit `range` and specify a product name.")
+    public static func package(url: String, range: Range<Version>) -> TargetDependency {
+        fatalError()
+    }
+    
 }

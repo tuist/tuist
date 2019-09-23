@@ -14,8 +14,8 @@ public enum Dependency: Equatable {
     }
 
     public enum VersionRequirement: Equatable {
-        case upToNextMajorVersion(String)
-        case upToNextMinorVersion(String)
+        case upToNextMajor(String)
+        case upToNextMinor(String)
         case range(from: String, to: String)
         case exact(String)
         case branch(String)
@@ -31,10 +31,10 @@ public enum Dependency: Equatable {
                 return .range(from: from, to: to)
             case let .revision(revision):
                 return .revision(revision)
-            case let .upToNextMinorVersion(version):
-                return .upToNextMinorVersion(version)
-            case let .upToNextMajorVersion(version):
-                return .upToNextMajorVersion(version)
+            case let .upToNextMinor(version):
+                return .upToNextMinor(version)
+            case let .upToNextMajor(version):
+                return .upToNextMajor(version)
             }
         }
     }

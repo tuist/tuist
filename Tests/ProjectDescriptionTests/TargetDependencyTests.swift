@@ -61,7 +61,7 @@ final class TargetDependencyTests: XCTestCase {
         // Given
         let subject = TargetDependency.package(url: "https://github.com/Swinject/Swinject",
                                                productName: "Swinject",
-                                               version: .upToNextMajorVersion("2.6.2"))
+                                               version: .upToNextMajor(from: "2.6.2"))
 
         // Then
         XCTAssertCodable(subject)
