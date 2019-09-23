@@ -140,8 +140,8 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
         let workspace = Workspace.test(name: project.name,
                                        projects: [project.path])
-        let projectPath = fileHandler.currentPath.appending(component: workspace.name + ".xcodeproj")
-        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-project", projectPath.pathString])
+        let workspacePath = path.appending(component: workspace.name + ".xcworkspace")
+        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
         try fileHandler.createFiles(["\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"])
 
         // When

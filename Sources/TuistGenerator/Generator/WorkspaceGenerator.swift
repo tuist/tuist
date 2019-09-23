@@ -144,8 +144,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
 
         if !fileHandler.exists(packageResolvedPath) {
-            let projectPath = path.appending(component: workspace.name + ".xcodeproj")
-            try system.run(["xcodebuild", "-resolvePackageDependencies", "-project", projectPath.pathString])
+            let workspacePath = path.appending(component: workspaceName)
+            // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
+            try system.run(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
             try fileHandler.linkFile(atPath: packagePath, toPath: packageResolvedPath)
         } else {
             // Just in case Package.resolved was created by user before hard linking
