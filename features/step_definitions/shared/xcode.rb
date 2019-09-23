@@ -3,7 +3,7 @@
 require 'simctl'
 require 'xcodeproj'
 
-Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
+Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
   @derived_data_path = File.join(@dir, "DerivedData")
 
   args = [
@@ -12,8 +12,8 @@ Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
     "-derivedDataPath", @derived_data_path
   ]
 
-  if action == "test"
-    args << "-destination 'name=iPhone 11'"
+  if platform == "iOS" 
+    args << "-destination \'name=iPhone 11\'"
   end
 
   args << "clean"
