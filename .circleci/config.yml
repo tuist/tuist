@@ -24,7 +24,7 @@ workflows:
 jobs:
   install:
     macos:
-      xcode: '10.2.1'
+      xcode: '11.0.0'
     steps:
       - checkout
       - run:
@@ -36,9 +36,25 @@ jobs:
           name: Uninstall Tuist
           command: |
             ./install/uninstall
+  acceptance:
+    macos:
+      xcode: '11.0.0'
+    steps:
+      - checkout
+      - restore_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
+      - run:
+          name: Install Dependencies
+          command: |
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install swiftformat
+            bundle install --local || bundle package
+            ./.circleci/setup-brew-dependencies.sh
+      - run:
+          name: Run acceptance tests
+          command: bundle exec rake features
   cli:
     macos:
-      xcode: '10.2.1'
+      xcode: '11.0.0'
     steps:
       - checkout
       - restore_cache:
@@ -63,9 +79,6 @@ jobs:
       - run:
           name: Run unit tests
           command: xcodebuild test -scheme tuist-Package -enableCodeCoverage YES
-      - run:
-          name: Run acceptance tests
-          command: bundle exec rake features
       - run:
           name: Package build and upload it to GCS
           command: |
