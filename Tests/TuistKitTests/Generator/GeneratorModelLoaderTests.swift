@@ -383,7 +383,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_depedency_when_remotePackage() throws {
         // Given
-        let dependency = TargetDependency.package(url: "url", productName: "library", version: .branch("master"))
+        let dependency = TargetDependency.package(url: "url", productName: "library", .branch("master"))
 
         // When
         let got = TuistGenerator.Dependency.from(manifest: dependency)
