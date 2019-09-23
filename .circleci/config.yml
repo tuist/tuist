@@ -9,6 +9,8 @@ workflows:
     jobs:
       - cli:
           context: tuist
+      - acceptance:
+          context: tuist
   galaxy:
     jobs:
       - galaxy:
