@@ -39,6 +39,7 @@ jobs:
   cli:
     macos:
       xcode: '11.0.0'
+    shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
       - restore_cache:
