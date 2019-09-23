@@ -13,7 +13,7 @@ let project = Project(name: "App",
                                        // "Resources/**"
                                ],
                                dependencies: [
-                                    .package(url: "https://github.com/ReactiveX/RxSwift", productName: "RxSwift", version: .upToNextMajor(from: "5.0")),
+                                    .package(url: "https://github.com/ReactiveX/RxSwift", productName: "RxSwift", .upToNextMajor(from: "5.0")),
                                 ]),
                         Target(name: "AppTests",
                                platform: .iOS,
