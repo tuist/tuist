@@ -20,33 +20,30 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
         // Then
         assertEqual(got, [
-            "UISupportedInterfaceOrientations":
-                ["UIInterfaceOrientationPortrait",
-                 "UIInterfaceOrientationLandscapeLeft",
-                 "UIInterfaceOrientationLandscapeRight"],
-            "ExtraAttribute": "Value",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "CFBundleIconFile": "",
-            "CFBundleVersion": "1",
-            "UIRequiredDeviceCapabilities": ["armv7"],
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundlePackageType": "APPL",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "UIMainStoryboardFile": "Main",
-            "CFBundleShortVersionString": "1.0",
-            "LSRequiresIPhoneOS": true,
-            "CFBundleInfoDictionaryVersion": "6.0",
             "CFBundleName": "$(PRODUCT_NAME)",
-            "NSMainStoryboardFile": "Main",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "UIRequiredDeviceCapabilities": ["armv7"],
+            "UISupportedInterfaceOrientations": [
+                "UIInterfaceOrientationPortrait",
+                "UIInterfaceOrientationLandscapeLeft",
+                "UIInterfaceOrientationLandscapeRight"
+            ],
+            "CFBundleShortVersionString": "1.0",
+            "UIMainStoryboardFile": "Main",
+            "LSRequiresIPhoneOS": true,
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "UILaunchStoryboardName": "LaunchScreen",
+            "CFBundlePackageType": "APPL",
             "UISupportedInterfaceOrientations~ipad": [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationPortraitUpsideDown",
                 "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
+                "UIInterfaceOrientationLandscapeRight"
             ],
-            "UILaunchStoryboardName": "LaunchScreen",
-            "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
-            "NSPrincipalClass": "NSApplication",
+            "CFBundleVersion": "1",
+            "ExtraAttribute": "Value",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleInfoDictionaryVersion": "6.0"
         ])
     }
 
@@ -59,16 +56,20 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
         // Then
         assertEqual(got, [
-            "CFBundleShortVersionString": "1.0",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleIconFile": "",
             "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundlePackageType": "APPL",
+            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+            "NSMainStoryboardFile": "Main",
+            "NSPrincipalClass": "NSApplication",
+            "CFBundleShortVersionString": "1.0",
             "CFBundleName": "$(PRODUCT_NAME)",
             "CFBundleInfoDictionaryVersion": "6.0",
-            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
-            "ExtraAttribute": "Value",
-            "CFBundlePackageType": "APPL",
             "CFBundleVersion": "1",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "ExtraAttribute": "Value",
+            "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)"
         ])
     }
 
