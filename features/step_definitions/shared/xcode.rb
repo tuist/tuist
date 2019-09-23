@@ -9,14 +9,17 @@ Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
   args = [
     "-scheme", scheme,
     "-workspace", @workspace_path,
-    "-derivedDataPath", @derived_data_path,
-    "clean", action
+    "-derivedDataPath", @derived_data_path
   ]
 
   if action == "test"
-    args << "-destination 'platform=iOS Simulator,name=iPhone 11'" unless device.nil?
+    args << "-sdk"
+    args << "iphonesimulator"
+    args << "-destination 'platform=iOS Simulator,name=iPhone 11'"
   end
 
+  args << "clean"
+  args << action
   args << "CODE_SIGNING_ALLOWED=NO"
   args << "CODE_SIGNING_IDENTITY=\"iPhone Developer\""
 
