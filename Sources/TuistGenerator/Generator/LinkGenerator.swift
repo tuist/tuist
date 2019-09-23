@@ -53,6 +53,7 @@ protocol LinkGenerating: AnyObject {
                        system: Systeming) throws
 }
 
+// swiftlint:disable type_body_length
 final class LinkGenerator: LinkGenerating {
     /// An instance to locate tuist binaries.
     let binaryLocator: BinaryLocating

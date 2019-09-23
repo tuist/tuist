@@ -134,7 +134,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     }
 
     private func generatePackageDependencyManager(at path: AbsolutePath,
-                                                  workspace: Workspace,
+                                                  workspace _: Workspace,
                                                   workspaceName: String,
                                                   graph: Graphing) throws {
         let hasPackages: Bool = try !graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }.isEmpty

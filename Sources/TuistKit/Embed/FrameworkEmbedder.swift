@@ -59,7 +59,12 @@ final class FrameworkEmbedder: FrameworkEmbedding {
             try FileHandler.shared.createFolder(productFrameworksPath)
         }
 
-        let copiedFramework = try copyFramework(productFrameworksPath: productFrameworksPath, frameworkAbsolutePath: frameworkAbsolutePath, validArchs: validArchs)
+        let copiedFramework = try copyFramework(
+            productFrameworksPath: productFrameworksPath,
+            frameworkAbsolutePath: frameworkAbsolutePath,
+            validArchs: validArchs
+        )
+        
         try copySymbols(frameworkDsymPath: frameworkDsymPath, destinationPath: destinationPath, validArchs: validArchs)
         try copyBCSymbolMaps(action: action, frameworkAbsolutePath: frameworkAbsolutePath, builtProductsDir: builtProductsDir)
 
@@ -80,7 +85,11 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         ])
     }
 
-    private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws -> AbsolutePath {
+    private func copyFramework(
+        productFrameworksPath: AbsolutePath,
+        frameworkAbsolutePath: AbsolutePath,
+        validArchs: [String]
+    ) throws -> AbsolutePath {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
         if FileHandler.shared.exists(frameworkOutputPath) {
             try FileHandler.shared.delete(frameworkOutputPath)

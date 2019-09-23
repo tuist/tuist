@@ -327,7 +327,10 @@ public final class System: Systeming {
     ///   - environment: Environment that should be used when running the task.
     ///   - redirection: Instance through which the output will be redirected.
     /// - Throws: An error if the command fails.
-    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: Basic.Process.OutputRedirection) throws {
+    public func runAndPrint(_ arguments: [String],
+                            verbose: Bool,
+                            environment: [String: String],
+                            redirection: Basic.Process.OutputRedirection) throws {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in

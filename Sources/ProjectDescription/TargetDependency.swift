@@ -69,14 +69,14 @@ public enum TargetDependency: Codable, Equatable {
         case exact(Version)
         case branch(String)
         case revision(String)
-        
+
         @available(*, unavailable, message: "use upToNextMajor(from:) instead.")
-        static func upToNextMajor(_ version: Version) {
+        static func upToNextMajor(_: Version) {
             fatalError()
         }
-        
+
         @available(*, unavailable, message: "use upToNextMinor(from:) instead.")
-        static func upToNextMinor(_ version: Version) {
+        static func upToNextMinor(_: Version) {
             fatalError()
         }
 
@@ -310,7 +310,6 @@ extension TargetDependency {
 }
 
 extension TargetDependency {
-    
     /// Dependency on remote package
     ///
     /// - Parameters:
@@ -336,7 +335,7 @@ extension TargetDependency {
     ) -> TargetDependency {
         return .package(.local(path: path, productName: productName))
     }
-    
+
     /// Create a package dependency that uses the version requirement, starting with the given minimum version,
     /// going up to the next major version.
     ///
@@ -362,7 +361,7 @@ extension TargetDependency {
     ) -> TargetDependency {
         return .package(url: url, productName: productName, .upToNextMajor(from: version))
     }
-    
+
     /// Add a package dependency starting with a specific minimum version, up to
     /// but not including a specified maximum version.
     ///
@@ -381,7 +380,7 @@ extension TargetDependency {
     ) -> TargetDependency {
         return .package(url: url, productName: productName, .range(from: range.lowerBound, to: range.upperBound))
     }
-    
+
     /// Add a package dependency starting with a specific minimum version, going
     /// up to and including a specific maximum version.
     ///
@@ -403,48 +402,51 @@ extension TargetDependency {
         let upperBound = Version(
             upper.major, upper.minor, upper.patch + 1,
             prereleaseIdentifiers: upper.prereleaseIdentifiers,
-            buildMetadataIdentifiers: upper.buildMetadataIdentifiers)
-        return .package(url: url, productName: productName, range.lowerBound..<upperBound)
+            buildMetadataIdentifiers: upper.buildMetadataIdentifiers
+        )
+        return .package(url: url, productName: productName, range.lowerBound ..< upperBound)
     }
-    
+
     @available(*, unavailable, message: "use package(url:productName:version:) instead. You must specify a product name.")
-    public static func package(url: String, _ requirement: VersionRequirement) -> TargetDependency {
+    public static func package(url _: String, _: VersionRequirement) -> TargetDependency {
         fatalError()
     }
 
     @available(*, unavailable, message: "use package(url:productName:_:) instead. You must specify a product name.")
-    public static func package(url: String, _ range: ClosedRange<Version>) -> TargetDependency {
+    public static func package(url _: String, _: ClosedRange<Version>) -> TargetDependency {
         fatalError()
     }
-    
+
     @available(*, unavailable, message: "use package(url:productName:_:) instead. You must specify a product name.")
-    public static func package(url: String, _ range: Range<Version>) -> TargetDependency {
+    public static func package(url _: String, _: Range<Version>) -> TargetDependency {
         fatalError()
     }
-    
+
+    //swiftlint:disable:next line_length
     @available(*, unavailable, message: "use package(url:productName:_:) with the .exact(Version) initializer instead. You must specify a product name")
-    public static func package(url: String, version: Version) -> TargetDependency {
+    public static func package(url _: String, version _: Version) -> TargetDependency {
         fatalError()
     }
-    
+
+    //swiftlint:disable:next line_length
     @available(*, unavailable, message: "use package(url:productName:_:) with the .branch(String) initializer instead. You must specify a product name")
-    public static func package(url: String, branch: String) -> TargetDependency {
+    public static func package(url _: String, branch _: String) -> TargetDependency {
         fatalError()
     }
-    
+
+    //swiftlint:disable:next line_length
     @available(*, unavailable, message: "use package(url:productName:_:) with the .revision(String) initializer instead. You must specify a product name")
-    public static func package(url: String, revision: String) -> TargetDependency {
+    public static func package(url _: String, revision _: String) -> TargetDependency {
         fatalError()
     }
-    
+
     @available(*, unavailable, message: "use package(url:productName:_:) instead. You must omit `range` and specify a product name.")
-    public static func package(url: String, range: ClosedRange<Version>) -> TargetDependency {
+    public static func package(url _: String, range _: ClosedRange<Version>) -> TargetDependency {
         fatalError()
     }
-    
+
     @available(*, unavailable, message: "use package(url:productName:_:) instead. You must omit `range` and specify a product name.")
-    public static func package(url: String, range: Range<Version>) -> TargetDependency {
+    public static func package(url _: String, range _: Range<Version>) -> TargetDependency {
         fatalError()
     }
-    
 }

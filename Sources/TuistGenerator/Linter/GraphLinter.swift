@@ -6,6 +6,7 @@ protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]
 }
 
+// swiftlint:disable type_body_length
 class GraphLinter: GraphLinting {
     // MARK: - Attributes
 

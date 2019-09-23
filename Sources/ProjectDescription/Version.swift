@@ -1,6 +1,6 @@
 /// A struct representing a semver version.
+/// This is taken from SPMUtility and copied here so we do not create a direct dependency for ProjectDescription. Used for specifying version number requirements inside of Project.swift
 public struct Version: Hashable {
-
     /// The major version.
     public let major: Int
 
@@ -34,7 +34,6 @@ public struct Version: Hashable {
 }
 
 extension Version: Comparable {
-
     func isEqualWithoutPrerelease(_ other: Version) -> Bool {
         return major == other.major && minor == other.minor && patch == other.patch
     }
@@ -65,10 +64,10 @@ extension Version: Comparable {
             let typedRhsIdentifier: Any = Int(rhsPrereleaseIdentifier) ?? rhsPrereleaseIdentifier
 
             switch (typedLhsIdentifier, typedRhsIdentifier) {
-                case let (int1 as Int, int2 as Int): return int1 < int2
-                case let (string1 as String, string2 as String): return string1 < string2
-                case (is Int, is String): return true // Int prereleases < String prereleases
-                case (is String, is Int): return false
+            case let (int1 as Int, int2 as Int): return int1 < int2
+            case let (string1 as String, string2 as String): return string1 < string2
+            case (is Int, is String): return true // Int prereleases < String prereleases
+            case (is String, is Int): return false
             default:
                 return false
             }
@@ -92,7 +91,6 @@ extension Version: CustomStringConvertible {
 }
 
 public extension Version {
-
     /// Create a version object from string.
     ///
     /// - Parameters:
@@ -105,31 +103,32 @@ public extension Version {
         let requiredCharacters = string.prefix(upTo: requiredEndIndex)
         let requiredComponents = requiredCharacters
             .split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
-            .map(String.init).compactMap({ Int($0) }).filter({ $0 >= 0 })
+            .map(String.init).compactMap { Int($0) }.filter { $0 >= 0 }
 
         guard requiredComponents.count == 3 else { return nil }
 
-        self.major = requiredComponents[0]
-        self.minor = requiredComponents[1]
-        self.patch = requiredComponents[2]
+        major = requiredComponents[0]
+        minor = requiredComponents[1]
+        patch = requiredComponents[2]
 
         func identifiers(start: String.Index?, end: String.Index) -> [String] {
             guard let start = start else { return [] }
-            let identifiers = string[string.index(after: start)..<end]
+            let identifiers = string[string.index(after: start) ..< end]
             return identifiers.split(separator: ".").map(String.init)
         }
 
-        self.prereleaseIdentifiers = identifiers(
+        prereleaseIdentifiers = identifiers(
             start: prereleaseStartIndex,
-            end: metadataStartIndex ?? string.endIndex)
-        self.buildMetadataIdentifiers = identifiers(
+            end: metadataStartIndex ?? string.endIndex
+        )
+        buildMetadataIdentifiers = identifiers(
             start: metadataStartIndex,
-            end: string.endIndex)
+            end: string.endIndex
+        )
     }
 }
 
 extension Version: ExpressibleByStringLiteral {
-
     public init(stringLiteral value: String) {
         guard let version = Version(string: value) else {
             fatalError("\(value) is not a valid version")
@@ -159,18 +158,19 @@ extension Version: Codable {
         guard let version = Version(string: string) else {
             throw DecodingError.dataCorrupted(.init(
                 codingPath: decoder.codingPath,
-                debugDescription: "Invalid version string \(string)"))
+                debugDescription: "Invalid version string \(string)"
+            ))
         }
 
         self = version
     }
 }
 
-// MARK:- Range operations
+// MARK: - Range operations
 
 extension ClosedRange where Bound == Version {
     /// Marked as unavailable because we have custom rules for contains.
-    public func contains(_ element: Version) -> Bool {
+    public func contains(_: Version) -> Bool {
         // Unfortunately, we can't use unavailable here.
         fatalError("contains(_:) is unavailable, use contains(version:)")
     }
@@ -178,26 +178,25 @@ extension ClosedRange where Bound == Version {
 
 extension Range where Bound == Version {
     /// Marked as unavailable because we have custom rules for contains.
-    public func contains(_ element: Version) -> Bool {
+    public func contains(_: Version) -> Bool {
         // Unfortunately, we can't use unavailable here.
         fatalError("contains(_:) is unavailable, use contains(version:)")
     }
 }
 
 extension Range where Bound == Version {
-
     public func contains(version: Version) -> Bool {
         // Special cases if version contains prerelease identifiers.
         if !version.prereleaseIdentifiers.isEmpty {
             // If the ranage does not contain prerelease identifiers, return false.
-            if lowerBound.prereleaseIdentifiers.isEmpty && upperBound.prereleaseIdentifiers.isEmpty {
+            if lowerBound.prereleaseIdentifiers.isEmpty, upperBound.prereleaseIdentifiers.isEmpty {
                 return false
             }
 
             // At this point, one of the bounds contains prerelease identifiers.
             //
             // Reject 2.0.0-alpha when upper bound is 2.0.0.
-            if upperBound.prereleaseIdentifiers.isEmpty && upperBound.isEqualWithoutPrerelease(version) {
+            if upperBound.prereleaseIdentifiers.isEmpty, upperBound.isEqualWithoutPrerelease(version) {
                 return false
             }
         }
