@@ -32,9 +32,9 @@ public enum Dependency: Equatable {
             case let .revision(revision):
                 return .revision(revision)
             case let .upToNextMinor(version):
-                return .upToNextMinor(version)
+                return .upToNextMinorVersion(version)
             case let .upToNextMajor(version):
-                return .upToNextMajor(version)
+                return .upToNextMajorVersion(version)
             }
         }
     }
