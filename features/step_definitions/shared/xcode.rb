@@ -13,9 +13,7 @@ Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
   ]
 
   if action == "test"
-    args << "-sdk"
-    args << "iphonesimulator"
-    args << "-destination 'platform=iOS Simulator,name=iPhone 11'"
+    args << "-destination 'name=iPhone 11'"
   end
 
   args << "clean"
