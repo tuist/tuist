@@ -95,7 +95,7 @@ Scenario: The project is an iOS application with a target dependency and transit
     Then I should be able to build for iOS the scheme Framework1-iOS
     Then I should be able to build for iOS the scheme Framework1-macOS
     Then I should be able to build for iOS the scheme Framework1Tests-iOS
-    Then I should be able to build for iOS the scheme Framework1Tests-macOS
+    Then I should be able to build for macOS the scheme Framework1Tests-macOS
 
 Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)
     Given that tuist is available
