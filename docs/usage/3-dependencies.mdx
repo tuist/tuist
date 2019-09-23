@@ -84,7 +84,15 @@ Targets can add Swift packages, either local packages or remote. You can add one
 
 For remote:
 ```swift 
-.package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", version: .exact("6.7.0"))
+.package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", .exact("6.7.0"))
+```
+
+```swift 
+.package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", from: "6.7.0")
+```
+
+```swift 
+.package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", "6.6.1"..<"6.8.0")
 ```
 
 For local:
