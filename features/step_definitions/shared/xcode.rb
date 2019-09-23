@@ -14,7 +14,7 @@ Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
   ]
 
   if action == "test"
-    device = SimCtl.device(name: "iPhone 8", is_available: true)
+    device = SimCtl.device(name: "iPhone 11", is_available: true)
     args << "-destination 'id=#{device.udid}'" unless device.nil?
   end
 
