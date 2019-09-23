@@ -2,6 +2,7 @@ import Basic
 import Foundation
 
 public protocol Systeming {
+        
     /// System environment.
     var env: [String: String] { get }
 
@@ -159,7 +160,10 @@ public enum SystemError: FatalError {
     public var type: ErrorType { return .abort }
 }
 
+public var verbose = false
+
 public final class System: Systeming {
+        
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
@@ -199,8 +203,10 @@ public final class System: Systeming {
                                                          stderr: { _ in }),
                               verbose: false,
                               startNewProcessGroup: false)
+                
         try process.launch()
-        let result = try process.waitUntilExit()
+        let result = try printing(process.waitUntilExit())
+        
         try result.throwIfErrored()
     }
 
@@ -231,7 +237,7 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String]) throws -> String {
-        return try capture(arguments, verbose: false, environment: env)
+        return try capture(arguments, verbose: verbose, environment: env)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -264,8 +270,10 @@ public final class System: Systeming {
                               outputRedirection: .collect,
                               verbose: verbose,
                               startNewProcessGroup: false)
+                
         try process.launch()
-        let result = try process.waitUntilExit()
+        let result = try printing(process.waitUntilExit())
+
         try result.throwIfErrored()
         return try result.utf8Output()
     }
@@ -285,7 +293,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: env)
+        try runAndPrint(arguments, verbose: verbose, environment: env)
     }
 
     /// Runs a command in the shell printing its output.
@@ -341,8 +349,10 @@ public final class System: Systeming {
                                   redirection.outputClosures?.stderrClosure(bytes)
                               }), verbose: verbose,
                               startNewProcessGroup: false)
+
         try process.launch()
-        let result = try process.waitUntilExit()
+        let result = try printing(process.waitUntilExit())
+
         try result.throwIfErrored()
     }
 
@@ -353,7 +363,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func async(_ arguments: [String]) throws {
-        try async(arguments, verbose: false, environment: env)
+        try async(arguments, verbose: verbose, environment: env)
     }
 
     /// Runs a command in the shell asynchronously.
@@ -370,6 +380,7 @@ public final class System: Systeming {
                               outputRedirection: .none,
                               verbose: verbose,
                               startNewProcessGroup: true)
+
         try process.launch()
     }
 
@@ -391,5 +402,16 @@ public final class System: Systeming {
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
         return try capture("/usr/bin/env", "which", name).spm_chomp()
+    }
+    
+    private func printing(_ result: ProcessResult) throws -> ProcessResult {
+        
+        if verbose {
+            print(try result.utf8Output().yellow())
+            print(try result.utf8stderrOutput().red())
+        }
+        
+        return result
+        
     }
 }

@@ -12,8 +12,12 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
     "-derivedDataPath", @derived_data_path
   ]
 
-  if platform == "iOS" 
-    args << "-destination \'name=iPhone 11\'"
+  if action == "test" and platform == "iOS" 
+    args << "-destination\ \'name=iPhone 11\'"
+  end
+
+  if action == "build" and platform == "iOS" 
+    args << "-sdk\ iphoneos"
   end
 
   args << "clean"
