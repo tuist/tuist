@@ -66,6 +66,7 @@ export default {
     {
       name: 'Contributors',
       menu: [
+        'Code reviews',
         'Tuist',
         'Galaxy',
         'Code of conduct',
