@@ -48,7 +48,12 @@ final class ResourceLocator: ResourceLocating {
     private func frameworkPath(_ name: String) throws -> AbsolutePath {
         let frameworkNames = ["\(name).framework", "lib\(name).dylib"]
         let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
-        let paths = [AbsolutePath("/Users/marekfort/Development/tuist/.build/x86_64-apple-macosx"), AbsolutePath("/Users/marekfort/Development/tuist/.build/x86_64-apple-macosx/debug"), bundlePath, bundlePath.parentDirectory]
+        let paths = [
+            AbsolutePath("/Users/marekfort/Development/tuist/.build/x86_64-apple-macosx"),
+            AbsolutePath("/Users/marekfort/Development/tuist/.build/x86_64-apple-macosx/debug"),
+            bundlePath,
+            bundlePath.parentDirectory
+        ]
         let candidates = paths.flatMap { path in
             frameworkNames.map { path.appending(component: $0) }
         }

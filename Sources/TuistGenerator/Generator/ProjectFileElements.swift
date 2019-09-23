@@ -205,7 +205,9 @@ class ProjectFileElements {
             .map { $0.target }
             .map { ($0, $0.product) }
         let mergeStrategy: (Product, Product) -> Product = { first, _ in first }
-        let sortByName: ((Target, Product), (Target, Product)) -> Bool = { first, second in first.0.productNameWithExtension < second.0.productNameWithExtension }
+        let sortByName: ((Target, Product), (Target, Product)) -> Bool = { first, second in
+            first.0.productNameWithExtension < second.0.productNameWithExtension
+        }
 
         let targetsProductsDictionary = Dictionary(targetsProducts, uniquingKeysWith: mergeStrategy)
         let dependenciesProductsDictionary = Dictionary(dependenciesProducts, uniquingKeysWith: mergeStrategy)

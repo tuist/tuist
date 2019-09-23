@@ -79,10 +79,22 @@ final class ProjectGenerator: ProjectGenerating {
 
         let xcodeprojPath = sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
 
+        // Project and workspace.
+        return try generateProjectAndWorkspace(project: project,
+                                           graph: graph,
+                                           sourceRootPath: sourceRootPath,
+                                           xcodeprojPath: xcodeprojPath)
+    }
+
+    // MARK: - Fileprivate
+    
+    private func generateProjectAndWorkspace(project: Project,
+                                             graph: Graphing,
+                                             sourceRootPath: AbsolutePath,
+                                             xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
         // Derived files
         let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)
-
-        // Project and workspace.
+        
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
         let projectConstants = determineProjectConstants()
@@ -125,8 +137,6 @@ final class ProjectGenerator: ProjectGenerating {
                          project: project,
                          graph: graph)
     }
-
-    // MARK: - Fileprivate
 
     private func generatePbxproject(project: Project,
                                     configurationList: XCConfigurationList,

@@ -76,33 +76,21 @@ final class LinkGenerator: LinkGenerating {
                        graph: Graphing,
                        system: Systeming = System()) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
-        let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
-        let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
-        let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name, system: system)
         let packages = try graph.packages(path: path, name: target.name)
+        
+        try setupSearchAndIncludePaths(target: target,
+                                       pbxTarget: pbxTarget,
+                                       sourceRootPath: sourceRootPath,
+                                       path: path,
+                                       graph: graph,
+                                       linkableModules: linkableModules)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
                                pbxTarget: pbxTarget,
                                pbxproj: pbxproj,
                                fileElements: fileElements,
                                sourceRootPath: sourceRootPath)
-
-        try setupFrameworkSearchPath(dependencies: linkableModules,
-                                     pbxTarget: pbxTarget,
-                                     sourceRootPath: sourceRootPath)
-
-        try setupHeadersSearchPath(headersSearchPaths,
-                                   pbxTarget: pbxTarget,
-                                   sourceRootPath: sourceRootPath)
-
-        try setupLibrarySearchPaths(librarySearchPaths,
-                                    pbxTarget: pbxTarget,
-                                    sourceRootPath: sourceRootPath)
-
-        try setupSwiftIncludePaths(swiftIncludePaths,
-                                   pbxTarget: pbxTarget,
-                                   sourceRootPath: sourceRootPath)
 
         try generateLinkingPhase(dependencies: linkableModules,
                                  pbxTarget: pbxTarget,
@@ -120,6 +108,33 @@ final class LinkGenerator: LinkGenerating {
                              pbxTarget: pbxTarget,
                              pbxProject: pbxProject,
                              packages: packages)
+    }
+    
+    private func setupSearchAndIncludePaths(target: Target,
+                                            pbxTarget: PBXTarget,
+                                            sourceRootPath: AbsolutePath,
+                                            path: AbsolutePath,
+                                            graph: Graphing,
+                                            linkableModules: [DependencyReference]) throws {
+        let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
+        let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
+        let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
+        
+        try setupFrameworkSearchPath(dependencies: linkableModules,
+                                     pbxTarget: pbxTarget,
+                                     sourceRootPath: sourceRootPath)
+
+        try setupHeadersSearchPath(headersSearchPaths,
+                                   pbxTarget: pbxTarget,
+                                   sourceRootPath: sourceRootPath)
+
+        try setupLibrarySearchPaths(librarySearchPaths,
+                                    pbxTarget: pbxTarget,
+                                    sourceRootPath: sourceRootPath)
+        
+        try setupSwiftIncludePaths(swiftIncludePaths,
+                                   pbxTarget: pbxTarget,
+                                   sourceRootPath: sourceRootPath)
     }
 
     func generatePackages(target _: Target,

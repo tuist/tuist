@@ -157,7 +157,6 @@ public final class FileHandler: FileHandling {
         }
     }
     
-
     /// It copies a file or folder to another path.
     ///
     /// - Parameters:
