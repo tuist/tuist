@@ -1,6 +1,6 @@
 import Basic
-import SPMUtility
 import Foundation
+import SPMUtility
 import TuistCore
 import XCTest
 @testable import TuistCoreTesting
@@ -16,7 +16,7 @@ final class GraphLinterTests: XCTestCase {
         mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
         xcodeController = MockXcodeController()
-        
+
         subject = GraphLinter(xcodeController: xcodeController)
     }
 
@@ -54,7 +54,7 @@ final class GraphLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(result.contains(LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)))
     }
-    
+
     func test_lint_when_packages_and_xcode_10() throws {
         // Given
         let cache = GraphLoaderCache()
@@ -63,15 +63,15 @@ final class GraphLinterTests: XCTestCase {
         cache.add(package: package)
         let versionStub = Version(10, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
-        
+
         // When
         let result = subject.lint(graph: graph)
-        
+
         // Then
         let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
         XCTAssertTrue(result.contains(LintingIssue(reason: reason, severity: .error)))
     }
-    
+
     func test_lint_when_packages_and_xcode_11() throws {
         // Given
         let cache = GraphLoaderCache()
@@ -80,14 +80,14 @@ final class GraphLinterTests: XCTestCase {
         cache.add(package: package)
         let versionStub = Version(11, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
-        
+
         // When
         let result = subject.lint(graph: graph)
-        
+
         // Then
         XCTEmpty(result)
     }
-    
+
     func test_lint_when_no_version_available() throws {
         // Given
         let cache = GraphLoaderCache()
@@ -96,10 +96,10 @@ final class GraphLinterTests: XCTestCase {
         cache.add(package: package)
         let error = NSError.test()
         xcodeController.selectedVersionStub = .failure(error)
-        
+
         // When
         let result = subject.lint(graph: graph)
-        
+
         // Then
         XCTAssertTrue(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)))
     }
@@ -123,7 +123,7 @@ final class GraphLinterTests: XCTestCase {
 
         XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)))
     }
-    
+
     func test_lint_when_package_dependency_linked_twice() throws {
         let cache = GraphLoaderCache()
 
@@ -132,7 +132,7 @@ final class GraphLinterTests: XCTestCase {
 
         let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
         let projectFramework = Project.test(path: "/tmp/framework", name: "projectFramework", targets: [frameworkTarget])
-        
+
         let package = PackageNode(packageType: .local(path: RelativePath("packageLibrary"), productName: "PackageLibrary"), path: "/tmp/packageLibrary")
         let framework = TargetNode(project: projectFramework, target: frameworkTarget, dependencies: [package])
         let appTargetNode = TargetNode(project: app, target: appTarget, dependencies: [package, framework])
@@ -143,7 +143,7 @@ final class GraphLinterTests: XCTestCase {
         cache.add(package: package)
 
         let graph = Graph.test(cache: cache, entryNodes: [appTargetNode, framework, package])
-        
+
         let versionStub = Version(11, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 

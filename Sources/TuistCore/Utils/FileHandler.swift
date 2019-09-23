@@ -156,7 +156,7 @@ public final class FileHandler: FileHandling {
             return (try? FileManager.default.attributesOfItem(atPath: path.pathString)) != nil
         }
     }
-    
+
     /// It copies a file or folder to another path.
     ///
     /// - Parameters:
@@ -180,11 +180,11 @@ public final class FileHandler: FileHandling {
             throw FileHandlerError.invalidTextEncoding(at)
         }
     }
-    
+
     public func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
         try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
     }
-    
+
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
         try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }

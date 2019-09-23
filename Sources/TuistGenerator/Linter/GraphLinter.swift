@@ -1,6 +1,6 @@
 import Foundation
-import TuistCore
 import SPMUtility
+import TuistCore
 
 protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]
@@ -77,8 +77,8 @@ class GraphLinter: GraphLinting {
                                                          linkedStaticProducts: &linkedStaticProducts))
             } else if let toPackageNode = toNode as? PackageNode {
                 issues.append(contentsOf: lintPackageDependency(from: targetNode,
-                                                         to: toPackageNode,
-                                                         linkedStaticProducts: &linkedStaticProducts))
+                                                                to: toPackageNode,
+                                                                linkedStaticProducts: &linkedStaticProducts))
             }
             issues.append(contentsOf: lintGraphNode(node: toNode,
                                                     evaluatedNodes: &evaluatedNodes,
@@ -87,7 +87,7 @@ class GraphLinter: GraphLinting {
 
         return issues
     }
-    
+
     /// Package dependencies are also static products, so we need to perform the same check as for them
     private func lintPackageDependency(from: TargetNode,
                                        to: PackageNode,
@@ -380,23 +380,22 @@ extension GraphLinter {
     /// - Returns: Linting issues.
     private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
         let containsPackageDependency = graph.packages.count > 0
-        
+
         guard containsPackageDependency else { return [] }
-        
+
         let version: Version
         do {
             version = try xcodeController.selectedVersion()
         } catch {
             return [LintingIssue(reason: "Could not determine Xcode version", severity: .error)]
         }
-        
+
         if version.major < 11 {
             let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
             return [LintingIssue(reason: reason, severity: .error)]
         }
-        
+
         return []
-        
     }
 
     /// It verifies that the directory specified by the CocoaPods dependencies contains a Podfile file.

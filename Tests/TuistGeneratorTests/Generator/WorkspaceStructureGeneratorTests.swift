@@ -314,12 +314,12 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
                 cache[pathSoFar] = .folder
             }
         }
-        
-        func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
+
+        func createSymbolicLink(_: AbsolutePath, destination: AbsolutePath) throws {
             try touch(destination)
         }
-        
-        func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
+
+        func linkFile(atPath _: AbsolutePath, toPath: AbsolutePath) throws {
             try touch(toPath)
         }
 

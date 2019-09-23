@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
 import XcodeProj
-import SPMUtility
 
 struct ProjectConstants {
     var objectVersion: UInt
@@ -81,20 +81,20 @@ final class ProjectGenerator: ProjectGenerating {
 
         // Project and workspace.
         return try generateProjectAndWorkspace(project: project,
-                                           graph: graph,
-                                           sourceRootPath: sourceRootPath,
-                                           xcodeprojPath: xcodeprojPath)
+                                               graph: graph,
+                                               sourceRootPath: sourceRootPath,
+                                               xcodeprojPath: xcodeprojPath)
     }
 
     // MARK: - Fileprivate
-    
+
     private func generateProjectAndWorkspace(project: Project,
                                              graph: Graphing,
                                              sourceRootPath: AbsolutePath,
                                              xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
         // Derived files
         let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)
-        
+
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
         let projectConstants = determineProjectConstants()
@@ -258,17 +258,16 @@ final class ProjectGenerator: ProjectGenerating {
         try schemesGenerator.generateTargetSchemes(project: project,
                                                    generatedProject: generatedProject)
     }
-    
+
     enum XcodeVersionError: Swift.Error {
         case noXcode
         case noVersion
     }
 
     private func determineProjectConstants() -> ProjectConstants {
-        
         do {
             let version = try XcodeController(system: system).selectedVersion()
-            
+
             if version.major >= 11 {
                 return .xcode11
             } else {
@@ -278,6 +277,5 @@ final class ProjectGenerator: ProjectGenerating {
         } catch {
             return .xcode10
         }
-
     }
 }

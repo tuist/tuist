@@ -19,7 +19,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
         path = fileHandler.currentPath
         cocoapodsInteractor = MockCocoaPodsInteractor()
-        
+
         system = MockSystem()
 
         subject = WorkspaceGenerator(
@@ -127,7 +127,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
     }
-    
+
     func test_generate_addsPackageDependencyManager() throws {
         // Given
         let target = anyTarget(dependencies: [Dependency.package(.local(path: RelativePath("TestLibrary"), productName: "TestLibrary"))])
@@ -137,7 +137,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                    targets: [target])
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
-        
+
         let workspace = Workspace.test(projects: [project.path])
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies"])
         try fileHandler.createFiles(["\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"])
@@ -147,16 +147,16 @@ final class WorkspaceGeneratorTests: XCTestCase {
                              path: fileHandler.currentPath,
                              graph: graph,
                              tuistConfig: .test())
-        
+
         // Then
         XCTAssertTrue(fileHandler.exists(path.appending(component: ".package.resolved")))
-        
+
         XCTAssertNoThrow(try subject.generate(workspace: workspace,
                                               path: fileHandler.currentPath,
                                               graph: graph,
                                               tuistConfig: .test()))
     }
-    
+
     func test_generate_doesNotAddPackageDependencyManager() throws {
         // Given
         let target = anyTarget()
@@ -166,7 +166,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                    targets: [target])
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
-        
+
         let workspace = Workspace.test(projects: [project.path])
 
         // When
@@ -174,7 +174,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                              path: path,
                              graph: graph,
                              tuistConfig: .test())
-        
+
         // Then
         XCTAssertFalse(fileHandler.exists(path.appending(component: ".package.resolved"), followSymlink: false))
     }

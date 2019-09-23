@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+import PathKit
 import TuistCore
 import XcodeProj
-import PathKit
 
 enum LinkGeneratorError: FatalError, Equatable {
     case missingProduct(name: String)
@@ -78,7 +78,7 @@ final class LinkGenerator: LinkGenerating {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name, system: system)
         let packages = try graph.packages(path: path, name: target.name)
-        
+
         try setupSearchAndIncludePaths(target: target,
                                        pbxTarget: pbxTarget,
                                        sourceRootPath: sourceRootPath,
@@ -109,7 +109,7 @@ final class LinkGenerator: LinkGenerating {
                              pbxProject: pbxProject,
                              packages: packages)
     }
-    
+
     private func setupSearchAndIncludePaths(target: Target,
                                             pbxTarget: PBXTarget,
                                             sourceRootPath: AbsolutePath,
@@ -119,7 +119,7 @@ final class LinkGenerator: LinkGenerating {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
         let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
-        
+
         try setupFrameworkSearchPath(dependencies: linkableModules,
                                      pbxTarget: pbxTarget,
                                      sourceRootPath: sourceRootPath)
@@ -131,7 +131,7 @@ final class LinkGenerator: LinkGenerating {
         try setupLibrarySearchPaths(librarySearchPaths,
                                     pbxTarget: pbxTarget,
                                     sourceRootPath: sourceRootPath)
-        
+
         try setupSwiftIncludePaths(swiftIncludePaths,
                                    pbxTarget: pbxTarget,
                                    sourceRootPath: sourceRootPath)
@@ -145,9 +145,9 @@ final class LinkGenerator: LinkGenerating {
             switch package.packageType {
             case let .local(path: packagePath, productName: productName):
                 _ = try pbxProject.addLocalSwiftPackage(path: Path(packagePath.pathString),
-                                                    productName: productName,
-                                                    targetName: pbxTarget.name,
-                                                    addFileReference: false)
+                                                        productName: productName,
+                                                        targetName: pbxTarget.name,
+                                                        addFileReference: false)
             case let .remote(url: url, productName: productName, versionRequirement: versionRequirement):
                 _ = try pbxProject.addSwiftPackage(repositoryURL: url,
                                                    productName: productName,

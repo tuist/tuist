@@ -44,7 +44,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let system: Systeming
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting
-    
+
     internal var fileHandler: FileHandling = FileHandler.shared
 
     // MARK: - Init
@@ -90,7 +90,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   graph: Graphing,
                   tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
-        
+
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
 
         /// Projects
@@ -118,9 +118,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
 
         try write(xcworkspace: xcWorkspace, to: workspacePath)
-        
+
         // SPM
-        
+
         try generatePackageDependencyManager(at: path,
                                              workspace: workspace,
                                              workspaceName: workspaceName,
@@ -132,17 +132,17 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         return workspacePath
     }
-   
+
     private func generatePackageDependencyManager(at path: AbsolutePath,
                                                   workspace: Workspace,
                                                   workspaceName: String,
                                                   graph: Graphing) throws {
         let hasPackages: Bool = try !graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }.isEmpty
         guard hasPackages else { return }
-        
+
         let packageResolvedPath = path.appending(component: ".package.resolved")
         let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
-        
+
         if !fileHandler.exists(packageResolvedPath) {
             let projectPath = path.appending(component: workspace.name + ".xcodeproj")
             try system.run(["xcodebuild", "-resolvePackageDependencies", "-project", projectPath.pathString])

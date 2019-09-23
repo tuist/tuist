@@ -52,7 +52,7 @@ final class ResourceLocator: ResourceLocating {
             AbsolutePath("/Users/marekfort/Development/tuist/.build/x86_64-apple-macosx"),
             AbsolutePath("/Users/marekfort/Development/tuist/.build/x86_64-apple-macosx/debug"),
             bundlePath,
-            bundlePath.parentDirectory
+            bundlePath.parentDirectory,
         ]
         let candidates = paths.flatMap { path in
             frameworkNames.map { path.appending(component: $0) }

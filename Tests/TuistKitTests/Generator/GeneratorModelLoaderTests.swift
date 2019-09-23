@@ -361,7 +361,7 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
         XCTAssertEqual(path, RelativePath("./path/to/project"))
     }
-    
+
     func test_dependency_when_localPackage() {
         // Given
         let dependency = TargetDependency.package(path: "package", productName: "library")
@@ -380,14 +380,14 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(path, RelativePath("package"))
         XCTAssertEqual(productName, "library")
     }
-    
+
     func test_depedency_when_remotePackage() throws {
         // Given
         let dependency = TargetDependency.package(url: "url", productName: "library", version: .branch("master"))
 
         // When
         let got = TuistGenerator.Dependency.from(manifest: dependency)
-        
+
         // Then
         guard
             case let .package(packageType) = got,

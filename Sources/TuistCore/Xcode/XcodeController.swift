@@ -1,6 +1,6 @@
 import Basic
-import SPMUtility
 import Foundation
+import SPMUtility
 
 public protocol XcodeControlling {
     /// Returns the selected Xcode. It uses xcode-select to determine
@@ -9,7 +9,7 @@ public protocol XcodeControlling {
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
     func selected() throws -> Xcode?
-    
+
     /// Returns version of the selected Xcode. Uses `selected()` from `XcodeControlling`
     ///
     /// - Returns: `Version` of selected Xcode
@@ -41,25 +41,25 @@ public class XcodeController: XcodeControlling {
         }
         return try Xcode.read(path: AbsolutePath(path).parentDirectory.parentDirectory)
     }
-    
+
     enum XcodeVersionError: Swift.Error {
         case noXcode
         case noVersion
     }
-    
+
     public func selectedVersion() throws -> Version {
         guard let xcode = try selected() else {
             throw XcodeVersionError.noXcode
         }
-        
+
         // Xcode versions without patch tag 0 omit it, adding it back if necessary
         let hasPatchTag = xcode.infoPlist.version.split(separator: ".").count == 3
         let xcodeVersionString = hasPatchTag ? xcode.infoPlist.version : xcode.infoPlist.version + ".0"
-        
+
         guard let version = Version(string: xcodeVersionString) else {
             throw XcodeVersionError.noXcode
         }
-        
+
         return version
     }
 }

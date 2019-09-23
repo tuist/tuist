@@ -78,7 +78,7 @@ protocol Graphing: AnyObject, Encodable {
 
     /// Returns all the CocoaPods nodes that are part of the graph.
     var cocoapods: [CocoaPodsNode] { get }
-    
+
     /// Returns all the SwiftPM package nodes that are part of the graph.
     var packages: [PackageNode] { get }
 
@@ -146,7 +146,7 @@ class Graph: Graphing {
     var cocoapods: [CocoaPodsNode] {
         return Array(cache.cocoapodsNodes.values)
     }
-    
+
     var packages: [PackageNode] {
         return Array(cache.packageNodes.values)
     }

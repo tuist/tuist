@@ -16,7 +16,7 @@ final class PackageNodeTests: XCTestCase {
         // Then
         XCTAssertEqual(got, "RemotePackage")
     }
-    
+
     func test_localPackage_name() {
         // Given
         let path = AbsolutePath("/")
@@ -48,7 +48,7 @@ final class PackageNodeTests: XCTestCase {
         // Then
         XCTAssertEqual(lhs, rhs)
     }
-    
+
     func test_remotePackage_isEqual_returnsFalse_when_thePathsAreTheSame() {
         // Given
         let lhs = PackageNode(packageType: .remote(url: "url", productName: "RemotePackage", versionRequirement: .branch("master")), path: AbsolutePath("/"))
@@ -57,7 +57,7 @@ final class PackageNodeTests: XCTestCase {
         // Then
         XCTAssertNotEqual(lhs, rhs)
     }
-    
+
     func test_localPackage_isEqual_returnsFalse_when_thePathsAreTheSame() {
         // Given
         let lhs = PackageNode(packageType: .local(path: RelativePath(""), productName: "LocalPackage"), path: AbsolutePath("/"))

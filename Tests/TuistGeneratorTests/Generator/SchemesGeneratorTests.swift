@@ -227,7 +227,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let got = subject.schemeLaunchAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         XCTAssertNil(got?.macroExpansion)
-        
+
         let buildableReference = got?.runnable?.buildableReference
 
         XCTAssertEqual(got?.buildConfiguration, "Debug")
