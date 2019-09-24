@@ -18,6 +18,9 @@ public protocol XcodeControlling {
 }
 
 public class XcodeController: XcodeControlling {
+    /// Shared instance.
+    public static var shared: XcodeController = XcodeController()
+    
     /// Instance to run commands in the system.
     let system: Systeming
 
