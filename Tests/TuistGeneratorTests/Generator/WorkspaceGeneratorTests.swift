@@ -130,7 +130,9 @@ final class WorkspaceGeneratorTests: XCTestCase {
 
     func test_generate_addsPackageDependencyManager() throws {
         // Given
-        let target = anyTarget(dependencies: [Dependency.package(.local(path: RelativePath("TestLibrary"), productName: "TestLibrary"))])
+        let target = anyTarget(dependencies: [
+            .package(.remote(url: "http://some.remote/repo.git", productName: "Example", versionRequirement: .exact("branch")))
+        ])
         let project = Project.test(path: fileHandler.currentPath,
                                    name: "Test",
                                    settings: .default,
