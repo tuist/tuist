@@ -151,7 +151,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                              tuistConfig: .test())
 
         // Then
-        XCTAssertTrue(fileHandler.exists(path.appending(component: ".package.resolved")))
+        XCTAssertTrue(fileHandler.exists(path.appending(component: "Package.resolved")))
 
         XCTAssertNoThrow(try subject.generate(workspace: workspace,
                                               path: fileHandler.currentPath,
