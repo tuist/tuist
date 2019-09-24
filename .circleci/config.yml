@@ -39,6 +39,7 @@ jobs:
   cli:
     macos:
       xcode: '11.0.0'
+    # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
