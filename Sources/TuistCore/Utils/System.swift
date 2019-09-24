@@ -159,8 +159,6 @@ public enum SystemError: FatalError {
     public var type: ErrorType { return .abort }
 }
 
-public var verbose = false
-
 public final class System: Systeming {
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
@@ -204,17 +202,8 @@ public final class System: Systeming {
 
         try process.launch()
         let result = try process.waitUntilExit()
-
-        do {
-            try result.throwIfErrored()
-        } catch {
-            print(try result.utf8stderrOutput().red())
-            throw error
-        }
-
-        if verbose {
-            print(try result.utf8Output())
-        }
+        
+        try result.throwIfErrored()
     }
 
     /// Runs a command without collecting output nor printing anything.
@@ -244,7 +233,7 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String]) throws -> String {
-        return try capture(arguments, verbose: verbose, environment: env)
+        return try capture(arguments, verbose: false, environment: env)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -281,17 +270,7 @@ public final class System: Systeming {
         try process.launch()
         let result = try process.waitUntilExit()
 
-        do {
-            try result.throwIfErrored()
-        } catch {
-            print(try result.utf8stderrOutput().red())
-            throw error
-        }
-
-        if verbose {
-            print(try result.utf8Output().yellow())
-            print(try result.utf8stderrOutput().red())
-        }
+        try result.throwIfErrored()
 
         return try result.utf8Output()
     }
@@ -311,7 +290,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: verbose, environment: env)
+        try runAndPrint(arguments, verbose: false, environment: env)
     }
 
     /// Runs a command in the shell printing its output.
@@ -381,7 +360,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func async(_ arguments: [String]) throws {
-        try async(arguments, verbose: verbose, environment: env)
+        try async(arguments, verbose: false, environment: env)
     }
 
     /// Runs a command in the shell asynchronously.
