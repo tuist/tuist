@@ -45,8 +45,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting
 
-    internal var fileHandler: FileHandling = FileHandler.shared
-
     // MARK: - Init
 
     convenience init(system: Systeming = System(),
@@ -161,12 +159,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
 
         if hasRemotePackage {
-            if fileHandler.exists(packageResolvedPath) {
-                try fileHandler.delete(packagePath)
+            if FileHandler.shared.exists(packageResolvedPath) {
+                try FileHandler.shared.delete(packagePath)
             } else {
-                try fileHandler.move(from: packagePath, to: packageResolvedPath)
+                try FileHandler.shared.move(from: packagePath, to: packageResolvedPath)
             }
-            try fileHandler.linkFile(atPath: packageResolvedPath, toPath: packagePath)
+            try FileHandler.shared.linkFile(atPath: packageResolvedPath, toPath: packagePath)
         }
     }
 
