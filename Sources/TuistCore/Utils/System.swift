@@ -203,7 +203,7 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
 
         try process.launch()
-        let result = process.waitUntilExit()
+        let result = try process.waitUntilExit()
 
         do {
             try result.throwIfErrored()
