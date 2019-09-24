@@ -203,9 +203,19 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
 
         try process.launch()
-        let result = try printing(process.waitUntilExit())
+        let result = process.waitUntilExit()
+        
+        do {
+            try result.throwIfErrored()
+        } catch {
+            print(try result.utf8stderrOutput().red())
+            throw error
+        }
+        
+        if verbose {
+            print(try result.utf8Output())
+        }
 
-        try result.throwIfErrored()
     }
 
     /// Runs a command without collecting output nor printing anything.
@@ -270,9 +280,20 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
 
         try process.launch()
-        let result = try printing(process.waitUntilExit())
+        let result = try process.waitUntilExit()
 
-        try result.throwIfErrored()
+        do {
+            try result.throwIfErrored()
+        } catch {
+            print(try result.utf8stderrOutput().red())
+            throw error
+        }
+        
+        if verbose {
+            print(try result.utf8Output().yellow())
+            print(try result.utf8stderrOutput().red())
+        }
+        
         return try result.utf8Output()
     }
 
@@ -349,7 +370,7 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
 
         try process.launch()
-        let result = try printing(process.waitUntilExit())
+        let result = try process.waitUntilExit()
 
         try result.throwIfErrored()
     }
@@ -402,12 +423,4 @@ public final class System: Systeming {
         return try capture("/usr/bin/env", "which", name).spm_chomp()
     }
 
-    private func printing(_ result: ProcessResult) throws -> ProcessResult {
-        if verbose {
-            print(try result.utf8Output().yellow())
-            print(try result.utf8stderrOutput().red())
-        }
-
-        return result
-    }
 }

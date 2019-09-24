@@ -42,7 +42,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             extend(&content, with: macosApp())
         }
 
-        // macOSw
+        // macOS
         if target.platform == .macOS {
             extend(&content, with: macos())
         }
