@@ -6,7 +6,7 @@ gem "cucumber", "~> 3.1"
 gem "rake", "~> 12.3"
 gem "danger", "~> 6.0"
 gem "byebug", "~> 11.0"
-gem "minitest", "~> 5.11"
+gem "minitest", "~> 5.12"
 gem "simctl", "~> 1.6"
 gem "rubocop", "~> 0.74.0"
 gem "danger-rubocop", git: 'git@github.com:tuist/danger-rubocop.git'
