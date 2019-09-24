@@ -24,8 +24,8 @@ public final class MockFileHandler: FileHandling {
         try closure(currentPath)
     }
 
-    public func exists(_ path: AbsolutePath, followSymlink: Bool) -> Bool {
-        return fileHandler.exists(path, followSymlink: followSymlink)
+    public func exists(_ path: AbsolutePath) -> Bool {
+        return fileHandler.exists(path)
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
@@ -34,10 +34,6 @@ public final class MockFileHandler: FileHandling {
 
     public func createFolder(_ path: AbsolutePath) throws {
         try fileHandler.createFolder(path)
-    }
-
-    public func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
-        try fileHandler.createSymbolicLink(path, destination: destination)
     }
 
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {

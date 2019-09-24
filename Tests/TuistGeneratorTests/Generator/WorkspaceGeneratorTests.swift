@@ -180,7 +180,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                              tuistConfig: .test())
 
         // Then
-        XCTAssertFalse(fileHandler.exists(path.appending(component: ".package.resolved"), followSymlink: false))
+        XCTAssertFalse(fileHandler.exists(path.appending(component: ".package.resolved")))
     }
 
     // MARK: - Helpers

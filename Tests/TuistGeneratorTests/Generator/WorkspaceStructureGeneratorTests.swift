@@ -317,10 +317,6 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             }
         }
 
-        func createSymbolicLink(_: AbsolutePath, destination: AbsolutePath) throws {
-            try touch(destination)
-        }
-
         func linkFile(atPath _: AbsolutePath, toPath: AbsolutePath) throws {
             try touch(toPath)
         }

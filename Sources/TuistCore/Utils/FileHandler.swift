@@ -41,7 +41,7 @@ public protocol FileHandling: AnyObject {
     ///
     /// - Parameter path: Path to check.
     /// - Returns: True if there's a folder or file at the given path.
-    func exists(_ path: AbsolutePath, followSymlink: Bool) -> Bool
+    func exists(_ path: AbsolutePath) -> Bool
 
     /// Move a file from a location to another location
     ///
@@ -83,19 +83,11 @@ public protocol FileHandling: AnyObject {
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
-    func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws
     func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
     func createFolder(_ path: AbsolutePath) throws
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
-}
-
-public extension FileHandling {
-    // Helper function with default argument
-    func exists(_ path: AbsolutePath, followSymlink: Bool = true) -> Bool {
-        return exists(path, followSymlink: followSymlink)
-    }
 }
 
 public final class FileHandler: FileHandling {
@@ -155,14 +147,9 @@ public final class FileHandler: FileHandling {
     ///
     /// - Parameters:
     ///     - path: Path to check.
-    ///     - followSymlink: Check file at the final destination if `false`, if `true` checks if the `symlink` itself exists
     /// - Returns: True if there's a folder or file at the given path.
-    public func exists(_ path: AbsolutePath, followSymlink: Bool = true) -> Bool {
-        if followSymlink {
-            return FileManager.default.fileExists(atPath: path.pathString)
-        } else {
-            return (try? FileManager.default.attributesOfItem(atPath: path.pathString)) != nil
-        }
+    public func exists(_ path: AbsolutePath) -> Bool {
+        return FileManager.default.fileExists(atPath: path.pathString)
     }
 
     /// It copies a file or folder to another path.
@@ -197,10 +184,6 @@ public final class FileHandler: FileHandling {
         } else {
             throw FileHandlerError.invalidTextEncoding(at)
         }
-    }
-
-    public func createSymbolicLink(_ path: AbsolutePath, destination: AbsolutePath) throws {
-        try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
     }
 
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
