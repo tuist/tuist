@@ -139,14 +139,13 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         workspaceName: String,
         graph: Graphing
     ) throws {
-        
         let packages = try graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }
         let hasPackages = !packages.isEmpty
-        
+
         guard hasPackages else {
             return
         }
-        
+
         let hasRemotePackage = packages.first(where: { package in
             switch package.packageType {
             case .remote: return true
@@ -160,7 +159,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspacePath = path.appending(component: workspaceName)
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-        
+
         if hasRemotePackage {
             if fileHandler.exists(packageResolvedPath) {
                 try fileHandler.delete(packagePath)
@@ -169,7 +168,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             }
             try fileHandler.linkFile(atPath: packageResolvedPath, toPath: packagePath)
         }
-        
     }
 
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {

@@ -42,7 +42,7 @@ public protocol FileHandling: AnyObject {
     /// - Parameter path: Path to check.
     /// - Returns: True if there's a folder or file at the given path.
     func exists(_ path: AbsolutePath, followSymlink: Bool) -> Bool
-    
+
     /// Move a file from a location to another location
     ///
     /// - Parameters:
@@ -174,7 +174,7 @@ public final class FileHandler: FileHandling {
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
-    
+
     /// Move a file from a location to another location
     ///
     /// - Parameters:

@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Forward the output of the `codesign` command to make debugging easier when the copy frameworks command fails https://github.com/tuist/tuist/pull/492 by @pepibumur.
 - Support for multi-line settings (see [how to migrate](https://github.com/tuist/tuist/pull/464#issuecomment-529673717)) https://github.com/tuist/tuist/pull/464 by @marciniwanicki
 - Support for SPM https://github.com/tuist/tuist/pull/394 by @pepibumur & @fortmarek & @kwridan & @ollieatkinson
+- Xcode 11 & Swift 5.1 Module Support by @ollieatkinson
 
 ### Fixed
 
