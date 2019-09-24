@@ -276,6 +276,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
     }
 
     fileprivate class InMemoryFileHandler: FileHandling {
+        
         private enum Node {
             case file
             case folder
@@ -291,6 +292,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             return cache[path] != nil
         }
 
+        func move(from _: AbsolutePath, to _: AbsolutePath) throws {}
+        
         func copy(from _: AbsolutePath, to _: AbsolutePath) throws {}
 
         func readTextFile(_: AbsolutePath) throws -> String {
