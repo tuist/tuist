@@ -260,16 +260,11 @@ final class ProjectGenerator: ProjectGenerating {
     }
 
     private func determineProjectConstants() -> ProjectConstants {
-        do {
-            let version = try XcodeController(system: system).selectedVersion()
+        let version = try XcodeController(system: system).selectedVersion()
 
-            if version.major >= 11 {
-                return .xcode11
-            } else {
-                return .xcode10
-            }
-
-        } catch {
+        if version.major >= 11 {
+            return .xcode11
+        } else {
             return .xcode10
         }
     }
