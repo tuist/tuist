@@ -133,28 +133,43 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         return workspacePath
     }
 
-    private func generatePackageDependencyManager(at path: AbsolutePath,
-                                                  workspace _: Workspace,
-                                                  workspaceName: String,
-                                                  graph: Graphing) throws {
-        let hasPackages: Bool = try !graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }.isEmpty
-        guard hasPackages else { return }
+    private func generatePackageDependencyManager(
+        at path: AbsolutePath,
+        workspace _: Workspace,
+        workspaceName: String,
+        graph: Graphing
+    ) throws {
+        
+        let packages = try graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }
+        let hasPackages = !packages.isEmpty
+        
+        guard hasPackages else {
+            return
+        }
+        
+        let hasRemotePackage = packages.first(where: { package in
+            switch package.packageType {
+            case .remote: return true
+            case .local: return false
+            }
+        }) != nil
 
-        let packageResolvedPath = path.appending(component: ".package.resolved")
+        let packageResolvedPath = path.appending(component: "Package.resolved")
         let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
 
-        if !fileHandler.exists(packageResolvedPath) {
-            let workspacePath = path.appending(component: workspaceName)
-            // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
-            try system.run(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-            try fileHandler.linkFile(atPath: packagePath, toPath: packageResolvedPath)
-        } else {
-            // Just in case Package.resolved was created by user before hard linking
-            if fileHandler.exists(packagePath) {
+        let workspacePath = path.appending(component: workspaceName)
+        // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
+        try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        
+        if hasRemotePackage {
+            if fileHandler.exists(packageResolvedPath) {
                 try fileHandler.delete(packagePath)
+            } else {
+                try fileHandler.move(from: packagePath, to: packageResolvedPath)
             }
             try fileHandler.linkFile(atPath: packageResolvedPath, toPath: packagePath)
         }
+        
     }
 
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {

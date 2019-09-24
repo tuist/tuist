@@ -42,7 +42,7 @@ final class TargetGenerator: TargetGenerating {
 
     // MARK: - TargetGenerating
 
-    //swiftlint:disable:next function_body_length
+    // swiftlint:disable:next function_body_length
     func generateTarget(target: Target,
                         pbxproj: PBXProj,
                         pbxProject: PBXProject,

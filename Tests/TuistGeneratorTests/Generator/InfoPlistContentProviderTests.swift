@@ -26,7 +26,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
             "UISupportedInterfaceOrientations": [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight"
+                "UIInterfaceOrientationLandscapeRight",
             ],
             "CFBundleShortVersionString": "1.0",
             "UIMainStoryboardFile": "Main",
@@ -38,12 +38,12 @@ final class InfoPlistContentProviderTests: XCTestCase {
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationPortraitUpsideDown",
                 "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight"
+                "UIInterfaceOrientationLandscapeRight",
             ],
             "CFBundleVersion": "1",
             "ExtraAttribute": "Value",
             "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "CFBundleInfoDictionaryVersion": "6.0"
+            "CFBundleInfoDictionaryVersion": "6.0",
         ])
     }
 
@@ -69,7 +69,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
             "CFBundleExecutable": "$(EXECUTABLE_NAME)",
             "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
             "ExtraAttribute": "Value",
-            "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)"
+            "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
         ])
     }
 

@@ -43,6 +43,10 @@ public final class MockFileHandler: FileHandling {
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
         try fileHandler.linkFile(atPath: atPath, toPath: toPath)
     }
+    
+    public func move(from: AbsolutePath, to: AbsolutePath) throws {
+        try fileHandler.move(from: from, to: to)
+    }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try fileHandler.copy(from: from, to: to)

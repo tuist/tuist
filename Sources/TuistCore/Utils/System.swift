@@ -2,7 +2,6 @@ import Basic
 import Foundation
 
 public protocol Systeming {
-        
     /// System environment.
     var env: [String: String] { get }
 
@@ -163,7 +162,6 @@ public enum SystemError: FatalError {
 public var verbose = false
 
 public final class System: Systeming {
-        
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
@@ -203,10 +201,10 @@ public final class System: Systeming {
                                                          stderr: { _ in }),
                               verbose: false,
                               startNewProcessGroup: false)
-                
+
         try process.launch()
         let result = try printing(process.waitUntilExit())
-        
+
         try result.throwIfErrored()
     }
 
@@ -270,7 +268,7 @@ public final class System: Systeming {
                               outputRedirection: .collect,
                               verbose: verbose,
                               startNewProcessGroup: false)
-                
+
         try process.launch()
         let result = try printing(process.waitUntilExit())
 
@@ -403,15 +401,13 @@ public final class System: Systeming {
     public func which(_ name: String) throws -> String {
         return try capture("/usr/bin/env", "which", name).spm_chomp()
     }
-    
+
     private func printing(_ result: ProcessResult) throws -> ProcessResult {
-        
         if verbose {
             print(try result.utf8Output().yellow())
             print(try result.utf8stderrOutput().red())
         }
-        
+
         return result
-        
     }
 }

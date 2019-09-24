@@ -13,7 +13,7 @@ public extension XCTestCase {
 
     // MARK: - XCTAssertions
 
-    //swiftlint:disable large_tuple
+    // swiftlint:disable large_tuple
     func XCTAssertEqualPairs<T: Equatable>(_ subjects: [(T, T, Bool)], file: StaticString = #file, line: UInt = #line) {
         subjects.forEach {
             if $0.2 {

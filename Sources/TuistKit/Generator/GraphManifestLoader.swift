@@ -184,13 +184,12 @@ class GraphManifestLoader: GraphManifestLoading {
         ]
         arguments.append(path.pathString)
         arguments.append("--dump")
-        
+
         guard let jsonString = try system.capture(arguments).spm_chuzzle(),
             let data = jsonString.data(using: .utf8) else {
-                throw GraphManifestLoaderError.unexpectedOutput(path)
+            throw GraphManifestLoaderError.unexpectedOutput(path)
         }
-        
+
         return data
-        
     }
 }

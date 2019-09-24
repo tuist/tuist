@@ -64,7 +64,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
             frameworkAbsolutePath: frameworkAbsolutePath,
             validArchs: validArchs
         )
-        
+
         try copySymbols(frameworkDsymPath: frameworkDsymPath, destinationPath: destinationPath, validArchs: validArchs)
         try copyBCSymbolMaps(action: action, frameworkAbsolutePath: frameworkAbsolutePath, builtProductsDir: builtProductsDir)
 

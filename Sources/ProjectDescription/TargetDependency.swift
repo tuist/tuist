@@ -422,19 +422,19 @@ extension TargetDependency {
         fatalError()
     }
 
-    //swiftlint:disable:next line_length
+    // swiftlint:disable:next line_length
     @available(*, unavailable, message: "use package(url:productName:_:) with the .exact(Version) initializer instead. You must specify a product name")
     public static func package(url _: String, version _: Version) -> TargetDependency {
         fatalError()
     }
 
-    //swiftlint:disable:next line_length
+    // swiftlint:disable:next line_length
     @available(*, unavailable, message: "use package(url:productName:_:) with the .branch(String) initializer instead. You must specify a product name")
     public static func package(url _: String, branch _: String) -> TargetDependency {
         fatalError()
     }
 
-    //swiftlint:disable:next line_length
+    // swiftlint:disable:next line_length
     @available(*, unavailable, message: "use package(url:productName:_:) with the .revision(String) initializer instead. You must specify a product name")
     public static func package(url _: String, revision _: String) -> TargetDependency {
         fatalError()

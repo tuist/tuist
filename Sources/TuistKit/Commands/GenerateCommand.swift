@@ -58,7 +58,7 @@ class GenerateCommand: NSObject, Command {
         projectOnlyArgument = subParser.add(option: "--project-only",
                                             kind: Bool.self,
                                             usage: "Only generate the local project (without generating its dependencies).")
-        
+
         verboseArgument = subParser.add(option: "--verbose",
                                         shortName: "-v",
                                         kind: Bool.self,
@@ -66,9 +66,8 @@ class GenerateCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        
         TuistCore.verbose = arguments.get(verboseArgument) ?? false
-        
+
         let timer = clock.startTimer()
         let path = self.path(arguments: arguments)
         let projectOnly = arguments.get(projectOnlyArgument) ?? false
