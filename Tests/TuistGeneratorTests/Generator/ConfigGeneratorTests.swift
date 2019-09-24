@@ -57,7 +57,7 @@ final class ConfigGeneratorTests: XCTestCase {
         // Given
         let commonSettings = [
             "Base": "Base",
-            "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
+            "INFOPLIST_FILE": "Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
             "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
             "SWIFT_VERSION": Constants.swiftVersion,
