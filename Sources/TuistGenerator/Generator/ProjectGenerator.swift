@@ -259,7 +259,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                    generatedProject: generatedProject)
     }
 
-    enum XcodeVersionError: Swift.Error {
+    enum XcodeVersionError: FatalError {
         case noXcode
         case noVersion
     }

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import SPMUtility
 
 @testable import TuistCore
 @testable import TuistCoreTesting
@@ -46,5 +47,32 @@ final class XcodeControllerTests: XCTestCase {
 
         // Then
         XCTAssertNotNil(xcode)
+    }
+    
+    func test_selectedVersion_when_xcodeSelectDoesntReturnThePath() throws {
+        // Given
+        system.errorCommand(["xcode-select", "-p"])
+
+        // Then
+        XCTAssertThrowsError(try subject.selectedVersion())
+    }
+    
+    func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {
+        // Given
+        let contentsPath = fileHandler.currentPath.appending(component: "Contents")
+        try fileHandler.createFolder(contentsPath)
+        let infoPlistPath = contentsPath.appending(component: "Info.plist")
+        let developerPath = contentsPath.appending(component: "Developer")
+        let infoPlist = Xcode.InfoPlist(version: "11.3.2")
+        let infoPlistData = try PropertyListEncoder().encode(infoPlist)
+        try infoPlistData.write(to: infoPlistPath.url)
+
+        system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
+
+        // When
+        let xcodeVersion = try subject.selectedVersion()
+
+        // Then
+        XCTAssertEqual(Version(11, 3, 2), xcodeVersion)
     }
 }
