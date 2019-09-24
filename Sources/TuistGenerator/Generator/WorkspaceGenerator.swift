@@ -138,9 +138,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         graph: Graphing
     ) throws {
         let packages = try graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }
-        let hasPackages = !packages.isEmpty
-
-        guard hasPackages else {
+        
+        if packages.isEmpty else {
             return
         }
 
@@ -151,20 +150,20 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             }
         }) != nil
 
-        let packageResolvedPath = path.appending(component: "Package.resolved")
-        let packagePath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
+        let rootPackageResolvedPath = path.appending(component: "Package.resolved")
+        let workspacePackageResolvedPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
 
         let workspacePath = path.appending(component: workspaceName)
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
 
         if hasRemotePackage {
-            if FileHandler.shared.exists(packageResolvedPath) {
-                try FileHandler.shared.delete(packagePath)
+            if FileHandler.shared.exists(rootPackageResolvedPath) {
+                try FileHandler.shared.delete(workspacePackageResolvedPath)
             } else {
-                try FileHandler.shared.move(from: packagePath, to: packageResolvedPath)
+                try FileHandler.shared.move(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
             }
-            try FileHandler.shared.linkFile(atPath: packageResolvedPath, toPath: packagePath)
+            try FileHandler.shared.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
         }
     }
 
