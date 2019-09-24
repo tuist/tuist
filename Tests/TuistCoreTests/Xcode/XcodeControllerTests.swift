@@ -63,7 +63,7 @@ final class XcodeControllerTests: XCTestCase {
         try fileHandler.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
-        let infoPlist = Xcode.InfoPlist(version: "11.3.2")
+        let infoPlist = Xcode.InfoPlist(version: "11.3")
         let infoPlistData = try PropertyListEncoder().encode(infoPlist)
         try infoPlistData.write(to: infoPlistPath.url)
 
@@ -73,6 +73,6 @@ final class XcodeControllerTests: XCTestCase {
         let xcodeVersion = try subject.selectedVersion()
 
         // Then
-        XCTAssertEqual(Version(11, 3, 2), xcodeVersion)
+        XCTAssertEqual(Version(11, 3, 0), xcodeVersion)
     }
 }

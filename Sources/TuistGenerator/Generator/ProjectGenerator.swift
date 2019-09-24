@@ -259,11 +259,6 @@ final class ProjectGenerator: ProjectGenerating {
                                                    generatedProject: generatedProject)
     }
 
-    enum XcodeVersionError: FatalError {
-        case noXcode
-        case noVersion
-    }
-
     private func determineProjectConstants() -> ProjectConstants {
         do {
             let version = try XcodeController(system: system).selectedVersion()

@@ -52,11 +52,7 @@ public class XcodeController: XcodeControlling {
             throw XcodeVersionError.noXcode
         }
 
-        // Xcode versions without patch tag 0 omit it, adding it back if necessary
-        let hasPatchTag = xcode.infoPlist.version.split(separator: ".").count == 3
-        let xcodeVersionString = hasPatchTag ? xcode.infoPlist.version : xcode.infoPlist.version + ".0"
-
-        guard let version = Version(string: xcodeVersionString) else {
+        guard let version = Version(unformattedString: xcode.infoPlist.version) else {
             throw XcodeVersionError.noXcode
         }
 
