@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 import SPMUtility
+import XCTest
 
 @testable import TuistCore
 @testable import TuistCoreTesting
@@ -48,7 +48,7 @@ final class XcodeControllerTests: XCTestCase {
         // Then
         XCTAssertNotNil(xcode)
     }
-    
+
     func test_selectedVersion_when_xcodeSelectDoesntReturnThePath() throws {
         // Given
         system.errorCommand(["xcode-select", "-p"])
@@ -56,7 +56,7 @@ final class XcodeControllerTests: XCTestCase {
         // Then
         XCTAssertThrowsError(try subject.selectedVersion())
     }
-    
+
     func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {
         // Given
         let contentsPath = fileHandler.currentPath.appending(component: "Contents")

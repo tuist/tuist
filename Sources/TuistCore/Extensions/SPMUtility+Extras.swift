@@ -7,11 +7,11 @@ extension Version {
     ///   - unformattedString: The string to parse.
     init?(unformattedString: String) {
         let versionComponents = unformattedString.split(separator: ".")
-        
-        guard 1...3 ~= versionComponents.count else { return nil }
-        
-        let formattedVersionComponents = versionComponents + (versionComponents.count..<3).map { _ in "0" }
-        
+
+        guard 1 ... 3 ~= versionComponents.count else { return nil }
+
+        let formattedVersionComponents = versionComponents + (versionComponents.count ..< 3).map { _ in "0" }
+
         self.init(string: formattedVersionComponents.joined(separator: "."))
     }
 }

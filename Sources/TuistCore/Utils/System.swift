@@ -202,7 +202,7 @@ public final class System: Systeming {
 
         try process.launch()
         let result = try process.waitUntilExit()
-        
+
         try result.throwIfErrored()
     }
 
