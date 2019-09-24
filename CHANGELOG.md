@@ -17,6 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Output losing its format when tuist is run through `tuistenv` https://github.com/tuist/tuist/pull/493 by @pepibumur
 - Product name linting failing when it contains variables https://github.com/tuist/tuist/pull/494 by @dcvz
 - Build phases not generated in the right position https://github.com/tuist/tuist/pull/506 by @pepibumur
+- Remove \$(SRCROOT) from being included in `Info.plist` path https://github.com/tuist/tuist/pull/511 by @dcvz
 
 ## 0.17.0
 
