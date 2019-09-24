@@ -204,18 +204,17 @@ public final class System: Systeming {
 
         try process.launch()
         let result = process.waitUntilExit()
-        
+
         do {
             try result.throwIfErrored()
         } catch {
             print(try result.utf8stderrOutput().red())
             throw error
         }
-        
+
         if verbose {
             print(try result.utf8Output())
         }
-
     }
 
     /// Runs a command without collecting output nor printing anything.
@@ -288,12 +287,12 @@ public final class System: Systeming {
             print(try result.utf8stderrOutput().red())
             throw error
         }
-        
+
         if verbose {
             print(try result.utf8Output().yellow())
             print(try result.utf8stderrOutput().red())
         }
-        
+
         return try result.utf8Output()
     }
 
@@ -422,5 +421,4 @@ public final class System: Systeming {
     public func which(_ name: String) throws -> String {
         return try capture("/usr/bin/env", "which", name).spm_chomp()
     }
-
 }
