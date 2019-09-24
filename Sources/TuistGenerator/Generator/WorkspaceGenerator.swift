@@ -139,7 +139,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     ) throws {
         let packages = try graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }
         
-        if packages.isEmpty else {
+        if packages.isEmpty {
             return
         }
 
