@@ -49,7 +49,7 @@ public class XcodeController: XcodeControlling {
         case noXcode
         case noVersion
         
-        var type: ErrorType { .abort }
+        var type: ErrorType { .abort }
         
         var description: String {
             switch self {

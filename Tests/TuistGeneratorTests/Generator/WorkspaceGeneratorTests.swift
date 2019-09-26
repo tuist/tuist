@@ -153,12 +153,51 @@ final class WorkspaceGeneratorTests: XCTestCase {
                              tuistConfig: .test())
 
         // Then
-        XCTAssertTrue(fileHandler.exists(path.appending(component: "Package.resolved")))
+        XCTAssertTrue(fileHandler.exists(path.appending(component: ".package.resolved")))
 
         XCTAssertNoThrow(try subject.generate(workspace: workspace,
                                               path: fileHandler.currentPath,
                                               graph: graph,
                                               tuistConfig: .test()))
+    }
+    
+    func test_generate_linksRootPackageResolved_before_resolving() throws {
+        // Given
+        let target = anyTarget(dependencies: [
+            .package(.remote(url: "http://some.remote/repo.git", productName: "Example", versionRequirement: .exact("branch"))),
+        ])
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+
+        let workspace = Workspace.test(name: project.name,
+                                       projects: [project.path])
+        let rootPackageResolvedPath = path.appending(component: ".package.resolved")
+        try fileHandler.write("package", path: rootPackageResolvedPath, atomically: false)
+        
+        let workspacePath = path.appending(component: workspace.name + ".xcworkspace")
+        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+
+        // When
+        try subject.generate(workspace: workspace,
+                             path: fileHandler.currentPath,
+                             graph: graph,
+                             tuistConfig: .test())
+
+        // Then
+        let workspacePackageResolvedPath = path.appending(RelativePath("\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
+        XCTAssertEqual(
+            try fileHandler.readTextFile(workspacePackageResolvedPath),
+            "package"
+        )
+        try fileHandler.write("changedPackage", path: rootPackageResolvedPath, atomically: false)
+        XCTAssertEqual(
+            try fileHandler.readTextFile(workspacePackageResolvedPath),
+            "changedPackage"
+        )
     }
 
     func test_generate_doesNotAddPackageDependencyManager() throws {
