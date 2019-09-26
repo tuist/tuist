@@ -3,7 +3,6 @@ import Foundation
 @testable import TuistGenerator
 
 final class MockGraphLoaderCache: GraphLoaderCaching {
-
     var projects: [AbsolutePath: Project] = [:]
     var targetNodes: [AbsolutePath: [String: TargetNode]] = [:]
     var precompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
@@ -25,7 +24,7 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     var packageNodes: [AbsolutePath: PackageNode] = [:]
     var packagesStub: [AbsolutePath: PackageNode] = [:]
     var addPackageArgs: [PackageNode] = []
-    
+
     func package(_ path: AbsolutePath) -> PackageNode? {
         return packagesStub[path]
     }

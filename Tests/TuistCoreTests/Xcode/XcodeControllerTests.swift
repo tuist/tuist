@@ -57,7 +57,7 @@ final class XcodeControllerTests: XCTestCase {
         do {
             _ = try subject.selectedVersion()
             XCTFail()
-        } catch let error {
+        } catch {
             XCTAssertEqual(error as? XcodeController.XcodeVersionError, XcodeController.XcodeVersionError.noXcode)
         }
     }
