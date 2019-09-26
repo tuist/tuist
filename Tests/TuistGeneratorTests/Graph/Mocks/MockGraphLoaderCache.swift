@@ -3,13 +3,6 @@ import Foundation
 @testable import TuistGenerator
 
 final class MockGraphLoaderCache: GraphLoaderCaching {
-    var packageNodes: [AbsolutePath: PackageNode] = [:]
-
-    func package(_: AbsolutePath) -> PackageNode? {
-        return nil
-    }
-
-    func add(package _: PackageNode) {}
 
     var projects: [AbsolutePath: Project] = [:]
     var targetNodes: [AbsolutePath: [String: TargetNode]] = [:]
@@ -29,6 +22,17 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
     var cocoapodsStub: [AbsolutePath: CocoaPodsNode] = [:]
     var addCococaPodsArgs: [CocoaPodsNode] = []
+    var packageNodes: [AbsolutePath: PackageNode] = [:]
+    var packagesStub: [AbsolutePath: PackageNode] = [:]
+    var addPackageArgs: [PackageNode] = []
+    
+    func package(_ path: AbsolutePath) -> PackageNode? {
+        return packagesStub[path]
+    }
+
+    func add(package: PackageNode) {
+        addPackageArgs.append(package)
+    }
 
     func cocoapods(_ path: AbsolutePath) -> CocoaPodsNode? {
         return cocoapodsStub[path]
