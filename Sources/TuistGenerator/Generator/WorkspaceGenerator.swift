@@ -150,7 +150,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             }
         }) != nil
 
-        let rootPackageResolvedPath = path.appending(component: "Package.resolved")
+        let rootPackageResolvedPath = path.appending(component: ".package.resolved")
         let workspacePackageResolvedPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm/Package.resolved"))
 
         let workspacePath = path.appending(component: workspaceName)
