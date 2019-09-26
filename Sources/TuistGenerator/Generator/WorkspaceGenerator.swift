@@ -153,12 +153,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let rootPackageResolvedPath = path.appending(component: ".package.resolved")
         let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
-        
+
         if hasRemotePackage {
             if FileHandler.shared.exists(workspacePackageResolvedPath) {
                 try FileHandler.shared.delete(workspacePackageResolvedPath)
             }
-            
+
             if !FileHandler.shared.exists(rootPackageResolvedPath) {
                 try FileHandler.shared.touch(rootPackageResolvedPath)
             }

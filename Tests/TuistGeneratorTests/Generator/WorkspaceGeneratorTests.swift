@@ -160,7 +160,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                               graph: graph,
                                               tuistConfig: .test()))
     }
-    
+
     func test_generate_linksRootPackageResolved_before_resolving() throws {
         // Given
         let target = anyTarget(dependencies: [
@@ -177,7 +177,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
                                        projects: [project.path])
         let rootPackageResolvedPath = path.appending(component: ".package.resolved")
         try fileHandler.write("package", path: rootPackageResolvedPath, atomically: false)
-        
+
         let workspacePath = path.appending(component: workspace.name + ".xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
 

@@ -48,9 +48,9 @@ public class XcodeController: XcodeControlling {
     enum XcodeVersionError: FatalError {
         case noXcode
         case noVersion
-        
+
         var type: ErrorType { .abort }
-        
+
         var description: String {
             switch self {
             case .noXcode:
