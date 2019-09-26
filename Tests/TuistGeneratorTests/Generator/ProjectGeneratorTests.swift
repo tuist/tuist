@@ -3,6 +3,7 @@ import Foundation
 import TuistCore
 import XcodeProj
 import XCTest
+import SPMUtility
 
 @testable import TuistCoreTesting
 @testable import TuistGenerator
@@ -11,11 +12,13 @@ final class ProjectGeneratorTests: XCTestCase {
     var subject: ProjectGenerator!
     var system: MockSystem!
     var fileHandler: MockFileHandler!
+    var xcodeController: MockXcodeController!
 
     override func setUp() {
         super.setUp()
         mockAllSystemInteractions()
         fileHandler = sharedMockFileHandler()
+        xcodeController = sharedMockXcodeController()
 
         system = MockSystem()
         subject = ProjectGenerator(system: system)
@@ -162,5 +165,41 @@ final class ProjectGeneratorTests: XCTestCase {
         XCTAssertTrue(fileHandler.exists(got.path))
         XCTAssertEqual(got.path.components.last, "SomeAwesomeName.xcodeproj")
         XCTAssertEqual(project.name, "Project")
+    }
+    
+    func test_objectVersion_when_xcode11() throws {
+        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+        
+        // Given
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Project",
+                                   fileName: "SomeAwesomeName",
+                                   targets: [])
+        let graph = Graph.test(entryPath: fileHandler.currentPath)
+        
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+        
+        // Then
+        XCTAssertEqual(got.pbxproj.objectVersion, 52)
+        XCTAssertEqual(got.pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
+    }
+    
+    func test_objectVersion_when_xcode10() throws {
+        xcodeController.selectedVersionStub = .success(Version(10, 2, 1))
+        
+        // Given
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Project",
+                                   fileName: "SomeAwesomeName",
+                                   targets: [])
+        let graph = Graph.test(entryPath: fileHandler.currentPath)
+        
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+        
+        // Then
+        XCTAssertEqual(got.pbxproj.objectVersion, 50)
+        XCTAssertEqual(got.pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
     }
 }
