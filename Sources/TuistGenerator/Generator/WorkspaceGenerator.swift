@@ -165,12 +165,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspacePath = path.appending(component: workspaceName)
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-        
+
         if hasRemotePackage {
             if FileHandler.shared.exists(rootPackageResolvedPath) {
                 try FileHandler.shared.delete(rootPackageResolvedPath)
             }
-            
+
             try FileHandler.shared.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
         }
     }
