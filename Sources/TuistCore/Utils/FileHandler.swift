@@ -149,7 +149,7 @@ public final class FileHandler: FileHandling {
     ///     - path: Path to check.
     /// - Returns: True if there's a folder or file at the given path.
     public func exists(_ path: AbsolutePath) -> Bool {
-        return FileManager.default.fileExists(atPath: path.pathString)
+        return fileManager.fileExists(atPath: path.pathString)
     }
 
     /// It copies a file or folder to another path.
