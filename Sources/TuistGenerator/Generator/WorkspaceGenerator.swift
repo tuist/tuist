@@ -154,21 +154,25 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
-        if hasRemotePackage {
+        if hasRemotePackage, FileHandler.shared.exists(rootPackageResolvedPath) {
+            try FileHandler.shared.createFolder(workspacePackageResolvedFolderPath)
             if FileHandler.shared.exists(workspacePackageResolvedPath) {
                 try FileHandler.shared.delete(workspacePackageResolvedPath)
             }
-
-            if !FileHandler.shared.exists(rootPackageResolvedPath) {
-                try FileHandler.shared.touch(rootPackageResolvedPath)
-            }
-            try FileHandler.shared.createFolder(workspacePackageResolvedFolderPath)
-            try FileHandler.shared.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
+            try FileHandler.shared.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
         }
 
         let workspacePath = path.appending(component: workspaceName)
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        
+        if hasRemotePackage {
+            if FileHandler.shared.exists(rootPackageResolvedPath) {
+                try FileHandler.shared.delete(rootPackageResolvedPath)
+            }
+            
+            try FileHandler.shared.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
+        }
     }
 
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
