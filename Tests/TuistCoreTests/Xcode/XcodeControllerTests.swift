@@ -54,7 +54,12 @@ final class XcodeControllerTests: XCTestCase {
         system.errorCommand(["xcode-select", "-p"])
 
         // Then
-        XCTAssertThrowsError(try subject.selectedVersion())
+        do {
+            _ = try subject.selectedVersion()
+            XCTFail()
+        } catch let error {
+            XCTAssertEqual(error as? XcodeController.XcodeVersionError, XcodeController.XcodeVersionError.noXcode)
+        }
     }
 
     func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {

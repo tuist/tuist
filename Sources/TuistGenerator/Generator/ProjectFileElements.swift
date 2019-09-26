@@ -255,6 +255,7 @@ class ProjectFileElements {
                                  pbxproj: pbxproj,
                                  sourceRootPath: sourceRootPath)
                 case .remote:
+                    // Only local packages need group, remote are handled by Xcode itself
                     break
                 }
             default:

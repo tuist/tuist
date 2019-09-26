@@ -45,9 +45,20 @@ public class XcodeController: XcodeControlling {
         return try Xcode.read(path: AbsolutePath(path).parentDirectory.parentDirectory)
     }
 
-    enum XcodeVersionError: Swift.Error {
+    enum XcodeVersionError: FatalError {
         case noXcode
         case noVersion
+        
+        var type: ErrorType { .abort }
+        
+        var description: String {
+            switch self {
+            case .noXcode:
+                return "Could not find Xcode"
+            case .noVersion:
+                return "Could not parse XcodeVersion"
+            }
+        }
     }
 
     public func selectedVersion() throws -> Version {
