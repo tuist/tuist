@@ -3,7 +3,7 @@
 source "https://rubygems.org"
 
 gem "cucumber", "~> 3.1"
-gem "rake", "~> 12.3"
+gem "rake", "~> 13.0"
 gem "danger", "~> 6.0"
 gem "byebug", "~> 11.0"
 gem "minitest", "~> 5.12"
