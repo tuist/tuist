@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 0.18.0
+
 ### Added
 
 - New InfoPlist type, `.extendingDefault([:])` https://github.com/tuist/tuist/pull/448 by @pepibumur
