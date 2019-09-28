@@ -10,7 +10,7 @@ let project = Project(
                infoPlist: "Config/Info.plist",
                sources: "Sources/**",
                dependencies: [
-                    .package(path: "Packages/PackageA", productName: "LibraryA"),
+                    .package(path: "../Packages/PackageA", productName: "LibraryA"),
                 ])
     ]
 )
