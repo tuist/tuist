@@ -22,15 +22,16 @@ enum GraphError: FatalError {
 
 enum DependencyReference: Equatable, Comparable, Hashable {
     case absolute(AbsolutePath)
-    case product(target: String)
+    case product(target: String, productName: String)
     case sdk(AbsolutePath, SDKStatus)
 
     func hash(into hasher: inout Hasher) {
         switch self {
         case let .absolute(path):
             hasher.combine(path)
-        case let .product(target):
+        case let .product(target, productName):
             hasher.combine(target)
+            hasher.combine(productName)
         case let .sdk(path, status):
             hasher.combine(path)
             hasher.combine(status)
@@ -41,8 +42,8 @@ enum DependencyReference: Equatable, Comparable, Hashable {
         switch (lhs, rhs) {
         case let (.absolute(lhsPath), .absolute(rhsPath)):
             return lhsPath == rhsPath
-        case let (.product(lhsName), .product(rhsName)):
-            return lhsName == rhsName
+        case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
+            return lhsTarget == rhsTarget && lhsProductName == rhsProductName
         case let (.sdk(lhsPath, lhsStatus), .sdk(rhsPath, rhsStatus)):
             return lhsPath == rhsPath && lhsStatus == rhsStatus
         default:
@@ -54,8 +55,11 @@ enum DependencyReference: Equatable, Comparable, Hashable {
         switch (lhs, rhs) {
         case let (.absolute(lhsPath), .absolute(rhsPath)):
             return lhsPath < rhsPath
-        case let (.product(lhsName), .product(rhsName)):
-            return lhsName < rhsName
+        case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
+            if lhsTarget == rhsTarget {
+                return lhsProductName < rhsProductName
+            }
+            return lhsTarget < rhsTarget
         case let (.sdk(lhsPath, _), .sdk(rhsPath, _)):
             return lhsPath < rhsPath
         case (.sdk, .absolute):
@@ -100,6 +104,8 @@ protocol Graphing: AnyObject, Encodable {
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
+    func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference]
+    func allDependencyReferences(for project: Project, system: Systeming) throws -> [DependencyReference]
 
     // MARK: - Depth First Search
 
@@ -182,7 +188,7 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter(isStaticLibrary)
-            .map { DependencyReference.product(target: $0.target.name) }
+            .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
     }
 
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -241,13 +247,13 @@ class Graph: Graphing {
         if targetNode.target.canLinkStaticProducts() {
             let staticLibraryTargetNodes = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
             let staticLibraries = staticLibraryTargetNodes.map {
-                DependencyReference.product(target: $0.target.name)
+                DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension)
             }
 
             let staticDependenciesDynamicLibraries = staticLibraryTargetNodes.flatMap {
                 $0.targetDependencies
                     .filter(or(isFramework, isDynamicLibrary))
-                    .map { DependencyReference.product(target: $0.target.name) }
+                    .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
             }
 
             references = references.union(staticLibraries + staticDependenciesDynamicLibraries)
@@ -257,7 +263,7 @@ class Graph: Graphing {
 
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
-            .map { DependencyReference.product(target: $0.target.name) }
+            .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
 
         references = references.union(dynamicLibrariesAndFrameworks)
         return Array(references).sorted()
@@ -321,11 +327,42 @@ class Graph: Graphing {
 
         /// Other targets' frameworks.
         let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
-            .map { DependencyReference.product(target: $0.target.name) }
+            .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
 
         references.append(contentsOf: otherTargetFrameworks)
 
         return Set(references).sorted()
+    }
+
+    func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference] {
+        var dependencies = [DependencyReference]()
+
+        if target.product.isStatic {
+            dependencies.append(contentsOf: staticDependencies(path: path, name: target.name))
+        }
+
+        dependencies.append(contentsOf:
+            resourceBundleDependencies(path: path, name: target.name)
+                .map { .product(target: $0.target.name, productName: $0.target.productNameWithExtension) })
+
+        return Set(dependencies).sorted()
+    }
+
+    func allDependencyReferences(for project: Project, system: Systeming) throws -> [DependencyReference] {
+        let linkableDependencies = try project.targets.flatMap {
+            try self.linkableDependencies(path: project.path, name: $0.name, system: system)
+        }
+
+        let embeddableDependencies = try project.targets.flatMap {
+            try self.embeddableFrameworks(path: project.path, name: $0.name, system: system)
+        }
+
+        let copyProductDependencies = project.targets.flatMap {
+            self.copyProductDependencies(path: project.path, target: $0)
+        }
+
+        let allDepdendencies = linkableDependencies + embeddableDependencies + copyProductDependencies
+        return Set(allDepdendencies).sorted()
     }
 
     // MARK: - Fileprivate

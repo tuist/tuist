@@ -27,7 +27,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateEmbedPhase() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product(target: "Test"))
+        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -58,7 +58,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product(target: "Test"))
+        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -218,7 +218,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateLinkingPhase() throws {
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product(target: "Test"))
+        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -260,7 +260,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
         var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product(target: "Test"))
+        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()

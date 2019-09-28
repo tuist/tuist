@@ -46,6 +46,12 @@ Workspace:
   - Framework2:
     - Framework2 (dynamic iOS framework)
     - Framework2Tests (iOS unit tests)
+  - Framework3:
+    - Framework3 (dynamic iOS framework)
+  - Framework4:
+    - Framework4 (dynamic iOS framework)
+  - Framework5:
+    - Framework5 (dynamic iOS framework)
 ```
 
 Dependencies:
@@ -53,6 +59,9 @@ Dependencies:
 - App -> Framework1
 - App -> Framework2
 - Framework1 -> Framework2
+- Framework2 -> Framework3
+- Framework3 -> Framework4
+- Framework4 -> Framework5
 
 ## ios_app_with_framework_and_resources
 
