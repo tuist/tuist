@@ -519,6 +519,25 @@ extension TuistGenerator.Headers {
     }
 }
 
+extension TuistGenerator.Dependency.VersionRequirement {
+    static func from(manifest: ProjectDescription.TargetDependency.VersionRequirement) -> TuistGenerator.Dependency.VersionRequirement {
+        switch manifest {
+        case let .branch(branch):
+            return .branch(branch)
+        case let .exact(version):
+            return .exact(version.description)
+        case let .range(from, to):
+            return .range(from: from.description, to: to.description)
+        case let .revision(revision):
+            return .revision(revision)
+        case let .upToNextMajor(version):
+            return .upToNextMajor(version.description)
+        case let .upToNextMinor(version):
+            return .upToNextMinor(version.description)
+        }
+    }
+}
+
 extension TuistGenerator.Dependency {
     static func from(manifest: ProjectDescription.TargetDependency) -> TuistGenerator.Dependency {
         switch manifest {
@@ -532,6 +551,16 @@ extension TuistGenerator.Dependency {
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
+        case let .package(packageType):
+            switch packageType {
+            case let .local(path: packagePath, productName: productName):
+                return .package(.local(path: RelativePath(packagePath), productName: productName))
+            case let .remote(url: url,
+                             productName: productName,
+                             versionRequirement: versionRules):
+                return .package(.remote(url: url, productName: productName, versionRequirement: .from(manifest: versionRules)))
+            }
+
         case let .sdk(name, status):
             return .sdk(name: name,
                         status: .from(manifest: status))

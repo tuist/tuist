@@ -10,6 +10,7 @@ final class WorkspaceGeneratorTests: XCTestCase {
     var path: AbsolutePath!
     var fileHandler: MockFileHandler!
     var cocoapodsInteractor: MockCocoaPodsInteractor!
+    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
@@ -19,8 +20,10 @@ final class WorkspaceGeneratorTests: XCTestCase {
         path = fileHandler.currentPath
         cocoapodsInteractor = MockCocoaPodsInteractor()
 
+        system = MockSystem()
+
         subject = WorkspaceGenerator(
-            system: MockSystem(),
+            system: system,
             cocoapodsInteractor: cocoapodsInteractor
         )
     }
@@ -125,12 +128,107 @@ final class WorkspaceGeneratorTests: XCTestCase {
         XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
     }
 
+    func test_generate_addsPackageDependencyManager() throws {
+        // Given
+        let target = anyTarget(dependencies: [
+            .package(.remote(url: "http://some.remote/repo.git", productName: "Example", versionRequirement: .exact("branch"))),
+        ])
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+
+        let workspace = Workspace.test(name: project.name,
+                                       projects: [project.path])
+        let workspacePath = path.appending(component: workspace.name + ".xcworkspace")
+        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        try fileHandler.createFiles(["\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"])
+
+        // When
+        try subject.generate(workspace: workspace,
+                             path: fileHandler.currentPath,
+                             graph: graph,
+                             tuistConfig: .test())
+
+        // Then
+        XCTAssertTrue(fileHandler.exists(path.appending(component: ".package.resolved")))
+
+        XCTAssertNoThrow(try subject.generate(workspace: workspace,
+                                              path: fileHandler.currentPath,
+                                              graph: graph,
+                                              tuistConfig: .test()))
+    }
+
+    func test_generate_linksRootPackageResolved_before_resolving() throws {
+        // Given
+        let target = anyTarget(dependencies: [
+            .package(.remote(url: "http://some.remote/repo.git", productName: "Example", versionRequirement: .exact("branch"))),
+        ])
+        let project = Project.test(path: fileHandler.currentPath,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+
+        let workspace = Workspace.test(name: project.name,
+                                       projects: [project.path])
+        let rootPackageResolvedPath = path.appending(component: ".package.resolved")
+        try fileHandler.write("package", path: rootPackageResolvedPath, atomically: false)
+
+        let workspacePath = path.appending(component: workspace.name + ".xcworkspace")
+        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+
+        // When
+        try subject.generate(workspace: workspace,
+                             path: fileHandler.currentPath,
+                             graph: graph,
+                             tuistConfig: .test())
+
+        // Then
+        let workspacePackageResolvedPath = path.appending(RelativePath("\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
+        XCTAssertEqual(
+            try fileHandler.readTextFile(workspacePackageResolvedPath),
+            "package"
+        )
+        try fileHandler.write("changedPackage", path: rootPackageResolvedPath, atomically: false)
+        XCTAssertEqual(
+            try fileHandler.readTextFile(workspacePackageResolvedPath),
+            "changedPackage"
+        )
+    }
+
+    func test_generate_doesNotAddPackageDependencyManager() throws {
+        // Given
+        let target = anyTarget()
+        let project = Project.test(path: path,
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
+        let graph = Graph.create(project: project,
+                                 dependencies: [(target, [])])
+
+        let workspace = Workspace.test(projects: [project.path])
+
+        // When
+        try subject.generate(workspace: workspace,
+                             path: path,
+                             graph: graph,
+                             tuistConfig: .test())
+
+        // Then
+        XCTAssertFalse(fileHandler.exists(path.appending(component: ".package.resolved")))
+    }
+
     // MARK: - Helpers
 
-    func anyTarget() -> Target {
+    func anyTarget(dependencies: [Dependency] = []) -> Target {
         return Target.test(infoPlist: nil,
                            entitlements: nil,
-                           settings: nil)
+                           settings: nil,
+                           dependencies: dependencies)
     }
 }
 

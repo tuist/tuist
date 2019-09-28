@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
 import XcodeProj
 
@@ -78,13 +79,25 @@ final class ProjectGenerator: ProjectGenerating {
 
         let xcodeprojPath = sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
 
+        // Project and workspace.
+        return try generateProjectAndWorkspace(project: project,
+                                               graph: graph,
+                                               sourceRootPath: sourceRootPath,
+                                               xcodeprojPath: xcodeprojPath)
+    }
+
+    // MARK: - Fileprivate
+
+    private func generateProjectAndWorkspace(project: Project,
+                                             graph: Graphing,
+                                             sourceRootPath: AbsolutePath,
+                                             xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
         // Derived files
         let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)
 
-        // Project and workspace.
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        let projectConstants = determineProjectConstants()
+        let projectConstants = try determineProjectConstants()
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
@@ -124,8 +137,6 @@ final class ProjectGenerator: ProjectGenerating {
                          project: project,
                          graph: graph)
     }
-
-    // MARK: - Fileprivate
 
     private func generatePbxproject(project: Project,
                                     configurationList: XCConfigurationList,
@@ -248,12 +259,13 @@ final class ProjectGenerator: ProjectGenerating {
                                                    generatedProject: generatedProject)
     }
 
-    private func determineProjectConstants() -> ProjectConstants {
-        // TODO:
-        //
-        // To maintain backwards compatibility with Xcode 10
-        // the Xcode10 constants are used unless the use of Xcode 11
-        // features are detected (e.g Swift PM dependencies)
-        return .xcode10
+    private func determineProjectConstants() throws -> ProjectConstants {
+        let version = try XcodeController.shared.selectedVersion()
+
+        if version.major >= 11 {
+            return .xcode11
+        } else {
+            return .xcode10
+        }
     }
 }

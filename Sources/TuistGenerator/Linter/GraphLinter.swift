@@ -1,24 +1,28 @@
 import Foundation
+import SPMUtility
 import TuistCore
 
 protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]
 }
 
+// swiftlint:disable type_body_length
 class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     let projectLinter: ProjectLinting
+    let xcodeController: XcodeControlling
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter()) {
+    init(projectLinter: ProjectLinting = ProjectLinter(), xcodeController: XcodeControlling = XcodeController()) {
         self.projectLinter = projectLinter
+        self.xcodeController = xcodeController
     }
 
     struct StaticDepedencyWarning: Hashable {
         let fromTargetNode: TargetNode
-        let toTargetNode: TargetNode
+        let toTargetNode: GraphNode
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(toTargetNode)
@@ -53,39 +57,7 @@ class GraphLinter: GraphLinting {
 
         issues.append(contentsOf: lintCarthageDependencies(graph: graph))
         issues.append(contentsOf: lintCocoaPodsDependencies(graph: graph))
-
-        return issues
-    }
-
-    /// It verifies that the directory specified by the CocoaPods dependencies contains a Podfile file.
-    ///
-    /// - Parameter graph: Project graph.
-    /// - Returns: Linting issues.
-    private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
-        return graph.cocoapods.compactMap { node in
-            let podfilePath = node.podfilePath
-            if !FileHandler.shared.exists(podfilePath) {
-                return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
-            }
-            return nil
-        }
-    }
-
-    private func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
-        let frameworks = graph.frameworks
-        let carthageFrameworks = frameworks.filter { $0.isCarthage }
-        let nonCarthageFrameworks = frameworks.filter { !$0.isCarthage }
-
-        let carthageIssues = carthageFrameworks
-            .filter { !FileHandler.shared.exists($0.path) }
-            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString). The path might be wrong or Carthage dependencies not fetched", severity: .warning) }
-        let nonCarthageIssues = nonCarthageFrameworks
-            .filter { !FileHandler.shared.exists($0.path) }
-            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString)", severity: .error) }
-
-        var issues: [LintingIssue] = []
-        issues.append(contentsOf: carthageIssues)
-        issues.append(contentsOf: nonCarthageIssues)
+        issues.append(contentsOf: lintPackageDependencies(graph: graph))
 
         return issues
     }
@@ -104,6 +76,10 @@ class GraphLinter: GraphLinting {
                 issues.append(contentsOf: lintDependency(from: targetNode,
                                                          to: toTargetNode,
                                                          linkedStaticProducts: &linkedStaticProducts))
+            } else if let toPackageNode = toNode as? PackageNode {
+                issues.append(contentsOf: lintPackageDependency(from: targetNode,
+                                                                to: toPackageNode,
+                                                                linkedStaticProducts: &linkedStaticProducts))
             }
             issues.append(contentsOf: lintGraphNode(node: toNode,
                                                     evaluatedNodes: &evaluatedNodes,
@@ -111,6 +87,25 @@ class GraphLinter: GraphLinting {
         }
 
         return issues
+    }
+
+    /// Package dependencies are also static products, so we need to perform the same check as for them
+    private func lintPackageDependency(from: TargetNode,
+                                       to: PackageNode,
+                                       linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
+        guard from.target.canLinkStaticProducts() else {
+            return []
+        }
+        let warning = StaticDepedencyWarning(fromTargetNode: from,
+                                             toTargetNode: to)
+        let (inserted, oldMember) = linkedStaticProducts.insert(warning)
+        guard inserted == false else {
+            return []
+        }
+
+        let reason = "Package \(to.name) has been linked against \(oldMember.fromTargetNode.target.name) and \(from.target.name), it is a static product so may introduce unwanted side effects."
+        let issue = LintingIssue(reason: reason, severity: .warning)
+        return [issue]
     }
 
     private func lintDependency(from: TargetNode,
@@ -183,6 +178,63 @@ class GraphLinter: GraphLinting {
             return LintingIssue(reason: reason,
                                 severity: .warning)
         }
+    }
+
+    /// It verifies setup for packages
+    ///
+    /// - Parameter graph: Project graph.
+    /// - Returns: Linting issues.
+    private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
+        let containsPackageDependency = graph.packages.count > 0
+
+        guard containsPackageDependency else { return [] }
+
+        let version: Version
+        do {
+            version = try xcodeController.selectedVersion()
+        } catch {
+            return [LintingIssue(reason: "Could not determine Xcode version", severity: .error)]
+        }
+
+        if version.major < 11 {
+            let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
+            return [LintingIssue(reason: reason, severity: .error)]
+        }
+
+        return []
+    }
+
+    /// It verifies that the directory specified by the CocoaPods dependencies contains a Podfile file.
+    ///
+    /// - Parameter graph: Project graph.
+    /// - Returns: Linting issues.
+    private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
+        return graph.cocoapods.compactMap { node in
+            let podfilePath = node.podfilePath
+            if !FileHandler.shared.exists(podfilePath) {
+                return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
+            }
+            return nil
+        }
+    }
+
+    private func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
+        let frameworks = graph.frameworks
+        let carthageFrameworks = frameworks.filter { $0.isCarthage }
+        let nonCarthageFrameworks = frameworks.filter { !$0.isCarthage }
+
+        let carthageIssues = carthageFrameworks
+            .filter { !FileHandler.shared.exists($0.path) }
+            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString). The path might be wrong or Carthage dependencies not fetched", severity: .warning) }
+        let nonCarthageIssues = nonCarthageFrameworks
+            .filter { !FileHandler.shared.exists($0.path) }
+            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString)", severity: .error) }
+
+        var issues: [LintingIssue] = []
+        issues.append(contentsOf: carthageIssues)
+        issues.append(contentsOf: nonCarthageIssues)
+
+        return issues
     }
 
     struct LintableTarget: Equatable, Hashable {

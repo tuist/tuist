@@ -78,6 +78,30 @@ It defines a dependency with a pre-compiled library. It allows specifying the pa
 
 It defines a dependency on a system library (`.tbd`) or framework (`.framework`) and optionally if it is `required` or `optional` (i.e. gets weakly linked).
 
+## SPM dependencies
+
+Targets can add Swift packages, either local packages or remote. You can add one very similarly to how you add dependencies in `Package.swift`.
+
+For remote:
+```swift 
+.package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", .exact("6.7.0"))
+```
+
+```swift 
+.package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", from: "6.7.0")
+```
+
+```swift 
+.package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", "6.6.1"..<"6.8.0")
+```
+
+For local:
+```swift 
+.package(path: "MyLibrary", productName: "MyLibrary")
+```
+
+This also creates `.package.resolved`, so your team can share the same versions of dependencies without commiting your workspace.
+
 ## CocoaPods dependencies
 
 Targets can indicate that they have [CocoaPods](https://cocoapods.org) dependencies defined in a `Podfile`:

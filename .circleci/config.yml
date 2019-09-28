@@ -24,7 +24,7 @@ workflows:
 jobs:
   install:
     macos:
-      xcode: '10.2.1'
+      xcode: '11.0.0'
     steps:
       - checkout
       - run:
@@ -38,7 +38,9 @@ jobs:
             ./install/uninstall
   cli:
     macos:
-      xcode: '10.2.1'
+      xcode: '11.0.0'
+    # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
+    shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
       - restore_cache:

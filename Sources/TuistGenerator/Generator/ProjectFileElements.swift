@@ -205,7 +205,9 @@ class ProjectFileElements {
             .map { $0.target }
             .map { ($0, $0.product) }
         let mergeStrategy: (Product, Product) -> Product = { first, _ in first }
-        let sortByName: ((Target, Product), (Target, Product)) -> Bool = { first, second in first.0.productNameWithExtension < second.0.productNameWithExtension }
+        let sortByName: ((Target, Product), (Target, Product)) -> Bool = { first, second in
+            first.0.productNameWithExtension < second.0.productNameWithExtension
+        }
 
         let targetsProductsDictionary = Dictionary(targetsProducts, uniquingKeysWith: mergeStrategy)
         let dependenciesProductsDictionary = Dictionary(dependenciesProducts, uniquingKeysWith: mergeStrategy)
@@ -239,11 +241,23 @@ class ProjectFileElements {
                              groups: groups,
                              pbxproj: pbxproj,
                              sourceRootPath: sourceRootPath)
-                return
             case let sdkNode as SDKNode:
                 generateSDKFileElement(node: sdkNode,
                                        toGroup: groups.frameworks,
                                        pbxproj: pbxproj)
+            case let packageNode as PackageNode:
+                switch packageNode.packageType {
+                case let .local(path: packagePath, productName: _):
+                    let fileElement = GroupFileElement(path: sourceRootPath.appending(packagePath),
+                                                       group: filesGroup)
+                    try generate(fileElement: fileElement,
+                                 groups: groups,
+                                 pbxproj: pbxproj,
+                                 sourceRootPath: sourceRootPath)
+                case .remote:
+                    // Only local packages need group, remote are handled by Xcode itself
+                    break
+                }
             default:
                 return
             }

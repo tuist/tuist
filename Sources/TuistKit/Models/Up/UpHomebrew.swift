@@ -35,7 +35,7 @@ class UpHomebrew: Up, GraphInitiatable {
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
     override func isMet(system: Systeming, projectPath _: AbsolutePath) throws -> Bool {
-        let packagesInstalled = packages.reduce(true) { $0 && toolInstalled($1, system: system) }
+        let packagesInstalled = packages.allSatisfy { toolInstalled($0, system: system) }
         return toolInstalled("brew", system: system) && packagesInstalled
     }
 

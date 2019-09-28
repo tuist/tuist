@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import PathKit
 import TuistCore
 import XcodeProj
 
@@ -52,6 +53,7 @@ protocol LinkGenerating: AnyObject {
                        system: Systeming) throws
 }
 
+// swiftlint:disable type_body_length
 final class LinkGenerator: LinkGenerating {
     /// An instance to locate tuist binaries.
     let binaryLocator: BinaryLocating
@@ -68,23 +70,56 @@ final class LinkGenerator: LinkGenerating {
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
                        pbxproj: PBXProj,
-                       pbxProject _: PBXProject,
+                       pbxProject: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
                        graph: Graphing,
                        system: Systeming = System()) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
-        let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
-        let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
-        let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name, system: system)
+        let packages = try graph.packages(path: path, name: target.name)
+
+        try setupSearchAndIncludePaths(target: target,
+                                       pbxTarget: pbxTarget,
+                                       sourceRootPath: sourceRootPath,
+                                       path: path,
+                                       graph: graph,
+                                       linkableModules: linkableModules)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
                                pbxTarget: pbxTarget,
                                pbxproj: pbxproj,
                                fileElements: fileElements,
                                sourceRootPath: sourceRootPath)
+
+        try generateLinkingPhase(dependencies: linkableModules,
+                                 pbxTarget: pbxTarget,
+                                 pbxproj: pbxproj,
+                                 fileElements: fileElements)
+
+        try generateCopyProductsdBuildPhase(path: path,
+                                            target: target,
+                                            graph: graph,
+                                            pbxTarget: pbxTarget,
+                                            pbxproj: pbxproj,
+                                            fileElements: fileElements)
+
+        try generatePackages(target: target,
+                             pbxTarget: pbxTarget,
+                             pbxProject: pbxProject,
+                             packages: packages)
+    }
+
+    private func setupSearchAndIncludePaths(target: Target,
+                                            pbxTarget: PBXTarget,
+                                            sourceRootPath: AbsolutePath,
+                                            path: AbsolutePath,
+                                            graph: Graphing,
+                                            linkableModules: [DependencyReference]) throws {
+        let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
+        let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
+        let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
 
         try setupFrameworkSearchPath(dependencies: linkableModules,
                                      pbxTarget: pbxTarget,
@@ -101,18 +136,26 @@ final class LinkGenerator: LinkGenerating {
         try setupSwiftIncludePaths(swiftIncludePaths,
                                    pbxTarget: pbxTarget,
                                    sourceRootPath: sourceRootPath)
+    }
 
-        try generateLinkingPhase(dependencies: linkableModules,
-                                 pbxTarget: pbxTarget,
-                                 pbxproj: pbxproj,
-                                 fileElements: fileElements)
-
-        try generateCopyProductsdBuildPhase(path: path,
-                                            target: target,
-                                            graph: graph,
-                                            pbxTarget: pbxTarget,
-                                            pbxproj: pbxproj,
-                                            fileElements: fileElements)
+    func generatePackages(target _: Target,
+                          pbxTarget: PBXTarget,
+                          pbxProject: PBXProject,
+                          packages: [PackageNode]) throws {
+        try packages.forEach { package in
+            switch package.packageType {
+            case let .local(path: packagePath, productName: productName):
+                _ = try pbxProject.addLocalSwiftPackage(path: Path(packagePath.pathString),
+                                                        productName: productName,
+                                                        targetName: pbxTarget.name,
+                                                        addFileReference: false)
+            case let .remote(url: url, productName: productName, versionRequirement: versionRequirement):
+                _ = try pbxProject.addSwiftPackage(repositoryURL: url,
+                                                   productName: productName,
+                                                   versionRequirement: versionRequirement.xcodeprojValue,
+                                                   targetName: pbxTarget.name)
+            }
+        }
     }
 
     func generateEmbedPhase(dependencies: [DependencyReference],

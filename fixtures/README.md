@@ -233,3 +233,17 @@ An iOS app whose TuistConfig file requires an Xcode version that is not availabl
 ## ios_app_with_actions
 
 An iOS app with a target that has pre and post actions.
+
+## ios_app_with_remote_swift_package
+
+An iOS application with remote Swift package
+
+## ios_app_with_local_swift_package
+
+An iOS application with remote Swift package 
+
+## ios_app_with_static_library_and_package
+
+An iOS application that depends on static library that depends on Swift package where static library is defined first
+
+Note: to re-create `PrebuiltStaticFramework.framework` run `fixtures/ios_app_with_static_library_and_package/Prebuilt/build.sh`

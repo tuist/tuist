@@ -79,6 +79,9 @@ protocol Graphing: AnyObject, Encodable {
     /// Returns all the CocoaPods nodes that are part of the graph.
     var cocoapods: [CocoaPodsNode] { get }
 
+    /// Returns all the SwiftPM package nodes that are part of the graph.
+    var packages: [PackageNode] { get }
+
     /// Returns all the frameorks that are part of the graph.
     var frameworks: [FrameworkNode] { get }
 
@@ -88,6 +91,7 @@ protocol Graphing: AnyObject, Encodable {
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] { get }
 
+    func packages(path: AbsolutePath, name: String) throws -> [PackageNode]
     func linkableDependencies(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
@@ -143,6 +147,10 @@ class Graph: Graphing {
         return Array(cache.cocoapodsNodes.values)
     }
 
+    var packages: [PackageNode] {
+        return Array(cache.packageNodes.values)
+    }
+
     /// Returns all the frameworks that are part of the graph
     var frameworks: [FrameworkNode] {
         return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
@@ -184,6 +192,14 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter { $0.target.product == .bundle }
+    }
+
+    func packages(path: AbsolutePath, name: String) throws -> [PackageNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        return targetNode.packages
     }
 
     func linkableDependencies(path: AbsolutePath, name: String, system _: Systeming) throws -> [DependencyReference] {
@@ -365,6 +381,10 @@ extension TargetNode {
 
     fileprivate var precompiledDependencies: [PrecompiledNode] {
         return dependencies.lazy.compactMap { $0 as? PrecompiledNode }
+    }
+
+    fileprivate var packages: [PackageNode] {
+        return dependencies.lazy.compactMap { $0 as? PackageNode }
     }
 
     fileprivate var libraryDependencies: [LibraryNode] {

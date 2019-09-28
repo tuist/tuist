@@ -585,6 +585,27 @@ final class GraphTests: XCTestCase {
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
     }
 
+    func test_packageDepedencies_fromTargetDependency() throws {
+        // Given
+        let target = Target.test(name: "Test", product: .app, dependencies: [
+            .package(.remote(url: "url", productName: "testA", versionRequirement: .branch("master"))),
+            .package(.local(path: RelativePath(""), productName: "testB")),
+        ])
+        let project = Project.test(path: "/path")
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: target, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.packages(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(result.first?.name, "testA")
+        XCTAssertEqual(result.last?.name, "testB")
+    }
+
     func test_resourceBundleDependencies_fromTargetDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)

@@ -3,21 +3,25 @@
 require 'simctl'
 require 'xcodeproj'
 
-Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
+Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
   @derived_data_path = File.join(@dir, "DerivedData")
 
   args = [
     "-scheme", scheme,
     "-workspace", @workspace_path,
-    "-derivedDataPath", @derived_data_path,
-    "clean", action
+    "-derivedDataPath", @derived_data_path
   ]
 
-  if action == "test"
-    device = SimCtl.device(name: "iPhone 7", is_available: true)
-    args << "-destination 'id=#{device.udid}'" unless device.nil?
+  if action == "test" && platform == "iOS"
+    args << "-destination\ \'name=iPhone 11\'"
   end
 
+  if action == "build" && platform == "iOS"
+    args << "-sdk\ iphoneos"
+  end
+
+  args << "clean"
+  args << action
   args << "CODE_SIGNING_ALLOWED=NO"
   args << "CODE_SIGNING_IDENTITY=\"iPhone Developer\""
 

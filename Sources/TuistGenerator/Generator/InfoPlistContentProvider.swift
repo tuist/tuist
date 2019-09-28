@@ -38,7 +38,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         }
 
         // macOS app
-        if target.product == .app, target.platform == .iOS {
+        if target.product == .app, target.platform == .macOS {
             extend(&content, with: macosApp())
         }
 

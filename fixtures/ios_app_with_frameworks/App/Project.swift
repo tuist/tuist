@@ -13,6 +13,7 @@ let project = Project(name: "MainApp",
                                  bundleId: "io.tuist.App",
                                  infoPlist: .extendingDefault(with: [:]),
                                  sources: "Sources/**",
+                                 resources: "Sources/Main.storyboard",
                                  dependencies: [
                                      .project(target: "Framework1", path: "../Framework1"),
                                      .project(target: "Framework2-iOS", path: "../Framework2"),

@@ -14,6 +14,7 @@ module Xcode
       destination: destination,
       derived_data_path: derived_data_path
     )
+
     return if product_path.nil?
 
     framework_glob = File.join(product_path, "**/Frameworks/#{framework}.framework")

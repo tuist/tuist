@@ -88,6 +88,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   graph: Graphing,
                   tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
+
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
 
         /// Projects
@@ -116,11 +117,62 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         try write(xcworkspace: xcWorkspace, to: workspacePath)
 
+        // SPM
+
+        try generatePackageDependencyManager(at: path,
+                                             workspace: workspace,
+                                             workspaceName: workspaceName,
+                                             graph: graph)
+
         // CocoaPods
 
         try cocoapodsInteractor.install(graph: graph)
 
         return workspacePath
+    }
+
+    private func generatePackageDependencyManager(
+        at path: AbsolutePath,
+        workspace _: Workspace,
+        workspaceName: String,
+        graph: Graphing
+    ) throws {
+        let packages = try graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }
+
+        if packages.isEmpty {
+            return
+        }
+
+        let hasRemotePackage = packages.first(where: { package in
+            switch package.packageType {
+            case .remote: return true
+            case .local: return false
+            }
+        }) != nil
+
+        let rootPackageResolvedPath = path.appending(component: ".package.resolved")
+        let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
+        let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
+
+        if hasRemotePackage, FileHandler.shared.exists(rootPackageResolvedPath) {
+            try FileHandler.shared.createFolder(workspacePackageResolvedFolderPath)
+            if FileHandler.shared.exists(workspacePackageResolvedPath) {
+                try FileHandler.shared.delete(workspacePackageResolvedPath)
+            }
+            try FileHandler.shared.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
+        }
+
+        let workspacePath = path.appending(component: workspaceName)
+        // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
+        try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+
+        if hasRemotePackage {
+            if FileHandler.shared.exists(rootPackageResolvedPath) {
+                try FileHandler.shared.delete(rootPackageResolvedPath)
+            }
+
+            try FileHandler.shared.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
+        }
     }
 
     private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
