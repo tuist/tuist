@@ -87,7 +87,7 @@ def package
     system(
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
-      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", " libProjectDescription.dylib"
+      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib"
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
