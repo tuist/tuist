@@ -73,9 +73,9 @@ final class HTTPClient: HTTPClienting {
         var error: Error?
 
         let semaphore = DispatchSemaphore(value: 0)
-        session.dataTask(with: url) { _data, _, _error in
-            data = _data
-            error = _error
+        session.dataTask(with: url) { responseData, _, responseError in
+            data = responseData
+            error = responseError
             semaphore.signal()
         }.resume()
         semaphore.wait()
@@ -83,10 +83,10 @@ final class HTTPClient: HTTPClienting {
         if let error = error {
             throw HTTPClientError.clientError(url, error)
         }
-        guard let _data = data else {
+        guard let resultData = data else {
             throw HTTPClientError.noData(url)
         }
-        return _data
+        return resultData
     }
 
     /// Downloads the resource from the given URL into the passed directory.
