@@ -30,12 +30,12 @@ jobs:
       - run:
           name: Install Tuist
           command: |
-            ./install/install
+            ./script/install
             tuist --help
       - run:
           name: Uninstall Tuist
           command: |
-            ./install/uninstall
+            ./script/uninstall
   cli:
     macos:
       xcode: '11.0.0'
