@@ -82,11 +82,11 @@ final class HTTPClient: HTTPClienting {
 
         if let error = error {
             throw HTTPClientError.clientError(url, error)
-        } else if let data = data {
-            return data
-        } else {
+        }
+        guard let _data = data else {
             throw HTTPClientError.noData(url)
         }
+        return _data
     }
 
     /// Downloads the resource from the given URL into the passed directory.
@@ -100,22 +100,19 @@ final class HTTPClient: HTTPClienting {
         var clientError: HTTPClientError?
 
         session.downloadTask(with: url) { downloadURL, _, error in
+            defer { semaphore.signal() }
             if let error = error {
                 clientError = HTTPClientError.clientError(url, error)
-                semaphore.signal()
             } else if let downloadURL = downloadURL {
                 let from = AbsolutePath(downloadURL.absoluteString)
                 let to = into.appending(component: from.components.last!)
                 do {
                     try self.fileHandler.copy(from: from, to: to)
-                    semaphore.signal()
                 } catch {
                     clientError = HTTPClientError.copyFileError(to, error)
-                    semaphore.signal()
                 }
             } else {
                 clientError = .missingResource(url)
-                semaphore.signal()
             }
         }
         semaphore.wait()
