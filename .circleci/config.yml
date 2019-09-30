@@ -102,19 +102,6 @@ jobs:
       - checkout:
           path: ~/repo
 
-      - restore_cache:
-          key: yarn-galaxy-backend-{{ checksum "package.json" }}
-
-      - run:
-          name: Install Yarn dependencies
-          command: |
-            yarn
-
-      - save_cache:
-          key: yarn-galaxy-backend-{{ checksum "package.json" }}
-          paths:
-            - node_modules
-
       - run:
           name: Update Bundler
           command: |
@@ -145,11 +132,6 @@ jobs:
             bundle exec rake db:create
             bundle exec rails db:schema:load
             bundle exec rake test
-
-      - run:
-          name: Javascript tests
-          command: |
-            yarn test
 
   galaxy-backend-deploy:
     docker:
