@@ -104,7 +104,11 @@ protocol Graphing: AnyObject, Encodable {
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
+
+    /// Products that are added to a dummy copy files phase to enforce build order between dependencies that Xcode doesn't usually respect (e.g. Resouce Bundles)
     func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference]
+
+    /// All dependency referrences expected to present within a Project
     func allDependencyReferences(for project: Project, system: Systeming) throws -> [DependencyReference]
 
     // MARK: - Depth First Search
