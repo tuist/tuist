@@ -19,9 +19,6 @@ Rails.application.configure do
   config.action_controller.perform_caching = false
   config.action_controller.allow_forgery_protection = false
 
-  # Active storage
-  config.active_storage.service = :test
-
   # Active support
   config.active_support.deprecation = :stderr
 end
