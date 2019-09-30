@@ -49,8 +49,7 @@ protocol LinkGenerating: AnyObject {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing,
-                       system: Systeming) throws
+                       graph: Graphing) throws
 }
 
 // swiftlint:disable type_body_length
@@ -74,10 +73,9 @@ final class LinkGenerator: LinkGenerating {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing,
-                       system: Systeming = System()) throws {
-        let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
-        let linkableModules = try graph.linkableDependencies(path: path, name: target.name, system: system)
+                       graph: Graphing) throws {
+        let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
+        let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
         let packages = try graph.packages(path: path, name: target.name)
 
         try setupSearchAndIncludePaths(target: target,

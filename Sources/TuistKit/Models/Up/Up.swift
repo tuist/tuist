@@ -10,19 +10,17 @@ protocol Upping: AnyObject {
     /// Returns true when the command doesn't need to be run.
     ///
     /// - Parameters
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool
+    func isMet(projectPath: AbsolutePath) throws -> Bool
 
     /// When the command is not met, this method runs it.
     ///
     /// - Parameters:
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system: Systeming, projectPath: AbsolutePath) throws
+    func meet(projectPath: AbsolutePath) throws
 }
 
 /// It represents a command that configures the environment for the project to work.
@@ -36,21 +34,19 @@ class Up: Upping {
     /// Returns true when the command doesn't need to be run.
     ///
     /// - Parameters
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    func isMet(system _: Systeming, projectPath _: AbsolutePath) throws -> Bool {
+    func isMet(projectPath _: AbsolutePath) throws -> Bool {
         fatalError("This method should be overriden")
     }
 
     /// When the command is not met, this method runs it.
     ///
     /// - Parameters:
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    func meet(system _: Systeming, projectPath _: AbsolutePath) throws {
+    func meet(projectPath _: AbsolutePath) throws {
         fatalError("This method should be overriden")
     }
 
@@ -86,9 +82,8 @@ class Up: Upping {
     ///
     /// - Parameters
     ///   - name: Name of the tool.
-    ///   - system: System instance to run the which command.
     /// - Returns: True if homwebrew is installed in the system.
-    func toolInstalled(_ name: String, system: Systeming) -> Bool {
-        return (try? system.which(name)) != nil
+    func toolInstalled(_ name: String) -> Bool {
+        return (try? System.shared.which(name)) != nil
     }
 }

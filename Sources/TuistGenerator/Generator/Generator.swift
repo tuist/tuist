@@ -54,21 +54,18 @@ public class Generator: Generating {
     /// Instance to lint the Tuist configuration against the system.
     private let environmentLinter: EnvironmentLinting
 
-    public convenience init(system: Systeming = System(),
-                            defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+    public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                             modelLoader: GeneratorModelLoading) {
         let graphLinter = GraphLinter()
         let graphLoader = GraphLoader(linter: graphLinter, modelLoader: modelLoader)
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
-                                                configGenerator: configGenerator,
-                                                system: system)
+                                                configGenerator: configGenerator)
         let environmentLinter = EnvironmentLinter()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
         let cocoapodsInteractor = CocoaPodsInteractor()
-        let workspaceGenerator = WorkspaceGenerator(system: system,
-                                                    projectGenerator: projectGenerator,
+        let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
                                                     cocoapodsInteractor: cocoapodsInteractor)
         self.init(graphLoader: graphLoader,

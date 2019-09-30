@@ -10,16 +10,6 @@ protocol FrameworkEmbedding: AnyObject {
 }
 
 final class FrameworkEmbedder: FrameworkEmbedding {
-    // MARK: - Attributes
-
-    private let system: Systeming
-
-    // MARK: - Init
-
-    init(system: Systeming = System()) {
-        self.system = system
-    }
-
     // MARK: - Internal
 
     func embed(path: RelativePath) throws {
@@ -79,7 +69,7 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         /// We need to ensure the frameworks are codesigned after being copied to the built products directory.
         /// Passing `preserve-metadata=identifier,entitlements` ensures any signatures or entitlements which are
         /// already there are preserved.
-        try system.runAndPrint([
+        try System.shared.runAndPrint([
             "/usr/bin/xcrun",
             "codesign", "--force", "--sign", codeSigningIdentity, "--preserve-metadata=identifier,entitlements", frameworkPath.pathString,
         ])

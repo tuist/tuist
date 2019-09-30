@@ -39,13 +39,12 @@ class UpHomebrewTap: Up, GraphInitiatable {
     /// Returns true when the command doesn't need to be run.
     ///
     /// - Parameters
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
-        guard try upHomebrew.isMet(system: system, projectPath: projectPath) else { return false }
-        let taps = try self.taps(system: system)
+    override func isMet(projectPath: AbsolutePath) throws -> Bool {
+        guard try upHomebrew.isMet(projectPath: projectPath) else { return false }
+        let taps = try self.taps()
         guard repositories.first(where: { !isTapConfigured($0, taps: taps) }) == nil else { return false }
         return true
     }
@@ -53,19 +52,18 @@ class UpHomebrewTap: Up, GraphInitiatable {
     /// When the command is not met, this method runs it.
     ///
     /// - Parameters:
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, projectPath: AbsolutePath) throws {
+    override func meet(projectPath: AbsolutePath) throws {
         // Homebrew
-        try upHomebrew.meet(system: system, projectPath: projectPath)
+        try upHomebrew.meet(projectPath: projectPath)
 
         // Taps
-        let taps = try self.taps(system: system)
+        let taps = try self.taps()
         let notConfigured = repositories.filter { !isTapConfigured($0, taps: taps) }
         for repository in notConfigured {
             Printer.shared.print("Adding repository tap: \(repository)")
-            try system.run(["brew", "tap", repository])
+            try System.shared.run(["brew", "tap", repository])
         }
     }
 
@@ -83,10 +81,9 @@ class UpHomebrewTap: Up, GraphInitiatable {
 
     /// Returns the list of taps that are available in the system.
     ///
-    ///   - system: System instance to run commands on the shell.
     /// - Returns: The list of taps available in the system.
     /// - Throws: An error if the 'brew tap' command errors.
-    private func taps(system: Systeming) throws -> [String] {
-        return try system.capture(["brew", "tap"]).spm_chomp().split(separator: "\n").map(String.init)
+    private func taps() throws -> [String] {
+        return try System.shared.capture(["brew", "tap"]).spm_chomp().split(separator: "\n").map(String.init)
     }
 }

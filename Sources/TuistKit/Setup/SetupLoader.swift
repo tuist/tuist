@@ -20,15 +20,10 @@ class SetupLoader: SetupLoading {
     /// Graph manifset loader instance to load the setup.
     private let graphManifestLoader: GraphManifestLoading
 
-    /// System instance to run commands on the system.
-    private let system: Systeming
-
     convenience init() {
         let upLinter = UpLinter()
         let graphManifestLoader = GraphManifestLoader()
-        self.init(upLinter: upLinter,
-                  graphManifestLoader: graphManifestLoader,
-                  system: System())
+        self.init(upLinter: upLinter, graphManifestLoader: graphManifestLoader)
     }
 
     /// Initializes the command with its arguments.
@@ -36,13 +31,10 @@ class SetupLoader: SetupLoading {
     /// - Parameters:
     ///   - upLinter: Linter for up commands.
     ///   - graphManifestLoader: Graph manifset loader instance to load the setup.
-    ///   - system: System instance to run commands on the system.
     init(upLinter: UpLinting,
-         graphManifestLoader: GraphManifestLoading,
-         system: Systeming) {
+         graphManifestLoader: GraphManifestLoading) {
         self.upLinter = upLinter
         self.graphManifestLoader = graphManifestLoader
-        self.system = system
     }
 
     /// It runs meet on each command if it is not met.
@@ -56,9 +48,9 @@ class SetupLoader: SetupLoading {
             .flatMap { $0 }
             .printAndThrowIfNeeded()
         try setup.forEach { command in
-            if try !command.isMet(system: system, projectPath: path) {
+            if try !command.isMet(projectPath: path) {
                 Printer.shared.print(subsection: "Configuring \(command.name)")
-                try command.meet(system: system, projectPath: path)
+                try command.meet(projectPath: path)
             }
         }
     }
