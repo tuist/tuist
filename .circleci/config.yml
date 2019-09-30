@@ -9,14 +9,14 @@ workflows:
     jobs:
       - cli:
           context: tuist
-  galaxy:
+  balaxy-backend:
     jobs:
-      - galaxy:
+      - galaxy-backend:
           context: tuist
-      - galaxy-deploy:
+      - galaxy-backend-deploy:
           context: tuist
           requires:
-            - galaxy
+            - galaxy-backend
           filters:
             branches:
               only: master
@@ -82,7 +82,7 @@ jobs:
 
   # Reference https://gist.github.com/Virolea/b589e7bd128ed53b9080583d1213e71f
   # Reference https://robots.thoughtbot.com/circleci-2-rails
-  galaxy:
+  galaxy-backend:
     docker:
       - image: circleci/ruby:2.6.3-node
         environment:
@@ -97,13 +97,13 @@ jobs:
 
       - image: redis:4.0.6
 
-    working_directory: ~/repo/galaxy
+    working_directory: ~/repo/galaxy-backend
     steps:
       - checkout:
           path: ~/repo
 
       - restore_cache:
-          key: yarn-galaxy-{{ checksum "package.json" }}
+          key: yarn-galaxy-backend-{{ checksum "package.json" }}
 
       - run:
           name: Install Yarn dependencies
@@ -111,7 +111,7 @@ jobs:
             yarn
 
       - save_cache:
-          key: yarn-galaxy-{{ checksum "package.json" }}
+          key: yarn-galaxy-backend-{{ checksum "package.json" }}
           paths:
             - node_modules
 
@@ -123,8 +123,8 @@ jobs:
       - restore_cache:
           name: Restore Bundler Cache
           keys:
-            - bundler-galaxy-{{ checksum "Gemfile.lock" }}
-            - bundler-galaxy
+            - bundler-galaxy-backend-{{ checksum "Gemfile.lock" }}
+            - bundler-galaxy-backend
 
       - run:
           name: Install Bundler dependencies
@@ -136,7 +136,7 @@ jobs:
           name: Save Bundler Cache
           paths:
             - ./vendor/bundle
-          key: bundler-galaxy-{{ checksum "Gemfile.lock" }}
+          key: bundler-galaxy-backend-{{ checksum "Gemfile.lock" }}
 
       - run:
           name: Rails tests
@@ -151,10 +151,10 @@ jobs:
           command: |
             yarn test
 
-  galaxy-deploy:
+  galaxy-backend-deploy:
     docker:
       - image: buildpack-deps:trusty
-    working_directory: ~/repo/galaxy
+    working_directory: ~/repo/galaxy-backend
     steps:
       - checkout:
           path: ~/repo
