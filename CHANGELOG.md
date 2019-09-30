@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Removed
+- Reverting https://github.com/tuist/tuist/pull/494 using variables in `productName` doesn't evaluate in all usage points within the generated project
+
+
 ## 0.18.0
 
 ### Added
