@@ -4,7 +4,7 @@
 
 ## What 🌱
 
-> Describe here your issue, a bug you found, an idea that you had, something that you think can be improved...
+> Describe here your issue, a bug you found, an idea that you had, or something that you think can be improved. If it's a bug, it's necessary to add a reference to a [reproducible test case](https://docs.tuist.io/contribution-tuist#set-up-the-project-locally) that helps us isolate the cause of the problem.
 
 ## Proposal 🎉
 
