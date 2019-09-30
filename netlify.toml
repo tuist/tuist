@@ -1,4 +1,0 @@
-[build]
-  base    = "docs"
-  command = "rm -rf node_modules && yarn install && yarn docz:build"
-  publish = "docs/.docz/dist"
