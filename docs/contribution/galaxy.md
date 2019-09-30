@@ -5,7 +5,7 @@ menu: Contributors
 
 # Contributing to Galaxy
 
-Galaxy is a [Rails](https://rubyonrails.org/) application that exposes a [GraphQL API](https://graphql.org/learn/) that is consumed by a [React](https://reactjs.org/) frontend that is bundled and served by Rails using [Webpacker](https://github.com/rails/webpacker).
+Galaxy is a [Rails](https://rubyonrails.org/) application that exposes a [GraphQL API](https://graphql.org/learn/) that is consumed by a frontend built with [NextJS](https://nextjs.org/)
 
 ## Set up for development
 
@@ -40,4 +40,4 @@ To run the catalogue, just run the command `yarn storybook` in your terminal. Th
 - [Relay](https://relay.dev/)
 - [GraphQL](https://graphql.org/learn/)
 - [React](https://reactjs.org/)
-- [Webpacker](https://github.com/rails/webpacker)
+- [NextJS](https://nextjs.org/)

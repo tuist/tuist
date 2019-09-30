@@ -24,4 +24,4 @@ AllCops:
     - docs/**/*
     - Sources/**/*
     - Tests/**/*
-    - galaxy/node_modules/**/*
+    - galaxy-backend/node_modules/**/*
