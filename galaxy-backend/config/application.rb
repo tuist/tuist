@@ -2,15 +2,19 @@
 
 require_relative 'boot'
 
-require "rails"
-require "active_model/railtie"
-require "active_job/railtie"
-require "active_record/railtie"
-require "active_storage/engine"
-require "action_controller/railtie"
-require "action_mailer/railtie"
-require "action_view/railtie"
-require "action_cable/engine"
+%w(
+  active_record/railtie
+  action_controller/railtie
+  action_view/railtie
+  active_job/railtie
+  rails/test_unit/railtie
+  sprockets/railtie
+).each do |railtie|
+  begin
+    require railtie
+  rescue LoadError
+  end
+end
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -20,14 +24,7 @@ module Galaxy
   class Application < Rails::Application
     config.i18n.load_path += Dir[config.root.join('frontend/components/**/*.yml')]
     config.autoload_paths << config.root.join('frontend/components')
-    # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults(5.2)
-
-    # Settings in config/environments/* take precedence over those specified here.
-    # Application configuration can go into files in config/initializers
-    # -- all .rb files in that directory are automatically loaded after loading
-    # the framework and any gems in your application.
-
     config.filter_parameters << :password
   end
 end
