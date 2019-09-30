@@ -12,8 +12,10 @@ require_relative 'boot'
 ).each do |railtie|
   begin
     require railtie
+  # rubocop:disable Lint/HandleExceptions
   rescue LoadError
   end
+  # rubocop:enable Lint/HandleExceptions
 end
 
 # Require the gems listed in Gemfile, including any gems

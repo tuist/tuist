@@ -10,7 +10,7 @@ Rails.application.configure do
     'Cache-Control' => "public, max-age=#{1.hour.to_i}",
   }
 
-  config.consider_all_requests_local       = true
+  config.consider_all_requests_local = true
 
   # Action dispatch
   config.action_dispatch.show_exceptions = false
