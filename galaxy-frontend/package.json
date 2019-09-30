@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "export": "yarn run build && yarn run export"
+    "export": "npm run build && npm run export"
   },
   "dependencies": {
     "react": "16.10.1",
