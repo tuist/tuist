@@ -9,8 +9,8 @@
     "export": "yarn run build && yarn run export"
   },
   "dependencies": {
-    "next": "9.0.7",
     "react": "16.10.1",
+    "next": "9.0.7",
     "react-dom": "16.10.1"
   }
 }
