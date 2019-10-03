@@ -6,7 +6,7 @@ export default {
     'Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.',
   plugins: [doczPluginNetlify()],
   // https://github.com/pedronauck/docz/issues/793
-  base: 'docs',
+  base: '/docs/',
   themeConfig: {
     codemirrorTheme: 'swifty',
     colors: {
