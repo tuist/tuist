@@ -45,21 +45,20 @@ protocol HTTPClienting {
     /// - Throws: An error if the request fails.
     func read(url: URL) throws -> Data
 
-    /// Downloads the resource from the given URL into the passed directory.
+    /// Downloads the resource from the given URL into the file at the given path.
     ///
     /// - Parameters:
     ///   - url: URL to download the resource from.
-    ///   - into: Directory where the resource should be placed.
+    ///   - to: Path where the file should be downloaded.
     /// - Throws: An error if the dowload fails.
-    func download(url: URL, into: AbsolutePath) throws
+    func download(url: URL, to: AbsolutePath) throws
 }
 
 final class HTTPClient: HTTPClienting {
     // MARK: - Attributes
 
     /// URL session.
-    let session: URLSession = .shared
-    let fileHandler: FileHandling = FileHandler.shared
+    fileprivate let session: URLSession = .shared
 
     // MARK: - HTTPClienting
 
@@ -89,13 +88,13 @@ final class HTTPClient: HTTPClienting {
         return resultData
     }
 
-    /// Downloads the resource from the given URL into the passed directory.
+    /// Downloads the resource from the given URL into the file at the given path.
     ///
     /// - Parameters:
     ///   - url: URL to download the resource from.
-    ///   - into: Directory where the resource should be placed.
+    ///   - to: Path where the file should be downloaded.
     /// - Throws: An error if the dowload fails.
-    func download(url: URL, into: AbsolutePath) throws {
+    func download(url: URL, to: AbsolutePath) throws {
         let semaphore = DispatchSemaphore(value: 0)
         var clientError: HTTPClientError?
 
@@ -104,17 +103,16 @@ final class HTTPClient: HTTPClienting {
             if let error = error {
                 clientError = HTTPClientError.clientError(url, error)
             } else if let downloadURL = downloadURL {
-                let from = AbsolutePath(downloadURL.absoluteString)
-                let to = into.appending(component: from.components.last!)
+                let from = AbsolutePath(downloadURL.path)
                 do {
-                    try self.fileHandler.copy(from: from, to: to)
+                    try FileHandler.shared.copy(from: from, to: to)
                 } catch {
                     clientError = HTTPClientError.copyFileError(to, error)
                 }
             } else {
                 clientError = .missingResource(url)
             }
-        }
+        }.resume()
         semaphore.wait()
         if let clientError = clientError {
             throw clientError
