@@ -195,7 +195,8 @@ public class ArchiveAction: Equatable {
         revealArchiveInOrganizer: Bool = true,
         customArchiveName: String? = nil,
         preActions: [ExecutionAction] = [],
-        postActions: [ExecutionAction] = []) {
+        postActions: [ExecutionAction] = []
+    ) {
         self.configurationName = configurationName
         self.revealArchiveInOrganizer = revealArchiveInOrganizer
         self.customArchiveName = customArchiveName

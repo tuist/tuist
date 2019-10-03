@@ -148,10 +148,14 @@ final class SchemesGenerator: SchemesGenerating {
                                    testables: testables)
     }
 
+    /// Generates the scheme archive action.
+    /// - Parameter scheme: Scheme manifest.
+    /// - Parameter project: Project manifest.
+    /// - Parameter generatedProject: Generated Xcode project.
+    /// - Returns: Scheme archive action.
     func schemeArchiveAction(scheme: Scheme,
                              project: Project,
                              generatedProject: GeneratedProject) -> XCScheme.ArchiveAction? {
-
         guard let archiveAction = scheme.archiveAction else {
             return defaultSchemeArchiveAction(for: project)
         }
