@@ -215,13 +215,8 @@ final class ProjectFileElementsTests: XCTestCase {
         ])
     }
 
-    func test_targetProducts() {
-        let target = Target.test()
-        let products = subject.targetProducts(target: target).sorted()
-        XCTAssertEqual(products.first, "Target.app")
-    }
-
-    func test_targetFiles() {
+    func test_targetFiles() throws {
+        // Given
         let sourceRootPath = AbsolutePath("/a/project/")
 
         let settings = Settings.test(
@@ -250,7 +245,10 @@ final class ProjectFileElementsTests: XCTestCase {
                                                   project: [AbsolutePath("/project/project.h")]),
                                  dependencies: [])
 
-        let files = subject.targetFiles(target: target, sourceRootPath: sourceRootPath)
+        // When
+        let files = try subject.targetFiles(target: target, projectPath: sourceRootPath, graph: Graph.test())
+
+        // Then
         XCTAssertTrue(files.isSuperset(of: [
             GroupFileElement(path: "/project/debug.xcconfig", group: target.filesGroup),
             GroupFileElement(path: "/project/release.xcconfig", group: target.filesGroup),
@@ -266,130 +264,92 @@ final class ProjectFileElementsTests: XCTestCase {
     }
 
     func test_generateProduct() throws {
-        let pbxproj = PBXProj()
-        let project = Project.test()
-        let sourceRootPath = AbsolutePath("/a/project/")
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath)
-        try subject.generateProducts(project: project,
-                                     dependencies: [],
-                                     groups: groups,
-                                     pbxproj: pbxproj)
-        XCTAssertEqual(groups.products.children.count, 1)
-        let fileReference = subject.product(target: "Target")
-        XCTAssertNotNil(fileReference)
-        XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
-        XCTAssertEqual(fileReference?.path, "Target.app")
-        XCTAssertNil(fileReference?.name)
-        XCTAssertEqual(fileReference?.includeInIndex, false)
-    }
-
-    func test_generateProducts_secondTime() throws {
         // Given
-        let project = Project.test()
-        let sourceRootPath = AbsolutePath("/a/project/")
+        let pbxproj = PBXProj()
+        let project = Project.test(targets: [
+            .test(name: "App", product: .app),
+            .test(name: "Framework", product: .framework),
+            .test(name: "Library", product: .staticLibrary),
+        ])
+        let graph = Graph.test()
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath)
-        try subject.generateProducts(project: project,
-                                     dependencies: [],
-                                     groups: groups,
-                                     pbxproj: pbxproj)
-        let products = groups.products.children
+                                            sourceRootPath: project.path)
 
         // When
-        try subject.generateProducts(project: project,
-                                     dependencies: [],
-                                     groups: groups,
-                                     pbxproj: pbxproj)
+        try subject.generateProjectFiles(project: project,
+                                         graph: graph,
+                                         groups: groups,
+                                         pbxproj: pbxproj,
+                                         sourceRootPath: project.path)
 
         // Then
-        XCTAssertEqual(groups.products.children, products) // we don't get duplicates
+        XCTAssertEqual(groups.products.flattenedChildren, [
+            "App.app",
+            "Framework.framework",
+            "libLibrary.a",
+        ])
     }
 
     func test_generateProducts_stableOrder() throws {
         for _ in 0 ..< 5 {
-            // Given
-            let subject = ProjectFileElements(playgrounds: playgrounds)
             let pbxproj = PBXProj()
-            let project = Project.test()
-            let sourceRootPath = AbsolutePath("/a/project/")
+            let subject = ProjectFileElements()
+            let targets: [Target] = [
+                .test(name: "App1", product: .app),
+                .test(name: "App2", product: .app),
+                .test(name: "Framework1", product: .framework),
+                .test(name: "Framework2", product: .framework),
+                .test(name: "Library1", product: .staticLibrary),
+                .test(name: "Library2", product: .staticLibrary),
+            ].shuffled()
+
+            let project = Project.test(targets: targets)
+            let graph = Graph.test()
             let groups = ProjectGroups.generate(project: project,
                                                 pbxproj: pbxproj,
-                                                sourceRootPath: sourceRootPath)
-            let dependencies: Set<TargetNode> = Set((1 ... 5).map {
-                let target = Target.test(name: "Target\($0)", product: .framework)
-                return TargetNode(project: project,
-                                  target: target,
-                                  dependencies: [])
-            })
+                                                sourceRootPath: project.path)
 
             // When
-            try subject.generateProducts(project: project,
-                                         dependencies: dependencies,
-                                         groups: groups,
-                                         pbxproj: pbxproj)
+            try subject.generateProjectFiles(project: project,
+                                             graph: graph,
+                                             groups: groups,
+                                             pbxproj: pbxproj,
+                                             sourceRootPath: project.path)
 
             // Then
-            let expected = ["Target.app",
-                            "Target1.framework",
-                            "Target2.framework",
-                            "Target3.framework",
-                            "Target4.framework",
-                            "Target5.framework"]
-            XCTAssertEqual(groups.products.children.map { $0.path }, expected)
+            XCTAssertEqual(groups.products.flattenedChildren, [
+                "App1.app",
+                "App2.app",
+                "Framework1.framework",
+                "Framework2.framework",
+                "libLibrary1.a",
+                "libLibrary2.a",
+            ])
         }
     }
 
-    func test_generateDependencies_whenTargetNode_thatHasAlreadyBeenAdded() throws {
+    func test_generateProduct_fileReferencesProperties() throws {
+        // Given
         let pbxproj = PBXProj()
-        let sourceRootPath = AbsolutePath("/a/project/")
-        let path = AbsolutePath("/test")
-        let target = Target.test()
-        let project = Project.test(path: path, targets: [target])
+        let project = Project.test(targets: [
+            .test(name: "App", product: .app),
+        ])
+        let graph = Graph.test()
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath)
-        var dependencies: Set<GraphNode> = Set()
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [])
-        dependencies.insert(targetNode)
+                                            sourceRootPath: project.path)
 
-        try subject.generate(dependencies: dependencies,
-                             path: path,
-                             groups: groups,
-                             pbxproj: pbxproj,
-                             sourceRootPath: sourceRootPath,
-                             filesGroup: .group(name: "Project"))
+        // When
+        try subject.generateProjectFiles(project: project,
+                                         graph: graph,
+                                         groups: groups,
+                                         pbxproj: pbxproj,
+                                         sourceRootPath: project.path)
 
-        XCTAssertEqual(groups.products.children.count, 0)
-    }
-
-    func test_generateDependencies_whenTargetNode() throws {
-        let pbxproj = PBXProj()
-        let sourceRootPath = AbsolutePath("/a/project/")
-        let path = AbsolutePath("/test")
-        let target = Target.test()
-        let project = Project.test(path: AbsolutePath("/waka"), targets: [target])
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath)
-        var dependencies: Set<GraphNode> = Set()
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [])
-        dependencies.insert(targetNode)
-
-        try subject.generate(dependencies: dependencies,
-                             path: path,
-                             groups: groups,
-                             pbxproj: pbxproj,
-                             sourceRootPath: sourceRootPath,
-                             filesGroup: .group(name: "Project"))
-
-        XCTAssertTrue(groups.products.children.isEmpty)
+        // Then
+        let fileReference = subject.product(target: "App")
+        XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
     }
 
     func test_generateDependencies_whenPrecompiledNode() throws {
@@ -402,16 +362,15 @@ final class ProjectFileElementsTests: XCTestCase {
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        var dependencies: Set<GraphNode> = Set()
-        let precompiledNode = FrameworkNode(path: project.path.appending(component: "waka.framework"))
+        var dependencies: Set<DependencyReference> = Set()
+        let precompiledNode = DependencyReference.absolute(project.path.appending(component: "waka.framework"))
         dependencies.insert(precompiledNode)
 
-        try subject.generate(dependencies: dependencies,
-                             path: project.path,
+        try subject.generate(dependencyReferences: dependencies,
                              groups: groups,
                              pbxproj: pbxproj,
                              sourceRootPath: sourceRootPath,
-                             filesGroup: .group(name: "Project"))
+                             filesGroup: project.filesGroup)
 
         let fileReference = groups.main.group(named: projectGroupName)?.children.first as? PBXFileReference
         XCTAssertEqual(fileReference?.path, "waka.framework")
@@ -605,10 +564,10 @@ final class ProjectFileElementsTests: XCTestCase {
         let sdk = try SDKNode(name: "ARKit.framework",
                               platform: .iOS,
                               status: .required)
+        let sdkDependency = DependencyReference.sdk(sdk.path, sdk.status)
 
         // When
-        try subject.generate(dependencies: [sdk],
-                             path: sourceRootPath,
+        try subject.generate(dependencyReferences: [sdkDependency],
                              groups: groups, pbxproj: pbxproj,
                              sourceRootPath: sourceRootPath,
                              filesGroup: .group(name: "Project"))
@@ -628,21 +587,24 @@ final class ProjectFileElementsTests: XCTestCase {
     func test_generateDependencies_localSwiftPackage() throws {
         // Given
         let pbxproj = PBXProj()
-        let sourceRootPath = AbsolutePath("/a/project/")
+        let target = Target.empty(name: "TargetA")
+        let project = Project.empty(path: "/a/project",
+                                    targets: [target])
         let groups = ProjectGroups.generate(project: .test(),
                                             pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath)
+                                            sourceRootPath: project.path)
 
         let package = PackageNode(packageType: .local(path: RelativePath("packages/A"),
                                                       productName: "A"),
                                   path: "/a/project/packages/A")
+        let graph = createGraph(project: project, target: target, dependencies: [package])
 
         // When
-        try subject.generate(dependencies: [package],
-                             path: sourceRootPath,
-                             groups: groups, pbxproj: pbxproj,
-                             sourceRootPath: sourceRootPath,
-                             filesGroup: .group(name: "Project"))
+        try subject.generateProjectFiles(project: project,
+                                         graph: graph,
+                                         groups: groups,
+                                         pbxproj: pbxproj,
+                                         sourceRootPath: project.path)
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
@@ -654,26 +616,39 @@ final class ProjectFileElementsTests: XCTestCase {
     func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
         // Given
         let pbxproj = PBXProj()
-        let sourceRootPath = AbsolutePath("/a/project/")
+        let target = Target.empty(name: "TargetA")
+        let project = Project.empty(path: "/a/project",
+                                    targets: [target])
         let groups = ProjectGroups.generate(project: .test(),
                                             pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath)
+                                            sourceRootPath: project.path)
 
         let package = PackageNode(packageType: .remote(url: "url",
                                                        productName: "A",
                                                        versionRequirement: .branch("master")),
                                   path: "/packages/url")
 
+        let graph = createGraph(project: project, target: target, dependencies: [package])
+
         // When
-        try subject.generate(dependencies: [package],
-                             path: sourceRootPath,
-                             groups: groups, pbxproj: pbxproj,
-                             sourceRootPath: sourceRootPath,
-                             filesGroup: .group(name: "Project"))
+        try subject.generateProjectFiles(project: project,
+                                         graph: graph,
+                                         groups: groups,
+                                         pbxproj: pbxproj,
+                                         sourceRootPath: project.path)
 
         // Then
         let projectGroup = groups.main.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [])
+    }
+
+    // MARK: -
+
+    private func createGraph(project: Project, target: Target, dependencies: [GraphNode]) -> Graph {
+        let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        return Graph.test(cache: cache)
     }
 }
 

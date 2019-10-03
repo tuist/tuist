@@ -182,7 +182,7 @@ final class LinkGenerator: LinkGenerating {
                 precompiledEmbedPhase.inputPaths.append(relativePath)
                 precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
 
-            } else if case let DependencyReference.product(target) = dependency {
+            } else if case let DependencyReference.product(target, _) = dependency {
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
@@ -283,7 +283,7 @@ final class LinkGenerator: LinkGenerating {
                     let buildFile = PBXBuildFile(file: fileRef)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
-                case let .product(target):
+                case let .product(target, _):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)
                     }
@@ -322,14 +322,7 @@ final class LinkGenerator: LinkGenerating {
         // This technique also allows resource bundles that reside in different projects to get built ahead of the
         // "Copy Bundle Resources" phase.
 
-        var dependencies = [DependencyReference]()
-        if target.product.isStatic {
-            dependencies.append(contentsOf: graph.staticDependencies(path: path, name: target.name))
-        }
-
-        dependencies.append(contentsOf:
-            graph.resourceBundleDependencies(path: path, name: target.name)
-                .map { .product(target: $0.target.name) })
+        let dependencies = graph.copyProductDependencies(path: path, target: target)
 
         if !dependencies.isEmpty {
             try generateDependenciesBuildPhase(
@@ -347,7 +340,7 @@ final class LinkGenerator: LinkGenerating {
                                                 fileElements: ProjectFileElements) throws {
         var files: [PBXBuildFile] = []
 
-        for case let .product(target) in dependencies.sorted() {
+        for case let .product(target, _) in dependencies.sorted() {
             guard let fileRef = fileElements.product(target: target) else {
                 throw LinkGeneratorError.missingProduct(name: target)
             }

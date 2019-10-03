@@ -28,6 +28,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Product name linting failing when it contains variables https://github.com/tuist/tuist/pull/494 by @dcvz
 - Build phases not generated in the right position https://github.com/tuist/tuist/pull/506 by @pepibumur
 - Remove \$(SRCROOT) from being included in `Info.plist` path https://github.com/tuist/tuist/pull/511 by @dcvz
+- Prevent generation of redundant file elements https://github.com/tuist/tuist/pull/515 by @kwridan
 
 ## 0.17.0
 
