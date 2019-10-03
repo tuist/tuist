@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add `ProjectDescription.Settings.defaultSettings` none case that don't override any `Project` or `Target` settings. https://github.com/tuist/tuist/pull/698 by @rowwingman.
 - `ProjectEditor` utility https://github.com/tuist/tuist/pull/702 by @pepibumur.
 - Fix warnings in the project, refactor SHA256 diegest code https://github.com/tuist/tuist/pull/704 by @rowwingman.
+- Define `ArchiveAction` on `Scheme` https://github.com/tuist/tuist/pull/697 by @grsouza.
 
 ## 0.19.0
 

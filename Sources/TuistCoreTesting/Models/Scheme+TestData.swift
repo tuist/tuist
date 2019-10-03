@@ -46,16 +46,32 @@ public extension BuildAction {
     }
 }
 
+public extension ArchiveAction {
+    static func test(configurationName: String = "Beta Release",
+                     revealArchiveInOrganizer: Bool = true,
+                     customArchiveName: String? = nil,
+                     preActions: [ExecutionAction] = [],
+                     postActions: [ExecutionAction] = []) -> ArchiveAction {
+        return ArchiveAction(configurationName: configurationName,
+                             revealArchiveInOrganizer: revealArchiveInOrganizer,
+                             customArchiveName: customArchiveName,
+                             preActions: preActions,
+                             postActions: postActions)
+    }
+}
+
 public extension Scheme {
     static func test(name: String = "Test",
                      shared: Bool = false,
                      buildAction: BuildAction? = BuildAction.test(),
                      testAction: TestAction? = TestAction.test(),
-                     runAction: RunAction? = RunAction.test()) -> Scheme {
+                     runAction: RunAction? = RunAction.test(),
+                     archiveAction: ArchiveAction? = ArchiveAction.test()) -> Scheme {
         return Scheme(name: name,
                       shared: shared,
                       buildAction: buildAction,
                       testAction: testAction,
-                      runAction: runAction)
+                      runAction: runAction,
+                      archiveAction: archiveAction)
     }
 }

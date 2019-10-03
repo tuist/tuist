@@ -357,9 +357,25 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got.buildConfiguration, "Debug")
     }
 
-    func test_schemeArchiveAction() {
-        let got = subject.schemeArchiveAction(for: .test())
+    func test_defaultSchemeArchiveAction() {
+        let got = subject.defaultSchemeArchiveAction(for: .test())
         XCTAssertEqual(got.buildConfiguration, "Release")
+        XCTAssertEqual(got.revealArchiveInOrganizer, true)
+    }
+
+    func test_schemeArchiveAction() {
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let scheme = Scheme.test(archiveAction: ArchiveAction.test(configurationName: "Beta Release",
+                                                                   revealArchiveInOrganizer: true,
+                                                                   customArchiveName: "App [Beta]"))
+        let pbxTarget = PBXNativeTarget(name: "App")
+        let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
+        let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget])
+
+        let got = subject.schemeArchiveAction(scheme: scheme, project: project, generatedProject: generatedProject)
+
+        XCTAssertEqual(got.buildConfiguration, "Beta Release")
+        XCTAssertEqual(got.customArchiveName, "App [Beta]")
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }
 
