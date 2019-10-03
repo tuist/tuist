@@ -7,6 +7,7 @@ export default {
   plugins: [doczPluginNetlify()],
   // https://github.com/pedronauck/docz/issues/793
   base: '/docs/',
+  hashRouter: true,
   themeConfig: {
     codemirrorTheme: 'swifty',
     colors: {
