@@ -357,10 +357,14 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got.buildConfiguration, "Debug")
     }
 
-    func test_schemeArchiveAction() {
-        let got = subject.schemeArchiveAction(for: .test())
+    func test_defaultSchemeArchiveAction() {
+        let got = subject.defaultSchemeArchiveAction(for: .test())
         XCTAssertEqual(got.buildConfiguration, "Release")
         XCTAssertEqual(got.revealArchiveInOrganizer, true)
+    }
+
+    func test_schemeArchiveAction() {
+        // TODO: test new method
     }
 
     // MARK: - Private
