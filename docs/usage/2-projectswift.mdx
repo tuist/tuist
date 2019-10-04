@@ -673,6 +673,14 @@ A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyz
       optional: true,
       default: 'nil',
     },
+    {
+      name: 'Archive action',
+      description: 'Action that runs the project archive.',
+      type: 'ArchiveAction',
+      typeLink: '#archive-action',
+      optional: true,
+      default: 'nil',
+    },
   ]}
 />
 
@@ -904,6 +912,53 @@ Arguments contain commandline arguments passed on launch and Environment variabl
       type: '[String: Bool]',
       optional: true,
       default: '[:]',
+    },
+  ]}
+/>
+
+### Archive Action
+
+<PropertiesTable
+  props={[
+    {
+      name: 'Configuration Name',
+      description:
+        'Indicates the build configuration to run the archive with.',
+      type: 'String',
+      optional: false,
+      default: '',
+    },
+    {
+      name: 'Reveal Archive in Organizer',
+      description:
+        "Indicates if the archive should revealed in Organizer on completion.",
+      type: 'Bool',
+      optional: true,
+      default: 'true',
+    },
+    {
+      name: 'Custom Archive Name',
+      description:
+        "Indicates the custom archive name to be used.",
+      type: 'String',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Pre-actions',
+      description:
+        "A list of actions that are executed before starting the archive process.",
+      type: '[ExecutionAction]',
+      optional: true,
+      default: '[]',
+    },
+    {
+      name: 'Post-actions',
+      description:
+        "A list of actions that are executed after the archive process.",
+      type: '[ExecutionAction]',
+      optional: true,
+      default: '[]',
     },
   ]}
 />
