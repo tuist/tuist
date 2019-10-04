@@ -79,11 +79,11 @@ tuist init --platform ios --product application
 tuist generate # Generates Xcode project & workspace
 ```
 
-[Check out](https://tuist.io/docs) the project "Getting Started" guide to learn more about Tuist and all its features.
+[Check out](https://docs.tuist.io) the project "Getting Started" guide to learn more about Tuist and all its features.
 
 ## Documentation 📝
 
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs).
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io).
 
 ## Setup for development 👩‍💻
 
