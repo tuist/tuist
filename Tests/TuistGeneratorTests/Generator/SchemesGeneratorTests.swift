@@ -364,7 +364,19 @@ final class SchemeGeneratorTests: XCTestCase {
     }
 
     func test_schemeArchiveAction() {
-        // TODO: test new method
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let scheme = Scheme.test(archiveAction: ArchiveAction.test(configurationName: "Beta Release",
+                                                                   revealArchiveInOrganizer: true,
+                                                                   customArchiveName: "App [Beta]"))
+        let pbxTarget = PBXNativeTarget(name: "App")
+        let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
+        let generatedProject = GeneratedProject.test(targets: ["App": pbxTarget])
+
+        let got = subject.schemeArchiveAction(scheme: scheme, project: project, generatedProject: generatedProject)
+
+        XCTAssertEqual(got?.buildConfiguration, "Beta Release")
+        XCTAssertEqual(got?.customArchiveName, "App [Beta]")
+        XCTAssertEqual(got?.revealArchiveInOrganizer, true)
     }
 
     // MARK: - Private

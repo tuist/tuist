@@ -77,7 +77,7 @@ def release_scripts
   bucket.create_file("script/uninstall", "scripts/uninstall").acl.public!
 end
 
-def package
+def :package
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
   system("swift", "build", "--product", "tuist", "--configuration", "release")
