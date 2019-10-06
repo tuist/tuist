@@ -57,9 +57,9 @@ public extension XCTestCase {
         do {
             let _ = try closure()
         } catch let closureError as Error {
-            XCTAssertEqual(closureError, error, file: file, line: line)
-        } catch {
-            XCTFail("\(error) is not equal to: ", file: file, line: line)
+            XCTAssertEqual(error, closureError, file: file, line: line)
+        } catch let closureError {
+            XCTFail("\(error) is not equal to: \(closureError)", file: file, line: line)
         }
     }
 
