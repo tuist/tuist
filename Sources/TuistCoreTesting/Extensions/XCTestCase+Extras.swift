@@ -52,6 +52,16 @@ public extension XCTestCase {
         }
         return value
     }
+    
+    func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(_ closure: @autoclosure () throws -> T, _ error: Error, file: StaticString = #file, line: UInt = #line) {
+        do {
+            let _ = try closure()
+        } catch let closureError as Error {
+            XCTAssertEqual(closureError, error, file: file, line: line)
+        } catch {
+            XCTFail("\(error) is not equal to: ", file: file, line: line)
+        }
+    }
 
     func XCTAssertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {
         let decoder = JSONDecoder()
