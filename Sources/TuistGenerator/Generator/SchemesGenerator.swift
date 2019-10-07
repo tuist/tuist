@@ -155,7 +155,7 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Returns: Scheme archive action.
     func schemeArchiveAction(scheme: Scheme,
                              project: Project,
-                             generatedProject: GeneratedProject) -> XCScheme.ArchiveAction? {
+                             generatedProject: GeneratedProject) -> XCScheme.ArchiveAction {
         guard let archiveAction = scheme.archiveAction else {
             return defaultSchemeArchiveAction(for: project)
         }

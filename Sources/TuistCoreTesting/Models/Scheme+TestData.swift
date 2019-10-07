@@ -47,7 +47,7 @@ public extension BuildAction {
 }
 
 extension ArchiveAction {
-    static func test(configurationName: String = "Beta Relase",
+    static func test(configurationName: String = "Beta Release",
                      revealArchiveInOrganizer: Bool = true,
                      customArchiveName: String? = nil,
                      preActions: [ExecutionAction] = [],
