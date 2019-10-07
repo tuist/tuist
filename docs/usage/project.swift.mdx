@@ -134,6 +134,7 @@ Each target in the list of project targets can be initialized with the following
       name: 'Product',
       description: 'The type of build product this target will output.',
       type: 'Product',
+      typeLink: '#product',
       optional: false,
       default: '',
     },
@@ -370,6 +371,27 @@ The `CoreDataModel` type represents a Core Data model:
 ## Platform
 
 The platform type represents the platform a target is built for. It can be any of the following types:
+
+<EnumTable
+  cases={[
+    {
+      case: '.iOS',
+      description: 'An iOS platform.',
+    },
+    {
+      case: '.macOS',
+      description: 'A macOS platorm.',
+    },  
+    {
+      case: '.tvOS',
+      description: 'A tvOS platform.',
+    },
+  ]}
+/>
+
+## Product
+
+The type of build product this target will output. It can be any of the following types:
 
 <EnumTable
   cases={[
