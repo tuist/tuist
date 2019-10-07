@@ -374,9 +374,9 @@ final class SchemeGeneratorTests: XCTestCase {
 
         let got = subject.schemeArchiveAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
-        XCTAssertEqual(got?.buildConfiguration, "Beta Release")
-        XCTAssertEqual(got?.customArchiveName, "App [Beta]")
-        XCTAssertEqual(got?.revealArchiveInOrganizer, true)
+        XCTAssertEqual(got.buildConfiguration, "Beta Release")
+        XCTAssertEqual(got.customArchiveName, "App [Beta]")
+        XCTAssertEqual(got.revealArchiveInOrganizer, true)
     }
 
     // MARK: - Private
