@@ -336,9 +336,9 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_settings() throws {
         // Given
-        let debug = ConfigurationManifest(settings: ["Debug": "Debug"], xcconfig: "debug.xcconfig")
-        let release = ConfigurationManifest(settings: ["Release": "Release"], xcconfig: "release.xcconfig")
-        let manifest = SettingsManifest(base: ["base": "base"], debug: debug, release: release)
+        let debug = ConfigurationManifest(settings: ["Debug": .string("Debug")], xcconfig: "debug.xcconfig")
+        let release = ConfigurationManifest(settings: ["Release": .string("Release")], xcconfig: "release.xcconfig")
+        let manifest = SettingsManifest(base: ["base": .string("base")], debug: debug, release: release)
 
         // When
         let model = TuistGenerator.Settings.from(manifest: manifest, path: path)
