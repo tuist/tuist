@@ -9,6 +9,7 @@ require "google/cloud/storage"
 require "encrypted/environment"
 require 'colorize'
 require 'highline'
+require 'tmpdir'
 
 Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
@@ -110,6 +111,11 @@ def release
 
   bucket.create_file("build/tuist.zip", "latest/tuist.zip").acl.public!
   bucket.create_file("build/tuistenv.zip", "latest/tuistenv.zip").acl.public!
+  Dir.mktmpdir do |tmp_dir|
+    version_path = File.join(tmp_dir, "version")
+    File.write(version_path, version)
+    bucket.create_file(version_path, "latest/version").acl.public!
+  end
 end
 
 def system(*args)
