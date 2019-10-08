@@ -29,12 +29,11 @@ final class MockHTTPClient: HTTPClienting {
         }
     }
 
-    func download(url: URL, into: AbsolutePath) throws {
+    func download(url: URL, to: AbsolutePath) throws {
         if let result = downloadStubs[url] {
             switch result {
             case let .failure(error): throw error
             case let .success(from):
-                let to = into.appending(component: from.components.last!)
                 do {
                     try FileHandler.shared.copy(from: from, to: to)
                 } catch {
