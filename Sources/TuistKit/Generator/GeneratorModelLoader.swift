@@ -65,35 +65,13 @@ class GeneratorModelLoader: GeneratorModelLoading {
         return workspace
     }
 
-    /// Load a TusitConfig model at the specified path
-    ///
-    /// - Parameter path: The absolute path for the tuistconfig model to load
-    /// - Returns: The tuistconfig loaded from the specified path
-    /// - Throws: Error encountered during the loading process (e.g. Missing tuistconfig)
     func loadTuistConfig(at path: AbsolutePath) throws -> TuistGenerator.TuistConfig {
-        guard let tuistConfigPath = locateDirectoryTraversingParents(from: path, path: "TuistConfig.swift") else {
+        guard let tuistConfigPath = FileHandler.shared.locateDirectoryTraversingParents(from: path, path: Manifest.tuistConfig.fileName) else {
             return TuistGenerator.TuistConfig.default
         }
 
         let manifest = try manifestLoader.loadTuistConfig(at: tuistConfigPath.parentDirectory)
         return try TuistGenerator.TuistConfig.from(manifest: manifest, path: path)
-    }
-
-    /// Traverses the parent directories until the given path is found.
-    ///
-    /// - Parameters:
-    ///   - from: A path to a directory from which search the TuistConfig.swift.
-    /// - Returns: The found path.
-    fileprivate func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
-        let tuistConfigPath = from.appending(component: path)
-
-        if FileHandler.shared.exists(tuistConfigPath) {
-            return tuistConfigPath
-        } else if from == AbsolutePath("/") {
-            return nil
-        } else {
-            return locateDirectoryTraversingParents(from: from.parentDirectory, path: path)
-        }
     }
 
     private func enriched(model: TuistGenerator.Project,

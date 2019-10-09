@@ -81,6 +81,13 @@ public protocol FileHandling: AnyObject {
     ///   - atomically: Whether the content should be written atomically.
     /// - Throws: An error if the writing fails.
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
+    
+    /// Traverses the parent directories until the given path is found.
+    ///
+    /// - Parameters:
+    ///   - from: A path to a directory from which search the TuistConfig.swift.
+    /// - Returns: The found path.
+    func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
 
     /// It traverses up the directories hierarchy appending the given path and returning the
     /// resulting path if it exists.
@@ -205,5 +212,17 @@ public class FileHandler: FileHandling {
         var isDirectory = ObjCBool(true)
         let exists = fileManager.fileExists(atPath: path.pathString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
+    }
+        
+    public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
+        let tuistConfigPath = from.appending(component: path)
+
+        if FileHandler.shared.exists(tuistConfigPath) {
+            return tuistConfigPath
+        } else if from == AbsolutePath("/") {
+            return nil
+        } else {
+            return locateDirectoryTraversingParents(from: from.parentDirectory, path: path)
+        }
     }
 }
