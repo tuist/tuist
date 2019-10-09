@@ -143,11 +143,8 @@ final class GraphManifestLoaderTests: XCTestCase {
     }
 
     func test_load_missingManifest() throws {
-        XCTAssertThrowsError(
-            try subject.loadProject(at: fileHandler.currentPath)
-        ) { error in
-            XCTAssertEqual(error as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.project, fileHandler.currentPath))
-        }
+        XCTAssertThrowsSpecific(try subject.loadProject(at: fileHandler.currentPath),
+                                GraphManifestLoaderError.manifestNotFound(.project, fileHandler.currentPath))
     }
 
     func test_manifestPath() throws {

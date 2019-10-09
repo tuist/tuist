@@ -41,9 +41,8 @@ final class CocoaPodsInteractorTests: XCTestCase {
         cache.add(cocoapods: cocoapods)
 
         // Then
-        XCTAssertThrowsError(try subject.install(graph: graph)) {
-            XCTAssertEqual($0 as? CocoaPodsInteractorError, CocoaPodsInteractorError.cocoapodsNotFound)
-        }
+        XCTAssertThrowsSpecific(try subject.install(graph: graph),
+                                CocoaPodsInteractorError.cocoapodsNotFound)
     }
 
     func test_install_when_theCocoaPodsFromBundlerCanBeUsed() throws {

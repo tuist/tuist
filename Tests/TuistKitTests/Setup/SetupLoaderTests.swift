@@ -69,9 +69,8 @@ final class SetupLoaderTests: XCTestCase {
         graphManifestLoader.loadSetupStub = { _ in throw GraphManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then
-        XCTAssertThrowsError(try subject.meet(at: projectPath)) { error in
-            XCTAssertEqual(error as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.setup, projectPath))
-        }
+        XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
+                                GraphManifestLoaderError.manifestNotFound(.setup, projectPath))
     }
 
     func test_meet_when_actions_provided_then_lint_all_before_meet() {
@@ -103,9 +102,8 @@ final class SetupLoaderTests: XCTestCase {
         graphManifestLoader.loadSetupStub = { _ in mockUps }
 
         // when / then
-        XCTAssertThrowsError(try subject.meet(at: projectPath)) { error in
-            XCTAssertEqual(error as? LintingError, LintingError())
-        }
+        XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
+                                LintingError())
 
         XCTAssertEqual(mockUps.map { $0.meetCallCount }, Array(repeating: 0, count: mockUps.count))
         XCTAssertEqual(mockUps.map { $0.isMetCallCount }, Array(repeating: 0, count: mockUps.count))

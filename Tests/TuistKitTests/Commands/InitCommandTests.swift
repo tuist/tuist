@@ -94,10 +94,7 @@ final class InitCommandTests: XCTestCase {
 
         let result = try parser.parse(["init", "--path", path.pathString, "--name", "Test"])
 
-        XCTAssertThrowsError(try subject.run(with: result)) { error in
-            let expected = InitCommandError.nonEmptyDirectory(path)
-            XCTAssertEqual(error as? InitCommandError, expected)
-        }
+        XCTAssertThrowsSpecific(try subject.run(with: result), InitCommandError.nonEmptyDirectory(path))
     }
 
     func test_run_when_ios_application() throws {

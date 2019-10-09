@@ -37,9 +37,8 @@ final class DumpCommandTests: XCTestCase {
     func test_run_throws_when_file_doesnt_exist() throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
-        XCTAssertThrowsError(try subject.run(with: result)) {
-            XCTAssertEqual($0 as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.project, tmpDir.path))
-        }
+        XCTAssertThrowsSpecific(try subject.run(with: result),
+                                GraphManifestLoaderError.manifestNotFound(.project, tmpDir.path))
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {

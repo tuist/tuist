@@ -31,10 +31,10 @@ final class PlaygroundGeneratorTests: XCTestCase {
         try fileHandler.createFolder(playgroundPath)
         let expectedError = PlaygroundGenerationError.alreadyExisting(playgroundPath)
 
-        XCTAssertThrowsError(try subject.generate(path: fileHandler.currentPath,
-                                                  name: "Test",
-                                                  platform: .iOS)) {
-            XCTAssertEqual($0 as? PlaygroundGenerationError, expectedError)
+        XCTAssertThrowsSpecific(try subject.generate(path: fileHandler.currentPath,
+                                                    name: "Test",
+                                                    platform: .iOS),
+                                PlaygroundGenerationError.alreadyExisting(playgroundPath))
         }
     }
 
