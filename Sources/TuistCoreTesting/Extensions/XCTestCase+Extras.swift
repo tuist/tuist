@@ -52,10 +52,11 @@ public extension XCTestCase {
         }
         return value
     }
-    
+
+    // swiftlint:disable:next line_length
     func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(_ closure: @autoclosure () throws -> T, _ error: Error, file: StaticString = #file, line: UInt = #line) {
         do {
-            let _ = try closure()
+            _ = try closure()
         } catch let closureError as Error {
             XCTAssertEqual(error, closureError, file: file, line: line)
         } catch let closureError {
