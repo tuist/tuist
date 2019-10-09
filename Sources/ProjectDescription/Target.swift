@@ -19,6 +19,9 @@ public class Target: Codable {
     /// passing nil in the initialiser will default
     /// this value to the name of the target.
     public let productName: String?
+    
+    /// Deployment target.
+    public let deploymentTarget: DeploymentTarget?
 
     /// Relative path to the Info.plist file.
     public let infoPlist: InfoPlist
@@ -66,6 +69,7 @@ public class Target: Codable {
         case coreDataModels = "core_data_models"
         case actions
         case environment
+        case deploymentTarget
     }
 
     /// Initializes the target.
@@ -90,6 +94,7 @@ public class Target: Codable {
                 product: Product,
                 productName: String? = nil,
                 bundleId: String,
+                deploymentTarget: DeploymentTarget? = nil,
                 infoPlist: InfoPlist,
                 sources: SourceFilesList? = nil,
                 resources: [FileElement]? = nil,
@@ -115,5 +120,6 @@ public class Target: Codable {
         self.actions = actions
         self.coreDataModels = coreDataModels
         self.environment = environment
+        self.deploymentTarget = deploymentTarget
     }
 }
