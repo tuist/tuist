@@ -6,18 +6,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class CarthageTests: XCTestCase {
+final class CarthageTests: TuistUnitTestCase {
     var subject: Carthage!
-    var system: MockSystem!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
+        subject = Carthage()
+    }
 
-        system = MockSystem()
-        subject = Carthage(system: system)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_update() throws {

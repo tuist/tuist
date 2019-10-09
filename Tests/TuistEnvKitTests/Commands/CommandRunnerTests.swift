@@ -16,10 +16,8 @@ final class CommandRunnerErrorTests: XCTestCase {
     }
 }
 
-final class CommandRunnerTests: XCTestCase {
+final class CommandRunnerTests: TuistUnitTestCase {
     var versionResolver: MockVersionResolver!
-    var fileHandler: MockFileHandler!
-    var system: MockSystem!
     var updater: MockUpdater!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
@@ -29,21 +27,25 @@ final class CommandRunnerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         versionResolver = MockVersionResolver()
-        system = MockSystem()
         updater = MockUpdater()
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         subject = CommandRunner(versionResolver: versionResolver,
-                                system: system,
                                 updater: updater,
                                 installer: installer,
                                 versionsController: versionsController,
                                 arguments: { self.arguments },
                                 exiter: { self.exited = $0 })
+    }
+
+    override func tearDown() {
+        versionResolver = nil
+        updater = nil
+        versionsController = nil
+        installer = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_when_binary() throws {

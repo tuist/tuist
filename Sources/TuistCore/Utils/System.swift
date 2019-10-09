@@ -161,7 +161,7 @@ public enum SystemError: FatalError {
 
 public final class System: Systeming {
     /// Shared system instance.
-    public static let shared: Systeming = System()
+    public static var shared: Systeming = System()
 
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try

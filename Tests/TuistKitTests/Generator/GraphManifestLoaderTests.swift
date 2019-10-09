@@ -29,16 +29,17 @@ final class ManifestTests: XCTestCase {
     }
 }
 
-final class GraphManifestLoaderTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class GraphManifestLoaderTests: TuistUnitTestCase {
     var subject: GraphManifestLoader!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         subject = GraphManifestLoader()
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        subject = nil
     }
 
     func test_loadTuistConfig() throws {
@@ -76,7 +77,6 @@ final class GraphManifestLoaderTests: XCTestCase {
         let got = try subject.loadProject(at: fileHandler.currentPath)
 
         // Then
-
         XCTAssertEqual(got.name, "tuist")
     }
 

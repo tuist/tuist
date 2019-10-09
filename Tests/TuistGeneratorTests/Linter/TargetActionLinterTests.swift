@@ -5,18 +5,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class TargetActionLinterTests: XCTestCase {
-    var system: System!
-    var fileHandler: MockFileHandler!
+final class TargetActionLinterTests: TuistUnitTestCase {
     var subject: TargetActionLinter!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
+        subject = TargetActionLinter()
+    }
 
-        system = System()
-        subject = TargetActionLinter(system: system)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_lint_whenTheToolDoesntExist() {

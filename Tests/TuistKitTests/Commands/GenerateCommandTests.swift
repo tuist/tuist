@@ -7,19 +7,15 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class GenerateCommandTests: XCTestCase {
+final class GenerateCommandTests: TuistUnitTestCase {
     var subject: GenerateCommand!
     var generator: MockGenerator!
     var parser: ArgumentParser!
-    var fileHandler: MockFileHandler!
     var manifestLoader: MockGraphManifestLoader!
     var clock: StubClock!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         generator = MockGenerator()
         parser = ArgumentParser.test()
         manifestLoader = MockGraphManifestLoader()
@@ -29,6 +25,15 @@ final class GenerateCommandTests: XCTestCase {
                                   generator: generator,
                                   manifestLoader: manifestLoader,
                                   clock: clock)
+    }
+
+    override func tearDown() {
+        generator = nil
+        parser = nil
+        manifestLoader = nil
+        clock = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_command() {

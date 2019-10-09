@@ -5,16 +5,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class SettingsLinterTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class SettingsLinterTests: TuistUnitTestCase {
     var subject: SettingsLinter!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         subject = SettingsLinter()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_lint_project_when_config_files_are_missing() {

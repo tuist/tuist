@@ -6,20 +6,25 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class LocalCommandTests: XCTestCase {
+final class LocalCommandTests: TuistUnitTestCase {
     var argumentParser: ArgumentParser!
     var subject: LocalCommand!
-    var fileHandler: MockFileHandler!
     var versionController: MockVersionsController!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
 
         argumentParser = ArgumentParser(usage: "test", overview: "overview")
         versionController = try! MockVersionsController()
         subject = LocalCommand(parser: argumentParser, versionController: versionController)
+    }
+
+    override func tearDown() {
+        argumentParser = nil
+        subject = nil
+        versionController = nil
+
+        super.tearDown()
     }
 
     func test_command() {

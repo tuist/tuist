@@ -33,18 +33,15 @@ class ProjectFileElements {
     var sdks: [AbsolutePath: PBXFileReference] = [:]
     let playgrounds: Playgrounding
     let filesSortener: ProjectFilesSortening
-    private let system: Systeming
 
     // MARK: - Init
 
     init(_ elements: [AbsolutePath: PBXFileElement] = [:],
          playgrounds: Playgrounding = Playgrounds(),
-         filesSortener: ProjectFilesSortening = ProjectFilesSortener(),
-         system: Systeming = System()) {
+         filesSortener: ProjectFilesSortening = ProjectFilesSortener()) {
         self.elements = elements
         self.playgrounds = playgrounds
         self.filesSortener = filesSortener
-        self.system = system
     }
 
     func generateProjectFiles(project: Project,
@@ -83,7 +80,7 @@ class ProjectFileElements {
         }
 
         // Dependencies
-        let dependencies = try graph.allDependencyReferences(for: project, system: system)
+        let dependencies = try graph.allDependencyReferences(for: project)
 
         try generate(dependencyReferences: Set(directProducts + dependencies),
                      groups: groups,

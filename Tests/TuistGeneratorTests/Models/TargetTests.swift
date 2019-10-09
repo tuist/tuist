@@ -3,15 +3,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class TargetTests: XCTestCase {
-    var fileHandler: MockFileHandler!
-
-    override func setUp() {
-        super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-    }
-
+final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
         XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d"])
     }

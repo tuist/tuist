@@ -4,16 +4,20 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class FrameworkEmbedderErrorTests: XCTestCase {
+final class FrameworkEmbedderErrorTests: TuistUnitTestCase {
     var subject: FrameworkEmbedder!
     var fm: FileManager!
-    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        system = MockSystem()
-        subject = FrameworkEmbedder(system: system)
+        subject = FrameworkEmbedder()
         fm = FileManager.default
+    }
+
+    override func tearDown() {
+        subject = nil
+        fm = nil
+        super.tearDown()
     }
 
     func test_embed_when_actionIsInstall() throws {
@@ -47,6 +51,10 @@ final class FrameworkEmbedderErrorTests: XCTestCase {
     func test_embed_with_codesigning() throws {
         XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: "iPhone Developer") { srcRoot, env in
             let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
+            let binPath = "\(universalFrameworkPath().pathString)/xpm"
+            system.succeedCommand([
+                "/usr/bin/lipo", "-info", binPath,
+            ], output: "Architectures in the fat file: \(binPath) are: x86_64 arm64")
             system.succeedCommand([
                 "/usr/bin/xcrun",
                 "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString,

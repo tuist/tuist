@@ -39,7 +39,7 @@ extension XCTestCase {
     func sharedMockEnvironment(file: StaticString = #file, line: UInt = #line) -> MockEnvironment? {
         guard let mock = Environment.shared as? MockEnvironment else {
             let message = "Environment hasn't been mocked." +
-                "You can call mockEnvironment(), or mockSharedInstances() to mock the file handler or the environment respectively."
+                "You can call mockEnvironment(), or mockAllSystemInteractions() to mock the file handler or the environment respectively."
             XCTFail(message, file: file, line: line)
             return nil
         }

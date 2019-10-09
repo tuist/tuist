@@ -7,24 +7,28 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class GraphCommandTests: XCTestCase {
+final class GraphCommandTests: TuistUnitTestCase {
     var subject: GraphCommand!
     var dotGraphGenerator: MockDotGraphGenerator!
-    var fileHandler: MockFileHandler!
     var manifestLoader: MockGraphManifestLoader!
     var parser: ArgumentParser!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         dotGraphGenerator = MockDotGraphGenerator()
         manifestLoader = MockGraphManifestLoader()
         parser = ArgumentParser.test()
         subject = GraphCommand(parser: parser,
                                dotGraphGenerator: dotGraphGenerator,
                                manifestLoader: manifestLoader)
+    }
+
+    override func tearDown() {
+        dotGraphGenerator = nil
+        manifestLoader = nil
+        parser = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_command() {

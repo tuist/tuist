@@ -6,18 +6,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class GraphLinterTests: XCTestCase {
+final class GraphLinterTests: TuistUnitTestCase {
     var subject: GraphLinter!
-    var fileHandler: MockFileHandler!
-    var xcodeController: MockXcodeController!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-        xcodeController = MockXcodeController()
+        subject = GraphLinter()
+    }
 
-        subject = GraphLinter(xcodeController: xcodeController)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_lint_when_carthage_frameworks_are_missing() throws {

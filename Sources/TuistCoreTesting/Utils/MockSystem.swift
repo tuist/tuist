@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import XCTest
 
 public final class MockSystem: Systeming {
     public var env: [String: String] = ProcessInfo.processInfo.environment

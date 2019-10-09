@@ -7,23 +7,27 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class DumpCommandTests: XCTestCase {
+final class DumpCommandTests: TuistUnitTestCase {
     var errorHandler: MockErrorHandler!
-    var fileHandler: MockFileHandler!
     var subject: DumpCommand!
     var parser: ArgumentParser!
     var manifestLoading: GraphManifestLoading!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         errorHandler = MockErrorHandler()
         parser = ArgumentParser.test()
         manifestLoading = GraphManifestLoader()
         subject = DumpCommand(manifestLoader: manifestLoading,
                               parser: parser)
+    }
+
+    override func tearDown() {
+        errorHandler = nil
+        parser = nil
+        manifestLoading = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_name() {

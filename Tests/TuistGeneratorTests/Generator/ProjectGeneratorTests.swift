@@ -8,20 +8,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class ProjectGeneratorTests: XCTestCase {
+final class ProjectGeneratorTests: TuistUnitTestCase {
     var subject: ProjectGenerator!
-    var system: MockSystem!
-    var fileHandler: MockFileHandler!
-    var xcodeController: MockXcodeController!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-        xcodeController = sharedMockXcodeController()
+        subject = ProjectGenerator()
+    }
 
-        system = MockSystem()
-        subject = ProjectGenerator(system: system)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_generate() throws {

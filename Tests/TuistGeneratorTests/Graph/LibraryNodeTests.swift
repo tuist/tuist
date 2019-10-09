@@ -2,19 +2,24 @@ import Basic
 import Foundation
 import XCTest
 
-import TuistCoreTesting
+@testable import TuistCore
+@testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class LibraryNodeTests: XCTestCase {
-    var system: MockSystem!
+final class LibraryNodeTests: TuistUnitTestCase {
     var subject: LibraryNode!
     var path: AbsolutePath!
 
     override func setUp() {
         super.setUp()
-        system = MockSystem()
         path = AbsolutePath("/test.a")
         subject = LibraryNode(path: path, publicHeaders: AbsolutePath("/headers"))
+    }
+
+    override func tearDown() {
+        subject = nil
+        path = nil
+        super.tearDown()
     }
 
     func test_name() {
@@ -27,12 +32,12 @@ final class LibraryNodeTests: XCTestCase {
 
     func test_architectures() throws {
         system.succeedCommand("/usr/bin/lipo", "-info", "/test.a", output: "Non-fat file: path is architecture: x86_64")
-        try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
+        try XCTAssertEqual(subject.architectures().first, .x8664)
     }
 
     func test_linking() {
         system.succeedCommand("/usr/bin/file", "/test.a", output: "whatever dynamically linked")
-        try XCTAssertEqual(subject.linking(system: system), .dynamic)
+        try XCTAssertEqual(subject.linking(), .dynamic)
     }
 
     func test_equality() {
@@ -50,6 +55,7 @@ final class LibraryNodeTests: XCTestCase {
 
     func test_encode() {
         // Given
+        System.shared = System()
         let library = LibraryNode(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
                                   publicHeaders: fixturePath(path: RelativePath("")))
         let expected = """

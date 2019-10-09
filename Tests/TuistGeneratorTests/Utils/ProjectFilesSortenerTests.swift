@@ -6,16 +6,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class ProjectFilesSortenerTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class ProjectFilesSortenerTests: TuistUnitTestCase {
     var subject: ProjectFilesSortener!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         subject = ProjectFilesSortener()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_sort() throws {

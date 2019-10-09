@@ -109,7 +109,7 @@ protocol Graphing: AnyObject, Encodable {
     func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference]
 
     /// All dependency referrences expected to present within a Project
-    func allDependencyReferences(for project: Project, system: Systeming) throws -> [DependencyReference]
+    func allDependencyReferences(for project: Project) throws -> [DependencyReference]
 
     // MARK: - Depth First Search
 
@@ -350,13 +350,13 @@ class Graph: Graphing {
         return Set(dependencies).sorted()
     }
 
-    func allDependencyReferences(for project: Project, system: Systeming) throws -> [DependencyReference] {
+    func allDependencyReferences(for project: Project) throws -> [DependencyReference] {
         let linkableDependencies = try project.targets.flatMap {
-            try self.linkableDependencies(path: project.path, name: $0.name, system: system)
+            try self.linkableDependencies(path: project.path, name: $0.name)
         }
 
         let embeddableDependencies = try project.targets.flatMap {
-            try self.embeddableFrameworks(path: project.path, name: $0.name, system: system)
+            try self.embeddableFrameworks(path: project.path, name: $0.name)
         }
 
         let copyProductDependencies = project.targets.flatMap {

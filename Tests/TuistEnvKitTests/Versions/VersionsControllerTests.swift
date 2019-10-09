@@ -12,18 +12,17 @@ final class InstalledVersionTests: XCTestCase {
     }
 }
 
-final class VersionsControllerTests: XCTestCase {
-    var environment: MockEnvironment!
-    var fileHandler: MockFileHandler!
+final class VersionsControllerTests: TuistUnitTestCase {
     var subject: VersionsController!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-        environment = sharedMockEnvironment()
-
         subject = VersionsController()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_install() throws {

@@ -6,22 +6,25 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class ConfigGeneratorTests: XCTestCase {
+final class ConfigGeneratorTests: TuistUnitTestCase {
     var pbxproj: PBXProj!
     var graph: Graph!
     var subject: ConfigGenerator!
     var pbxTarget: PBXNativeTarget!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         pbxproj = PBXProj()
         pbxTarget = PBXNativeTarget(name: "Test")
         pbxproj.add(object: pbxTarget)
         subject = ConfigGenerator()
+    }
+
+    override func tearDown() {
+        pbxproj = nil
+        pbxTarget = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_generateProjectConfig_whenDebug() throws {
