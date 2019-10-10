@@ -29,13 +29,11 @@ final class PlaygroundGeneratorTests: XCTestCase {
     func test_generate_throws_when_playground_exists() throws {
         let playgroundPath = fileHandler.currentPath.appending(component: "Test.playground")
         try fileHandler.createFolder(playgroundPath)
-        let expectedError = PlaygroundGenerationError.alreadyExisting(playgroundPath)
 
         XCTAssertThrowsSpecific(try subject.generate(path: fileHandler.currentPath,
                                                     name: "Test",
                                                     platform: .iOS),
                                 PlaygroundGenerationError.alreadyExisting(playgroundPath))
-        }
     }
 
     func test_generate_writes_content() throws {
