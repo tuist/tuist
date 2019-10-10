@@ -46,7 +46,9 @@ class UpHomebrew: Up, GraphInitiatable {
     override func meet(projectPath _: AbsolutePath) throws {
         if !toolInstalled("brew") {
             Printer.shared.print("Installing Homebrew")
-            try System.shared.runAndPrint("/usr/bin/ruby", "-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
+            try System.shared.runAndPrint("/usr/bin/ruby",
+                                          "-e",
+                                          "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
                                           verbose: true,
                                           environment: System.shared.env)
         }
