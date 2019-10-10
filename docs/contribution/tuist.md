@@ -91,7 +91,7 @@ Those are written in Swift and follow the convention of `<ComponentName>Tests`. 
 
 There's a small subset of tests that test several components together as a whole to cover hard to orchestrate scenarios within acceptance tests or unit tests. Those stub some but not all dependencies depending on the test case and are slower than unit tests.
 
-Those are written in Swift and are contained within the `TuistIntegrationTests`. Those are run when calling `swift test` or from within Xcode.
+Those are written in Swift and are contained within the `Tuist...IntegrationTests` targets. Those are run when calling `swift test` or from within Xcode.
 
 **Example:**
 
