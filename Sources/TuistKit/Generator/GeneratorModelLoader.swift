@@ -302,6 +302,7 @@ extension TuistGenerator.Target {
 
         let bundleId = manifest.bundleId
         let productName = manifest.productName
+        let deploymentTarget = manifest.deploymentTarget.map { TuistGenerator.DeploymentTarget.from(manifest: $0) }
 
         let dependencies = manifest.dependencies.map { TuistGenerator.Dependency.from(manifest: $0) }
 
@@ -336,6 +337,7 @@ extension TuistGenerator.Target {
                                      product: product,
                                      productName: productName,
                                      bundleId: bundleId,
+                                     deploymentTarget: deploymentTarget,
                                      infoPlist: infoPlist,
                                      entitlements: entitlements,
                                      settings: settings,
@@ -696,6 +698,17 @@ extension TuistGenerator.SDKStatus {
             return .required
         case .optional:
             return .optional
+        }
+    }
+}
+
+extension TuistGenerator.DeploymentTarget {
+    static func from(manifest: ProjectDescription.DeploymentTarget) -> TuistGenerator.DeploymentTarget {
+        switch manifest {
+        case let .iOS(version, devices):
+            return .iOS(version, devices.map { DeploymentDevice(rawValue: $0.rawValue) })
+        case let .macOS(version):
+            return .macOS(version)
         }
     }
 }

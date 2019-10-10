@@ -17,6 +17,7 @@ public class Target: Equatable, Hashable {
     public let product: Product
     public let bundleId: String
     public let productName: String
+    public let deploymentTarget: DeploymentTarget?
 
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
@@ -39,6 +40,7 @@ public class Target: Equatable, Hashable {
                 product: Product,
                 productName: String?,
                 bundleId: String,
+                deploymentTarget: DeploymentTarget? = nil,
                 infoPlist: InfoPlist? = nil,
                 entitlements: AbsolutePath? = nil,
                 settings: Settings? = nil,
@@ -55,6 +57,7 @@ public class Target: Equatable, Hashable {
         self.platform = platform
         self.bundleId = bundleId
         self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
+        self.deploymentTarget = deploymentTarget
         self.infoPlist = infoPlist
         self.entitlements = entitlements
         self.settings = settings
