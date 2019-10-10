@@ -8,10 +8,4 @@ import XCTest
 
 final class CoreDataModelTests: XCTestCase {
     var fileHandler: MockFileHandler!
-
-    override func setUp() {
-        super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-    }
 }

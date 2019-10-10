@@ -18,19 +18,15 @@ final class BundleCommandErrorTests: XCTestCase {
     }
 }
 
-final class BundleCommandTests: XCTestCase {
+final class BundleCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
-    var fileHandler: MockFileHandler!
     var installer: MockInstaller!
     var subject: BundleCommand!
     var tmpDir: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
@@ -38,6 +34,15 @@ final class BundleCommandTests: XCTestCase {
         subject = BundleCommand(parser: parser,
                                 versionsController: versionsController,
                                 installer: installer)
+    }
+
+    override func tearDown() {
+        parser = nil
+        versionsController = nil
+        installer = nil
+        subject = nil
+        tmpDir = nil
+        super.tearDown()
     }
 
     func test_init_registers_the_command() {

@@ -6,15 +6,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class UpTests: XCTestCase {
-    var fileHandler: MockFileHandler!
-
-    override func setUp() {
-        super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-    }
-
+final class UpTests: TuistUnitTestCase {
     func test_with_when_custom() throws {
         let dictionary = JSON([
             "type": "custom",

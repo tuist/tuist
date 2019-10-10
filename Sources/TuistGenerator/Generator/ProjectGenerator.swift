@@ -42,9 +42,6 @@ final class ProjectGenerator: ProjectGenerating {
     /// Generator for the project derived files.
     let derivedFileGenerator: DerivedFileGenerating
 
-    /// System instance to run commands in the system.
-    let system: Systeming
-
     // MARK: - Init
 
     /// Initializes the project generator with its attributes.
@@ -54,17 +51,14 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemesGenerator: Generator for the project schemes.
     ///   - derivedFileGenerator: Generator for the project derived files.
-    ///   - system: System instance to run commands in the system.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
          schemesGenerator: SchemesGenerating = SchemesGenerator(),
-         derivedFileGenerator: DerivedFileGenerating = DerivedFileGenerator(),
-         system: Systeming = System()) {
+         derivedFileGenerator: DerivedFileGenerating = DerivedFileGenerator()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
         self.derivedFileGenerator = derivedFileGenerator
-        self.system = system
     }
 
     // MARK: - ProjectGenerating
@@ -176,8 +170,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   fileElements: fileElements,
                                                                   path: project.path,
                                                                   sourceRootPath: sourceRootPath,
-                                                                  graph: graph,
-                                                                  system: system)
+                                                                  graph: graph)
             nativeTargets[target.name] = nativeTarget
         }
 

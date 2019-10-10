@@ -2,6 +2,8 @@ import Basic
 import Foundation
 import TuistCore
 import XCTest
+
+@testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
@@ -18,14 +20,7 @@ final class GraphErrorTests: XCTestCase {
     }
 }
 
-final class GraphTests: XCTestCase {
-    var system: MockSystem!
-
-    override func setUp() {
-        super.setUp()
-        system = MockSystem()
-    }
-
+final class GraphTests: TuistUnitTestCase {
     func test_frameworks() throws {
         let framework = FrameworkNode(path: AbsolutePath("/path/to/framework.framework"))
         let cache = GraphLoaderCache()
@@ -66,9 +61,7 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
                               output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
 
-        let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, .absolute(precompiledNode.path))
     }
 
@@ -85,9 +78,7 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a"))
     }
 
@@ -114,14 +105,11 @@ final class GraphTests: XCTestCase {
 
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+                                                 name: target.name)
         XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework"))
 
-        let frameworkGot = try graph.linkableDependencies(path: project.path,
-                                                          name: dependency.name,
-                                                          system: system)
+        let frameworkGot = try graph.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
         XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a")))
@@ -148,7 +136,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result, [DependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
@@ -184,8 +172,8 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
-        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name, system: system)
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
         XCTAssertEqual(appResult, [
@@ -231,7 +219,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name, system: system)
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
         XCTAssertEqual(dynamicFramework1Result, [DependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
@@ -258,7 +246,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [
@@ -287,8 +275,8 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
-        let dynamicResult = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name, system: system)
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicResult = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name)
 
         // Then
         XCTAssertEqual(appResult.compactMap(sdkDependency), [])
@@ -314,7 +302,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
@@ -335,7 +323,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: staticFramework.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFramework.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -361,7 +349,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -401,8 +389,7 @@ final class GraphTests: XCTestCase {
         system.succeedCommand([], output: "dynamically linked")
 
         let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+                                                 name: target.name)
 
         XCTAssertNil(got.first)
     }
@@ -423,8 +410,7 @@ final class GraphTests: XCTestCase {
 
         system.succeedCommand([], output: "dynamically linked")
         let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+                                                 name: target.name)
         XCTAssertEqual(got.first, DependencyReference.product(target: "Dependency", productName: "Dependency.framework"))
     }
 
@@ -443,9 +429,7 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
 
-        let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+        let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
     }
@@ -475,11 +459,7 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
 
-        let got = try graph.embeddableFrameworks(
-            path: project.path,
-            name: target.name,
-            system: system
-        )
+        let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         XCTAssertEqual(got, [
             DependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
@@ -506,11 +486,7 @@ final class GraphTests: XCTestCase {
                               output: "current ar archive random library")
 
         // When
-        let result = try graph.embeddableFrameworks(
-            path: project.path,
-            name: target.name,
-            system: system
-        )
+        let result = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -534,9 +510,7 @@ final class GraphTests: XCTestCase {
         let graph = Graph.test(cache: cache)
 
         // When
-        let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+        let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
         let expected = dependencyNames.sorted().map { DependencyReference.product(target: $0, productName: "\($0).framework") }
@@ -656,6 +630,7 @@ final class GraphTests: XCTestCase {
 
     func test_encode() {
         // Given
+        System.shared = System()
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
         let framework = FrameworkNode(path: fixturePath(path: RelativePath("xpm.framework")))

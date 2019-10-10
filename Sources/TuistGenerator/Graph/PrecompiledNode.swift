@@ -56,8 +56,8 @@ class PrecompiledNode: GraphNode {
         fatalError("This method should be overriden by the subclasses")
     }
 
-    func architectures(system: Systeming = System()) throws -> [Architecture] {
-        let result = try system.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
+    func architectures() throws -> [Architecture] {
+        let result = try System.shared.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
         let regexes = [
             // Non-fat file: path is architecture: x86_64
             try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: []),
@@ -77,8 +77,8 @@ class PrecompiledNode: GraphNode {
         return architectures
     }
 
-    func linking(system: Systeming = System()) throws -> Linking {
-        let result = try system.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
+    func linking() throws -> Linking {
+        let result = try System.shared.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static
     }
 

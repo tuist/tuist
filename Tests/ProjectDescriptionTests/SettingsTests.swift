@@ -10,11 +10,11 @@ final class SettingsTests: XCTestCase {
 
     func test_codable_release_debug() throws {
         // Given
-        let debug = Configuration(settings: ["debug": "debug"],
+        let debug = Configuration(settings: ["debug": .string("debug")],
                                   xcconfig: "/path/debug.xcconfig")
-        let release = Configuration(settings: ["release": "release"],
+        let release = Configuration(settings: ["release": .string("release")],
                                     xcconfig: "/path/release")
-        let subject = Settings(base: ["base": "base"],
+        let subject = Settings(base: ["base": .string("base")],
                                debug: debug,
                                release: release)
 
@@ -34,11 +34,11 @@ final class SettingsTests: XCTestCase {
         // Given
         let configurations: [CustomConfiguration] = [
             .debug(name: "Debug"),
-            .debug(name: "CustomDebug", settings: ["CUSTOM_FLAG": "Debug"], xcconfig: "debug.xcconfig"),
+            .debug(name: "CustomDebug", settings: ["CUSTOM_FLAG": .string("Debug")], xcconfig: "debug.xcconfig"),
             .release(name: "Release"),
-            .release(name: "CustomRelease", settings: ["CUSTOM_FLAG": "Release"], xcconfig: "release.xcconfig"),
+            .release(name: "CustomRelease", settings: ["CUSTOM_FLAG": .string("Release")], xcconfig: "release.xcconfig"),
         ]
-        let subject = Settings(base: ["base": "base"],
+        let subject = Settings(base: ["base": .string("base")],
                                configurations: configurations)
 
         // When

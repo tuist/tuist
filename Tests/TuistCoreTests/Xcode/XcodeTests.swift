@@ -4,16 +4,17 @@ import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 
-final class XcodeTests: XCTestCase {
+final class XcodeTests: TuistUnitTestCase {
     var plistEncoder: PropertyListEncoder!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         plistEncoder = PropertyListEncoder()
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        plistEncoder = nil
     }
 
     func test_read() throws {

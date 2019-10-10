@@ -5,16 +5,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class TargetLinterTests: XCTestCase {
+final class TargetLinterTests: TuistUnitTestCase {
     var subject: TargetLinter!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         subject = TargetLinter()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_lint_when_target_has_invalid_product_name() {

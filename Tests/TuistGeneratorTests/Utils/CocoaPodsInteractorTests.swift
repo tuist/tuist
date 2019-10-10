@@ -17,16 +17,17 @@ final class CocoaPodsInteractorErrorTests: XCTestCase {
     }
 }
 
-final class CocoaPodsInteractorTests: XCTestCase {
-    var system: MockSystem!
+final class CocoaPodsInteractorTests: TuistUnitTestCase {
     var subject: CocoaPodsInteractor!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
+        subject = CocoaPodsInteractor()
+    }
 
-        system = MockSystem()
-        subject = CocoaPodsInteractor(system: system)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_install_when_cocoapods_cannot_be_found() {

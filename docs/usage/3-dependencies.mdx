@@ -36,6 +36,12 @@ A dependency can be any of the following types.
 
 It defines a dependency with another target in the same project. For instance, a tests target depends on the target that is being tested.
 
+<Message
+  info
+  title="Tests host app"
+  description="In order for an app to be the host target of a tests target, the app target should be added as a dependency."
+/>
+
 ## Target dependencies across projects
 
 ```swift
@@ -83,20 +89,22 @@ It defines a dependency on a system library (`.tbd`) or framework (`.framework`)
 Targets can add Swift packages, either local packages or remote. You can add one very similarly to how you add dependencies in `Package.swift`.
 
 For remote:
-```swift 
+
+```swift
 .package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", .exact("6.7.0"))
 ```
 
-```swift 
+```swift
 .package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", from: "6.7.0")
 ```
 
-```swift 
+```swift
 .package(url: "https://github.com/tuist/XcodeProj", productName: "xcodeproj", "6.6.1"..<"6.8.0")
 ```
 
 For local:
-```swift 
+
+```swift
 .package(path: "MyLibrary", productName: "MyLibrary")
 ```
 

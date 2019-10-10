@@ -36,17 +36,6 @@ protocol CocoaPodsInteracting {
 }
 
 final class CocoaPodsInteractor: CocoaPodsInteracting {
-    /// Instance to run commands in the system.
-    let system: Systeming
-
-    /// Initializes the CocoaPods
-    ///
-    /// - Parameters:
-    ///   - system: Instance to run commands in the system.
-    init(system: Systeming = System()) {
-        self.system = system
-    }
-
     /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
     ///
     /// - Parameter graph: Project graph.
@@ -100,11 +89,11 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
                 }
             }
             do {
-                try system.runAndPrint(command,
-                                       verbose: false,
-                                       environment: system.env,
-                                       redirection: .stream(stdout: outputClosure,
-                                                            stderr: outputClosure))
+                try System.shared.runAndPrint(command,
+                                              verbose: false,
+                                              environment: System.shared.env,
+                                              redirection: .stream(stdout: outputClosure,
+                                                                   stderr: outputClosure))
             } catch {
                 if mightNeedRepoUpdate {
                     throw CocoaPodsInteractorError.outdatedRepository
@@ -121,7 +110,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
     /// - Returns: True if Bundler can execute CocoaPods.
     fileprivate func canUseCocoaPodsThroughBundler() -> Bool {
         do {
-            try system.run(["bundle", "show", "cocoapods"])
+            try System.shared.run(["bundle", "show", "cocoapods"])
             return true
         } catch {
             return false
@@ -133,7 +122,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
     /// - Returns: True if CocoaPods is available globally in the system.
     fileprivate func canUseSystemPod() -> Bool {
         do {
-            _ = try system.which("pod")
+            _ = try System.shared.which("pod")
             return true
         } catch {
             return false

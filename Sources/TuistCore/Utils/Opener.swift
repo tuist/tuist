@@ -31,15 +31,7 @@ public protocol Opening: AnyObject {
 }
 
 public class Opener: Opening {
-    // MARK: - Attributes
-
-    private let system: Systeming
-
-    // MARK: - Init
-
-    public init(system: Systeming = System()) {
-        self.system = system
-    }
+    public init() {}
 
     // MARK: - Opening
 
@@ -47,6 +39,6 @@ public class Opener: Opening {
         if !FileHandler.shared.exists(path) {
             throw OpeningError.notFound(path)
         }
-        try system.runAndPrint("/usr/bin/open", path.pathString)
+        try System.shared.runAndPrint("/usr/bin/open", path.pathString)
     }
 }

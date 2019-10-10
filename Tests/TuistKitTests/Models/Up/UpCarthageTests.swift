@@ -6,26 +6,28 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class UpCarthageTests: XCTestCase {
+final class UpCarthageTests: TuistUnitTestCase {
     var platforms: [Platform]!
     var upHomebrew: MockUp!
     var carthage: MockCarthage!
     var subject: UpCarthage!
-    var fileHandler: MockFileHandler!
-    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         platforms = [.iOS, .macOS]
         carthage = MockCarthage()
         upHomebrew = MockUp()
-        system = MockSystem()
         subject = UpCarthage(platforms: platforms,
                              upHomebrew: upHomebrew,
                              carthage: carthage)
+    }
+
+    override func tearDown() {
+        platforms = nil
+        carthage = nil
+        upHomebrew = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_init() throws {
@@ -35,46 +37,46 @@ final class UpCarthageTests: XCTestCase {
     }
 
     func test_isMet_when_homebrew_is_not_met() throws {
-        upHomebrew.isMetStub = { _, _ in false }
+        upHomebrew.isMetStub = { _ in false }
         carthage.outdatedStub = { _ in [] }
 
-        XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertFalse(try subject.isMet(projectPath: fileHandler.currentPath))
     }
 
     func test_isMet_when_carthage_doesnt_have_outdated_dependencies() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in nil }
 
-        XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertFalse(try subject.isMet(projectPath: fileHandler.currentPath))
     }
 
     func test_isMet_when_carthage_has_outdated_dependencies() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in ["Dependency"] }
 
-        XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertFalse(try subject.isMet(projectPath: fileHandler.currentPath))
     }
 
     func test_isMet() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in [] }
 
-        XCTAssertTrue(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertTrue(try subject.isMet(projectPath: fileHandler.currentPath))
     }
 
     func test_meet_when_homebrew_is_not_met() throws {
-        upHomebrew.isMetStub = { _, _ in false }
+        upHomebrew.isMetStub = { _ in false }
 
-        upHomebrew.meetStub = { _, projectPath in
+        upHomebrew.meetStub = { projectPath in
             XCTAssertEqual(self.fileHandler.currentPath, projectPath)
         }
-        try subject.meet(system: system, projectPath: fileHandler.currentPath)
+        try subject.meet(projectPath: fileHandler.currentPath)
 
         XCTAssertEqual(upHomebrew.meetCallCount, 1)
     }
 
     func test_meet() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        upHomebrew.isMetStub = { _ in true }
 
         carthage.outdatedStub = { _ in
             ["Dependency"]
@@ -85,8 +87,7 @@ final class UpCarthageTests: XCTestCase {
             XCTAssertEqual(dependencies, ["Dependency"])
         }
 
-        try subject.meet(system: system,
-                         projectPath: fileHandler.currentPath)
+        try subject.meet(projectPath: fileHandler.currentPath)
 
         XCTAssertEqual(upHomebrew.meetCallCount, 0)
         XCTAssertEqual(carthage.updateCallCount, 1)

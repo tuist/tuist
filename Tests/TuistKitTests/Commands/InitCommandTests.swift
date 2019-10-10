@@ -19,24 +19,29 @@ final class InitCommandErrorTests: XCTestCase {
     }
 }
 
-final class InitCommandTests: XCTestCase {
+final class InitCommandTests: TuistUnitTestCase {
     var subject: InitCommand!
     var parser: ArgumentParser!
-    var fileHandler: MockFileHandler!
     var infoplistProvisioner: InfoPlistProvisioning!
     var playgroundGenerator: MockPlaygroundGenerator!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         parser = ArgumentParser.test()
         infoplistProvisioner = InfoPlistProvisioner()
         playgroundGenerator = MockPlaygroundGenerator()
         subject = InitCommand(parser: parser,
                               infoplistProvisioner: infoplistProvisioner,
                               playgroundGenerator: playgroundGenerator)
+    }
+
+    override func tearDown() {
+        subject = nil
+        parser = nil
+        infoplistProvisioner = nil
+        playgroundGenerator = nil
+
+        super.tearDown()
     }
 
     func test_command() {

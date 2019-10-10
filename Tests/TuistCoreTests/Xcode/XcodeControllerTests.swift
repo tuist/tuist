@@ -5,18 +5,17 @@ import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 
-final class XcodeControllerTests: XCTestCase {
-    var system: MockSystem!
+final class XcodeControllerTests: TuistUnitTestCase {
     var subject: XcodeController!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
+        subject = XcodeController()
+    }
 
-        system = MockSystem()
-        subject = XcodeController(system: system)
+    override func tearDown() {
+        super.tearDown()
+        subject = nil
     }
 
     func test_selected_when_xcodeSelectDoesntReturnThePath() throws {

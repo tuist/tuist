@@ -5,20 +5,16 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class ProjectFileElementsTests: XCTestCase {
+final class ProjectFileElementsTests: TuistUnitTestCase {
     typealias GroupFileElement = ProjectFileElements.GroupFileElement
 
     var subject: ProjectFileElements!
-    var fileHandler: MockFileHandler!
     var playgrounds: MockPlaygrounds!
     var groups: ProjectGroups!
     var pbxproj: PBXProj!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         playgrounds = MockPlaygrounds()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(project: .test(),
@@ -27,6 +23,14 @@ final class ProjectFileElementsTests: XCTestCase {
                                         playgrounds: MockPlaygrounds())
 
         subject = ProjectFileElements(playgrounds: playgrounds)
+    }
+
+    override func tearDown() {
+        playgrounds = nil
+        pbxproj = nil
+        groups = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_projectFiles() {

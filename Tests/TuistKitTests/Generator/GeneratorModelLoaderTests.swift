@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-class GeneratorModelLoaderTest: XCTestCase {
+class GeneratorModelLoaderTest: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target
@@ -22,23 +22,20 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     private var manifestTargetGenerator: MockManifestTargetGenerator!
     private var manifestLinter: MockManifestLinter!
-
-    private var fileHandler: MockFileHandler!
     private var path: AbsolutePath {
         return fileHandler.currentPath
     }
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         manifestTargetGenerator = MockManifestTargetGenerator()
         manifestLinter = MockManifestLinter()
     }
 
     override func tearDown() {
-        fileHandler = nil
+        manifestTargetGenerator = nil
+        manifestLinter = nil
+        super.tearDown()
     }
 
     func test_loadProject() throws {
@@ -336,9 +333,9 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_settings() throws {
         // Given
-        let debug = ConfigurationManifest(settings: ["Debug": "Debug"], xcconfig: "debug.xcconfig")
-        let release = ConfigurationManifest(settings: ["Release": "Release"], xcconfig: "release.xcconfig")
-        let manifest = SettingsManifest(base: ["base": "base"], debug: debug, release: release)
+        let debug = ConfigurationManifest(settings: ["Debug": .string("Debug")], xcconfig: "debug.xcconfig")
+        let release = ConfigurationManifest(settings: ["Release": .string("Release")], xcconfig: "release.xcconfig")
+        let manifest = SettingsManifest(base: ["base": .string("base")], debug: debug, release: release)
 
         // When
         let model = TuistGenerator.Settings.from(manifest: manifest, path: path)

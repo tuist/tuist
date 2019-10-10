@@ -14,16 +14,17 @@ final class PlaygroundGenerationErrorTests: XCTestCase {
     }
 }
 
-final class PlaygroundGeneratorTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class PlaygroundGeneratorTests: TuistUnitTestCase {
     var subject: PlaygroundGenerator!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         subject = PlaygroundGenerator()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_generate_throws_when_playground_exists() throws {

@@ -5,27 +5,23 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class WorkspaceGeneratorTests: XCTestCase {
+final class WorkspaceGeneratorTests: TuistUnitTestCase {
     var subject: WorkspaceGenerator!
     var path: AbsolutePath!
-    var fileHandler: MockFileHandler!
     var cocoapodsInteractor: MockCocoaPodsInteractor!
-    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         path = fileHandler.currentPath
         cocoapodsInteractor = MockCocoaPodsInteractor()
+        subject = WorkspaceGenerator(cocoapodsInteractor: cocoapodsInteractor)
+    }
 
-        system = MockSystem()
-
-        subject = WorkspaceGenerator(
-            system: system,
-            cocoapodsInteractor: cocoapodsInteractor
-        )
+    override func tearDown() {
+        subject = nil
+        path = nil
+        cocoapodsInteractor = nil
+        super.tearDown()
     }
 
     // MARK: - Tests

@@ -5,26 +5,19 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class StableXcodeProjIntegrationTests: XCTestCase {
-    private var fileHandler: MockFileHandler!
+final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     private var path: AbsolutePath {
         return fileHandler.currentPath
     }
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
 
         do {
             try setupTestProject()
         } catch {
             XCTFail(error.localizedDescription)
         }
-    }
-
-    override func tearDown() {
-        fileHandler = nil
     }
 
     func testXcodeProjStructureDoesNotChangeAfterRegeneration() throws {
