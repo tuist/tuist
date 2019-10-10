@@ -54,23 +54,4 @@ final class DumpCommandTests: TuistUnitTestCase {
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
         XCTAssertThrowsError(try subject.run(with: result))
     }
-
-    func test_prints_the_manifest_when_swift_manifest() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let config = """
-        import ProjectDescription
-
-        let project = Project(name: "tuist",
-              settings: nil,
-              targets: [])
-        """
-        try config.write(toFile: tmpDir.path.appending(component: "Project.swift").pathString,
-                         atomically: true,
-                         encoding: .utf8)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
-        try subject.run(with: result)
-        let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
-
-        XCTAssertPrinterOutputContains(expected)
-    }
 }

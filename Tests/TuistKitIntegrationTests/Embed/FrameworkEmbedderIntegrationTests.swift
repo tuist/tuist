@@ -4,7 +4,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class FrameworkEmbedderTests: TuistUnitTestCase {
+final class FrameworkEmbedderIntegrationTests: TuistTestCase {
     var subject: FrameworkEmbedder!
     var fm: FileManager!
 
@@ -20,34 +20,32 @@ final class FrameworkEmbedderTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_embed_with_codesigning() throws {
-        XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: "iPhone Developer") { srcRoot, env in
+    func test_embed_when_actionIsInstall() throws {
+        try withEnvironment(action: .install) { srcRoot, env in
             let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
-            let binPath = env.frameworksPath().appending(RelativePath("xpm.framework/xpm"))
-            system.succeedCommand([
-                "/usr/bin/lipo", "-info", universalFrameworkPath().appending(component: "xpm").pathString,
-            ], output: "Architectures in the fat file: \(binPath) are: x86_64 arm64")
-            system.succeedCommand([
-                "/usr/bin/xcrun",
-                "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString,
-            ])
-            try subject.embed(frameworkPath: frameworkPath, environment: env)
-        })
+            try subject.embed(frameworkPath: frameworkPath,
+                              environment: env)
+            let outputFrameworkPath = srcRoot.appending(RelativePath("built_products_dir/frameworks/xpm.framework"))
+            let outputDSYMPath = srcRoot.appending(RelativePath("built_products_dir/xpm.framework.dSYM"))
+            XCTAssertTrue(fm.fileExists(atPath: outputFrameworkPath.pathString))
+            XCTAssertTrue(fm.fileExists(atPath: outputDSYMPath.pathString))
+            XCTAssertEqual(try Embeddable(path: outputFrameworkPath).architectures(), ["arm64"])
+            XCTAssertEqual(try Embeddable(path: outputDSYMPath).architectures(), ["arm64"])
+        }
     }
 
-    func test_embed_with_no_codesigning() {
-        XCTAssertNoThrow(try withEnvironment(codeSigningIdentity: nil) { srcRoot, env in
+    func test_embed_when_actionIsNotInstall() throws {
+        try withEnvironment(action: .build) { srcRoot, env in
             let frameworkPath = universalFrameworkPath().relative(to: srcRoot)
-            let binPath = env.frameworksPath().appending(RelativePath("xpm.framework/xpm"))
-            system.succeedCommand([
-                "/usr/bin/lipo", "-info", universalFrameworkPath().appending(component: "xpm").pathString,
-            ], output: "Architectures in the fat file: \(binPath) are: x86_64 arm64")
-            try subject.embed(frameworkPath: frameworkPath, environment: env)
-            XCTAssertFalse(
-                system.called("/usr/bin/xcrun",
-                              "codesign", "--force", "--sign", "iPhone Developer", "--preserve-metadata=identifier,entitlements", env.frameworksPath().appending(.init("xpm.framework")).pathString)
-            )
-        })
+            try subject.embed(frameworkPath: frameworkPath,
+                              environment: env)
+            let outputFrameworkPath = srcRoot.appending(RelativePath("target_build_dir/frameworks/xpm.framework"))
+            let outputDSYMPath = srcRoot.appending(RelativePath("target_build_dir/xpm.framework.dSYM"))
+            XCTAssertTrue(fm.fileExists(atPath: outputFrameworkPath.pathString))
+            XCTAssertTrue(fm.fileExists(atPath: outputDSYMPath.pathString))
+            XCTAssertEqual(try Embeddable(path: outputFrameworkPath).architectures(), ["arm64"])
+            XCTAssertEqual(try Embeddable(path: outputDSYMPath).architectures(), ["arm64"])
+        }
     }
 
     private func universalFrameworkPath() -> AbsolutePath {
