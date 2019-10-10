@@ -20,7 +20,6 @@ extension XCTestCase {
     }
 
     func mockXcodeController() {
-        // swiftlint:disable force_try
         XcodeController.shared = MockXcodeController()
     }
 
