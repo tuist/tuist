@@ -72,7 +72,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCoreTesting",
-            dependencies: ["TuistCore"]
+            dependencies: ["TuistCore", "SPMUtility"]
         ),
         .testTarget(
             name: "TuistCoreTests",
