@@ -31,8 +31,8 @@ final class PlaygroundGeneratorTests: XCTestCase {
         try fileHandler.createFolder(playgroundPath)
 
         XCTAssertThrowsSpecific(try subject.generate(path: fileHandler.currentPath,
-                                                    name: "Test",
-                                                    platform: .iOS),
+                                                     name: "Test",
+                                                     platform: .iOS),
                                 PlaygroundGenerationError.alreadyExisting(playgroundPath))
     }
 
