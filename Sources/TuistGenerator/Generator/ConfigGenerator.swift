@@ -149,7 +149,7 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
-    
+
     private func update(buildSettings settings: inout [String: SettingValue], byApplying manifest: Target) {
         if let deploymentTarget = manifest.deploymentTarget {
             switch deploymentTarget {
