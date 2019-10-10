@@ -381,7 +381,7 @@ The platform type represents the platform a target is built for. It can be any o
     {
       case: '.macOS',
       description: 'A macOS platorm.',
-    },  
+    },
     {
       case: '.tvOS',
       description: 'A tvOS platform.',
@@ -426,7 +426,8 @@ The type of build product this target will output. It can be any of the followin
     },
     {
       case: '.bundle',
-      description: 'A custom bundle. (Currently only iOS resource bundles are supported)',
+      description:
+        'A custom bundle. (Currently only iOS resource bundles are supported)',
     },
   ]}
 />
@@ -447,7 +448,7 @@ The `InfoPlist` model represents a target `Info.plist` file. It can have any of 
         'A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.',
     },
     {
-      case: '.extendingDefault([String: InfoPlist.Value])',
+      case: '.extendingDefault(with: [String: InfoPlist.Value])',
       description:
         'It indicates Tuist to provide the default content for the target the InfoPlist belongs to, and extend it with the given values.',
     },
@@ -974,7 +975,8 @@ A `SettingValue` can be one of the following options:
     },
     {
       case: '.array([String])',
-      description: 'Multi-value setting value for example ["$(inherited)", "DEBUG=1"].',
+      description:
+        'Multi-value setting value for example ["$(inherited)", "DEBUG=1"].',
     },
   ]}
 />
