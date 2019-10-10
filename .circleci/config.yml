@@ -1,15 +1,31 @@
 version: 2
 workflows:
   version: 2
-  install:
+  tuist-install:
     jobs:
-      - install:
+      - tuist-install:
           context: tuist
-  cli:
+  tuist-release-build:
     jobs:
-      - cli:
+      - tuist-release-build:
           context: tuist
-  balaxy-backend:
+  tuist-unit-tests:
+    jobs:
+      - tuist-unit-tests:
+          context: tuist
+  danger:
+    jobs:
+      - danger:
+          context: tuist
+  tuist-acceptance-tests:
+    jobs:
+      - tuist-acceptance-tests:
+          context: tuist
+  tuist-upload:
+    jobs:
+      - tuist-upload:
+          context: tuist
+  galaxy-backend:
     jobs:
       - galaxy-backend:
           context: tuist
@@ -22,7 +38,7 @@ workflows:
               only: master
 
 jobs:
-  install:
+  tuist-install:
     macos:
       xcode: '11.0.0'
     steps:
@@ -36,7 +52,19 @@ jobs:
           name: Uninstall Tuist
           command: |
             ./script/uninstall
-  cli:
+  tuist-release-build:
+    macos:
+      xcode: '11.0.0'
+    # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
+    shell: /bin/bash --login -eo pipefail
+    steps:
+      - checkout
+      - run:
+          name: Build for release
+          command: |
+            swift build -c release --product tuist
+            swift build -c release --product tuistenv
+  danger:
     macos:
       xcode: '11.0.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
@@ -54,32 +82,68 @@ jobs:
       - run:
           name: Run Danger
           command: bundle exec danger
+      - save_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
+          paths:
+            - 'vendor'
+  tuist-acceptance-tests:
+    macos:
+      xcode: '11.0.0'
+    # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
+    shell: /bin/bash --login -eo pipefail
+    steps:
+      - checkout
+      - restore_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
+      - run:
+          name: Install Dependencies
+          command: |
+            bundle install --local || bundle package
+      - run:
+          name: Run acceptance tests
+          command: bundle exec rake features
+      - save_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
+          paths:
+            - 'vendor'
+  tuist-upload:
+    macos:
+      xcode: '11.0.0'
+    # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
+    shell: /bin/bash --login -eo pipefail
+    steps:
+      - checkout
+      - restore_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
+      - run:
+          name: Install Dependencies
+          command: |
+            bundle install --local || bundle package
+      - run:
+          name: Package build and upload it to GCS
+          command: |
+            bundle exec rake package_commit
+      - save_cache:
+          key: bundler-{{ checksum "Gemfile.lock" }}
+          paths:
+            - 'vendor'
+  tuist-unit-tests:
+    macos:
+      xcode: '11.0.0'
+    # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
+    shell: /bin/bash --login -eo pipefail
+    steps:
+      - checkout
       - run:
           name: Generate Xcode project
           command: |
             swift package generate-xcodeproj
       - run:
-          name: Build for release
-          command: |
-            swift build -c release --product tuist
-            swift build -c release --product tuistenv
-      - run:
           name: Run unit tests
           command: xcodebuild test -scheme tuist-Package -enableCodeCoverage YES
       - run:
-          name: Run acceptance tests
-          command: bundle exec rake features
-      - run:
-          name: Package build and upload it to GCS
-          command: |
-            bundle exec rake package_commit
-      - run:
           name: Send test coverage report
           command: bash <(curl -s https://codecov.io/bash)
-      - save_cache:
-          key: bundler-{{ checksum "Gemfile.lock" }}
-          paths:
-            - 'vendor'
 
   # Reference https://gist.github.com/Virolea/b589e7bd128ed53b9080583d1213e71f
   # Reference https://robots.thoughtbot.com/circleci-2-rails
