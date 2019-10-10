@@ -61,7 +61,8 @@ jobs:
       - run:
           name: Build for release
           command: |
-            swift build -c release
+            swift build -c release --product tuist
+            swift build -c release --product tuistenv
       - run:
           name: Run unit tests
           command: xcodebuild test -scheme tuist-Package -enableCodeCoverage YES

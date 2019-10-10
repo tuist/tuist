@@ -88,15 +88,3 @@ extension MockFileHandler {
         return paths
     }
 }
-
-extension XCTestCase {
-    func sharedMockFileHandler(file: StaticString = #file, line: UInt = #line) -> MockFileHandler? {
-        guard let mock = FileHandler.shared as? MockFileHandler else {
-            let message = "FileHandler.shared hasn't been mocked." +
-                "You can call mockFileHandler(), or mockSharedInstances() to mock the file handler or the environment respectively."
-            XCTFail(message, file: file, line: line)
-            return nil
-        }
-        return mock
-    }
-}

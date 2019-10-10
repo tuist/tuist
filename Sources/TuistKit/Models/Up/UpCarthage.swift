@@ -48,12 +48,11 @@ class UpCarthage: Up, GraphInitiatable {
     /// Returns true when the command doesn't need to be run.
     ///
     /// - Parameters
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
-        if try !upHomebrew.isMet(system: system, projectPath: projectPath) { return false }
+    override func isMet(projectPath: AbsolutePath) throws -> Bool {
+        if try !upHomebrew.isMet(projectPath: projectPath) { return false }
         guard let outdated = try carthage.outdated(path: projectPath) else { return false }
         return outdated.isEmpty
     }
@@ -61,13 +60,12 @@ class UpCarthage: Up, GraphInitiatable {
     /// When the command is not met, this method runs it.
     ///
     /// - Parameters:
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, projectPath: AbsolutePath) throws {
+    override func meet(projectPath: AbsolutePath) throws {
         // Installing Carthage
-        if try !upHomebrew.isMet(system: system, projectPath: projectPath) {
-            try upHomebrew.meet(system: system, projectPath: projectPath)
+        if try !upHomebrew.isMet(projectPath: projectPath) {
+            try upHomebrew.meet(projectPath: projectPath)
         }
 
         /// Updating Carthage dependencies.

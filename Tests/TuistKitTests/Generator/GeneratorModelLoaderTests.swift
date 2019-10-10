@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-class GeneratorModelLoaderTest: XCTestCase {
+class GeneratorModelLoaderTest: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target
@@ -22,23 +22,20 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     private var manifestTargetGenerator: MockManifestTargetGenerator!
     private var manifestLinter: MockManifestLinter!
-
-    private var fileHandler: MockFileHandler!
     private var path: AbsolutePath {
         return fileHandler.currentPath
     }
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         manifestTargetGenerator = MockManifestTargetGenerator()
         manifestLinter = MockManifestLinter()
     }
 
     override func tearDown() {
-        fileHandler = nil
+        manifestTargetGenerator = nil
+        manifestLinter = nil
+        super.tearDown()
     }
 
     func test_loadProject() throws {

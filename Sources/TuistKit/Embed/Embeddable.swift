@@ -89,9 +89,9 @@ final class Embeddable {
         return EmbeddableType(rawValue: bundlePackageType)
     }
 
-    func architectures(system: Systeming = System()) throws -> [String] {
+    func architectures() throws -> [String] {
         guard let binPath = try binaryPath() else { return [] }
-        let lipoResult = try system.capture("/usr/bin/lipo", "-info", binPath.pathString).spm_chuzzle() ?? ""
+        let lipoResult = try System.shared.capture("/usr/bin/lipo", "-info", binPath.pathString).spm_chuzzle() ?? ""
         var characterSet = CharacterSet.alphanumerics
         characterSet.insert(charactersIn: " _-")
         let scanner = Scanner(string: lipoResult)
@@ -167,10 +167,8 @@ final class Embeddable {
         }
     }
 
-    private func stripArchitecture(packagePath: AbsolutePath,
-                                   architecture: String,
-                                   system: Systeming = System()) throws {
-        try system.run("/usr/bin/lipo", "-remove", architecture, "-output", packagePath.pathString, packagePath.pathString)
+    private func stripArchitecture(packagePath: AbsolutePath, architecture: String) throws {
+        try System.shared.run("/usr/bin/lipo", "-remove", architecture, "-output", packagePath.pathString, packagePath.pathString)
     }
 
     private func stripHeaders(frameworkPath: AbsolutePath) throws {
@@ -214,9 +212,8 @@ final class Embeddable {
         return try uuidsFromDwarfdump(path: path)
     }
 
-    private func uuidsFromDwarfdump(path: AbsolutePath,
-                                    system: Systeming = System()) throws -> Set<UUID> {
-        let result = try system.capture("/usr/bin/dwarfdump", "--uuid", path.pathString).spm_chuzzle() ?? ""
+    private func uuidsFromDwarfdump(path: AbsolutePath) throws -> Set<UUID> {
+        let result = try System.shared.capture("/usr/bin/dwarfdump", "--uuid", path.pathString).spm_chuzzle() ?? ""
         var uuidCharacterSet = CharacterSet()
         uuidCharacterSet.formUnion(.letters)
         uuidCharacterSet.formUnion(.decimalDigits)

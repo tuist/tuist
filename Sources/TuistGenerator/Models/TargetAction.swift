@@ -76,15 +76,13 @@ public struct TargetAction {
     ///
     /// - Parameters:
     ///   - sourceRootPath: Path to the directory where the Xcode project is generated.
-    ///   - system: System instance used to obtain the absolute path of the tool.
     /// - Returns: Shell script that should be used in the target build phase.
     /// - Throws: An error if the tool absolute path cannot be obtained.
-    func shellScript(sourceRootPath: AbsolutePath,
-                     system: Systeming = System()) throws -> String {
+    func shellScript(sourceRootPath: AbsolutePath) throws -> String {
         if let path = path {
             return "\(path.relative(to: sourceRootPath).pathString) \(arguments.joined(separator: " "))"
         } else {
-            return try "\(system.which(tool!).spm_chomp().spm_chuzzle()!) \(arguments.joined(separator: " "))"
+            return try "\(System.shared.which(tool!).spm_chomp().spm_chuzzle()!) \(arguments.joined(separator: " "))"
         }
     }
 }

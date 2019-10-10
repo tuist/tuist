@@ -17,18 +17,17 @@ final class OpeningErrorTests: XCTestCase {
     }
 }
 
-final class OpenerTests: XCTestCase {
-    var system: MockSystem!
-    var fileHandler: MockFileHandler!
+final class OpenerTests: TuistUnitTestCase {
     var subject: Opener!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
+        subject = Opener()
+    }
 
-        system = MockSystem()
-        subject = Opener(system: system)
+    override func tearDown() {
+        super.tearDown()
+        subject = nil
     }
 
     func test_open_when_path_doesnt_exist() throws {

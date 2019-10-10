@@ -4,24 +4,23 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class SetupLoaderTests: XCTestCase {
+final class SetupLoaderTests: TuistUnitTestCase {
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
-    var fileHandler: MockFileHandler!
     var graphManifestLoader: MockGraphManifestLoader!
-    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         upLinter = MockUpLinter()
         graphManifestLoader = MockGraphManifestLoader()
-        system = MockSystem()
-        subject = SetupLoader(upLinter: upLinter,
-                              graphManifestLoader: graphManifestLoader,
-                              system: system)
+        subject = SetupLoader(upLinter: upLinter, graphManifestLoader: graphManifestLoader)
+    }
+
+    override func tearDown() {
+        upLinter = nil
+        graphManifestLoader = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_meet_when_no_actions() {
@@ -44,9 +43,9 @@ final class SetupLoaderTests: XCTestCase {
         // given
         let projectPath = AbsolutePath("/test/test1")
         let mockUp1 = MockUp(name: "1")
-        mockUp1.isMetStub = { _, _ in true }
+        mockUp1.isMetStub = { _ in true }
         let mockUp2 = MockUp(name: "2")
-        mockUp2.isMetStub = { _, _ in false }
+        mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
         graphManifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
@@ -78,13 +77,13 @@ final class SetupLoaderTests: XCTestCase {
         // given
         let projectPath = AbsolutePath("/test/test1")
         let mockUp1 = MockUp(name: "1")
-        mockUp1.isMetStub = { _, _ in false }
+        mockUp1.isMetStub = { _ in false }
         let mockUp2 = MockUp(name: "2")
-        mockUp2.isMetStub = { _, _ in false }
+        mockUp2.isMetStub = { _ in false }
         let mockUp3 = MockUp(name: "3")
-        mockUp3.isMetStub = { _, _ in false }
+        mockUp3.isMetStub = { _ in false }
         let mockUp4 = MockUp(name: "4")
-        mockUp4.isMetStub = { _, _ in false }
+        mockUp4.isMetStub = { _ in false }
         let mockUps = [mockUp1, mockUp2, mockUp3, mockUp4]
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in

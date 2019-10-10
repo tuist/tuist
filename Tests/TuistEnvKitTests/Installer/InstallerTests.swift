@@ -6,29 +6,31 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class InstallerTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class InstallerTests: TuistUnitTestCase {
     var buildCopier: MockBuildCopier!
     var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var system: MockSystem!
     var githubClient: MockGitHubClient!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
-        system = MockSystem()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         githubClient = MockGitHubClient()
-        subject = Installer(system: system,
-                            buildCopier: buildCopier,
+        subject = Installer(buildCopier: buildCopier,
                             versionsController: versionsController,
                             githubClient: githubClient)
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        buildCopier = nil
+        versionsController = nil
+        tmpDir = nil
+        githubClient = nil
+        subject = nil
     }
 
     func test_install_when_invalid_swift_version() throws {

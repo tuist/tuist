@@ -11,20 +11,6 @@ protocol TargetActionLinting {
 }
 
 class TargetActionLinter: TargetActionLinting {
-    // MARK: - Attributes
-
-    /// System instance to run any commands in the system.
-    private let system: Systeming
-
-    // MARK: - Init
-
-    /// Default initializer.
-    ///
-    /// - Parameter system: System instance to run any commands in the system.
-    init(system: Systeming = System()) {
-        self.system = system
-    }
-
     func lint(_ action: TargetAction) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintToolExistence(action))
@@ -39,7 +25,7 @@ class TargetActionLinter: TargetActionLinting {
     func lintToolExistence(_ action: TargetAction) -> [LintingIssue] {
         guard let tool = action.tool else { return [] }
         do {
-            _ = try system.which(tool)
+            _ = try System.shared.which(tool)
             return []
         } catch {
             return [LintingIssue(reason: "The action tool '\(tool)' was not found in the environment",

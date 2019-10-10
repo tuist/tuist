@@ -4,20 +4,22 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class EnvUpdaterTests: XCTestCase {
-    var system: MockSystem!
-    var fileHandler: MockFileHandler!
+final class EnvUpdaterTests: TuistUnitTestCase {
     var githubClient: MockGitHubClient!
     var subject: EnvUpdater!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
 
-        system = MockSystem()
         githubClient = MockGitHubClient()
-        subject = EnvUpdater(system: system, githubClient: githubClient)
+        subject = EnvUpdater(githubClient: githubClient)
+    }
+
+    override func tearDown() {
+        githubClient = nil
+        subject = nil
+
+        super.tearDown()
     }
 
     func test_update() throws {

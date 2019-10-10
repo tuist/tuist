@@ -5,15 +5,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class EnvironmentLinterTests: XCTestCase {
-    var xcodeController: MockXcodeController!
+final class EnvironmentLinterTests: TuistUnitTestCase {
     var subject: EnvironmentLinter!
 
     override func setUp() {
         super.setUp()
+        subject = EnvironmentLinter()
+    }
 
-        xcodeController = MockXcodeController()
-        subject = EnvironmentLinter(xcodeController: xcodeController)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws {

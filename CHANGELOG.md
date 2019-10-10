@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - `HTTPClient` utility class to `TuistEnvKit` https://github.com/tuist/tuist/pull/508 by @pepibumur.
 
+### Changed
+
+- Introduce `Systems.shared`, `TuistTestCase`, and `TuistUnitTestCase` https://github.com/tuist/tuist/pull/519 by @pepibumur.
+
 ## 0.18.1
 
 ### Removed

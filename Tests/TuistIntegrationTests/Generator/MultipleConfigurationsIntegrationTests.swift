@@ -5,17 +5,13 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class MultipleConfigurationsIntegrationTests: XCTestCase {
-    private var fileHandler: MockFileHandler!
+final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     private var path: AbsolutePath {
         return fileHandler.currentPath
     }
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         do {
             try setupTestProject()
         } catch {
@@ -24,7 +20,7 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     }
 
     override func tearDown() {
-        fileHandler = nil
+        super.tearDown()
     }
 
     func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {

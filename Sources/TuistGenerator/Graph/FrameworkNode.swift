@@ -24,10 +24,9 @@ class FrameworkNode: PrecompiledNode {
 
     /// Returns the library product.
     ///
-    /// - Parameter system: System instance used to determine whether the library is static or dynamic.
     /// - Returns: Product.
     /// - Throws: An error if the static/dynamic nature of the library cannot be obtained.
-    func product(system _: Systeming = System()) throws -> Product {
+    func product() throws -> Product {
         switch try linking() {
         case .dynamic:
             return .framework

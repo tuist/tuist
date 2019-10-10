@@ -5,19 +5,20 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class DerivedFileGeneratorTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class DerivedFileGeneratorTests: TuistUnitTestCase {
     var infoPlistContentProvider: MockInfoPlistContentProvider!
     var subject: DerivedFileGenerator!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-
-        fileHandler = sharedMockFileHandler()
         infoPlistContentProvider = MockInfoPlistContentProvider()
-
         subject = DerivedFileGenerator(infoPlistContentProvider: infoPlistContentProvider)
+    }
+
+    override func tearDown() {
+        infoPlistContentProvider = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_generate_generatesTheInfoPlistFiles_whenDictionaryInfoPlist() throws {

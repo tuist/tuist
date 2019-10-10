@@ -6,18 +6,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class UpHomebrewTests: XCTestCase {
-    var system: MockSystem!
-    var fileHandler: MockFileHandler!
-
-    override func setUp() {
-        super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
-        system = MockSystem()
-    }
-
+final class UpHomebrewTests: TuistUnitTestCase {
     func test_isMet_when_homebrew_is_missing() throws {
         let subject = UpHomebrew(packages: [])
         system.whichStub = { tool in
@@ -27,7 +16,7 @@ final class UpHomebrewTests: XCTestCase {
                 return ""
             }
         }
-        let got = try subject.isMet(system: system, projectPath: fileHandler.currentPath)
+        let got = try subject.isMet(projectPath: fileHandler.currentPath)
         XCTAssertFalse(got)
     }
 
@@ -40,14 +29,14 @@ final class UpHomebrewTests: XCTestCase {
                 return ""
             }
         }
-        let got = try subject.isMet(system: system, projectPath: fileHandler.currentPath)
+        let got = try subject.isMet(projectPath: fileHandler.currentPath)
         XCTAssertFalse(got)
     }
 
     func test_isMet() throws {
         let subject = UpHomebrew(packages: ["swiftlint"])
         system.whichStub = { _ in "" }
-        let got = try subject.isMet(system: system, projectPath: fileHandler.currentPath)
+        let got = try subject.isMet(projectPath: fileHandler.currentPath)
         XCTAssertTrue(got)
     }
 
@@ -60,7 +49,7 @@ final class UpHomebrewTests: XCTestCase {
                               "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"")
         system.succeedCommand("/usr/local/bin/brew", "install", "swiftlint")
 
-        try subject.meet(system: system, projectPath: fileHandler.currentPath)
+        try subject.meet(projectPath: fileHandler.currentPath)
 
         XCTAssertPrinterOutputContains("""
         Installing Homebrew

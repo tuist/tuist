@@ -160,6 +160,9 @@ public enum SystemError: FatalError {
 }
 
 public final class System: Systeming {
+    /// Shared system instance.
+    public static var shared: Systeming = System()
+
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
@@ -182,9 +185,6 @@ public final class System: Systeming {
     }
 
     // MARK: - Init
-
-    /// Default constructor.
-    public init() {}
 
     // MARK: - Systeming
 

@@ -11,8 +11,7 @@ protocol TargetGenerating: AnyObject {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graphing,
-                        system: Systeming) throws -> PBXNativeTarget
+                        graph: Graphing) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
@@ -50,8 +49,7 @@ final class TargetGenerator: TargetGenerating {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graphing,
-                        system: Systeming = System()) throws -> PBXNativeTarget {
+                        graph: Graphing) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -100,8 +98,7 @@ final class TargetGenerator: TargetGenerating {
                                         fileElements: fileElements,
                                         path: path,
                                         sourceRootPath: sourceRootPath,
-                                        graph: graph,
-                                        system: system)
+                                        graph: graph)
 
         /// Post actions
         try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
