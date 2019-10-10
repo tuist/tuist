@@ -46,10 +46,8 @@ final class InstallerTests: TuistUnitTestCase {
         }
 
         let expectedError = InstallerError.incompatibleSwiftVersion(local: "4.2.1", expected: "5.0.0")
-        XCTAssertThrowsError(try subject.install(version: version,
-                                                 temporaryDirectory: temporaryDirectory)) { error in
-            XCTAssertEqual(error as? InstallerError, expectedError)
-        }
+        XCTAssertThrowsSpecific(try subject.install(version: version,
+                                                    temporaryDirectory: temporaryDirectory), expectedError)
         XCTAssertPrinterOutputContains("Verifying the Swift version is compatible with your version 4.2.1")
     }
 
@@ -247,9 +245,7 @@ final class InstallerTests: TuistUnitTestCase {
                             error: "did not match any file(s) known to git ")
 
         let expected = InstallerError.versionNotFound(version)
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory)) {
-            XCTAssertEqual($0 as? InstallerError, expected)
-        }
+        XCTAssertThrowsSpecific(try subject.install(version: version, temporaryDirectory: temporaryDirectory), expected)
     }
 
     // MARK: - Fileprivate

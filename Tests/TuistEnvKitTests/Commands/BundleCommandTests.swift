@@ -61,9 +61,7 @@ final class BundleCommandTests: TuistUnitTestCase {
 
     func test_run_throws_when_there_is_no_xmp_version_in_the_directory() throws {
         let result = try parser.parse([])
-        XCTAssertThrowsError(try subject.run(with: result)) {
-            XCTAssertEqual($0 as? BundleCommandError, BundleCommandError.missingVersionFile(fileHandler.currentPath))
-        }
+        XCTAssertThrowsSpecific(try subject.run(with: result), BundleCommandError.missingVersionFile(fileHandler.currentPath))
     }
 
     func test_run_installs_the_app_if_it_doesnt_exist() throws {

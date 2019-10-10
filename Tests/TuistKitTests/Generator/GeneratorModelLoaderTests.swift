@@ -581,11 +581,8 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     }
 
     func test_platform_watchOSNotSupported() {
-        XCTAssertThrowsError(
-            try TuistGenerator.Platform.from(manifest: .watchOS)
-        ) { error in
-            XCTAssertEqual(error as? GeneratorModelLoaderError, GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
-        }
+        XCTAssertThrowsSpecific(try TuistGenerator.Platform.from(manifest: .watchOS),
+                                GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
     }
 
     func test_generatorModelLoaderError_type() {

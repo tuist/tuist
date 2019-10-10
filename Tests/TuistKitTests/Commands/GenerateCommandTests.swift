@@ -176,9 +176,8 @@ final class GenerateCommandTests: TuistUnitTestCase {
         }
 
         // When / Then
-        XCTAssertThrowsError(try subject.run(with: result)) {
-            XCTAssertEqual($0 as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(path))
-        }
+        XCTAssertThrowsSpecific(try subject.run(with: result),
+                                GraphManifestLoaderError.manifestNotFound(path))
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {

@@ -53,6 +53,17 @@ public extension XCTestCase {
         return value
     }
 
+    // swiftlint:disable:next line_length
+    func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(_ closure: @autoclosure () throws -> T, _ error: Error, file: StaticString = #file, line: UInt = #line) {
+        do {
+            _ = try closure()
+        } catch let closureError as Error {
+            XCTAssertEqual(error, closureError, file: file, line: line)
+        } catch let closureError {
+            XCTFail("\(error) is not equal to: \(closureError)", file: file, line: line)
+        }
+    }
+
     func XCTAssertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {
         let decoder = JSONDecoder()
         let decoded = XCTTry(try decoder.decode(C.self, from: json.data(using: .utf8)!), file: file, line: line)

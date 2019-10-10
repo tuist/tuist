@@ -33,9 +33,7 @@ final class OpenerTests: TuistUnitTestCase {
     func test_open_when_path_doesnt_exist() throws {
         let path = fileHandler.currentPath.appending(component: "tool")
 
-        XCTAssertThrowsError(try subject.open(path: path)) {
-            XCTAssertEqual($0 as? OpeningError, OpeningError.notFound(path))
-        }
+        XCTAssertThrowsSpecific(try subject.open(path: path), OpeningError.notFound(path))
     }
 
     func test_open() throws {
