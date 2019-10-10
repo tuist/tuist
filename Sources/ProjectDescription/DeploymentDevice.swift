@@ -10,6 +10,6 @@ public struct DeploymentDevice: OptionSet, Codable {
     public let rawValue: UInt
 
     public init(rawValue: UInt) {
-      self.rawValue = rawValue
+        self.rawValue = rawValue
     }
 }

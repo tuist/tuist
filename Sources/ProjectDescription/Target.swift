@@ -19,7 +19,7 @@ public class Target: Codable {
     /// passing nil in the initialiser will default
     /// this value to the name of the target.
     public let productName: String?
-    
+
     /// Deployment target.
     public let deploymentTarget: DeploymentTarget?
 
