@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - `HTTPClient` utility class to `TuistEnvKit` https://github.com/tuist/tuist/pull/508 by @pepibumur.
+- Allow specifying a deployment target within project manifests https://github.com/tuist/tuist/pull/541by @mollyIV
 
 ## 0.18.1
 
