@@ -28,6 +28,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
         issues.append(contentsOf: lintLibraryHasNoResources(target: target))
+        issues.append(contentsOf: lintDeploymentTarget(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
 
         target.actions.forEach { action in
@@ -138,5 +139,29 @@ class TargetLinter: TargetLinting {
         }
 
         return []
+    }
+
+    private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
+        guard let deploymentTarget = target.deploymentTarget else {
+            return []
+        }
+
+        let issue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
+
+        let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
+        switch deploymentTarget {
+        case let .iOS(version, _): if !version.matches(pattern: osVersionRegex) { return [issue] }
+        case let .macOS(version): if !version.matches(pattern: osVersionRegex) { return [issue] }
+        }
+        return []
+    }
+}
+
+extension String {
+    func matches(pattern: String) -> Bool {
+        guard let range = self.range(of: pattern, options: .regularExpression) else {
+            return false
+        }
+        return range == self.range(of: self)
     }
 }
