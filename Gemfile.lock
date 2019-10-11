@@ -145,7 +145,7 @@ GEM
       multi_json (~> 1.11)
       os (>= 0.9, < 2.0)
       signet (~> 0.7)
-    highline (2.0.2)
+    highline (2.0.3)
     httpclient (2.8.3)
     i18n (0.9.5)
       concurrent-ruby (~> 1.0)
