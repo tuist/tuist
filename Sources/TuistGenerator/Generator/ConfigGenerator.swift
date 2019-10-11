@@ -128,7 +128,11 @@ final class ConfigGenerator: ConfigGenerating {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.targetSettings(target: target,
                                                                   buildConfiguration: buildConfiguration)
-        update(buildSettings: &settings, byApplying: target)
+        updateTargetDerived(buildSettings: &settings,
+                            target: target,
+                            graph: graph,
+                            sourceRootPath: sourceRootPath)
+
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
@@ -140,29 +144,9 @@ final class ConfigGenerator: ConfigGenerating {
             variantBuildConfiguration.baseConfiguration = fileReference
         }
 
-        updateTargetDerived(buildSettings: &settings,
-                            target: target,
-                            graph: graph,
-                            sourceRootPath: sourceRootPath)
-
         variantBuildConfiguration.buildSettings = settings.toAny()
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
-    }
-
-    private func update(buildSettings settings: inout [String: SettingValue], byApplying manifest: Target) {
-        if let deploymentTarget = manifest.deploymentTarget {
-            switch deploymentTarget {
-            case let .iOS(_, devices):
-                if manifest.platform == .iOS {
-                    settings["TARGETED_DEVICE_FAMILY"] = .string(devices.map { "\($0.rawValue)" }.joined(separator: ","))
-                }
-            case .macOS:
-                if manifest.platform == .macOS {
-                    settings["TARGETED_DEVICE_FAMILY"] = .string("\(DeploymentDevice.mac.rawValue)")
-                }
-            }
-        }
     }
 
     private func updateTargetDerived(buildSettings settings: inout [String: SettingValue],
@@ -210,8 +194,11 @@ final class ConfigGenerator: ConfigGenerating {
 
         if let deploymentTarget = target.deploymentTarget {
             switch deploymentTarget {
-            case let .iOS(version, _): settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
-            case let .macOS(version): settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
+            case let .iOS(version, devices):
+                settings["TARGETED_DEVICE_FAMILY"] = .string(devices.map { "\($0.rawValue)" }.joined(separator: ","))
+                settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
+            case let .macOS(version):
+                settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
             }
         }
     }
