@@ -207,5 +207,12 @@ final class ConfigGenerator: ConfigGenerating {
                 }
             }
         }
+        
+        if let deploymentTarget = target.deploymentTarget {
+            switch deploymentTarget {
+            case let .iOS(version, _): settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
+            case let .macOS(version): settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
+            }
+        }
     }
 }
