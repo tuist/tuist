@@ -706,7 +706,7 @@ extension TuistGenerator.DeploymentTarget {
     static func from(manifest: ProjectDescription.DeploymentTarget) -> TuistGenerator.DeploymentTarget {
         switch manifest {
         case let .iOS(version, devices):
-            return .iOS(version, devices.map { DeploymentDevice(rawValue: $0.rawValue) })
+            return .iOS(version, DeploymentDevice(rawValue: devices.rawValue))
         case let .macOS(version):
             return .macOS(version)
         }

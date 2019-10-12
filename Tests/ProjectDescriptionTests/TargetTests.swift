@@ -11,7 +11,7 @@ final class TargetTests: XCTestCase {
                              product: .app,
                              productName: "product_name",
                              bundleId: "bundle_id",
-                             deploymentTarget: .iOS("13.1", [.iphone, .ipad]),
+                             deploymentTarget: .iOS(targetVersion: "13.1", devices: [.iphone, .ipad]),
                              infoPlist: "info.plist",
                              sources: "sources/*",
                              resources: "resources/*",
@@ -41,7 +41,7 @@ final class TargetTests: XCTestCase {
             "deploymentTarget": {
                "kind": "iOS",
                "version": "13.1",
-               "deploymentDevices": [1, 2]
+               "deploymentDevices": 3
             },
             "headers": {
                 "public": { "globs": ["public\\/*"] },

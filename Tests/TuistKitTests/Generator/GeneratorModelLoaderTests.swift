@@ -669,7 +669,7 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_deploymentTarget() throws {
         // Given
-        let manifest: ProjectDescription.DeploymentTarget = .iOS("13.1", [.iphone])
+        let manifest: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "13.1", devices: .iphone)
 
         // When
         let got = TuistGenerator.DeploymentTarget.from(manifest: manifest)
@@ -683,7 +683,8 @@ class GeneratorModelLoaderTest: XCTestCase {
         }
 
         XCTAssertEqual(version, "13.1")
-        XCTAssertEqual(devices.first, .iphone)
+        XCTAssertTrue(devices.contains(.iphone))
+        XCTAssertFalse(devices.contains(.ipad))
     }
 
     // MARK: - Helpers

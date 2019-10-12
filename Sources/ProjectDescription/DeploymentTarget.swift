@@ -3,8 +3,8 @@ import Foundation
 // MARK: - DeploymentTarget
 
 public enum DeploymentTarget: Codable {
-    case iOS(String, [DeploymentDevice])
-    case macOS(String)
+    case iOS(targetVersion: String, devices: DeploymentDevice)
+    case macOS(targetVersion: String)
     // TODO: 🙈 Add `watchOS` and `tvOS` support
 
     private enum Kind: String, Codable {
@@ -24,11 +24,11 @@ public enum DeploymentTarget: Codable {
         switch kind {
         case .iOS:
             let version = try container.decode(String.self, forKey: .version)
-            let deploymentDevices = try container.decode([DeploymentDevice].self, forKey: .deploymentDevices)
-            self = .iOS(version, deploymentDevices)
+            let deploymentDevices = try container.decode(DeploymentDevice.self, forKey: .deploymentDevices)
+            self = .iOS(targetVersion: version, devices: deploymentDevices)
         case .macOS:
             let version = try container.decode(String.self, forKey: .version)
-            self = .macOS(version)
+            self = .macOS(targetVersion: version)
         }
     }
 

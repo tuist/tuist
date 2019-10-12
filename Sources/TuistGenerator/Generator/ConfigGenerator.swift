@@ -195,7 +195,11 @@ final class ConfigGenerator: ConfigGenerating {
         if let deploymentTarget = target.deploymentTarget {
             switch deploymentTarget {
             case let .iOS(version, devices):
-                settings["TARGETED_DEVICE_FAMILY"] = .string(devices.map { "\($0.rawValue)" }.joined(separator: ","))
+                var deviceFamilyValues: [Int] = []
+                if devices.contains(.iphone) { deviceFamilyValues.append(1) }
+                if devices.contains(.ipad) { deviceFamilyValues.append(2) }
+
+                settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
                 settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
             case let .macOS(version):
                 settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
