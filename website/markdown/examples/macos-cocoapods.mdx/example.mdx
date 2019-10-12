@@ -1,0 +1,12 @@
+---
+title: "macOS app with CocoaPods dependencies"
+---
+import File from "../components/file"
+
+This example contains an macOS app that uses CocoaPods to pull some third-party dependencies that the app is linked against.
+
+<File language="swift" fileName="Project.swift" code="macos-cocoapods-project"/>
+
+Tuist runs `pod install` on the directory indicated without running any validation on the format of the `Podfile`.
+
+<File language="ruby" fileName="Podfile" code="macos-cocoapods-podfile"/>

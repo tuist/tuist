@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="151px" height="151px" viewBox="0 0 151 151" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 53.2 (72643) - https://sketchapp.com -->
+    <title>Icon</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <linearGradient x1="50%" y1="4.42758392%" x2="50%" y2="96.2307907%" id="linearGradient-1">
+            <stop stop-color="#57C5FA" offset="0%"></stop>
+            <stop stop-color="#0C6DD1" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="New-website" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Main" transform="translate(-644.000000, -76.000000)">
+            <g id="Header">
+                <g id="Icon" transform="translate(644.000000, 76.000000)">
+                    <rect id="Rectangle" fill="url(#linearGradient-1)" x="0" y="0" width="150.528" height="150.528" rx="27.048"></rect>
+                    <g id="Group-2" stroke-width="1" transform="translate(26.460000, 30.870000)">
+                        <g id="Group" transform="translate(48.216000, 0.000000)" fill-rule="nonzero" stroke="#FFFFFF" stroke-width="2.94">
+                            <path d="M0.844646035,87.7355558 L0.844646035,-2.84217094e-14" id="Path"></path>
+                            <path d="M1.09285677,88.1947457 L22.4615444,5.586" id="Path-2"></path>
+                            <path d="M0.800645041,88.4316741 L42.4425085,19.0217991" id="Path-3"></path>
+                            <path d="M0.906698718,88.5038809 L49.1543523,39.69" id="Path-4"></path>
+                            <path d="M0.294,89.67 L40.3834876,65.856" id="Path-5"></path>
+                        </g>
+                        <g id="Group" transform="translate(25.137000, 44.835000) scale(-1, 1) translate(-25.137000, -44.835000) " fill-rule="nonzero" stroke="#FFFFFF" stroke-width="2.94">
+                            <path d="M1.72664603,87.7355558 L1.72664603,-2.84217094e-14" id="Path"></path>
+                            <path d="M1.97485677,88.1947457 L23.3435444,5.586" id="Path-2"></path>
+                            <path d="M1.68264504,88.4316741 L43.3245085,19.0217991" id="Path-3"></path>
+                            <path d="M1.78869872,88.5038809 L50.0363523,39.69" id="Path-4"></path>
+                            <path d="M0.294,89.67 L41.2654876,65.856" id="Path-5"></path>
+                        </g>
+                        <rect id="Rectangle" fill="#FFFFFF" fill-rule="nonzero" x="33.222" y="84.966" width="31.458" height="2.646"></rect>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

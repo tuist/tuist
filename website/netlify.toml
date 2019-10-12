@@ -1,0 +1,24 @@
+[[redirects]]
+  from = "/install/*"
+  to = "https://raw.githubusercontent.com/tuist/tuist/master/script/install"
+  status = 200
+    headers = { X-Forwarded-Host = "https://tuist.io" }
+[[redirects]]
+  from = "/uninstall/*"
+  to = "https://raw.githubusercontent.com/tuist/tuist/master/script/uninstall"
+  status = 200
+  headers = { X-Forwarded-Host = "https://tuist.io" }
+[[redirects]]
+  from = "/docs/*"
+  to = "https://tuist-docs.netlify.com/:splat"
+  status = 200
+  headers = { X-Forwarded-Host = "https://tuist.io" }
+[[redirects]]
+  from = "/g/*"
+  to = "https://tuist-galaxy.netlify.com/:splat"
+  status = 200
+  headers = { X-Forwarded-Host = "https://tuist.io" }
+[[redirects]]
+  from = "docs.tuist.io/*"
+  to = "https://docs.tuist.io/:splat"
+  headers = { X-Forwarded-Host = "https://tuist.io" }
