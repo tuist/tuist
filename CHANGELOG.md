@@ -13,6 +13,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Introduce `Systems.shared`, `TuistTestCase`, and `TuistUnitTestCase` https://github.com/tuist/tuist/pull/519 by @pepibumur.
 
+### Fixed
+
+- Fix false positive cycle detection https://github.com/tuist/tuist/pull/546 by @kwridan
+
 ## 0.18.1
 
 ### Removed
