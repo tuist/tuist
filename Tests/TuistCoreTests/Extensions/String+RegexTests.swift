@@ -9,7 +9,7 @@ final class StringRegexTests: XCTestCase {
         XCTAssertFalse("tuist".matches(pattern: osVersionPattern))
 
         let twoDigitsOnlyPattern = "^[0-9]{2}$"
-        XCTAssertTrue("10.0".matches(pattern: twoDigitsOnlyPattern))
+        XCTAssertTrue("10".matches(pattern: twoDigitsOnlyPattern))
         XCTAssertFalse("10.0.1".matches(pattern: twoDigitsOnlyPattern))
 
         let singleWordPattern = "project*"
