@@ -6,7 +6,6 @@ import XCTest
 @testable import TuistGenerator
 
 final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
-
     override func setUp() {
         super.setUp()
 

@@ -19,7 +19,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     typealias TestActionManifest = ProjectDescription.TestAction
     typealias RunActionManifest = ProjectDescription.RunAction
     typealias ArgumentsManifest = ProjectDescription.Arguments
-    
+
     private var manifestTargetGenerator: MockManifestTargetGenerator!
     private var manifestLinter: MockManifestLinter!
 
@@ -60,10 +60,10 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let targetB = TargetManifest.test(name: "B")
         let manifests = [
             temporaryPath: ProjectManifest.test(name: "Project",
-                                       targets: [
-                                           targetA,
-                                           targetB,
-                                       ]),
+                                                targets: [
+                                                    targetA,
+                                                    targetB,
+                                                ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -87,10 +87,10 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         ])
         let projects = [
             temporaryPath: ProjectManifest.test(name: "Project",
-                                       targets: [
-                                           .test(name: "A"),
-                                           .test(name: "B"),
-                                       ]),
+                                                targets: [
+                                                    .test(name: "A"),
+                                                    .test(name: "B"),
+                                                ]),
         ]
 
         let configs = [
@@ -120,9 +120,9 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         let manifests = [
             temporaryPath: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           "Documentation/**/*.md",
-                                       ]),
+                                                additionalFiles: [
+                                                    "Documentation/**/*.md",
+                                                ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -144,9 +144,9 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         let manifests = [
             temporaryPath: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           .folderReference(path: "Stubs"),
-                                       ]),
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -168,9 +168,9 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         let manifests = [
             temporaryPath: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           .folderReference(path: "Stubs"),
-                                       ]),
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
         ]
         let configs = [
             temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two")]),
@@ -196,13 +196,13 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         let manifests = [
             temporaryPath: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           .folderReference(path: "Stubs"),
-                                       ]),
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
         ]
         let configs = [
             temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
-                                                                          .xcodeProjectName("two \(.projectName) three")]),
+                                                                                   .xcodeProjectName("two \(.projectName) three")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
@@ -267,11 +267,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         let manifests = [
             temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace",
-                                         projects: [],
-                                         additionalFiles: [
-                                             "Documentation/**/*.md",
-                                             "*.playground",
-                                         ]),
+                                                  projects: [],
+                                                  additionalFiles: [
+                                                      "Documentation/**/*.md",
+                                                      "*.playground",
+                                                  ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -294,10 +294,10 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         let manifests = [
             temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace",
-                                         projects: [],
-                                         additionalFiles: [
-                                             .folderReference(path: "Documentation"),
-                                         ]),
+                                                  projects: [],
+                                                  additionalFiles: [
+                                                      .folderReference(path: "Documentation"),
+                                                  ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)

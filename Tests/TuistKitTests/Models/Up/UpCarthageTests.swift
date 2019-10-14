@@ -39,7 +39,7 @@ final class UpCarthageTests: TuistUnitTestCase {
 
     func test_isMet_when_homebrew_is_not_met() throws {
         let temporaryPath = try self.temporaryPath()
-        
+
         upHomebrew.isMetStub = { _ in false }
         carthage.outdatedStub = { _ in [] }
 
@@ -48,7 +48,7 @@ final class UpCarthageTests: TuistUnitTestCase {
 
     func test_isMet_when_carthage_doesnt_have_outdated_dependencies() throws {
         let temporaryPath = try self.temporaryPath()
-        
+
         upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in nil }
 
@@ -57,7 +57,7 @@ final class UpCarthageTests: TuistUnitTestCase {
 
     func test_isMet_when_carthage_has_outdated_dependencies() throws {
         let temporaryPath = try self.temporaryPath()
-        
+
         upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in ["Dependency"] }
 
@@ -66,7 +66,7 @@ final class UpCarthageTests: TuistUnitTestCase {
 
     func test_isMet() throws {
         let temporaryPath = try self.temporaryPath()
-        
+
         upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in [] }
 
@@ -87,7 +87,7 @@ final class UpCarthageTests: TuistUnitTestCase {
 
     func test_meet() throws {
         let temporaryPath = try self.temporaryPath()
-        
+
         upHomebrew.isMetStub = { _ in true }
 
         carthage.outdatedStub = { _ in

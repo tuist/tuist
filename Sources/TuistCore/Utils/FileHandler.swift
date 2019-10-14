@@ -90,7 +90,7 @@ public protocol FileHandling: AnyObject {
     func touch(_ path: AbsolutePath) throws
 }
 
-public final class FileHandler: FileHandling {
+public class FileHandler: FileHandling {
     /// Shared instance.
     public static var shared: FileHandling = FileHandler()
 

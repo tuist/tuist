@@ -106,7 +106,7 @@ final class InitCommandTests: TuistUnitTestCase {
         let result = try parser.parse(["init", "--product", "application", "--platform", "ios"])
         try subject.run(with: result)
         let temporaryPath = try self.temporaryPath()
-        
+
         let name = temporaryPath.basename
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".gitignore")))
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: "Project.swift")))
@@ -206,7 +206,7 @@ final class InitCommandTests: TuistUnitTestCase {
         try subject.run(with: result)
         let temporaryPath = try self.temporaryPath()
         let name = temporaryPath.basename
-        
+
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".gitignore")))
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: "Project.swift")))
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: "TuistConfig.swift")))
@@ -231,7 +231,7 @@ final class InitCommandTests: TuistUnitTestCase {
         try subject.run(with: result)
         let temporaryPath = try self.temporaryPath()
         let name = temporaryPath.basename
-        
+
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".gitignore")))
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: "Project.swift")))
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: "TuistConfig.swift")))

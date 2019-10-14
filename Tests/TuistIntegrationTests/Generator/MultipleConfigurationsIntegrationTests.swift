@@ -6,7 +6,6 @@ import XCTest
 @testable import TuistGenerator
 
 final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
-    
     override func setUp() {
         super.setUp()
         do {
@@ -24,7 +23,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let modelLoader = try createModelLoader(projectSettings: Settings(configurations: [:]),
-                                            targetSettings: nil)
+                                                targetSettings: nil)
         let subject = Generator(modelLoader: modelLoader)
 
         // When / Then

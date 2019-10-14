@@ -1,8 +1,8 @@
 import Basic
 import Foundation
+import TuistCore
 import XcodeProj
 import XCTest
-import TuistCore
 
 @testable import TuistCoreTesting
 @testable import TuistGenerator
