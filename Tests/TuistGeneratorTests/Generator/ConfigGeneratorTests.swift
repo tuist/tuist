@@ -135,7 +135,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     private func generateProjectConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
-        try fileHandler.createFolder(xcconfigsDir)
+        try FileHandler.shared.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
 
@@ -161,7 +161,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     private func generateTargetConfig() throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
-        try fileHandler.createFolder(xcconfigsDir)
+        try FileHandler.shared.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
         let configurations: [BuildConfiguration: Configuration?] = [

@@ -183,7 +183,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_lproj_multiple_files() throws {
         // Given
-        let resouces = try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        let resouces = try createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
@@ -201,7 +202,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             try subject.generate(fileElement: $0,
                                  groups: groups,
                                  pbxproj: pbxproj,
-                                 sourceRootPath: fileHandler.currentPath)
+                                 sourceRootPath: temporaryPath)
         }
 
         // Then
@@ -482,29 +483,29 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_generatePlaygrounds() throws {
         let pbxproj = PBXProj()
-        let sourceRootPath = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
 
-        let playgroundsPath = sourceRootPath.appending(component: "Playgrounds")
+        let playgroundsPath = temporaryPath.appending(component: "Playgrounds")
         let playgroundPath = playgroundsPath.appending(component: "Test.playground")
 
         playgrounds.pathsStub = { projectPath in
-            if projectPath == sourceRootPath {
+            if projectPath == temporaryPath {
                 return [playgroundPath]
             } else {
                 return []
             }
         }
 
-        let project = Project.test(path: sourceRootPath)
+        let project = Project.test(path: temporaryPath)
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath,
+                                            sourceRootPath: temporaryPath,
                                             playgrounds: playgrounds)
 
-        subject.generatePlaygrounds(path: sourceRootPath,
+        subject.generatePlaygrounds(path: temporaryPath,
                                     groups: groups,
                                     pbxproj: pbxproj,
-                                    sourceRootPath: sourceRootPath)
+                                    sourceRootPath: temporaryPath)
         let file: PBXFileReference? = groups.playgrounds?.children.first as? PBXFileReference
 
         XCTAssertEqual(file?.sourceTree, .group)

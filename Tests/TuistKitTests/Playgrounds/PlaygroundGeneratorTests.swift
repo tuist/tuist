@@ -1,6 +1,8 @@
 import Basic
 import Foundation
 import XCTest
+import TuistCore
+
 @testable import TuistCoreTesting
 @testable import TuistKit
 
@@ -32,7 +34,7 @@ final class PlaygroundGeneratorTests: TuistUnitTestCase {
         let playgroundPath = temporaryPath.appending(component: "Test.playground")
         try FileHandler.shared.createFolder(playgroundPath)
 
-        XCTAssertThrowsSpecific(try subject.generate(path: fileHandler.currentPath,
+        XCTAssertThrowsSpecific(try subject.generate(path: temporaryPath,
                                                      name: "Test",
                                                      platform: .iOS),
                                 PlaygroundGenerationError.alreadyExisting(playgroundPath))
