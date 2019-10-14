@@ -160,7 +160,7 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: f, to: d)
 
         // Then
-        XCTAssertThrowsError(try subject.complete())
+        XCTAssertThrowsSpecific(try subject.complete(), GraphLoadingError.circularDependency([d, e, f]))
     }
 
     // MARK: -
