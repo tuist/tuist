@@ -13,4 +13,11 @@ public enum DeploymentTarget {
         case .macOS: return "macOS"
         }
     }
+    
+    public var version: String {
+        switch self {
+        case let .iOS(version, _): return version
+        case let .macOS(version): return version
+        }
+    }
 }

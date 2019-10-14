@@ -149,10 +149,7 @@ class TargetLinter: TargetLinting {
         let issue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
 
         let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
-        switch deploymentTarget {
-        case let .iOS(version, _): if !version.matches(pattern: osVersionRegex) { return [issue] }
-        case let .macOS(version): if !version.matches(pattern: osVersionRegex) { return [issue] }
-        }
+        if !deploymentTarget.version.matches(pattern: osVersionRegex) { return [issue] }
         return []
     }
 }
