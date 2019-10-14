@@ -29,10 +29,11 @@ final class TargetActionLinterTests: TuistUnitTestCase {
         XCTAssertTrue(got.contains(expected))
     }
 
-    func test_lint_whenPathDoesntExist() {
+    func test_lint_whenPathDoesntExist() throws {
+        let temporaryPath = try self.temporaryPath()
         let action = TargetAction(name: "name",
                                   order: .pre,
-                                  path: fileHandler.currentPath.appending(component: "invalid.sh"))
+                                  path: temporaryPath.appending(component: "invalid.sh"))
         let got = subject.lint(action)
 
         let expected = LintingIssue(reason: "The action path \(action.path!.pathString) doesn't exist",

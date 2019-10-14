@@ -41,14 +41,15 @@ final class GraphCommandTests: TuistUnitTestCase {
 
     func test_run() throws {
         // Given
-        let graphPath = fileHandler.currentPath.appending(component: "graph.dot")
-        let projectManifestPath = fileHandler.currentPath.appending(component: "Project.swift")
+        let temporaryPath = try self.temporaryPath()
+        let graphPath = temporaryPath.appending(component: "graph.dot")
+        let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
-        try fileHandler.touch(graphPath)
-        try fileHandler.touch(projectManifestPath)
+        try FileHandler.shared.touch(graphPath)
+        try FileHandler.shared.touch(projectManifestPath)
 
         manifestLoader.manifestsAtStub = {
-            if $0 == self.fileHandler.currentPath { return Set([.project]) }
+            if $0 == temporaryPath { return Set([.project]) }
             else { return Set([]) }
         }
 
@@ -60,7 +61,7 @@ final class GraphCommandTests: TuistUnitTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(try fileHandler.readTextFile(graphPath), graph)
+        XCTAssertEqual(try FileHandler.shared.readTextFile(graphPath), graph)
         XCTAssertPrinterOutputContains("""
         Deleting existing graph at \(graphPath.pathString)
         Graph exported to \(graphPath.pathString)

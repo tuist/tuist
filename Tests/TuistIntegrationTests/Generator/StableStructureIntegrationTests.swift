@@ -6,9 +6,6 @@ import XCTest
 @testable import TuistGenerator
 
 final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
-    private var path: AbsolutePath {
-        return fileHandler.currentPath
-    }
 
     override func setUp() {
         super.setUp()
@@ -22,6 +19,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
 
     func testXcodeProjStructureDoesNotChangeAfterRegeneration() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         var capturedProjects = [[XcodeProj]]()
         var capturesWorkspaces = [XCWorkspace]()
 
@@ -29,7 +27,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         try (0 ..< 10).forEach { _ in
             let subject = Generator(modelLoader: try createModelLoader())
 
-            let workspacePath = try subject.generateWorkspace(at: path, workspaceFiles: [])
+            let workspacePath = try subject.generateWorkspace(at: temporaryPath, workspaceFiles: [])
 
             let workspace = try XCWorkspace(path: workspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: workspace)
@@ -48,17 +46,19 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
-        let projectsPaths = workspace.projectPaths.map { path.appending(RelativePath($0)) }
+        let temporaryPath = try self.temporaryPath()
+        let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
         let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
         return xcodeProjs
     }
 
     private func setupTestProject() throws {
-        try fileHandler.createFolders(["App/Sources"])
+        try createFolders(["App/Sources"])
     }
 
     private func createModelLoader() throws -> GeneratorModelLoading {
-        let modelLoader = MockGeneratorModelLoader(basePath: path)
+        let temporaryPath = try self.temporaryPath()
+        let modelLoader = MockGeneratorModelLoader(basePath: temporaryPath)
         let frameworksNames = (0 ..< 10).map { "Framework\($0)" }
         let targetSettings = Settings(base: ["A1": "A_VALUE",
                                              "B1": "B_VALUE",
@@ -74,7 +74,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                                                         .release: nil,
                                                         .debug("CustomDebug2"): nil,
                                                         .release("CustomRelease2"): nil])
-        let projectPath = pathTo("App")
+        let projectPath = try pathTo("App")
         let dependencies = try createDependencies(relativeTo: projectPath)
         let frameworkTargets = try frameworksNames.map { try createFrameworkTarget(name: $0, depenendencies: dependencies) }
         let appTarget = createAppTarget(settings: targetSettings, dependencies: frameworksNames)
@@ -82,7 +82,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                                     settings: projectSettings,
                                     targets: [appTarget] + frameworkTargets,
                                     schemes: [])
-        let workspace = createWorkspace(projects: ["App"])
+        let workspace = try createWorkspace(projects: ["App"])
         let tuistConfig = createTuistConfig()
 
         modelLoader.mockProject("App") { _ in project }
@@ -96,8 +96,8 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                            generationOptions: [])
     }
 
-    private func createWorkspace(projects: [String]) -> Workspace {
-        return Workspace(name: "Workspace", projects: projects.map { pathTo($0) })
+    private func createWorkspace(projects: [String]) throws -> Workspace {
+        return Workspace(name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], schemes: [Scheme]) -> Project {
@@ -201,7 +201,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
 
     private func createDependencies(relativeTo path: AbsolutePath) throws -> [Dependency] {
         let prebuiltFrameworks = (0 ..< 10).map { "Frameworks/Framework\($0).framework" }
-        let frameworks = try fileHandler.createFiles(prebuiltFrameworks)
+        let frameworks = try createFiles(prebuiltFrameworks)
             .map { Dependency.framework(path: $0.relative(to: path)) }
 
         let libraries = try createLibraries(relativeTo: path)
@@ -218,7 +218,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
             let headers = "Libraries/\(libraryName)/Headers"
             let swiftModuleMap = "Libraries/\(libraryName)/\(libraryName).swiftmodule"
 
-            let files = try fileHandler.createFiles([
+            let files = try createFiles([
                 library,
                 headers,
                 swiftModuleMap,
@@ -234,8 +234,9 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         return libraries
     }
 
-    private func pathTo(_ relativePath: String) -> AbsolutePath {
-        return path.appending(RelativePath(relativePath))
+    private func pathTo(_ relativePath: String) throws -> AbsolutePath {
+        let temporaryPath = try self.temporaryPath()
+        return temporaryPath.appending(RelativePath(relativePath))
     }
 }
 

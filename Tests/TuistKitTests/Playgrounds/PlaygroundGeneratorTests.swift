@@ -28,8 +28,9 @@ final class PlaygroundGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_throws_when_playground_exists() throws {
-        let playgroundPath = fileHandler.currentPath.appending(component: "Test.playground")
-        try fileHandler.createFolder(playgroundPath)
+        let temporaryPath = try self.temporaryPath()
+        let playgroundPath = temporaryPath.appending(component: "Test.playground")
+        try FileHandler.shared.createFolder(playgroundPath)
 
         XCTAssertThrowsSpecific(try subject.generate(path: fileHandler.currentPath,
                                                      name: "Test",
@@ -38,8 +39,9 @@ final class PlaygroundGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_writes_content() throws {
-        let playgroundPath = fileHandler.currentPath.appending(component: "Test.playground")
-        try subject.generate(path: fileHandler.currentPath,
+        let temporaryPath = try self.temporaryPath()
+        let playgroundPath = temporaryPath.appending(component: "Test.playground")
+        try subject.generate(path: temporaryPath,
                              name: "Test",
                              platform: .iOS,
                              content: "Test")
@@ -51,8 +53,9 @@ final class PlaygroundGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_writes_default_content() throws {
-        let playgroundPath = fileHandler.currentPath.appending(component: "Test.playground")
-        try subject.generate(path: fileHandler.currentPath,
+        let temporaryPath = try self.temporaryPath()
+        let playgroundPath = temporaryPath.appending(component: "Test.playground")
+        try subject.generate(path: temporaryPath,
                              name: "Test",
                              platform: .iOS)
 
@@ -63,8 +66,9 @@ final class PlaygroundGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_writes_xcplayground() throws {
-        let playgroundPath = fileHandler.currentPath.appending(component: "Test.playground")
-        try subject.generate(path: fileHandler.currentPath,
+        let temporaryPath = try self.temporaryPath()
+        let playgroundPath = temporaryPath.appending(component: "Test.playground")
+        try subject.generate(path: temporaryPath,
                              name: "Test",
                              platform: .iOS)
 

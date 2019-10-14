@@ -49,19 +49,21 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_binary() throws {
-        let binaryPath = fileHandler.currentPath.appending(component: "tuist")
+        let temporaryPath = try self.temporaryPath()
+        let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
-        versionResolver.resolveStub = { _ in ResolvedVersion.bin(self.fileHandler.currentPath) }
+        versionResolver.resolveStub = { _ in ResolvedVersion.bin(temporaryPath) }
         system.succeedCommand(binaryPath.pathString, "--help", output: "output")
         try subject.run()
     }
 
     func test_when_binary_and_throws() throws {
-        let binaryPath = fileHandler.currentPath.appending(component: "tuist")
+        let temporaryPath = try self.temporaryPath()
+        let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
-        versionResolver.resolveStub = { _ in ResolvedVersion.bin(self.fileHandler.currentPath) }
+        versionResolver.resolveStub = { _ in ResolvedVersion.bin(temporaryPath) }
         system.errorCommand(binaryPath.pathString, "--help", error: "error")
 
         try subject.run()
@@ -69,15 +71,16 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_version_file() throws {
-        let binaryPath = fileHandler.currentPath.appending(component: "tuist")
+        let temporaryPath = try self.temporaryPath()
+        let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
         versionsController.versionsStub = []
         versionsController.pathStub = {
-            $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
-        versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(self.fileHandler.currentPath, "3.2.1") }
+        versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1") }
 
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
@@ -86,7 +89,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         try subject.run()
 
         XCTAssertPrinterOutputContains("""
-        Using version 3.2.1 defined at \(fileHandler.currentPath.pathString)
+        Using version 3.2.1 defined at \(temporaryPath.pathString)
         Version 3.2.1 not found locally. Installing...
         """)
         XCTAssertEqual(installArgs.count, 1)
@@ -94,9 +97,10 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_version_file_and_install_fails() throws {
+        let temporaryPath = try self.temporaryPath()
         versionsController.versionsStub = []
 
-        versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(self.fileHandler.currentPath, "3.2.1") }
+        versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1") }
 
         let error = NSError.test()
         installer.installStub = { _, _ in throw error }
@@ -107,15 +111,16 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_version_file_and_command_fails() throws {
-        let binaryPath = fileHandler.currentPath.appending(component: "tuist")
+        let temporaryPath = try self.temporaryPath()
+        let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
         versionsController.versionsStub = []
         versionsController.pathStub = {
-            $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
-        versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(self.fileHandler.currentPath, "3.2.1")
+        versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1")
         }
 
         system.errorCommand(binaryPath.pathString, "--help", error: "error")
@@ -125,14 +130,15 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_highest_local_version_and_version_exists() throws {
-        let binaryPath = fileHandler.currentPath.appending(component: "tuist")
+        let temporaryPath = try self.temporaryPath()
+        let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.undefined }
 
         versionsController.semverVersionsStub = [Version(string: "3.2.1")!]
         versionsController.pathStub = {
-            $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
         system.succeedCommand(binaryPath.pathString, "--help", output: "")
@@ -141,7 +147,8 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_highest_local_version_and_no_local_version() throws {
-        let binaryPath = fileHandler.currentPath.appending(component: "tuist")
+        let temporaryPath = try self.temporaryPath()
+        let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.undefined }
@@ -152,7 +159,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         }
 
         versionsController.pathStub = {
-            $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
         system.succeedCommand(binaryPath.pathString, "--help", output: "")
@@ -179,14 +186,15 @@ final class CommandRunnerTests: TuistUnitTestCase {
     // TODO: And update fails
 
     func test_when_highest_local_version_and_command_fails() throws {
-        let binaryPath = fileHandler.currentPath.appending(component: "tuist")
+        let temporaryPath = try self.temporaryPath()
+        let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.undefined }
 
         versionsController.semverVersionsStub = [Version(string: "3.2.1")!]
         versionsController.pathStub = {
-            $0 == "3.2.1" ? self.fileHandler.currentPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
         system.errorCommand(binaryPath.pathString, "--help", error: "error")

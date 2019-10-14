@@ -164,12 +164,12 @@ final class GenerateCommandTests: TuistUnitTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(generationPath, fileHandler.currentPath)
+        XCTAssertEqual(generationPath, temporaryPath)
     }
 
     func test_run_withMissingManifest_throws() throws {
         // Given
-        let path = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([GenerateCommand.command])
         manifestLoader.manifestsAtStub = { _ in
             Set()
@@ -177,7 +177,7 @@ final class GenerateCommandTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(with: result),
-                                GraphManifestLoaderError.manifestNotFound(path))
+                                GraphManifestLoaderError.manifestNotFound(temporaryPath))
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {

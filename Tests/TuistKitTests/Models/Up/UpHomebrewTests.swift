@@ -8,6 +8,7 @@ import XCTest
 
 final class UpHomebrewTests: TuistUnitTestCase {
     func test_isMet_when_homebrew_is_missing() throws {
+        let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: [])
         system.whichStub = { tool in
             if tool == "brew" {
@@ -16,11 +17,12 @@ final class UpHomebrewTests: TuistUnitTestCase {
                 return ""
             }
         }
-        let got = try subject.isMet(projectPath: fileHandler.currentPath)
+        let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertFalse(got)
     }
 
     func test_isMet_when_a_package_is_missing() throws {
+        let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: ["swiftlint"])
         system.whichStub = { tool in
             if tool == "swiftlint" {
@@ -29,18 +31,20 @@ final class UpHomebrewTests: TuistUnitTestCase {
                 return ""
             }
         }
-        let got = try subject.isMet(projectPath: fileHandler.currentPath)
+        let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertFalse(got)
     }
 
     func test_isMet() throws {
+        let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: ["swiftlint"])
         system.whichStub = { _ in "" }
-        let got = try subject.isMet(projectPath: fileHandler.currentPath)
+        let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertTrue(got)
     }
 
     func test_meet() throws {
+        let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: ["swiftlint"])
 
         system.whichStub = { _ in nil }
@@ -49,7 +53,7 @@ final class UpHomebrewTests: TuistUnitTestCase {
                               "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"")
         system.succeedCommand("/usr/local/bin/brew", "install", "swiftlint")
 
-        try subject.meet(projectPath: fileHandler.currentPath)
+        try subject.meet(projectPath: temporaryPath)
 
         XCTAssertPrinterOutputContains("""
         Installing Homebrew

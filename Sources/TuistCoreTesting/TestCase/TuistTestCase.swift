@@ -31,6 +31,29 @@ public class TuistTestCase: XCTestCase {
         }
         return temporaryDirectory.path
     }
+    
+    @discardableResult
+    public func createFiles(_ files: [String]) throws -> [AbsolutePath] {
+        let temporaryPath = try self.temporaryPath()
+        let fileHandler = FileHandler()
+        let paths = files.map { temporaryPath.appending(RelativePath($0)) }
+        
+        try paths.forEach {
+            try fileHandler.touch($0)
+        }
+        return paths
+    }
+
+    @discardableResult
+    public func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
+        let temporaryPath = try self.temporaryPath()
+        let fileHandler = FileHandler()
+        let paths = folders.map { temporaryPath.appending(RelativePath($0)) }
+        try paths.forEach {
+            try fileHandler.createFolder($0)
+        }
+        return paths
+    }
 
     public func XCTAssertPrinterOutputContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
         let message = """

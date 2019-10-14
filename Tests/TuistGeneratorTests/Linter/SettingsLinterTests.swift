@@ -18,10 +18,11 @@ final class SettingsLinterTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lint_project_when_config_files_are_missing() {
+    func test_lint_project_when_config_files_are_missing() throws {
         // Given
-        let debugPath = fileHandler.currentPath.appending(component: "Debug.xcconfig")
-        let releasePath = fileHandler.currentPath.appending(component: "Release.xcconfig")
+        let temporaryPath = try self.temporaryPath()
+        let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
+        let releasePath = temporaryPath.appending(component: "Release.xcconfig")
         let settings = Settings(configurations: [
             .debug: Configuration(xcconfig: debugPath),
             .release: Configuration(xcconfig: releasePath),
@@ -36,10 +37,11 @@ final class SettingsLinterTests: TuistUnitTestCase {
                              LintingIssue(reason: "Configuration file not found at path \(releasePath.pathString)", severity: .error)])
     }
 
-    func test_lint_target_when_config_files_are_missing() {
+    func test_lint_target_when_config_files_are_missing() throws {
         // Given
-        let debugPath = fileHandler.currentPath.appending(component: "Debug.xcconfig")
-        let releasePath = fileHandler.currentPath.appending(component: "Release.xcconfig")
+        let temporaryPath = try self.temporaryPath()
+        let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
+        let releasePath = temporaryPath.appending(component: "Release.xcconfig")
         let settings = Settings(configurations: [
             .debug: Configuration(xcconfig: debugPath),
             .release: Configuration(xcconfig: releasePath),
