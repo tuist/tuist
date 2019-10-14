@@ -24,12 +24,12 @@ final class EnvUpdaterTests: TuistUnitTestCase {
 
     func test_update() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let downloadURL = URL(string: "https://file.download.com/tuistenv.zip")!
-        let release = Release.test(assets: [Release.Asset(downloadURL: downloadURL,
-                                                          name: "tuistenv.zip")])
+        let release = Release.test(assets: [Release.Asset(downloadURL: downloadURL, name: "tuistenv.zip")])
         githubClient.releasesStub = { [release] }
 
-        let downloadPath = fileHandler.currentPath.appending(component: "tuistenv.zip")
+        let downloadPath = temporaryPath.appending(component: "tuistenv.zip")
         system.succeedCommand(["/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, downloadURL.absoluteString])
         system.succeedCommand(["/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/"])
         system.succeedCommand(["/bin/chmod", "+x", "/tmp/tuistenv"])

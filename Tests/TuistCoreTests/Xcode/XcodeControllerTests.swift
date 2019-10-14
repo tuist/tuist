@@ -31,8 +31,9 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
     func test_selected_when_xcodeSelectReturnsThePath() throws {
         // Given
-        let contentsPath = fileHandler.currentPath.appending(component: "Contents")
-        try fileHandler.createFolder(contentsPath)
+        let temporaryPath = try self.temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
@@ -58,8 +59,9 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
     func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {
         // Given
-        let contentsPath = fileHandler.currentPath.appending(component: "Contents")
-        try fileHandler.createFolder(contentsPath)
+        let temporaryPath = try self.temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "11.3")

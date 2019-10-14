@@ -5,7 +5,6 @@ import XCTest
 
 public class TuistUnitTestCase: TuistTestCase {
     public var system: MockSystem!
-    public var fileHandler: MockFileHandler!
     public var environment: MockEnvironment!
     public var xcodeController: MockXcodeController!
 
@@ -14,11 +13,6 @@ public class TuistUnitTestCase: TuistTestCase {
         // System
         system = MockSystem()
         System.shared = system
-
-        // File handler
-        // swiftlint:disable force_try
-        fileHandler = try! MockFileHandler()
-        FileHandler.shared = fileHandler
 
         // Xcode controller
         xcodeController = MockXcodeController()
@@ -38,10 +32,6 @@ public class TuistUnitTestCase: TuistTestCase {
         // Printer
         printer = nil
         Printer.shared = Printer()
-
-        // File handler
-        fileHandler = nil
-        FileHandler.shared = FileHandler()
 
         // Xcode controller
         xcodeController = nil

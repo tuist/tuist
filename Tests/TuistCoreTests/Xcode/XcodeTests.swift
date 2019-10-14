@@ -19,18 +19,19 @@ final class XcodeTests: TuistUnitTestCase {
 
     func test_read() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
         let infoPlistData = try plistEncoder.encode(infoPlist)
-        let contentsPath = fileHandler.currentPath.appending(component: "Contents")
-        try fileHandler.createFolder(contentsPath)
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         try infoPlistData.write(to: infoPlistPath.url)
 
         // When
-        let xcode = try Xcode.read(path: fileHandler.currentPath)
+        let xcode = try Xcode.read(path: temporaryPath)
 
         // Then
         XCTAssertEqual(xcode.infoPlist.version, "3.2.1")
-        XCTAssertEqual(xcode.path, fileHandler.currentPath)
+        XCTAssertEqual(xcode.path, temporaryPath)
     }
 }

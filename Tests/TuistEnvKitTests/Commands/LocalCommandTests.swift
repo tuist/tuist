@@ -42,19 +42,21 @@ final class LocalCommandTests: TuistUnitTestCase {
     }
 
     func test_run_when_version_argument_is_passed() throws {
+        let temporaryPath = try self.temporaryPath()
         let result = try argumentParser.parse(["local", "3.2.1"])
         try subject.run(with: result)
 
-        let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+        let versionPath = temporaryPath.appending(component: Constants.versionFileName)
 
         XCTAssertEqual(try String(contentsOf: versionPath.url), "3.2.1")
     }
 
     func test_run_prints_when_version_argument_is_passed() throws {
+        let temporaryPath = try self.temporaryPath()
         let result = try argumentParser.parse(["local", "3.2.1"])
         try subject.run(with: result)
 
-        let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+        let versionPath = temporaryPath.appending(component: Constants.versionFileName)
 
         XCTAssertPrinterOutputContains("""
         Generating \(Constants.versionFileName) file with version 3.2.1

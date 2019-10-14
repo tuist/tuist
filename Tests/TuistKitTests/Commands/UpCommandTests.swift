@@ -36,7 +36,7 @@ final class UpCommandTests: TuistUnitTestCase {
 
     func test_run_configures_the_environment() throws {
         // given
-        let currentPath = fileHandler.currentPath.pathString
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([UpCommand.command])
         var receivedPaths = [String]()
         setupLoader.meetStub = { path in
@@ -47,7 +47,7 @@ final class UpCommandTests: TuistUnitTestCase {
         try subject.run(with: result)
 
         // then
-        XCTAssertEqual(receivedPaths, [currentPath])
+        XCTAssertEqual(receivedPaths, [temporaryPath.pathString])
         XCTAssertEqual(setupLoader.meetCount, 1)
     }
 

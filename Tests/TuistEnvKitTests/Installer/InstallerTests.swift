@@ -53,6 +53,7 @@ final class InstallerTests: TuistUnitTestCase {
 
     func test_install_when_bundled_release() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
@@ -65,7 +66,7 @@ final class InstallerTests: TuistUnitTestCase {
         }
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
 
         let downloadPath = temporaryDirectory
@@ -77,7 +78,7 @@ final class InstallerTests: TuistUnitTestCase {
         system.succeedCommand("/usr/bin/unzip",
                               "-q",
                               downloadPath.pathString,
-                              "-d", fileHandler.currentPath.pathString)
+                              "-d", temporaryPath.pathString)
 
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
@@ -89,11 +90,12 @@ final class InstallerTests: TuistUnitTestCase {
         Version \(version) installed
         """)
 
-        let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
-        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
+        let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
+        XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
     }
 
     func test_install_when_bundled_release_and_download_fails() throws {
+        let temporaryPath = try self.temporaryPath()
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -107,7 +109,7 @@ final class InstallerTests: TuistUnitTestCase {
         }
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
 
         let downloadPath = temporaryDirectory
@@ -122,6 +124,7 @@ final class InstallerTests: TuistUnitTestCase {
     }
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
+        let temporaryPath = try self.temporaryPath()
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -135,7 +138,7 @@ final class InstallerTests: TuistUnitTestCase {
         }
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
 
         let downloadPath = temporaryDirectory
@@ -145,7 +148,7 @@ final class InstallerTests: TuistUnitTestCase {
                               "--output", downloadPath.pathString,
                               downloadURL.absoluteString)
         system.errorCommand("/usr/bin/unzip", downloadPath.pathString,
-                            "-d", fileHandler.currentPath.pathString,
+                            "-d", temporaryPath.pathString,
                             error: "unzip_error")
 
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory))
@@ -153,9 +156,11 @@ final class InstallerTests: TuistUnitTestCase {
 
     func test_install_when_no_bundled_release() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
+
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
+        let installationDirectory = temporaryPath.appending(component: "3.2.1")
 
         versionsController.installStub = { _, closure in
             try closure(installationDirectory)
@@ -188,14 +193,15 @@ final class InstallerTests: TuistUnitTestCase {
         """)
 
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
-        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
+        XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
     }
 
     func test_install_when_force() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
+        let installationDirectory = temporaryPath.appending(component: "3.2.1")
 
         versionsController.installStub = { _, closure in
             try closure(installationDirectory)
@@ -226,16 +232,17 @@ final class InstallerTests: TuistUnitTestCase {
         Version 3.2.1 installed
         """)
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
-        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
+        XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
     }
 
     func test_install_when_no_bundled_release_and_invalid_reference() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
         system.succeedCommand("/usr/bin/env", "git",
                               "clone", Constants.gitRepositoryURL,
