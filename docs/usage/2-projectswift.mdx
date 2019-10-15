@@ -55,7 +55,7 @@ let project = Project(name: "MyProject",
 A `Project.swift` should initialize a variable of type `Project`. It can take any name, although we recommend to stick to `project`. A project accepts the following attributes:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Name',
       description:
@@ -113,7 +113,7 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 Each target in the list of project targets can be initialized with the following attributes:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Name',
       description:
@@ -250,7 +250,7 @@ let target = Target(name: "App",
 It represents a list of source files that are part of a target:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Globs',
       description:
@@ -280,7 +280,7 @@ It represents a list of source files that are part of a target:
 It represents a glob pattern that refers to source files and the compiler flags _(if any)_ to be set in the build phase:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Glob',
       description: 'Glob pattern to the source files.',
@@ -304,7 +304,7 @@ It represents a glob pattern that refers to source files and the compiler flags 
 It represents the target headers:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Public',
       description: 'Relative glob pattern that points to the public headers',
@@ -334,7 +334,7 @@ It represents the target headers:
 It represents a list of glob patterns that refer to files:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Globs',
       description: 'Glob pattern to the files.',
@@ -350,7 +350,7 @@ It represents a list of glob patterns that refer to files:
 The `CoreDataModel` type represents a Core Data model:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Path',
       description: 'Relative path to the Core Data model.',
@@ -570,7 +570,7 @@ It represents the default build configurations available:
 A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Name',
       description: 'The name of the scheme.',
@@ -630,7 +630,7 @@ A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyz
 It represents the scheme action that builds targets:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Targets',
       description:
@@ -665,7 +665,7 @@ It represents the scheme action that builds targets:
 It represents the scheme action that runs the built products on the supported platforms:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Config',
       description:
@@ -697,7 +697,7 @@ It represents the scheme action that runs the built products on the supported pl
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Configuration Name',
       description:
@@ -712,7 +712,7 @@ Alternatively, when leveraging custom configurations, the configuration name can
 ### Test Action
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Targets',
       description:
@@ -770,7 +770,7 @@ Alternatively, when leveraging custom configurations, the configuration name can
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Configuration Name',
       description: 'Indicates the build configuration to run the test with.',
@@ -786,7 +786,7 @@ Alternatively, when leveraging custom configurations, the configuration name can
 Scheme run scripts can be defined with the following attributes:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Title',
       description: 'Name of a script.',
@@ -817,7 +817,7 @@ Scheme run scripts can be defined with the following attributes:
 Arguments contain commandline arguments passed on launch and Environment variables.
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Environment',
       description:
@@ -842,7 +842,7 @@ Arguments contain commandline arguments passed on launch and Environment variabl
 A `Settings` object contains an optional dictionary with build settings and relative path to an `.xcconfig` file. It is initialized with the following attributes:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Base',
       description:
@@ -882,7 +882,7 @@ A `Settings` object contains an optional dictionary with build settings and rela
 To specify multiple configurations beyond the default Debug and Release configuration (e.g. Debug, Beta, Release), `Settings` can alternatively be initialized with the following attributes:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Base',
       description:
@@ -921,7 +921,7 @@ To specify multiple configurations beyond the default Debug and Release configur
 A `Configuration` object describes the build settings and the `.xcconfig` file of a project or target. It is initialized with the following attributes:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Settings',
       description: 'A dictionary that contains the build settings',
@@ -1059,7 +1059,7 @@ A `Workspace.swift` file can reside in any directory (including a project direct
 A `Workspace.swift` should initialize a variable of type `Workspace`. It can take any name, although we recommend to stick to `workspace`. A workspace accepts the following attributes:
 
 <PropertiesTable
-  props={[
+  properties={[
     {
       name: 'Name',
       description:
