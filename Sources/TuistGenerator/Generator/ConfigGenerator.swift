@@ -201,6 +201,11 @@ final class ConfigGenerator: ConfigGenerating {
 
                 settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
                 settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
+                
+                if devices.contains(.mac) {
+                    settings["SUPPORTS_MACCATALYST"] = "YES"
+                    settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+                }
             case let .macOS(version):
                 settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
             }
