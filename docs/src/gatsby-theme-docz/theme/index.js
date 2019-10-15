@@ -1,9 +1,7 @@
 import baseTheme from 'gatsby-theme-docz/src/theme/index'
+import { merge } from 'lodash/fp'
 
-export default {
-  ...baseTheme,
-  fontSizes: [12, 14, 16, 20, 24, 32, 48, 64],
+export default merge(baseTheme, {
   styles: {
-
   }
-}
+})

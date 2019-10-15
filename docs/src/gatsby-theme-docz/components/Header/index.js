@@ -10,12 +10,6 @@ export const Header = props => {
   const { onOpen } = props
   const config = useConfig()
   const { edit = true, ...doc } = useCurrentDoc()
-  const [colorMode, setColorMode] = useColorMode()
-
-  const toggleColorMode = () => {
-    setColorMode(colorMode === 'light' ? 'dark' : 'light')
-  }
-
   return (
     <div sx={styles.wrapper} data-testid={'header'}>
       <Box sx={styles.menuIcon}>

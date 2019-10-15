@@ -13,6 +13,7 @@
   "dependencies": {
     "@mdx-js/mdx": "^1.5.1",
     "@mdx-js/react": "^1.5.1",
+    "@theme-ui/prism": "^0.2.40",
     "css-loader": "^2.1.1",
     "docz": "^2.0.0-rc.57",
     "docz-plugin-netlify": "^1.1.4",
@@ -20,6 +21,7 @@
     "gatsby-theme-docz": "^2.0.0-rc.57",
     "lodash": "^4.17.15",
     "node-sass": "^4.12.0",
+    "prismjs": "^1.17.1",
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
     "sass-loader": "^7.1.0",

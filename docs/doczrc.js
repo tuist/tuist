@@ -1,4 +1,5 @@
 import doczPluginNetlify from 'docz-plugin-netlify'
+import prismTheme from "prism-react-renderer/themes/nightOwl"
 
 export default {
   title: 'Tuist Documentation',
@@ -8,21 +9,8 @@ export default {
   // https://github.com/pedronauck/docz/issues/793
   hashRouter: true,
   public: './public',
-  htmlContext: {
-    favicon: 'public/favicon.ico',
-    head: {
-      links: [
-        {
-          rel: 'stylesheet',
-          href: '/public/swifty.css',
-        },
-        {
-          rel: 'stylesheet',
-          href:
-            '//cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.css',
-        },
-      ],
-    },
+  themeConfig: {
+    prismTheme: prismTheme
   },
   menu: [
     'Getting started',
