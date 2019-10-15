@@ -11,10 +11,12 @@
     "url": "git+https://github.com/tuist/tuist.git"
   },
   "dependencies": {
+    "@mdx-js/mdx": "^1.5.1",
+    "@mdx-js/react": "^1.5.1",
     "css-loader": "^2.1.1",
-    "docz": "^1.2.0",
+    "docz": "^2.0.0-rc.57",
     "docz-plugin-netlify": "^1.1.4",
-    "docz-theme-default": "^1.2.0",
+    "gatsby-plugin-mdx": "^1.0.52",
     "node-sass": "^4.12.0",
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
