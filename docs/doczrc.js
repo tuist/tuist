@@ -7,37 +7,6 @@ export default {
   plugins: [doczPluginNetlify()],
   // https://github.com/pedronauck/docz/issues/793
   hashRouter: true,
-  themeConfig: {
-    codemirrorTheme: 'swifty',
-    colors: {
-      blue: '#3495E8',
-      darkBlue: '#12344F',
-      lightGray: '#F8F8F8',
-      gray: '#A3A3A3',
-      purple: '#7768AF',
-      darkPurple: '#52428E',
-      green: '#3EB270',
-      darkGreen: '#207E49',
-      yellow: '#FFC107',
-      primary: '#3495E8',
-      link: 'green',
-      sidebarHighlight: 'purple',
-    },
-    logo: {
-      src: '/public/logo.png',
-      width: 100,
-    },
-    styles: {
-      body: `
-        font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, Verdana, sans-serif;
-      `,
-      code: `
-        font-size: 13px;
-        font-family: Menlo, Consolas, Monaco, "Courier New", monospace, serif;
-        background-color: white;
-      `,
-    },
-  },
   public: './public',
   htmlContext: {
     favicon: 'public/favicon.ico',
