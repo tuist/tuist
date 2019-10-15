@@ -1,0 +1,5 @@
+import Foundation
+
+class FrameworkA {
+
+}

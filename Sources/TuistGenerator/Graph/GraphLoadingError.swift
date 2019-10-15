@@ -6,7 +6,7 @@ enum GraphLoadingError: FatalError, Equatable {
     case missingFile(AbsolutePath)
     case targetNotFound(String, AbsolutePath)
     case manifestNotFound(AbsolutePath)
-    case circularDependency(GraphCircularDetectorNode, GraphCircularDetectorNode)
+    case circularDependency([GraphCircularDetectorNode])
     case unexpected(String)
 
     static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
@@ -19,8 +19,8 @@ enum GraphLoadingError: FatalError, Equatable {
             return lhsPath == rhsPath
         case let (.unexpected(lhsMessage), .unexpected(rhsMessage)):
             return lhsMessage == rhsMessage
-        case let (.circularDependency(lhsFrom, lhsTo), .circularDependency(rhsFrom, rhsTo)):
-            return lhsFrom == rhsFrom && lhsTo == rhsTo
+        case let (.circularDependency(lhsNodes), .circularDependency(rhsNodes)):
+            return Set(lhsNodes) == Set(rhsNodes)
         default:
             return false
         }
@@ -40,12 +40,9 @@ enum GraphLoadingError: FatalError, Equatable {
             return "Couldn't find file at path '\(path.pathString)'"
         case let .unexpected(message):
             return message
-        case let .circularDependency(from, to):
-            var message = ""
-            message.append("Found circular dependency between the target")
-            message.append(" '\(from.name)' at '\(from.path.pathString)'")
-            message.append(" and the target '\(to.name)' at '\(to.path.pathString)'")
-            return message
+        case let .circularDependency(nodes):
+            let nodeDescriptions = nodes.map { "\($0.path):\($0.name)" }
+            return "Found circular dependency between targets: \(nodeDescriptions.joined(separator: " -> "))"
         }
     }
 }
