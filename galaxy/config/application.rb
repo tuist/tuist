@@ -7,7 +7,9 @@ require_relative 'boot'
   action_controller/railtie
   action_view/railtie
   active_job/railtie
+  action_cable/engine
   rails/test_unit/railtie
+  sprockets/railtie
   sprockets/railtie
 ).each do |railtie|
   begin
