@@ -96,11 +96,11 @@ protocol Graphing: AnyObject, Encodable {
     var targets: [TargetNode] { get }
 
     func packages(path: AbsolutePath, name: String) throws -> [PackageNode]
-    func linkableDependencies(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
+    func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func embeddableFrameworks(path: AbsolutePath, name: String, system: Systeming) throws -> [DependencyReference]
+    func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
@@ -109,7 +109,7 @@ protocol Graphing: AnyObject, Encodable {
     func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference]
 
     /// All dependency referrences expected to present within a Project
-    func allDependencyReferences(for project: Project, system: Systeming) throws -> [DependencyReference]
+    func allDependencyReferences(for project: Project) throws -> [DependencyReference]
 
     // MARK: - Depth First Search
 
@@ -212,7 +212,7 @@ class Graph: Graphing {
         return targetNode.packages
     }
 
-    func linkableDependencies(path: AbsolutePath, name: String, system _: Systeming) throws -> [DependencyReference] {
+    func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -300,9 +300,7 @@ class Graph: Graphing {
             .compactMap { $0.swiftModuleMap?.removingLastComponent() }
     }
 
-    func embeddableFrameworks(path: AbsolutePath,
-                              name: String,
-                              system: Systeming) throws -> [DependencyReference] {
+    func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [DependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -319,7 +317,7 @@ class Graph: Graphing {
 
         var references: [DependencyReference] = []
 
-        let isDynamicAndLinkable = frameworkUsesDynamicLinking(system: system)
+        let isDynamicAndLinkable = frameworkUsesDynamicLinking()
 
         /// Precompiled frameworks
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable)
@@ -352,13 +350,13 @@ class Graph: Graphing {
         return Set(dependencies).sorted()
     }
 
-    func allDependencyReferences(for project: Project, system: Systeming) throws -> [DependencyReference] {
+    func allDependencyReferences(for project: Project) throws -> [DependencyReference] {
         let linkableDependencies = try project.targets.flatMap {
-            try self.linkableDependencies(path: project.path, name: $0.name, system: system)
+            try self.linkableDependencies(path: project.path, name: $0.name)
         }
 
         let embeddableDependencies = try project.targets.flatMap {
-            try self.embeddableFrameworks(path: project.path, name: $0.name, system: system)
+            try self.embeddableFrameworks(path: project.path, name: $0.name)
         }
 
         let copyProductDependencies = project.targets.flatMap {
@@ -405,9 +403,9 @@ extension Graph {
         return targetNode.target.product == .framework
     }
 
-    internal func frameworkUsesDynamicLinking(system: Systeming) -> (_ frameworkNode: PrecompiledNode) -> Bool {
+    internal func frameworkUsesDynamicLinking() -> (_ frameworkNode: PrecompiledNode) -> Bool {
         return { frameworkNode in
-            let isDynamicLink = try? frameworkNode.linking(system: system) == .dynamic
+            let isDynamicLink = try? frameworkNode.linking() == .dynamic
             return isDynamicLink ?? false
         }
     }

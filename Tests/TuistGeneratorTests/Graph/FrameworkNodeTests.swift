@@ -2,19 +2,24 @@ import Basic
 import Foundation
 import XCTest
 
-import TuistCoreTesting
+@testable import TuistCore
+@testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class FrameworkNodeTests: XCTestCase {
-    var system: MockSystem!
+final class FrameworkNodeTests: TuistUnitTestCase {
     var subject: FrameworkNode!
     var path: AbsolutePath!
 
     override func setUp() {
         super.setUp()
-        system = MockSystem()
         path = AbsolutePath("/test.framework")
         subject = FrameworkNode(path: path)
+    }
+
+    override func tearDown() {
+        path = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_name() {
@@ -34,24 +39,25 @@ final class FrameworkNodeTests: XCTestCase {
     func test_architectures_when_nonFatFramework() throws {
         system.succeedCommand("/usr/bin/lipo -info /test.framework/test",
                               output: "Non-fat file: path is architecture: x86_64")
-        try XCTAssertEqual(subject.architectures(system: system).first, .x8664)
+        try XCTAssertEqual(subject.architectures().first, .x8664)
     }
 
     func test_architectures_when_fatFramework() throws {
         system.succeedCommand("/usr/bin/lipo -info /test.framework/test",
                               output: "Architectures in the fat file: /path/xpm.framework/xpm are: x86_64 arm64")
-        try XCTAssertTrue(subject.architectures(system: system).contains(.x8664))
-        try XCTAssertTrue(subject.architectures(system: system).contains(.arm64))
+        try XCTAssertTrue(subject.architectures().contains(.x8664))
+        try XCTAssertTrue(subject.architectures().contains(.arm64))
     }
 
     func test_linking() {
         system.succeedCommand("/usr/bin/file", "/test.framework/test",
                               output: "whatever dynamically linked")
-        try XCTAssertEqual(subject.linking(system: system), .dynamic)
+        try XCTAssertEqual(subject.linking(), .dynamic)
     }
 
     func test_encode() {
         // Given
+        System.shared = System()
         let framework = FrameworkNode(path: fixturePath(path: RelativePath("xpm.framework")))
         let expected = """
         {

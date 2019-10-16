@@ -30,34 +30,34 @@ class UpHomebrew: Up, GraphInitiatable {
     /// Returns true when the command doesn't need to be run.
     ///
     /// - Parameters
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    override func isMet(system: Systeming, projectPath _: AbsolutePath) throws -> Bool {
-        let packagesInstalled = packages.allSatisfy { toolInstalled($0, system: system) }
-        return toolInstalled("brew", system: system) && packagesInstalled
+    override func isMet(projectPath _: AbsolutePath) throws -> Bool {
+        let packagesInstalled = packages.allSatisfy { toolInstalled($0) }
+        return toolInstalled("brew") && packagesInstalled
     }
 
     /// When the command is not met, this method runs it.
     ///
     /// - Parameters:
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, projectPath _: AbsolutePath) throws {
-        if !toolInstalled("brew", system: system) {
+    override func meet(projectPath _: AbsolutePath) throws {
+        if !toolInstalled("brew") {
             Printer.shared.print("Installing Homebrew")
-            try system.runAndPrint("/usr/bin/ruby", "-e", "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
-                                   verbose: true,
-                                   environment: system.env)
+            try System.shared.runAndPrint("/usr/bin/ruby",
+                                          "-e",
+                                          "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
+                                          verbose: true,
+                                          environment: System.shared.env)
         }
-        let nonInstalledPackages = packages.filter { !toolInstalled($0, system: system) }
+        let nonInstalledPackages = packages.filter { !toolInstalled($0) }
         try nonInstalledPackages.forEach { package in
             Printer.shared.print("Installing Homebrew package: \(package)")
-            try system.runAndPrint("/usr/local/bin/brew", "install", package,
-                                   verbose: true,
-                                   environment: system.env)
+            try System.shared.runAndPrint("/usr/local/bin/brew", "install", package,
+                                          verbose: true,
+                                          environment: System.shared.env)
         }
     }
 }

@@ -12,9 +12,6 @@ protocol EnvUpdating {
 }
 
 final class EnvUpdater: EnvUpdating {
-    /// System instance to run commands.
-    let system: Systeming
-
     /// GitHub API client.
     let githubClient: GitHubClienting
 
@@ -23,9 +20,7 @@ final class EnvUpdater: EnvUpdating {
     /// - Parameters:
     ///   - system: System instance to run commands.
     ///   - githubClient: GitHub API client.
-    init(system: Systeming = System(),
-         githubClient: GitHubClienting = GitHubClient()) {
-        self.system = system
+    init(githubClient: GitHubClienting = GitHubClient()) {
         self.githubClient = githubClient
     }
 
@@ -43,14 +38,14 @@ final class EnvUpdater: EnvUpdating {
             // Download
             let fileName = asset.downloadURL.lastPathComponent
             let downloadPath = directory.appending(component: fileName)
-            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, asset.downloadURL.absoluteString)
-            try system.run("/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/")
+            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, asset.downloadURL.absoluteString)
+            try System.shared.run("/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/")
             let binaryPath = "/tmp/tuistenv"
-            try system.run(["/bin/chmod", "+x", binaryPath])
+            try System.shared.run(["/bin/chmod", "+x", binaryPath])
 
             // Replace
-            try system.async(["/bin/cp", "-rf", binaryPath, "/usr/local/bin/tuist"])
-            try system.async(["/bin/rm", binaryPath])
+            try System.shared.async(["/bin/cp", "-rf", binaryPath, "/usr/local/bin/tuist"])
+            try System.shared.async(["/bin/rm", binaryPath])
         }
     }
 }

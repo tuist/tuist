@@ -6,27 +6,29 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class ProjectFilesSortenerTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class ProjectFilesSortenerTests: TuistUnitTestCase {
     var subject: ProjectFilesSortener!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         subject = ProjectFilesSortener()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_sort() throws {
         // Given
-        let basePath = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
+        let basePath = temporaryPath
         let file1 = basePath.appending(RelativePath("path/to/sources/file.swift"))
         let file2 = basePath.appending(RelativePath("path/to/tests/test.swift"))
         let file3 = basePath.appending(RelativePath("path/to/tuist.swift"))
         let file4 = basePath.appending(RelativePath("path/to/waka.swift"))
         let files = [file1, file2, file3, file4]
-        try files.forEach { try fileHandler.touch($0) }
+        try files.forEach { try FileHandler.shared.touch($0) }
 
         // When
         let got = files.sorted(by: subject.sort)
@@ -40,14 +42,14 @@ final class ProjectFilesSortenerTests: XCTestCase {
 
     func test_sort_isStable() throws {
         // Given
-        let folders = try fileHandler.createFolders([
+        let folders = try createFolders([
             "Root/A",
             "Root/A/A1",
             "Root/B",
             "Root/B/B1",
         ])
 
-        let files = try fileHandler.createFiles([
+        let files = try createFiles([
             "Root/A/a.md",
             "Root/A/z.md",
             "Root/A/A1/a.md",
@@ -70,14 +72,15 @@ final class ProjectFilesSortenerTests: XCTestCase {
 
     func test_sort_filesBeforeDirectories() throws {
         // Given
-        let folders = try fileHandler.createFolders([
+        let temporaryPath = try self.temporaryPath()
+        let folders = try createFolders([
             "Root/A",
             "Root/A/A1",
             "Root/B",
             "Root/B/B1",
         ])
 
-        let files = try fileHandler.createFiles([
+        let files = try createFiles([
             "Root/A/a.md",
             "Root/A/z.md",
             "Root/A/A1/a.md",
@@ -94,7 +97,7 @@ final class ProjectFilesSortenerTests: XCTestCase {
         let got = paths.sorted(by: subject.sort)
 
         // Then
-        let raltivePaths = got.map { $0.relative(to: fileHandler.currentPath).pathString }
+        let raltivePaths = got.map { $0.relative(to: temporaryPath).pathString }
         XCTAssertEqual(raltivePaths, [
             "Root/A/a.md",
             "Root/A/z.md",

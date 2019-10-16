@@ -29,7 +29,6 @@ class CommandRunner: CommandRunning {
 
     let versionResolver: VersionResolving
     let environment: Environmenting
-    let system: Systeming
     let updater: Updating
     let versionsController: VersionsControlling
     let installer: Installing
@@ -39,7 +38,6 @@ class CommandRunner: CommandRunning {
     // MARK: - Init
 
     init(versionResolver: VersionResolving = VersionResolver(),
-         system: Systeming = System(),
          environment: Environmenting = Environment.shared,
          updater: Updating = Updater(),
          installer: Installing = Installer(),
@@ -47,7 +45,6 @@ class CommandRunner: CommandRunning {
          arguments: @escaping () -> [String] = CommandRunner.arguments,
          exiter: @escaping (Int) -> Void = { exit(Int32($0)) }) {
         self.versionResolver = versionResolver
-        self.system = system
         self.environment = environment
         self.versionsController = versionsController
         self.arguments = arguments
@@ -119,7 +116,7 @@ class CommandRunner: CommandRunning {
         environment[Constants.EnvironmentVariables.colouredOutput] = "\(self.environment.shouldOutputBeColoured)"
 
         do {
-            try system.runAndPrint(args, verbose: false, environment: environment)
+            try System.shared.runAndPrint(args, verbose: false, environment: environment)
         } catch {
             exiter(1)
         }

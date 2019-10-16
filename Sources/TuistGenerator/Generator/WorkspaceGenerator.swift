@@ -41,31 +41,25 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - Attributes
 
     private let projectGenerator: ProjectGenerating
-    private let system: Systeming
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting
 
     // MARK: - Init
 
-    convenience init(system: Systeming = System(),
-                     defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                      cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
-                                                configGenerator: configGenerator,
-                                                system: system)
-        self.init(system: system,
-                  projectGenerator: projectGenerator,
+                                                configGenerator: configGenerator)
+        self.init(projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
                   cocoapodsInteractor: cocoapodsInteractor)
     }
 
-    init(system: Systeming,
-         projectGenerator: ProjectGenerating,
+    init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          cocoapodsInteractor: CocoaPodsInteracting) {
-        self.system = system
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.cocoapodsInteractor = cocoapodsInteractor
@@ -164,7 +158,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         let workspacePath = path.appending(component: workspaceName)
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
-        try system.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        try System.shared.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
 
         if hasRemotePackage {
             if FileHandler.shared.exists(rootPackageResolvedPath) {

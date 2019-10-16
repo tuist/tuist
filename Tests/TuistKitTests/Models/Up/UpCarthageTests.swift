@@ -6,87 +6,100 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class UpCarthageTests: XCTestCase {
+final class UpCarthageTests: TuistUnitTestCase {
     var platforms: [Platform]!
     var upHomebrew: MockUp!
     var carthage: MockCarthage!
     var subject: UpCarthage!
-    var fileHandler: MockFileHandler!
-    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         platforms = [.iOS, .macOS]
         carthage = MockCarthage()
         upHomebrew = MockUp()
-        system = MockSystem()
         subject = UpCarthage(platforms: platforms,
                              upHomebrew: upHomebrew,
                              carthage: carthage)
     }
 
+    override func tearDown() {
+        platforms = nil
+        carthage = nil
+        upHomebrew = nil
+        subject = nil
+        super.tearDown()
+    }
+
     func test_init() throws {
+        let temporaryPath = try self.temporaryPath()
         let json = JSON(["platforms": JSON.array([JSON.string("ios")])])
-        let got = try UpCarthage(dictionary: json, projectPath: fileHandler.currentPath)
+        let got = try UpCarthage(dictionary: json, projectPath: temporaryPath)
         XCTAssertEqual(got.platforms, [.iOS])
     }
 
     func test_isMet_when_homebrew_is_not_met() throws {
-        upHomebrew.isMetStub = { _, _ in false }
+        let temporaryPath = try self.temporaryPath()
+
+        upHomebrew.isMetStub = { _ in false }
         carthage.outdatedStub = { _ in [] }
 
-        XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertFalse(try subject.isMet(projectPath: temporaryPath))
     }
 
     func test_isMet_when_carthage_doesnt_have_outdated_dependencies() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        let temporaryPath = try self.temporaryPath()
+
+        upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in nil }
 
-        XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertFalse(try subject.isMet(projectPath: temporaryPath))
     }
 
     func test_isMet_when_carthage_has_outdated_dependencies() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        let temporaryPath = try self.temporaryPath()
+
+        upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in ["Dependency"] }
 
-        XCTAssertFalse(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertFalse(try subject.isMet(projectPath: temporaryPath))
     }
 
     func test_isMet() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        let temporaryPath = try self.temporaryPath()
+
+        upHomebrew.isMetStub = { _ in true }
         carthage.outdatedStub = { _ in [] }
 
-        XCTAssertTrue(try subject.isMet(system: system, projectPath: fileHandler.currentPath))
+        XCTAssertTrue(try subject.isMet(projectPath: temporaryPath))
     }
 
     func test_meet_when_homebrew_is_not_met() throws {
-        upHomebrew.isMetStub = { _, _ in false }
+        let temporaryPath = try self.temporaryPath()
+        upHomebrew.isMetStub = { _ in false }
 
-        upHomebrew.meetStub = { _, projectPath in
-            XCTAssertEqual(self.fileHandler.currentPath, projectPath)
+        upHomebrew.meetStub = { projectPath in
+            XCTAssertEqual(temporaryPath, projectPath)
         }
-        try subject.meet(system: system, projectPath: fileHandler.currentPath)
+        try subject.meet(projectPath: temporaryPath)
 
         XCTAssertEqual(upHomebrew.meetCallCount, 1)
     }
 
     func test_meet() throws {
-        upHomebrew.isMetStub = { _, _ in true }
+        let temporaryPath = try self.temporaryPath()
+
+        upHomebrew.isMetStub = { _ in true }
 
         carthage.outdatedStub = { _ in
             ["Dependency"]
         }
         carthage.updateStub = { projectPath, platforms, dependencies in
-            XCTAssertEqual(projectPath, self.fileHandler.currentPath)
+            XCTAssertEqual(projectPath, temporaryPath)
             XCTAssertEqual(platforms, self.platforms)
             XCTAssertEqual(dependencies, ["Dependency"])
         }
 
-        try subject.meet(system: system,
-                         projectPath: fileHandler.currentPath)
+        try subject.meet(projectPath: temporaryPath)
 
         XCTAssertEqual(upHomebrew.meetCallCount, 0)
         XCTAssertEqual(carthage.updateCallCount, 1)

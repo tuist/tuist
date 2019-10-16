@@ -1,0 +1,81 @@
+{
+  "name": "tuist-website",
+  "private": true,
+  "description": "Tuist website",
+  "version": "0.1.0",
+  "author": "Pedro Piñera <pedro@ppinera.es>",
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^1.2.25",
+    "@fortawesome/free-brands-svg-icons": "^5.11.2",
+    "@fortawesome/free-regular-svg-icons": "^5.11.2",
+    "@fortawesome/free-solid-svg-icons": "^5.11.2",
+    "@fortawesome/react-fontawesome": "^0.1.4",
+    "@mdx-js/mdx": "^1.4.5",
+    "@mdx-js/tag": "^0.20.3",
+    "@theme-ui/prism": "^0.2.40",
+    "@theme-ui/typography": "^0.2.40",
+    "gatsby": "^2.15.28",
+    "gatsby-image": "^2.2.24",
+    "gatsby-plugin-favicon": "3.1.6",
+    "gatsby-plugin-feed": "^2.3.12",
+    "gatsby-plugin-manifest": "2.2.20",
+    "gatsby-plugin-mdx": "^1.0.47",
+    "gatsby-plugin-netlify": "^2.1.17",
+    "gatsby-plugin-offline": "^3.0.7",
+    "gatsby-plugin-react-helmet": "^3.1.7",
+    "gatsby-plugin-react-svg": "^2.1.1",
+    "gatsby-plugin-sharp": "2.2.28",
+    "gatsby-plugin-sitemap": "^2.2.13",
+    "gatsby-plugin-typography": "^2.3.11",
+    "gatsby-remark-autolink-headers": "^2.1.10",
+    "gatsby-remark-smartypants": "^2.1.8",
+    "gatsby-remark-social-cards": "https://github.com/pepibumur/gatsby-remark-social-cards.git#0.5.2",
+    "gatsby-source-filesystem": "^2.1.29",
+    "gatsby-theme-micro-blog": "^1.1.3",
+    "gatsby-transformer-yaml": "^2.2.9",
+    "moment": "^2.24.0",
+    "polished": "^3.4.0",
+    "prismjs": "^1.17.1",
+    "prop-types": "^15.7.2",
+    "react": "^16.8.4",
+    "react-animated-term": "^1.3.2",
+    "react-burger-menu": "^2.6.10",
+    "react-dom": "^16.8.4",
+    "react-helmet": "^5.2.0",
+    "react-spring": "^8.0.22",
+    "react-typography": "^0.16.19",
+    "typography": "^0.16.19",
+    "typography-theme-ocean-beach": "^0.16.19"
+  },
+  "devDependencies": {
+    "@emotion/core": "^10.0.17",
+    "@mdx-js/react": "^1.4.0",
+    "gatsby-plugin-theme-ui": "^0.2.43",
+    "prettier": "^1.18.2",
+    "slug": "^1.1.0",
+    "theme-ui": "^0.2.43"
+  },
+  "keywords": [
+    "gatsby"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "gatsby build",
+    "develop": "gatsby develop",
+    "clean": "gatsby clean",
+    "format": "prettier --write src/**/*.{js,jsx}",
+    "start": "npm run develop",
+    "serve": "gatsby serve",
+    "test": "echo \"Write tests! -> https://gatsby.dev/unit-testing\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gatsbyjs/gatsby-starter-default"
+  },
+  "bugs": {
+    "url": "https://github.com/gatsbyjs/gatsby/issues"
+  },
+  "resolutions": {
+    "sharp": "0.22.1"
+  }
+}

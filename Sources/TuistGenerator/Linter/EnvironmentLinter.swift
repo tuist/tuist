@@ -10,17 +10,6 @@ protocol EnvironmentLinting {
 }
 
 class EnvironmentLinter: EnvironmentLinting {
-    /// Xcode controller.
-    let xcodeController: XcodeControlling
-
-    /// Initialies the linter.
-    ///
-    /// - Parameters:
-    ///     - xcodeController: Xcode controller.
-    init(xcodeController: XcodeControlling = XcodeController()) {
-        self.xcodeController = xcodeController
-    }
-
     /// Lints a given Tuist configuration.
     ///
     /// - Parameter config: Tuist configuration to be linted against the system.
@@ -44,7 +33,7 @@ class EnvironmentLinter: EnvironmentLinting {
             return []
         }
 
-        guard let xcode = try xcodeController.selected() else {
+        guard let xcode = try XcodeController.shared.selected() else {
             return []
         }
 

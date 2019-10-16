@@ -88,9 +88,6 @@ protocol GraphManifestLoading {
 class GraphManifestLoader: GraphManifestLoading {
     // MARK: - Attributes
 
-    /// Instance to run commands in the system.
-    let system: Systeming
-
     /// Resource locator to look up Tuist-related resources.
     let resourceLocator: ResourceLocating
 
@@ -102,11 +99,8 @@ class GraphManifestLoader: GraphManifestLoading {
     /// Initializes the manifest loader with its attributes.
     ///
     /// - Parameters:
-    ///   - system: Instance to run commands in the system.
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
-    init(system: Systeming = System(),
-         resourceLocator: ResourceLocating = ResourceLocator()) {
-        self.system = system
+    init(resourceLocator: ResourceLocating = ResourceLocator()) {
         self.resourceLocator = resourceLocator
         decoder = JSONDecoder()
     }
@@ -185,7 +179,7 @@ class GraphManifestLoader: GraphManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--dump")
 
-        guard let jsonString = try system.capture(arguments).spm_chuzzle(),
+        guard let jsonString = try System.shared.capture(arguments).spm_chuzzle(),
             let data = jsonString.data(using: .utf8) else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }

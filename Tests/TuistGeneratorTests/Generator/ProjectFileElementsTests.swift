@@ -5,20 +5,16 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class ProjectFileElementsTests: XCTestCase {
+final class ProjectFileElementsTests: TuistUnitTestCase {
     typealias GroupFileElement = ProjectFileElements.GroupFileElement
 
     var subject: ProjectFileElements!
-    var fileHandler: MockFileHandler!
     var playgrounds: MockPlaygrounds!
     var groups: ProjectGroups!
     var pbxproj: PBXProj!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         playgrounds = MockPlaygrounds()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(project: .test(),
@@ -27,6 +23,14 @@ final class ProjectFileElementsTests: XCTestCase {
                                         playgrounds: MockPlaygrounds())
 
         subject = ProjectFileElements(playgrounds: playgrounds)
+    }
+
+    override func tearDown() {
+        playgrounds = nil
+        pbxproj = nil
+        groups = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_projectFiles() {
@@ -179,7 +183,8 @@ final class ProjectFileElementsTests: XCTestCase {
 
     func test_addElement_lproj_multiple_files() throws {
         // Given
-        let resouces = try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        let resouces = try createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
@@ -197,7 +202,7 @@ final class ProjectFileElementsTests: XCTestCase {
             try subject.generate(fileElement: $0,
                                  groups: groups,
                                  pbxproj: pbxproj,
-                                 sourceRootPath: fileHandler.currentPath)
+                                 sourceRootPath: temporaryPath)
         }
 
         // Then
@@ -478,29 +483,29 @@ final class ProjectFileElementsTests: XCTestCase {
 
     func test_generatePlaygrounds() throws {
         let pbxproj = PBXProj()
-        let sourceRootPath = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
 
-        let playgroundsPath = sourceRootPath.appending(component: "Playgrounds")
+        let playgroundsPath = temporaryPath.appending(component: "Playgrounds")
         let playgroundPath = playgroundsPath.appending(component: "Test.playground")
 
         playgrounds.pathsStub = { projectPath in
-            if projectPath == sourceRootPath {
+            if projectPath == temporaryPath {
                 return [playgroundPath]
             } else {
                 return []
             }
         }
 
-        let project = Project.test(path: sourceRootPath)
+        let project = Project.test(path: temporaryPath)
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            sourceRootPath: sourceRootPath,
+                                            sourceRootPath: temporaryPath,
                                             playgrounds: playgrounds)
 
-        subject.generatePlaygrounds(path: sourceRootPath,
+        subject.generatePlaygrounds(path: temporaryPath,
                                     groups: groups,
                                     pbxproj: pbxproj,
-                                    sourceRootPath: sourceRootPath)
+                                    sourceRootPath: temporaryPath)
         let file: PBXFileReference? = groups.playgrounds?.children.first as? PBXFileReference
 
         XCTAssertEqual(file?.sourceTree, .group)

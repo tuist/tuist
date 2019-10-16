@@ -6,22 +6,24 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class UpCommandTests: XCTestCase {
+final class UpCommandTests: TuistUnitTestCase {
     var subject: UpCommand!
-    var fileHandler: MockFileHandler!
     var parser: ArgumentParser!
     var setupLoader: MockSetupLoader!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         parser = ArgumentParser.test()
         setupLoader = MockSetupLoader()
-
         subject = UpCommand(parser: parser,
                             setupLoader: setupLoader)
+    }
+
+    override func tearDown() {
+        subject = nil
+        parser = nil
+        setupLoader = nil
+        super.tearDown()
     }
 
     func test_command() {
@@ -34,7 +36,7 @@ final class UpCommandTests: XCTestCase {
 
     func test_run_configures_the_environment() throws {
         // given
-        let currentPath = fileHandler.currentPath.pathString
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([UpCommand.command])
         var receivedPaths = [String]()
         setupLoader.meetStub = { path in
@@ -45,7 +47,7 @@ final class UpCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // then
-        XCTAssertEqual(receivedPaths, [currentPath])
+        XCTAssertEqual(receivedPaths, [temporaryPath.pathString])
         XCTAssertEqual(setupLoader.meetCount, 1)
     }
 

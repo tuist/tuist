@@ -31,10 +31,8 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
-        let system = System()
         let resourceLocator = ResourceLocator()
-        let manifestLoader = GraphManifestLoader(system: system,
-                                                 resourceLocator: resourceLocator)
+        let manifestLoader = GraphManifestLoader(resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
                                                               resourceLocator: resourceLocator)

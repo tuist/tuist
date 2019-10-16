@@ -1,0 +1,21 @@
+* {
+  margin: 0px;
+  padding: 0px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  background-image: none;
+  text-shadow: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+pre[class*='language-'] {
+  overflow: auto;
+}
+div[class*='token-line'] {
+  overflow-wrap: normal;
+}

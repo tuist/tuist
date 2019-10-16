@@ -5,9 +5,9 @@ import TuistCore
 @testable import TuistKit
 
 final class MockUp: Upping {
-    var isMetStub: ((Systeming, AbsolutePath) throws -> Bool)?
+    var isMetStub: ((AbsolutePath) throws -> Bool)?
     var isMetCallCount: UInt = 0
-    var meetStub: ((Systeming, AbsolutePath) throws -> Void)?
+    var meetStub: ((AbsolutePath) throws -> Void)?
     var meetCallCount: UInt = 0
     let name: String
 
@@ -15,13 +15,13 @@ final class MockUp: Upping {
         self.name = name
     }
 
-    func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
+    func isMet(projectPath: AbsolutePath) throws -> Bool {
         isMetCallCount += 1
-        return try isMetStub?(system, projectPath) ?? false
+        return try isMetStub?(projectPath) ?? false
     }
 
-    func meet(system: Systeming, projectPath: AbsolutePath) throws {
+    func meet(projectPath: AbsolutePath) throws {
         meetCallCount += 1
-        try meetStub?(system, projectPath)
+        try meetStub?(projectPath)
     }
 }

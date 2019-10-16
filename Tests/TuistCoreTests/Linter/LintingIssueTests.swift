@@ -4,12 +4,7 @@ import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 
-final class LintingIssueTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        mockAllSystemInteractions()
-    }
-
+final class LintingIssueTests: TuistUnitTestCase {
     func test_description() {
         let subject = LintingIssue(reason: "whatever", severity: .error)
         XCTAssertEqual(subject.description, "whatever")

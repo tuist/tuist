@@ -18,9 +18,8 @@ final class SDKNodeTests: XCTestCase {
     }
 
     func test_sdk_usupportedTypes() throws {
-        XCTAssertThrowsError(try SDKNode(name: "FooBar", platform: .tvOS, status: .required)) { error in
-            XCTAssertEqual(error as? SDKNode.Error, .unsupported(sdk: "FooBar"))
-        }
+        XCTAssertThrowsSpecific(try SDKNode(name: "FooBar", platform: .tvOS, status: .required),
+                                SDKNode.Error.unsupported(sdk: "FooBar"))
     }
 
     func test_sdk_errors() {

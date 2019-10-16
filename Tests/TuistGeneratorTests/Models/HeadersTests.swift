@@ -6,12 +6,4 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class HeadersTests: XCTestCase {
-    var fileHandler: MockFileHandler!
-
-    override func setUp() {
-        super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-    }
-}
+final class HeadersTests: XCTestCase {}

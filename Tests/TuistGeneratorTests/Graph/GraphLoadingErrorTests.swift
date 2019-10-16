@@ -26,7 +26,9 @@ final class GraphLoadingErrorTests: XCTestCase {
     func test_description_returns_the_right_value_when_circularDependency() {
         let from = GraphCircularDetectorNode(path: AbsolutePath("/from"), name: "FromTarget")
         let to = GraphCircularDetectorNode(path: AbsolutePath("/to"), name: "ToTarget")
-        let error = GraphLoadingError.circularDependency(from, to)
-        XCTAssertEqual(error.description, "Found circular dependency between the target 'FromTarget' at '/from' and the target 'ToTarget' at '/to'")
+        let error = GraphLoadingError.circularDependency([from, to])
+        XCTAssertEqual(error.description, """
+        Found circular dependency between targets: /from:FromTarget -> /to:ToTarget
+        """)
     }
 }

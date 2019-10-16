@@ -1,0 +1,7 @@
+---
+tags: ["xcode"]
+---
+
+The inflexibility to reuse steps of an Xcode build process across targets, makes the integration of tools like [SwiftGen](https://github.com/SwiftGen/SwiftGen), [SwiftLint](https://github.com/realm/SwiftLint), or [Carthage](https://github.com/Carthage/Carthage) difficult in large projects; It requires defining the same build phase in several targets *(duplication)*, which often results in incomplete integrations that can be source of compilation issues.
+
+We aim to leverage project generation and Swift to ease that and help people scale their projects.

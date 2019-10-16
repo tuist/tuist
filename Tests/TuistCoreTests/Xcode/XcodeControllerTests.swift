@@ -5,18 +5,17 @@ import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 
-final class XcodeControllerTests: XCTestCase {
-    var system: MockSystem!
+final class XcodeControllerTests: TuistUnitTestCase {
     var subject: XcodeController!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
+        subject = XcodeController()
+    }
 
-        system = MockSystem()
-        subject = XcodeController(system: system)
+    override func tearDown() {
+        super.tearDown()
+        subject = nil
     }
 
     func test_selected_when_xcodeSelectDoesntReturnThePath() throws {
@@ -32,8 +31,9 @@ final class XcodeControllerTests: XCTestCase {
 
     func test_selected_when_xcodeSelectReturnsThePath() throws {
         // Given
-        let contentsPath = fileHandler.currentPath.appending(component: "Contents")
-        try fileHandler.createFolder(contentsPath)
+        let temporaryPath = try self.temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
@@ -54,18 +54,14 @@ final class XcodeControllerTests: XCTestCase {
         system.errorCommand(["xcode-select", "-p"])
 
         // Then
-        do {
-            _ = try subject.selectedVersion()
-            XCTFail()
-        } catch {
-            XCTAssertEqual(error as? XcodeController.XcodeVersionError, XcodeController.XcodeVersionError.noXcode)
-        }
+        XCTAssertThrowsSpecific(try subject.selectedVersion(), XcodeController.XcodeVersionError.noXcode)
     }
 
     func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {
         // Given
-        let contentsPath = fileHandler.currentPath.appending(component: "Contents")
-        try fileHandler.createFolder(contentsPath)
+        let temporaryPath = try self.temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "11.3")

@@ -11,13 +11,11 @@ class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     let projectLinter: ProjectLinting
-    let xcodeController: XcodeControlling
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter(), xcodeController: XcodeControlling = XcodeController()) {
+    init(projectLinter: ProjectLinting = ProjectLinter()) {
         self.projectLinter = projectLinter
-        self.xcodeController = xcodeController
     }
 
     struct StaticDepedencyWarning: Hashable {
@@ -191,7 +189,7 @@ class GraphLinter: GraphLinting {
 
         let version: Version
         do {
-            version = try xcodeController.selectedVersion()
+            version = try XcodeController.shared.selectedVersion()
         } catch {
             return [LintingIssue(reason: "Could not determine Xcode version", severity: .error)]
         }

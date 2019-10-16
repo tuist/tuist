@@ -5,17 +5,9 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class MultipleConfigurationsIntegrationTests: XCTestCase {
-    private var fileHandler: MockFileHandler!
-    private var path: AbsolutePath {
-        return fileHandler.currentPath
-    }
-
+final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
-        mockAllSystemInteractions()
-        fileHandler = sharedMockFileHandler()
-
         do {
             try setupTestProject()
         } catch {
@@ -24,17 +16,18 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     }
 
     override func tearDown() {
-        fileHandler = nil
+        super.tearDown()
     }
 
     func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {
         // Given
-        let modelLoader = createModelLoader(projectSettings: Settings(configurations: [:]),
-                                            targetSettings: nil)
+        let temporaryPath = try self.temporaryPath()
+        let modelLoader = try createModelLoader(projectSettings: Settings(configurations: [:]),
+                                                targetSettings: nil)
         let subject = Generator(modelLoader: modelLoader)
 
         // When / Then
-        XCTAssertThrowsError(try subject.generateWorkspace(at: path, workspaceFiles: []))
+        XCTAssertThrowsError(try subject.generateWorkspace(at: temporaryPath, workspaceFiles: []))
     }
 
     func testGenerateWhenSingleDebugConfigurationInProject() throws {
@@ -295,28 +288,31 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
     // MARK: - Helpers
 
     private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {
-        let modelLoader = createModelLoader(projectSettings: projectSettings, targetSettings: targetSettings)
+        let temporaryPath = try self.temporaryPath()
+        let modelLoader = try createModelLoader(projectSettings: projectSettings, targetSettings: targetSettings)
         let subject = Generator(modelLoader: modelLoader)
-        _ = try subject.generateWorkspace(at: path, workspaceFiles: [])
+        _ = try subject.generateWorkspace(at: temporaryPath, workspaceFiles: [])
     }
 
     private func setupTestProject() throws {
-        try fileHandler.createFolders(["App/Sources"])
+        try createFolders(["App/Sources"])
     }
 
     @discardableResult
     private func createFile(path relativePath: String, content: String) throws -> AbsolutePath {
-        let absolutePath = path.appending(RelativePath(relativePath))
-        try fileHandler.touch(absolutePath)
+        let temporaryPath = try self.temporaryPath()
+        let absolutePath = temporaryPath.appending(RelativePath(relativePath))
+        try FileHandler.shared.touch(absolutePath)
         try content.data(using: .utf8)!.write(to: URL(fileURLWithPath: absolutePath.pathString))
         return absolutePath
     }
 
-    private func createModelLoader(projectSettings: Settings, targetSettings: Settings?) -> GeneratorModelLoading {
-        let modelLoader = MockGeneratorModelLoader(basePath: path)
-        let appTarget = createAppTarget(settings: targetSettings)
-        let project = createProject(path: pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
-        let workspace = createWorkspace(projects: ["App"])
+    private func createModelLoader(projectSettings: Settings, targetSettings: Settings?) throws -> GeneratorModelLoading {
+        let temporaryPath = try self.temporaryPath()
+        let modelLoader = MockGeneratorModelLoader(basePath: temporaryPath)
+        let appTarget = try createAppTarget(settings: targetSettings)
+        let project = createProject(path: try pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
+        let workspace = try createWorkspace(projects: ["App"])
         let tuistConfig = createTuistConfig()
 
         modelLoader.mockProject("App") { _ in project }
@@ -331,8 +327,8 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
                            generationOptions: [])
     }
 
-    private func createWorkspace(projects: [String]) -> Workspace {
-        return Workspace(name: "Workspace", projects: projects.map { pathTo($0) })
+    private func createWorkspace(projects: [String]) throws -> Workspace {
+        return Workspace(name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], schemes: [Scheme]) -> Project {
@@ -344,29 +340,32 @@ final class MultipleConfigurationsIntegrationTests: XCTestCase {
                        schemes: schemes)
     }
 
-    private func createAppTarget(settings: Settings?) -> Target {
+    private func createAppTarget(settings: Settings?) throws -> Target {
         return Target(name: "AppTarget",
                       platform: .iOS,
                       product: .app,
                       productName: "AppTarget",
                       bundleId: "test.bundle",
                       settings: settings,
-                      sources: [(path: pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],
+                      sources: [(path: try pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],
                       filesGroup: .group(name: "ProjectGroup"))
     }
 
-    private func pathTo(_ relativePath: String) -> AbsolutePath {
-        return path.appending(RelativePath(relativePath))
+    private func pathTo(_ relativePath: String) throws -> AbsolutePath {
+        let temporaryPath = try self.temporaryPath()
+        return temporaryPath.appending(RelativePath(relativePath))
     }
 
     private func extractWorkspaceSettings(configuration: String) throws -> ExtractedBuildSettings {
-        return try extractBuildSettings(path: .workspace(path: path.appending(component: "Workspace.xcworkspace").pathString,
+        let temporaryPath = try self.temporaryPath()
+        return try extractBuildSettings(path: .workspace(path: temporaryPath.appending(component: "Workspace.xcworkspace").pathString,
                                                          scheme: "AppTarget",
                                                          configuration: configuration))
     }
 
     private func loadXcodeProj(_ relativePath: String) throws -> XcodeProj {
-        let appProjectPath = path.appending(RelativePath(relativePath))
+        let temporaryPath = try self.temporaryPath()
+        let appProjectPath = temporaryPath.appending(RelativePath(relativePath))
         return try XcodeProj(pathString: appProjectPath.pathString)
     }
 
