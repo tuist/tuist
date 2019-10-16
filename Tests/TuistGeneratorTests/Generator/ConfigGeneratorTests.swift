@@ -129,6 +129,88 @@ final class ConfigGeneratorTests: XCTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
+    func test_generateTargetWithDeploymentTarget_whenIOS() throws {
+        // Given
+        let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad]))
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: .default,
+                                         fileElements: ProjectFileElements(),
+                                         graph: Graph.test(),
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "1,2",
+            "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
+    func test_generateTargetWithDeploymentTarget_whenMac() throws {
+        // Given
+        let target = Target.test(deploymentTarget: .macOS("10.14.1"))
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: .default,
+                                         fileElements: ProjectFileElements(),
+                                         graph: Graph.test(),
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "MACOSX_DEPLOYMENT_TARGET": "10.14.1",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
+    func test_generateTargetWithDeploymentTarget_whenCatalyst() throws {
+        // Given
+        let target = Target.test(deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac]))
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: .default,
+                                         fileElements: ProjectFileElements(),
+                                         graph: Graph.test(),
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "1,2",
+            "IPHONEOS_DEPLOYMENT_TARGET": "13.1",
+            "SUPPORTS_MACCATALYST": "YES",
+            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "YES",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     private func generateProjectConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
