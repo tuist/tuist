@@ -25,14 +25,14 @@ workflows:
     jobs:
       - tuist-upload:
           context: tuist
-  galaxy-backend:
+  galaxy:
     jobs:
-      - galaxy-backend:
+      - galaxy:
           context: tuist
-      - galaxy-backend-deploy:
+      - galaxy-deploy:
           context: tuist
           requires:
-            - galaxy-backend
+            - galaxy
           filters:
             branches:
               only: master
@@ -147,7 +147,7 @@ jobs:
 
   # Reference https://gist.github.com/Virolea/b589e7bd128ed53b9080583d1213e71f
   # Reference https://robots.thoughtbot.com/circleci-2-rails
-  galaxy-backend:
+  galaxy:
     docker:
       - image: circleci/ruby:2.6.3-node
         environment:
@@ -162,7 +162,7 @@ jobs:
 
       - image: redis:4.0.6
 
-    working_directory: ~/repo/galaxy-backend
+    working_directory: ~/repo/galaxy
     steps:
       - checkout:
           path: ~/repo
@@ -175,8 +175,8 @@ jobs:
       - restore_cache:
           name: Restore Bundler Cache
           keys:
-            - bundler-galaxy-backend-{{ checksum "Gemfile.lock" }}
-            - bundler-galaxy-backend
+            - bundler-galaxy-{{ checksum "Gemfile.lock" }}
+            - bundler-galaxy
 
       - run:
           name: Install Bundler dependencies
@@ -188,7 +188,7 @@ jobs:
           name: Save Bundler Cache
           paths:
             - ./vendor/bundle
-          key: bundler-galaxy-backend-{{ checksum "Gemfile.lock" }}
+          key: bundler-galaxy-{{ checksum "Gemfile.lock" }}
 
       - run:
           name: Rails tests
@@ -198,10 +198,10 @@ jobs:
             bundle exec rails db:schema:load
             bundle exec rake test
 
-  galaxy-backend-deploy:
+  galaxy-deploy:
     docker:
       - image: buildpack-deps:trusty
-    working_directory: ~/repo/galaxy-backend
+    working_directory: ~/repo/galaxy
     steps:
       - checkout:
           path: ~/repo
