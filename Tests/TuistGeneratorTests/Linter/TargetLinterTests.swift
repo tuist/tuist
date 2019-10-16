@@ -152,4 +152,32 @@ final class TargetLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result.isEmpty)
     }
+
+    func test_lint_when_deployment_target_version_is_valid() {
+        let validVersions = ["10.0", "9.0.1"]
+        for version in validVersions {
+            // Given
+            let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
+
+            // When
+            let got = subject.lint(target: target)
+
+            // Then
+            XCTAssertFalse(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+        }
+    }
+
+    func test_lint_when_deployment_target_version_is_invalid() {
+        let validVersions = ["tuist", "tuist9.0.1", "1.0tuist", "10_0", "1_1_3"]
+        for version in validVersions {
+            // Given
+            let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
+
+            // When
+            let got = subject.lint(target: target)
+
+            // Then
+            XCTAssertTrue(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+        }
+    }
 }

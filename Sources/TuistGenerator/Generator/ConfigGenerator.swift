@@ -128,6 +128,11 @@ final class ConfigGenerator: ConfigGenerating {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.targetSettings(target: target,
                                                                   buildConfiguration: buildConfiguration)
+        updateTargetDerived(buildSettings: &settings,
+                            target: target,
+                            graph: graph,
+                            sourceRootPath: sourceRootPath)
+
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
@@ -138,11 +143,6 @@ final class ConfigGenerator: ConfigGenerating {
             let fileReference = fileElements.file(path: xcconfig)
             variantBuildConfiguration.baseConfiguration = fileReference
         }
-
-        updateTargetDerived(buildSettings: &settings,
-                            target: target,
-                            graph: graph,
-                            sourceRootPath: sourceRootPath)
 
         variantBuildConfiguration.buildSettings = settings.toAny()
         pbxproj.add(object: variantBuildConfiguration)
@@ -189,6 +189,25 @@ final class ConfigGenerator: ConfigGenerating {
                     settings["TEST_HOST"] = .string("$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.productName)")
                     settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
                 }
+            }
+        }
+
+        if let deploymentTarget = target.deploymentTarget {
+            switch deploymentTarget {
+            case let .iOS(version, devices):
+                var deviceFamilyValues: [Int] = []
+                if devices.contains(.iphone) { deviceFamilyValues.append(1) }
+                if devices.contains(.ipad) { deviceFamilyValues.append(2) }
+
+                settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+                settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
+
+                if devices.contains(.ipad), devices.contains(.mac) {
+                    settings["SUPPORTS_MACCATALYST"] = "YES"
+                    settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+                }
+            case let .macOS(version):
+                settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
             }
         }
     }

@@ -668,6 +668,26 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         XCTAssertEqual(model, [])
     }
 
+    func test_deploymentTarget() throws {
+        // Given
+        let manifest: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "13.1", devices: .iphone)
+
+        // When
+        let got = TuistGenerator.DeploymentTarget.from(manifest: manifest)
+
+        // Then
+        guard
+            case let .iOS(version, devices) = got
+        else {
+            XCTFail("Deployment target should be iOS")
+            return
+        }
+
+        XCTAssertEqual(version, "13.1")
+        XCTAssertTrue(devices.contains(.iphone))
+        XCTAssertFalse(devices.contains(.ipad))
+    }
+
     // MARK: - Helpers
 
     func createGeneratorModelLoader(with manifestLoader: GraphManifestLoading) -> GeneratorModelLoader {

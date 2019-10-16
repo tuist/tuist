@@ -28,6 +28,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
         issues.append(contentsOf: lintLibraryHasNoResources(target: target))
+        issues.append(contentsOf: lintDeploymentTarget(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
 
         target.actions.forEach { action in
@@ -137,6 +138,18 @@ class TargetLinter: TargetLinting {
             return [LintingIssue(reason: "Target \(target.name) cannot contain resources. Libraries don't support resources", severity: .error)]
         }
 
+        return []
+    }
+
+    private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
+        guard let deploymentTarget = target.deploymentTarget else {
+            return []
+        }
+
+        let issue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
+
+        let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
+        if !deploymentTarget.version.matches(pattern: osVersionRegex) { return [issue] }
         return []
     }
 }

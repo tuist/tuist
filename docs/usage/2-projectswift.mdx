@@ -146,6 +146,15 @@ Each target in the list of project targets can be initialized with the following
       default: '$(TARGET_NAME)',
     },
     {
+      name: 'Deployment Target',
+      description:
+        'The minimum iOS version your product will support.',
+      type: 'DeploymentTarget',
+      typeLink: '#deployment-target',
+      optional: true,
+      default: 'nil',
+    },
+    {
       name: 'Bundle id',
       description: 'The product bundle identifier.',
       type: 'String',
@@ -1027,6 +1036,49 @@ A `DefaultSettings` can be one of the following options:
 
 <Message info title="Essential Settings" description="The .essential option can be used in the event all warnings are defined in an `xcconfig` file to prevent Tuist from overriding them at the project or target level."/>
 <Message warning title="None settings" description="Projects may fail to compile if some essential settings are missing. Use .none only if you are specifying all the necessary build settings manually or via xcconfig files."/>
+
+## Deployment Target
+
+The `DeploymentTarget` model represents the minimum operating system version your product will support. It can have any of the following values:
+
+<EnumTable
+  cases={[
+    {
+      case: '.iOS(targetVersion: String, devices: DeploymentDevice)',
+      description:
+        'The minimum iOS version and the list of devices your product will support.',
+    },
+    {
+      case: '.macOS(targetVersion: String)',
+      description:
+        'The minimum macOS version your product will support.',
+    },
+  ]}
+/>
+
+## Deployment Device
+
+The `DeploymentDevice` model represents the device your product will support. It can have any of the following values:
+
+<EnumTable
+  cases={[
+    {
+      case: '.iphone',
+      description:
+        'An iPhone device.',
+    },
+    {
+      case: '.ipad',
+      description:
+        'An iPad device.',
+    },
+    {
+      case: '.mac',
+      description:
+        'A mac device.',
+    },
+  ]}
+/>
 
 # Workspace.swift
 
