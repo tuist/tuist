@@ -180,11 +180,11 @@ GEM
       rubyzip (~> 1.2, >= 1.2.2)
     sentry-raven (2.12.0)
       faraday (>= 0.7.6, < 1.0)
-    sidekiq (5.2.7)
-      connection_pool (~> 2.2, >= 2.2.2)
-      rack (>= 1.5.0)
-      rack-protection (>= 1.5.0)
-      redis (>= 3.3.5, < 5)
+    sidekiq (6.0.2)
+      connection_pool (>= 2.2.2)
+      rack (>= 2.0.0)
+      rack-protection (>= 2.0.0)
+      redis (>= 4.1.0)
     spring (2.1.0)
     spring-watcher-listen (2.0.1)
       listen (>= 2.7, < 4.0)
@@ -237,7 +237,7 @@ DEPENDENCIES
   sass-rails (~> 6.0)
   selenium-webdriver
   sentry-raven
-  sidekiq (~> 5.2)
+  sidekiq (~> 6.0)
   spring
   spring-watcher-listen (~> 2.0.0)
   tzinfo-data
