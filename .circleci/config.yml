@@ -48,6 +48,13 @@ jobs:
       - run-job-for-paths:
           paths:
             - Sources/
+            - .circleci/
+            - Gemfile
+            - Gemfile.lock
+            - Rakefile
+            - Package.swift
+            - Package.resolved
+            - script/
       - run:
           name: Install Tuist
           command: |
@@ -67,6 +74,12 @@ jobs:
       - run-job-for-paths:
           paths:
             - Sources/
+            - .circleci/
+            - Gemfile
+            - Gemfile.lock
+            - Rakefile
+            - Package.swift
+            - Package.resolved
       - run:
           name: Build for release
           command: |
@@ -107,6 +120,12 @@ jobs:
             - Tests/
             - fixtures/
             - features/
+            - .circleci/
+            - Gemfile
+            - Gemfile.lock
+            - Rakefile
+            - Package.swift
+            - Package.resolved
       - restore_cache:
           key: bundler-{{ checksum "Gemfile.lock" }}
       - run:
@@ -152,6 +171,12 @@ jobs:
           paths:
             - Sources/
             - Tests/
+            - .circleci/
+            - Gemfile
+            - Gemfile.lock
+            - Rakefile
+            - Package.swift
+            - Package.resolved
       - run-job-for-paths:
           paths:
             - Sources/
@@ -191,6 +216,7 @@ jobs:
       - run-job-for-paths:
           paths:
             - galaxy/
+            - .circleci/
 
       - run:
           name: Update Bundler
@@ -233,6 +259,7 @@ jobs:
       - run-job-for-paths:
           paths:
             - galaxy/
+            - .circleci/
       - run:
           name: Deploy Master to Heroku
           command: |
