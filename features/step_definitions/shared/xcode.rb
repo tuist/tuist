@@ -1,29 +1,34 @@
 # frozen_string_literal: true
 
 require 'simctl'
+require 'xcodeproj'
 
-Then(/I should be able to (.+) the scheme (.+)/) do |action, scheme|
+Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
   @derived_data_path = File.join(@dir, "DerivedData")
 
   args = [
     "-scheme", scheme,
     "-workspace", @workspace_path,
-    "-derivedDataPath", @derived_data_path,
-    "clean", action
+    "-derivedDataPath", @derived_data_path
   ]
 
-  if action == "test"
-    device = SimCtl.device(name: "iPhone 7", availability: "(available)")
-    args << "-destination 'id=#{device.udid}'" unless device.nil?
+  if action == "test" && platform == "iOS"
+    args << "-destination\ \'name=iPhone 11\'"
   end
 
+  if action == "build" && platform == "iOS"
+    args << "-sdk\ iphoneos"
+  end
+
+  args << "clean"
+  args << action
   args << "CODE_SIGNING_ALLOWED=NO"
   args << "CODE_SIGNING_IDENTITY=\"iPhone Developer\""
 
   xcodebuild(*args)
 end
 
-Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configuration (.+)/) do |scheme, key, value, config|
+Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configuration (.+)/) do |scheme, key, value, config| # rubocop:disable Metrics/LineLength
   args = [
     "-scheme", scheme,
     "-workspace", @workspace_path,
@@ -36,4 +41,24 @@ Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configura
 
   search_for = "#{key} = #{value}"
   assert(out.include?(search_for), "Couldn't find '#{search_for}'")
+end
+
+Then(/the target (.+) should have the build phase (.+) in the first position/) do |target_name, phase_name|
+  project = Xcodeproj::Project.open(@xcodeproj_path)
+  targets = project.targets
+  target = targets.detect { |t| t.name == target_name }
+  flunk("Target #{target_name} not found in the project") if target.nil?
+  build_phase = target.build_phases.first
+  flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
+  assert_equal phase_name, build_phase.name
+end
+
+Then(/the target (.+) should have the build phase (.+) in the last position/) do |target_name, phase_name|
+  project = Xcodeproj::Project.open(@xcodeproj_path)
+  targets = project.targets
+  target = targets.detect { |t| t.name == target_name }
+  flunk("Target #{target_name} not found in the project") if target.nil?
+  build_phase = target.build_phases.last
+  flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
+  assert_equal phase_name, build_phase.name
 end

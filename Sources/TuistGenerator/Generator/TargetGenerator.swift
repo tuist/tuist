@@ -11,8 +11,7 @@ protocol TargetGenerating: AnyObject {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graphing,
-                        system: Systeming) throws -> PBXNativeTarget
+                        graph: Graphing) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
@@ -42,6 +41,7 @@ final class TargetGenerator: TargetGenerating {
 
     // MARK: - TargetGenerating
 
+    // swiftlint:disable:next function_body_length
     func generateTarget(target: Target,
                         pbxproj: PBXProj,
                         pbxProject: PBXProject,
@@ -49,8 +49,7 @@ final class TargetGenerator: TargetGenerating {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graphing,
-                        system: Systeming = System()) throws -> PBXNativeTarget {
+                        graph: Graphing) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -66,6 +65,12 @@ final class TargetGenerator: TargetGenerating {
                                         productType: target.product.xcodeValue)
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
+
+        /// Pre actions
+        try buildPhaseGenerator.generateActions(actions: target.actions.preActions,
+                                                pbxTarget: pbxTarget,
+                                                pbxproj: pbxproj,
+                                                sourceRootPath: sourceRootPath)
 
         /// Build configuration
         try configGenerator.generateTargetConfig(target,
@@ -93,8 +98,13 @@ final class TargetGenerator: TargetGenerating {
                                         fileElements: fileElements,
                                         path: path,
                                         sourceRootPath: sourceRootPath,
-                                        graph: graph,
-                                        system: system)
+                                        graph: graph)
+
+        /// Post actions
+        try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
+                                                pbxTarget: pbxTarget,
+                                                pbxproj: pbxproj,
+                                                sourceRootPath: sourceRootPath)
         return pbxTarget
     }
 

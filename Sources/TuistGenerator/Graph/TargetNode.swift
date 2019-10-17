@@ -59,6 +59,9 @@ class TargetNode: GraphNode {
             throw GraphLoadingError.targetNotFound(name, path)
         }
 
+        let targetNode = TargetNode(project: project, target: target, dependencies: [])
+        cache.add(targetNode: targetNode)
+
         let dependencies: [GraphNode] = try target.dependencies.map {
             try node(for: $0,
                      path: path,
@@ -69,9 +72,10 @@ class TargetNode: GraphNode {
                      modelLoader: modelLoader)
         }
 
-        let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
-        circularDetector.complete(GraphCircularDetectorNode(path: path, name: name))
-        cache.add(targetNode: targetNode)
+        targetNode.dependencies = dependencies
+
+        try circularDetector.complete()
+
         return targetNode
     }
 
@@ -109,13 +113,13 @@ class TargetNode: GraphNode {
         case let .target(target):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
             let circularTo = GraphCircularDetectorNode(path: path, name: target)
-            try circularDetector.start(from: circularFrom, to: circularTo)
+            circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         case let .project(target, projectRelativePath):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
             let projectPath = path.appending(projectRelativePath)
             let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
-            try circularDetector.start(from: circularFrom, to: circularTo)
+            circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         case let .framework(frameworkPath):
             return try FrameworkNode.parse(projectPath: path,
@@ -131,6 +135,8 @@ class TargetNode: GraphNode {
             return try SDKNode(name: name, platform: platform, status: status)
         case let .cocoapods(podsPath):
             return CocoaPodsNode.read(path: path.appending(podsPath), cache: cache)
+        case let .package(packageType):
+            return PackageNode(packageType: packageType, path: path)
         }
     }
 }

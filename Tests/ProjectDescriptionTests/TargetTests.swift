@@ -11,6 +11,7 @@ final class TargetTests: XCTestCase {
                              product: .app,
                              productName: "product_name",
                              bundleId: "bundle_id",
+                             deploymentTarget: .iOS(targetVersion: "13.1", devices: [.iphone, .ipad]),
                              infoPlist: "info.plist",
                              sources: "sources/*",
                              resources: "resources/*",
@@ -27,16 +28,21 @@ final class TargetTests: XCTestCase {
                                  .project(target: "target", path: "path"),
                                  .target(name: "name"),
                              ],
-                             settings: Settings(base: ["a": "b"],
-                                                debug: Configuration(settings: ["a": "b"],
+                             settings: Settings(base: ["a": .string("b")],
+                                                debug: Configuration(settings: ["a": .string("b")],
                                                                      xcconfig: "config"),
-                                                release: Configuration(settings: ["a": "b"],
+                                                release: Configuration(settings: ["a": .string("b")],
                                                                        xcconfig: "config")),
                              coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
                              environment: ["a": "b"])
 
         let expected = """
         {
+            "deploymentTarget": {
+               "kind": "iOS",
+               "version": "13.1",
+               "deploymentDevices": 3
+            },
             "headers": {
                 "public": { "globs": ["public\\/*"] },
                 "private": { "globs": ["private\\/*"] },
@@ -158,10 +164,10 @@ final class TargetTests: XCTestCase {
                                  .project(target: "target", path: "path"),
                                  .target(name: "name"),
                              ],
-                             settings: Settings(base: ["a": "b"],
-                                                debug: Configuration(settings: ["a": "b"],
+                             settings: Settings(base: ["a": .string("b")],
+                                                debug: Configuration(settings: ["a": .string("b")],
                                                                      xcconfig: "config"),
-                                                release: Configuration(settings: ["a": "b"],
+                                                release: Configuration(settings: ["a": .string("b")],
                                                                        xcconfig: "config")),
                              coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
                              environment: ["a": "b"])

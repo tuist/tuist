@@ -1,10 +1,10 @@
-import React from "react"
-import styled from "styled-components"
+/** @jsx jsx */
+import { jsx } from "theme-ui";
 
-const StyledCode = styled.code`
-  font-family: Menlo, Consolas, Monaco, "Courier New", monospace, serif;
-  font-size: 13px;
-  color: rgb(125, 137, 156);
-`
-
-export default StyledCode
+export default ({children}) => {
+  return <code sx={{
+    fontFamily: 'Menlo, Consolas, Monaco, "Courier New", monospace, serif',
+    fontSize: "13px",
+    color: "rgb(125, 137, 156)"
+  }}>{children}</code>
+}

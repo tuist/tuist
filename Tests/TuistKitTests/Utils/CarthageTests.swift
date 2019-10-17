@@ -6,21 +6,21 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class CarthageTests: XCTestCase {
+final class CarthageTests: TuistUnitTestCase {
     var subject: Carthage!
-    var system: MockSystem!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
+        subject = Carthage()
+    }
 
-        system = MockSystem()
-        subject = Carthage(system: system)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_update() throws {
+        let temporaryPath = try self.temporaryPath()
         system.whichStub = { tool in
             if tool == "carthage" {
                 return "/path/to/carthage"
@@ -28,31 +28,32 @@ final class CarthageTests: XCTestCase {
                 throw NSError.test()
             }
         }
-        system.succeedCommand("/path/to/carthage", "update", "--project-directory", fileHandler.currentPath.pathString, "--platform", "iOS,macOS", "Alamofire",
+        system.succeedCommand("/path/to/carthage", "update", "--project-directory", temporaryPath.pathString, "--platform", "iOS,macOS", "Alamofire",
                               output: "")
 
-        try subject.update(path: fileHandler.currentPath,
+        try subject.update(path: temporaryPath,
                            platforms: [.iOS, .macOS],
                            dependencies: ["Alamofire"])
     }
 
     func test_outdated() throws {
         let jsonEncoder = JSONEncoder()
+        let temporaryPath = try self.temporaryPath()
 
         let cartfileResolved = """
         github "Tuist/DependencyA" "4.8.0"
         github "Tuist/DependencyB" "4.9.0"
         github "Tuist/DependencyC" "4.10.0"
         """
-        let cartfileResolvedPath = fileHandler.currentPath.appending(component: "Cartfile.resolved")
+        let cartfileResolvedPath = temporaryPath.appending(component: "Cartfile.resolved")
         try cartfileResolved.write(to: cartfileResolvedPath.url,
                                    atomically: true,
                                    encoding: .utf8)
 
-        let carthagePath = fileHandler.currentPath.appending(component: "Carthage")
-        try fileHandler.createFolder(carthagePath)
+        let carthagePath = temporaryPath.appending(component: "Carthage")
+        try FileHandler.shared.createFolder(carthagePath)
         let buildPath = carthagePath.appending(component: "Build")
-        try fileHandler.createFolder(buildPath)
+        try FileHandler.shared.createFolder(buildPath)
 
         // Dependency A: Outdated
         // Dependency B: Up to date
@@ -63,7 +64,7 @@ final class CarthageTests: XCTestCase {
         let dependencyBVersionData = try jsonEncoder.encode(CarthageVersionFile(commitish: "4.9.0"))
         try dependencyBVersionData.write(to: buildPath.appending(component: ".DependencyB.version").url)
 
-        let got = try subject.outdated(path: fileHandler.currentPath)
+        let got = try subject.outdated(path: temporaryPath)
 
         XCTAssertEqual(got, ["DependencyA", "DependencyC"])
     }

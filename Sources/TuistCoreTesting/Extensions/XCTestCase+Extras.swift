@@ -13,6 +13,7 @@ public extension XCTestCase {
 
     // MARK: - XCTAssertions
 
+    // swiftlint:disable large_tuple
     func XCTAssertEqualPairs<T: Equatable>(_ subjects: [(T, T, Bool)], file: StaticString = #file, line: UInt = #line) {
         subjects.forEach {
             if $0.2 {
@@ -42,16 +43,6 @@ public extension XCTestCase {
         """, file: file, line: line)
     }
 
-    func XCTAssertDictionary<T: Hashable>(_ first: [T: Any],
-                                          containsAll second: [T: Any],
-                                          file: StaticString = #file,
-                                          line: UInt = #line) {
-        let filteredFirst = first.filter { second.keys.contains($0.key) }
-        let firstDictionary = NSDictionary(dictionary: filteredFirst)
-        let secondDictioanry = NSDictionary(dictionary: second)
-        XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
-    }
-
     func XCTTry<T>(_ closure: @autoclosure @escaping () throws -> T, file: StaticString = #file, line: UInt = #line) -> T {
         var value: T!
         do {
@@ -60,6 +51,20 @@ public extension XCTestCase {
             XCTFail("The code threw the following error: \(error)", file: file, line: line)
         }
         return value
+    }
+
+    // swiftlint:disable:next line_length
+    func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(_ closure: @autoclosure () throws -> T, _ error: Error, file: StaticString = #file, line: UInt = #line) {
+        do {
+            _ = try closure()
+        } catch let closureError as Error {
+            XCTAssertEqual(error, closureError, file: file, line: line)
+            return
+        } catch let closureError {
+            XCTFail("\(error) is not equal to: \(closureError)", file: file, line: line)
+            return
+        }
+        XCTFail("No error was thrown", file: file, line: line)
     }
 
     func XCTAssertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {

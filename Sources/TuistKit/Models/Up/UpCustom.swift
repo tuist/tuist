@@ -40,29 +40,27 @@ class UpCustom: Up, GraphInitiatable {
     /// When the command is not met, this method runs it.
     ///
     /// - Parameters:
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Throws: An error if any error is thrown while running it.
-    override func meet(system: Systeming, projectPath: AbsolutePath) throws {
-        let launchPath = try self.launchPath(command: meet, projectPath: projectPath, system: system)
+    override func meet(projectPath: AbsolutePath) throws {
+        let launchPath = try self.launchPath(command: meet, projectPath: projectPath)
 
         var arguments = [launchPath.pathString]
         arguments.append(contentsOf: Array(meet.dropFirst()))
 
-        try system.runAndPrint(arguments)
+        try System.shared.runAndPrint(arguments)
     }
 
     /// Returns true when the command doesn't need to be run.
     ///
     /// - Parameters
-    ///   - system: System instance to run commands on the shell.
     ///   - projectPath: Path to the directory that contains the project manifest.
     /// - Returns: True if the command doesn't need to be run.
     /// - Throws: An error if the check fails.
-    override func isMet(system: Systeming, projectPath: AbsolutePath) throws -> Bool {
+    override func isMet(projectPath: AbsolutePath) throws -> Bool {
         var launchPath: AbsolutePath!
         do {
-            launchPath = try self.launchPath(command: isMet, projectPath: projectPath, system: system)
+            launchPath = try self.launchPath(command: isMet, projectPath: projectPath)
         } catch {
             return false
         }
@@ -70,7 +68,7 @@ class UpCustom: Up, GraphInitiatable {
         arguments.append(contentsOf: Array(isMet.dropFirst()))
 
         do {
-            try system.run(arguments)
+            try System.shared.run(arguments)
             return true
         } catch {
             return false
@@ -84,17 +82,16 @@ class UpCustom: Up, GraphInitiatable {
     /// - Parameters:
     ///   - command: Command whose launch path will be returned.
     ///   - projectPath: Project path used to get the absolute path if the command path is relative.
-    ///   - system: System instance used to run commands in the system.
     /// - Returns: Launch path.
     /// - Throws: A system error if the path can't be obtained running which in the system.
-    private func launchPath(command: [String], projectPath: AbsolutePath, system: Systeming) throws -> AbsolutePath {
+    private func launchPath(command: [String], projectPath: AbsolutePath) throws -> AbsolutePath {
         // It's safe to unwrap the first argument here.
         // There's a linter in place that prevents this code from running if the command is empty.
         let launchArgument = command.first!
         if launchArgument.contains("/") {
             return AbsolutePath(launchArgument, relativeTo: projectPath)
         } else {
-            return try AbsolutePath(system.which(launchArgument))
+            return try AbsolutePath(System.shared.which(launchArgument))
         }
     }
 }

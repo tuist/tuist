@@ -21,9 +21,7 @@ final class ReleaseTests: XCTestCase {
         json["tag_name"] = "3.2"
         let decoder = JSONDecoder()
         let data = try JSONSerialization.data(withJSONObject: json, options: [])
-        XCTAssertThrowsError(try decoder.decode(Release.self, from: data)) {
-            XCTAssertEqual($0 as? ReleaseDecodeError, ReleaseDecodeError.invalidVersionFormat("3.2"))
-        }
+        XCTAssertThrowsSpecific(try decoder.decode(Release.self, from: data), ReleaseDecodeError.invalidVersionFormat("3.2"))
     }
 
     func test_release_coding_keys() {

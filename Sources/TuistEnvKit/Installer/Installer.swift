@@ -53,18 +53,15 @@ enum InstallerError: FatalError, Equatable {
 final class Installer: Installing {
     // MARK: - Attributes
 
-    let system: Systeming
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
     let githubClient: GitHubClienting
 
     // MARK: - Init
 
-    init(system: Systeming = System(),
-         buildCopier: BuildCopying = BuildCopier(),
+    init(buildCopier: BuildCopying = BuildCopier(),
          versionsController: VersionsControlling = VersionsController(),
          githubClient: GitHubClienting = GitHubClient()) {
-        self.system = system
         self.buildCopier = buildCopier
         self.versionsController = versionsController
         self.githubClient = githubClient
@@ -104,7 +101,7 @@ final class Installer: Installing {
     }
 
     func verifySwiftVersion(version: String) throws {
-        guard let localVersionString = try system.swiftVersion() else { return }
+        guard let localVersionString = try System.shared.swiftVersion() else { return }
         Printer.shared.print("Verifying the Swift version is compatible with your version \(localVersionString)")
         var remoteVersionString: String!
         do {
@@ -146,11 +143,11 @@ final class Installer: Installing {
             // Download bundle
             Printer.shared.print("Downloading version from \(bundleURL.absoluteString)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
-            try system.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
+            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 
             // Unzip
             Printer.shared.print("Installing...")
-            try system.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
+            try System.shared.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
             Printer.shared.print("Version \(version) installed")
@@ -165,10 +162,10 @@ final class Installer: Installing {
 
             // Cloning and building
             Printer.shared.print("Pulling source code")
-            try system.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString)
+            try System.shared.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString)
 
             do {
-                try system.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version)
+                try System.shared.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version)
             } catch let error as SystemError {
                 if error.description.contains("did not match any file(s) known to git") {
                     throw InstallerError.versionNotFound(version)
@@ -177,16 +174,16 @@ final class Installer: Installing {
             }
 
             Printer.shared.print("Building using Swift (it might take a while)")
-            let swiftPath = try system.capture("/usr/bin/xcrun", "-f", "swift").spm_chuzzle()!
+            let swiftPath = try System.shared.capture("/usr/bin/xcrun", "-f", "swift").spm_chuzzle()!
 
-            try system.run(swiftPath, "build",
-                           "--product", "tuist",
-                           "--package-path", temporaryDirectory.path.pathString,
-                           "--configuration", "release")
-            try system.run(swiftPath, "build",
-                           "--product", "ProjectDescription",
-                           "--package-path", temporaryDirectory.path.pathString,
-                           "--configuration", "release")
+            try System.shared.run(swiftPath, "build",
+                                  "--product", "tuist",
+                                  "--package-path", temporaryDirectory.path.pathString,
+                                  "--configuration", "release")
+            try System.shared.run(swiftPath, "build",
+                                  "--product", "ProjectDescription",
+                                  "--package-path", temporaryDirectory.path.pathString,
+                                  "--configuration", "release")
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)

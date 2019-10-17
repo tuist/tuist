@@ -1,6 +1,7 @@
 import A
 import C
 import UIKit
+import PrebuiltStaticFramework
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -15,6 +16,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         A.printFromA()
         C.printFromC()
+        
+        let staticFrameworkClass = StaticFrameworkClass()
+        print(staticFrameworkClass.hello())
 
         return true
     }

@@ -4,12 +4,7 @@ import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 
-final class LintingIssueTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        mockEnvironment()
-    }
-
+final class LintingIssueTests: TuistUnitTestCase {
     func test_description() {
         let subject = LintingIssue(reason: "whatever", severity: .error)
         XCTAssertEqual(subject.description, "whatever")
@@ -30,13 +25,11 @@ final class LintingIssueTests: XCTestCase {
         XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
 
         XCTAssertPrinterOutputContains("""
-        The following issues have been found:
-          - warning
+        - warning
         """
         )
         XCTAssertPrinterErrorContains("""
-        The following critical issues have been found:
-          - error
+        - error
         """
         )
     }
@@ -47,8 +40,7 @@ final class LintingIssueTests: XCTestCase {
         XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
 
         XCTAssertPrinterErrorContains("""
-        The following critical issues have been found:
-          - error
+        - error
         """
         )
     }

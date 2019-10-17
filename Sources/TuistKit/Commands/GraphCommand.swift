@@ -19,10 +19,8 @@ class GraphCommand: NSObject, Command {
     let manifestLoader: GraphManifestLoading
 
     required convenience init(parser: ArgumentParser) {
-        let system = System()
         let resourceLocator = ResourceLocator()
-        let manifestLoader = GraphManifestLoader(system: system,
-                                                 resourceLocator: resourceLocator)
+        let manifestLoader = GraphManifestLoader(resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)

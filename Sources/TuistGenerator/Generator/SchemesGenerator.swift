@@ -15,6 +15,7 @@ protocol SchemesGenerating {
                                generatedProject: GeneratedProject) throws
 }
 
+// swiftlint:disable:next type_body_length
 final class SchemesGenerator: SchemesGenerating {
     /// Default last upgrade version for generated schemes.
     private static let defaultLastUpgradeVersion = "1010"

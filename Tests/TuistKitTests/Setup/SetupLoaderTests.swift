@@ -4,24 +4,23 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class SetupLoaderTests: XCTestCase {
+final class SetupLoaderTests: TuistUnitTestCase {
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
-    var fileHandler: MockFileHandler!
     var graphManifestLoader: MockGraphManifestLoader!
-    var system: MockSystem!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
         upLinter = MockUpLinter()
         graphManifestLoader = MockGraphManifestLoader()
-        system = MockSystem()
-        subject = SetupLoader(upLinter: upLinter,
-                              graphManifestLoader: graphManifestLoader,
-                              system: system)
+        subject = SetupLoader(upLinter: upLinter, graphManifestLoader: graphManifestLoader)
+    }
+
+    override func tearDown() {
+        upLinter = nil
+        graphManifestLoader = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_meet_when_no_actions() {
@@ -44,9 +43,9 @@ final class SetupLoaderTests: XCTestCase {
         // given
         let projectPath = AbsolutePath("/test/test1")
         let mockUp1 = MockUp(name: "1")
-        mockUp1.isMetStub = { _, _ in true }
+        mockUp1.isMetStub = { _ in true }
         let mockUp2 = MockUp(name: "2")
-        mockUp2.isMetStub = { _, _ in false }
+        mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
         graphManifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
@@ -69,22 +68,21 @@ final class SetupLoaderTests: XCTestCase {
         graphManifestLoader.loadSetupStub = { _ in throw GraphManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then
-        XCTAssertThrowsError(try subject.meet(at: projectPath)) { error in
-            XCTAssertEqual(error as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.setup, projectPath))
-        }
+        XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
+                                GraphManifestLoaderError.manifestNotFound(.setup, projectPath))
     }
 
     func test_meet_when_actions_provided_then_lint_all_before_meet() {
         // given
         let projectPath = AbsolutePath("/test/test1")
         let mockUp1 = MockUp(name: "1")
-        mockUp1.isMetStub = { _, _ in false }
+        mockUp1.isMetStub = { _ in false }
         let mockUp2 = MockUp(name: "2")
-        mockUp2.isMetStub = { _, _ in false }
+        mockUp2.isMetStub = { _ in false }
         let mockUp3 = MockUp(name: "3")
-        mockUp3.isMetStub = { _, _ in false }
+        mockUp3.isMetStub = { _ in false }
         let mockUp4 = MockUp(name: "4")
-        mockUp4.isMetStub = { _, _ in false }
+        mockUp4.isMetStub = { _ in false }
         let mockUps = [mockUp1, mockUp2, mockUp3, mockUp4]
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in
@@ -103,22 +101,19 @@ final class SetupLoaderTests: XCTestCase {
         graphManifestLoader.loadSetupStub = { _ in mockUps }
 
         // when / then
-        XCTAssertThrowsError(try subject.meet(at: projectPath)) { error in
-            XCTAssertEqual(error as? LintingError, LintingError())
-        }
+        XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
+                                LintingError())
 
         XCTAssertEqual(mockUps.map { $0.meetCallCount }, Array(repeating: 0, count: mockUps.count))
         XCTAssertEqual(mockUps.map { $0.isMetCallCount }, Array(repeating: 0, count: mockUps.count))
         XCTAssertEqual(lintedUps.count, mockUps.count)
 
         let expectedOutput = """
-        The following issues have been found:
-          - mockup2 warning
+        - mockup2 warning
         """
         let expectedError = """
-        The following critical issues have been found:
-          - mockup1 error
-          - mockup3 error
+        - mockup1 error
+        - mockup3 error
         """
         XCTAssertPrinterOutputContains(expectedOutput)
         XCTAssertPrinterErrorContains(expectedError)

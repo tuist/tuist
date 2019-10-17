@@ -4,14 +4,17 @@ import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 
-final class DeprecatorTests: XCTestCase {
+final class DeprecatorTests: TuistUnitTestCase {
     var subject: Deprecator!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-
         subject = Deprecator()
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        subject = nil
     }
 
     func test_notify() {

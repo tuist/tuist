@@ -33,13 +33,6 @@ final class Carthage: Carthaging {
     // swiftlint:disable:next force_try
     static let resolvedLineRegex = try! NSRegularExpression(pattern: "(github|git|binary) \"([^\"]+)\" \"([^\"]+)\"", options: [])
 
-    /// System instance to run run commands in the shell.
-    private let system: Systeming
-
-    init(system: Systeming = System()) {
-        self.system = system
-    }
-
     /// Updates the dependencies in the given directory.
     ///
     /// - Parameters:
@@ -48,7 +41,7 @@ final class Carthage: Carthaging {
     ///   - dependencies: Dependencies to update
     /// - Throws: An error if the dependencies update fails.
     func update(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws {
-        let carthagePath = try system.which("carthage")
+        let carthagePath = try System.shared.which("carthage")
 
         var command: [String] = [carthagePath]
         command.append("update")
@@ -62,7 +55,7 @@ final class Carthage: Carthaging {
 
         command.append(contentsOf: dependencies)
 
-        try system.run(command)
+        try System.shared.run(command)
     }
 
     /// Returns the list of outdated dependencies in the given directory.

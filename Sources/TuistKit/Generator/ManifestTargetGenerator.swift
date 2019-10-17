@@ -7,7 +7,7 @@ protocol ManifestTargetGenerating {
     func generateManifestTarget(for project: String, at path: AbsolutePath) throws -> Target
 }
 
-class ManifestTargetGenerator: ManifestTargetGenerating {
+final class ManifestTargetGenerator: ManifestTargetGenerating {
     private let manifestLoader: GraphManifestLoading
     private let resourceLocator: ResourceLocating
 
@@ -34,13 +34,15 @@ class ManifestTargetGenerator: ManifestTargetGenerating {
                       filesGroup: .group(name: "Manifest"))
     }
 
-    func manifestTargetBuildSettings() throws -> [String: String] {
+    // MARK: - Private
+
+    private func manifestTargetBuildSettings() throws -> [String: SettingValue] {
         let frameworkParentDirectory = try resourceLocator.projectDescription().parentDirectory
-        var buildSettings = [String: String]()
-        buildSettings["FRAMEWORK_SEARCH_PATHS"] = frameworkParentDirectory.pathString
-        buildSettings["LIBRARY_SEARCH_PATHS"] = frameworkParentDirectory.pathString
-        buildSettings["SWIFT_INCLUDE_PATHS"] = frameworkParentDirectory.pathString
-        buildSettings["SWIFT_VERSION"] = Constants.swiftVersion
+        var buildSettings = [String: SettingValue]()
+        buildSettings["FRAMEWORK_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
+        buildSettings["LIBRARY_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
+        buildSettings["SWIFT_INCLUDE_PATHS"] = .string(frameworkParentDirectory.pathString)
+        buildSettings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
         return buildSettings
     }
 }

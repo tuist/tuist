@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistCore
 import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
@@ -12,18 +13,17 @@ final class InstalledVersionTests: XCTestCase {
     }
 }
 
-final class VersionsControllerTests: XCTestCase {
-    var environmentController: MockEnvironmentController!
-    var fileHandler: MockFileHandler!
+final class VersionsControllerTests: TuistUnitTestCase {
     var subject: VersionsController!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
+        subject = VersionsController()
+    }
 
-        environmentController = try! MockEnvironmentController()
-        subject = VersionsController(environmentController: environmentController)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_install() throws {
@@ -32,21 +32,21 @@ final class VersionsControllerTests: XCTestCase {
             try Data().write(to: testPath.url)
         }
 
-        let versionsPath = environmentController.versionsDirectory
+        let versionsPath = environment.versionsDirectory
         let testPath = versionsPath.appending(RelativePath("3.2.1/test"))
 
-        XCTAssertTrue(fileHandler.exists(testPath))
+        XCTAssertTrue(FileHandler.shared.exists(testPath))
     }
 
     func test_path_for_version() {
         let got = subject.path(version: "ref")
 
-        XCTAssertEqual(got, environmentController.versionsDirectory.appending(component: "ref"))
+        XCTAssertEqual(got, environment.versionsDirectory.appending(component: "ref"))
     }
 
     func test_versions() throws {
-        try fileHandler.createFolder(environmentController.versionsDirectory.appending(component: "3.2.1"))
-        try fileHandler.createFolder(environmentController.versionsDirectory.appending(component: "ref"))
+        try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "3.2.1"))
+        try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "ref"))
 
         let versions = subject.versions()
 

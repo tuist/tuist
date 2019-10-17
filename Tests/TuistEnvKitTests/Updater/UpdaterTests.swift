@@ -5,7 +5,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class UpdaterTests: XCTestCase {
+final class UpdaterTests: TuistUnitTestCase {
     var githubClient: MockGitHubClient!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
@@ -14,7 +14,6 @@ final class UpdaterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
 
         githubClient = MockGitHubClient()
         versionsController = try! MockVersionsController()
@@ -24,6 +23,16 @@ final class UpdaterTests: XCTestCase {
                           versionsController: versionsController,
                           installer: installer,
                           envUpdater: envUpdater)
+    }
+
+    override func tearDown() {
+        super.tearDown()
+
+        githubClient = nil
+        versionsController = nil
+        installer = nil
+        envUpdater = nil
+        subject = nil
     }
 
     func test_update_when_no_remote_releases() throws {

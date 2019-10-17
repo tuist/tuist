@@ -20,12 +20,12 @@ extension Graph {
     ///       All targets need to be listed even if they don't have any dependencies.
     static func create(project: Project,
                        dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
-        let depenenciesWithProject = dependencies.map { (
+        let dependenciesWithProject = dependencies.map { (
             project: project,
             target: $0.target,
             dependencies: $0.dependencies
         ) }
-        let targetNodes = createTargetNodes(dependencies: depenenciesWithProject)
+        let targetNodes = createTargetNodes(dependencies: dependenciesWithProject)
 
         let cache = GraphLoaderCache()
         let graph = Graph.test(name: project.name,
@@ -84,6 +84,15 @@ extension Graph {
             }
             node.dependencies.append(contentsOf: sdkDependencies.compactMap {
                 try? SDKNode(name: $0.name, platform: platform, status: $0.status)
+            })
+            let packageDependencies: [Dependency.PackageType] = $0.target.dependencies.compactMap {
+                if case let .package(packageType) = $0 {
+                    return packageType
+                }
+                return nil
+            }
+            node.dependencies.append(contentsOf: packageDependencies.map {
+                PackageNode(packageType: $0, path: node.path)
             })
         }
 

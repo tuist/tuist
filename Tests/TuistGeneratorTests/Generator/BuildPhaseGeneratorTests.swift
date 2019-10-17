@@ -29,39 +29,6 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         graph = Graph.test()
     }
 
-    func test_generateBuildPhases_generatesActions() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let pbxTarget = PBXNativeTarget(name: "Test")
-        let pbxproj = PBXProj()
-        let fileElements = ProjectFileElements()
-        pbxproj.add(object: pbxTarget)
-
-        let target = Target.test(sources: [],
-                                 resources: [],
-                                 actions: [
-                                     TargetAction(name: "post", order: .post, path: tmpDir.path.appending(component: "script.sh"), arguments: ["arg"]),
-                                     TargetAction(name: "pre", order: .pre, path: tmpDir.path.appending(component: "script.sh"), arguments: ["arg"]),
-                                 ])
-
-        try subject.generateBuildPhases(path: tmpDir.path,
-                                        target: target,
-                                        graph: Graph.test(),
-                                        pbxTarget: pbxTarget,
-                                        fileElements: fileElements,
-                                        pbxproj: pbxproj,
-                                        sourceRootPath: tmpDir.path)
-
-        let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
-        XCTAssertEqual(preBuildPhase?.name, "pre")
-        XCTAssertEqual(preBuildPhase?.shellPath, "/bin/sh")
-        XCTAssertEqual(preBuildPhase?.shellScript, "script.sh arg")
-
-        let postBuildPhase = pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase
-        XCTAssertEqual(postBuildPhase?.name, "post")
-        XCTAssertEqual(postBuildPhase?.shellPath, "/bin/sh")
-        XCTAssertEqual(postBuildPhase?.shellScript, "script.sh arg")
-    }
-
     func test_generateSourcesBuildPhase() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")

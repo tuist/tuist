@@ -8,17 +8,19 @@ private struct TestError: FatalError {
     var type: ErrorType
 }
 
-final class ErrorHandlerTests: XCTestCase {
+final class ErrorHandlerTests: TuistUnitTestCase {
     var subject: ErrorHandler!
     var exited: Int32?
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
 
-        subject = ErrorHandler {
-            self.exited = $0
-        }
+        subject = ErrorHandler { self.exited = $0 }
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        subject = nil
     }
 
     func test_fatalError_printsTheDescription_whenPrintableError() {

@@ -12,7 +12,9 @@ let project = Project(name: "Framework2",
                                  headers: Headers(public: "Sources/Public/**", 
                                                   private: "Sources/Private/**", 
                                                   project: "Sources/Project/**"),
-                                 dependencies: []),
+                                 dependencies: [
+                                        .project(target: "Framework3", path: "../Framework3")
+                                 ]),
                           Target(name: "Framework2-macOS",
                                  platform: .macOS,
                                  product: .framework,

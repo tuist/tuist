@@ -10,16 +10,6 @@ protocol FrameworkEmbedding: AnyObject {
 }
 
 final class FrameworkEmbedder: FrameworkEmbedding {
-    // MARK: - Attributes
-
-    private let system: Systeming
-
-    // MARK: - Init
-
-    init(system: Systeming = System()) {
-        self.system = system
-    }
-
     // MARK: - Internal
 
     func embed(path: RelativePath) throws {
@@ -59,7 +49,12 @@ final class FrameworkEmbedder: FrameworkEmbedding {
             try FileHandler.shared.createFolder(productFrameworksPath)
         }
 
-        let copiedFramework = try copyFramework(productFrameworksPath: productFrameworksPath, frameworkAbsolutePath: frameworkAbsolutePath, validArchs: validArchs)
+        let copiedFramework = try copyFramework(
+            productFrameworksPath: productFrameworksPath,
+            frameworkAbsolutePath: frameworkAbsolutePath,
+            validArchs: validArchs
+        )
+
         try copySymbols(frameworkDsymPath: frameworkDsymPath, destinationPath: destinationPath, validArchs: validArchs)
         try copyBCSymbolMaps(action: action, frameworkAbsolutePath: frameworkAbsolutePath, builtProductsDir: builtProductsDir)
 
@@ -74,13 +69,17 @@ final class FrameworkEmbedder: FrameworkEmbedding {
         /// We need to ensure the frameworks are codesigned after being copied to the built products directory.
         /// Passing `preserve-metadata=identifier,entitlements` ensures any signatures or entitlements which are
         /// already there are preserved.
-        try system.run([
+        try System.shared.runAndPrint([
             "/usr/bin/xcrun",
             "codesign", "--force", "--sign", codeSigningIdentity, "--preserve-metadata=identifier,entitlements", frameworkPath.pathString,
         ])
     }
 
-    private func copyFramework(productFrameworksPath: AbsolutePath, frameworkAbsolutePath: AbsolutePath, validArchs: [String]) throws -> AbsolutePath {
+    private func copyFramework(
+        productFrameworksPath: AbsolutePath,
+        frameworkAbsolutePath: AbsolutePath,
+        validArchs: [String]
+    ) throws -> AbsolutePath {
         let frameworkOutputPath = productFrameworksPath.appending(component: frameworkAbsolutePath.components.last!)
         if FileHandler.shared.exists(frameworkOutputPath) {
             try FileHandler.shared.delete(frameworkOutputPath)

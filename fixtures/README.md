@@ -46,6 +46,12 @@ Workspace:
   - Framework2:
     - Framework2 (dynamic iOS framework)
     - Framework2Tests (iOS unit tests)
+  - Framework3:
+    - Framework3 (dynamic iOS framework)
+  - Framework4:
+    - Framework4 (dynamic iOS framework)
+  - Framework5:
+    - Framework5 (dynamic iOS framework)
 ```
 
 Dependencies:
@@ -53,6 +59,9 @@ Dependencies:
 - App -> Framework1
 - App -> Framework2
 - Framework1 -> Framework2
+- Framework2 -> Framework3
+- Framework3 -> Framework4
+- Framework4 -> Framework5
 
 ## ios_app_with_framework_and_resources
 
@@ -160,26 +169,37 @@ Workspace:
   - App:
     - MainApp (iOS app)
     - MainAppTests (iOS unit tests)
-  - A:
-    - A (static framework iOS)
-    - ATests (iOS unit tests)
-  - B:
-    - B (static framework iOS)
-    - BTests (iOS unit tests)
-  - C:
-    - C (static framework iOS)
-    - CTests (iOS unit tests)
-  - D:
-    - D (dynamic framework iOS)
+  - Modules
+    - A:
+      - A (static framework iOS)
+      - ATests (iOS unit tests)
+    - B:
+      - B (static framework iOS)
+      - BTests (iOS unit tests)
+    - C:
+      - C (static framework iOS)
+      - CTests (iOS unit tests)
+    - D:
+      - D (dynamic framework iOS)
+```
+
+A standalone `Prebuilt` project is used to generate a prebuilt static framework:
+
+```
+- Prebuilt
+  - PrebuiltStaticFramework (static framework iOS)
 ```
 
 Dependencies:
 
 - App -> A
 - App -> C
+- App -> PrebuiltStaticFramework
 - A -> B
 - A -> C
 - C -> D
+
+Note: to re-create `PrebuiltStaticFramework.framework` run `fixtures/ios_app_with_static_frameworks/Prebuilt//build.sh`
 
 ## ios_app_with_tests
 
@@ -218,3 +238,25 @@ An iOS application with CocoaPods dependencies
 ## ios_app_with_incompatible_xcode
 
 An iOS app whose TuistConfig file requires an Xcode version that is not available in the system.
+
+## ios_app_with_actions
+
+An iOS app with a target that has pre and post actions.
+
+## ios_app_with_remote_swift_package
+
+An iOS application with remote Swift package
+
+## ios_app_with_local_swift_package
+
+An iOS application with remote Swift package 
+
+## ios_app_with_static_library_and_package
+
+An iOS application that depends on static library that depends on Swift package where static library is defined first
+
+Note: to re-create `PrebuiltStaticFramework.framework` run `fixtures/ios_app_with_static_library_and_package/Prebuilt/build.sh`
+
+## ios_workspace_with_dependency_cycle
+
+An example of a workspace that has a dependency cycle between targets in different projects.

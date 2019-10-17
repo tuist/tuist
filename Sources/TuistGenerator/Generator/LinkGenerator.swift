@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import PathKit
 import TuistCore
 import XcodeProj
 
@@ -48,10 +49,10 @@ protocol LinkGenerating: AnyObject {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing,
-                       system: Systeming) throws
+                       graph: Graphing) throws
 }
 
+// swiftlint:disable type_body_length
 final class LinkGenerator: LinkGenerating {
     /// An instance to locate tuist binaries.
     let binaryLocator: BinaryLocating
@@ -68,23 +69,55 @@ final class LinkGenerator: LinkGenerating {
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
                        pbxproj: PBXProj,
-                       pbxProject _: PBXProject,
+                       pbxProject: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing,
-                       system: Systeming = System()) throws {
-        let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name, system: system)
-        let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
-        let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
-        let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
-        let linkableModules = try graph.linkableDependencies(path: path, name: target.name, system: system)
+                       graph: Graphing) throws {
+        let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
+        let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
+        let packages = try graph.packages(path: path, name: target.name)
+
+        try setupSearchAndIncludePaths(target: target,
+                                       pbxTarget: pbxTarget,
+                                       sourceRootPath: sourceRootPath,
+                                       path: path,
+                                       graph: graph,
+                                       linkableModules: linkableModules)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
                                pbxTarget: pbxTarget,
                                pbxproj: pbxproj,
                                fileElements: fileElements,
                                sourceRootPath: sourceRootPath)
+
+        try generateLinkingPhase(dependencies: linkableModules,
+                                 pbxTarget: pbxTarget,
+                                 pbxproj: pbxproj,
+                                 fileElements: fileElements)
+
+        try generateCopyProductsdBuildPhase(path: path,
+                                            target: target,
+                                            graph: graph,
+                                            pbxTarget: pbxTarget,
+                                            pbxproj: pbxproj,
+                                            fileElements: fileElements)
+
+        try generatePackages(target: target,
+                             pbxTarget: pbxTarget,
+                             pbxProject: pbxProject,
+                             packages: packages)
+    }
+
+    private func setupSearchAndIncludePaths(target: Target,
+                                            pbxTarget: PBXTarget,
+                                            sourceRootPath: AbsolutePath,
+                                            path: AbsolutePath,
+                                            graph: Graphing,
+                                            linkableModules: [DependencyReference]) throws {
+        let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
+        let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
+        let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
 
         try setupFrameworkSearchPath(dependencies: linkableModules,
                                      pbxTarget: pbxTarget,
@@ -101,18 +134,26 @@ final class LinkGenerator: LinkGenerating {
         try setupSwiftIncludePaths(swiftIncludePaths,
                                    pbxTarget: pbxTarget,
                                    sourceRootPath: sourceRootPath)
+    }
 
-        try generateLinkingPhase(dependencies: linkableModules,
-                                 pbxTarget: pbxTarget,
-                                 pbxproj: pbxproj,
-                                 fileElements: fileElements)
-
-        try generateCopyProductsdBuildPhase(path: path,
-                                            target: target,
-                                            graph: graph,
-                                            pbxTarget: pbxTarget,
-                                            pbxproj: pbxproj,
-                                            fileElements: fileElements)
+    func generatePackages(target _: Target,
+                          pbxTarget: PBXTarget,
+                          pbxProject: PBXProject,
+                          packages: [PackageNode]) throws {
+        try packages.forEach { package in
+            switch package.packageType {
+            case let .local(path: packagePath, productName: productName):
+                _ = try pbxProject.addLocalSwiftPackage(path: Path(packagePath.pathString),
+                                                        productName: productName,
+                                                        targetName: pbxTarget.name,
+                                                        addFileReference: false)
+            case let .remote(url: url, productName: productName, versionRequirement: versionRequirement):
+                _ = try pbxProject.addSwiftPackage(repositoryURL: url,
+                                                   productName: productName,
+                                                   versionRequirement: versionRequirement.xcodeprojValue,
+                                                   targetName: pbxTarget.name)
+            }
+        }
     }
 
     func generateEmbedPhase(dependencies: [DependencyReference],
@@ -139,7 +180,7 @@ final class LinkGenerator: LinkGenerating {
                 precompiledEmbedPhase.inputPaths.append(relativePath)
                 precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
 
-            } else if case let DependencyReference.product(target) = dependency {
+            } else if case let DependencyReference.product(target, _) = dependency {
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
@@ -198,20 +239,26 @@ final class LinkGenerator: LinkGenerating {
                   sourceRootPath: sourceRootPath)
     }
 
-    private func setup(setting: String,
+    private func setup(setting name: String,
                        paths: [AbsolutePath],
                        pbxTarget: PBXTarget,
                        sourceRootPath: AbsolutePath) throws {
-        let relativePaths = paths.sorted()
-            .map { $0.relative(to: sourceRootPath).pathString }
-            .map { "$(SRCROOT)/\($0)" }
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
-
-        let pathsValue = relativePaths.joined(separator: " ")
-        configurationList.buildConfigurations.forEach {
-            $0.append(setting: setting, value: pathsValue)
+        guard !paths.isEmpty else {
+            return
+        }
+        let value = SettingValue
+            .array(paths
+                .map { $0.relative(to: sourceRootPath).pathString }
+                .map { "$(SRCROOT)/\($0)" })
+        let newSetting = [name: value]
+        let inheritedSetting = [name: SettingValue.string("$(inherited)")]
+        let helper = SettingsHelper()
+        try configurationList.buildConfigurations.forEach { configuration in
+            try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
+            try helper.extend(buildSettings: &configuration.buildSettings, with: inheritedSetting)
         }
     }
 
@@ -234,7 +281,7 @@ final class LinkGenerator: LinkGenerating {
                     let buildFile = PBXBuildFile(file: fileRef)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
-                case let .product(target):
+                case let .product(target, _):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)
                     }
@@ -273,14 +320,7 @@ final class LinkGenerator: LinkGenerating {
         // This technique also allows resource bundles that reside in different projects to get built ahead of the
         // "Copy Bundle Resources" phase.
 
-        var dependencies = [DependencyReference]()
-        if target.product.isStatic {
-            dependencies.append(contentsOf: graph.staticDependencies(path: path, name: target.name))
-        }
-
-        dependencies.append(contentsOf:
-            graph.resourceBundleDependencies(path: path, name: target.name)
-                .map { .product(target: $0.target.name) })
+        let dependencies = graph.copyProductDependencies(path: path, target: target)
 
         if !dependencies.isEmpty {
             try generateDependenciesBuildPhase(
@@ -298,7 +338,7 @@ final class LinkGenerator: LinkGenerating {
                                                 fileElements: ProjectFileElements) throws {
         var files: [PBXBuildFile] = []
 
-        for case let .product(target) in dependencies.sorted() {
+        for case let .product(target, _) in dependencies.sorted() {
             guard let fileRef = fileElements.product(target: target) else {
                 throw LinkGeneratorError.missingProduct(name: target)
             }

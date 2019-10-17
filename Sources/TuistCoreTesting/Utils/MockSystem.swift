@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import XCTest
 
 public final class MockSystem: Systeming {
     public var env: [String: String] = ProcessInfo.processInfo.environment
@@ -81,7 +82,12 @@ public final class MockSystem: Systeming {
         try runAndPrint(arguments, verbose: verbose, environment: environment, redirection: .none)
     }
 
-    public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String], redirection: Basic.Process.OutputRedirection) throws {
+    public func runAndPrint(
+        _ arguments: [String],
+        verbose _: Bool,
+        environment _: [String: String],
+        redirection: Basic.Process.OutputRedirection
+    ) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {
             throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")

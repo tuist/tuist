@@ -18,19 +18,15 @@ final class BundleCommandErrorTests: XCTestCase {
     }
 }
 
-final class BundleCommandTests: XCTestCase {
+final class BundleCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
-    var fileHandler: MockFileHandler!
     var installer: MockInstaller!
     var subject: BundleCommand!
     var tmpDir: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
@@ -38,6 +34,15 @@ final class BundleCommandTests: XCTestCase {
         subject = BundleCommand(parser: parser,
                                 versionsController: versionsController,
                                 installer: installer)
+    }
+
+    override func tearDown() {
+        parser = nil
+        versionsController = nil
+        installer = nil
+        subject = nil
+        tmpDir = nil
+        super.tearDown()
     }
 
     func test_init_registers_the_command() {
@@ -55,38 +60,40 @@ final class BundleCommandTests: XCTestCase {
     }
 
     func test_run_throws_when_there_is_no_xmp_version_in_the_directory() throws {
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([])
-        XCTAssertThrowsError(try subject.run(with: result)) {
-            XCTAssertEqual($0 as? BundleCommandError, BundleCommandError.missingVersionFile(fileHandler.currentPath))
-        }
+        XCTAssertThrowsSpecific(try subject.run(with: result), BundleCommandError.missingVersionFile(temporaryPath))
     }
 
     func test_run_installs_the_app_if_it_doesnt_exist() throws {
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([])
-        let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+        let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
         installer.installStub = { version, _ in
             let versionPath = self.versionsController.path(version: version)
-            try self.fileHandler.createFolder(versionPath)
+            try FileHandler.shared.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }
 
         try subject.run(with: result)
 
-        let bundledTestFilePath = fileHandler.currentPath
+        let bundledTestFilePath = temporaryPath
             .appending(component: Constants.binFolderName)
             .appending(component: "test")
 
-        XCTAssertTrue(fileHandler.exists(bundledTestFilePath))
+        XCTAssertTrue(FileHandler.shared.exists(bundledTestFilePath))
     }
 
     func test_run_doesnt_install_the_app_if_it_already_exists() throws {
+        let temporaryPath = try self.temporaryPath()
+
         let result = try parser.parse([])
-        let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+        let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
         let versionPath = versionsController.path(version: "3.2.1")
-        try fileHandler.createFolder(versionPath)
+        try FileHandler.shared.createFolder(versionPath)
 
         try subject.run(with: result)
 
@@ -95,14 +102,15 @@ final class BundleCommandTests: XCTestCase {
 
     func test_run_prints_the_right_messages() throws {
         let result = try parser.parse([])
-        let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
-        let binPath = fileHandler.currentPath.appending(component: Constants.binFolderName)
+        let temporaryPath = try self.temporaryPath()
+        let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
+        let binPath = temporaryPath.appending(component: Constants.binFolderName)
 
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
         installer.installStub = { version, _ in
             let versionPath = self.versionsController.path(version: version)
-            try self.fileHandler.createFolder(versionPath)
+            try FileHandler.shared.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }
 

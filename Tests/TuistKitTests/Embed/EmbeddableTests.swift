@@ -92,9 +92,8 @@ final class EmbeddableTests: XCTestCase {
     func test_strip_throws() throws {
         try withDSYM {
             let path = $0.path
-            XCTAssertThrowsError(try $0.strip(keepingArchitectures: [])) {
-                XCTAssertEqual($0 as? EmbeddableError, EmbeddableError.unstrippableNonFatEmbeddable(path))
-            }
+            XCTAssertThrowsSpecific(try $0.strip(keepingArchitectures: []),
+                                    EmbeddableError.unstrippableNonFatEmbeddable(path))
         }
     }
 

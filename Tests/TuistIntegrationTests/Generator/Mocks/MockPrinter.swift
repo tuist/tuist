@@ -3,11 +3,7 @@ import Foundation
 import TuistCore
 
 class MockPrinter: Printing {
-    func print(_: String, output _: PrinterOutput) {}
-
     func print(_: String) {}
-
-    func print(_: String, color _: TerminalController.Color) {}
 
     func print(section _: String) {}
 

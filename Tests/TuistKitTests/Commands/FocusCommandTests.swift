@@ -6,20 +6,15 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class FocusCommandTests: XCTestCase {
+final class FocusCommandTests: TuistUnitTestCase {
     var subject: FocusCommand!
-
     var parser: ArgumentParser!
-    var fileHandler: MockFileHandler!
     var opener: MockOpener!
     var generator: MockGenerator!
     var manifestLoader: MockGraphManifestLoader!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
         parser = ArgumentParser.test()
         opener = MockOpener()
         generator = MockGenerator()
@@ -29,6 +24,15 @@ final class FocusCommandTests: XCTestCase {
                                generator: generator,
                                manifestLoader: manifestLoader,
                                opener: opener)
+    }
+
+    override func tearDown() {
+        parser = nil
+        opener = nil
+        generator = nil
+        manifestLoader = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_command() {

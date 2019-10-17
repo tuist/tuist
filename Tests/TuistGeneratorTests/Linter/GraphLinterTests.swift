@@ -1,30 +1,33 @@
 import Basic
 import Foundation
+import SPMUtility
 import TuistCore
 import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class GraphLinterTests: XCTestCase {
+final class GraphLinterTests: TuistUnitTestCase {
     var subject: GraphLinter!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
         subject = GraphLinter()
     }
 
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
+    }
+
     func test_lint_when_carthage_frameworks_are_missing() throws {
+        let temporaryPath = try self.temporaryPath()
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
 
-        let frameworkAPath = fileHandler.currentPath.appending(RelativePath("Carthage/Build/iOS/A.framework"))
-        let frameworkBPath = fileHandler.currentPath.appending(RelativePath("Carthage/Build/iOS/B.framework"))
+        let frameworkAPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/A.framework"))
+        let frameworkBPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/B.framework"))
 
-        try fileHandler.createFolder(frameworkAPath)
+        try FileHandler.shared.createFolder(frameworkAPath)
 
         let frameworkA = FrameworkNode(path: frameworkAPath)
         let frameworkB = FrameworkNode(path: frameworkBPath)
@@ -39,11 +42,12 @@ final class GraphLinterTests: XCTestCase {
 
     func test_lint_when_podfiles_are_missing() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
-        let cocoapods = CocoaPodsNode(path: fileHandler.currentPath)
+        let cocoapods = CocoaPodsNode(path: temporaryPath)
         cache.add(cocoapods: cocoapods)
-        let podfilePath = fileHandler.currentPath.appending(component: "Podfile")
+        let podfilePath = temporaryPath.appending(component: "Podfile")
 
         // When
         let result = subject.lint(graph: graph)
@@ -52,14 +56,67 @@ final class GraphLinterTests: XCTestCase {
         XCTAssertTrue(result.contains(LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)))
     }
 
+    func test_lint_when_packages_and_xcode_10() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: temporaryPath)
+        cache.add(package: package)
+        let versionStub = Version(10, 0, 0)
+        xcodeController.selectedVersionStub = .success(versionStub)
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
+        XCTAssertTrue(result.contains(LintingIssue(reason: reason, severity: .error)))
+    }
+
+    func test_lint_when_packages_and_xcode_11() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: temporaryPath)
+        cache.add(package: package)
+        let versionStub = Version(11, 0, 0)
+        xcodeController.selectedVersionStub = .success(versionStub)
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTEmpty(result)
+    }
+
+    func test_lint_when_no_version_available() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: temporaryPath)
+        cache.add(package: package)
+        let error = NSError.test()
+        xcodeController.selectedVersionStub = .failure(error)
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)))
+    }
+
     func test_lint_when_frameworks_are_missing() throws {
+        let temporaryPath = try self.temporaryPath()
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
 
-        let frameworkAPath = fileHandler.currentPath.appending(component: "A.framework")
-        let frameworkBPath = fileHandler.currentPath.appending(component: "B.framework")
+        let frameworkAPath = temporaryPath.appending(component: "A.framework")
+        let frameworkBPath = temporaryPath.appending(component: "B.framework")
 
-        try fileHandler.createFolder(frameworkAPath)
+        try FileHandler.shared.createFolder(frameworkAPath)
 
         let frameworkA = FrameworkNode(path: frameworkAPath)
         let frameworkB = FrameworkNode(path: frameworkBPath)
@@ -70,6 +127,34 @@ final class GraphLinterTests: XCTestCase {
         let result = subject.lint(graph: graph)
 
         XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)))
+    }
+
+    func test_lint_when_package_dependency_linked_twice() throws {
+        let cache = GraphLoaderCache()
+
+        let appTarget = Target.test(name: "AppTarget", dependencies: [.package(.local(path: RelativePath("packageLibrary"), productName: "PackageLibrary")), .target(name: "frameworkA")])
+        let frameworkTarget = Target.test(name: "frameworkA", dependencies: [.target(name: "staticFramework")])
+
+        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
+        let projectFramework = Project.test(path: "/tmp/framework", name: "projectFramework", targets: [frameworkTarget])
+
+        let package = PackageNode(packageType: .local(path: RelativePath("packageLibrary"), productName: "PackageLibrary"), path: "/tmp/packageLibrary")
+        let framework = TargetNode(project: projectFramework, target: frameworkTarget, dependencies: [package])
+        let appTargetNode = TargetNode(project: app, target: appTarget, dependencies: [package, framework])
+
+        cache.add(project: app)
+        cache.add(targetNode: appTargetNode)
+        cache.add(targetNode: framework)
+        cache.add(package: package)
+
+        let graph = Graph.test(cache: cache, entryNodes: [appTargetNode, framework, package])
+
+        let versionStub = Version(11, 0, 0)
+        xcodeController.selectedVersionStub = .success(versionStub)
+
+        let result = subject.lint(graph: graph)
+
+        XCTAssertTrue(result.contains(LintingIssue(reason: "Package PackageLibrary has been linked against AppTarget and frameworkA, it is a static product so may introduce unwanted side effects.", severity: .warning)))
     }
 
     func test_lint_when_static_product_linked_twice() throws {

@@ -2,6 +2,8 @@ import Basic
 import Foundation
 import TuistCore
 import XCTest
+
+@testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
@@ -18,14 +20,7 @@ final class GraphErrorTests: XCTestCase {
     }
 }
 
-final class GraphTests: XCTestCase {
-    var system: MockSystem!
-
-    override func setUp() {
-        super.setUp()
-        system = MockSystem()
-    }
-
+final class GraphTests: TuistUnitTestCase {
     func test_frameworks() throws {
         let framework = FrameworkNode(path: AbsolutePath("/path/to/framework.framework"))
         let cache = GraphLoaderCache()
@@ -66,9 +61,7 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
                               output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
 
-        let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, .absolute(precompiledNode.path))
     }
 
@@ -85,10 +78,8 @@ final class GraphTests: XCTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-        let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
-        XCTAssertEqual(got.first, .product(target: "Dependency"))
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
+        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a"))
     }
 
     func test_linkableDependencies_whenAFrameworkTarget() throws {
@@ -114,17 +105,14 @@ final class GraphTests: XCTestCase {
 
         let graph = Graph.test(cache: cache)
         let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+                                                 name: target.name)
         XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got.first, .product(target: "Dependency"))
+        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework"))
 
-        let frameworkGot = try graph.linkableDependencies(path: project.path,
-                                                          name: dependency.name,
-                                                          system: system)
+        let frameworkGot = try graph.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
-        XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency")))
+        XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a")))
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
@@ -148,11 +136,11 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
-        XCTAssertEqual(result, [DependencyReference.product(target: "DynamicFramework"),
-                                DependencyReference.product(target: "StaticFramework")])
+        XCTAssertEqual(result, [DependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+                                DependencyReference.product(target: "StaticFramework", productName: "StaticFramework.framework")])
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
@@ -184,14 +172,18 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
-        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name, system: system)
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
-        XCTAssertEqual(appResult, [DependencyReference.product(target: "DynamicFramework1")])
-        XCTAssertEqual(dynamicFramework1Result, [DependencyReference.product(target: "DynamicFramework2"),
-                                                 DependencyReference.product(target: "StaticFramework1"),
-                                                 DependencyReference.product(target: "StaticFramework2")])
+        XCTAssertEqual(appResult, [
+            DependencyReference.product(target: "DynamicFramework1", productName: "DynamicFramework1.framework"),
+        ])
+        XCTAssertEqual(dynamicFramework1Result, [
+            DependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework"),
+            DependencyReference.product(target: "StaticFramework1", productName: "libStaticFramework1.a"),
+            DependencyReference.product(target: "StaticFramework2", productName: "libStaticFramework2.a"),
+        ])
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesCheckNoDuplicatesInParentDynamic() throws {
@@ -227,10 +219,10 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name, system: system)
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
-        XCTAssertEqual(dynamicFramework1Result, [DependencyReference.product(target: "DynamicFramework2")])
+        XCTAssertEqual(dynamicFramework1Result, [DependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
     }
 
     func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
@@ -254,7 +246,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [
@@ -283,8 +275,8 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
-        let dynamicResult = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name, system: system)
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicResult = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name)
 
         // Then
         XCTAssertEqual(appResult.compactMap(sdkDependency), [])
@@ -310,7 +302,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
@@ -331,7 +323,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: staticFramework.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFramework.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -357,7 +349,7 @@ final class GraphTests: XCTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name, system: system)
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -397,8 +389,7 @@ final class GraphTests: XCTestCase {
         system.succeedCommand([], output: "dynamically linked")
 
         let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+                                                 name: target.name)
 
         XCTAssertNil(got.first)
     }
@@ -419,9 +410,8 @@ final class GraphTests: XCTestCase {
 
         system.succeedCommand([], output: "dynamically linked")
         let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
-        XCTAssertEqual(got.first, DependencyReference.product(target: "Dependency"))
+                                                 name: target.name)
+        XCTAssertEqual(got.first, DependencyReference.product(target: "Dependency", productName: "Dependency.framework"))
     }
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
@@ -439,9 +429,7 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
 
-        let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+        let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
     }
@@ -471,16 +459,37 @@ final class GraphTests: XCTestCase {
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
 
-        let got = try graph.embeddableFrameworks(
-            path: project.path,
-            name: target.name,
-            system: system
-        )
+        let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         XCTAssertEqual(got, [
-            DependencyReference.product(target: "Dependency"),
+            DependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
             DependencyReference.absolute(frameworkPath),
         ])
+    }
+
+    func test_embeddableFrameworks_when_precompiledStaticFramework() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        let frameworkNode = FrameworkNode(path: "/test/StaticFramework.framework")
+        let targetNode = TargetNode(
+            project: project,
+            target: target,
+            dependencies: [frameworkNode]
+        )
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+
+        system.succeedCommand("/usr/bin/file", "/test/StaticFramework.framework/StaticFramework",
+                              output: "current ar archive random library")
+
+        // When
+        let result = try graph.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
     }
 
     func test_embeddableFrameworks_ordered() throws {
@@ -501,12 +510,10 @@ final class GraphTests: XCTestCase {
         let graph = Graph.test(cache: cache)
 
         // When
-        let got = try graph.embeddableFrameworks(path: project.path,
-                                                 name: target.name,
-                                                 system: system)
+        let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        let expected = dependencyNames.sorted().map { DependencyReference.product(target: $0) }
+        let expected = dependencyNames.sorted().map { DependencyReference.product(target: $0, productName: "\($0).framework") }
         XCTAssertEqual(got, expected)
     }
 
@@ -556,6 +563,27 @@ final class GraphTests: XCTestCase {
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
     }
 
+    func test_packageDepedencies_fromTargetDependency() throws {
+        // Given
+        let target = Target.test(name: "Test", product: .app, dependencies: [
+            .package(.remote(url: "url", productName: "testA", versionRequirement: .branch("master"))),
+            .package(.local(path: RelativePath(""), productName: "testB")),
+        ])
+        let project = Project.test(path: "/path")
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: target, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.packages(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(result.first?.name, "testA")
+        XCTAssertEqual(result.last?.name, "testB")
+    }
+
     func test_resourceBundleDependencies_fromTargetDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
@@ -602,6 +630,7 @@ final class GraphTests: XCTestCase {
 
     func test_encode() {
         // Given
+        System.shared = System()
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
         let framework = FrameworkNode(path: fixturePath(path: RelativePath("xpm.framework")))
@@ -669,18 +698,18 @@ final class DependencyReferenceTests: XCTestCase {
         let subjects: [(DependencyReference, DependencyReference, Bool)] = [
             // Absolute
             (.absolute(.init("/a.framework")), .absolute(.init("/a.framework")), true),
-            (.absolute(.init("/a.framework")), .product(target: "Main"), false),
+            (.absolute(.init("/a.framework")), .product(target: "Main", productName: "Main.app"), false),
             (.absolute(.init("/a.framework")), .sdk(.init("/CoreData.framework"), .required), false),
 
             // Product
-            (.product(target: "Main"), .product(target: "Main"), true),
-            (.product(target: "Main"), .absolute(.init("/a.framework")), false),
-            (.product(target: "Main"), .sdk(.init("/CoreData.framework"), .required), false),
-            (.product(target: "Main-iOS"), .product(target: "Main-macOS"), false),
+            (.product(target: "Main", productName: "Main.app"), .product(target: "Main", productName: "Main.app"), true),
+            (.product(target: "Main", productName: "Main.app"), .absolute(.init("/a.framework")), false),
+            (.product(target: "Main", productName: "Main.app"), .sdk(.init("/CoreData.framework"), .required), false),
+            (.product(target: "Main-iOS", productName: "Main.app"), .product(target: "Main-macOS", productName: "Main.app"), false),
 
             // SDK
             (.sdk(.init("/CoreData.framework"), .required), .sdk(.init("/CoreData.framework"), .required), true),
-            (.sdk(.init("/CoreData.framework"), .required), .product(target: "Main"), false),
+            (.sdk(.init("/CoreData.framework"), .required), .product(target: "Main", productName: "Main.app"), false),
             (.sdk(.init("/CoreData.framework"), .required), .absolute(.init("/a.framework")), false),
         ]
 
@@ -692,17 +721,37 @@ final class DependencyReferenceTests: XCTestCase {
         XCTAssertTrue(DependencyReference.absolute("/A") < .absolute("/B"))
         XCTAssertFalse(DependencyReference.absolute("/B") < .absolute("/A"))
 
-        XCTAssertFalse(DependencyReference.product(target: "A") < .product(target: "A"))
-        XCTAssertTrue(DependencyReference.product(target: "A") < .product(target: "B"))
-        XCTAssertFalse(DependencyReference.product(target: "B") < .product(target: "A"))
+        XCTAssertFalse(DependencyReference.product(target: "A", productName: "A.framework") < .product(target: "A", productName: "A.framework"))
+        XCTAssertTrue(DependencyReference.product(target: "A", productName: "A.framework") < .product(target: "B", productName: "B.framework"))
+        XCTAssertFalse(DependencyReference.product(target: "B", productName: "B.framework") < .product(target: "A", productName: "A.framework"))
+        XCTAssertTrue(DependencyReference.product(target: "A", productName: "A.app") < .product(target: "A", productName: "A.framework"))
 
-        XCTAssertTrue(DependencyReference.product(target: "/A") < .absolute("/A"))
-        XCTAssertTrue(DependencyReference.product(target: "/A") < .absolute("/B"))
-        XCTAssertTrue(DependencyReference.product(target: "/B") < .absolute("/A"))
+        XCTAssertTrue(DependencyReference.product(target: "/A", productName: "A.framework") < .absolute("/A"))
+        XCTAssertTrue(DependencyReference.product(target: "/A", productName: "A.framework") < .absolute("/B"))
+        XCTAssertTrue(DependencyReference.product(target: "/B", productName: "B.framework") < .absolute("/A"))
 
-        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/A"))
-        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/B"))
-        XCTAssertFalse(DependencyReference.absolute("/B") < .product(target: "/A"))
+        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/A", productName: "A.framework"))
+        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/B", productName: "B.framework"))
+        XCTAssertFalse(DependencyReference.absolute("/B") < .product(target: "/A", productName: "A.framework"))
+    }
+
+    func test_compare_isStable() {
+        // Given
+        let subject: [DependencyReference] = [
+            .absolute("/A"),
+            .absolute("/B"),
+            .product(target: "A", productName: "A.framework"),
+            .product(target: "B", productName: "B.framework"),
+            .sdk("/A.framework", .required),
+            .sdk("/B.framework", .optional),
+        ]
+
+        // When
+        let sorted = (0 ..< 10).map { _ in subject.shuffled().sorted() }
+
+        // Then
+        let unstable = sorted.dropFirst().filter { $0 != sorted.first }
+        XCTAssertTrue(unstable.isEmpty)
     }
 }
 

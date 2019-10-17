@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-class GeneratorModelLoaderTest: XCTestCase {
+class GeneratorModelLoaderTest: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target
@@ -23,36 +23,30 @@ class GeneratorModelLoaderTest: XCTestCase {
     private var manifestTargetGenerator: MockManifestTargetGenerator!
     private var manifestLinter: MockManifestLinter!
 
-    private var fileHandler: MockFileHandler!
-    private var path: AbsolutePath {
-        return fileHandler.currentPath
-    }
-
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
         manifestTargetGenerator = MockManifestTargetGenerator()
         manifestLinter = MockManifestLinter()
     }
 
     override func tearDown() {
-        fileHandler = nil
+        manifestTargetGenerator = nil
+        manifestLinter = nil
+        super.tearDown()
     }
 
     func test_loadProject() throws {
         // Given
-
+        let temporaryPath = try self.temporaryPath()
         let manifests = [
-            path: ProjectManifest.test(name: "SomeProject"),
+            temporaryPath: ProjectManifest.test(name: "SomeProject"),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: path)
+        let model = try subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeProject")
@@ -61,51 +55,53 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadProject_withTargets() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let targetA = TargetManifest.test(name: "A")
         let targetB = TargetManifest.test(name: "B")
         let manifests = [
-            path: ProjectManifest.test(name: "Project",
-                                       targets: [
-                                           targetA,
-                                           targetB,
-                                       ]),
+            temporaryPath: ProjectManifest.test(name: "Project",
+                                                targets: [
+                                                    targetA,
+                                                    targetB,
+                                                ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: path)
+        let model = try subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.targets.count, 3)
-        assert(target: model.targets[0], matches: targetA, at: path)
-        assert(target: model.targets[1], matches: targetB, at: path)
+        assert(target: model.targets[0], matches: targetA, at: temporaryPath)
+        assert(target: model.targets[1], matches: targetB, at: temporaryPath)
         XCTAssertEqual(model.targets[2].name, "Project-Manifest")
     }
 
     func test_loadProject_withManifestTargetOptionDisabled() throws {
         // Given
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "TuistConfig.swift",
         ])
         let projects = [
-            path: ProjectManifest.test(name: "Project",
-                                       targets: [
-                                           .test(name: "A"),
-                                           .test(name: "B"),
-                                       ]),
+            temporaryPath: ProjectManifest.test(name: "Project",
+                                                targets: [
+                                                    .test(name: "A"),
+                                                    .test(name: "B"),
+                                                ]),
         ]
 
         let configs = [
-            path: TuistConfig.test(generationOptions: []),
+            temporaryPath: TuistConfig.test(generationOptions: []),
         ]
 
         let manifestLoader = createManifestLoader(with: projects, configs: configs)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: path)
+        let model = try subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.targets.map(\.name), [
@@ -116,23 +112,24 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadProject_withAdditionalFiles() throws {
         // Given
-        let files = try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        let files = try createFiles([
             "Documentation/README.md",
             "Documentation/guide.md",
         ])
 
         let manifests = [
-            path: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           "Documentation/**/*.md",
-                                       ]),
+            temporaryPath: ProjectManifest.test(name: "SomeProject",
+                                                additionalFiles: [
+                                                    "Documentation/**/*.md",
+                                                ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: path)
+        let model = try subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
@@ -140,22 +137,23 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadProject_withFolderReferences() throws {
         // Given
-        let files = try fileHandler.createFolders([
+        let temporaryPath = try self.temporaryPath()
+        let files = try createFolders([
             "Stubs",
         ])
 
         let manifests = [
-            path: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           .folderReference(path: "Stubs"),
-                                       ]),
+            temporaryPath: ProjectManifest.test(name: "SomeProject",
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: path)
+        let model = try subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
@@ -163,18 +161,19 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadProject_withCustomName() throws {
         // Given
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "TuistConfig.swift",
         ])
 
         let manifests = [
-            path: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           .folderReference(path: "Stubs"),
-                                       ]),
+            temporaryPath: ProjectManifest.test(name: "SomeProject",
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
         ]
         let configs = [
-            path: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two")]),
+            temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
@@ -182,7 +181,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                            manifestTargetGenerator: manifestTargetGenerator)
 
         // When
-        let model = try subject.loadProject(at: path)
+        let model = try subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.fileName, "one SomeProject two")
@@ -190,19 +189,20 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadProject_withCustomNameDuplicates() throws {
         // Given
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "TuistConfig.swift",
         ])
 
         let manifests = [
-            path: ProjectManifest.test(name: "SomeProject",
-                                       additionalFiles: [
-                                           .folderReference(path: "Stubs"),
-                                       ]),
+            temporaryPath: ProjectManifest.test(name: "SomeProject",
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
         ]
         let configs = [
-            path: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
-                                                                          .xcodeProjectName("two \(.projectName) three")]),
+            temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
+                                                                                   .xcodeProjectName("two \(.projectName) three")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
@@ -210,7 +210,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                                            manifestTargetGenerator: manifestTargetGenerator)
 
         // When
-        let model = try subject.loadProject(at: path)
+        let model = try subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.fileName, "one SomeProject two")
@@ -218,15 +218,16 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadWorkspace() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let manifests = [
-            path: WorkspaceManifest.test(name: "SomeWorkspace"),
+            temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace"),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: path)
+        let model = try subject.loadWorkspace(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -235,21 +236,21 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_loadWorkspace_withProjects() throws {
         // Given
-        let path = fileHandler.currentPath
-        let projects = try fileHandler.createFolders([
+        let temporaryPath = try self.temporaryPath()
+        let projects = try createFolders([
             "A",
             "B",
         ])
 
         let manifests = [
-            path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
+            temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests, projects: projects)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: path)
+        let model = try subject.loadWorkspace(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -257,27 +258,27 @@ class GeneratorModelLoaderTest: XCTestCase {
     }
 
     func test_loadWorkspace_withAdditionalFiles() throws {
-        let path = fileHandler.currentPath
-        let files = try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        let files = try createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
             "Playground.playground",
         ])
 
         let manifests = [
-            path: WorkspaceManifest.test(name: "SomeWorkspace",
-                                         projects: [],
-                                         additionalFiles: [
-                                             "Documentation/**/*.md",
-                                             "*.playground",
-                                         ]),
+            temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace",
+                                                  projects: [],
+                                                  additionalFiles: [
+                                                      "Documentation/**/*.md",
+                                                      "*.playground",
+                                                  ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: path)
+        let model = try subject.loadWorkspace(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -285,46 +286,46 @@ class GeneratorModelLoaderTest: XCTestCase {
     }
 
     func test_loadWorkspace_withFolderReferences() throws {
-        let path = fileHandler.currentPath
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
         ])
 
         let manifests = [
-            path: WorkspaceManifest.test(name: "SomeWorkspace",
-                                         projects: [],
-                                         additionalFiles: [
-                                             .folderReference(path: "Documentation"),
-                                         ]),
+            temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace",
+                                                  projects: [],
+                                                  additionalFiles: [
+                                                      .folderReference(path: "Documentation"),
+                                                  ]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: path)
+        let model = try subject.loadWorkspace(at: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.additionalFiles, [
-            .folderReference(path: path.appending(RelativePath("Documentation"))),
+            .folderReference(path: temporaryPath.appending(RelativePath("Documentation"))),
         ])
     }
 
     func test_loadWorkspace_withInvalidProjectsPaths() throws {
         // Given
-        let path = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
 
         let manifests = [
-            path: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
+            temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"]),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: path)
+        let model = try subject.loadWorkspace(at: temporaryPath)
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -336,15 +337,16 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_settings() throws {
         // Given
-        let debug = ConfigurationManifest(settings: ["Debug": "Debug"], xcconfig: "debug.xcconfig")
-        let release = ConfigurationManifest(settings: ["Release": "Release"], xcconfig: "release.xcconfig")
-        let manifest = SettingsManifest(base: ["base": "base"], debug: debug, release: release)
+        let temporaryPath = try self.temporaryPath()
+        let debug = ConfigurationManifest(settings: ["Debug": .string("Debug")], xcconfig: "debug.xcconfig")
+        let release = ConfigurationManifest(settings: ["Release": .string("Release")], xcconfig: "release.xcconfig")
+        let manifest = SettingsManifest(base: ["base": .string("base")], debug: debug, release: release)
 
         // When
-        let model = TuistGenerator.Settings.from(manifest: manifest, path: path)
+        let model = TuistGenerator.Settings.from(manifest: manifest, path: temporaryPath)
 
         // Then
-        assert(settings: model, matches: manifest, at: path)
+        assert(settings: model, matches: manifest, at: temporaryPath)
     }
 
     func test_dependency_when_cocoapods() throws {
@@ -362,9 +364,49 @@ class GeneratorModelLoaderTest: XCTestCase {
         XCTAssertEqual(path, RelativePath("./path/to/project"))
     }
 
+    func test_dependency_when_localPackage() {
+        // Given
+        let dependency = TargetDependency.package(path: "package", productName: "library")
+
+        // When
+        let got = TuistGenerator.Dependency.from(manifest: dependency)
+
+        // Then
+        guard
+            case let .package(packageType) = got,
+            case let .local(path: path, productName: productName) = packageType
+        else {
+            XCTFail("Dependency should be local package")
+            return
+        }
+        XCTAssertEqual(path, RelativePath("package"))
+        XCTAssertEqual(productName, "library")
+    }
+
+    func test_depedency_when_remotePackage() throws {
+        // Given
+        let dependency = TargetDependency.package(url: "url", productName: "library", .branch("master"))
+
+        // When
+        let got = TuistGenerator.Dependency.from(manifest: dependency)
+
+        // Then
+        guard
+            case let .package(packageType) = got,
+            case let .remote(url: url, productName: productName, versionRequirement: versionRequirement) = packageType
+        else {
+            XCTFail("Dependency should be remote package")
+            return
+        }
+        XCTAssertEqual(url, "url")
+        XCTAssertEqual(productName, "library")
+        XCTAssertEqual(versionRequirement, .branch("master"))
+    }
+
     func test_headers() throws {
         // Given
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
             "Sources/public/A2.h",
@@ -386,28 +428,29 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        project: "Sources/project/**")
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: path)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.public, [
             "Sources/public/A1.h",
             "Sources/public/A2.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
 
         XCTAssertEqual(model.private, [
             "Sources/private/B1.h",
             "Sources/private/B2.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
 
         XCTAssertEqual(model.project, [
             "Sources/project/C1.h",
             "Sources/project/C2.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
     }
 
     func test_headersArray() throws {
         // Given
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
             "Sources/public/B/B1.h",
@@ -429,28 +472,29 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: path)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.public, [
             "Sources/public/A/A1.h",
             "Sources/public/B/B1.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
 
         XCTAssertEqual(model.private, [
             "Sources/private/C/C1.h",
             "Sources/private/D/D1.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
 
         XCTAssertEqual(model.project, [
             "Sources/project/E/E1.h",
             "Sources/project/F/F1.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
     }
 
     func test_headersStringAndArrayMix() throws {
         // Given
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
 
@@ -464,46 +508,48 @@ class GeneratorModelLoaderTest: XCTestCase {
                                        project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: path)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.public, [
             "Sources/public/A/A1.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
 
         XCTAssertEqual(model.project, [
             "Sources/project/C/C1.h",
             "Sources/project/D/D1.h",
-        ].map { fileHandler.currentPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(RelativePath($0)) })
     }
 
     func test_coreDataModel() throws {
         // Given
-        try fileHandler.touch(path.appending(component: "model.xcdatamodeld"))
+        let temporaryPath = try self.temporaryPath()
+        try FileHandler.shared.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
         let manifest = ProjectDescription.CoreDataModel("model.xcdatamodeld",
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: path)
+        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: temporaryPath)
 
         // Then
-        XCTAssertTrue(coreDataModel(model, matches: manifest, at: path))
+        XCTAssertTrue(coreDataModel(model, matches: manifest, at: temporaryPath))
     }
 
     func test_targetActions() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let manifest = ProjectDescription.TargetAction.test(name: "MyScript",
                                                             tool: "my_tool",
                                                             path: "my/path",
                                                             order: .pre,
                                                             arguments: ["arg1", "arg2"])
         // When
-        let model = TuistGenerator.TargetAction.from(manifest: manifest, path: path)
+        let model = TuistGenerator.TargetAction.from(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
         XCTAssertEqual(model.tool, "my_tool")
-        XCTAssertEqual(model.path, path.appending(RelativePath("my/path")))
+        XCTAssertEqual(model.path, temporaryPath.appending(RelativePath("my/path")))
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(model.arguments, ["arg1", "arg2"])
     }
@@ -545,11 +591,8 @@ class GeneratorModelLoaderTest: XCTestCase {
     }
 
     func test_platform_watchOSNotSupported() {
-        XCTAssertThrowsError(
-            try TuistGenerator.Platform.from(manifest: .watchOS)
-        ) { error in
-            XCTAssertEqual(error as? GeneratorModelLoaderError, GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
-        }
+        XCTAssertThrowsSpecific(try TuistGenerator.Platform.from(manifest: .watchOS),
+                                GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
     }
 
     func test_generatorModelLoaderError_type() {
@@ -564,8 +607,8 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_fileElement_warning_withDirectoryPathsAsFiles() throws {
         // Given
-        let path = fileHandler.currentPath
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "Documentation/README.md",
             "Documentation/USAGE.md",
         ])
@@ -574,8 +617,8 @@ class GeneratorModelLoaderTest: XCTestCase {
 
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: path,
-                                                    includeFiles: { !self.fileHandler.isFolder($0) })
+                                                    path: temporaryPath,
+                                                    includeFiles: { !FileHandler.shared.isFolder($0) })
 
         // Then
         XCTAssertPrinterOutputContains("'Documentation' is a directory, try using: 'Documentation/**' to list its files")
@@ -584,12 +627,11 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_fileElement_warning_withMisingPaths() throws {
         // Given
-        let path = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
         let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation/**")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: path)
+        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertPrinterOutputContains("No files found at: Documentation/**")
@@ -598,16 +640,15 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_fileElement_warning_withInvalidFolderReference() throws {
         // Given
-        let path = fileHandler.currentPath
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "README.md",
         ])
 
         let manifest = ProjectDescription.FileElement.folderReference(path: "README.md")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: path)
+        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -616,16 +657,35 @@ class GeneratorModelLoaderTest: XCTestCase {
 
     func test_fileElement_warning_withMissingFolderReference() throws {
         // Given
-        let path = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
         let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: path)
+        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
         XCTAssertEqual(model, [])
+    }
+
+    func test_deploymentTarget() throws {
+        // Given
+        let manifest: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "13.1", devices: .iphone)
+
+        // When
+        let got = TuistGenerator.DeploymentTarget.from(manifest: manifest)
+
+        // Then
+        guard
+            case let .iOS(version, devices) = got
+        else {
+            XCTFail("Deployment target should be iOS")
+            return
+        }
+
+        XCTAssertEqual(version, "13.1")
+        XCTAssertTrue(devices.contains(.iphone))
+        XCTAssertFalse(devices.contains(.ipad))
     }
 
     // MARK: - Helpers
@@ -703,7 +763,7 @@ class GeneratorModelLoaderTest: XCTestCase {
                 at path: AbsolutePath,
                 file: StaticString = #file,
                 line: UInt = #line) {
-        XCTAssertEqual(settings.base, manifest.base, file: file, line: line)
+        XCTAssertEqual(settings.base.count, manifest.base.count, file: file, line: line)
 
         let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
         let sortedManifsetConfigurations = manifest.configurations.sorted(by: { $0.name < $1.name })
@@ -718,8 +778,12 @@ class GeneratorModelLoaderTest: XCTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertTrue(configuration.0 == manifest, file: file, line: line)
-        XCTAssertEqual(configuration.1?.settings, manifest.configuration?.settings, file: file, line: line)
-        XCTAssertEqual(configuration.1?.xcconfig, manifest.configuration?.xcconfig.map { path.appending(RelativePath($0)) }, file: file, line: line)
+        XCTAssertEqual(configuration.1?.settings.count,
+                       manifest.configuration?.settings.count,
+                       file: file, line: line)
+        XCTAssertEqual(configuration.1?.xcconfig,
+                       manifest.configuration?.xcconfig.map { path.appending(RelativePath($0)) },
+                       file: file, line: line)
     }
 
     func assert(coreDataModels: [TuistGenerator.CoreDataModel],

@@ -17,16 +17,17 @@ final class CocoaPodsInteractorErrorTests: XCTestCase {
     }
 }
 
-final class CocoaPodsInteractorTests: XCTestCase {
-    var system: MockSystem!
+final class CocoaPodsInteractorTests: TuistUnitTestCase {
     var subject: CocoaPodsInteractor!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
+        subject = CocoaPodsInteractor()
+    }
 
-        system = MockSystem()
-        subject = CocoaPodsInteractor(system: system)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_install_when_cocoapods_cannot_be_found() {
@@ -41,9 +42,8 @@ final class CocoaPodsInteractorTests: XCTestCase {
         cache.add(cocoapods: cocoapods)
 
         // Then
-        XCTAssertThrowsError(try subject.install(graph: graph)) {
-            XCTAssertEqual($0 as? CocoaPodsInteractorError, CocoaPodsInteractorError.cocoapodsNotFound)
-        }
+        XCTAssertThrowsSpecific(try subject.install(graph: graph),
+                                CocoaPodsInteractorError.cocoapodsNotFound)
     }
 
     func test_install_when_theCocoaPodsFromBundlerCanBeUsed() throws {

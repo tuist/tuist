@@ -6,7 +6,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class UninstallCommandTests: XCTestCase {
+final class UninstallCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
@@ -14,14 +14,20 @@ final class UninstallCommandTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-
         parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         subject = UninstallCommand(parser: parser,
                                    versionsController: versionsController,
                                    installer: installer)
+    }
+
+    override func tearDown() {
+        parser = nil
+        versionsController = nil
+        installer = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_command() {

@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCoreTesting
 import XCTest
 @testable import TuistGenerator
 
@@ -190,5 +191,27 @@ final class SettingsTests: XCTestCase {
 
     private func emptyConfiguration() -> Configuration {
         return Configuration(settings: [:], xcconfig: nil)
+    }
+}
+
+final class DictionaryStringSettingValueExtensionTests: XCTestCase {
+    func testToAny() {
+        // Given
+        let buildConfig: [String: SettingValue] = [
+            "A": ["A_VALUE_1", "A_VALUE_2"],
+            "B": "B_VALUE",
+            "C": ["C_VALUE"],
+        ]
+        let expected: [String: Any] = [
+            "A": ["A_VALUE_1", "A_VALUE_2"],
+            "B": "B_VALUE",
+            "C": ["C_VALUE"],
+        ]
+
+        // When
+        let got = buildConfig.toAny()
+
+        // Then
+        XCTAssertEqualDictionaries(got, expected)
     }
 }

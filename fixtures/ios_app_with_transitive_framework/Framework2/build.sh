@@ -1,14 +1,14 @@
 #!/bin/sh
 
-tuist generate
+swift run tuist generate
 
 TEMP_DIR="/tmp/tuist-framework-2-fixture"
 IPHONE_SIM_DIR="$TEMP_DIR/Build/Products/Debug-iphoneos"
 IPHONE_OS_DIR="$TEMP_DIR/Build/Products/Debug-iphonesimulator"
 mkdir -p $TEMP_DIR
 
-xcrun xcodebuild build -scheme Framework2 -workspace Framework2.xcworkspace -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath $TEMP_DIR
-xcrun xcodebuild build -scheme Framework2 -workspace Framework2.xcworkspace -sdk iphonesimulator -derivedDataPath $TEMP_DIR
+xcrun xcodebuild build -scheme Framework2-iOS -workspace Framework2.xcworkspace -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath $TEMP_DIR
+xcrun xcodebuild build -scheme Framework2-iOS -workspace Framework2.xcworkspace -sdk iphonesimulator -derivedDataPath $TEMP_DIR
 
 mkdir -p prebuilt/Framework2.framework
 

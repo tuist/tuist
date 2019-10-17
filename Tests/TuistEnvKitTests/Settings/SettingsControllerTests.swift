@@ -4,14 +4,19 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class SettingsControllerTests: XCTestCase {
+final class SettingsControllerTests: TuistUnitTestCase {
     var subject: SettingsController!
-    var environmentController: MockEnvironmentController!
 
     override func setUp() {
         super.setUp()
-        environmentController = try! MockEnvironmentController()
-        subject = SettingsController(environmentController: environmentController)
+
+        subject = SettingsController()
+    }
+
+    override func tearDown() {
+        subject = nil
+
+        super.tearDown()
     }
 
     func test_settings_returns_the_default_settings_if_they_havent_been_set() throws {

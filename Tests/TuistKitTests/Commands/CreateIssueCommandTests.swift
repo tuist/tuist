@@ -4,14 +4,19 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class CreateIssueCommandTests: XCTestCase {
-    var system: MockSystem!
+final class CreateIssueCommandTests: TuistUnitTestCase {
     var subject: CreateIssueCommand!
 
     override func setUp() {
         super.setUp()
-        system = MockSystem()
-        subject = CreateIssueCommand(system: system)
+        let parser = ArgumentParser.test()
+
+        subject = CreateIssueCommand(parser: parser)
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_command() {

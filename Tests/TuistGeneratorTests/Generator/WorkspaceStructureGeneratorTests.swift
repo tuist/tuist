@@ -291,6 +291,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             return cache[path] != nil
         }
 
+        func move(from _: AbsolutePath, to _: AbsolutePath) throws {}
+
         func copy(from _: AbsolutePath, to _: AbsolutePath) throws {}
 
         func readTextFile(_: AbsolutePath) throws -> String {
@@ -313,6 +315,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
                 pathSoFar = pathSoFar.appending(component: component)
                 cache[pathSoFar] = .folder
             }
+        }
+
+        func linkFile(atPath _: AbsolutePath, toPath: AbsolutePath) throws {
+            try touch(toPath)
         }
 
         func delete(_ path: AbsolutePath) throws {

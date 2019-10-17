@@ -43,6 +43,14 @@ public protocol FileHandling: AnyObject {
     /// - Returns: True if there's a folder or file at the given path.
     func exists(_ path: AbsolutePath) -> Bool
 
+    /// Move a file from a location to another location
+    ///
+    /// - Parameters:
+    ///   - from: File/Folder to be moved.
+    ///   - to: Path where the file/folder will be moved.
+    /// - Throws: An error if from doesn't exist or to does.
+    func move(from: AbsolutePath, to: AbsolutePath) throws
+
     /// It copies a file or folder to another path.
     ///
     /// - Parameters:
@@ -75,13 +83,14 @@ public protocol FileHandling: AnyObject {
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
+    func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
     func createFolder(_ path: AbsolutePath) throws
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
 }
 
-public final class FileHandler: FileHandling {
+public class FileHandler: FileHandling {
     /// Shared instance.
     public static var shared: FileHandling = FileHandler()
 
@@ -136,7 +145,8 @@ public final class FileHandler: FileHandling {
 
     /// Returns true if there's a folder or file at the given path.
     ///
-    /// - Parameter path: Path to check.
+    /// - Parameters:
+    ///     - path: Path to check.
     /// - Returns: True if there's a folder or file at the given path.
     public func exists(_ path: AbsolutePath) -> Bool {
         return fileManager.fileExists(atPath: path.pathString)
@@ -152,6 +162,16 @@ public final class FileHandler: FileHandling {
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
 
+    /// Move a file from a location to another location
+    ///
+    /// - Parameters:
+    ///   - from: File/Folder to be moved.
+    ///   - to: Path where the file/folder will be moved.
+    /// - Throws: An error if from doesn't exist or to does.
+    public func move(from: AbsolutePath, to: AbsolutePath) throws {
+        try fileManager.moveItem(atPath: from.pathString, toPath: to.pathString)
+    }
+
     /// Reads a text file at the given path and returns it.
     ///
     /// - Parameter at: Path to the text file.
@@ -164,6 +184,10 @@ public final class FileHandler: FileHandling {
         } else {
             throw FileHandlerError.invalidTextEncoding(at)
         }
+    }
+
+    public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
+        try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }
 
     /// Writes a string into the given path (using the utf8 encoding)

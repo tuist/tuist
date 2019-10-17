@@ -4,8 +4,45 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- XCTAssertThrowsSpecific convenient function to test for specific errors https://github.com/tuist/tuist/pull/535 by @fortmarek
+- `HTTPClient` utility class to `TuistEnvKit` https://github.com/tuist/tuist/pull/508 by @pepibumur.
+- **Breaking** Allow specifying a deployment target within project manifests https://github.com/tuist/tuist/pull/541by @mollyIV
+
+### Changed
+
+- Introduce `Systems.shared`, `TuistTestCase`, and `TuistUnitTestCase` https://github.com/tuist/tuist/pull/519 by @pepibumur.
+
 ### Fixed
+
+- Fix false positive cycle detection https://github.com/tuist/tuist/pull/546 by @kwridan
+
+## 0.18.1
+
+### Removed
+
+- Reverting https://github.com/tuist/tuist/pull/494 using variables in `productName` doesn't evaluate in all usage points within the generated project
+
+## 0.18.0
+
+### Added
+
+- New InfoPlist type, `.extendingDefault([:])` https://github.com/tuist/tuist/pull/448 by @pepibumur
+- Forward the output of the `codesign` command to make debugging easier when the copy frameworks command fails https://github.com/tuist/tuist/pull/492 by @pepibumur.
+- Support for multi-line settings (see [how to migrate](https://github.com/tuist/tuist/pull/464#issuecomment-529673717)) https://github.com/tuist/tuist/pull/464 by @marciniwanicki
+- Support for SPM https://github.com/tuist/tuist/pull/394 by @pepibumur & @fortmarek & @kwridan & @ollieatkinson
+- Xcode 11 Support by @ollieatkinson
+
+### Fixed
+
 - Transitively link static dependency's dynamic dependencies correctly https://github.com/tuist/tuist/pull/484 by @adamkhazi
+- Prevent embedding static frameworks https://github.com/tuist/tuist/pull/490 by @kwridan
+- Output losing its format when tuist is run through `tuistenv` https://github.com/tuist/tuist/pull/493 by @pepibumur
+- Product name linting failing when it contains variables https://github.com/tuist/tuist/pull/494 by @dcvz
+- Build phases not generated in the right position https://github.com/tuist/tuist/pull/506 by @pepibumur
+- Remove \$(SRCROOT) from being included in `Info.plist` path https://github.com/tuist/tuist/pull/511 by @dcvz
+- Prevent generation of redundant file elements https://github.com/tuist/tuist/pull/515 by @kwridan
 
 ## 0.17.0
 

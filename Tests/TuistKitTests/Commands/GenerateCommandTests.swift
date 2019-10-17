@@ -7,19 +7,15 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 
-final class GenerateCommandTests: XCTestCase {
+final class GenerateCommandTests: TuistUnitTestCase {
     var subject: GenerateCommand!
     var generator: MockGenerator!
     var parser: ArgumentParser!
-    var fileHandler: MockFileHandler!
     var manifestLoader: MockGraphManifestLoader!
     var clock: StubClock!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
         generator = MockGenerator()
         parser = ArgumentParser.test()
         manifestLoader = MockGraphManifestLoader()
@@ -29,6 +25,15 @@ final class GenerateCommandTests: XCTestCase {
                                   generator: generator,
                                   manifestLoader: manifestLoader,
                                   clock: clock)
+    }
+
+    override func tearDown() {
+        generator = nil
+        parser = nil
+        manifestLoader = nil
+        clock = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_command() {
@@ -87,7 +92,7 @@ final class GenerateCommandTests: XCTestCase {
 
     func test_run_withRelativePathParameter() throws {
         // Given
-        let path = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([GenerateCommand.command, "--path", "subpath"])
         var generationPath: AbsolutePath?
         manifestLoader.manifestsAtStub = { _ in
@@ -102,7 +107,7 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(generationPath, AbsolutePath("subpath", relativeTo: path))
+        XCTAssertEqual(generationPath, AbsolutePath("subpath", relativeTo: temporaryPath))
     }
 
     func test_run_withAbsoultePathParameter() throws {
@@ -126,6 +131,7 @@ final class GenerateCommandTests: XCTestCase {
 
     func test_run_withoutPathParameter() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([GenerateCommand.command])
         var generationPath: AbsolutePath?
         manifestLoader.manifestsAtStub = { _ in
@@ -140,11 +146,12 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(generationPath, fileHandler.currentPath)
+        XCTAssertEqual(generationPath, temporaryPath)
     }
 
     func test_run_withProjectOnlyParameter() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([GenerateCommand.command, "--project-only"])
         var generationPath: AbsolutePath?
         manifestLoader.manifestsAtStub = { _ in
@@ -159,21 +166,20 @@ final class GenerateCommandTests: XCTestCase {
         try subject.run(with: result)
 
         // Then
-        XCTAssertEqual(generationPath, fileHandler.currentPath)
+        XCTAssertEqual(generationPath, temporaryPath)
     }
 
     func test_run_withMissingManifest_throws() throws {
         // Given
-        let path = fileHandler.currentPath
+        let temporaryPath = try self.temporaryPath()
         let result = try parser.parse([GenerateCommand.command])
         manifestLoader.manifestsAtStub = { _ in
             Set()
         }
 
         // When / Then
-        XCTAssertThrowsError(try subject.run(with: result)) {
-            XCTAssertEqual($0 as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(path))
-        }
+        XCTAssertThrowsSpecific(try subject.run(with: result),
+                                GraphManifestLoaderError.manifestNotFound(temporaryPath))
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {

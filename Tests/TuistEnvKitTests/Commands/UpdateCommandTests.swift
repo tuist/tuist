@@ -6,19 +6,24 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class UpdateCommandTests: XCTestCase {
+final class UpdateCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
     var subject: UpdateCommand!
     var updater: MockUpdater!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-
         parser = ArgumentParser(usage: "test", overview: "overview")
         updater = MockUpdater()
         subject = UpdateCommand(parser: parser,
                                 updater: updater)
+    }
+
+    override func tearDown() {
+        parser = nil
+        updater = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_command() {

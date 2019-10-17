@@ -1,9 +1,8 @@
 import React from 'react'
 import { Responsive, Label, Table } from 'semantic-ui-react'
-import styled from 'styled-components'
 import StyledCode from "./styled-code"
 
-const PropertiesTable = ({ props }) => {
+const PropertiesTable = ({ properties }) => {
   return (
     <Table celled>
       <Responsive as={Table.Header} {...Responsive.onlyComputer}>
@@ -17,7 +16,7 @@ const PropertiesTable = ({ props }) => {
       </Responsive>
 
       <Table.Body>
-        {props.map((prop, index) => {
+        {properties.map((prop, index) => {
           let type
           if (prop.typeLink) {
             type = <a href={prop.typeLink}>{prop.type}</a>

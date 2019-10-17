@@ -6,29 +6,31 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class InstallerTests: XCTestCase {
-    var fileHandler: MockFileHandler!
+final class InstallerTests: TuistUnitTestCase {
     var buildCopier: MockBuildCopier!
     var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var system: MockSystem!
     var githubClient: MockGitHubClient!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
-        system = MockSystem()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         githubClient = MockGitHubClient()
-        subject = Installer(system: system,
-                            buildCopier: buildCopier,
+        subject = Installer(buildCopier: buildCopier,
                             versionsController: versionsController,
                             githubClient: githubClient)
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        buildCopier = nil
+        versionsController = nil
+        tmpDir = nil
+        githubClient = nil
+        subject = nil
     }
 
     func test_install_when_invalid_swift_version() throws {
@@ -44,15 +46,14 @@ final class InstallerTests: XCTestCase {
         }
 
         let expectedError = InstallerError.incompatibleSwiftVersion(local: "4.2.1", expected: "5.0.0")
-        XCTAssertThrowsError(try subject.install(version: version,
-                                                 temporaryDirectory: temporaryDirectory)) { error in
-            XCTAssertEqual(error as? InstallerError, expectedError)
-        }
+        XCTAssertThrowsSpecific(try subject.install(version: version,
+                                                    temporaryDirectory: temporaryDirectory), expectedError)
         XCTAssertPrinterOutputContains("Verifying the Swift version is compatible with your version 4.2.1")
     }
 
     func test_install_when_bundled_release() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
@@ -65,7 +66,7 @@ final class InstallerTests: XCTestCase {
         }
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
 
         let downloadPath = temporaryDirectory
@@ -77,7 +78,7 @@ final class InstallerTests: XCTestCase {
         system.succeedCommand("/usr/bin/unzip",
                               "-q",
                               downloadPath.pathString,
-                              "-d", fileHandler.currentPath.pathString)
+                              "-d", temporaryPath.pathString)
 
         try subject.install(version: version,
                             temporaryDirectory: temporaryDirectory)
@@ -89,11 +90,12 @@ final class InstallerTests: XCTestCase {
         Version \(version) installed
         """)
 
-        let tuistVersionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
-        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
+        let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
+        XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
     }
 
     func test_install_when_bundled_release_and_download_fails() throws {
+        let temporaryPath = try self.temporaryPath()
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -107,7 +109,7 @@ final class InstallerTests: XCTestCase {
         }
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
 
         let downloadPath = temporaryDirectory
@@ -122,6 +124,7 @@ final class InstallerTests: XCTestCase {
     }
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
+        let temporaryPath = try self.temporaryPath()
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -135,7 +138,7 @@ final class InstallerTests: XCTestCase {
         }
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
 
         let downloadPath = temporaryDirectory
@@ -145,7 +148,7 @@ final class InstallerTests: XCTestCase {
                               "--output", downloadPath.pathString,
                               downloadURL.absoluteString)
         system.errorCommand("/usr/bin/unzip", downloadPath.pathString,
-                            "-d", fileHandler.currentPath.pathString,
+                            "-d", temporaryPath.pathString,
                             error: "unzip_error")
 
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory))
@@ -153,9 +156,11 @@ final class InstallerTests: XCTestCase {
 
     func test_install_when_no_bundled_release() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
+
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
+        let installationDirectory = temporaryPath.appending(component: "3.2.1")
 
         versionsController.installStub = { _, closure in
             try closure(installationDirectory)
@@ -188,14 +193,15 @@ final class InstallerTests: XCTestCase {
         """)
 
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
-        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
+        XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
     }
 
     func test_install_when_force() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let installationDirectory = fileHandler.currentPath.appending(component: "3.2.1")
+        let installationDirectory = temporaryPath.appending(component: "3.2.1")
 
         versionsController.installStub = { _, closure in
             try closure(installationDirectory)
@@ -226,16 +232,17 @@ final class InstallerTests: XCTestCase {
         Version 3.2.1 installed
         """)
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
-        XCTAssertTrue(fileHandler.exists(tuistVersionPath))
+        XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
     }
 
     func test_install_when_no_bundled_release_and_invalid_reference() throws {
         let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 
         versionsController.installStub = { _, closure in
-            try closure(self.fileHandler.currentPath)
+            try closure(temporaryPath)
         }
         system.succeedCommand("/usr/bin/env", "git",
                               "clone", Constants.gitRepositoryURL,
@@ -245,9 +252,7 @@ final class InstallerTests: XCTestCase {
                             error: "did not match any file(s) known to git ")
 
         let expected = InstallerError.versionNotFound(version)
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory)) {
-            XCTAssertEqual($0 as? InstallerError, expected)
-        }
+        XCTAssertThrowsSpecific(try subject.install(version: version, temporaryDirectory: temporaryDirectory), expected)
     }
 
     // MARK: - Fileprivate

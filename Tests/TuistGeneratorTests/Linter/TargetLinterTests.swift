@@ -5,16 +5,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class TargetLinterTests: XCTestCase {
+final class TargetLinterTests: TuistUnitTestCase {
     var subject: TargetLinter!
-    var fileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-
         subject = TargetLinter()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_lint_when_target_has_invalid_product_name() {
@@ -83,8 +84,9 @@ final class TargetLinterTests: XCTestCase {
         XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning)))
     }
 
-    func test_lint_when_entitlements_not_missing() {
-        let path = fileHandler.currentPath.appending(component: "Info.plist")
+    func test_lint_when_entitlements_not_missing() throws {
+        let temporaryPath = try self.temporaryPath()
+        let path = temporaryPath.appending(component: "Info.plist")
         let target = Target.test(infoPlist: .file(path: path))
 
         let got = subject.lint(target: target)
@@ -92,8 +94,9 @@ final class TargetLinterTests: XCTestCase {
         XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist file not found at path \(path.pathString)", severity: .error)))
     }
 
-    func test_lint_when_infoplist_not_found() {
-        let path = fileHandler.currentPath.appending(component: "App.entitlements")
+    func test_lint_when_infoplist_not_found() throws {
+        let temporaryPath = try self.temporaryPath()
+        let path = temporaryPath.appending(component: "App.entitlements")
         let target = Target.test(entitlements: path)
 
         let got = subject.lint(target: target)
@@ -101,8 +104,9 @@ final class TargetLinterTests: XCTestCase {
         XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error)))
     }
 
-    func test_lint_when_library_has_resources() {
-        let path = fileHandler.currentPath.appending(component: "Image.png")
+    func test_lint_when_library_has_resources() throws {
+        let temporaryPath = try self.temporaryPath()
+        let path = temporaryPath.appending(component: "Image.png")
         let element = FileElement.file(path: path)
 
         let staticLibrary = Target.test(product: .staticLibrary, resources: [element])
@@ -147,5 +151,33 @@ final class TargetLinterTests: XCTestCase {
 
         // Then
         XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_lint_when_deployment_target_version_is_valid() {
+        let validVersions = ["10.0", "9.0.1"]
+        for version in validVersions {
+            // Given
+            let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
+
+            // When
+            let got = subject.lint(target: target)
+
+            // Then
+            XCTAssertFalse(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+        }
+    }
+
+    func test_lint_when_deployment_target_version_is_invalid() {
+        let validVersions = ["tuist", "tuist9.0.1", "1.0tuist", "10_0", "1_1_3"]
+        for version in validVersions {
+            // Given
+            let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
+
+            // When
+            let got = subject.lint(target: target)
+
+            // Then
+            XCTAssertTrue(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+        }
     }
 }

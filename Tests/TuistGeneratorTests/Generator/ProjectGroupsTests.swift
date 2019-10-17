@@ -125,9 +125,8 @@ final class ProjectGroupsTests: XCTestCase {
         subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
 
         // When / Then
-        XCTAssertThrowsError(try subject.projectGroup(named: "abc")) { error in
-            XCTAssertEqual(error as? ProjectGroupsError, ProjectGroupsError.missingGroup("abc"))
-        }
+        XCTAssertThrowsSpecific(try subject.projectGroup(named: "abc"),
+                                ProjectGroupsError.missingGroup("abc"))
     }
 
     func test_projectGroup_knownProjectGroups() throws {

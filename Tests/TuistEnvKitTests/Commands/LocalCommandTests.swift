@@ -6,20 +6,25 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistEnvKit
 
-final class LocalCommandTests: XCTestCase {
+final class LocalCommandTests: TuistUnitTestCase {
     var argumentParser: ArgumentParser!
     var subject: LocalCommand!
-    var fileHandler: MockFileHandler!
     var versionController: MockVersionsController!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
 
         argumentParser = ArgumentParser(usage: "test", overview: "overview")
         versionController = try! MockVersionsController()
         subject = LocalCommand(parser: argumentParser, versionController: versionController)
+    }
+
+    override func tearDown() {
+        argumentParser = nil
+        subject = nil
+        versionController = nil
+
+        super.tearDown()
     }
 
     func test_command() {
@@ -37,19 +42,21 @@ final class LocalCommandTests: XCTestCase {
     }
 
     func test_run_when_version_argument_is_passed() throws {
+        let temporaryPath = try self.temporaryPath()
         let result = try argumentParser.parse(["local", "3.2.1"])
         try subject.run(with: result)
 
-        let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+        let versionPath = temporaryPath.appending(component: Constants.versionFileName)
 
         XCTAssertEqual(try String(contentsOf: versionPath.url), "3.2.1")
     }
 
     func test_run_prints_when_version_argument_is_passed() throws {
+        let temporaryPath = try self.temporaryPath()
         let result = try argumentParser.parse(["local", "3.2.1"])
         try subject.run(with: result)
 
-        let versionPath = fileHandler.currentPath.appending(component: Constants.versionFileName)
+        let versionPath = temporaryPath.appending(component: Constants.versionFileName)
 
         XCTAssertPrinterOutputContains("""
         Generating \(Constants.versionFileName) file with version 3.2.1

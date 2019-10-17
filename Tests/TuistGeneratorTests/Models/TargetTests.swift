@@ -3,17 +3,9 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class TargetTests: XCTestCase {
-    var fileHandler: MockFileHandler!
-
-    override func setUp() {
-        super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
-    }
-
+final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d"])
+        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition"])
     }
 
     func test_productName_when_staticLibrary() {
@@ -54,7 +46,8 @@ final class TargetTests: XCTestCase {
 
     func test_sources() throws {
         // Given
-        try fileHandler.createFiles([
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
             "sources/a.swift",
             "sources/b.h",
             "sources/b.m",
@@ -65,14 +58,14 @@ final class TargetTests: XCTestCase {
         ])
 
         // When
-        let sources = try Target.sources(projectPath: fileHandler.currentPath,
+        let sources = try Target.sources(projectPath: temporaryPath,
                                          sources: [
                                              (glob: "sources/**", compilerFlags: nil),
                                              (glob: "sources/**", compilerFlags: nil),
                                          ])
 
         // Then
-        let relativeSources = sources.map { $0.path.relative(to: fileHandler.currentPath).pathString }
+        let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
 
         XCTAssertEqual(Set(relativeSources), Set([
             "sources/a.swift",
@@ -85,12 +78,13 @@ final class TargetTests: XCTestCase {
 
     func test_resources() throws {
         // Given
-        let folders = try fileHandler.createFolders([
+        let temporaryPath = try self.temporaryPath()
+        let folders = try createFolders([
             "resources/d.xcassets",
             "resources/g.bundle",
         ])
 
-        let files = try fileHandler.createFiles([
+        let files = try createFiles([
             "resources/a.png",
             "resources/b.jpg",
             "resources/b.jpeg",
@@ -105,7 +99,7 @@ final class TargetTests: XCTestCase {
         let resources = paths.filter { Target.isResource(path: $0) }
 
         // Then
-        let relativeResources = resources.map { $0.relative(to: fileHandler.currentPath).pathString }
+        let relativeResources = resources.map { $0.relative(to: temporaryPath).pathString }
         XCTAssertEqual(relativeResources, [
             "resources/d.xcassets",
             "resources/g.bundle",

@@ -160,6 +160,9 @@ public enum SystemError: FatalError {
 }
 
 public final class System: Systeming {
+    /// Shared system instance.
+    public static var shared: Systeming = System()
+
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
@@ -183,9 +186,6 @@ public final class System: Systeming {
 
     // MARK: - Init
 
-    /// Default constructor.
-    public init() {}
-
     // MARK: - Systeming
 
     /// Runs a command without collecting output nor printing anything.
@@ -199,8 +199,10 @@ public final class System: Systeming {
                                                          stderr: { _ in }),
                               verbose: false,
                               startNewProcessGroup: false)
+
         try process.launch()
         let result = try process.waitUntilExit()
+
         try result.throwIfErrored()
     }
 
@@ -264,9 +266,12 @@ public final class System: Systeming {
                               outputRedirection: .collect,
                               verbose: verbose,
                               startNewProcessGroup: false)
+
         try process.launch()
         let result = try process.waitUntilExit()
+
         try result.throwIfErrored()
+
         return try result.utf8Output()
     }
 
@@ -327,7 +332,10 @@ public final class System: Systeming {
     ///   - environment: Environment that should be used when running the task.
     ///   - redirection: Instance through which the output will be redirected.
     /// - Throws: An error if the command fails.
-    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: Basic.Process.OutputRedirection) throws {
+    public func runAndPrint(_ arguments: [String],
+                            verbose: Bool,
+                            environment: [String: String],
+                            redirection: Basic.Process.OutputRedirection) throws {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in
@@ -338,8 +346,10 @@ public final class System: Systeming {
                                   redirection.outputClosures?.stderrClosure(bytes)
                               }), verbose: verbose,
                               startNewProcessGroup: false)
+
         try process.launch()
         let result = try process.waitUntilExit()
+
         try result.throwIfErrored()
     }
 
@@ -367,6 +377,7 @@ public final class System: Systeming {
                               outputRedirection: .none,
                               verbose: verbose,
                               startNewProcessGroup: true)
+
         try process.launch()
     }
 

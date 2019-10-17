@@ -11,6 +11,8 @@ AllCops:
   DisplayCopNames: true
   DisplayStyleGuide: true
   Exclude:
+    - features/**/*
+    - fixtures/**/*
     - docs/**/*
     - .build/**/*
     - .circleci/**/*
@@ -20,7 +22,6 @@ AllCops:
     - build/**/*
     - Carthage/**/*
     - docs/**/*
-    - fixtures/**/*
     - Sources/**/*
     - Tests/**/*
     - galaxy/node_modules/**/*

@@ -5,18 +5,17 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 
-final class TargetActionLinterTests: XCTestCase {
-    var system: System!
-    var fileHandler: MockFileHandler!
+final class TargetActionLinterTests: TuistUnitTestCase {
     var subject: TargetActionLinter!
 
     override func setUp() {
         super.setUp()
-        mockEnvironment()
-        fileHandler = sharedMockFileHandler()
+        subject = TargetActionLinter()
+    }
 
-        system = System()
-        subject = TargetActionLinter(system: system)
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
     }
 
     func test_lint_whenTheToolDoesntExist() {
@@ -30,10 +29,11 @@ final class TargetActionLinterTests: XCTestCase {
         XCTAssertTrue(got.contains(expected))
     }
 
-    func test_lint_whenPathDoesntExist() {
+    func test_lint_whenPathDoesntExist() throws {
+        let temporaryPath = try self.temporaryPath()
         let action = TargetAction(name: "name",
                                   order: .pre,
-                                  path: fileHandler.currentPath.appending(component: "invalid.sh"))
+                                  path: temporaryPath.appending(component: "invalid.sh"))
         let got = subject.lint(action)
 
         let expected = LintingIssue(reason: "The action path \(action.path!.pathString) doesn't exist",
