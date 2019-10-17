@@ -85,6 +85,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "BNDL"
         case .staticFramework, .framework:
             packageType = "FMWK"
+        case .appExtension, .stickerPackExtension:
+            packageType = "XPC!"
         }
 
         if let packageType = packageType {
