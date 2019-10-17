@@ -24,7 +24,7 @@
     "prismjs": "^1.17.1",
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
-    "sass-loader": "^7.1.0",
+    "sass-loader": "^8.0.0",
     "semantic-ui-react": "^0.87.1",
     "style-loader": "^0.23.1"
   }
