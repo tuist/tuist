@@ -48,7 +48,7 @@
     "typography-theme-ocean-beach": "^0.16.19"
   },
   "devDependencies": {
-    "@emotion/core": "^10.0.17",
+    "@emotion/core": "^10.0.21",
     "@mdx-js/react": "^1.4.0",
     "gatsby-plugin-theme-ui": "^0.2.43",
     "prettier": "^1.18.2",
