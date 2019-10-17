@@ -6,6 +6,7 @@
     "@rails/webpacker": "^4.0.7",
     "core-js": "^3.3.2",
     "regenerator-runtime": "^0.13.3",
+    "stimulus": "^1.1.1",
     "turbolinks": "^5.2.0"
   },
   "devDependencies": {
