@@ -6289,12 +6289,12 @@ gatsby-remark-autolink-headers@^2.1.16:
     mdast-util-to-string "^1.0.6"
     unist-util-visit "^1.4.1"
 
-gatsby-remark-smartypants@^2.1.8:
-  version "2.1.11"
-  resolved "https://registry.yarnpkg.com/gatsby-remark-smartypants/-/gatsby-remark-smartypants-2.1.11.tgz#88fe206bb72c9b2c9ab71f709a25f6a67a3f215c"
-  integrity sha512-ueQTjmxy5WxLiAdW+Hr9BzxrESec38YC1wzThLqtRuS2kTF17mmJVLSkCom/G20nxmOhUXX6nPYEacIjrAm1AQ==
+gatsby-remark-smartypants@^2.1.14:
+  version "2.1.14"
+  resolved "https://registry.yarnpkg.com/gatsby-remark-smartypants/-/gatsby-remark-smartypants-2.1.14.tgz#27b9cd010068d317409149f0f7045d216d861066"
+  integrity sha512-y7okaFRM1vZk4KT47MGbkF91tZYmoJz/4SfT/JXNjt4tfkPi8mdTvkAoPE4LYHV3nyh3xLGJRSSk6gCIKakK0Q==
   dependencies:
-    "@babel/runtime" "^7.6.2"
+    "@babel/runtime" "^7.6.3"
     retext "^5.0.0"
     retext-smartypants "^3.0.3"
     unist-util-visit "^1.4.1"
