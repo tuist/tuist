@@ -32,5 +32,11 @@ module Galaxy
     config.autoload_paths << config.root.join('frontend/components')
     config.load_defaults(5.2)
     config.filter_parameters << :password
+    config.assets.enabled = false
+    config.assets.compress = false
+
+    config.generators do |g|
+      g.assets false
+    end
   end
 end
