@@ -127,7 +127,7 @@ GEM
       mini_portile2 (~> 2.4.0)
     pg (1.1.4)
     public_suffix (4.0.1)
-    puma (4.2.0)
+    puma (4.2.1)
       nio4r (~> 2.0)
     rack (2.0.7)
     rack-protection (2.0.7)
@@ -237,7 +237,7 @@ DEPENDENCIES
   jbuilder (~> 2.5)
   listen (>= 3.0.5, < 3.2)
   pg (>= 0.18, < 2.0)
-  puma (~> 4.0)
+  puma (~> 4.2)
   rails (~> 6.0.0)
   sass-rails (~> 6.0)
   selenium-webdriver
