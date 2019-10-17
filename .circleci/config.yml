@@ -64,7 +64,7 @@ jobs:
     steps:
       - checkout
       - multirepo/run-job-for-paths:
-          paths: Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/*
+          paths: 'Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/*'
       - run:
           name: Build for release
           command: |
@@ -100,7 +100,7 @@ jobs:
     steps:
       - checkout
       - multirepo/run-job-for-paths:
-          paths: Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/* fixtures/**/* features/**/*
+          paths: 'Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/* fixtures/**/* features/**/*'
       - restore_cache:
           key: bundler-{{ checksum "Gemfile.lock" }}
       - run:
@@ -143,10 +143,7 @@ jobs:
     steps:
       - checkout
       - multirepo/run-job-for-paths:
-          paths: Sources/**/* Tests/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved
-      - multirepo/run-job-for-paths:
-          paths:
-            - Sources/
+          paths: 'Sources/**/* Tests/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved'
       - run:
           name: Generate Xcode project
           command: |
@@ -181,7 +178,7 @@ jobs:
           path: ~/repo
 
       - multirepo/run-job-for-paths:
-          paths: galaxy/**/* .circleci/**/*
+          paths: 'galaxy/**/* .circleci/**/*'
 
       - run:
           name: Update Bundler
@@ -222,7 +219,7 @@ jobs:
       - checkout:
           path: ~/repo
       - multirepo/run-job-for-paths:
-          paths: galaxy/**/* .circleci/**/*
+          paths: 'galaxy/**/* .circleci/**/*'
       - run:
           name: Deploy Master to Heroku
           command: |
