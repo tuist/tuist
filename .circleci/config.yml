@@ -45,7 +45,7 @@ jobs:
       xcode: '11.0.0'
     steps:
       - checkout
-      - run-job-for-paths:
+      - multirepo/run-job-for-paths:
           paths:
             - Sources/
             - .circleci/
@@ -71,7 +71,7 @@ jobs:
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
-      - run-job-for-paths:
+      - multirepo/run-job-for-paths:
           paths:
             - Sources/
             - .circleci/
@@ -114,7 +114,7 @@ jobs:
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
-      - run-job-for-paths:
+      - multirepo/run-job-for-paths:
           paths:
             - Sources/
             - Tests/
@@ -167,7 +167,7 @@ jobs:
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
-      - run-job-for-paths:
+      - multirepo/run-job-for-paths:
           paths:
             - Sources/
             - Tests/
@@ -177,7 +177,7 @@ jobs:
             - Rakefile
             - Package.swift
             - Package.resolved
-      - run-job-for-paths:
+      - multirepo/run-job-for-paths:
           paths:
             - Sources/
       - run:
@@ -213,7 +213,7 @@ jobs:
       - checkout:
           path: ~/repo
 
-      - run-job-for-paths:
+      - multirepo/run-job-for-paths:
           paths:
             - galaxy/
             - .circleci/
@@ -256,7 +256,7 @@ jobs:
     steps:
       - checkout:
           path: ~/repo
-      - run-job-for-paths:
+      - multirepo/run-job-for-paths:
           paths:
             - galaxy/
             - .circleci/
