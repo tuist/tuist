@@ -303,6 +303,58 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateAppExtensionsBuildPhase() throws {
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let projectA = Project.test(path: "/path/a")
+        let stickerPackExtension = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
+        let projectB = Project.test(path: "/path/b")
+        let app = Target.test(name: "App", product: .app)
+        let projectC = Project.test(path: "/path/c")
+        let graph = Graph.create(projects: [projectA, projectB, projectC],
+                                 dependencies: [
+                                    (project: projectA, target: appExtension, dependencies: []),
+                                    (project: projectB, target: stickerPackExtension, dependencies: []),
+                                    (project: projectC, target: app, dependencies: [appExtension, stickerPackExtension])
+                                 ])
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [appExtension, stickerPackExtension])
+
+        try subject.generateAppExtensionsBuildPhase(path: projectC.path,
+                                                    target: app,
+                                                    graph: graph,
+                                                    pbxTarget: nativeTarget,
+                                                    fileElements: fileElements,
+                                                    pbxproj: pbxproj)
+
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
+        XCTAssertNotNil(pbxBuildPhase)
+        XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, [
+             "AppExtension",
+             "StickerPackExtension",
+         ])
+    }
+
+    func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test()
+        let graph = Graph.create(projects: [project],
+                                 dependencies: [])
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = ProjectFileElements()
+
+        try subject.generateAppExtensionsBuildPhase(path: project.path,
+                                                    target: app,
+                                                    graph: graph,
+                                                    pbxTarget: nativeTarget,
+                                                    fileElements: fileElements,
+                                                    pbxproj: pbxproj)
+
+        XCTAssertTrue(nativeTarget.buildPhases.isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
