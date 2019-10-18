@@ -89,10 +89,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         xcodeController.selectedVersionStub = .success(versionStub)
 
         // When
+        
         let result = subject.lint(graph: graph)
 
         // Then
-        XCTEmpty(result)
+        let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
+        XCTAssertFalse(result.contains(LintingIssue(reason: reason, severity: .error)))
     }
 
     func test_lint_when_no_version_available() throws {
