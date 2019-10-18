@@ -174,7 +174,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
                                    settings: .default,
                                    targets: [target],
                                    packages: [
-                                     .remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
+                                       .remote(url: "http://some.remote/repo.git", requirement: .exact("branch")),
                                    ])
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])

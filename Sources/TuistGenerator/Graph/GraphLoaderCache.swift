@@ -28,7 +28,7 @@ protocol GraphLoaderCaching: AnyObject {
     ///
     /// - Parameter cocoapods: Node to be added to the cache.
     func add(cocoapods: CocoaPodsNode)
-    
+
     var packages: [AbsolutePath: [PackageNode]] { get }
 
     var packageNodes: [AbsolutePath: PackageDependencyNode] { get }
@@ -96,7 +96,7 @@ class GraphLoaderCache: GraphLoaderCaching {
 
     func add(project: Project) {
         projects[project.path] = project
-        packages[project.path] = project.packages.map({ PackageNode(package: $0, path: project.path) })
+        packages[project.path] = project.packages.map { PackageNode(package: $0, path: project.path) }
     }
 
     func add(precompiledNode: PrecompiledNode) {

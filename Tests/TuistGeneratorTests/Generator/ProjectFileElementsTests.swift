@@ -595,7 +595,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let target = Target.empty(name: "TargetA")
         let project = Project.empty(path: "/a/project",
                                     targets: [target],
-                                    packages: [ .remote(url: "url", requirement: .branch("master")) ])
+                                    packages: [.remote(url: "url", requirement: .branch("master"))])
         let groups = ProjectGroups.generate(project: .test(),
                                             pbxproj: pbxproj,
                                             sourceRootPath: project.path)

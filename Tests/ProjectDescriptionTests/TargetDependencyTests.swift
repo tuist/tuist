@@ -64,5 +64,4 @@ final class TargetDependencyTests: XCTestCase {
         // Then
         XCTAssertCodable(subject)
     }
-    
 }

@@ -109,7 +109,7 @@ class ProjectFileElements {
         return fileElements
     }
 
-    func targetFiles(target: Target, projectPath: AbsolutePath, graph: Graphing) throws -> Set<GroupFileElement> {
+    func targetFiles(target: Target, projectPath _: AbsolutePath, graph _: Graphing) throws -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources.map { $0.path })
         files.formUnion(target.coreDataModels.map { $0.path })

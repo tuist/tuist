@@ -23,9 +23,7 @@ public enum Package: Equatable {
 }
 
 extension Package {
-    
     public enum Requirement: Equatable {
-        
         case upToNextMajor(String)
         case upToNextMinor(String)
         case range(from: String, to: String)
@@ -50,5 +48,4 @@ extension Package {
             }
         }
     }
-    
 }

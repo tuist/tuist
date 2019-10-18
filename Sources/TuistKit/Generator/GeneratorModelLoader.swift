@@ -260,7 +260,7 @@ extension TuistGenerator.Project {
             TuistGenerator.FileElement.from(manifest: $0,
                                             path: path)
         }
-        
+
         let packages = manifest.packages.map { package in
             TuistGenerator.Package.from(manifest: package)
         }

@@ -1,5 +1,4 @@
 public enum Package: Equatable, Codable {
-    
     case remote(url: String, requirement: Requirement)
     case local(path: String)
 
@@ -45,7 +44,6 @@ public enum Package: Equatable, Codable {
 }
 
 extension Package {
-    
     public enum Requirement: Codable, Equatable {
         case upToNextMajor(from: Version)
         case upToNextMinor(from: Version)
@@ -53,17 +51,17 @@ extension Package {
         case exact(Version)
         case branch(String)
         case revision(String)
-        
+
         @available(*, unavailable, message: "use upToNextMajor(from:) instead.")
         static func upToNextMajor(_: Version) {
             fatalError()
         }
-        
+
         @available(*, unavailable, message: "use upToNextMinor(from:) instead.")
         static func upToNextMinor(_: Version) {
             fatalError()
         }
-        
+
         enum CodingKeys: String, CodingKey {
             case kind
             case revision
@@ -71,7 +69,7 @@ extension Package {
             case minimumVersion
             case maximumVersion
         }
-        
+
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let kind: String = try container.decode(String.self, forKey: .kind)
@@ -98,10 +96,10 @@ extension Package {
                 fatalError("XCRemoteSwiftPackageReference kind '\(kind)' not supported")
             }
         }
-        
+
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
-            
+
             switch self {
             case let .upToNextMajor(version):
                 try container.encode("upToNextMajor", forKey: .kind)
@@ -125,11 +123,9 @@ extension Package {
             }
         }
     }
-    
 }
 
 extension Package {
-
     /// Create a package dependency that uses the version requirement, starting with the given minimum version,
     /// going up to the next major version.
     ///
@@ -205,8 +201,9 @@ extension Package {
         let upperBound = Version(
             upper.major, upper.minor, upper.patch + 1,
             prereleaseIdentifiers: upper.prereleaseIdentifiers,
-            buildMetadataIdentifiers: upper.buildMetadataIdentifiers)
-        return .package(url: url, range.lowerBound..<upperBound)
+            buildMetadataIdentifiers: upper.buildMetadataIdentifiers
+        )
+        return .package(url: url, range.lowerBound ..< upperBound)
     }
 
     /// Add a dependency to a local package on the filesystem.
@@ -227,22 +224,22 @@ extension Package {
 // Mark common APIs used by mistake as unavailable to provide better error messages.
 extension Package {
     @available(*, unavailable, message: "use package(url:_:) with the .exact(Version) initializer instead")
-    public static func package(url: String, version: Version) -> Package {
+    public static func package(url _: String, version _: Version) -> Package {
         fatalError()
     }
 
     @available(*, unavailable, message: "use package(url:_:) with the .branch(String) initializer instead")
-    public static func package(url: String, branch: String) -> Package {
+    public static func package(url _: String, branch _: String) -> Package {
         fatalError()
     }
 
     @available(*, unavailable, message: "use package(url:_:) with the .revision(String) initializer instead")
-    public static func package(url: String, revision: String) -> Package {
+    public static func package(url _: String, revision _: String) -> Package {
         fatalError()
     }
 
     @available(*, unavailable, message: "use package(url:_:) without the range label instead")
-    public static func package(url: String, range: Range<Version>) -> Package {
+    public static func package(url _: String, range _: Range<Version>) -> Package {
         fatalError()
     }
 }

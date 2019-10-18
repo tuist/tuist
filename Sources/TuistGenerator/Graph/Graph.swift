@@ -158,7 +158,7 @@ class Graph: Graphing {
     }
 
     var packages: [PackageNode] {
-        return cache.packages.values.flatMap{ $0 }
+        return cache.packages.values.flatMap { $0 }
     }
 
     /// Returns all the frameworks that are part of the graph
@@ -204,8 +204,8 @@ class Graph: Graphing {
             .filter { $0.target.product == .bundle }
     }
 
-    func packages(path: AbsolutePath, name: String) throws -> [PackageNode] {
-        return cache.packages[path] ?? [ ]
+    func packages(path: AbsolutePath, name _: String) throws -> [PackageNode] {
+        return cache.packages[path] ?? []
     }
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {

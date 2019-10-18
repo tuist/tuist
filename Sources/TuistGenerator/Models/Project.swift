@@ -16,7 +16,7 @@ public class Project: Equatable, CustomStringConvertible {
 
     /// Project targets.
     public let targets: [Target]
-    
+
     /// Project swift packages.
     public let packages: [Package]
 
