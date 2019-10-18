@@ -1,6 +1,8 @@
-version: 2
+version: 2.1
+orbs:
+  multirepo: dnephin/multirepo@0.0.7
 workflows:
-  version: 2
+  version: 2.1
   tuist-install:
     jobs:
       - tuist-install:
@@ -43,6 +45,8 @@ jobs:
       xcode: '11.0.0'
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/*
       - run:
           name: Install Tuist
           command: |
@@ -59,6 +63,8 @@ jobs:
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: 'Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/*'
       - run:
           name: Build for release
           command: |
@@ -93,6 +99,8 @@ jobs:
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: 'Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/* fixtures/**/* features/**/*'
       - restore_cache:
           key: bundler-{{ checksum "Gemfile.lock" }}
       - run:
@@ -134,6 +142,8 @@ jobs:
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: 'Sources/**/* Tests/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved'
       - run:
           name: Generate Xcode project
           command: |
@@ -166,6 +176,9 @@ jobs:
     steps:
       - checkout:
           path: ~/repo
+
+      - multirepo/run-job-for-paths:
+          paths: 'galaxy/**/* .circleci/**/*'
 
       - run:
           name: Update Bundler
@@ -205,6 +218,8 @@ jobs:
     steps:
       - checkout:
           path: ~/repo
+      - multirepo/run-job-for-paths:
+          paths: 'galaxy/**/* .circleci/**/*'
       - run:
           name: Deploy Master to Heroku
           command: |
