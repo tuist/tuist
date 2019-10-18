@@ -4962,10 +4962,10 @@ docz-utils@2.0.0-rc.54:
     unist-util-is "^3.0.0"
     unist-util-visit "^1.4.1"
 
-docz@2.0.0-rc.57, docz@^2.0.0-rc.57:
-  version "2.0.0-rc.57"
-  resolved "https://registry.yarnpkg.com/docz/-/docz-2.0.0-rc.57.tgz#a56f39ae0b45d58afd95f8fb9cd21328ca52c7fe"
-  integrity sha512-btZg9VmVjHhUNwH/VgDRKIDS331mksuX82na3EGXN4ghzMC/+ONyicgAvkADOqQsGA/PB7Us9SwHKej0f/6d7Q==
+docz@2.0.0-rc.58, docz@^2.0.0-rc.58:
+  version "2.0.0-rc.58"
+  resolved "https://registry.yarnpkg.com/docz/-/docz-2.0.0-rc.58.tgz#5afee4b6a07133bec928fc52de56d8a2d50ecf0e"
+  integrity sha512-YjbGpLAUtaG0jreEjFdEDkTo9WAO4FO94SQw/Idn1RHrxIdA6Nl+QTlLcyrx97qBSx2YO/uluxnQVatOHJ76rQ==
   dependencies:
     "@emotion/core" "^10.0.16"
     "@mdx-js/react" "^1.0.27"
@@ -4977,7 +4977,7 @@ docz@2.0.0-rc.57, docz@^2.0.0-rc.57:
     gatsby "^2.13.27"
     gatsby-plugin-eslint "^2.0.5"
     gatsby-plugin-typescript "^2.1.6"
-    gatsby-theme-docz "2.0.0-rc.57"
+    gatsby-theme-docz "2.0.0-rc.58"
     lodash "^4.17.14"
     marksy "^8.0.0"
     match-sorter "^3.1.1"
@@ -6512,10 +6512,10 @@ gatsby-telemetry@^1.1.33:
     stack-utils "1.0.2"
     uuid "3.3.3"
 
-gatsby-theme-docz@2.0.0-rc.57, gatsby-theme-docz@^2.0.0-rc.57:
-  version "2.0.0-rc.57"
-  resolved "https://registry.yarnpkg.com/gatsby-theme-docz/-/gatsby-theme-docz-2.0.0-rc.57.tgz#a09f7a751b00d9a39262aba08afdfd4fc4690dd9"
-  integrity sha512-dtFYcj1pWgeRymJPhrMDvMowZOgt4i0b5NLv4q11X5YgULUmbWy9SKrwoJz8xpMKfLcgAn1lDwGm3NJo4D2Vmw==
+gatsby-theme-docz@2.0.0-rc.58, gatsby-theme-docz@^2.0.0-rc.57:
+  version "2.0.0-rc.58"
+  resolved "https://registry.yarnpkg.com/gatsby-theme-docz/-/gatsby-theme-docz-2.0.0-rc.58.tgz#75f2cefca94b4b42e7ebd28718f678aeb3ad88f1"
+  integrity sha512-P1L3sRxoW+4R5w2GpfsQ+X2rqfjgCVX/a/2cFT1yL3b0lK75poC9T87pljlGz1Div7qAe5MCU9ldfrmnyPfDUg==
   dependencies:
     "@emotion/core" "^10.0.14"
     "@emotion/styled" "^10.0.14"
@@ -6525,7 +6525,7 @@ gatsby-theme-docz@2.0.0-rc.57, gatsby-theme-docz@^2.0.0-rc.57:
     "@theme-ui/typography" "^0.2.5"
     babel-plugin-export-metadata "2.0.0-rc.56"
     copy-text-to-clipboard "^2.1.0"
-    docz "2.0.0-rc.57"
+    docz "2.0.0-rc.58"
     docz-core "2.0.0-rc.57"
     emotion-theming "^10.0.14"
     fs-extra "^8.1.0"
@@ -6540,7 +6540,7 @@ gatsby-theme-docz@2.0.0-rc.57, gatsby-theme-docz@^2.0.0-rc.57:
     lodash "^4.17.14"
     mdx-utils "^0.2.0"
     prop-types "^15.7.2"
-    re-resizable "^5.0.1"
+    re-resizable "^6.1.0"
     react-feather "^2.0.3"
     react-helmet "^5.2.1"
     react-live "^2.1.2"
@@ -11677,14 +11677,7 @@ rc@^1.0.1, rc@^1.1.6, rc@^1.2.7, rc@^1.2.8:
     minimist "^1.2.0"
     strip-json-comments "~2.0.1"
 
-re-resizable@^5.0.1:
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/re-resizable/-/re-resizable-5.0.1.tgz#66756a7aa0583b199e23e23f12a71c546031146d"
-  integrity sha512-Iy8v5li7bhNBDxCN1DbA4l6G2Hk8NCZtcExoI1D+5pfvKyQcH8LH2P5h3DGoEfHhs0uyyRC1Qx8bHBomfrmxgA==
-  dependencies:
-    fast-memoize "^2.5.1"
-
-re-resizable@^6.0.0:
+re-resizable@^6.0.0, re-resizable@^6.1.0:
   version "6.1.0"
   resolved "https://registry.yarnpkg.com/re-resizable/-/re-resizable-6.1.0.tgz#ba4ece505b48f05691446d57837151349d7575e8"
   integrity sha512-Jj9zdYW6SnUto8pmH4b/3Kms/PKPv9CuWE70W1IuUIR1HlrEibgsqhbUe8BYDRBTuagH1gav09806k7TieUeSA==
