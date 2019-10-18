@@ -9,6 +9,7 @@ extension Project {
                      settings: Settings = Settings.test(),
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      targets: [Target] = [Target.test()],
+                     packages: [Package] = [],
                      schemes: [Scheme] = [],
                      additionalFiles: [FileElement] = []) -> Project {
         return Project(path: path,
@@ -17,6 +18,7 @@ extension Project {
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets,
+                       packages: packages,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
     }
@@ -26,6 +28,7 @@ extension Project {
                       settings: Settings = .default,
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       targets: [Target] = [],
+                      packages: [Package] = [],
                       schemes: [Scheme] = [],
                       additionalFiles: [FileElement] = []) -> Project {
         return Project(path: path,
@@ -33,6 +36,7 @@ extension Project {
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets,
+                       packages: packages,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
     }

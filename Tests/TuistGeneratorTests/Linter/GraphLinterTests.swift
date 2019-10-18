@@ -58,11 +58,13 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_packages_and_xcode_10() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
         let cache = GraphLoaderCache()
+        
+        cache.add(project: .test(packages: [
+            .remote(url: "remote", requirement: .branch("master"))
+        ]))
+        
         let graph = Graph.test(cache: cache)
-        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: temporaryPath)
-        cache.add(package: package)
         let versionStub = Version(10, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -76,11 +78,13 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_packages_and_xcode_11() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
         let cache = GraphLoaderCache()
+        
+        cache.add(project: .test(packages: [
+            .remote(url: "remote", requirement: .branch("master"))
+        ]))
+        
         let graph = Graph.test(cache: cache)
-        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: temporaryPath)
-        cache.add(package: package)
         let versionStub = Version(11, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -93,11 +97,14 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_no_version_available() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
         let cache = GraphLoaderCache()
+        
+        cache.add(project: .test(packages: [
+            .remote(url: "remote", requirement: .branch("master"))
+        ]))
+        
         let graph = Graph.test(cache: cache)
-        let package = PackageNode(packageType: .local(path: RelativePath("A"), productName: "A"), path: temporaryPath)
-        cache.add(package: package)
+
         let error = NSError.test()
         xcodeController.selectedVersionStub = .failure(error)
 
@@ -132,20 +139,19 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_package_dependency_linked_twice() throws {
         let cache = GraphLoaderCache()
 
-        let appTarget = Target.test(name: "AppTarget", dependencies: [.package(.local(path: RelativePath("packageLibrary"), productName: "PackageLibrary")), .target(name: "frameworkA")])
+        let appTarget = Target.test(name: "AppTarget", dependencies: [.package(product: "PackageLibrary"), .target(name: "frameworkA")])
         let frameworkTarget = Target.test(name: "frameworkA", dependencies: [.target(name: "staticFramework")])
 
-        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
+        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget], packages: [ .local(path: RelativePath("packageLibrary")) ])
         let projectFramework = Project.test(path: "/tmp/framework", name: "projectFramework", targets: [frameworkTarget])
 
-        let package = PackageNode(packageType: .local(path: RelativePath("packageLibrary"), productName: "PackageLibrary"), path: "/tmp/packageLibrary")
+        let package = PackageDependencyNode(product: "PackageLibrary", path: "/tmp/packageLibrary")
         let framework = TargetNode(project: projectFramework, target: frameworkTarget, dependencies: [package])
         let appTargetNode = TargetNode(project: app, target: appTarget, dependencies: [package, framework])
 
         cache.add(project: app)
         cache.add(targetNode: appTargetNode)
         cache.add(targetNode: framework)
-        cache.add(package: package)
 
         let graph = Graph.test(cache: cache, entryNodes: [appTargetNode, framework, package])
 

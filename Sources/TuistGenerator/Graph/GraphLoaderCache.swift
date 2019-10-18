@@ -28,10 +28,12 @@ protocol GraphLoaderCaching: AnyObject {
     ///
     /// - Parameter cocoapods: Node to be added to the cache.
     func add(cocoapods: CocoaPodsNode)
+    
+    var packages: [AbsolutePath: [PackageNode]] { get }
 
-    var packageNodes: [AbsolutePath: PackageNode] { get }
-    func package(_ path: AbsolutePath) -> PackageNode?
-    func add(package: PackageNode)
+    var packageNodes: [AbsolutePath: PackageDependencyNode] { get }
+    func package(_ path: AbsolutePath) -> PackageDependencyNode?
+    func add(package: PackageDependencyNode)
 }
 
 /// Graph loader cache.
@@ -40,6 +42,7 @@ class GraphLoaderCache: GraphLoaderCaching {
 
     var tuistConfigs: [AbsolutePath: TuistConfig] = [:]
     var projects: [AbsolutePath: Project] = [:]
+    var packages: [AbsolutePath: [PackageNode]] = [:]
     var precompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
     var targetNodes: [AbsolutePath: [String: TargetNode]] = [:]
 
@@ -62,20 +65,20 @@ class GraphLoaderCache: GraphLoaderCaching {
     }
 
     /// Cached SwiftPM package nodes
-    var packageNodes: [AbsolutePath: PackageNode] = [:]
+    var packageNodes: [AbsolutePath: PackageDependencyNode] = [:]
 
     /// Returns, if it exists, the Package node at the given path.
     ///
     /// - Parameter path: Path to the directory where the Podfile is defined.
     /// - Returns: The Package node if it exists in the cache.
-    func package(_ path: AbsolutePath) -> PackageNode? {
+    func package(_ path: AbsolutePath) -> PackageDependencyNode? {
         return packageNodes[path]
     }
 
     /// Adds a parsed Package graph node to the cache.
     ///
     /// - Parameter package: Node to be added to the cache.
-    func add(package: PackageNode) {
+    func add(package: PackageDependencyNode) {
         packageNodes[package.path] = package
     }
 
@@ -93,6 +96,7 @@ class GraphLoaderCache: GraphLoaderCaching {
 
     func add(project: Project) {
         projects[project.path] = project
+        packages[project.path] = project.packages.map({ PackageNode(package: $0, path: project.path) })
     }
 
     func add(precompiledNode: PrecompiledNode) {

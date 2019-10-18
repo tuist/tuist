@@ -130,12 +130,15 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget(dependencies: [
-            .package(.remote(url: "http://some.remote/repo.git", productName: "Example", versionRequirement: .exact("branch"))),
+            .package(product: "Example"),
         ])
         let project = Project.test(path: temporaryPath,
                                    name: "Test",
                                    settings: .default,
-                                   targets: [target])
+                                   targets: [target],
+                                   packages: [
+                                       .remote(url: "http://some.remote/repo.git", requirement: .exact("branch")),
+                                   ])
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
 
@@ -164,12 +167,15 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget(dependencies: [
-            .package(.remote(url: "http://some.remote/repo.git", productName: "Example", versionRequirement: .exact("branch"))),
+            .package(product: "Example"),
         ])
         let project = Project.test(path: temporaryPath,
                                    name: "Test",
                                    settings: .default,
-                                   targets: [target])
+                                   targets: [target],
+                                   packages: [
+                                     .remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
+                                   ])
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
 

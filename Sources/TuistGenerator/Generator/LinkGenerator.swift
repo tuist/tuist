@@ -81,7 +81,6 @@ final class LinkGenerator: LinkGenerating {
                        graph: Graphing) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
-        let packages = try graph.packages(path: path, name: target.name)
 
         try setupSearchAndIncludePaths(target: target,
                                        pbxTarget: pbxTarget,
@@ -110,8 +109,7 @@ final class LinkGenerator: LinkGenerating {
 
         try generatePackages(target: target,
                              pbxTarget: pbxTarget,
-                             pbxProject: pbxProject,
-                             packages: packages)
+                             pbxproj: pbxproj)
     }
 
     private func setupSearchAndIncludePaths(target: Target,
@@ -141,24 +139,37 @@ final class LinkGenerator: LinkGenerating {
                                    sourceRootPath: sourceRootPath)
     }
 
-    func generatePackages(target _: Target,
+    func generatePackages(target: Target,
                           pbxTarget: PBXTarget,
-                          pbxProject: PBXProject,
-                          packages: [PackageNode]) throws {
-        try packages.forEach { package in
-            switch package.packageType {
-            case let .local(path: packagePath, productName: productName):
-                _ = try pbxProject.addLocalSwiftPackage(path: Path(packagePath.pathString),
-                                                        productName: productName,
-                                                        targetName: pbxTarget.name,
-                                                        addFileReference: false)
-            case let .remote(url: url, productName: productName, versionRequirement: versionRequirement):
-                _ = try pbxProject.addSwiftPackage(repositoryURL: url,
-                                                   productName: productName,
-                                                   versionRequirement: versionRequirement.xcodeprojValue,
-                                                   targetName: pbxTarget.name)
+                          pbxproj: PBXProj) throws {
+
+        for dependency in target.dependencies {
+            
+            switch dependency {
+            case let .package(product: product):
+                
+                let productDependency = XCSwiftPackageProductDependency(productName: product)
+                pbxproj.add(object: productDependency)
+                pbxTarget.packageProductDependencies.append(productDependency)
+                
+                // Build file
+                let buildFile = PBXBuildFile(product: productDependency)
+                pbxproj.add(object: buildFile)
+                
+                // Link the product
+                guard let frameworksBuildPhase = try pbxTarget.frameworksBuildPhase() else {
+                    throw "No frameworks build phase"
+                }
+                
+                frameworksBuildPhase.files?.append(buildFile)
+                
+            default:
+                break
             }
+            
         }
+        
+
     }
 
     func generateEmbedPhase(dependencies: [DependencyReference],

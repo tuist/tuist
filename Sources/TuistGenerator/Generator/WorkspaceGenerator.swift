@@ -131,14 +131,14 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         workspaceName: String,
         graph: Graphing
     ) throws {
-        let packages = try graph.targets.flatMap { try graph.packages(path: $0.path, name: $0.name) }
+        let packages = graph.packages
 
         if packages.isEmpty {
             return
         }
 
         let hasRemotePackage = packages.first(where: { package in
-            switch package.packageType {
+            switch package.package {
             case .remote: return true
             case .local: return false
             }

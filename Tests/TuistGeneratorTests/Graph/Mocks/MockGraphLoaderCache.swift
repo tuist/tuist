@@ -21,15 +21,16 @@ final class MockGraphLoaderCache: GraphLoaderCaching {
     var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
     var cocoapodsStub: [AbsolutePath: CocoaPodsNode] = [:]
     var addCococaPodsArgs: [CocoaPodsNode] = []
-    var packageNodes: [AbsolutePath: PackageNode] = [:]
-    var packagesStub: [AbsolutePath: PackageNode] = [:]
-    var addPackageArgs: [PackageNode] = []
+    var packageNodes: [AbsolutePath: PackageDependencyNode] = [:]
+    var packagesStub: [AbsolutePath: PackageDependencyNode] = [:]
+    var addPackageArgs: [PackageDependencyNode] = []
+    var packages: [AbsolutePath: [PackageNode]] = [:]
 
-    func package(_ path: AbsolutePath) -> PackageNode? {
+    func package(_ path: AbsolutePath) -> PackageDependencyNode? {
         return packagesStub[path]
     }
 
-    func add(package: PackageNode) {
+    func add(package: PackageDependencyNode) {
         addPackageArgs.append(package)
     }
 

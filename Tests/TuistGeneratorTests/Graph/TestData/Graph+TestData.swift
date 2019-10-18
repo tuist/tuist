@@ -85,14 +85,14 @@ extension Graph {
             node.dependencies.append(contentsOf: sdkDependencies.compactMap {
                 try? SDKNode(name: $0.name, platform: platform, status: $0.status)
             })
-            let packageDependencies: [Dependency.PackageType] = $0.target.dependencies.compactMap {
+            let packageDependencies: [String] = $0.target.dependencies.compactMap {
                 if case let .package(packageType) = $0 {
                     return packageType
                 }
                 return nil
             }
             node.dependencies.append(contentsOf: packageDependencies.map {
-                PackageNode(packageType: $0, path: node.path)
+                PackageDependencyNode(product: $0, path: node.path)
             })
         }
 

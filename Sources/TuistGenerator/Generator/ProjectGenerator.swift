@@ -121,6 +121,10 @@ final class ProjectGenerator: ProjectGenerating {
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
+        
+        try generateSwiftPackageReferences(project: project,
+                                           pbxproj: pbxproj,
+                                           pbxProject: pbxProject)
 
         try deleteOldDerivedFiles()
 
@@ -212,6 +216,39 @@ final class ProjectGenerator: ProjectGenerating {
 
             pbxProject.setTargetAttributes(attributes, target: testTarget)
         }
+    }
+    
+    private func generateSwiftPackageReferences(project: Project, pbxproj: PBXProj, pbxProject: PBXProject) throws {
+        
+        var packageReferences: [String: XCRemoteSwiftPackageReference] = [:]
+        
+        for package in project.packages {
+            
+            switch package {
+            case let .local(path):
+                
+                let reference = PBXFileReference(
+                    sourceTree: .group,
+                    name: path.components.last,
+                    lastKnownFileType: "folder",
+                    path: path.pathString
+                )
+                
+                pbxproj.add(object: reference)
+                try pbxproj.rootGroup()?.children.append(reference)
+                
+            case let .remote(url: url, requirement: requirement):
+                let packageReference = XCRemoteSwiftPackageReference(
+                    repositoryURL: url,
+                    versionRequirement: requirement.xcodeprojValue
+                )
+                packageReferences[url] = packageReference
+                pbxproj.add(object: packageReference)
+            }
+        }
+        
+        pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
+        
     }
 
     private func write(xcodeprojPath: AbsolutePath,

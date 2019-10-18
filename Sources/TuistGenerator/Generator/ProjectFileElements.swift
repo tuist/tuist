@@ -144,20 +144,6 @@ class ProjectFileElements {
                              isReference: $0.isReference)
         })
 
-        // Local Packages
-        elements.formUnion(
-            try graph.packages(path: projectPath, name: target.name).compactMap { node -> GroupFileElement? in
-                switch node.packageType {
-                case let .local(path: packagePath, productName: _):
-                    return GroupFileElement(path: projectPath.appending(packagePath),
-                                            group: target.filesGroup,
-                                            isReference: true)
-                default:
-                    return nil
-                }
-            }
-        )
-
         return elements
     }
 

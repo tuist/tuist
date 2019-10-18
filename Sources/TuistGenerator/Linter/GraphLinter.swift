@@ -74,7 +74,7 @@ class GraphLinter: GraphLinting {
                 issues.append(contentsOf: lintDependency(from: targetNode,
                                                          to: toTargetNode,
                                                          linkedStaticProducts: &linkedStaticProducts))
-            } else if let toPackageNode = toNode as? PackageNode {
+            } else if let toPackageNode = toNode as? PackageDependencyNode {
                 issues.append(contentsOf: lintPackageDependency(from: targetNode,
                                                                 to: toPackageNode,
                                                                 linkedStaticProducts: &linkedStaticProducts))
@@ -89,7 +89,7 @@ class GraphLinter: GraphLinting {
 
     /// Package dependencies are also static products, so we need to perform the same check as for them
     private func lintPackageDependency(from: TargetNode,
-                                       to: PackageNode,
+                                       to: PackageDependencyNode,
                                        linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
         guard from.target.canLinkStaticProducts() else {
             return []

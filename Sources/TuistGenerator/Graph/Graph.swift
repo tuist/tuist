@@ -158,7 +158,7 @@ class Graph: Graphing {
     }
 
     var packages: [PackageNode] {
-        return Array(cache.packageNodes.values)
+        return cache.packages.values.flatMap{ $0 }
     }
 
     /// Returns all the frameworks that are part of the graph
@@ -205,11 +205,7 @@ class Graph: Graphing {
     }
 
     func packages(path: AbsolutePath, name: String) throws -> [PackageNode] {
-        guard let targetNode = findTargetNode(path: path, name: name) else {
-            return []
-        }
-
-        return targetNode.packages
+        return cache.packages[path] ?? [ ]
     }
 
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
@@ -422,8 +418,8 @@ extension TargetNode {
         return dependencies.lazy.compactMap { $0 as? PrecompiledNode }
     }
 
-    fileprivate var packages: [PackageNode] {
-        return dependencies.lazy.compactMap { $0 as? PackageNode }
+    fileprivate var packages: [PackageDependencyNode] {
+        return dependencies.lazy.compactMap { $0 as? PackageDependencyNode }
     }
 
     fileprivate var libraryDependencies: [LibraryNode] {

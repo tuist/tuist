@@ -566,10 +566,13 @@ final class GraphTests: TuistUnitTestCase {
     func test_packageDepedencies_fromTargetDependency() throws {
         // Given
         let target = Target.test(name: "Test", product: .app, dependencies: [
-            .package(.remote(url: "url", productName: "testA", versionRequirement: .branch("master"))),
-            .package(.local(path: RelativePath(""), productName: "testB")),
+            .package(product: "A"),
+            .package(product: "B"),
         ])
-        let project = Project.test(path: "/path")
+        let project = Project.test(path: "/path", packages: [
+            .remote(url: "testA", requirement: .branch("master")),
+            .local(path: RelativePath("testB")),
+        ])
 
         let graph = Graph.create(project: project,
                                  dependencies: [
