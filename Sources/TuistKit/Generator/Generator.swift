@@ -3,9 +3,8 @@ import TuistGenerator
 
 extension Generating {
     func generate(at path: AbsolutePath,
-                  manifestLoader: GraphManifestLoading,
-                  projectOnly: Bool) throws -> AbsolutePath {
-        if projectOnly {
+                  manifestLoader: GraphManifestLoading) throws -> AbsolutePath {
+        if CLIOptions.current.projectOnly {
             return try generateProject(at: path)
         } else {
             return try generateWorkspace(at: path,

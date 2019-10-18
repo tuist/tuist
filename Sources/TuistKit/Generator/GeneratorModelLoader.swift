@@ -568,6 +568,13 @@ extension TuistGenerator.Dependency {
                         status: .from(manifest: status))
         case let .cocoapods(path):
             return .cocoapods(path: RelativePath(path))
+        case let .carthage(carthage):
+            switch carthage {
+            case let .framework(framework):
+                return .carthage(.framework(RelativePath(framework)))
+            case let .project(project):
+                return .carthage(.project(path: RelativePath(project.path), target: project.target))
+            }
         }
     }
 }

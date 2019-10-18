@@ -67,8 +67,7 @@ class FocusCommand: NSObject, Command {
         let path = FileHandler.shared.currentPath
 
         let workspacePath = try generator.generate(at: path,
-                                                   manifestLoader: manifestLoader,
-                                                   projectOnly: false)
+                                                   manifestLoader: manifestLoader)
 
         try opener.open(path: workspacePath)
     }

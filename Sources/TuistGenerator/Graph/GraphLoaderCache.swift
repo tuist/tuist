@@ -9,6 +9,7 @@ protocol GraphLoaderCaching: AnyObject {
     func project(_ path: AbsolutePath) -> Project?
     func add(project: Project)
     func add(precompiledNode: PrecompiledNode)
+    func add(carthageNode: CarthageNode)
     func precompiledNode(_ path: AbsolutePath) -> PrecompiledNode?
     func add(targetNode: TargetNode)
     func targetNode(_ path: AbsolutePath, name: String) -> TargetNode?
@@ -112,5 +113,15 @@ class GraphLoaderCache: GraphLoaderCaching {
 
     func targetNode(_ path: AbsolutePath, name: String) -> TargetNode? {
         return targetNodes[path]?[name]
+    }
+    
+    func add(carthageNode: CarthageNode) {
+        
+        if let target = carthageNode.targetNode {
+            add(project: target.project)
+        }
+        
+        add(precompiledNode: carthageNode.frameworkNode)
+        
     }
 }

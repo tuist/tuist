@@ -122,8 +122,7 @@ class TargetNode: GraphNode {
             circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         case let .framework(frameworkPath):
-            return try FrameworkNode.parse(projectPath: path,
-                                           path: frameworkPath,
+            return try FrameworkNode.parse(path: path.appending(frameworkPath),
                                            cache: cache)
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
             return try LibraryNode.parse(publicHeaders: publicHeaders,
@@ -137,6 +136,62 @@ class TargetNode: GraphNode {
             return CocoaPodsNode.read(path: path.appending(podsPath), cache: cache)
         case let .package(packageType):
             return PackageNode(packageType: packageType, path: path)
+        case let .carthage(carthage):
+            
+            let frameworkNode: FrameworkNode
+            let targetNode: TargetNode?
+            
+            switch carthage {
+            
+            case let .project(project, target):
+                
+                let circularFrom = GraphCircularDetectorNode(path: path, name: name)
+                let projectPath = path.appending(project)
+                let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
+                circularDetector.start(from: circularFrom, to: circularTo)
+                let node = try TargetNode.read(
+                    name: target,
+                    path: projectPath,
+                    cache: cache,
+                    circularDetector: circularDetector,
+                    modelLoader: modelLoader
+                )
+                
+                let platformName: String
+                
+                switch node.target.platform {
+                case .iOS:
+                    platformName = "iOS"
+                case .macOS:
+                    platformName = "Mac"
+                case .tvOS:
+                    platformName = "tvOS"
+                }
+                
+                let carthageBuild = path
+                    .appending(project)
+                    .appending(RelativePath("../../Build/\(platformName)/\(node.target.productNameWithExtension)"))
+                
+                frameworkNode = try FrameworkNode.parse(
+                    path: carthageBuild,
+                    cache: cache
+                )
+                targetNode = node
+                
+            case let .framework(precompiled):
+                frameworkNode = try FrameworkNode.parse(
+                    path: path.appending(precompiled),
+                    cache: cache
+                )
+                targetNode = nil
+            }
+            
+            let carthageNode = CarthageNode(frameworkNode: frameworkNode, targetNode: targetNode, path: path)
+            
+            cache.add(carthageNode: carthageNode)
+            
+            return carthageNode
+            
         }
     }
 }

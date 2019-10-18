@@ -88,10 +88,22 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         /// Projects
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()
-        try graph.projects.forEach { project in
+        
+        func filterCarthageProjectIfRequired(project: AbsolutePath) -> Bool {
+            return !(CLIOptions.current.carthageProjects == false && project.pathString.contains("Carthage/Checkouts"))
+        }
+        
+        let workspace = Workspace(
+            name: workspaceName,
+            projects: workspace.projects.filter(filterCarthageProjectIfRequired),
+            additionalFiles: workspace.additionalFiles
+        )
+        
+        try graph.projects.filter({ filterCarthageProjectIfRequired(project: $0.path) }).forEach { project in
             let generatedProject = try projectGenerator.generate(project: project,
                                                                  graph: graph,
                                                                  sourceRootPath: project.path)
+            
             generatedProjects[project.path] = generatedProject
         }
 

@@ -15,8 +15,11 @@ class GenerateCommand: NSObject, Command {
     private let generator: Generating
     private let manifestLoader: GraphManifestLoading
     private let clock: Clock
+    
     let pathArgument: OptionArgument<String>
     let projectOnlyArgument: OptionArgument<Bool>
+    let carthageProjectsArgument: OptionArgument<Bool>
+    let verboseArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -54,16 +57,33 @@ class GenerateCommand: NSObject, Command {
         projectOnlyArgument = subParser.add(option: "--project-only",
                                             kind: Bool.self,
                                             usage: "Only generate the local project (without generating its dependencies).")
+        
+        carthageProjectsArgument = subParser.add(option: "--carthage-projects",
+                                                 kind: Bool.self,
+                                                 usage: "Generate carthage frameworks which have a project manifest as project dependencies.")
+        
+        verboseArgument = subParser.add(option: "--verbose",
+                                        shortName: "-v",
+                                        kind: Bool.self,
+                                        usage: "Enable verbose logging.")
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let timer = clock.startTimer()
         let path = self.path(arguments: arguments)
+        
         let projectOnly = arguments.get(projectOnlyArgument) ?? false
+        let carthageProjects = arguments.get(carthageProjectsArgument) ?? false
+        let verbose = arguments.get(verboseArgument) ?? false
+
+        CLIOptions.current = .init(
+            projectOnly: projectOnly,
+            carthageProjects: carthageProjects,
+            verbose: verbose
+        )
 
         _ = try generator.generate(at: path,
-                                   manifestLoader: manifestLoader,
-                                   projectOnly: projectOnly)
+                                   manifestLoader: manifestLoader)
 
         let time = String(format: "%.3f", timer.stop())
         Printer.shared.print(success: "Project generated.")
@@ -79,4 +99,26 @@ class GenerateCommand: NSObject, Command {
             return FileHandler.shared.currentPath
         }
     }
+}
+
+public struct CLIOptions {
+    
+    public let projectOnly: Bool
+    public let carthageProjects: Bool
+    public let verbose: Bool
+    
+    public static var current: CLIOptions = CLIOptions(
+        projectOnly: false,
+        carthageProjects: false,
+        verbose: false
+    ) {
+        didSet {
+            TuistGenerator.CLIOptions.current = .init(
+                projectOnly: current.projectOnly,
+                carthageProjects: current.carthageProjects,
+                verbose: current.verbose
+            )
+        }
+    }
+    
 }

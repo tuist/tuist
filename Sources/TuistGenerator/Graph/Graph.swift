@@ -419,7 +419,13 @@ extension TargetNode {
     }
 
     fileprivate var precompiledDependencies: [PrecompiledNode] {
-        return dependencies.lazy.compactMap { $0 as? PrecompiledNode }
+        return dependencies.lazy.compactMap { dependency in
+            if let node = dependency as? CarthageNode {
+                return node.frameworkNode
+            } else {
+                return dependency as? FrameworkNode
+            }
+        }
     }
 
     fileprivate var packages: [PackageNode] {
@@ -431,7 +437,13 @@ extension TargetNode {
     }
 
     fileprivate var frameworkDependencies: [FrameworkNode] {
-        return dependencies.lazy.compactMap { $0 as? FrameworkNode }
+        return dependencies.lazy.compactMap { dependency in
+            if let node = dependency as? CarthageNode {
+                return node.frameworkNode
+            } else {
+                return dependency as? FrameworkNode
+            }
+        }
     }
 
     fileprivate var sdkDependencies: [SDKNode] {
