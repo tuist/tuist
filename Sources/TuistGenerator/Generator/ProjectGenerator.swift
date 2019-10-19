@@ -120,7 +120,7 @@ final class ProjectGenerator: ProjectGenerating {
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
-        
+
         try generateSwiftPackageReferences(project: project,
                                            pbxproj: pbxproj,
                                            pbxProject: pbxProject)
