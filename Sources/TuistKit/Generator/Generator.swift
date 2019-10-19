@@ -1,5 +1,6 @@
 import Basic
 import TuistGenerator
+import TuistCore
 
 extension Generating {
     func generate(at path: AbsolutePath,

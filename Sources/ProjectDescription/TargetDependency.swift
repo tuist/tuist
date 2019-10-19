@@ -188,27 +188,16 @@ public enum TargetDependency: Codable, Equatable {
     /// Dependency on a framework built by carthage.
     ///
     /// - Parameters:
-    ///     - framework: The framework product name
     ///     - project: The project in `Carthage/Checkouts/` if the depdendency is a Tuist project
-    case carthage(Carthage)
+    ///     - target: The target producing the product
+    case carthage(project: String, target: String)
     
-    public static func carthage(framework: String) -> TargetDependency {
-        return .carthage(.framework(framework))
-    }
-    
-    public static func carthage(project: String, target: String) -> TargetDependency {
-        return .carthage(.project(.init(path: project, target: target)))
-    }
-
-    public enum Carthage: Equatable, Codable {
-        
-        case framework(String)
-        case project(Project)
-        
-        public struct Project: Equatable, Codable {
-            public let path: String
-            public let target: String
-        }
+    /// Dependency on a prebuilt framework. Use the full path to the framework.
+    ///
+    /// - Parameters:
+    ///   - path: Relative path to the prebuilt framework
+    public static func carthage(path: String) -> TargetDependency {
+        return .framework(path: path)
     }
     
     /// Dependency on system library or framework
@@ -269,7 +258,6 @@ extension TargetDependency {
         case swiftModuleMap = "swift_module_map"
         case status
         case package
-        case carthage
     }
 
     public init(from decoder: Decoder) throws {
@@ -308,7 +296,10 @@ extension TargetDependency {
             self = .cocoapods(path: try container.decode(String.self, forKey: .path))
 
         case "carthage":
-            self = .carthage(try container.decode(Carthage.self, forKey: .carthage))
+            self = .carthage(
+                project: try container.decode(String.self, forKey: .project),
+                target: try container.decode(String.self, forKey: .target)
+            )
             
         default:
             throw CodingError.unknownType(type)
@@ -339,8 +330,9 @@ extension TargetDependency {
             try container.encode(status, forKey: .status)
         case let .cocoapods(path):
             try container.encode(path, forKey: .path)
-        case let .carthage(carthage):
-            try container.encode(carthage, forKey: .carthage)
+        case let .carthage(project, target):
+            try container.encode(project, forKey: .project)
+            try container.encode(target, forKey: .target)
         }
     }
 }
@@ -485,39 +477,4 @@ extension TargetDependency {
     public static func package(url _: String, range _: Range<Version>) -> TargetDependency {
         fatalError()
     }
-}
-
-extension TargetDependency.Carthage {
-    
-    public enum CodingKeys: String, CodingKey {
-        case kind, project, framework
-    }
-    
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(String.self, forKey: .kind)
-
-        switch type {
-        case "project":
-            self = .project(try container.decode(Project.self, forKey: .project))
-        default:
-            self = .framework(try container.decode(String.self, forKey: .framework))
-        }
-        
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        
-        switch self {
-        case let .framework(path):
-            try container.encode("framework", forKey: .kind)
-            try container.encode(path, forKey: .framework)
-        case let .project(project):
-            try container.encode("project", forKey: .kind)
-            try container.encode(project, forKey: .project)
-        }
-    }
-    
 }

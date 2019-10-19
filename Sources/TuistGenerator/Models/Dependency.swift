@@ -46,11 +46,6 @@ public enum Dependency: Equatable {
     case package(PackageType)
     case sdk(name: String, status: SDKStatus)
     case cocoapods(path: RelativePath)
-    case carthage(CarthageProject)
-    
-    public enum CarthageProject: Equatable {
-        case framework(RelativePath)
-        case project(path: RelativePath, target: String)
-    }
+    case carthage(path: RelativePath, target: String)
     
 }

@@ -5,12 +5,12 @@ import TuistCore
 class CarthageNode: GraphNode {
     
     let frameworkNode: FrameworkNode
-    let targetNode: TargetNode?
+    let targetNode: TargetNode
     
-    init(frameworkNode: FrameworkNode, targetNode: TargetNode?, path: AbsolutePath) {
+    init(frameworkNode: FrameworkNode, targetNode: TargetNode) {
         self.frameworkNode = frameworkNode
         self.targetNode = targetNode
-        super.init(path: path, name: frameworkNode.name)
+        super.init(path: targetNode.path, name: frameworkNode.name)
     }
     
 }

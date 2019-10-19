@@ -89,24 +89,26 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()
         
-        func filterCarthageProjectIfRequired(project: AbsolutePath) -> Bool {
-            return !(CLIOptions.current.carthageProjects == false && project.pathString.contains("Carthage/Checkouts"))
+        let ignored: [AbsolutePath]
+        
+        if CLIOptions.current.carthageProjects {
+            ignored = [ ]
+        } else {
+            ignored = graph.carthageDependencies.map(\.path)
         }
         
         let workspace = Workspace(
             name: workspaceName,
-            projects: workspace.projects.filter(filterCarthageProjectIfRequired),
+            projects: workspace.projects.filter(ignored.doesNotContain),
             additionalFiles: workspace.additionalFiles
         )
         
-        try graph.projects.filter({ filterCarthageProjectIfRequired(project: $0.path) }).forEach { project in
-            let generatedProject = try projectGenerator.generate(project: project,
-                                                                 graph: graph,
-                                                                 sourceRootPath: project.path)
-            
-            generatedProjects[project.path] = generatedProject
+        for project in graph.projects where ignored.doesNotContain(project.path) {
+            generatedProjects[project.path] = try projectGenerator.generate(project: project,
+                                                                            graph: graph,
+                                                                            sourceRootPath: project.path)
         }
-
+        
         // Workspace structure
         let structure = workspaceStructureGenerator.generateStructure(path: path,
                                                                       workspace: workspace,

@@ -100,25 +100,3 @@ class GenerateCommand: NSObject, Command {
         }
     }
 }
-
-public struct CLIOptions {
-    
-    public let projectOnly: Bool
-    public let carthageProjects: Bool
-    public let verbose: Bool
-    
-    public static var current: CLIOptions = CLIOptions(
-        projectOnly: false,
-        carthageProjects: false,
-        verbose: false
-    ) {
-        didSet {
-            TuistGenerator.CLIOptions.current = .init(
-                projectOnly: current.projectOnly,
-                carthageProjects: current.carthageProjects,
-                verbose: current.verbose
-            )
-        }
-    }
-    
-}

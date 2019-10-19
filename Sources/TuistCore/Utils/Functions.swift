@@ -38,3 +38,7 @@ public func or<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) ->
 public func pipe<Root, Value, T>(_ lhs: @escaping (Root) -> Value, _ rhs: @escaping (Value) -> T) -> (Root) -> T {
     return { rhs(lhs($0)) }
 }
+
+public func not<T>(_ block: @escaping (T) -> Bool) -> (T) -> Bool {
+    return { !block($0) }
+}

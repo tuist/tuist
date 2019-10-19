@@ -136,60 +136,40 @@ class TargetNode: GraphNode {
             return CocoaPodsNode.read(path: path.appending(podsPath), cache: cache)
         case let .package(packageType):
             return PackageNode(packageType: packageType, path: path)
-        case let .carthage(carthage):
+        case let .carthage(project, target):
+
+            let circularFrom = GraphCircularDetectorNode(path: path, name: name)
+            let projectPath = path.appending(project)
+            let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
+            circularDetector.start(from: circularFrom, to: circularTo)
             
-            let frameworkNode: FrameworkNode
-            let targetNode: TargetNode?
+            let targetNode = try TargetNode.read(
+                name: target,
+                path: projectPath,
+                cache: cache,
+                circularDetector: circularDetector,
+                modelLoader: modelLoader
+            )
             
-            switch carthage {
+            let platformName: String
             
-            case let .project(project, target):
-                
-                let circularFrom = GraphCircularDetectorNode(path: path, name: name)
-                let projectPath = path.appending(project)
-                let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
-                circularDetector.start(from: circularFrom, to: circularTo)
-                let node = try TargetNode.read(
-                    name: target,
-                    path: projectPath,
-                    cache: cache,
-                    circularDetector: circularDetector,
-                    modelLoader: modelLoader
-                )
-                
-                let platformName: String
-                
-                switch node.target.platform {
-                case .iOS:
-                    platformName = "iOS"
-                case .macOS:
-                    platformName = "Mac"
-                case .tvOS:
-                    platformName = "tvOS"
-                }
-                
-                let carthageBuild = path
-                    .appending(project)
-                    .appending(RelativePath("../../Build/\(platformName)/\(node.target.productNameWithExtension)"))
-                
-                frameworkNode = try FrameworkNode.parse(
-                    path: carthageBuild,
-                    cache: cache
-                )
-                targetNode = node
-                
-            case let .framework(precompiled):
-                frameworkNode = try FrameworkNode.parse(
-                    path: path.appending(precompiled),
-                    cache: cache
-                )
-                targetNode = nil
+            switch targetNode.target.platform {
+            case .iOS:
+                platformName = "iOS"
+            case .macOS:
+                platformName = "Mac"
+            case .tvOS:
+                platformName = "tvOS"
             }
             
-            let carthageNode = CarthageNode(frameworkNode: frameworkNode, targetNode: targetNode, path: path)
+            let carthageBuild = path
+                .appending(project)
+                .appending(RelativePath("../../Build/\(platformName)/\(targetNode.target.productNameWithExtension)"))
             
+            let frameworkNode = try FrameworkNode.parse(path: carthageBuild, cache: cache)
+            
+            let carthageNode = CarthageNode(frameworkNode: frameworkNode, targetNode: targetNode)
             cache.add(carthageNode: carthageNode)
-            
             return carthageNode
             
         }

@@ -94,6 +94,9 @@ protocol Graphing: AnyObject, Encodable {
 
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] { get }
+    
+    /// Returns all the carthage nodes that are part of the graph.
+    var carthageDependencies: [CarthageNode] { get }
 
     func packages(path: AbsolutePath, name: String) throws -> [PackageNode]
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
@@ -174,6 +177,10 @@ class Graph: Graphing {
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] {
         return cache.targetNodes.flatMap { $0.value.values }
+    }
+    
+    var carthageDependencies: [CarthageNode] {
+        return Array(cache.carthageNodes.values)
     }
 
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {

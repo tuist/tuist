@@ -1,10 +1,3 @@
-//
-//  CLIOptions.swift
-//  TuistGenerator
-//
-//  Created by Atkinson, Oliver (Developer) on 18/10/2019.
-//
-
 public struct CLIOptions {
     
     public let projectOnly: Bool
