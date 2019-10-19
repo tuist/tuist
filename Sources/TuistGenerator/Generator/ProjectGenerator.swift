@@ -117,15 +117,13 @@ final class ProjectGenerator: ProjectGenerating {
                                                 fileElements: fileElements,
                                                 sourceRootPath: sourceRootPath,
                                                 graph: graph)
-
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
-
+        
         try generateSwiftPackageReferences(project: project,
                                            pbxproj: pbxproj,
                                            pbxProject: pbxProject)
-
         try deleteOldDerivedFiles()
 
         return try write(xcodeprojPath: xcodeprojPath,

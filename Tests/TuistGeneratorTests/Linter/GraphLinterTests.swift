@@ -89,7 +89,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         xcodeController.selectedVersionStub = .success(versionStub)
 
         // When
-        
+
         let result = subject.lint(graph: graph)
 
         // Then
