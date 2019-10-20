@@ -11,6 +11,7 @@ public struct CLI: Equatable, Codable {
         public var projects: Bool
         public var SSH: Bool
         public var submodules: Bool
+        public var build: Bool
         public var projectDirectory: AbsolutePath?
     }
 
@@ -21,6 +22,7 @@ public struct CLI: Equatable, Codable {
             projects: false,
             SSH: true,
             submodules: false,
+            build: false,
             projectDirectory: nil
         ),
         verbose: false

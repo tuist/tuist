@@ -24,7 +24,7 @@ class GenerateCommand: NSObject, Command {
     let carthageSubmodulesArgument: OptionArgument<Bool>
     let carthageSSHArgument: OptionArgument<Bool>
     let carthageProjectDirectoryArgument: OptionArgument<String>
-
+    let carthageBuildArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -76,20 +76,26 @@ class GenerateCommand: NSObject, Command {
         carthageSubmodulesArgument = subParser.add(
             option: "--carthage-submodules",
             kind: Bool.self,
-            usage: "Generate carthage frameworks which have a project manifest as project dependencies."
+            usage: "true if carthage should use submodules. default false"
         )
         
         carthageSSHArgument = subParser.add(
             option: "--carthage-ssh",
             kind: Bool.self,
-            usage: "Generate carthage frameworks which have a project manifest as project dependencies."
+            usage: "If carthage should fetch with SSH. default true"
         )
         
         carthageProjectDirectoryArgument = subParser.add(
             option: "--carthage-project-directory",
             kind: String.self,
-            usage: "Generate carthage frameworks which have a project manifest as project dependencies.",
+            usage: "The directory where the Cartfile lives. default cwd",
             completion: .filename
+        )
+        
+        carthageBuildArgument = subParser.add(
+            option: "--carthage-build",
+            kind: Bool.self,
+            usage: "Build carthage dependencies if required, will only build them if carthage projects are not included in the workspace. default false"
         )
         
         verboseArgument = subParser.add(
@@ -100,6 +106,12 @@ class GenerateCommand: NSObject, Command {
         )
         
     }
+    
+    func hooks(for generator: Generating) -> [GenerateHook] {
+        return [
+            CarthageHook(generator: generator)
+        ]
+    }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let timer = clock.startTimer()
@@ -109,12 +121,25 @@ class GenerateCommand: NSObject, Command {
         CLI.arguments.carthage.submodules       = arguments.get(carthageSubmodulesArgument) ?? false
         CLI.arguments.carthage.SSH              = arguments.get(carthageSSHArgument) ?? true
         CLI.arguments.carthage.projectDirectory = path(arguments: arguments, argument: carthageProjectDirectoryArgument)
+        CLI.arguments.carthage.build            = arguments.get(carthageBuildArgument) ?? false
         CLI.arguments.verbose                   = arguments.get(verboseArgument) ?? false
         
+        let path = CLI.arguments.path
+        
+        let hooks = self.hooks(for: generator)
+        
+        for hook in hooks {
+            try hook.pre(path: path)
+        }
+        
         _ = try generator.generate(
-            at: CLI.arguments.path,
+            at: path,
             manifestLoader: manifestLoader
         )
+        
+        for hook in hooks {
+            try hook.post(path: path)
+        }
 
         let time = String(format: "%.3f", timer.stop())
         Printer.shared.print(success: "Project generated.")

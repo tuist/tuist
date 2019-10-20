@@ -4,6 +4,7 @@ import TuistCore
 
 /// A component responsible for generating Xcode projects & workspaces
 public protocol Generating {
+    
     /// Generates an Xcode project at a given path. Only the specified project is generated (excluding its dependencies).
     ///
     /// - Parameters:
@@ -83,10 +84,14 @@ public class Generator: Generating {
     }
 
     public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
+        
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
         try environmentLinter.lint(config: tuistConfig)
 
         let (graph, project) = try graphLoader.loadProject(path: path)
+        
+        Memoized.graph[path] = graph
+        
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
                                                              sourceRootPath: path)
@@ -95,10 +100,14 @@ public class Generator: Generating {
 
     public func generateProjectWorkspace(at path: AbsolutePath,
                                          workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
         try environmentLinter.lint(config: tuistConfig)
-
+        
         let (graph, project) = try graphLoader.loadProject(path: path)
+        
+        Memoized.graph[path] = graph
+        
         let workspace = Workspace(name: project.name,
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
@@ -108,12 +117,15 @@ public class Generator: Generating {
                                                graph: graph,
                                                tuistConfig: tuistConfig)
     }
-
+    
     public func generateWorkspace(at path: AbsolutePath,
                                   workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
+        
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
         try environmentLinter.lint(config: tuistConfig)
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        
+        Memoized.graph[path] = graph
 
         let updatedWorkspace = workspace
             .merging(projects: graph.projectPaths)
@@ -124,4 +136,9 @@ public class Generator: Generating {
                                                graph: graph,
                                                tuistConfig: tuistConfig)
     }
+    
+}
+
+enum Memoized {
+    static var graph: [AbsolutePath: Graph] = [:]
 }

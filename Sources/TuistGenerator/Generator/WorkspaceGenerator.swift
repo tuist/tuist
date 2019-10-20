@@ -43,7 +43,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let projectGenerator: ProjectGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
-    private let carthageInteractor: CarthageInteracting = CarthageInteractor()
 
     // MARK: - Init
 
@@ -82,29 +81,25 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
         
-        if CLI.arguments.carthage.projects {
-            try carthageInteractor.checkout(graph: graph)
-        }
-
         /// Projects
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()
         
-        let ignored: [AbsolutePath]
+        let ignoredProjects: [AbsolutePath]
         
         if CLI.arguments.carthage.projects {
-            ignored = [ ]
+            ignoredProjects = [ ]
         } else {
-            ignored = graph.carthageDependencies.map(\.path)
+            ignoredProjects = graph.carthageDependencies.map(\.path)
         }
         
         let workspace = Workspace(
             name: workspaceName,
-            projects: workspace.projects.filter(ignored.doesNotContain),
+            projects: workspace.projects.filter(ignoredProjects.doesNotContain),
             additionalFiles: workspace.additionalFiles
         )
         
-        for project in graph.projects where ignored.doesNotContain(project.path) {
+        for project in graph.projects where ignoredProjects.doesNotContain(project.path) {
             generatedProjects[project.path] = try projectGenerator.generate(project: project,
                                                                             graph: graph,
                                                                             sourceRootPath: project.path)
