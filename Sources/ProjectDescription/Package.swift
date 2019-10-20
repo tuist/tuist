@@ -3,7 +3,7 @@
 /// A package dependency can be either:
 ///     - remote: A Git URL to the source of the package,
 ///     and a requirement for the version of the package.
-///     - local: A relative path to a swift package.
+///     - local: A relative path to the package.
 public enum Package: Equatable, Codable {
     case remote(url: String, requirement: Requirement)
     case local(path: String)
