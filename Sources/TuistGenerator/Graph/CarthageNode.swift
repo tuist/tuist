@@ -10,7 +10,11 @@ class CarthageNode: GraphNode {
     init(frameworkNode: FrameworkNode, targetNode: TargetNode) {
         self.frameworkNode = frameworkNode
         self.targetNode = targetNode
-        super.init(path: targetNode.path, name: frameworkNode.name)
+        super.init(path: frameworkNode.path, name: frameworkNode.name)
+    }
+    
+    var projectPath: AbsolutePath {
+        return targetNode.path
     }
     
 }

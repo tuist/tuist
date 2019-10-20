@@ -90,7 +90,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         if CLI.arguments.carthage.projects {
             ignoredProjects = [ ]
         } else {
-            ignoredProjects = graph.carthageDependencies.map(\.path)
+            ignoredProjects = graph.carthageDependencies.map(\.projectPath)
         }
         
         let workspace = Workspace(

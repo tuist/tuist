@@ -162,10 +162,11 @@ class TargetNode: GraphNode {
                 platformName = "tvOS"
             }
             
-            let carthageBuild = path
-                .appending(project)
-                .appending(RelativePath("../../Build/\(platformName)/\(targetNode.target.productNameWithExtension)"))
+            let projectDirectory = CLI.arguments.carthage.projectDirectory ?? CLI.arguments.path
             
+            let carthageBuild = projectDirectory
+                .appending(RelativePath("Carthage/Build/\(platformName)/\(targetNode.target.productNameWithExtension)"))
+
             let frameworkNode = try FrameworkNode.parse(path: carthageBuild, cache: cache)
             
             let carthageNode = CarthageNode(frameworkNode: frameworkNode, targetNode: targetNode)

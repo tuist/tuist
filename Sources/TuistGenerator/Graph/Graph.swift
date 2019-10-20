@@ -410,9 +410,13 @@ extension Graph {
         return targetNode.target.product == .framework
     }
 
-    internal func frameworkUsesDynamicLinking() -> (_ frameworkNode: PrecompiledNode) -> Bool {
+    internal func frameworkUsesDynamicLinking() -> (_ frameworkNode: GraphNode) -> Bool {
         return { frameworkNode in
-            let isDynamicLink = try? frameworkNode.linking() == .dynamic
+            
+            let node = (frameworkNode as? PrecompiledNode)
+                ?? (frameworkNode as? CarthageNode)?.frameworkNode
+            
+            let isDynamicLink = try? node?.linking() == .dynamic
             return isDynamicLink ?? false
         }
     }

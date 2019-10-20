@@ -24,7 +24,7 @@ public struct CarthageHook: GenerateHook {
         if graph.carthageDependencies.isEmpty == false, CLI.arguments.carthage.projects == false {
             
             for carthage in graph.carthageDependencies {
-                _ = try owner.generateProjectWorkspace(at: carthage.path, workspaceFiles: [ ])
+                _ = try owner.generateProjectWorkspace(at: carthage.projectPath, workspaceFiles: [ ])
             }
             
             if CLI.arguments.carthage.build {
