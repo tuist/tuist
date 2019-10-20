@@ -21,24 +21,18 @@ public struct CarthageHook: GenerateHook {
             return
         }
         
-        guard graph.carthageDependencies.isEmpty == false else {
-            return
+        let hasCarthageDependencies = graph.carthageDependencies.isEmpty == false
+        let usingCarthageProjects = CLI.arguments.carthage.projects == false
+        
+        if hasCarthageDependencies, usingCarthageProjects, CLI.arguments.carthage.build {
+            for carthage in graph.carthageDependencies {
+                _ = try owner.generateProjectWorkspace(at: carthage.projectPath, workspaceFiles: [ ])
+            }
         }
         
-        guard CLI.arguments.carthage.projects == false else {
-            return
+        if CLI.arguments.carthage.build {
+            try carthageInteractor.build(graph: graph)
         }
-        
-        guard CLI.arguments.carthage.build else {
-            return
-        }
-        
-        for carthage in graph.carthageDependencies {
-            _ = try owner.generateProjectWorkspace(at: carthage.projectPath, workspaceFiles: [])
-        }
-        
-        try carthageInteractor.build(graph: graph)
-        
     }
     
 }
