@@ -90,7 +90,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
             }
             do {
                 try System.shared.runAndPrint(command,
-                                              verbose: false,
+                                              verbose: CLI.arguments.verbose,
                                               environment: System.shared.env,
                                               redirection: .stream(stdout: outputClosure,
                                                                    stderr: outputClosure))

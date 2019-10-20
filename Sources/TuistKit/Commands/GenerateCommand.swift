@@ -18,8 +18,13 @@ class GenerateCommand: NSObject, Command {
     
     let pathArgument: OptionArgument<String>
     let projectOnlyArgument: OptionArgument<Bool>
-    let carthageProjectsArgument: OptionArgument<Bool>
     let verboseArgument: OptionArgument<Bool>
+    
+    let carthageProjectsArgument: OptionArgument<Bool>
+    let carthageSubmodulesArgument: OptionArgument<Bool>
+    let carthageSSHArgument: OptionArgument<Bool>
+    let carthageProjectDirectoryArgument: OptionArgument<String>
+
 
     // MARK: - Init
 
@@ -48,42 +53,68 @@ class GenerateCommand: NSObject, Command {
         self.manifestLoader = manifestLoader
         self.clock = clock
 
-        pathArgument = subParser.add(option: "--path",
-                                     shortName: "-p",
-                                     kind: String.self,
-                                     usage: "The path where the project will be generated.",
-                                     completion: .filename)
-
-        projectOnlyArgument = subParser.add(option: "--project-only",
-                                            kind: Bool.self,
-                                            usage: "Only generate the local project (without generating its dependencies).")
+        pathArgument = subParser.add(
+            option: "--path",
+            shortName: "-p",
+            kind: String.self,
+            usage: "The path where the project will be generated.",
+            completion: .filename
+        )
         
-        carthageProjectsArgument = subParser.add(option: "--carthage-projects",
-                                                 kind: Bool.self,
-                                                 usage: "Generate carthage frameworks which have a project manifest as project dependencies.")
+        projectOnlyArgument = subParser.add(
+            option: "--project-only",
+            kind: Bool.self,
+            usage: "Only generate the local project (without generating its dependencies)."
+        )
         
-        verboseArgument = subParser.add(option: "--verbose",
-                                        shortName: "-v",
-                                        kind: Bool.self,
-                                        usage: "Enable verbose logging.")
+        carthageProjectsArgument = subParser.add(
+            option: "--carthage-projects",
+            kind: Bool.self,
+            usage: "Generate carthage frameworks which have a project manifest as project dependencies."
+        )
+        
+        carthageSubmodulesArgument = subParser.add(
+            option: "--carthage-submodules",
+            kind: Bool.self,
+            usage: "Generate carthage frameworks which have a project manifest as project dependencies."
+        )
+        
+        carthageSSHArgument = subParser.add(
+            option: "--carthage-ssh",
+            kind: Bool.self,
+            usage: "Generate carthage frameworks which have a project manifest as project dependencies."
+        )
+        
+        carthageProjectDirectoryArgument = subParser.add(
+            option: "--carthage-project-directory",
+            kind: String.self,
+            usage: "Generate carthage frameworks which have a project manifest as project dependencies.",
+            completion: .filename
+        )
+        
+        verboseArgument = subParser.add(
+            option: "--verbose",
+            shortName: "-v",
+            kind: Bool.self,
+            usage: "Enable verbose logging."
+        )
+        
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let timer = clock.startTimer()
-        let path = self.path(arguments: arguments)
         
-        let projectOnly = arguments.get(projectOnlyArgument) ?? false
-        let carthageProjects = arguments.get(carthageProjectsArgument) ?? false
-        let verbose = arguments.get(verboseArgument) ?? false
-
-        CLIOptions.current = .init(
-            projectOnly: projectOnly,
-            carthageProjects: carthageProjects,
-            verbose: verbose
+        CLI.arguments.path                      = path(arguments: arguments, argument: pathArgument) ?? FileHandler.shared.currentPath
+        CLI.arguments.carthage.projects         = arguments.get(carthageProjectsArgument) ?? false
+        CLI.arguments.carthage.submodules       = arguments.get(carthageSubmodulesArgument) ?? false
+        CLI.arguments.carthage.SSH              = arguments.get(carthageSSHArgument) ?? true
+        CLI.arguments.carthage.projectDirectory = path(arguments: arguments, argument: carthageProjectDirectoryArgument)
+        CLI.arguments.verbose                   = arguments.get(verboseArgument) ?? false
+        
+        _ = try generator.generate(
+            at: CLI.arguments.path,
+            manifestLoader: manifestLoader
         )
-
-        _ = try generator.generate(at: path,
-                                   manifestLoader: manifestLoader)
 
         let time = String(format: "%.3f", timer.stop())
         Printer.shared.print(success: "Project generated.")
@@ -92,11 +123,11 @@ class GenerateCommand: NSObject, Command {
 
     // MARK: - Fileprivate
 
-    private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
-        if let path = arguments.get(pathArgument) {
+    private func path(arguments: ArgumentParser.Result, argument: OptionArgument<String>) -> AbsolutePath? {
+        if let path = arguments.get(argument) {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
-            return FileHandler.shared.currentPath
+            return nil
         }
     }
 }

@@ -64,10 +64,8 @@ public class Generator: Generating {
                                                 configGenerator: configGenerator)
         let environmentLinter = EnvironmentLinter()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
-        let cocoapodsInteractor = CocoaPodsInteractor()
         let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
-                                                    workspaceStructureGenerator: workspaceStructureGenerator,
-                                                    cocoapodsInteractor: cocoapodsInteractor)
+                                                    workspaceStructureGenerator: workspaceStructureGenerator)
         self.init(graphLoader: graphLoader,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,

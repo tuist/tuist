@@ -116,7 +116,7 @@ class CommandRunner: CommandRunning {
         environment[Constants.EnvironmentVariables.colouredOutput] = "\(self.environment.shouldOutputBeColoured)"
 
         do {
-            try System.shared.runAndPrint(args, verbose: false, environment: environment)
+            try System.shared.runAndPrint(args, verbose: CLI.arguments.verbose, environment: environment)
         } catch {
             exiter(1)
         }

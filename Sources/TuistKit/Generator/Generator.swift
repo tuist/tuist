@@ -5,7 +5,7 @@ import TuistCore
 extension Generating {
     func generate(at path: AbsolutePath,
                   manifestLoader: GraphManifestLoading) throws -> AbsolutePath {
-        if CLIOptions.current.projectOnly {
+        if CLI.arguments.projectOnly {
             return try generateProject(at: path)
         } else {
             return try generateWorkspace(at: path,

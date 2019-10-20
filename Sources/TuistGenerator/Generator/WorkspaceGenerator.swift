@@ -42,27 +42,24 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     private let projectGenerator: ProjectGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
-    private let cocoapodsInteractor: CocoaPodsInteracting
+    private let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
+    private let carthageInteractor: CarthageInteracting = CarthageInteractor()
 
     // MARK: - Init
 
-    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
+    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator)
         self.init(projectGenerator: projectGenerator,
-                  workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  cocoapodsInteractor: cocoapodsInteractor)
+                  workspaceStructureGenerator: WorkspaceStructureGenerator())
     }
 
     init(projectGenerator: ProjectGenerating,
-         workspaceStructureGenerator: WorkspaceStructureGenerating,
-         cocoapodsInteractor: CocoaPodsInteracting) {
+         workspaceStructureGenerator: WorkspaceStructureGenerating) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
-        self.cocoapodsInteractor = cocoapodsInteractor
     }
 
     // MARK: - WorkspaceGenerating
@@ -84,6 +81,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspaceName = "\(graph.name).xcworkspace"
 
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
+        
+        if CLI.arguments.carthage.projects {
+            try carthageInteractor.checkout(graph: graph)
+        }
 
         /// Projects
 
@@ -91,7 +92,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         
         let ignored: [AbsolutePath]
         
-        if CLIOptions.current.carthageProjects {
+        if CLI.arguments.carthage.projects {
             ignored = [ ]
         } else {
             ignored = graph.carthageDependencies.map(\.path)

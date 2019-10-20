@@ -125,6 +125,7 @@ public protocol Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     func which(_ name: String) throws -> String
+    func which(_ name: String, environment: [String: String]) throws -> String
 }
 
 extension ProcessResult {
@@ -187,23 +188,38 @@ public final class System: Systeming {
     // MARK: - Init
 
     // MARK: - Systeming
-
+    
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
     /// - Throws: An error if the command fails
     public func run(_ arguments: [String]) throws {
+        try run(arguments, verbose: CLI.arguments.verbose)
+    }
+
+    /// Runs a command without collecting output nor printing anything.
+    ///
+    /// - Parameters:
+    ///     - arguments: Command.
+    ///     - verbose: When true it prints the command that will be executed before executing it.
+    /// - Throws: An error if the command fails
+    public func run(_ arguments: [String], verbose: Bool) throws {
+
         let process = Process(arguments: arguments,
                               environment: env,
                               outputRedirection: .stream(stdout: { _ in },
                                                          stderr: { _ in }),
-                              verbose: false,
+                              verbose: verbose,
                               startNewProcessGroup: false)
-
+        
         try process.launch()
         let result = try process.waitUntilExit()
 
         try result.throwIfErrored()
+        
+        if CLI.arguments.verbose {
+            try Printer.shared.print(result.utf8Output())
+        }
     }
 
     /// Runs a command without collecting output nor printing anything.
@@ -233,7 +249,7 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String]) throws -> String {
-        return try capture(arguments, verbose: false, environment: env)
+        return try capture(arguments, verbose: CLI.arguments.verbose, environment: env)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -261,6 +277,7 @@ public final class System: Systeming {
     public func capture(_ arguments: [String],
                         verbose: Bool,
                         environment: [String: String]) throws -> String {
+
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .collect,
@@ -271,6 +288,10 @@ public final class System: Systeming {
         let result = try process.waitUntilExit()
 
         try result.throwIfErrored()
+        
+        if CLI.arguments.verbose {
+            try Printer.shared.print(result.utf8Output())
+        }
 
         return try result.utf8Output()
     }
@@ -290,7 +311,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: env)
+        try runAndPrint(arguments, verbose: CLI.arguments.verbose, environment: env)
     }
 
     /// Runs a command in the shell printing its output.
@@ -336,6 +357,7 @@ public final class System: Systeming {
                             verbose: Bool,
                             environment: [String: String],
                             redirection: Basic.Process.OutputRedirection) throws {
+
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in
@@ -360,7 +382,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func async(_ arguments: [String]) throws {
-        try async(arguments, verbose: false, environment: env)
+        try async(arguments, verbose: CLI.arguments.verbose, environment: env)
     }
 
     /// Runs a command in the shell asynchronously.
@@ -398,6 +420,10 @@ public final class System: Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
-        return try capture("/usr/bin/env", "which", name).spm_chomp()
+        return try which(name, environment: env)
+    }
+    
+    public func which(_ name: String, environment: [String: String]) throws -> String {
+        return try capture("/usr/bin/env", "which", name, verbose: CLI.arguments.verbose, environment: environment).spm_chomp()
     }
 }
