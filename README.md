@@ -68,7 +68,7 @@ The list of actions will likely grow as we get feedback from you.
 ### Running script (Recommended)
 
 ```bash
-bash <(curl -Ls https://tuist.io/install)
+bash <(curl -Ls https://raw.githubusercontent.com/tuist/tuist/master/script/install)
 ```
 
 ## Bootstrap your first project 🌀
