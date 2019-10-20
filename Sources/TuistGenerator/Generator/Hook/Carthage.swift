@@ -20,18 +20,25 @@ public struct CarthageHook: GenerateHook {
         guard let graph = Memoized.graph[path] else {
             return
         }
-            
-        if graph.carthageDependencies.isEmpty == false, CLI.arguments.carthage.projects == false {
-            
-            for carthage in graph.carthageDependencies {
-                _ = try owner.generateProjectWorkspace(at: carthage.projectPath, workspaceFiles: [ ])
-            }
-            
-            if CLI.arguments.carthage.build {
-                try carthageInteractor.build(graph: graph)
-            }
-            
+        
+        guard graph.carthageDependencies.isEmpty == false else {
+            return
         }
+        
+        guard CLI.arguments.carthage.projects == false else {
+            return
+        }
+        
+        guard CLI.arguments.carthage.build else {
+            return
+        }
+        
+        for carthage in graph.carthageDependencies {
+            _ = try owner.generateProjectWorkspace(at: carthage.projectPath, workspaceFiles: [])
+        }
+        
+        try carthageInteractor.build(graph: graph)
+        
     }
     
 }
