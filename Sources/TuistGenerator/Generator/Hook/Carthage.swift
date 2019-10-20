@@ -20,7 +20,7 @@ public struct CarthageHook: GenerateHook {
         guard let graph = Memoized.graph[path] else {
             return
         }
-                
+            
         if graph.carthageDependencies.isEmpty == false, CLI.arguments.carthage.projects == false {
             
             for carthage in graph.carthageDependencies {

@@ -85,21 +85,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()
         
-        let ignoredProjects: [AbsolutePath]
-        
-        if CLI.arguments.carthage.projects {
-            ignoredProjects = [ ]
-        } else {
-            ignoredProjects = graph.carthageDependencies.map(\.projectPath)
-        }
-        
-        let workspace = Workspace(
-            name: workspaceName,
-            projects: workspace.projects.filter(ignoredProjects.doesNotContain),
-            additionalFiles: workspace.additionalFiles
-        )
-        
-        for project in graph.projects where ignoredProjects.doesNotContain(project.path) {
+        for project in graph.projects {
             generatedProjects[project.path] = try projectGenerator.generate(project: project,
                                                                             graph: graph,
                                                                             sourceRootPath: project.path)

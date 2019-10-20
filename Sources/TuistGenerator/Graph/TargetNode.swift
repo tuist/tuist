@@ -169,6 +169,10 @@ class TargetNode: GraphNode {
 
             let frameworkNode = try FrameworkNode.parse(path: carthageBuild, cache: cache)
             
+            if CLI.arguments.carthage.projects == false {
+                cache.projects.removeValue(forKey: targetNode.path)
+            }
+            
             let carthageNode = CarthageNode(frameworkNode: frameworkNode, targetNode: targetNode)
             cache.add(carthageNode: carthageNode)
             return carthageNode

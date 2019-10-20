@@ -2,7 +2,7 @@ import Basic
 import Foundation
 
 protocol GraphLoaderCaching: AnyObject {
-    var projects: [AbsolutePath: Project] { get }
+    var projects: [AbsolutePath: Project] { get set }
     var targetNodes: [AbsolutePath: [String: TargetNode]] { get }
     var precompiledNodes: [AbsolutePath: PrecompiledNode] { get }
 

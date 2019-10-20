@@ -78,6 +78,7 @@ public class Project: Equatable, CustomStringConvertible {
             return project
         } else {
             let project = try modelLoader.loadProject(at: path)
+            
             cache.add(project: project)
 
             for target in project.targets {
