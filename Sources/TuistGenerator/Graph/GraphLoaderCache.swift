@@ -31,9 +31,9 @@ protocol GraphLoaderCaching: AnyObject {
 
     var packages: [AbsolutePath: [PackageNode]] { get }
 
-    var packageNodes: [AbsolutePath: PackageDependencyNode] { get }
-    func package(_ path: AbsolutePath) -> PackageDependencyNode?
-    func add(package: PackageDependencyNode)
+    var packageNodes: [AbsolutePath: PackageProductNode] { get }
+    func package(_ path: AbsolutePath) -> PackageProductNode?
+    func add(package: PackageProductNode)
 }
 
 /// Graph loader cache.
@@ -65,20 +65,20 @@ class GraphLoaderCache: GraphLoaderCaching {
     }
 
     /// Cached SwiftPM package nodes
-    var packageNodes: [AbsolutePath: PackageDependencyNode] = [:]
+    var packageNodes: [AbsolutePath: PackageProductNode] = [:]
 
     /// Returns, if it exists, the Package node at the given path.
     ///
     /// - Parameter path: Path to the directory where the Podfile is defined.
     /// - Returns: The Package node if it exists in the cache.
-    func package(_ path: AbsolutePath) -> PackageDependencyNode? {
+    func package(_ path: AbsolutePath) -> PackageProductNode? {
         return packageNodes[path]
     }
 
     /// Adds a parsed Package graph node to the cache.
     ///
     /// - Parameter package: Node to be added to the cache.
-    func add(package: PackageDependencyNode) {
+    func add(package: PackageProductNode) {
         packageNodes[package.path] = package
     }
 

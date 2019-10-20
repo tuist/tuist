@@ -92,7 +92,7 @@ extension Graph {
                 return nil
             }
             node.dependencies.append(contentsOf: packageDependencies.map {
-                PackageDependencyNode(product: $0, path: node.path)
+                PackageProductNode(product: $0, path: node.path)
             })
         }
 

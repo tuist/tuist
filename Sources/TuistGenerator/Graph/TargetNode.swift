@@ -136,7 +136,7 @@ class TargetNode: GraphNode {
         case let .cocoapods(podsPath):
             return CocoaPodsNode.read(path: path.appending(podsPath), cache: cache)
         case let .package(product):
-            return PackageDependencyNode(
+            return PackageProductNode(
                 product: product,
                 path: path
             )

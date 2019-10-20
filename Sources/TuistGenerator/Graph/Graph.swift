@@ -418,8 +418,8 @@ extension TargetNode {
         return dependencies.lazy.compactMap { $0 as? PrecompiledNode }
     }
 
-    fileprivate var packages: [PackageDependencyNode] {
-        return dependencies.lazy.compactMap { $0 as? PackageDependencyNode }
+    fileprivate var packages: [PackageProductNode] {
+        return dependencies.lazy.compactMap { $0 as? PackageProductNode }
     }
 
     fileprivate var libraryDependencies: [LibraryNode] {

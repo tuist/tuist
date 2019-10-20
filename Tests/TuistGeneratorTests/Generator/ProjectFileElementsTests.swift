@@ -600,7 +600,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                             pbxproj: pbxproj,
                                             sourceRootPath: project.path)
 
-        let package = PackageDependencyNode(product: "A", path: "/packages/url")
+        let package = PackageProductNode(product: "A", path: "/packages/url")
 
         let graph = createGraph(project: project, target: target, dependencies: [package])
 

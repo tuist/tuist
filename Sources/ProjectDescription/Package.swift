@@ -1,3 +1,9 @@
+/// A dependency of a Swift package.
+///
+/// A package dependency can be either:
+///     - remote: A Git URL to the source of the package,
+///     and a requirement for the version of the package.
+///     - local: A relative path to a swift package.
 public enum Package: Equatable, Codable {
     case remote(url: String, requirement: Requirement)
     case local(path: String)
@@ -7,7 +13,7 @@ public enum Package: Equatable, Codable {
         case local
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case url
         case productName

@@ -145,22 +145,7 @@ final class LinkGenerator: LinkGenerating {
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product):
-
-                let productDependency = XCSwiftPackageProductDependency(productName: product)
-                pbxproj.add(object: productDependency)
-                pbxTarget.packageProductDependencies.append(productDependency)
-
-                // Build file
-                let buildFile = PBXBuildFile(product: productDependency)
-                pbxproj.add(object: buildFile)
-
-                // Link the product
-                guard let frameworksBuildPhase = try pbxTarget.frameworksBuildPhase() else {
-                    throw "No frameworks build phase"
-                }
-
-                frameworksBuildPhase.files?.append(buildFile)
-
+                try pbxTarget.addSwiftPackageProduct(productName: product, pbxproj: pbxproj)
             default:
                 break
             }
@@ -393,5 +378,24 @@ private extension XCBuildConfiguration {
         }
         let existing = (buildSettings[name] as? String) ?? "$(inherited)"
         buildSettings[name] = [existing, value].joined(separator: " ")
+    }
+}
+
+extension PBXTarget {
+    func addSwiftPackageProduct(productName: String, pbxproj: PBXProj) throws {
+        let productDependency = XCSwiftPackageProductDependency(productName: productName)
+        pbxproj.add(object: productDependency)
+        packageProductDependencies.append(productDependency)
+
+        // Build file
+        let buildFile = PBXBuildFile(product: productDependency)
+        pbxproj.add(object: buildFile)
+
+        // Link the product
+        guard let frameworksBuildPhase = try frameworksBuildPhase() else {
+            throw "No frameworks build phase"
+        }
+
+        frameworksBuildPhase.files?.append(buildFile)
     }
 }

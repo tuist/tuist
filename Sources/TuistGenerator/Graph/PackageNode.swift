@@ -2,7 +2,8 @@ import Basic
 import Foundation
 import TuistCore
 
-class PackageDependencyNode: GraphNode {
+/// Node specifying a product dependency on a swift package
+class PackageProductNode: GraphNode {
     let product: String
     init(product: String, path: AbsolutePath) {
         self.product = product
@@ -10,6 +11,7 @@ class PackageDependencyNode: GraphNode {
     }
 }
 
+/// Node specifying a swift package
 class PackageNode: GraphNode {
     let package: Package
 

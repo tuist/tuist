@@ -137,8 +137,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             return
         }
 
-        let hasRemotePackage = packages.first(where: { package in
-            switch package.package {
+        let hasRemotePackage = packages.first(where: { node in
+            switch node.package {
             case .remote: return true
             case .local: return false
             }
