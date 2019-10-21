@@ -6350,18 +6350,18 @@ gatsby-remark-smartypants@^2.1.14:
     jimp "^0.6.0"
     path "^0.12.7"
 
-gatsby-source-filesystem@^2.1.22, gatsby-source-filesystem@^2.1.29:
-  version "2.1.29"
-  resolved "https://registry.yarnpkg.com/gatsby-source-filesystem/-/gatsby-source-filesystem-2.1.29.tgz#ca4dd77c850152b1a57d91b6535930b67b35fe73"
-  integrity sha512-MRJ3jkGhxJDztXzw0oeh4hizLzs5hGIc/Jq5gwUi5NcrKCR5HDbOFvVVE8irfkoNh7TuvHf6sjWFzDgzlUADgw==
+gatsby-source-filesystem@^2.1.22, gatsby-source-filesystem@^2.1.33:
+  version "2.1.33"
+  resolved "https://registry.yarnpkg.com/gatsby-source-filesystem/-/gatsby-source-filesystem-2.1.33.tgz#6a6e4a075be7af5db603acb695b9eabdc885985e"
+  integrity sha512-QhhHM8lalThJs5OsNgL6ILxIA36rRYsC+9ynUSEBku88+qBajycURxPjg+gn4NfWYfGAUXigxQzomQagHOLvlQ==
   dependencies:
-    "@babel/runtime" "^7.6.2"
+    "@babel/runtime" "^7.6.3"
     better-queue "^3.8.10"
     bluebird "^3.7.0"
     chokidar "3.2.1"
     file-type "^12.3.0"
     fs-extra "^8.1.0"
-    gatsby-core-utils "^1.0.12"
+    gatsby-core-utils "^1.0.15"
     got "^7.1.0"
     md5-file "^3.2.3"
     mime "^2.4.4"
