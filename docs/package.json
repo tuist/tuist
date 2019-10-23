@@ -22,7 +22,7 @@
     "lodash": "^4.17.15",
     "node-sass": "^4.12.0",
     "prismjs": "^1.17.1",
-    "react": "^16.8.6",
+    "react": "^16.11.0",
     "react-dom": "^16.8.6",
     "sass-loader": "^8.0.0",
     "semantic-ui-react": "^0.88.1",
