@@ -20,7 +20,7 @@
     "gatsby-plugin-mdx": "^1.0.52",
     "gatsby-theme-docz": "^2.0.0-rc.58",
     "lodash": "^4.17.15",
-    "node-sass": "^4.12.0",
+    "node-sass": "^4.13.0",
     "prismjs": "^1.17.1",
     "react": "^16.11.0",
     "react-dom": "^16.8.6",
