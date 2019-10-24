@@ -77,6 +77,40 @@ class PrecompiledNode: GraphNode {
         return architectures
     }
 
+    /// It uses 'dwarfdump' to dump the UUIDs of each architecture.
+    /// The UUIDs allows us to know which .bcsymbolmap files belong to this binary.
+    func uuids() throws -> Set<UUID> {
+        let output = try System.shared.capture(["/usr/bin/xcrun", "dwarfdump", "--uuid", self.binaryPath.pathString])
+        // UUIDs are letters, decimals, or hyphens.
+        var uuidCharacterSet = CharacterSet()
+        uuidCharacterSet.formUnion(.letters)
+        uuidCharacterSet.formUnion(.decimalDigits)
+        uuidCharacterSet.formUnion(CharacterSet(charactersIn: "-"))
+
+        let scanner = Scanner(string: output)
+        var uuids = Set<UUID>()
+
+        // The output of dwarfdump is a series of lines formatted as follows
+        // for each architecture:
+        //
+        //     UUID: <UUID> (<Architecture>) <PathToBinary>
+        //
+        while !scanner.isAtEnd {
+            scanner.scanString("UUID: ", into: nil)
+
+            var uuidString: NSString?
+            scanner.scanCharacters(from: uuidCharacterSet, into: &uuidString)
+
+            if let uuidString = uuidString as String?, let uuid = UUID(uuidString: uuidString) {
+                uuids.insert(uuid)
+            }
+
+            // Scan until a newline or end of file.
+            scanner.scanUpToCharacters(from: .newlines, into: nil)
+        }
+        return uuids
+    }
+
     func linking() throws -> Linking {
         let result = try System.shared.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static

@@ -22,6 +22,23 @@ class FrameworkNode: PrecompiledNode {
         return path.appending(component: frameworkName)
     }
 
+    // Vendored frameworks might have a dSYM file next to them so ensure its copied. Frameworks built from
+    // sources will have their dSYM generated and copied by Xcode.
+    var dsymPath: AbsolutePath? {
+        let path = AbsolutePath("\(self.path.pathString).dSYM")
+        if FileHandler.shared.exists(path) { return path }
+        return nil
+    }
+
+    /// Returns the *.bcsymbol maps in the framework's directory that belong
+    /// to this framework.
+    func bcsymbolmapPaths() throws -> [AbsolutePath] {
+        let uuids = try self.uuids()
+        return uuids
+            .map { self.path.parentDirectory.appending(component: "\($0).bcsymbolmap") }
+            .filter { FileHandler.shared.exists($0) }
+    }
+
     /// Returns the library product.
     ///
     /// - Returns: Product.
