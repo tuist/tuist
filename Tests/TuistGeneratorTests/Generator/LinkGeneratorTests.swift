@@ -5,11 +5,19 @@ import XCTest
 @testable import TuistGenerator
 
 final class LinkGeneratorErrorTests: XCTestCase {
+    var embedScriptGenerator: MockEmbedScriptGenerator!
     var subject: LinkGenerator!
 
     override func setUp() {
         super.setUp()
-        subject = LinkGenerator()
+        embedScriptGenerator = MockEmbedScriptGenerator()
+        subject = LinkGenerator(embedScriptGenerator: embedScriptGenerator)
+    }
+
+    override func tearDown() {
+        subject = nil
+        embedScriptGenerator = nil
+        super.tearDown()
     }
 
     func test_linkGeneratorError_description() {
@@ -25,6 +33,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func test_generateEmbedPhase() throws {
+        // Given
         var dependencies: [DependencyReference] = []
         dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
         dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
@@ -35,18 +44,20 @@ final class LinkGeneratorErrorTests: XCTestCase {
         pbxproj.add(object: wakaFile)
         fileElements.products["Test"] = wakaFile
         let sourceRootPath = AbsolutePath("/")
+        embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script", inputPaths: [RelativePath("frameworks/A.framework")]))
 
+        // When
         try subject.generateEmbedPhase(dependencies: dependencies,
                                        pbxTarget: pbxTarget,
                                        pbxproj: pbxproj,
                                        fileElements: fileElements,
                                        sourceRootPath: sourceRootPath)
 
+        // Then
         let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
         XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
-        XCTAssertEqual(scriptBuildPhase?.shellScript, "tuist embed test.framework")
-        XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/test.framework"])
-        XCTAssertEqual(scriptBuildPhase?.outputPaths, ["$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/test.framework"])
+        XCTAssertEqual(scriptBuildPhase?.shellScript, "script")
+        XCTAssertEqual(scriptBuildPhase?.inputPaths, ["frameworks/A.framework"])
 
         let copyBuildPhase: PBXCopyFilesBuildPhase? = pbxTarget.buildPhases.last as? PBXCopyFilesBuildPhase
         XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")

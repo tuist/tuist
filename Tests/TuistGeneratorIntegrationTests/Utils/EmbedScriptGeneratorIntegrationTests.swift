@@ -26,8 +26,7 @@ final class EmbedScriptGeneratorIntegrationTests: TuistTestCase {
         let framework = FrameworkNode(path: frameworkPath)
 
         // When
-        let got = try subject.script(sourceRootPath: carthagePath,
-                                     frameworks: [framework])
+        let got = try subject.script(sourceRootPath: carthagePath, frameworkPaths: [framework.path])
 
         // Then
         XCTAssertTrue(got.inputPaths.contains(RelativePath("2510FE01-4D40-3956-BB71-857D3B2D9E73.bcsymbolmap")))

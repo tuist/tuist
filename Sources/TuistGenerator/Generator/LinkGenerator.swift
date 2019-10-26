@@ -57,11 +57,16 @@ final class LinkGenerator: LinkGenerating {
     /// An instance to locate tuist binaries.
     let binaryLocator: BinaryLocating
 
+    /// Utility that generates the script to embed dynamic frameworks.
+    let embedScriptGenerator: EmbedScriptGenerating
+
     /// Initializes the link generator with its attributes.
-    ///
     /// - Parameter binaryLocator: An instance to locate tuist binaries.
-    init(binaryLocator: BinaryLocating = BinaryLocator()) {
+    /// - Parameter embedScriptGenerator: Utility that generates the script to embed dynamic frameworks.
+    init(binaryLocator: BinaryLocating = BinaryLocator(),
+         embedScriptGenerator: EmbedScriptGenerating = EmbedScriptGenerator()) {
         self.binaryLocator = binaryLocator
+        self.embedScriptGenerator = embedScriptGenerator
     }
 
     // MARK: - LinkGenerating
@@ -170,16 +175,11 @@ final class LinkGenerator: LinkGenerating {
         pbxTarget.buildPhases.append(precompiledEmbedPhase)
         pbxTarget.buildPhases.append(embedPhase)
 
-        var script: [String] = []
+        var precompiledFrameworkPaths: [AbsolutePath] = []
 
         try dependencies.forEach { dependency in
             if case let DependencyReference.absolute(path) = dependency {
-                let relativePath = "$(SRCROOT)/\(path.relative(to: sourceRootPath).pathString)"
-                let binary = binaryLocator.copyFrameworksBinary()
-                script.append("\(binary) embed \(path.relative(to: sourceRootPath).pathString)")
-                precompiledEmbedPhase.inputPaths.append(relativePath)
-                precompiledEmbedPhase.outputPaths.append("$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/\(path.components.last!)")
-
+                precompiledFrameworkPaths.append(path)
             } else if case let DependencyReference.product(target, _) = dependency {
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
@@ -189,10 +189,13 @@ final class LinkGenerator: LinkGenerating {
                 embedPhase.files?.append(buildFile)
             }
         }
-        if script.isEmpty {
+
+        if precompiledFrameworkPaths.isEmpty {
             precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
         } else {
-            precompiledEmbedPhase.shellScript = script.joined(separator: "\n")
+            let script = try embedScriptGenerator.script(sourceRootPath: sourceRootPath, frameworkPaths: precompiledFrameworkPaths)
+            precompiledEmbedPhase.shellScript = script.script
+            precompiledEmbedPhase.inputPaths = script.inputPaths.map(\.pathString)
         }
     }
 

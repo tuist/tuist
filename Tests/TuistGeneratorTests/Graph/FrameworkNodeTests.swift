@@ -36,25 +36,6 @@ final class FrameworkNodeTests: TuistUnitTestCase {
         XCTAssertTrue(subject.isCarthage)
     }
 
-    func test_architectures_when_nonFatFramework() throws {
-        system.succeedCommand("/usr/bin/lipo -info /test.framework/test",
-                              output: "Non-fat file: path is architecture: x86_64")
-        try XCTAssertEqual(subject.architectures().first, .x8664)
-    }
-
-    func test_architectures_when_fatFramework() throws {
-        system.succeedCommand("/usr/bin/lipo -info /test.framework/test",
-                              output: "Architectures in the fat file: /path/xpm.framework/xpm are: x86_64 arm64")
-        try XCTAssertTrue(subject.architectures().contains(.x8664))
-        try XCTAssertTrue(subject.architectures().contains(.arm64))
-    }
-
-    func test_linking() {
-        system.succeedCommand("/usr/bin/file", "/test.framework/test",
-                              output: "whatever dynamically linked")
-        try XCTAssertEqual(subject.linking(), .dynamic)
-    }
-
     func test_encode() {
         // Given
         System.shared = System()

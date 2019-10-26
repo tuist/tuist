@@ -10,8 +10,8 @@ protocol EmbedScriptGenerating {
     /// It returns the script and the input paths list that should be used to generate a Xcode script phase
     /// to embed the given frameworks into the compiled product.
     /// - Parameter sourceRootPath: Directory where the Xcode project will be created.
-    /// - Parameter frameworks: Frameworks that have to be embedded.
-    func script(sourceRootPath: AbsolutePath, frameworks: [FrameworkNode]) throws -> EmbedScript
+    /// - Parameter frameworkPaths: Path to the frameworks.
+    func script(sourceRootPath: AbsolutePath, frameworkPaths: [AbsolutePath]) throws -> EmbedScript
 }
 
 /// It represents a embed frameworks script.
@@ -24,11 +24,17 @@ struct EmbedScript {
 }
 
 final class EmbedScriptGenerator: EmbedScriptGenerating {
-    func script(sourceRootPath: AbsolutePath, frameworks: [FrameworkNode]) throws -> EmbedScript {
+    let frameworkMetadataProvider: FrameworkMetadataProviding
+
+    init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) {
+        self.frameworkMetadataProvider = frameworkMetadataProvider
+    }
+
+    func script(sourceRootPath: AbsolutePath, frameworkPaths: [AbsolutePath]) throws -> EmbedScript {
         var script = baseScript()
         script.append("\n")
 
-        let (frameworksScript, inputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath, frameworks: frameworks)
+        let (frameworksScript, inputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath, frameworkPaths: frameworkPaths)
         script.append(frameworksScript)
 
         return EmbedScript(script: script, inputPaths: inputPaths)
@@ -36,25 +42,25 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     // MARK: - Fileprivate
 
-    fileprivate func frameworksScript(sourceRootPath: AbsolutePath, frameworks: [FrameworkNode]) throws -> (script: String, paths: [RelativePath]) {
+    fileprivate func frameworksScript(sourceRootPath: AbsolutePath, frameworkPaths: [AbsolutePath]) throws -> (script: String, paths: [RelativePath]) {
         var script = ""
         var paths: [RelativePath] = []
 
-        for framework in frameworks {
+        for frameworkPath in frameworkPaths {
             // Framework
-            let relativeFrameworkPath = framework.path.relative(to: sourceRootPath)
+            let relativeFrameworkPath = frameworkPath.relative(to: sourceRootPath)
             script.append("install_framework \"\(relativeFrameworkPath.pathString)\"\n")
             paths.append(relativeFrameworkPath)
 
             // .dSYM
-            if let dsymPath = framework.dsymPath {
+            if let dsymPath = frameworkMetadataProvider.dsymPath(frameworkPath: frameworkPath) {
                 let relativeDsymPath = dsymPath.relative(to: sourceRootPath)
                 script.append("install_dsym \"\(relativeDsymPath.pathString)\"\n")
                 paths.append(relativeDsymPath)
             }
 
             // .bcsymbolmap
-            let bcsymbolmaps = try framework.bcsymbolmapPaths()
+            let bcsymbolmaps = try frameworkMetadataProvider.bcsymbolmapPaths(frameworkPath: frameworkPath)
             for bcsymbolmapPath in bcsymbolmaps {
                 let relativeDsymPath = bcsymbolmapPath.relative(to: sourceRootPath)
                 script.append("install_bcsymbolmap \"\(relativeDsymPath.pathString)\"\n")
