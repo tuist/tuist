@@ -34,7 +34,6 @@ Temporary Items
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
 ## Build generated
-build/
 DerivedData/
 
 ## Various settings
@@ -90,14 +89,13 @@ fastlane/test_output
 .byebug_history
 *.xcarchive
 tmp/
-build/
+/build/
 
 .env
 .idea/
-Carthage/Checkouts
+/Carthage/Checkouts
 *.profraw
 tuist.zip
-build/
 TODO
 TODO.md
 mkmf.log
