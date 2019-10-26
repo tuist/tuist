@@ -21,6 +21,9 @@ struct EmbedScript {
 
     /// Input paths.
     let inputPaths: [RelativePath]
+
+    /// Output paths.
+    let outputPaths: [String]
 }
 
 final class EmbedScriptGenerator: EmbedScriptGenerating {
@@ -34,29 +37,33 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         var script = baseScript()
         script.append("\n")
 
-        let (frameworksScript, inputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath, frameworkPaths: frameworkPaths)
+        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath, frameworkPaths: frameworkPaths)
         script.append(frameworksScript)
 
-        return EmbedScript(script: script, inputPaths: inputPaths)
+        return EmbedScript(script: script, inputPaths: inputPaths, outputPaths: outputPaths)
     }
 
     // MARK: - Fileprivate
 
-    fileprivate func frameworksScript(sourceRootPath: AbsolutePath, frameworkPaths: [AbsolutePath]) throws -> (script: String, paths: [RelativePath]) {
+    fileprivate func frameworksScript(sourceRootPath: AbsolutePath,
+                                      frameworkPaths: [AbsolutePath]) throws -> (script: String, inputPaths: [RelativePath], outputPaths: [String]) {
         var script = ""
-        var paths: [RelativePath] = []
+        var inputPaths: [RelativePath] = []
+        var outputPaths: [String] = []
 
         for frameworkPath in frameworkPaths {
             // Framework
             let relativeFrameworkPath = frameworkPath.relative(to: sourceRootPath)
             script.append("install_framework \"\(relativeFrameworkPath.pathString)\"\n")
-            paths.append(relativeFrameworkPath)
+            inputPaths.append(relativeFrameworkPath)
+            outputPaths.append("${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(relativeFrameworkPath.basename)")
 
             // .dSYM
             if let dsymPath = frameworkMetadataProvider.dsymPath(frameworkPath: frameworkPath) {
                 let relativeDsymPath = dsymPath.relative(to: sourceRootPath)
                 script.append("install_dsym \"\(relativeDsymPath.pathString)\"\n")
-                paths.append(relativeDsymPath)
+                inputPaths.append(relativeDsymPath)
+                outputPaths.append("${DWARF_DSYM_FOLDER_PATH}/\(dsymPath.basename)")
             }
 
             // .bcsymbolmap
@@ -64,10 +71,11 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             for bcsymbolmapPath in bcsymbolmaps {
                 let relativeDsymPath = bcsymbolmapPath.relative(to: sourceRootPath)
                 script.append("install_bcsymbolmap \"\(relativeDsymPath.pathString)\"\n")
-                paths.append(relativeDsymPath)
+                inputPaths.append(relativeDsymPath)
+                outputPaths.append("${BUILT_PRODUCTS_DIR}/\(relativeDsymPath.basename)")
             }
         }
-        return (script: script, paths: paths)
+        return (script: script, inputPaths: inputPaths, outputPaths: outputPaths)
     }
 
     fileprivate func baseScript() -> String {

@@ -34,6 +34,11 @@ final class EmbedScriptGeneratorIntegrationTests: TuistTestCase {
         XCTAssertTrue(got.inputPaths.contains(RelativePath("RxBlocking.framework")))
         XCTAssertTrue(got.inputPaths.contains(RelativePath("RxBlocking.framework.dSYM")))
 
+        XCTAssertTrue(got.outputPaths.contains("${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/RxBlocking.framework"))
+        XCTAssertTrue(got.outputPaths.contains("${DWARF_DSYM_FOLDER_PATH}/RxBlocking.framework.dSYM"))
+        XCTAssertTrue(got.outputPaths.contains("${BUILT_PRODUCTS_DIR}/2510FE01-4D40-3956-BB71-857D3B2D9E73.bcsymbolmap"))
+        XCTAssertTrue(got.outputPaths.contains("${BUILT_PRODUCTS_DIR}/773847A9-0D05-35AF-9865-94A9A670080B.bcsymbolmap"))
+
         XCTAssertTrue(got.script.contains("install_framework \"RxBlocking.framework\""))
         XCTAssertTrue(got.script.contains("install_dsym \"RxBlocking.framework.dSYM\""))
         XCTAssertTrue(got.script.contains("install_bcsymbolmap \"2510FE01-4D40-3956-BB71-857D3B2D9E73.bcsymbolmap\""))

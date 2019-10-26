@@ -44,7 +44,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
         pbxproj.add(object: wakaFile)
         fileElements.products["Test"] = wakaFile
         let sourceRootPath = AbsolutePath("/")
-        embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script", inputPaths: [RelativePath("frameworks/A.framework")]))
+        embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script",
+                                                               inputPaths: [RelativePath("frameworks/A.framework")],
+                                                               outputPaths: ["output/A.framework"]))
 
         // When
         try subject.generateEmbedPhase(dependencies: dependencies,
@@ -58,6 +60,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
         XCTAssertEqual(scriptBuildPhase?.shellScript, "script")
         XCTAssertEqual(scriptBuildPhase?.inputPaths, ["frameworks/A.framework"])
+        XCTAssertEqual(scriptBuildPhase?.outputPaths, ["output/A.framework"])
 
         let copyBuildPhase: PBXCopyFilesBuildPhase? = pbxTarget.buildPhases.last as? PBXCopyFilesBuildPhase
         XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")

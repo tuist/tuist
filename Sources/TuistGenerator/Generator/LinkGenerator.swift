@@ -196,6 +196,7 @@ final class LinkGenerator: LinkGenerating {
             let script = try embedScriptGenerator.script(sourceRootPath: sourceRootPath, frameworkPaths: precompiledFrameworkPaths)
             precompiledEmbedPhase.shellScript = script.script
             precompiledEmbedPhase.inputPaths = script.inputPaths.map(\.pathString)
+            precompiledEmbedPhase.outputPaths = script.outputPaths
         }
     }
 
