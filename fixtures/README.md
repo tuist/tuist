@@ -249,7 +249,7 @@ An iOS application with remote Swift package
 
 ## ios_app_with_local_swift_package
 
-An iOS application with remote Swift package 
+An iOS application with remote Swift package
 
 ## ios_app_with_static_library_and_package
 
@@ -260,3 +260,7 @@ Note: to re-create `PrebuiltStaticFramework.framework` run `fixtures/ios_app_wit
 ## ios_workspace_with_dependency_cycle
 
 An example of a workspace that has a dependency cycle between targets in different projects.
+
+## ios_app_with_carthage_frameworks
+
+An example of an iOS app that contains Carthage frameworks \*(fat frameworks with device & simulators architectures)\*. This fixture is useful to test the script that embeds them stripping the architectures that are not necessary.
