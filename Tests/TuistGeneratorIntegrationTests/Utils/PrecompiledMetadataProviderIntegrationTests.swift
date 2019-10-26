@@ -1,14 +1,3 @@
-
-// func test_architectures() throws {
-//    system.succeedCommand("/usr/bin/lipo", "-info", "/test.a", output: "Non-fat file: path is architecture: x86_64")
-//    try XCTAssertEqual(subject.architectures().first, .x8664)
-// }
-//
-// func test_linking() {
-//    system.succeedCommand("/usr/bin/file", "/test.a", output: "whatever dynamically linked")
-//    try XCTAssertEqual(subject.linking(), .dynamic)
-// }
-
 import Basic
 import Foundation
 import TuistCore
@@ -16,11 +5,6 @@ import XCTest
 
 @testable import TuistCoreTesting
 @testable import TuistGenerator
-
-// XCTAssertEqual(PrecompiledNode.Architecture.x8664.rawValue, "x86_64")
-// XCTAssertEqual(PrecompiledNode.Architecture.i386.rawValue, "i386")
-// XCTAssertEqual(PrecompiledNode.Architecture.armv7.rawValue, "armv7")
-// XCTAssertEqual(PrecompiledNode.Architecture.armv7s.rawValue, "armv7s")
 
 final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
     var subject: PrecompiledMetadataProvider!
