@@ -168,7 +168,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(got.path.components.last, "SomeAwesomeName.xcodeproj")
         XCTAssertEqual(project.name, "Project")
     }
-    
+
     func test_objectVersion_when_xcode11_and_spm() throws {
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
@@ -180,13 +180,13 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                    targets: [.test(dependencies: [.package(.remote(url: "A",
                                                                                    productName: "A",
                                                                                    versionRequirement: .exact("0.1")))])])
-        
+
         let target = Target.test()
         let cache = GraphLoaderCache()
         let packageNode = PackageNode(packageType: .remote(url: "A",
                                                            productName: "A",
                                                            versionRequirement: .exact("0.1")),
-                                                           path: temporaryPath)
+                                      path: temporaryPath)
         cache.add(package: packageNode)
         let graph = Graph.test(entryPath: temporaryPath,
                                cache: cache,
