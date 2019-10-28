@@ -168,6 +168,39 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(got.path.components.last, "SomeAwesomeName.xcodeproj")
         XCTAssertEqual(project.name, "Project")
     }
+    
+    func test_objectVersion_when_xcode11_and_spm() throws {
+        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let project = Project.test(path: temporaryPath,
+                                   name: "Project",
+                                   fileName: "SomeAwesomeName",
+                                   targets: [.test(dependencies: [.package(.remote(url: "A",
+                                                                                   productName: "A",
+                                                                                   versionRequirement: .exact("0.1")))])])
+        
+        let target = Target.test()
+        let cache = GraphLoaderCache()
+        let packageNode = PackageNode(packageType: .remote(url: "A",
+                                                           productName: "A",
+                                                           versionRequirement: .exact("0.1")),
+                                                           path: temporaryPath)
+        cache.add(package: packageNode)
+        let graph = Graph.test(entryPath: temporaryPath,
+                               cache: cache,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: target,
+                                                       dependencies: [packageNode])])
+
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+
+        // Then
+        XCTAssertEqual(got.pbxproj.objectVersion, 52)
+        XCTAssertEqual(got.pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
+    }
 
     func test_objectVersion_when_xcode11() throws {
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
@@ -184,7 +217,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let got = try subject.generate(project: project, graph: graph)
 
         // Then
-        XCTAssertEqual(got.pbxproj.objectVersion, 52)
+        XCTAssertEqual(got.pbxproj.objectVersion, 50)
         XCTAssertEqual(got.pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
     }
 
