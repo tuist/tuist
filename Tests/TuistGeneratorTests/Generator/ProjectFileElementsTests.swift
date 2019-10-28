@@ -251,7 +251,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                  dependencies: [])
 
         // When
-        let files = try subject.targetFiles(target: target, projectPath: sourceRootPath, graph: Graph.test())
+        let files = try subject.targetFiles(target: target)
 
         // Then
         XCTAssertTrue(files.isSuperset(of: [

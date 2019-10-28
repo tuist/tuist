@@ -94,7 +94,6 @@ final class TargetGenerator: TargetGenerating {
         try linkGenerator.generateLinks(target: target,
                                         pbxTarget: pbxTarget,
                                         pbxproj: pbxproj,
-                                        pbxProject: pbxProject,
                                         fileElements: fileElements,
                                         path: path,
                                         sourceRootPath: sourceRootPath,
