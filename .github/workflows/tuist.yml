@@ -79,8 +79,8 @@ jobs:
       - name: Install Bundler dependencies
         run: bundle install
       - run:
-          name: Package build and upload it to GCS
-          command: |
-            bundle exec rake package_commit
-          env:
-            SECRET_KEY: { { secrets.SECRET_KEY } }
+        name: Package build and upload it to GCS
+        command: |
+          bundle exec rake package_commit
+        env:
+          SECRET_KEY: { { secrets.SECRET_KEY } }
