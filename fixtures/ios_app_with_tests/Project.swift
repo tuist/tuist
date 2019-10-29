@@ -7,7 +7,7 @@ let project = Project(name: "App",
                                  product: .app,
                                  bundleId: "io.tuist.App",
                                  infoPlist: "Info.plist",
-                                 sources: "Sources/**",
+                                 sources: .paths([Path.currentFileDirectory() + "Sources/**"]),
                                  dependencies: [
                                      /* Target dependencies can be defined here */
                                      /* .framework(path: "framework") */

@@ -60,6 +60,18 @@ extension Path: ExpressibleByStringLiteral {
     public init(stringLiteral value: StringLiteralType) {
         path = value
     }
+    
+    
+    /// Returns the path
+    public static var manifestDirectory: Path {
+        Path(CommandLine.arguments[CommandLine.arguments.firstIndex(of: "--tuist-manifest-dir")! + 1])
+    }
+    
+    /// Returns the directory of the file that is calling this method.
+    public static func currentFileDirectory(file: StaticString = #file, line: UInt = #line) -> Path {
+        let file = file.withUTF8Buffer { String(decoding: $0, as: UTF8.self) }
+        return Path(file).parent()
+    }
 }
 
 // MARK: CustomStringConvertible

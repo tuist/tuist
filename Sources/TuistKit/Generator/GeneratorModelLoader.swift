@@ -318,7 +318,7 @@ extension TuistGenerator.Target {
 
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
         let sources = try TuistGenerator.Target.sources(projectPath: path, sources: manifest.sources?.globs.map {
-            (glob: $0.glob.string, compilerFlags: $0.compilerFlags)
+            (glob: AbsolutePath.init($0.glob.string, relativeTo: path).pathString, compilerFlags: $0.compilerFlags)
         } ?? [])
 
         let resourceFilter = { (path: AbsolutePath) -> Bool in
