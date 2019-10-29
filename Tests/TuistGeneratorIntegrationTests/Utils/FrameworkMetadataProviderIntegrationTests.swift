@@ -29,9 +29,10 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         let got = try subject.bcsymbolmapPaths(framework: framework).sorted()
 
         // Then
-        XCTAssertEqual(got.count, 2)
-        XCTAssertTrue(got.first == carthagePath.appending(component: "2510FE01-4D40-3956-BB71-857D3B2D9E73.bcsymbolmap"))
-        XCTAssertTrue(got.last == carthagePath.appending(component: "773847A9-0D05-35AF-9865-94A9A670080B.bcsymbolmap"))
+        XCTAssertEqual(got, [
+            carthagePath.appending(component: "2510FE01-4D40-3956-BB71-857D3B2D9E73.bcsymbolmap"),
+            carthagePath.appending(component: "773847A9-0D05-35AF-9865-94A9A670080B.bcsymbolmap"),
+        ])
     }
 
     func test_dsymPath() throws {
