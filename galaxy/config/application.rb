@@ -36,7 +36,7 @@ module Galaxy
     config.assets.compress = false
 
     config.generators do |g|
-      g.assets false
+      g.assets(false)
     end
   end
 end

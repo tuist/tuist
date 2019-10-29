@@ -32,6 +32,10 @@ Then(/tuist generate yields error "(.+)"/) do |error|
   refute status.success?
 end
 
-Then(/tuistenv should succeed in installing "(.+)"/) do |ref|
-  system("swift", "run", "tuistenv", "install", ref)
+Then(/tuistenv should succeed in installing the latest version/) do
+  constants_path = File.expand_path("../../../Sources/TuistCore/Constants.swift", __dir__)
+  # Matches: let version = "3.2.1"
+  version = File.read(constants_path).match(/let\sversion\s=\s\"(.+)\"/)[1].chomp
+
+  system("swift", "run", "tuistenv", "install", version)
 end
