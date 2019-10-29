@@ -17,6 +17,7 @@ gem('tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby])
 gem("sentry-raven")
 gem("sidekiq", "~> 6.0")
 gem('webpacker', '~> 4.x')
+gem "better_html"
 
 group :development, :test do
   gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
