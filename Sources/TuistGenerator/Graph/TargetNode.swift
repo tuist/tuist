@@ -135,8 +135,11 @@ class TargetNode: GraphNode {
             return try SDKNode(name: name, platform: platform, status: status)
         case let .cocoapods(podsPath):
             return CocoaPodsNode.read(path: path.appending(podsPath), cache: cache)
-        case let .package(packageType):
-            return PackageNode(packageType: packageType, path: path)
+        case let .package(product):
+            return PackageProductNode(
+                product: product,
+                path: path
+            )
         }
     }
 }

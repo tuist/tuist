@@ -57,19 +57,9 @@ final class TargetDependencyTests: XCTestCase {
         XCTAssertCodable(subject)
     }
 
-    func test_package_remotePackages_codable() throws {
+    func test_package_codable() throws {
         // Given
-        let subject = TargetDependency.package(url: "https://github.com/Swinject/Swinject",
-                                               productName: "Swinject",
-                                               .upToNextMajor(from: "2.6.2"))
-
-        // Then
-        XCTAssertCodable(subject)
-    }
-
-    func test_package_localPackages_codable() throws {
-        // Given
-        let subject = TargetDependency.package(path: "foo/bar", productName: "FooBar")
+        let subject = TargetDependency.package(product: "foo")
 
         // Then
         XCTAssertCodable(subject)

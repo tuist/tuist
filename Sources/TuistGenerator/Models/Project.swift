@@ -17,6 +17,9 @@ public class Project: Equatable, CustomStringConvertible {
     /// Project targets.
     public let targets: [Target]
 
+    /// Project swift packages.
+    public let packages: [Package]
+
     /// Project schemes
     public let schemes: [Scheme]
 
@@ -47,12 +50,14 @@ public class Project: Equatable, CustomStringConvertible {
                 settings: Settings,
                 filesGroup: ProjectGroup,
                 targets: [Target],
+                packages: [Package],
                 schemes: [Scheme],
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
         self.fileName = fileName ?? name
         self.targets = targets
+        self.packages = packages
         self.schemes = schemes
         self.settings = settings
         self.filesGroup = filesGroup

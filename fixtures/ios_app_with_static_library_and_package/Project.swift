@@ -1,6 +1,9 @@
 import ProjectDescription
 
 let project = Project(name: "App",
+                      packages: [
+                        .package(path: "Packages/PackageA")
+                      ],
                       targets: [
                         Target(name: "App",
                                platform: .iOS,
@@ -14,7 +17,7 @@ let project = Project(name: "App",
                                ],
                                dependencies: [
                                     .framework(path: "Prebuilt/prebuilt/PrebuiltStaticFramework.framework"),
-                                    .package(path: "Packages/PackageA", productName: "LibraryA")
+                                    .package(product: "LibraryA")
                                 ]),
                         Target(name: "AppTests",
                                platform: .iOS,

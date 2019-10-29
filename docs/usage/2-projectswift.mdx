@@ -65,9 +65,18 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
       default: '',
     },
     {
+      name: 'Packages',
+      description:
+        "List of Swift Packages used by the project.",
+      type: '[Package]',
+      typeLink: '#package',
+      optional: true,
+      default: '[]',
+    },
+    {
       name: 'Targets',
       description:
-        "Name of the project. It's used to determine the name of the generated Xcode project.",
+        "List of targets within the project.",
       type: '[Target]',
       typeLink: '#target',
       optional: false,
@@ -106,6 +115,38 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
   info
   title="Relative paths"
   description="All the relative paths in the project manifest are relative to the folder that contains the manifest file."
+/>
+
+## Package
+
+You can add Swift Packages very similarly to how you add dependencies in a `Package.swift`:
+
+For remote:
+
+```swift
+.package(url: "https://github.com/tuist/XcodeProj", .exact("6.7.0"))
+```
+
+```swift
+.package(url: "https://github.com/tuist/XcodeProj", from: "6.7.0")
+```
+
+```swift
+.package(url: "https://github.com/tuist/XcodeProj", "6.6.1"..<"6.8.0")
+```
+
+For local:
+
+```swift
+.package(path: "MyLibrary")
+```
+
+Targets can then depend on products from these Swift Packages. See [Dependencies](./usage-4-dependencies)
+
+<Message
+  info
+  title="Package.resolved"
+  description="Tuist creates a `.package.resolved` file, so your team can share the same versions of dependencies without committing your workspace."
 />
 
 ## Target
@@ -203,7 +244,7 @@ Each target in the list of project targets can be initialized with the following
       name: 'Dependencies',
       description: 'List of target dependencies',
       type: '[TargetDependency]',
-      typeLink: './usage-3-dependencies',
+      typeLink: './usage-4-dependencies',
       optional: true,
       default: '[]',
     },

@@ -45,7 +45,6 @@ protocol LinkGenerating: AnyObject {
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
                        pbxproj: PBXProj,
-                       pbxProject: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
@@ -74,14 +73,12 @@ final class LinkGenerator: LinkGenerating {
     func generateLinks(target: Target,
                        pbxTarget: PBXTarget,
                        pbxproj: PBXProj,
-                       pbxProject: PBXProject,
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
                        graph: Graphing) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
-        let packages = try graph.packages(path: path, name: target.name)
 
         try setupSearchAndIncludePaths(target: target,
                                        pbxTarget: pbxTarget,
@@ -110,8 +107,7 @@ final class LinkGenerator: LinkGenerating {
 
         try generatePackages(target: target,
                              pbxTarget: pbxTarget,
-                             pbxProject: pbxProject,
-                             packages: packages)
+                             pbxproj: pbxproj)
     }
 
     private func setupSearchAndIncludePaths(target: Target,
@@ -141,22 +137,15 @@ final class LinkGenerator: LinkGenerating {
                                    sourceRootPath: sourceRootPath)
     }
 
-    func generatePackages(target _: Target,
+    func generatePackages(target: Target,
                           pbxTarget: PBXTarget,
-                          pbxProject: PBXProject,
-                          packages: [PackageNode]) throws {
-        try packages.forEach { package in
-            switch package.packageType {
-            case let .local(path: packagePath, productName: productName):
-                _ = try pbxProject.addLocalSwiftPackage(path: Path(packagePath.pathString),
-                                                        productName: productName,
-                                                        targetName: pbxTarget.name,
-                                                        addFileReference: false)
-            case let .remote(url: url, productName: productName, versionRequirement: versionRequirement):
-                _ = try pbxProject.addSwiftPackage(repositoryURL: url,
-                                                   productName: productName,
-                                                   versionRequirement: versionRequirement.xcodeprojValue,
-                                                   targetName: pbxTarget.name)
+                          pbxproj: PBXProj) throws {
+        for dependency in target.dependencies {
+            switch dependency {
+            case let .package(product: product):
+                try pbxTarget.addSwiftPackageProduct(productName: product, pbxproj: pbxproj)
+            default:
+                break
             }
         }
     }
@@ -387,5 +376,24 @@ private extension XCBuildConfiguration {
         }
         let existing = (buildSettings[name] as? String) ?? "$(inherited)"
         buildSettings[name] = [existing, value].joined(separator: " ")
+    }
+}
+
+extension PBXTarget {
+    func addSwiftPackageProduct(productName: String, pbxproj: PBXProj) throws {
+        let productDependency = XCSwiftPackageProductDependency(productName: productName)
+        pbxproj.add(object: productDependency)
+        packageProductDependencies.append(productDependency)
+
+        // Build file
+        let buildFile = PBXBuildFile(product: productDependency)
+        pbxproj.add(object: buildFile)
+
+        // Link the product
+        guard let frameworksBuildPhase = try frameworksBuildPhase() else {
+            throw "No frameworks build phase"
+        }
+
+        frameworksBuildPhase.files?.append(buildFile)
     }
 }

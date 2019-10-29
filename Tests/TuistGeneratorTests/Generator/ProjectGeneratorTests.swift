@@ -177,17 +177,14 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
                                    fileName: "SomeAwesomeName",
-                                   targets: [.test(dependencies: [.package(.remote(url: "A",
-                                                                                   productName: "A",
-                                                                                   versionRequirement: .exact("0.1")))])])
+                                   targets: [.test(dependencies: [.package(product: "A")])],
+                                   packages: [.remote(url: "A", requirement: .exact("0.1"))])
 
         let target = Target.test()
         let cache = GraphLoaderCache()
-        let packageNode = PackageNode(packageType: .remote(url: "A",
-                                                           productName: "A",
-                                                           versionRequirement: .exact("0.1")),
+        cache.add(project: project)
+        let packageNode = PackageNode(package: .remote(url: "A", requirement: .exact("0.1")),
                                       path: temporaryPath)
-        cache.add(package: packageNode)
         let graph = Graph.test(entryPath: temporaryPath,
                                cache: cache,
                                entryNodes: [TargetNode(project: project,

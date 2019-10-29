@@ -8,12 +8,22 @@ public enum SDKStatus {
 }
 
 public enum Dependency: Equatable {
-    public enum PackageType: Equatable {
-        case remote(url: String, productName: String, versionRequirement: VersionRequirement)
-        case local(path: RelativePath, productName: String)
-    }
+    case target(name: String)
+    case project(target: String, path: RelativePath)
+    case framework(path: RelativePath)
+    case library(path: RelativePath, publicHeaders: RelativePath, swiftModuleMap: RelativePath?)
+    case package(product: String)
+    case sdk(name: String, status: SDKStatus)
+    case cocoapods(path: RelativePath)
+}
 
-    public enum VersionRequirement: Equatable {
+public enum Package: Equatable {
+    case remote(url: String, requirement: Requirement)
+    case local(path: RelativePath)
+}
+
+extension Package {
+    public enum Requirement: Equatable {
         case upToNextMajor(String)
         case upToNextMinor(String)
         case range(from: String, to: String)
@@ -38,12 +48,4 @@ public enum Dependency: Equatable {
             }
         }
     }
-
-    case target(name: String)
-    case project(target: String, path: RelativePath)
-    case framework(path: RelativePath)
-    case library(path: RelativePath, publicHeaders: RelativePath, swiftModuleMap: RelativePath?)
-    case package(PackageType)
-    case sdk(name: String, status: SDKStatus)
-    case cocoapods(path: RelativePath)
 }

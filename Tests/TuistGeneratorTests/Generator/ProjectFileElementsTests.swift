@@ -251,7 +251,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                  dependencies: [])
 
         // When
-        let files = try subject.targetFiles(target: target, projectPath: sourceRootPath, graph: Graph.test())
+        let files = try subject.targetFiles(target: target)
 
         // Then
         XCTAssertTrue(files.isSuperset(of: [
@@ -589,49 +589,18 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         XCTAssertEqual(sdkElement?.name, sdk.path.basename)
     }
 
-    func test_generateDependencies_localSwiftPackage() throws {
-        // Given
-        let pbxproj = PBXProj()
-        let target = Target.empty(name: "TargetA")
-        let project = Project.empty(path: "/a/project",
-                                    targets: [target])
-        let groups = ProjectGroups.generate(project: .test(),
-                                            pbxproj: pbxproj,
-                                            sourceRootPath: project.path)
-
-        let package = PackageNode(packageType: .local(path: RelativePath("packages/A"),
-                                                      productName: "A"),
-                                  path: "/a/project/packages/A")
-        let graph = createGraph(project: project, target: target, dependencies: [package])
-
-        // When
-        try subject.generateProjectFiles(project: project,
-                                         graph: graph,
-                                         groups: groups,
-                                         pbxproj: pbxproj,
-                                         sourceRootPath: project.path)
-
-        // Then
-        let projectGroup = groups.main.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "packages/A",
-        ])
-    }
-
     func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
         // Given
         let pbxproj = PBXProj()
         let target = Target.empty(name: "TargetA")
         let project = Project.empty(path: "/a/project",
-                                    targets: [target])
+                                    targets: [target],
+                                    packages: [.remote(url: "url", requirement: .branch("master"))])
         let groups = ProjectGroups.generate(project: .test(),
                                             pbxproj: pbxproj,
                                             sourceRootPath: project.path)
 
-        let package = PackageNode(packageType: .remote(url: "url",
-                                                       productName: "A",
-                                                       versionRequirement: .branch("master")),
-                                  path: "/packages/url")
+        let package = PackageProductNode(product: "A", path: "/packages/url")
 
         let graph = createGraph(project: project, target: target, dependencies: [package])
 

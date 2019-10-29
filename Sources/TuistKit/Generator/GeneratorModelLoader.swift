@@ -261,11 +261,16 @@ extension TuistGenerator.Project {
                                             path: path)
         }
 
+        let packages = manifest.packages.map { package in
+            TuistGenerator.Package.from(manifest: package)
+        }
+
         return Project(path: path,
                        name: name,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
+                       packages: packages,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
     }
@@ -277,6 +282,7 @@ extension TuistGenerator.Project {
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets + [target],
+                       packages: packages,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
     }
@@ -288,6 +294,7 @@ extension TuistGenerator.Project {
                        settings: settings,
                        filesGroup: filesGroup,
                        targets: targets,
+                       packages: packages,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
     }
@@ -521,8 +528,19 @@ extension TuistGenerator.Headers {
     }
 }
 
-extension TuistGenerator.Dependency.VersionRequirement {
-    static func from(manifest: ProjectDescription.TargetDependency.VersionRequirement) -> TuistGenerator.Dependency.VersionRequirement {
+extension TuistGenerator.Package {
+    static func from(manifest: ProjectDescription.Package) -> TuistGenerator.Package {
+        switch manifest {
+        case let .local(path: local):
+            return .local(path: RelativePath(local))
+        case let .remote(url: url, requirement: version):
+            return .remote(url: url, requirement: .from(manifest: version))
+        }
+    }
+}
+
+extension TuistGenerator.Package.Requirement {
+    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistGenerator.Package.Requirement {
         switch manifest {
         case let .branch(branch):
             return .branch(branch)
@@ -553,15 +571,8 @@ extension TuistGenerator.Dependency {
             return .library(path: RelativePath(libraryPath),
                             publicHeaders: RelativePath(publicHeaders),
                             swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
-        case let .package(packageType):
-            switch packageType {
-            case let .local(path: packagePath, productName: productName):
-                return .package(.local(path: RelativePath(packagePath), productName: productName))
-            case let .remote(url: url,
-                             productName: productName,
-                             versionRequirement: versionRules):
-                return .package(.remote(url: url, productName: productName, versionRequirement: .from(manifest: versionRules)))
-            }
+        case let .package(product):
+            return .package(product: product)
 
         case let .sdk(name, status):
             return .sdk(name: name,

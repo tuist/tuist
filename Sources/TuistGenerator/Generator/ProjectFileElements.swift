@@ -52,7 +52,7 @@ class ProjectFileElements {
         var files = Set<GroupFileElement>()
 
         try project.targets.forEach { target in
-            try files.formUnion(targetFiles(target: target, projectPath: project.path, graph: graph))
+            try files.formUnion(targetFiles(target: target))
         }
         let projectFileElements = projectFiles(project: project)
         files.formUnion(projectFileElements)
@@ -109,7 +109,7 @@ class ProjectFileElements {
         return fileElements
     }
 
-    func targetFiles(target: Target, projectPath: AbsolutePath, graph: Graphing) throws -> Set<GroupFileElement> {
+    func targetFiles(target: Target) throws -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources.map { $0.path })
         files.formUnion(target.coreDataModels.map { $0.path })
@@ -143,20 +143,6 @@ class ProjectFileElements {
                              group: target.filesGroup,
                              isReference: $0.isReference)
         })
-
-        // Local Packages
-        elements.formUnion(
-            try graph.packages(path: projectPath, name: target.name).compactMap { node -> GroupFileElement? in
-                switch node.packageType {
-                case let .local(path: packagePath, productName: _):
-                    return GroupFileElement(path: projectPath.appending(packagePath),
-                                            group: target.filesGroup,
-                                            isReference: true)
-                default:
-                    return nil
-                }
-            }
-        )
 
         return elements
     }

@@ -2,6 +2,9 @@ import ProjectDescription
 
 let project = Project(
     name: "FrameworkA",
+    packages: [
+        .package(path: "../../Packages/PackageA")
+    ],
     targets: [
         Target(name: "FrameworkA",
                platform: .iOS,
@@ -10,7 +13,7 @@ let project = Project(
                infoPlist: "Config/FrameworkA-Info.plist",
                sources: "Sources/**",
                dependencies: [
-                   .package(path: "../../Packages/PackageA", productName: "LibraryA"),
+                   .package(product: "LibraryA"),
         ]),
     ]
 )
