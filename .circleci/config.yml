@@ -1,6 +1,8 @@
-version: 2
+version: 2.1
+orbs:
+  multirepo: dnephin/multirepo@0.0.7
 workflows:
-  version: 2
+  version: 2.1
   tuist-install:
     jobs:
       - tuist-install:
@@ -40,9 +42,11 @@ workflows:
 jobs:
   tuist-install:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/*
       - run:
           name: Install Tuist
           command: |
@@ -54,11 +58,13 @@ jobs:
             ./script/uninstall
   tuist-release-build:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: 'Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/*'
       - run:
           name: Build for release
           command: |
@@ -66,7 +72,7 @@ jobs:
             swift build -c release --product tuistenv
   danger:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
@@ -88,11 +94,13 @@ jobs:
             - 'vendor'
   tuist-acceptance-tests:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: 'Sources/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved script/**/* fixtures/**/* features/**/*'
       - restore_cache:
           key: bundler-{{ checksum "Gemfile.lock" }}
       - run:
@@ -108,7 +116,7 @@ jobs:
             - 'vendor'
   tuist-upload:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
@@ -129,11 +137,13 @@ jobs:
             - 'vendor'
   tuist-unit-tests:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
       - checkout
+      - multirepo/run-job-for-paths:
+          paths: 'Sources/**/* Tests/**/* .circleci/* Gemfile Gemfile.lock Rakefile Package.swift Package.resolved'
       - run:
           name: Generate Xcode project
           command: |
@@ -166,6 +176,9 @@ jobs:
     steps:
       - checkout:
           path: ~/repo
+
+      - multirepo/run-job-for-paths:
+          paths: 'galaxy/**/* .circleci/**/*'
 
       - run:
           name: Update Bundler
@@ -205,6 +218,8 @@ jobs:
     steps:
       - checkout:
           path: ~/repo
+      - multirepo/run-job-for-paths:
+          paths: 'galaxy/**/* .circleci/**/*'
       - run:
           name: Deploy Master to Heroku
           command: |

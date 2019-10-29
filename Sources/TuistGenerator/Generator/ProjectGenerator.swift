@@ -91,7 +91,7 @@ final class ProjectGenerator: ProjectGenerating {
 
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
-        let projectConstants = try determineProjectConstants()
+        let projectConstants = try determineProjectConstants(graph: graph)
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
@@ -252,10 +252,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                    generatedProject: generatedProject)
     }
 
-    private func determineProjectConstants() throws -> ProjectConstants {
-        let version = try XcodeController.shared.selectedVersion()
-
-        if version.major >= 11 {
+    private func determineProjectConstants(graph: Graphing) throws -> ProjectConstants {
+        if !graph.packages.isEmpty {
             return .xcode11
         } else {
             return .xcode10

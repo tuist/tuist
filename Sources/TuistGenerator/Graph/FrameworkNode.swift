@@ -17,32 +17,27 @@ class FrameworkNode: PrecompiledNode {
         return path.pathString.contains("Carthage/Build")
     }
 
+    /// Return the framework's binary path.
     override var binaryPath: AbsolutePath {
-        let frameworkName = path.components.last!.replacingOccurrences(of: ".framework", with: "")
-        return path.appending(component: frameworkName)
-    }
-
-    /// Returns the library product.
-    ///
-    /// - Returns: Product.
-    /// - Throws: An error if the static/dynamic nature of the library cannot be obtained.
-    func product() throws -> Product {
-        switch try linking() {
-        case .dynamic:
-            return .framework
-        case .static:
-            return .staticFramework
-        }
+        return FrameworkNode.binaryPath(frameworkPath: path)
     }
 
     override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        let metadataProvider = FrameworkMetadataProvider()
+
         try container.encode(path.pathString, forKey: .path)
         try container.encode(name, forKey: .name)
-
-        try container.encode(product(), forKey: .product)
-        let archs = try architectures()
+        try container.encode(try metadataProvider.product(framework: self), forKey: .product)
+        let archs = try metadataProvider.architectures(precompiled: self)
         try container.encode(archs.map(\.rawValue), forKey: .architectures)
         try container.encode("precompiled", forKey: .type)
+    }
+
+    /// Given a framework path it returns the path to its binary.
+    /// - Parameter frameworkPath: Framework path.
+    static func binaryPath(frameworkPath: AbsolutePath) -> AbsolutePath {
+        let frameworkName = frameworkPath.basename.replacingOccurrences(of: ".framework", with: "")
+        return frameworkPath.appending(component: frameworkName)
     }
 }

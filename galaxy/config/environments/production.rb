@@ -8,7 +8,6 @@ Rails.application.configure do
 
   # Assets
   config.public_file_server.enabled = ENV['RAILS_SERVE_STATIC_FILES'].present?
-  config.assets.js_compressor = :uglifier
   config.assets.compile = false
 
   # Logs
