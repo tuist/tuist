@@ -23,6 +23,10 @@ The App's project manifest leverages `additionalFiles` tha defines:
 - Includes a swift `Danger.swift` file that shouldn't get included in any buid phase
 - folder references to a directory with json files
 
+## ios_app_with_extensions
+
+Sample application with extension targets.
+
 ## ios_app_with_tests
 
 Simple app which includes a setup manifest.

@@ -36,4 +36,20 @@ module Xcode
     # /path/to/product/resource.png
     Dir.glob(resource_glob).first
   end
+
+  def self.find_extension(product:, destination:, extension:, derived_data_path:)
+    product_path = product_with_name(
+      product,
+      destination: destination,
+      derived_data_path: derived_data_path
+    )
+
+    return if product_path.nil?
+
+    extension_glob = File.join(product_path, "Plugins/#{extension}.appex")
+    # /path/to/product/Plugins/MyExtension.appex
+    extension_path = Dir.glob(extension_glob).first
+
+    extension_path
+  end
 end

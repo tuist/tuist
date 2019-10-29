@@ -67,3 +67,15 @@ Then("the product {string} with destination {string} contains the Info.plist key
     flunk("Key #{key} not found in the #{product} Info.plist")
   end
 end
+
+Then("the product {string} with destination {string} contains extension {string}") do |product, destination, extension|
+  extension_path = Xcode.find_extension(
+    product: product,
+    destination: destination,
+    extension: extension,
+    derived_data_path: @derived_data_path
+  )
+  flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if extension_path.nil?
+
+  assert(extension_path)
+end
