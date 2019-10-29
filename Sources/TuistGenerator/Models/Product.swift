@@ -10,7 +10,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
     case bundle
-//    case appExtension = "app_extension"
+    case appExtension = "app_extension"
 //    case watchApp = "watch_app"
 //    case watch2App = "watch_2_app"
 //    case watchExtension = "watch_extension"
@@ -18,7 +18,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 //    case tvExtension = "tv_extension"
 //    case messagesApplication = "messages_application"
 //    case messagesExtension = "messages_extension"
-//    case stickerPack = "sticker_pack"
+    case stickerPackExtension = "sticker_pack_extension"
 
     public var caseValue: String {
         switch self {
@@ -38,8 +38,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "uiTests"
         case .bundle:
             return "bundle"
-//        case .appExtension:
-//            return "appExtension"
+        case .appExtension:
+            return "appExtension"
 //        case .watchApp:
 //            return "watchApp"
 //        case .watch2App:
@@ -54,8 +54,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 //            return "messagesApplication"
 //        case .messagesExtension:
 //            return "messagesExtension"
-//        case .stickerPack:
-//            return "stickerPack"
+        case .stickerPackExtension:
+            return "stickerPackExtension"
         }
     }
 
@@ -77,8 +77,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "ui tests"
         case .bundle:
             return "bundle"
-//        case .appExtension:
-//            return "app extension"
+        case .appExtension:
+            return "app extension"
 //        case .watchApp:
 //            return "watch application"
 //        case .watch2App:
@@ -93,8 +93,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 //            return "iMessage application"
 //        case .messagesExtension:
 //            return "iMessage extension"
-//        case .stickerPack:
-//            return "stickers pack"
+        case .stickerPackExtension:
+            return "sticker pack extension"
         }
     }
 
@@ -122,8 +122,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
         ]
 
         if platform == .iOS {
-//            base.append(.appExtension)
-//            base.append(.stickerPack)
+            base.append(.appExtension)
+            base.append(.stickerPackExtension)
 //            base.append(.messagesApplication)
 //            base.append(.messagesExtension)
         }
@@ -170,8 +170,8 @@ extension Product {
             return .uiTestBundle
         case .bundle:
             return .bundle
-//        case .appExtension:
-//            return .appExtension
+        case .appExtension:
+            return .appExtension
 //        case .watchApp:
 //            return .watchApp
 //        case .watch2App:
@@ -186,8 +186,8 @@ extension Product {
 //            return .messagesApplication
 //        case .messagesExtension:
 //            return .messagesExtension
-//        case .stickerPack:
-//            return .stickerPack
+        case .stickerPackExtension:
+            return .stickerPack
         }
     }
 }

@@ -93,7 +93,7 @@ public class Target: Equatable, Hashable {
 
     var supportsSources: Bool {
         switch (platform, product) {
-        case (.iOS, .bundle):
+        case (.iOS, .bundle), (.iOS, .stickerPackExtension):
             return false
         default:
             return true

@@ -104,6 +104,7 @@ protocol Graphing: AnyObject, Encodable {
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
+    func appExtensionDependencies(path: AbsolutePath, name: String) -> [TargetNode]
 
     /// Products that are added to a dummy copy files phase to enforce build order between dependencies that Xcode doesn't usually respect (e.g. Resouce Bundles)
     func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference]
@@ -361,6 +362,19 @@ class Graph: Graphing {
 
         let allDepdendencies = linkableDependencies + embeddableDependencies + copyProductDependencies
         return Set(allDepdendencies).sorted()
+    }
+
+    func appExtensionDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        let validProducts: [Product] = [
+            .appExtension, .stickerPackExtension,
+        ]
+
+        return targetNode.targetDependencies
+            .filter { validProducts.contains($0.target.product) }
     }
 
     // MARK: - Fileprivate

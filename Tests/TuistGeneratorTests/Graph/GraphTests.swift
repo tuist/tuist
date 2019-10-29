@@ -631,6 +631,44 @@ final class GraphTests: TuistUnitTestCase {
         ])
     }
 
+    func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "AppExtension", product: .appExtension)
+        let project = Project.test(targets: [target])
+        let dependencyNode = TargetNode(project: project,
+                                        target: dependency,
+                                        dependencies: [])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [dependencyNode])
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+
+        let got = graph.appExtensionDependencies(path: project.path, name: target.name)
+
+        XCTAssertEqual(got.first?.name, "AppExtension")
+    }
+
+    func test_appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
+        let project = Project.test(targets: [target])
+        let dependencyNode = TargetNode(project: project,
+                                        target: dependency,
+                                        dependencies: [])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [dependencyNode])
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        let graph = Graph.test(cache: cache)
+
+        let got = graph.appExtensionDependencies(path: project.path, name: target.name)
+
+        XCTAssertEqual(got.first?.name, "StickerPackExtension")
+    }
+
     func test_encode() {
         // Given
         System.shared = System()
