@@ -1,9 +1,10 @@
 {
-  "editor.formatOnSave": true,
+  "[yml]": {
+    "editor.formatOnSave": false
+  },
   "[jsx]": {
     "editor.formatOnSave": true
   },
-  // Enable per-language
   "[javascript]": {
     "editor.formatOnSave": true
   },

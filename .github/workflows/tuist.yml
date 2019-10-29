@@ -82,4 +82,4 @@ jobs:
         run: |
           bundle exec rake package_commit
         env:
-          SECRET_KEY: '{{ secrets.SECRET_KEY }}'
+          SECRET_KEY: {{ secrets.SECRET_KEY }}
