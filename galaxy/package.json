@@ -11,6 +11,9 @@
     "turbolinks": "^5.2.0"
   },
   "devDependencies": {
+    "eslint": "^6.6.0",
+    "eslint-config-airbnb-base": "^14.0.0",
+    "eslint-plugin-import": "^2.18.2",
     "webpack-dev-server": "^3.8.2"
   }
 }
