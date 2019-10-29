@@ -78,6 +78,8 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         return (script: script, inputPaths: inputPaths, outputPaths: outputPaths)
     }
 
+    // swiftlint:disable function_body_length
+    // swiftlint:disable line_length
     fileprivate func baseScript() -> String {
         return """
         #!/bin/sh
@@ -222,4 +224,6 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         }
         """
     }
+    // swiftlint:enable function_body_length
+    // swiftlint:enable line_length
 }

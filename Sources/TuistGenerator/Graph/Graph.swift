@@ -413,6 +413,7 @@ extension Graph {
         return targetNode.target.product == .framework
     }
 
+    // swiftlint:disable:next line_length
     internal func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool {
         return { frameworkNode in
             let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
