@@ -17,6 +17,7 @@ gem('tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby])
 gem("sentry-raven")
 gem("sidekiq", "~> 6.0")
 gem('webpacker', '~> 4.x')
+gem("better_html")
 
 group :development, :test do
   gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
@@ -28,10 +29,12 @@ group :development do
   gem 'spring'
   gem 'spring-watcher-listen', '~> 2.0.0'
   gem "foreman", "~> 0.86.0"
+  gem 'brakeman'
 end
 
 group :test do
   gem 'capybara', '>= 2.15'
   gem 'selenium-webdriver'
   gem 'chromedriver-helper'
+  gem 'erb_lint'
 end
