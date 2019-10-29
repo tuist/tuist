@@ -13,13 +13,6 @@ final class PrecompiledNodeTests: XCTestCase {
         system = MockSystem()
     }
 
-    func test_architecture_rawValues() {
-        XCTAssertEqual(PrecompiledNode.Architecture.x8664.rawValue, "x86_64")
-        XCTAssertEqual(PrecompiledNode.Architecture.i386.rawValue, "i386")
-        XCTAssertEqual(PrecompiledNode.Architecture.armv7.rawValue, "armv7")
-        XCTAssertEqual(PrecompiledNode.Architecture.armv7s.rawValue, "armv7s")
-    }
-
     func test_name() {
         // Given
         let subject = PrecompiledNode(path: AbsolutePath("/Alamofire.framework"))

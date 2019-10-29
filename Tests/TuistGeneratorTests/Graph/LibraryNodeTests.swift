@@ -30,16 +30,6 @@ final class LibraryNodeTests: TuistUnitTestCase {
         XCTAssertEqual(subject.binaryPath.pathString, "/test.a")
     }
 
-    func test_architectures() throws {
-        system.succeedCommand("/usr/bin/lipo", "-info", "/test.a", output: "Non-fat file: path is architecture: x86_64")
-        try XCTAssertEqual(subject.architectures().first, .x8664)
-    }
-
-    func test_linking() {
-        system.succeedCommand("/usr/bin/file", "/test.a", output: "whatever dynamically linked")
-        try XCTAssertEqual(subject.linking(), .dynamic)
-    }
-
     func test_equality() {
         // Given
         let a1 = LibraryNode(path: "/a", publicHeaders: "/a/header", swiftModuleMap: "/a/swiftmodulemap")

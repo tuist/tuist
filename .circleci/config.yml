@@ -42,7 +42,7 @@ workflows:
 jobs:
   tuist-install:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     steps:
       - checkout
       - multirepo/run-job-for-paths:
@@ -58,7 +58,7 @@ jobs:
             ./script/uninstall
   tuist-release-build:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
@@ -72,7 +72,7 @@ jobs:
             swift build -c release --product tuistenv
   danger:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
@@ -94,7 +94,7 @@ jobs:
             - 'vendor'
   tuist-acceptance-tests:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
@@ -116,7 +116,7 @@ jobs:
             - 'vendor'
   tuist-upload:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:
@@ -137,7 +137,7 @@ jobs:
             - 'vendor'
   tuist-unit-tests:
     macos:
-      xcode: '11.0.0'
+      xcode: '11.1.0'
     # To activate chruby, we must change the shell parameter of your job to be a login shell (adding --login).
     shell: /bin/bash --login -eo pipefail
     steps:

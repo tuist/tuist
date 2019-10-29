@@ -403,9 +403,9 @@ extension Graph {
         return targetNode.target.product == .framework
     }
 
-    internal func frameworkUsesDynamicLinking() -> (_ frameworkNode: PrecompiledNode) -> Bool {
+    internal func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool {
         return { frameworkNode in
-            let isDynamicLink = try? frameworkNode.linking() == .dynamic
+            let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
             return isDynamicLink ?? false
         }
     }

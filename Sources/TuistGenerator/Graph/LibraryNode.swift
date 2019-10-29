@@ -69,25 +69,14 @@ class LibraryNode: PrecompiledNode {
         return path
     }
 
-    /// Returns the framework product.
-    ///
-    /// - Returns: Product.
-    /// - Throws: An error if the static/dynamic nature of the framework cannot be obtained.
-    func product() throws -> Product {
-        switch try linking() {
-        case .dynamic:
-            return .dynamicLibrary
-        case .static:
-            return .staticLibrary
-        }
-    }
-
     override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        let metadataProvider = LibraryMetadataProvider()
+
         try container.encode(path.pathString, forKey: .path)
         try container.encode(name, forKey: .name)
-        try container.encode(product(), forKey: .product)
-        let archs = try architectures()
+        try container.encode(try metadataProvider.product(library: self), forKey: .product)
+        let archs = try metadataProvider.architectures(precompiled: self)
         try container.encode(archs.map(\.rawValue), forKey: .architectures)
         try container.encode("precompiled", forKey: .type)
     }

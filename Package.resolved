@@ -20,15 +20,6 @@
         }
       },
       {
-        "package": "Shell",
-        "repositoryURL": "https://github.com/tuist/Shell",
-        "state": {
-          "branch": null,
-          "revision": "d38121f89401db902b0d0bfc30b987e2c84c254e",
-          "version": "2.0.3"
-        }
-      },
-      {
         "package": "Spectre",
         "repositoryURL": "https://github.com/kylef/Spectre.git",
         "state": {
@@ -42,7 +33,7 @@
         "repositoryURL": "https://github.com/apple/swift-llbuild.git",
         "state": {
           "branch": "master",
-          "revision": "78d344a48f05fa91cf2734a5164174154d3dd680",
+          "revision": "0a778ca0c51025ffec95de881e59eb35c92f9944",
           "version": null
         }
       },
@@ -60,7 +51,7 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
           "branch": "master",
-          "revision": "bfb8291e5eb2745e0bacb7c5b2f649fefa36853d",
+          "revision": "4b285748321bd4bbdb0ae274dd9a22d454ef1a69",
           "version": null
         }
       }
