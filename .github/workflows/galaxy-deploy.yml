@@ -1,0 +1,23 @@
+name: Galaxy deploy
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - galaxy/**/*
+      - .github/workflows/galaxy.yml
+env:
+  RAILS_ENV: test
+  BUNDLER_VERSION: 2.0.2
+
+jobs:
+  deploy:
+    name: Deploy to Heroku
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        run: git push https://heroku:$HEROKU_API_KEY@git.heroku.com/$HEROKU_APP_NAME.git master
+        env:
+          HEROKU_API_KEY: { { secrets.HEROKU_API_KEY } }
+          HEROKU_APP_NAME: tuist-galaxy

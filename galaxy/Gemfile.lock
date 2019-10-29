@@ -63,6 +63,7 @@ GEM
     bindex (0.8.1)
     bootsnap (1.4.5)
       msgpack (~> 1.0)
+    brakeman (4.7.0)
     builder (3.2.3)
     byebug (11.0.1)
     capybara (3.29.0)
@@ -121,6 +122,7 @@ GEM
     nokogiri (1.10.4)
       mini_portile2 (~> 2.4.0)
     pg (1.1.4)
+    prettier (0.15.0)
     public_suffix (4.0.1)
     puma (4.2.1)
       nio4r (~> 2.0)
@@ -223,6 +225,7 @@ PLATFORMS
 
 DEPENDENCIES
   bootsnap (>= 1.1.0)
+  brakeman
   byebug
   capybara (>= 2.15)
   chromedriver-helper
@@ -231,6 +234,7 @@ DEPENDENCIES
   jbuilder (~> 2.5)
   listen (>= 3.0.5, < 3.3)
   pg (>= 0.18, < 2.0)
+  prettier
   puma (~> 4.2)
   rails (~> 6.0.0)
   sass-rails (~> 6.0)
