@@ -78,9 +78,8 @@ jobs:
           ruby-version: '2.x'
       - name: Install Bundler dependencies
         run: bundle install
-      - run:
-        name: Package build and upload it to GCS
-        command: |
+      - name: Package build and upload it to GCS
+        run: |
           bundle exec rake package_commit
         env:
           SECRET_KEY: { { secrets.SECRET_KEY } }
