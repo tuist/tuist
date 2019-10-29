@@ -3,7 +3,7 @@
 /// A model to refer to source files that supports passing compiler flags.
 public final class SourceFileGlob: ExpressibleByStringLiteral, Codable {
     /// Relative glob pattern.
-    public let glob: String
+    public let glob: Path
 
     /// Compiler flags.
     public let compilerFlags: String?
@@ -13,13 +13,13 @@ public final class SourceFileGlob: ExpressibleByStringLiteral, Codable {
     /// - Parameters:
     ///   - glob: Relative glob pattern.
     ///   - compilerFlags: Compiler flags.
-    public init(_ glob: String, compilerFlags: String? = nil) {
+    public init(_ glob: Path, compilerFlags: String? = nil) {
         self.glob = glob
         self.compilerFlags = compilerFlags
     }
 
     public convenience init(stringLiteral value: String) {
-        self.init(value)
+        self.init(Path(value))
     }
 }
 

@@ -6,7 +6,7 @@
 ///     - local: A relative path to the package.
 public enum Package: Equatable, Codable {
     case remote(url: String, requirement: Requirement)
-    case local(path: String)
+    case local(path: Path)
 
     private enum Kind: String, Codable {
         case remote
@@ -31,7 +31,7 @@ public enum Package: Equatable, Codable {
             self = .remote(url: url, requirement: requirement)
         case .local:
             let path = try container.decode(String.self, forKey: .path)
-            self = .local(path: path)
+            self = .local(path: Path(path))
         }
     }
 
@@ -223,7 +223,7 @@ extension Package {
     public static func package(
         path: String
     ) -> Package {
-        return .local(path: path)
+        return .local(path: Path(path))
     }
 }
 

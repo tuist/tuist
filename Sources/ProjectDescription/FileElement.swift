@@ -9,11 +9,11 @@ import Foundation
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
 public enum FileElement: Codable {
     /// A glob pattern of files to include
-    case glob(pattern: String)
+    case glob(pattern: Path)
 
     /// Relative path to a directory to include
     /// as a folder reference
-    case folderReference(path: String)
+    case folderReference(path: Path)
 
     private enum TypeName: String, Codable {
         case glob
@@ -41,10 +41,10 @@ public enum FileElement: Codable {
         switch type {
         case .glob:
             let pattern = try container.decode(String.self, forKey: .pattern)
-            self = .glob(pattern: pattern)
+            self = .glob(pattern: Path(pattern))
         case .folderReference:
             let path = try container.decode(String.self, forKey: .path)
-            self = .folderReference(path: path)
+            self = .folderReference(path: Path(path))
         }
     }
 
@@ -62,7 +62,7 @@ public enum FileElement: Codable {
 
 extension FileElement: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        self = .glob(pattern: value)
+        self = .glob(pattern: Path(value))
     }
 }
 
@@ -78,6 +78,6 @@ extension Array: ExpressibleByStringLiteral where Element == FileElement {
     public typealias StringLiteralType = String
 
     public init(stringLiteral value: String) {
-        self = [.glob(pattern: value)]
+        self = [.glob(pattern: Path(value))]
     }
 }

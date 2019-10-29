@@ -19,7 +19,7 @@ public enum Dependency: Equatable {
 
 public enum Package: Equatable {
     case remote(url: String, requirement: Requirement)
-    case local(path: RelativePath)
+    case local(path: AbsolutePath)
 }
 
 extension Package {

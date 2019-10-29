@@ -3,7 +3,7 @@ import Foundation
 /// Core Data model.
 public class CoreDataModel: Codable {
     /// Relative path to the model.
-    public let path: String
+    public let path: Path
 
     /// Current version (with or without extension)
     public let currentVersion: String
@@ -18,7 +18,7 @@ public class CoreDataModel: Codable {
     /// - Parameters:
     ///   - path: relative path to the Core Data model.
     ///   - currentVersion: current version name (with or without the extension).
-    public init(_ path: String,
+    public init(_ path: Path,
                 currentVersion: String) {
         self.path = path
         self.currentVersion = currentVersion

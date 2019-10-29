@@ -236,9 +236,9 @@ extension TuistGenerator.FileElement {
 
         switch manifest {
         case let .glob(pattern: pattern):
-            return globFiles(pattern).map(FileElement.file)
+            return globFiles(pattern.string).map(FileElement.file)
         case let .folderReference(path: folderReferencePath):
-            return folderReferences(folderReferencePath).map(FileElement.folderReference)
+            return folderReferences(folderReferencePath.string).map(FileElement.folderReference)
         }
     }
 }
@@ -262,7 +262,7 @@ extension TuistGenerator.Project {
         }
 
         let packages = manifest.packages.map { package in
-            TuistGenerator.Package.from(manifest: package)
+            TuistGenerator.Package.from(manifest: package, path: path)
         }
 
         return Project(path: path,
@@ -314,11 +314,11 @@ extension TuistGenerator.Target {
         let dependencies = manifest.dependencies.map { TuistGenerator.Dependency.from(manifest: $0) }
 
         let infoPlist = TuistGenerator.InfoPlist.from(manifest: manifest.infoPlist, path: path)
-        let entitlements = manifest.entitlements.map { path.appending(RelativePath($0)) }
+        let entitlements = manifest.entitlements.map { AbsolutePath($0.string, relativeTo: path) }
 
         let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
         let sources = try TuistGenerator.Target.sources(projectPath: path, sources: manifest.sources?.globs.map {
-            (glob: $0.glob, compilerFlags: $0.compilerFlags)
+            (glob: $0.glob.string, compilerFlags: $0.compilerFlags)
         } ?? [])
 
         let resourceFilter = { (path: AbsolutePath) -> Bool in
@@ -458,12 +458,12 @@ extension TuistGenerator.TargetAction {
         let name = manifest.name
         let tool = manifest.tool
         let order = TuistGenerator.TargetAction.Order.from(manifest: manifest.order)
-        let path = manifest.path.map { AbsolutePath($0, relativeTo: path) }
         let arguments = manifest.arguments
-        let inputPaths = manifest.inputPaths
-        let inputFileListPaths = manifest.inputFileListPaths
-        let outputPaths = manifest.outputPaths
-        let outputFileListPaths = manifest.outputFileListPaths
+        let inputPaths = manifest.inputPaths.map { AbsolutePath($0.string, relativeTo: path) }
+        let inputFileListPaths = manifest.inputFileListPaths.map { AbsolutePath($0.string, relativeTo: path) }
+        let outputPaths = manifest.outputPaths.map { AbsolutePath($0.string, relativeTo: path) }
+        let outputFileListPaths = manifest.outputFileListPaths.map { AbsolutePath($0.string, relativeTo: path) }
+        let path = manifest.path.map { AbsolutePath($0.string, relativeTo: path) }
         return TargetAction(name: name,
                             order: order,
                             tool: tool,
@@ -490,7 +490,7 @@ extension TuistGenerator.TargetAction.Order {
 extension TuistGenerator.CoreDataModel {
     static func from(manifest: ProjectDescription.CoreDataModel,
                      path: AbsolutePath) throws -> TuistGenerator.CoreDataModel {
-        let modelPath = path.appending(RelativePath(manifest.path))
+        let modelPath = path.appending(RelativePath(manifest.path.string))
         if !FileHandler.shared.exists(modelPath) {
             throw GeneratorModelLoaderError.missingFile(modelPath)
         }
@@ -503,15 +503,15 @@ extension TuistGenerator.CoreDataModel {
 extension TuistGenerator.Headers {
     static func from(manifest: ProjectDescription.Headers, path: AbsolutePath) -> TuistGenerator.Headers {
         let `public` = manifest.public?.globs.flatMap {
-            headerFiles(path: path, glob: $0)
+            headerFiles(path: path, glob: $0.string)
         } ?? []
 
         let `private` = manifest.private?.globs.flatMap {
-            headerFiles(path: path, glob: $0)
+            headerFiles(path: path, glob: $0.string)
         } ?? []
 
         let project = manifest.project?.globs.flatMap {
-            headerFiles(path: path, glob: $0)
+            headerFiles(path: path, glob: $0.string)
         } ?? []
 
         return Headers(public: `public`, private: `private`, project: project)
@@ -529,10 +529,10 @@ extension TuistGenerator.Headers {
 }
 
 extension TuistGenerator.Package {
-    static func from(manifest: ProjectDescription.Package) -> TuistGenerator.Package {
+    static func from(manifest: ProjectDescription.Package, path: AbsolutePath) -> TuistGenerator.Package {
         switch manifest {
         case let .local(path: local):
-            return .local(path: RelativePath(local))
+            return .local(path: AbsolutePath(local.string, relativeTo: path))
         case let .remote(url: url, requirement: version):
             return .remote(url: url, requirement: .from(manifest: version))
         }

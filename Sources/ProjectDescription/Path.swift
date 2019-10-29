@@ -39,6 +39,10 @@ public struct Path {
     }
 }
 
+// MARK: - Codable
+
+extension Path: Codable {}
+
 // MARK: StringLiteralConvertible
 
 extension Path: ExpressibleByStringLiteral {
