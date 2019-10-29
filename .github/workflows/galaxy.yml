@@ -32,6 +32,10 @@ jobs:
         working-directory: ./galaxy
         run: |
           bundle exec brakeman
+      - name: ERB lint
+        working-directory: ./galaxy
+        run: |
+          bundle exec erblint --lint-all
 
   unit_tests:
     name: Unit tests
