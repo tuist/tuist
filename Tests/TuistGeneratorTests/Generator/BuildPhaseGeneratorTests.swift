@@ -312,9 +312,9 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let projectC = Project.test(path: "/path/c")
         let graph = Graph.create(projects: [projectA, projectB, projectC],
                                  dependencies: [
-                                    (project: projectA, target: appExtension, dependencies: []),
-                                    (project: projectB, target: stickerPackExtension, dependencies: []),
-                                    (project: projectC, target: app, dependencies: [appExtension, stickerPackExtension])
+                                     (project: projectA, target: appExtension, dependencies: []),
+                                     (project: projectB, target: stickerPackExtension, dependencies: []),
+                                     (project: projectC, target: app, dependencies: [appExtension, stickerPackExtension]),
                                  ])
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
@@ -331,9 +331,9 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
         XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, [
-             "AppExtension",
-             "StickerPackExtension",
-         ])
+            "AppExtension",
+            "StickerPackExtension",
+        ])
     }
 
     func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
