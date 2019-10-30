@@ -161,6 +161,18 @@ final class SchemesGenerator: SchemesGenerating {
         var testables: [XCScheme.TestableReference] = []
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
+        var codeCoverageTargets: [XCScheme.BuildableReference] = []
+        
+        testAction.codeCoverageTargets.forEach { name in
+            
+            guard let target = project.targets.first(where: { $0.name == name }) else { return }
+            guard let pbxTarget = generatedProject.targets[name] else { return }
+
+            let reference = self.targetBuildableReference(target: target,
+                                                          pbxTarget: pbxTarget,
+                                                          projectName: generatedProject.name)
+            codeCoverageTargets.append(reference)
+        }
 
         testAction.targets.forEach { name in
             guard let target = project.targets.first(where: { $0.name == name }), target.product.testsBundle else { return }
@@ -189,6 +201,7 @@ final class SchemesGenerator: SchemesGenerating {
             args = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
             environments = environmentVariables(arguments.environment)
         }
+        let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
 
@@ -199,6 +212,8 @@ final class SchemesGenerator: SchemesGenerating {
                                    postActions: postActions,
                                    shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
                                    codeCoverageEnabled: testAction.coverage,
+                                   codeCoverageTargets: codeCoverageTargets,
+                                   onlyGenerateCoverageForSpecifiedTargets: onlyGenerateCoverageForSpecifiedTargets,
                                    commandlineArguments: args,
                                    environmentVariables: environments)
     }
