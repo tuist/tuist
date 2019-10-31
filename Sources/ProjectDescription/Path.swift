@@ -1,36 +1,35 @@
 public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
-    
     public enum PathType: String, Codable {
         case relativeToCurrentFile
         case relativeToManifest
     }
-    
+
     public let type: PathType
-    public let path: String
+    public let pathString: String
     public let callerPath: String?
-    
+
     public init(_ path: String) {
         self.init(path, type: .relativeToManifest)
     }
-    
-    private init(_ path: String,
+
+    private init(_ pathString: String,
                  type: PathType,
                  callerPath: String? = nil) {
         self.type = type
-        self.path = path
+        self.pathString = pathString
         self.callerPath = callerPath
     }
-    
-    public static func relativeToCurrentFile(_ path: String, callerPath: StaticString = #file) -> Path {
-        return Path(path, type: .relativeToCurrentFile, callerPath: "\(callerPath)")
+
+    public static func relativeToCurrentFile(_ pathString: String, callerPath: StaticString = #file) -> Path {
+        return Path(pathString, type: .relativeToCurrentFile, callerPath: "\(callerPath)")
     }
-    
-    public static func relativeToManifest(_ path: String) -> Path {
-        return Path(path, type: .relativeToManifest)
+
+    public static func relativeToManifest(_ pathString: String) -> Path {
+        return Path(pathString, type: .relativeToManifest)
     }
-    
+
     // MARK: - ExpressibleByStringLiteral
-        
+
     public init(stringLiteral: String) {
         self.init(stringLiteral, type: .relativeToManifest)
     }

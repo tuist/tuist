@@ -3,12 +3,9 @@ import Foundation
 import TuistCore
 
 class FrameworkNode: PrecompiledNode {
-    static func parse(projectPath: AbsolutePath,
-                      path: RelativePath,
-                      cache: GraphLoaderCaching) throws -> FrameworkNode {
-        let absolutePath = projectPath.appending(path)
-        if let frameworkNode = cache.precompiledNode(absolutePath) as? FrameworkNode { return frameworkNode }
-        let framewokNode = FrameworkNode(path: absolutePath)
+    static func parse(path: AbsolutePath, cache: GraphLoaderCaching) throws -> FrameworkNode {
+        if let frameworkNode = cache.precompiledNode(path) as? FrameworkNode { return frameworkNode }
+        let framewokNode = FrameworkNode(path: path)
         cache.add(precompiledNode: framewokNode)
         return framewokNode
     }

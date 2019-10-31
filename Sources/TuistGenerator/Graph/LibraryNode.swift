@@ -37,30 +37,27 @@ class LibraryNode: PrecompiledNode {
             && publicHeaders == otherLibraryNode.publicHeaders
     }
 
-    static func parse(publicHeaders: RelativePath,
-                      swiftModuleMap: RelativePath?,
-                      projectPath: AbsolutePath,
-                      path: RelativePath,
+    static func parse(publicHeaders: AbsolutePath,
+                      swiftModuleMap: AbsolutePath?,
+                      path: AbsolutePath,
                       cache: GraphLoaderCaching) throws -> LibraryNode {
-        let libraryAbsolutePath = projectPath.appending(path)
-        if !FileHandler.shared.exists(libraryAbsolutePath) {
-            throw GraphLoadingError.missingFile(libraryAbsolutePath)
+        if !FileHandler.shared.exists(path) {
+            throw GraphLoadingError.missingFile(path)
         }
-        if let libraryNode = cache.precompiledNode(libraryAbsolutePath) as? LibraryNode { return libraryNode }
-        let publicHeadersPath = projectPath.appending(publicHeaders)
-        if !FileHandler.shared.exists(publicHeadersPath) {
-            throw GraphLoadingError.missingFile(publicHeadersPath)
+        if let libraryNode = cache.precompiledNode(path) as? LibraryNode { return libraryNode }
+
+        if !FileHandler.shared.exists(publicHeaders) {
+            throw GraphLoadingError.missingFile(publicHeaders)
         }
-        var swiftModuleMapPath: AbsolutePath?
-        if let swiftModuleMapRelativePath = swiftModuleMap {
-            swiftModuleMapPath = projectPath.appending(swiftModuleMapRelativePath)
-            if !FileHandler.shared.exists(swiftModuleMapPath!) {
-                throw GraphLoadingError.missingFile(swiftModuleMapPath!)
+
+        if let swiftModuleMap = swiftModuleMap {
+            if !FileHandler.shared.exists(swiftModuleMap) {
+                throw GraphLoadingError.missingFile(swiftModuleMap)
             }
         }
-        let libraryNode = LibraryNode(path: libraryAbsolutePath,
-                                      publicHeaders: publicHeadersPath,
-                                      swiftModuleMap: swiftModuleMapPath)
+        let libraryNode = LibraryNode(path: path,
+                                      publicHeaders: publicHeaders,
+                                      swiftModuleMap: swiftModuleMap)
         cache.add(precompiledNode: libraryNode)
         return libraryNode
     }

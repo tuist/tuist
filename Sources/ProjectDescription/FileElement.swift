@@ -40,11 +40,11 @@ public enum FileElement: Codable {
         let type = try container.decode(TypeName.self, forKey: .type)
         switch type {
         case .glob:
-            let pattern = try container.decode(String.self, forKey: .pattern)
-            self = .glob(pattern: Path(pattern))
+            let pattern = try container.decode(Path.self, forKey: .pattern)
+            self = .glob(pattern: pattern)
         case .folderReference:
-            let path = try container.decode(String.self, forKey: .path)
-            self = .folderReference(path: Path(path))
+            let path = try container.decode(Path.self, forKey: .path)
+            self = .folderReference(path: path)
         }
     }
 

@@ -44,11 +44,11 @@ public final class SourceFilesList: Codable {
     public init(globs: [String]) {
         self.globs = globs.map(SourceFileGlob.init)
     }
-    
+
     /// Initializes a sources list with a list of paths.
     /// - Parameter paths: Source paths.
-    public static func paths(_ paths: [Path]) -> SourceFilesList  {
-        return SourceFilesList.init(globs: paths.map({ SourceFileGlob($0) }))
+    public static func paths(_ paths: [Path]) -> SourceFilesList {
+        return SourceFilesList(globs: paths.map { SourceFileGlob($0) })
     }
 
     public init(from decoder: Decoder) throws {

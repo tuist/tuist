@@ -100,7 +100,7 @@ public class Target: Equatable, Hashable {
         }
     }
 
-    public static func sources(projectPath: AbsolutePath, sources: [(glob: String, compilerFlags: String?)]) throws -> [Target.SourceFile] {
+    public static func sources(projectPath _: AbsolutePath, sources: [(glob: String, compilerFlags: String?)]) throws -> [Target.SourceFile] {
         var sourceFiles: [AbsolutePath: Target.SourceFile] = [:]
         sources.forEach { source in
             AbsolutePath("/").glob(String(source.glob.dropFirst())).filter { path in

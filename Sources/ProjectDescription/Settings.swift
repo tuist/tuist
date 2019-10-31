@@ -45,25 +45,25 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
 
 public struct Configuration: Equatable, Codable {
     public let settings: [String: SettingValue]
-    public let xcconfig: String?
+    public let xcconfig: Path?
 
-    public init(settings: [String: SettingValue] = [:], xcconfig: String? = nil) {
+    public init(settings: [String: SettingValue] = [:], xcconfig: Path? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
 
     @available(*, deprecated, message: "Please use init(settings: [String: SettingValue], xcconfig: String?) instead")
-    public init(settings: [String: String], xcconfig: String? = nil) {
+    public init(settings: [String: String], xcconfig: Path? = nil) {
         self.settings = settings.mapValues { .string($0) }
         self.xcconfig = xcconfig
     }
 
-    public static func settings(_ settings: [String: SettingValue], xcconfig: String? = nil) -> Configuration {
+    public static func settings(_ settings: [String: SettingValue], xcconfig: Path? = nil) -> Configuration {
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 
     @available(*, deprecated, message: "Please use settings(_ settings: [String: SettingValue], xcconfig: String?)")
-    public static func settings(_ settings: [String: String], xcconfig: String? = nil) -> Configuration {
+    public static func settings(_ settings: [String: String], xcconfig: Path? = nil) -> Configuration {
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
@@ -99,13 +99,13 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    static func debug(name: String, settings: [String: SettingValue] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func debug(name: String, settings: [String: SettingValue] = [:], xcconfig: Path? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
     }
 
     @available(*, deprecated, message: "Please use debug(name: String, settings: [String: SettingValue], xcconfig: String?) instead")
-    static func debug(name: String, settings: [String: String], xcconfig: String? = nil) -> CustomConfiguration {
+    static func debug(name: String, settings: [String: String], xcconfig: Path? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings.mapValues { .string($0) }, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
     }
@@ -117,13 +117,13 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    static func release(name: String, settings: [String: SettingValue] = [:], xcconfig: String? = nil) -> CustomConfiguration {
+    static func release(name: String, settings: [String: SettingValue] = [:], xcconfig: Path? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .release, configuration: configuration)
     }
 
     @available(*, deprecated, message: "Please use release(name: String, settings: [String: SettingValue], xcconfig: String?) instead")
-    static func release(name: String, settings: [String: String], xcconfig: String? = nil) -> CustomConfiguration {
+    static func release(name: String, settings: [String: String], xcconfig: Path? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings.mapValues { .string($0) }, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .release, configuration: configuration)
     }
