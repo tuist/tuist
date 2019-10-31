@@ -584,6 +584,7 @@ extension TuistCore.Scheme {
         let buildAction = manifest.buildAction.map { TuistCore.BuildAction.from(manifest: $0) }
         let testAction = manifest.testAction.map { TuistCore.TestAction.from(manifest: $0) }
         let runAction = manifest.runAction.map { TuistCore.RunAction.from(manifest: $0) }
+        let archiveAction = manifest.archiveAction.map { TuistCore.ArchiveAction.from(manifest: $0) }
 
         return Scheme(name: name,
                       shared: shared,
@@ -631,6 +632,22 @@ extension TuistCore.RunAction {
         return RunAction(configurationName: configurationName,
                          executable: executable,
                          arguments: arguments)
+    }
+}
+
+extension TuistCore.ArchiveAction {
+    static func from(manifest: ProjectDescription.ArchiveAction) -> TuistCore.ArchiveAction {
+        let configurationName = manifest.configurationName
+        let revealArchiveInOrganizer = manifest.revealArchiveInOrganizer
+        let customArchiveName = manifest.customArchiveName
+        let preActions = manifest.preActions.map { TuistCore.ExecutionAction.from(manifest: $0) }
+        let postActions = manifest.postActions.map { TuistCore.ExecutionAction.from(manifest: $0) }
+
+        return TuistCore.ArchiveAction(configurationName: configurationName,
+                                            revealArchiveInOrganizer: revealArchiveInOrganizer,
+                                            customArchiveName: customArchiveName,
+                                            preActions: preActions,
+                                            postActions: postActions)
     }
 }
 
