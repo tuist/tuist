@@ -115,26 +115,22 @@ class TargetNode: GraphNode {
             let circularTo = GraphCircularDetectorNode(path: path, name: target)
             circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-        case let .project(target, projectRelativePath):
+        case let .project(target, projectPath):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
-            let projectPath = path.appending(projectRelativePath)
             let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
             circularDetector.start(from: circularFrom, to: circularTo)
             return try TargetNode.read(name: target, path: projectPath, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
         case let .framework(frameworkPath):
-            return try FrameworkNode.parse(projectPath: path,
-                                           path: frameworkPath,
-                                           cache: cache)
+            return try FrameworkNode.parse(path: frameworkPath, cache: cache)
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
             return try LibraryNode.parse(publicHeaders: publicHeaders,
                                          swiftModuleMap: swiftModuleMap,
-                                         projectPath: path,
                                          path: libraryPath,
                                          cache: cache)
         case let .sdk(name, status):
             return try SDKNode(name: name, platform: platform, status: status)
         case let .cocoapods(podsPath):
-            return CocoaPodsNode.read(path: path.appending(podsPath), cache: cache)
+            return CocoaPodsNode.read(path: podsPath, cache: cache)
         case let .package(product):
             return PackageProductNode(
                 product: product,

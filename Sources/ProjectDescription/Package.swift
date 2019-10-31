@@ -6,7 +6,7 @@
 ///     - local: A relative path to the package.
 public enum Package: Equatable, Codable {
     case remote(url: String, requirement: Requirement)
-    case local(path: String)
+    case local(path: Path)
 
     private enum Kind: String, Codable {
         case remote
@@ -30,7 +30,7 @@ public enum Package: Equatable, Codable {
             let requirement = try container.decode(Requirement.self, forKey: .requirement)
             self = .remote(url: url, requirement: requirement)
         case .local:
-            let path = try container.decode(String.self, forKey: .path)
+            let path = try container.decode(Path.self, forKey: .path)
             self = .local(path: path)
         }
     }
@@ -150,10 +150,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - version: The minimum version requirement.
-    public static func package(
-        url: String,
-        from version: Version
-    ) -> Package {
+    public static func package(url: String, from version: Version) -> Package {
         return .package(url: url, .upToNextMajor(from: version))
     }
 
@@ -162,10 +159,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - requirement: A dependency requirement. See static methods on `Package.Dependency.Requirement` for available options.
-    public static func package(
-        url: String,
-        _ requirement: Package.Requirement
-    ) -> Package {
+    public static func package(url: String, _ requirement: Package.Requirement) -> Package {
         return .remote(url: url, requirement: requirement)
     }
 
@@ -180,10 +174,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The custom version range requirement.
-    public static func package(
-        url: String,
-        _ range: Range<Version>
-    ) -> Package {
+    public static func package(url: String, _ range: Range<Version>) -> Package {
         return .remote(url: url, requirement: .range(from: range.lowerBound, to: range.upperBound))
     }
 
@@ -198,10 +189,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The closed version range requirement.
-    public static func package(
-        url: String,
-        _ range: ClosedRange<Version>
-    ) -> Package {
+    public static func package(url: String, _ range: ClosedRange<Version>) -> Package {
         // Increase upperbound's patch version by one.
         let upper = range.upperBound
         let upperBound = Version(
@@ -220,9 +208,7 @@ extension Package {
     /// on multiple tightly coupled packages.
     ///
     /// - Parameter path: The path of the package.
-    public static func package(
-        path: String
-    ) -> Package {
+    public static func package(path: Path) -> Package {
         return .local(path: path)
     }
 }

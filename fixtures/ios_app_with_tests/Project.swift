@@ -6,8 +6,8 @@ let project = Project(name: "App",
                                  platform: .iOS,
                                  product: .app,
                                  bundleId: "io.tuist.App",
-                                 infoPlist: "Info.plist",
-                                 sources: "Sources/**",
+                                 infoPlist: .file(path: .relativeToManifest("Info.plist")),
+                                 sources: .paths([.relativeToManifest("Sources/**")]),
                                  dependencies: [
                                      /* Target dependencies can be defined here */
                                      /* .framework(path: "framework") */

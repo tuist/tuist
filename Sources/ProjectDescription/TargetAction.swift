@@ -1,11 +1,11 @@
 import Foundation
 
-public struct TargetAction: Codable {
+public struct TargetAction: Codable, Equatable {
     /// Order when the action gets executed.
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
-    public enum Order: String, Codable {
+    public enum Order: String, Codable, Equatable {
         case pre
         case post
     }
@@ -17,7 +17,7 @@ public struct TargetAction: Codable {
     public let tool: String?
 
     /// Path to the script to execute.
-    public let path: String?
+    public let path: Path?
 
     /// Target action order.
     public let order: Order
@@ -26,16 +26,16 @@ public struct TargetAction: Codable {
     public let arguments: [String]
 
     /// List of input file paths
-    public let inputPaths: [String]
+    public let inputPaths: [Path]
 
     /// List of input filelist paths
-    public let inputFileListPaths: [String]
+    public let inputFileListPaths: [Path]
 
     /// List of output file paths
-    public let outputPaths: [String]
+    public let outputPaths: [Path]
 
     /// List of output filelist paths
-    public let outputFileListPaths: [String]
+    public let outputFileListPaths: [Path]
 
     public enum CodingKeys: String, CodingKey {
         case name
@@ -63,13 +63,13 @@ public struct TargetAction: Codable {
     ///   - outputFileListPaths: List of output filelist paths.
     init(name: String,
          tool: String?,
-         path: String?,
+         path: Path?,
          order: Order,
          arguments: [String],
-         inputPaths: [String] = [],
-         inputFileListPaths: [String] = [],
-         outputPaths: [String] = [],
-         outputFileListPaths: [String] = []) {
+         inputPaths: [Path] = [],
+         inputFileListPaths: [Path] = [],
+         outputPaths: [Path] = [],
+         outputFileListPaths: [Path] = []) {
         self.name = name
         self.path = path
         self.tool = tool
@@ -95,10 +95,10 @@ public struct TargetAction: Codable {
     public static func pre(tool: String,
                            arguments: String...,
                            name: String,
-                           inputPaths: [String] = [],
-                           inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [],
-                           outputFileListPaths: [String] = []) -> TargetAction {
+                           inputPaths: [Path] = [],
+                           inputFileListPaths: [Path] = [],
+                           outputPaths: [Path] = [],
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: tool,
                             path: nil,
@@ -124,10 +124,10 @@ public struct TargetAction: Codable {
     public static func pre(tool: String,
                            arguments: [String],
                            name: String,
-                           inputPaths: [String] = [],
-                           inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [],
-                           outputFileListPaths: [String] = []) -> TargetAction {
+                           inputPaths: [Path] = [],
+                           inputFileListPaths: [Path] = [],
+                           outputPaths: [Path] = [],
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: tool,
                             path: nil,
@@ -150,13 +150,13 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(path: String,
+    public static func pre(path: Path,
                            arguments: String...,
                            name: String,
-                           inputPaths: [String] = [],
-                           inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [],
-                           outputFileListPaths: [String] = []) -> TargetAction {
+                           inputPaths: [Path] = [],
+                           inputFileListPaths: [Path] = [],
+                           outputPaths: [Path] = [],
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: nil,
                             path: path,
@@ -179,13 +179,13 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func pre(path: String,
+    public static func pre(path: Path,
                            arguments: [String],
                            name: String,
-                           inputPaths: [String] = [],
-                           inputFileListPaths: [String] = [],
-                           outputPaths: [String] = [],
-                           outputFileListPaths: [String] = []) -> TargetAction {
+                           inputPaths: [Path] = [],
+                           inputFileListPaths: [Path] = [],
+                           outputPaths: [Path] = [],
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: nil,
                             path: path,
@@ -211,10 +211,10 @@ public struct TargetAction: Codable {
     public static func post(tool: String,
                             arguments: String...,
                             name: String,
-                            inputPaths: [String] = [],
-                            inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [],
-                            outputFileListPaths: [String] = []) -> TargetAction {
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: tool,
                             path: nil,
@@ -240,10 +240,10 @@ public struct TargetAction: Codable {
     public static func post(tool: String,
                             arguments: [String],
                             name: String,
-                            inputPaths: [String] = [],
-                            inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [],
-                            outputFileListPaths: [String] = []) -> TargetAction {
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: tool,
                             path: nil,
@@ -266,13 +266,13 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(path: String,
+    public static func post(path: Path,
                             arguments: String...,
                             name: String,
-                            inputPaths: [String] = [],
-                            inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [],
-                            outputFileListPaths: [String] = []) -> TargetAction {
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: nil,
                             path: path,
@@ -295,13 +295,13 @@ public struct TargetAction: Codable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     /// - Returns: Target action.
-    public static func post(path: String,
+    public static func post(path: Path,
                             arguments: [String],
                             name: String,
-                            inputPaths: [String] = [],
-                            inputFileListPaths: [String] = [],
-                            outputPaths: [String] = [],
-                            outputFileListPaths: [String] = []) -> TargetAction {
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         return TargetAction(name: name,
                             tool: nil,
                             path: path,
@@ -320,11 +320,11 @@ public struct TargetAction: Codable {
         name = try container.decode(String.self, forKey: .name)
         order = try container.decode(Order.self, forKey: .order)
         arguments = try container.decode([String].self, forKey: .arguments)
-        inputPaths = try container.decodeIfPresent([String].self, forKey: .inputPaths) ?? []
-        inputFileListPaths = try container.decodeIfPresent([String].self, forKey: .inputFileListPaths) ?? []
-        outputPaths = try container.decodeIfPresent([String].self, forKey: .outputPaths) ?? []
-        outputFileListPaths = try container.decodeIfPresent([String].self, forKey: .outputFileListPaths) ?? []
-        if let path = try container.decodeIfPresent(String.self, forKey: .path) {
+        inputPaths = try container.decodeIfPresent([Path].self, forKey: .inputPaths) ?? []
+        inputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .inputFileListPaths) ?? []
+        outputPaths = try container.decodeIfPresent([Path].self, forKey: .outputPaths) ?? []
+        outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
+        if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
             self.path = path
             tool = nil
         } else {

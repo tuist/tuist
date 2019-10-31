@@ -7,13 +7,13 @@ import Foundation
 ///
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
-public enum FileElement: Codable {
+public enum FileElement: Codable, Equatable {
     /// A glob pattern of files to include
-    case glob(pattern: String)
+    case glob(pattern: Path)
 
     /// Relative path to a directory to include
     /// as a folder reference
-    case folderReference(path: String)
+    case folderReference(path: Path)
 
     private enum TypeName: String, Codable {
         case glob
@@ -40,10 +40,10 @@ public enum FileElement: Codable {
         let type = try container.decode(TypeName.self, forKey: .type)
         switch type {
         case .glob:
-            let pattern = try container.decode(String.self, forKey: .pattern)
+            let pattern = try container.decode(Path.self, forKey: .pattern)
             self = .glob(pattern: pattern)
         case .folderReference:
-            let path = try container.decode(String.self, forKey: .path)
+            let path = try container.decode(Path.self, forKey: .path)
             self = .folderReference(path: path)
         }
     }
@@ -62,7 +62,7 @@ public enum FileElement: Codable {
 
 extension FileElement: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        self = .glob(pattern: value)
+        self = .glob(pattern: Path(value))
     }
 }
 
@@ -78,6 +78,6 @@ extension Array: ExpressibleByStringLiteral where Element == FileElement {
     public typealias StringLiteralType = String
 
     public init(stringLiteral value: String) {
-        self = [.glob(pattern: value)]
+        self = [.glob(pattern: Path(value))]
     }
 }

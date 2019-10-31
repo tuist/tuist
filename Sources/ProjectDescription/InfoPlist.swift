@@ -71,7 +71,7 @@ public enum InfoPlist: Codable, Equatable {
     }
 
     /// Use an existing Info.plist file.
-    case file(path: String)
+    case file(path: Path)
 
     /// Generate an Info.plist file with the content in the given dictionary.
     case dictionary([String: Value])
@@ -99,7 +99,7 @@ public enum InfoPlist: Codable, Equatable {
 
     // MARK: - Internal
 
-    var path: String? {
+    var path: Path? {
         switch self {
         case let .file(path):
             return path
@@ -145,7 +145,7 @@ public enum InfoPlist: Codable, Equatable {
         let type = try container.decode(String.self, forKey: .type)
         switch type {
         case "file":
-            self = .file(path: try container.decode(String.self, forKey: .value))
+            self = .file(path: try container.decode(Path.self, forKey: .value))
         case "dictionary":
             self = .dictionary(try container.decode([String: Value].self, forKey: .value))
         case "extended":
@@ -164,7 +164,7 @@ extension InfoPlist: ExpressibleByStringLiteral, ExpressibleByUnicodeScalarLiter
     public typealias StringLiteralType = String
 
     public init(stringLiteral value: String) {
-        self = .file(path: value)
+        self = .file(path: Path(value))
     }
 }
 

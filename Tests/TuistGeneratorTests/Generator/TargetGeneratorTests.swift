@@ -76,8 +76,8 @@ final class TargetGeneratorTests: XCTestCase {
         XCTAssertEqual(preBuildPhase.inputFileListPaths, [])
         XCTAssertEqual(preBuildPhase.outputFileListPaths, [])
 
-        XCTAssertEqual(postBuildPhase.inputFileListPaths, ["/tmp/b"])
-        XCTAssertEqual(postBuildPhase.outputFileListPaths, ["/tmp/d"])
+        XCTAssertEqual(postBuildPhase.inputFileListPaths, ["../tmp/b"])
+        XCTAssertEqual(postBuildPhase.outputFileListPaths, ["../tmp/d"])
     }
 
     func test_generateTargetDependencies() throws {

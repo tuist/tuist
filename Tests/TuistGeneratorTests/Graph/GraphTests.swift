@@ -571,20 +571,18 @@ final class GraphTests: TuistUnitTestCase {
         ])
         let project = Project.test(path: "/path", packages: [
             .remote(url: "testA", requirement: .branch("master")),
-            .local(path: RelativePath("testB")),
+            .local(path: AbsolutePath("/testB")),
         ])
 
         let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: target, dependencies: []),
-                                 ])
+                                 dependencies: [(target: target, dependencies: [])])
 
         // When
         let result = try graph.packages(path: project.path, name: target.name)
 
         // Then
         XCTAssertEqual(result.first?.name, "testA")
-        XCTAssertEqual(result.last?.name, "testB")
+        XCTAssertEqual(result.last?.name, "/testB")
     }
 
     func test_resourceBundleDependencies_fromTargetDependency() {

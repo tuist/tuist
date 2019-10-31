@@ -111,12 +111,6 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
   ]}
 />
 
-<Message
-  info
-  title="Relative paths"
-  description="All the relative paths in the project manifest are relative to the folder that contains the manifest file."
-/>
-
 ## Package
 
 You can add Swift Packages very similarly to how you add dependencies in a `Package.swift`:
@@ -205,7 +199,8 @@ Each target in the list of project targets can be initialized with the following
     {
       name: 'Info plist',
       description: 'Relative path to the Info.plist',
-      type: 'String',
+      type: 'Path',
+      typeLink: "#path",
       optional: false,
       default: '',
     },
@@ -228,7 +223,8 @@ Each target in the list of project targets can be initialized with the following
     {
       name: 'Entitlements',
       description: 'Path to the entitlement file.',
-      type: 'String',
+      type: 'Path',
+      typeLink: "#path",
       optional: true,
       default: 'nil',
     },
@@ -334,7 +330,8 @@ It represents a glob pattern that refers to source files and the compiler flags 
     {
       name: 'Glob',
       description: 'Glob pattern to the source files.',
-      type: 'String',
+      type: 'Path',
+      typeLink: '#path',
       optional: false,
       default: '',
     },
@@ -388,7 +385,8 @@ It represents a list of glob patterns that refer to files:
     {
       name: 'Globs',
       description: 'Glob pattern to the files.',
-      type: '[String]',
+      type: '[Path]',
+      typeLink: "#path",
       optional: false,
       default: '',
     },
@@ -404,7 +402,8 @@ The `CoreDataModel` type represents a Core Data model:
     {
       name: 'Path',
       description: 'Relative path to the Core Data model.',
-      type: 'String',
+      type: 'Path',
+      typeLink: "#path",
       optional: false,
       default: '',
     },
@@ -497,7 +496,7 @@ The `InfoPlist` model represents a target `Info.plist` file. It can have any of 
 <EnumTable
   cases={[
     {
-      case: '.file(path: String)',
+      case: '.file(path: Path)',
       description: 'The path to an existing Info.plist file',
     },
     {
@@ -562,25 +561,25 @@ Target actions, represented as target script build phases, are useful to define 
   cases={[
     {
       case:
-        '.pre(tool: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])',
+        '.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
       description:
         'Action executed before the target-specific build phases where tool is the name of the tool to be executed.',
     },
     {
       case:
-        '.pre(name: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])',
+        '.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
       description:
         'Action executed before the target-specific build phases where path is the path to the tool to be executed.',
     },
     {
       case:
-        '.post(tool: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])',
+        '.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
       description:
         'Action executed after all the target-specific build phases where tool is the name of the tool to be executed.',
     },
     {
       case:
-        '.post(name: String, arguments: String..., name: String, inputPaths: [String], inputFileListPaths: [String], outputPaths: [String], outputFileListPaths: [String])',
+        '.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
       description:
         'Action executed after all the target-specific build phases where path is the path to the tool to be executed.',
     },
@@ -592,12 +591,6 @@ The following example shows the definition of an action that runs the `my_custom
 ```swift
 .pre(path: "my_custom_script.sh", arguments: ["hello"], name: "My Custom Script Phase")
 ```
-
-<Message
-  info
-  title="Relative paths"
-  description="Either the tool or the path need to be defined. Moreover, Tuist verifies whether the launch path is valid and fail otherwise."
-/>
 
 The following example shows the definition of an action that runs the `my_custom_script.sh` defining input and output files:
 
@@ -989,9 +982,10 @@ A `Configuration` object describes the build settings and the `.xcconfig` file o
       default: '[:]',
     },
     {
-      name: 'Xcconfig',
+      name: 'Path',
       description: 'The path to the xcconfig file',
-      type: 'String',
+      type: 'Path',
+      typeLink: "#path",
       optional: true,
       default: 'nil',
     },
@@ -1010,12 +1004,12 @@ For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Ono
   cases={[
     {
       case:
-        '.debug(name: String, settings: [String: String], xcconfig: String?)',
+        '.debug(name: String, settings: [String: String], xcconfig: Path?)',
       description: 'A custom debug configuration',
     },
     {
       case:
-        '.release(name: String, settings: [String: String], xcconfig: String?)',
+        '.release(name: String, settings: [String: String], xcconfig: Path?)',
       description: 'A custom release configuration',
     },
   ]}
@@ -1048,12 +1042,12 @@ A `FileElement` can be one of the following options:
 <EnumTable
   cases={[
     {
-      case: '.glob(pattern: String)',
+      case: '.glob(pattern: Path)',
       description:
         'A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify this option.',
     },
     {
-      case: '.folderReference(path: String)',
+      case: '.folderReference(path: Path)',
       description: 'A directory path to include as a folder reference.',
     },
   ]}
@@ -1173,7 +1167,8 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
       name: 'Projects',
       description:
         'List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.',
-      type: '[String]',
+      type: '[Path]',
+      typeLink: "#path",
       optional: false,
       default: '',
     },
@@ -1189,8 +1184,27 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
   ]}
 />
 
+## Path
+
+A path represents a path to a file, directory, or a group of files represented by a glob expression. Paths can be relative and absolute. We **discourage** using absolute paths because they create a dependency with the environment where they are defined.
+
+<EnumTable
+  cases={[
+    {
+      case: '.relativeToCurrentFile(String)',
+      description:
+        'Initialize a path that is relative to the file that defines the path.',
+    },
+    {
+      case: '.relativeToManifest(String)',
+      description:
+        'Initialize a path that is relative to the directory that contains the manifest file being loaded, for example the directory that contains the Project.swift file.',
+    }
+  ]}
+/>
+
 <Message
   info
-  title="Relative paths"
-  description="All the relative paths in the workspace manifest are relative to the folder that contains the manifest file."
+  title="ExpressibleByStringLiteral and ExpressibleByArrayLiteral"
+  description="The path can be initialized with a plain string. It's equivalent to using .relativeToManifest."
 />

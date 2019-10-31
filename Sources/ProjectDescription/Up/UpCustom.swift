@@ -48,4 +48,10 @@ class UpCustom: Up {
         try container.encode(meet, forKey: .meet)
         try container.encode("custom", forKey: .type)
     }
+
+    public static func == (lhs: UpCustom, rhs: UpCustom) -> Bool {
+        return lhs.meet == rhs.meet &&
+            lhs.isMet == rhs.isMet &&
+            lhs.name == rhs.name
+    }
 }

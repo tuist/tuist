@@ -224,6 +224,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         }
         """
     }
+
     // swiftlint:enable function_body_length
     // swiftlint:enable line_length
 }

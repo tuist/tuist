@@ -202,14 +202,14 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     private func createDependencies(relativeTo path: AbsolutePath) throws -> [Dependency] {
         let prebuiltFrameworks = (0 ..< 10).map { "Frameworks/Framework\($0).framework" }
         let frameworks = try createFiles(prebuiltFrameworks)
-            .map { Dependency.framework(path: $0.relative(to: path)) }
+            .map { Dependency.framework(path: $0) }
 
         let libraries = try createLibraries(relativeTo: path)
 
         return (frameworks + libraries).shuffled()
     }
 
-    private func createLibraries(relativeTo path: AbsolutePath) throws -> [Dependency] {
+    private func createLibraries(relativeTo _: AbsolutePath) throws -> [Dependency] {
         var libraries = [Dependency]()
 
         for i in 0 ..< 10 {
@@ -224,11 +224,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                 swiftModuleMap,
             ])
 
-            libraries.append(
-                .library(path: files[0].relative(to: path),
-                         publicHeaders: files[1].relative(to: path),
-                         swiftModuleMap: files[2].relative(to: path))
-            )
+            libraries.append(.library(path: files[0], publicHeaders: files[1], swiftModuleMap: files[2]))
         }
 
         return libraries

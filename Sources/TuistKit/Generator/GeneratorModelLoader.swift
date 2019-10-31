@@ -48,21 +48,24 @@ class GeneratorModelLoader: GeneratorModelLoading {
     func loadProject(at path: AbsolutePath) throws -> TuistGenerator.Project {
         let manifest = try manifestLoader.loadProject(at: path)
         let tuistConfig = try loadTuistConfig(at: path)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
 
         try manifestLinter.lint(project: manifest)
             .printAndThrowIfNeeded()
 
         let project = try TuistGenerator.Project.from(manifest: manifest,
                                                       path: path,
-                                                      tuistConfig: tuistConfig)
+                                                      generatorPaths: generatorPaths)
 
         return try enriched(model: project, with: tuistConfig)
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> TuistGenerator.Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let workspace = try TuistGenerator.Workspace.from(manifest: manifest,
                                                           path: path,
+                                                          generatorPaths: generatorPaths,
                                                           manifestLoader: manifestLoader)
         return workspace
     }
@@ -172,9 +175,11 @@ extension TuistGenerator.CompatibleXcodeVersions {
 extension TuistGenerator.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
+                     generatorPaths: GeneratorPaths,
                      manifestLoader: GraphManifestLoading) throws -> TuistGenerator.Workspace {
-        func globProjects(_ string: String) -> [AbsolutePath] {
-            let projects = FileHandler.shared.glob(path, glob: string)
+        func globProjects(_ path: Path) -> [AbsolutePath] {
+            let resolvedPath = generatorPaths.resolve(path: path)
+            let projects = FileHandler.shared.glob(AbsolutePath("/"), glob: String(resolvedPath.pathString.dropFirst()))
                 .lazy
                 .filter(FileHandler.shared.isFolder)
                 .filter {
@@ -182,7 +187,7 @@ extension TuistGenerator.Workspace {
                 }
 
             if projects.isEmpty {
-                Printer.shared.print(warning: "No projects found at: \(string)")
+                Printer.shared.print(warning: "No projects found at: \(path.pathString)")
             }
 
             return Array(projects)
@@ -190,7 +195,8 @@ extension TuistGenerator.Workspace {
 
         let additionalFiles = manifest.additionalFiles.flatMap {
             TuistGenerator.FileElement.from(manifest: $0,
-                                            path: path)
+                                            path: path,
+                                            generatorPaths: generatorPaths)
         }
 
         return TuistGenerator.Workspace(name: manifest.name,
@@ -202,43 +208,44 @@ extension TuistGenerator.Workspace {
 extension TuistGenerator.FileElement {
     static func from(manifest: ProjectDescription.FileElement,
                      path: AbsolutePath,
+                     generatorPaths: GeneratorPaths,
                      includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) -> [TuistGenerator.FileElement] {
-        func globFiles(_ string: String) -> [AbsolutePath] {
-            let files = FileHandler.shared.glob(path, glob: string)
+        func globFiles(_ path: AbsolutePath) -> [AbsolutePath] {
+            let files = FileHandler.shared.glob(AbsolutePath("/"), glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
 
             if files.isEmpty {
-                if FileHandler.shared.isFolder(path.appending(RelativePath(string))) {
-                    Printer.shared.print(warning: "'\(string)' is a directory, try using: '\(string)/**' to list its files")
+                if FileHandler.shared.isFolder(path) {
+                    Printer.shared.print(warning: "'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else {
-                    Printer.shared.print(warning: "No files found at: \(string)")
+                    Printer.shared.print(warning: "No files found at: \(path.pathString)")
                 }
             }
 
             return files
         }
 
-        func folderReferences(_ relativePath: String) -> [AbsolutePath] {
-            let folderReferencePath = path.appending(RelativePath(relativePath))
-
-            guard FileHandler.shared.exists(folderReferencePath) else {
-                Printer.shared.print(warning: "\(relativePath) does not exist")
+        func folderReferences(_ path: AbsolutePath) -> [AbsolutePath] {
+            guard FileHandler.shared.exists(path) else {
+                Printer.shared.print(warning: "\(path.pathString) does not exist")
                 return []
             }
 
-            guard FileHandler.shared.isFolder(folderReferencePath) else {
-                Printer.shared.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
+            guard FileHandler.shared.isFolder(path) else {
+                Printer.shared.print(warning: "\(path.pathString) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 
-            return [folderReferencePath]
+            return [path]
         }
 
         switch manifest {
         case let .glob(pattern: pattern):
-            return globFiles(pattern).map(FileElement.file)
+            let resolvedPath = generatorPaths.resolve(path: pattern)
+            return globFiles(resolvedPath).map(FileElement.file)
         case let .folderReference(path: folderReferencePath):
-            return folderReferences(folderReferencePath).map(FileElement.folderReference)
+            let resolvedPath = generatorPaths.resolve(path: folderReferencePath)
+            return folderReferences(resolvedPath).map(FileElement.folderReference)
         }
     }
 }
@@ -246,23 +253,25 @@ extension TuistGenerator.FileElement {
 extension TuistGenerator.Project {
     static func from(manifest: ProjectDescription.Project,
                      path: AbsolutePath,
-                     tuistConfig _: TuistGenerator.TuistConfig) throws -> TuistGenerator.Project {
+                     generatorPaths: GeneratorPaths) throws -> TuistGenerator.Project {
         let name = manifest.name
-        let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
+        let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
         let targets = try manifest.targets.map {
             try TuistGenerator.Target.from(manifest: $0,
-                                           path: path)
+                                           path: path,
+                                           generatorPaths: generatorPaths)
         }
 
         let schemes = manifest.schemes.map { TuistGenerator.Scheme.from(manifest: $0) }
 
         let additionalFiles = manifest.additionalFiles.flatMap {
             TuistGenerator.FileElement.from(manifest: $0,
-                                            path: path)
+                                            path: path,
+                                            generatorPaths: generatorPaths)
         }
 
         let packages = manifest.packages.map { package in
-            TuistGenerator.Package.from(manifest: package)
+            TuistGenerator.Package.from(manifest: package, path: path, generatorPaths: generatorPaths)
         }
 
         return Project(path: path,
@@ -302,7 +311,8 @@ extension TuistGenerator.Project {
 
 extension TuistGenerator.Target {
     static func from(manifest: ProjectDescription.Target,
-                     path: AbsolutePath) throws -> TuistGenerator.Target {
+                     path: AbsolutePath,
+                     generatorPaths: GeneratorPaths) throws -> TuistGenerator.Target {
         let name = manifest.name
         let platform = try TuistGenerator.Platform.from(manifest: manifest.platform)
         let product = TuistGenerator.Product.from(manifest: manifest.product)
@@ -311,14 +321,14 @@ extension TuistGenerator.Target {
         let productName = manifest.productName
         let deploymentTarget = manifest.deploymentTarget.map { TuistGenerator.DeploymentTarget.from(manifest: $0) }
 
-        let dependencies = manifest.dependencies.map { TuistGenerator.Dependency.from(manifest: $0) }
+        let dependencies = manifest.dependencies.map { TuistGenerator.Dependency.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        let infoPlist = TuistGenerator.InfoPlist.from(manifest: manifest.infoPlist, path: path)
-        let entitlements = manifest.entitlements.map { path.appending(RelativePath($0)) }
+        let infoPlist = TuistGenerator.InfoPlist.from(manifest: manifest.infoPlist, path: path, generatorPaths: generatorPaths)
+        let entitlements = manifest.entitlements.map { generatorPaths.resolve(path: $0) }
 
-        let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path) }
+        let settings = manifest.settings.map { TuistGenerator.Settings.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
         let sources = try TuistGenerator.Target.sources(projectPath: path, sources: manifest.sources?.globs.map {
-            (glob: $0.glob, compilerFlags: $0.compilerFlags)
+            (glob: generatorPaths.resolve(path: $0.glob).pathString, compilerFlags: $0.compilerFlags)
         } ?? [])
 
         let resourceFilter = { (path: AbsolutePath) -> Bool in
@@ -327,16 +337,17 @@ extension TuistGenerator.Target {
         let resources = (manifest.resources ?? []).flatMap {
             TuistGenerator.FileElement.from(manifest: $0,
                                             path: path,
+                                            generatorPaths: generatorPaths,
                                             includeFiles: resourceFilter)
         }
 
-        let headers = manifest.headers.map { TuistGenerator.Headers.from(manifest: $0, path: path) }
+        let headers = manifest.headers.map { TuistGenerator.Headers.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
 
         let coreDataModels = try manifest.coreDataModels.map {
-            try TuistGenerator.CoreDataModel.from(manifest: $0, path: path)
+            try TuistGenerator.CoreDataModel.from(manifest: $0, path: path, generatorPaths: generatorPaths)
         }
 
-        let actions = manifest.actions.map { TuistGenerator.TargetAction.from(manifest: $0, path: path) }
+        let actions = manifest.actions.map { TuistGenerator.TargetAction.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
         let environment = manifest.environment
 
         return TuistGenerator.Target(name: name,
@@ -360,10 +371,10 @@ extension TuistGenerator.Target {
 }
 
 extension TuistGenerator.InfoPlist {
-    static func from(manifest: ProjectDescription.InfoPlist, path: AbsolutePath) -> TuistGenerator.InfoPlist {
+    static func from(manifest: ProjectDescription.InfoPlist, path _: AbsolutePath, generatorPaths: GeneratorPaths) -> TuistGenerator.InfoPlist {
         switch manifest {
         case let .file(infoplistPath):
-            return .file(path: path.appending(RelativePath(infoplistPath)))
+            return .file(path: generatorPaths.resolve(path: infoplistPath))
         case let .dictionary(dictionary):
             return .dictionary(
                 dictionary.mapValues { TuistGenerator.InfoPlist.Value.from(manifest: $0) }
@@ -395,13 +406,13 @@ extension TuistGenerator.InfoPlist.Value {
 extension TuistGenerator.Settings {
     typealias BuildConfigurationTuple = (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?)
 
-    static func from(manifest: ProjectDescription.Settings, path: AbsolutePath) -> TuistGenerator.Settings {
+    static func from(manifest: ProjectDescription.Settings, path: AbsolutePath, generatorPaths: GeneratorPaths) -> TuistGenerator.Settings {
         let base = manifest.base.mapValues(TuistGenerator.SettingValue.from)
         let configurations = manifest.configurations
             .reduce([TuistGenerator.BuildConfiguration: TuistGenerator.Configuration?]()) { acc, val in
                 var result = acc
                 let variant = TuistGenerator.BuildConfiguration.from(manifest: val)
-                result[variant] = TuistGenerator.Configuration.from(manifest: val.configuration, path: path)
+                result[variant] = TuistGenerator.Configuration.from(manifest: val.configuration, path: path, generatorPaths: generatorPaths)
                 return result
             }
         let defaultSettings = TuistGenerator.DefaultSettings.from(manifest: manifest.defaultSettings)
@@ -411,10 +422,11 @@ extension TuistGenerator.Settings {
     }
 
     private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
-                                                path: AbsolutePath) -> BuildConfigurationTuple {
+                                                path: AbsolutePath,
+                                                generatorPaths: GeneratorPaths) -> BuildConfigurationTuple {
         let buildConfiguration = TuistGenerator.BuildConfiguration.from(manifest: customConfiguration)
         let configuration = customConfiguration.configuration.flatMap {
-            TuistGenerator.Configuration.from(manifest: $0, path: path)
+            TuistGenerator.Configuration.from(manifest: $0, path: path, generatorPaths: generatorPaths)
         }
         return (buildConfiguration, configuration)
     }
@@ -443,27 +455,31 @@ extension TuistGenerator.SettingValue {
 }
 
 extension TuistGenerator.Configuration {
-    static func from(manifest: ProjectDescription.Configuration?, path: AbsolutePath) -> TuistGenerator.Configuration? {
+    static func from(manifest: ProjectDescription.Configuration?,
+                     path _: AbsolutePath,
+                     generatorPaths: GeneratorPaths) -> TuistGenerator.Configuration? {
         guard let manifest = manifest else {
             return nil
         }
         let settings = manifest.settings.mapValues(TuistGenerator.SettingValue.from)
-        let xcconfig = manifest.xcconfig.flatMap { path.appending(RelativePath($0)) }
+        let xcconfig = manifest.xcconfig.flatMap { generatorPaths.resolve(path: $0) }
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
 
 extension TuistGenerator.TargetAction {
-    static func from(manifest: ProjectDescription.TargetAction, path: AbsolutePath) -> TuistGenerator.TargetAction {
+    static func from(manifest: ProjectDescription.TargetAction,
+                     path: AbsolutePath,
+                     generatorPaths: GeneratorPaths) -> TuistGenerator.TargetAction {
         let name = manifest.name
         let tool = manifest.tool
         let order = TuistGenerator.TargetAction.Order.from(manifest: manifest.order)
-        let path = manifest.path.map { AbsolutePath($0, relativeTo: path) }
         let arguments = manifest.arguments
-        let inputPaths = manifest.inputPaths
-        let inputFileListPaths = manifest.inputFileListPaths
-        let outputPaths = manifest.outputPaths
-        let outputFileListPaths = manifest.outputFileListPaths
+        let inputPaths = manifest.inputPaths.map { generatorPaths.resolve(path: $0) }
+        let inputFileListPaths = manifest.inputFileListPaths.map { generatorPaths.resolve(path: $0) }
+        let outputPaths = manifest.outputPaths.map { generatorPaths.resolve(path: $0) }
+        let outputFileListPaths = manifest.outputFileListPaths.map { generatorPaths.resolve(path: $0) }
+        let path = manifest.path.map { generatorPaths.resolve(path: $0) }
         return TargetAction(name: name,
                             order: order,
                             tool: tool,
@@ -489,8 +505,9 @@ extension TuistGenerator.TargetAction.Order {
 
 extension TuistGenerator.CoreDataModel {
     static func from(manifest: ProjectDescription.CoreDataModel,
-                     path: AbsolutePath) throws -> TuistGenerator.CoreDataModel {
-        let modelPath = path.appending(RelativePath(manifest.path))
+                     path _: AbsolutePath,
+                     generatorPaths: GeneratorPaths) throws -> TuistGenerator.CoreDataModel {
+        let modelPath = generatorPaths.resolve(path: manifest.path)
         if !FileHandler.shared.exists(modelPath) {
             throw GeneratorModelLoaderError.missingFile(modelPath)
         }
@@ -501,25 +518,26 @@ extension TuistGenerator.CoreDataModel {
 }
 
 extension TuistGenerator.Headers {
-    static func from(manifest: ProjectDescription.Headers, path: AbsolutePath) -> TuistGenerator.Headers {
+    static func from(manifest: ProjectDescription.Headers,
+                     path _: AbsolutePath,
+                     generatorPaths: GeneratorPaths) -> TuistGenerator.Headers {
         let `public` = manifest.public?.globs.flatMap {
-            headerFiles(path: path, glob: $0)
+            headerFiles(generatorPaths.resolve(path: $0))
         } ?? []
 
         let `private` = manifest.private?.globs.flatMap {
-            headerFiles(path: path, glob: $0)
+            headerFiles(generatorPaths.resolve(path: $0))
         } ?? []
 
         let project = manifest.project?.globs.flatMap {
-            headerFiles(path: path, glob: $0)
+            headerFiles(generatorPaths.resolve(path: $0))
         } ?? []
 
         return Headers(public: `public`, private: `private`, project: project)
     }
 
-    private static func headerFiles(path: AbsolutePath,
-                                    glob: String) -> [AbsolutePath] {
-        return FileHandler.shared.glob(path, glob: glob).filter {
+    private static func headerFiles(_ path: AbsolutePath) -> [AbsolutePath] {
+        return FileHandler.shared.glob(AbsolutePath("/"), glob: String(path.pathString.dropFirst())).filter {
             if let `extension` = $0.extension, Headers.extensions.contains(".\(`extension`)") {
                 return true
             }
@@ -529,10 +547,12 @@ extension TuistGenerator.Headers {
 }
 
 extension TuistGenerator.Package {
-    static func from(manifest: ProjectDescription.Package) -> TuistGenerator.Package {
+    static func from(manifest: ProjectDescription.Package,
+                     path _: AbsolutePath,
+                     generatorPaths: GeneratorPaths) -> TuistGenerator.Package {
         switch manifest {
         case let .local(path: local):
-            return .local(path: RelativePath(local))
+            return .local(path: generatorPaths.resolve(path: local))
         case let .remote(url: url, requirement: version):
             return .remote(url: url, requirement: .from(manifest: version))
         }
@@ -559,18 +579,18 @@ extension TuistGenerator.Package.Requirement {
 }
 
 extension TuistGenerator.Dependency {
-    static func from(manifest: ProjectDescription.TargetDependency) -> TuistGenerator.Dependency {
+    static func from(manifest: ProjectDescription.TargetDependency, generatorPaths: GeneratorPaths) -> TuistGenerator.Dependency {
         switch manifest {
         case let .target(name):
             return .target(name: name)
         case let .project(target, projectPath):
-            return .project(target: target, path: RelativePath(projectPath))
+            return .project(target: target, path: generatorPaths.resolve(path: projectPath))
         case let .framework(frameworkPath):
-            return .framework(path: RelativePath(frameworkPath))
+            return .framework(path: generatorPaths.resolve(path: frameworkPath))
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
-            return .library(path: RelativePath(libraryPath),
-                            publicHeaders: RelativePath(publicHeaders),
-                            swiftModuleMap: swiftModuleMap.map { RelativePath($0) })
+            return .library(path: generatorPaths.resolve(path: libraryPath),
+                            publicHeaders: generatorPaths.resolve(path: publicHeaders),
+                            swiftModuleMap: swiftModuleMap.map { generatorPaths.resolve(path: $0) })
         case let .package(product):
             return .package(product: product)
 
@@ -578,7 +598,7 @@ extension TuistGenerator.Dependency {
             return .sdk(name: name,
                         status: .from(manifest: status))
         case let .cocoapods(path):
-            return .cocoapods(path: RelativePath(path))
+            return .cocoapods(path: generatorPaths.resolve(path: path))
         }
     }
 }

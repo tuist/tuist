@@ -24,13 +24,13 @@ public enum TargetDependency: Codable, Equatable {
     /// - Parameters:
     ///   - target: Name of the target to depend on
     ///   - path: Relative path to the other project directory
-    case project(target: String, path: String)
+    case project(target: String, path: Path)
 
     /// Dependency on a prebuilt framework
     ///
     /// - Parameters:
     ///   - path: Relative path to the prebuilt framework
-    case framework(path: String)
+    case framework(path: Path)
 
     /// Dependency on prebuilt library
     ///
@@ -38,7 +38,7 @@ public enum TargetDependency: Codable, Equatable {
     ///   - path: Relative path to the prebuilt library
     ///   - publicHeaders: Relative path to the library's public headers directory
     ///   - swiftModuleMap: Relative path to the library's swift module map file
-    case library(path: String, publicHeaders: String, swiftModuleMap: String?)
+    case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?)
 
     /// Dependency on a swift package manager product. Define packages in the `packages` variable on `Project`
     ///
@@ -59,7 +59,7 @@ public enum TargetDependency: Codable, Equatable {
     ///
     /// - Parameters:
     ///     - path: Path to the directory that contains the Podfile.
-    case cocoapods(path: String)
+    case cocoapods(path: Path)
 
     /// Dependency on system library or framework
     ///
@@ -129,17 +129,17 @@ extension TargetDependency {
         case "project":
             self = .project(
                 target: try container.decode(String.self, forKey: .target),
-                path: try container.decode(String.self, forKey: .path)
+                path: try container.decode(Path.self, forKey: .path)
             )
 
         case "framework":
-            self = .framework(path: try container.decode(String.self, forKey: .path))
+            self = .framework(path: try container.decode(Path.self, forKey: .path))
 
         case "library":
             self = .library(
-                path: try container.decode(String.self, forKey: .path),
-                publicHeaders: try container.decode(String.self, forKey: .publicHeaders),
-                swiftModuleMap: try container.decodeIfPresent(String.self, forKey: .swiftModuleMap)
+                path: try container.decode(Path.self, forKey: .path),
+                publicHeaders: try container.decode(Path.self, forKey: .publicHeaders),
+                swiftModuleMap: try container.decodeIfPresent(Path.self, forKey: .swiftModuleMap)
             )
 
         case "package":
@@ -150,7 +150,7 @@ extension TargetDependency {
                         status: try container.decode(SDKStatus.self, forKey: .status))
 
         case "cocoapods":
-            self = .cocoapods(path: try container.decode(String.self, forKey: .path))
+            self = .cocoapods(path: try container.decode(Path.self, forKey: .path))
 
         default:
             throw CodingError.unknownType(type)

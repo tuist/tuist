@@ -29,4 +29,8 @@ class UpHomebrew: Up {
         try container.encode(packages, forKey: .packages)
         try container.encode("homebrew", forKey: .type)
     }
+
+    public static func == (lhs: UpHomebrew, rhs: UpHomebrew) -> Bool {
+        return lhs.packages == rhs.packages
+    }
 }

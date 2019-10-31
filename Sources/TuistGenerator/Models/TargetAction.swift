@@ -29,16 +29,16 @@ public struct TargetAction {
     public let arguments: [String]
 
     /// List of input file paths
-    public let inputPaths: [String]
+    public let inputPaths: [AbsolutePath]
 
     /// List of input filelist paths
-    public let inputFileListPaths: [String]
+    public let inputFileListPaths: [AbsolutePath]
 
     /// List of output file paths
-    public let outputPaths: [String]
+    public let outputPaths: [AbsolutePath]
 
     /// List of output filelist paths
-    public let outputFileListPaths: [String]
+    public let outputFileListPaths: [AbsolutePath]
 
     /// Initializes a new target action with its attributes.
     ///
@@ -57,10 +57,10 @@ public struct TargetAction {
                 tool: String? = nil,
                 path: AbsolutePath? = nil,
                 arguments: [String] = [],
-                inputPaths: [String] = [],
-                inputFileListPaths: [String] = [],
-                outputPaths: [String] = [],
-                outputFileListPaths: [String] = []) {
+                inputPaths: [AbsolutePath] = [],
+                inputFileListPaths: [AbsolutePath] = [],
+                outputPaths: [AbsolutePath] = [],
+                outputFileListPaths: [AbsolutePath] = []) {
         self.name = name
         self.order = order
         self.tool = tool

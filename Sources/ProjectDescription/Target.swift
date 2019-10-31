@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Target
 
-public class Target: Codable {
+public struct Target: Codable, Equatable {
     /// Target name.
     public let name: String
 
@@ -27,7 +27,7 @@ public class Target: Codable {
     public let infoPlist: InfoPlist
 
     /// Relative path to the entitlements file.
-    public let entitlements: String?
+    public let entitlements: Path?
 
     /// Target settings.
     public let settings: Settings?
@@ -99,7 +99,7 @@ public class Target: Codable {
                 sources: SourceFilesList? = nil,
                 resources: [FileElement]? = nil,
                 headers: Headers? = nil,
-                entitlements: String? = nil,
+                entitlements: Path? = nil,
                 actions: [TargetAction] = [],
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,

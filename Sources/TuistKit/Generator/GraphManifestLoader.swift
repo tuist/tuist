@@ -177,10 +177,10 @@ class GraphManifestLoader: GraphManifestLoading {
             "-lProjectDescription",
         ]
         arguments.append(path.pathString)
-        arguments.append("--dump")
+        arguments.append("--tuist-dump")
 
-        guard let jsonString = try System.shared.capture(arguments).spm_chuzzle(),
-            let data = jsonString.data(using: .utf8) else {
+        let result = try System.shared.capture(arguments).spm_chuzzle()
+        guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
 

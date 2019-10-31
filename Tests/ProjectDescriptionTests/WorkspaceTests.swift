@@ -7,20 +7,7 @@ import XCTest
 final class WorkspaceTests: XCTestCase {
     func test_toJSON() throws {
         let subject = Workspace(name: "name", projects: ["/path/to/project"])
-
-        let expected =
-            """
-            {
-               "name":"name",
-               "projects": [
-                  "/path/to/project"
-               ],
-               "additionalFiles": [
-               ]
-            }
-            """
-
-        XCTAssertCodableEqualToJson(subject, expected)
+        XCTAssertCodable(subject)
     }
 
     func test_toJSON_withAdditionalFiles() throws {
@@ -29,23 +16,6 @@ final class WorkspaceTests: XCTestCase {
                                 additionalFiles: [
                                     .glob(pattern: "Documentation/**"),
                                 ])
-
-        let expected =
-            """
-            {
-               "name":"name",
-               "projects": [
-                  "ProjectA"
-               ],
-               "additionalFiles": [
-                    {
-                        "type": "glob",
-                        "pattern": "Documentation/**"
-                    }
-               ]
-            }
-            """
-
-        XCTAssertCodableEqualToJson(subject, expected)
+        XCTAssertCodable(subject)
     }
 }

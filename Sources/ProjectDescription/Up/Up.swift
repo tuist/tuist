@@ -4,7 +4,7 @@ import Foundation
 /// The steps to set up the project are usually specified in the project README.
 /// With Tuist, that's not necessary anymore because you can define declaratively those steps
 /// and developers can run them by executing 'tuist up'
-public class Up: Codable {
+public class Up: Codable, Equatable {
     /// Returns an up that installs Homebrew packages.
     ///
     /// - Parameter packages: Packages to be installed.
@@ -40,5 +40,9 @@ public class Up: Codable {
     public static func carthage(platforms: [Platform]? = nil) -> Up {
         let platforms = platforms ?? [.iOS, .macOS, .tvOS, .watchOS]
         return UpCarthage(platforms: platforms)
+    }
+
+    public static func == (_: Up, _: Up) -> Bool {
+        fatalError("Subclasses should override this method")
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Headers
-public final class Headers: Codable {
+public struct Headers: Codable, Equatable {
     /// Relative path to public headers.
     public let `public`: FileList?
 
