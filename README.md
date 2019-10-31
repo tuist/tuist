@@ -1,7 +1,6 @@
 <img src="assets/tuist.png" width="200" align="center"/>
 
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
-[![CircleCI](https://circleci.com/gh/tuist/tuist.svg?style=svg)](https://circleci.com/gh/tuist/tuist)
 [![codecov](https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg)](https://codecov.io/gh/tuist/tuist)
 [![Slack](http://slack.tuist.io/badge.svg)](http://slack.tuist.io)
 
