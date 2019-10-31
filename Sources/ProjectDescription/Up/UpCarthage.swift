@@ -29,4 +29,8 @@ class UpCarthage: Up {
         try container.encode("carthage", forKey: .type)
         try container.encode(platforms, forKey: .platforms)
     }
+
+    public static func == (lhs: UpCarthage, rhs: UpCarthage) -> Bool {
+        return lhs.platforms == rhs.platforms
+    }
 }

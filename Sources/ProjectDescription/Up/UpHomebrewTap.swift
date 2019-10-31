@@ -29,4 +29,8 @@ class UpHomebrewTap: Up {
         try container.encode(repositories, forKey: .repositories)
         try container.encode("homebrew-tap", forKey: .type)
     }
+
+    public static func == (lhs: UpHomebrewTap, rhs: UpHomebrewTap) -> Bool {
+        return lhs.repositories == rhs.repositories
+    }
 }

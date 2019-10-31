@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Workspace
 
-public class Workspace: Codable {
+public struct Workspace: Codable, Equatable {
     /// Name of the workspace
     public let name: String
 

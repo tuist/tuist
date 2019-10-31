@@ -56,6 +56,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_loadProject_withTargets() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let targetA = TargetManifest.test(name: "A")
         let targetB = TargetManifest.test(name: "B")
         let manifests = [
@@ -74,8 +75,8 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.targets.count, 3)
-        assert(target: model.targets[0], matches: targetA, at: temporaryPath)
-        assert(target: model.targets[1], matches: targetB, at: temporaryPath)
+        assert(target: model.targets[0], matches: targetA, at: temporaryPath, generatorPaths: generatorPaths)
+        assert(target: model.targets[1], matches: targetB, at: temporaryPath, generatorPaths: generatorPaths)
         XCTAssertEqual(model.targets[2].name, "Project-Manifest")
     }
 
@@ -338,38 +339,41 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_settings() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let debug = ConfigurationManifest(settings: ["Debug": .string("Debug")], xcconfig: "debug.xcconfig")
         let release = ConfigurationManifest(settings: ["Release": .string("Release")], xcconfig: "release.xcconfig")
         let manifest = SettingsManifest(base: ["base": .string("base")], debug: debug, release: release)
 
         // When
-        let model = TuistGenerator.Settings.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.Settings.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
-        assert(settings: model, matches: manifest, at: temporaryPath)
+        assert(settings: model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths)
     }
 
     func test_dependency_when_cocoapods() throws {
         // Given
         let dependency = TargetDependency.cocoapods(path: "./path/to/project")
+        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = TuistGenerator.Dependency.from(manifest: dependency)
+        let got = TuistGenerator.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
 
         // Then
         guard case let .cocoapods(path) = got else {
             XCTFail("Dependency should be cocoapods")
             return
         }
-        XCTAssertEqual(path, RelativePath("./path/to/project"))
+        XCTAssertEqual(path, AbsolutePath("/path/to/project"))
     }
 
     func test_dependency_when_localPackage() {
         // Given
         let dependency = TargetDependency.package(product: "library")
+        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = TuistGenerator.Dependency.from(manifest: dependency)
+        let got = TuistGenerator.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
 
         // Then
         guard
@@ -384,6 +388,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_headers() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
@@ -406,7 +411,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: "Sources/project/**")
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -428,6 +433,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_headersArray() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
@@ -450,7 +456,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -472,6 +478,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_headersStringAndArrayMix() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
@@ -486,7 +493,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -502,27 +509,29 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_coreDataModel() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try FileHandler.shared.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
         let manifest = ProjectDescription.CoreDataModel("model.xcdatamodeld",
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: temporaryPath)
+        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertTrue(coreDataModel(model, matches: manifest, at: temporaryPath))
+        XCTAssertTrue(coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
     }
 
     func test_targetActions() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.TargetAction.test(name: "MyScript",
                                                             tool: "my_tool",
                                                             path: "my/path",
                                                             order: .pre,
                                                             arguments: ["arg1", "arg2"])
         // When
-        let model = TuistGenerator.TargetAction.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.TargetAction.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -586,6 +595,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_fileElement_warning_withDirectoryPathsAsFiles() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Documentation/README.md",
             "Documentation/USAGE.md",
@@ -596,29 +606,34 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         // When
         let model = TuistGenerator.FileElement.from(manifest: manifest,
                                                     path: temporaryPath,
+                                                    generatorPaths: generatorPaths,
                                                     includeFiles: { !FileHandler.shared.isFolder($0) })
 
         // Then
-        XCTAssertPrinterOutputContains("'Documentation' is a directory, try using: 'Documentation/**' to list its files")
+        let documentationPath = temporaryPath.appending(component: "Documentation").pathString
+        XCTAssertPrinterOutputContains("'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files")
         XCTAssertEqual(model, [])
     }
 
     func test_fileElement_warning_withMisingPaths() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation/**")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertPrinterOutputContains("No files found at: Documentation/**")
+        let documentationPath = temporaryPath.appending(RelativePath("Documentation/**"))
+        XCTAssertPrinterOutputContains("No files found at: \(documentationPath)")
         XCTAssertEqual(model, [])
     }
 
     func test_fileElement_warning_withInvalidFolderReference() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "README.md",
         ])
@@ -626,7 +641,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.folderReference(path: "README.md")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -636,10 +651,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func test_fileElement_warning_withMissingFolderReference() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath)
+        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -721,24 +737,26 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func assert(target: TuistGenerator.Target,
                 matches manifest: ProjectDescription.Target,
                 at path: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
         XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
-        XCTAssertEqual(target.infoPlist?.path, path.appending(RelativePath(manifest.infoPlist.path!)), file: file, line: line)
-        XCTAssertEqual(target.entitlements, manifest.entitlements.map { path.appending(RelativePath($0)) }, file: file, line: line)
+        XCTAssertEqual(target.infoPlist?.path, generatorPaths.resolve(path: manifest.infoPlist.path!), file: file, line: line)
+        XCTAssertEqual(target.entitlements, manifest.entitlements.map { generatorPaths.resolve(path: $0) }, file: file, line: line)
         XCTAssertEqual(target.environment, manifest.environment, file: file, line: line)
-        assert(coreDataModels: target.coreDataModels, matches: manifest.coreDataModels, at: path, file: file, line: line)
+        assert(coreDataModels: target.coreDataModels, matches: manifest.coreDataModels, at: path, generatorPaths: generatorPaths, file: file, line: line)
         optionalAssert(target.settings, manifest.settings, file: file, line: line) {
-            assert(settings: $0, matches: $1, at: path, file: file, line: line)
+            assert(settings: $0, matches: $1, at: path, generatorPaths: generatorPaths, file: file, line: line)
         }
     }
 
     func assert(settings: TuistGenerator.Settings,
                 matches manifest: ProjectDescription.Settings,
                 at path: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(settings.base.count, manifest.base.count, file: file, line: line)
@@ -746,13 +764,14 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
         let sortedManifsetConfigurations = manifest.configurations.sorted(by: { $0.name < $1.name })
         for (configuration, manifestConfiguration) in zip(sortedConfigurations, sortedManifsetConfigurations) {
-            assert(configuration: configuration, matches: manifestConfiguration, at: path, file: file, line: line)
+            assert(configuration: configuration, matches: manifestConfiguration, at: path, generatorPaths: generatorPaths, file: file, line: line)
         }
     }
 
     func assert(configuration: (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?),
                 matches manifest: ProjectDescription.CustomConfiguration,
-                at path: AbsolutePath,
+                at _: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertTrue(configuration.0 == manifest, file: file, line: line)
@@ -760,25 +779,27 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                        manifest.configuration?.settings.count,
                        file: file, line: line)
         XCTAssertEqual(configuration.1?.xcconfig,
-                       manifest.configuration?.xcconfig.map { path.appending(RelativePath($0)) },
+                       manifest.configuration?.xcconfig.map { generatorPaths.resolve(path: $0) },
                        file: file, line: line)
     }
 
     func assert(coreDataModels: [TuistGenerator.CoreDataModel],
                 matches manifests: [ProjectDescription.CoreDataModel],
                 at path: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(coreDataModels.count, manifests.count, file: file, line: line)
-        XCTAssertTrue(coreDataModels.elementsEqual(manifests, by: { coreDataModel($0, matches: $1, at: path) }),
+        XCTAssertTrue(coreDataModels.elementsEqual(manifests, by: { coreDataModel($0, matches: $1, at: path, generatorPaths: generatorPaths) }),
                       file: file,
                       line: line)
     }
 
     func coreDataModel(_ coreDataModel: TuistGenerator.CoreDataModel,
                        matches manifest: ProjectDescription.CoreDataModel,
-                       at path: AbsolutePath) -> Bool {
-        return coreDataModel.path == path.appending(RelativePath(manifest.path))
+                       at _: AbsolutePath,
+                       generatorPaths: GeneratorPaths) -> Bool {
+        return coreDataModel.path == generatorPaths.resolve(path: manifest.path)
             && coreDataModel.currentVersion == manifest.currentVersion
     }
 

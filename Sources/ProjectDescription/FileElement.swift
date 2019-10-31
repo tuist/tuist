@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
-public enum FileElement: Codable {
+public enum FileElement: Codable, Equatable {
     /// A glob pattern of files to include
     case glob(pattern: Path)
 

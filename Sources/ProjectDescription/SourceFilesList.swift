@@ -1,7 +1,7 @@
 // MARK: - FileList
 
 /// A model to refer to source files that supports passing compiler flags.
-public final class SourceFileGlob: ExpressibleByStringLiteral, Codable {
+public struct SourceFileGlob: ExpressibleByStringLiteral, Codable, Equatable {
     /// Relative glob pattern.
     public let glob: Path
 
@@ -18,12 +18,12 @@ public final class SourceFileGlob: ExpressibleByStringLiteral, Codable {
         self.compilerFlags = compilerFlags
     }
 
-    public convenience init(stringLiteral value: String) {
+    public init(stringLiteral value: String) {
         self.init(Path(value))
     }
 }
 
-public final class SourceFilesList: Codable {
+public struct SourceFilesList: Codable, Equatable {
     public enum CodingKeys: String, CodingKey {
         case globs
     }
@@ -64,13 +64,13 @@ public final class SourceFilesList: Codable {
 
 /// Support file as single string
 extension SourceFilesList: ExpressibleByStringLiteral {
-    public convenience init(stringLiteral value: String) {
+    public init(stringLiteral value: String) {
         self.init(globs: [value])
     }
 }
 
 extension SourceFilesList: ExpressibleByArrayLiteral {
-    public convenience init(arrayLiteral elements: SourceFileGlob...) {
+    public init(arrayLiteral elements: SourceFileGlob...) {
         self.init(globs: elements)
     }
 }

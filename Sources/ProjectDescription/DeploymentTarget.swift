@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - DeploymentTarget
 
-public enum DeploymentTarget: Codable {
+public enum DeploymentTarget: Codable, Equatable {
     case iOS(targetVersion: String, devices: DeploymentDevice)
     case macOS(targetVersion: String)
     // TODO: 🙈 Add `watchOS` and `tvOS` support

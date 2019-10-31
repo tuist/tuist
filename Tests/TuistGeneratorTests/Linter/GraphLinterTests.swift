@@ -144,7 +144,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let appTarget = Target.test(name: "AppTarget", dependencies: [.package(product: "PackageLibrary"), .target(name: "frameworkA")])
         let frameworkTarget = Target.test(name: "frameworkA", dependencies: [.target(name: "staticFramework")])
 
-        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget], packages: [.local(path: RelativePath("packageLibrary"))])
+        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget], packages: [.local(path: AbsolutePath("/packageLibrary"))])
         let projectFramework = Project.test(path: "/tmp/framework", name: "projectFramework", targets: [frameworkTarget])
 
         let package = PackageProductNode(product: "PackageLibrary", path: "/tmp/packageLibrary")

@@ -1,3 +1,4 @@
+import Basic
 import Foundation
 import XCTest
 @testable import TuistCoreTesting
@@ -60,8 +61,8 @@ final class TargetTests: TuistUnitTestCase {
         // When
         let sources = try Target.sources(projectPath: temporaryPath,
                                          sources: [
-                                             (glob: "sources/**", compilerFlags: nil),
-                                             (glob: "sources/**", compilerFlags: nil),
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, compilerFlags: nil),
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, compilerFlags: nil),
                                          ])
 
         // Then

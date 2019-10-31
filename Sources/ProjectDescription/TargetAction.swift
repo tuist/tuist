@@ -1,11 +1,11 @@
 import Foundation
 
-public struct TargetAction: Codable {
+public struct TargetAction: Codable, Equatable {
     /// Order when the action gets executed.
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
-    public enum Order: String, Codable {
+    public enum Order: String, Codable, Equatable {
         case pre
         case post
     }
@@ -320,12 +320,12 @@ public struct TargetAction: Codable {
         name = try container.decode(String.self, forKey: .name)
         order = try container.decode(Order.self, forKey: .order)
         arguments = try container.decode([String].self, forKey: .arguments)
-        inputPaths = try container.decodeIfPresent([String].self, forKey: .inputPaths)?.map { Path($0) } ?? []
-        inputFileListPaths = try container.decodeIfPresent([String].self, forKey: .inputFileListPaths)?.map { Path($0) } ?? []
-        outputPaths = try container.decodeIfPresent([String].self, forKey: .outputPaths)?.map { Path($0) } ?? []
-        outputFileListPaths = try container.decodeIfPresent([String].self, forKey: .outputFileListPaths)?.map { Path($0) } ?? []
-        if let path = try container.decodeIfPresent(String.self, forKey: .path) {
-            self.path = Path(path)
+        inputPaths = try container.decodeIfPresent([Path].self, forKey: .inputPaths) ?? []
+        inputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .inputFileListPaths) ?? []
+        outputPaths = try container.decodeIfPresent([Path].self, forKey: .outputPaths) ?? []
+        outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
+        if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
+            self.path = path
             tool = nil
         } else {
             path = nil

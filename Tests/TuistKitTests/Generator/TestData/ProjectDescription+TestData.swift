@@ -9,7 +9,7 @@ extension TuistConfig {
 
 extension Workspace {
     static func test(name: String = "Workspace",
-                     projects: [String] = [],
+                     projects: [Path] = [],
                      additionalFiles: [FileElement] = []) -> Workspace {
         return Workspace(name: name,
                          projects: projects,
@@ -39,7 +39,7 @@ extension Target {
                      sources: SourceFilesList = "Sources/**",
                      resources: [FileElement] = "Resources/**",
                      headers: Headers? = nil,
-                     entitlements: String? = "app.entitlements",
+                     entitlements: Path? = Path("app.entitlements"),
                      actions: [TargetAction] = [],
                      dependencies: [TargetDependency] = [],
                      settings: Settings? = nil,
@@ -66,7 +66,7 @@ extension Target {
 extension TargetAction {
     static func test(name: String = "Action",
                      tool: String? = nil,
-                     path: String? = nil,
+                     path: Path? = nil,
                      order: Order = .pre,
                      arguments: [String] = []) -> TargetAction {
         return TargetAction(name: name,

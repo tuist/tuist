@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Product
 
-public enum Product: String, Codable {
+public enum Product: String, Codable, Equatable {
     case app
     case staticLibrary = "static_library"
     case dynamicLibrary = "dynamic_library"

@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Project
 
-public class Project: Codable {
+public struct Project: Codable, Equatable {
     public let name: String
     public let packages: [Package]
     public let targets: [Target]

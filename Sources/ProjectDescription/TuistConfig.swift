@@ -1,7 +1,7 @@
 import Foundation
 
 /// This model allows to configure Tuist.
-public class TuistConfig: Encodable, Decodable, Equatable {
+public struct TuistConfig: Codable, Equatable {
     /// Contains options related to the project generation.
     ///
     /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.

@@ -225,20 +225,18 @@ extension TuistGenerator.FileElement {
             return files
         }
 
-        func folderReferences(_ relativePath: String) -> [AbsolutePath] {
-            let folderReferencePath = path.appending(RelativePath(relativePath))
-
-            guard FileHandler.shared.exists(folderReferencePath) else {
-                Printer.shared.print(warning: "\(relativePath) does not exist")
+        func folderReferences(_ path: AbsolutePath) -> [AbsolutePath] {
+            guard FileHandler.shared.exists(path) else {
+                Printer.shared.print(warning: "\(path.pathString) does not exist")
                 return []
             }
 
-            guard FileHandler.shared.isFolder(folderReferencePath) else {
-                Printer.shared.print(warning: "\(relativePath) is not a directory - folder reference paths need to point to directories")
+            guard FileHandler.shared.isFolder(path) else {
+                Printer.shared.print(warning: "\(path.pathString) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 
-            return [folderReferencePath]
+            return [path]
         }
 
         switch manifest {
@@ -247,7 +245,7 @@ extension TuistGenerator.FileElement {
             return globFiles(resolvedPath).map(FileElement.file)
         case let .folderReference(path: folderReferencePath):
             let resolvedPath = generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath.pathString).map(FileElement.folderReference)
+            return folderReferences(resolvedPath).map(FileElement.folderReference)
         }
     }
 }
