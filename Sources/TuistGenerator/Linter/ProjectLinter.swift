@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol ProjectLinting: AnyObject {
     func lint(_ project: Project) -> [LintingIssue]

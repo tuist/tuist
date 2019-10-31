@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 public enum InfoPlist: Equatable {
     public indirect enum Value: Equatable {

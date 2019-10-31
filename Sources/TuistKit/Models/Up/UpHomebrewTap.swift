@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// Command that installs Homebrew and packages.
 class UpHomebrewTap: Up, GraphInitiatable {

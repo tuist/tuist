@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible {
     // MARK: - Attributes

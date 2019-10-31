@@ -1,5 +1,5 @@
 import Basic
-import TuistCore
+import TuistSupport
 import TuistGenerator
 
 class MockGeneratorModelLoader: GeneratorModelLoading {

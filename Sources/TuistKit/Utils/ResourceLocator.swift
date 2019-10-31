@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol ResourceLocating: AnyObject {
     func projectDescription() throws -> AbsolutePath

@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 public protocol DotGraphGenerating {
     /// Generates the dot graph from the project in the current directory and returns it.

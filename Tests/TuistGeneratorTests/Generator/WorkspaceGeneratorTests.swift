@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 import XcodeProj
 import XCTest
 
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 final class WorkspaceGeneratorTests: TuistUnitTestCase {

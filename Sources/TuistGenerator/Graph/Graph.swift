@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 enum GraphError: FatalError {
     case unsupportedFileExtension(String)

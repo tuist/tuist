@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 import XCTest
 
-@testable import TuistCore
-@testable import TuistCoreTesting
+@testable import TuistSupport
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 final class GraphErrorTests: XCTestCase {

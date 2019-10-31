@@ -2,8 +2,8 @@ import Basic
 import Foundation
 import XCTest
 @testable import SPMUtility
-@testable import TuistCore
-@testable import TuistCoreTesting
+@testable import TuistSupport
+@testable import TuistSupportTesting
 @testable import TuistEnvKit
 
 final class BundleCommandErrorTests: XCTestCase {

@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 final class MockEmbedScriptGenerator: EmbedScriptGenerating {

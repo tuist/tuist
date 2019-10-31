@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// Protocol that defines the interface of a utility to sort the files before adding them to a project
 protocol ProjectFilesSortening {

@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// Protocol that defines the interface of an up command.
 protocol Upping: AnyObject {

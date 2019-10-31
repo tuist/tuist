@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 public class CoreDataModel: Equatable {
     // MARK: - Attributes

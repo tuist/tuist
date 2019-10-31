@@ -1,9 +1,9 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistCore
+import TuistSupport
 import XCTest
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 final class HeadersTests: XCTestCase {}

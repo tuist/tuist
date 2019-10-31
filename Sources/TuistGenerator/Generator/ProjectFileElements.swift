@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 import XcodeProj
 
 // swiftlint:disable:next type_body_length

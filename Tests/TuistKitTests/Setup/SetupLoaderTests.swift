@@ -1,7 +1,7 @@
 import Basic
 import XCTest
-@testable import TuistCore
-@testable import TuistCoreTesting
+@testable import TuistSupport
+@testable import TuistSupportTesting
 @testable import TuistKit
 
 final class SetupLoaderTests: TuistUnitTestCase {

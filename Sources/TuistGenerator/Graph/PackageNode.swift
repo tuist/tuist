@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// Node specifying a product dependency on a swift package
 class PackageProductNode: GraphNode {

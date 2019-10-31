@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistCore
+import TuistSupport
 
 enum BuildCommandError: FatalError {
     // Error description

@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 class SDKNode: GraphNode {
     let status: SDKStatus

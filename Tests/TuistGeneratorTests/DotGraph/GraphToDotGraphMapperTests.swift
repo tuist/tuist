@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import XCTest
 
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 final class GraphToDotGraphMapperTests: XCTestCase {

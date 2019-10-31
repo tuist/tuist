@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import ProjectDescription
-import TuistCore
+import TuistSupport
 import TuistGenerator
 
 enum GeneratorModelLoaderError: Error, Equatable, FatalError {

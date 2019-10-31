@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 import TuistGenerator
 import XCTest
 @testable import ProjectDescription
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistKit
 
 class GeneratorModelLoaderTest: TuistUnitTestCase {

@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
     case string(String)

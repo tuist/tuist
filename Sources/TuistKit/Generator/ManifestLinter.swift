@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import TuistCore
+import TuistSupport
 
 protocol ManifestLinting {
     func lint(project: Project) -> [LintingIssue]
