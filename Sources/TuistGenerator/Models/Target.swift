@@ -103,7 +103,9 @@ public class Target: Equatable, Hashable {
     public static func sources(projectPath _: AbsolutePath, sources: [(glob: String, compilerFlags: String?)]) throws -> [Target.SourceFile] {
         var sourceFiles: [AbsolutePath: Target.SourceFile] = [:]
         sources.forEach { source in
-            AbsolutePath("/").glob(String(source.glob.dropFirst())).filter { path in
+            let sourcePath = AbsolutePath(source.glob)
+            let base = AbsolutePath(sourcePath.dirname)
+            base.glob(sourcePath.basename).filter { path in
                 if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
                     return true
                 }
