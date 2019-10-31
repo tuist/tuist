@@ -178,8 +178,6 @@ class GraphManifestLoader: GraphManifestLoading {
         ]
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
-        arguments.append("--tuist-manifest-dir")
-        arguments.append(path.parentDirectory.pathString)
 
         let result = try System.shared.capture(arguments).spm_chuzzle()
         guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
