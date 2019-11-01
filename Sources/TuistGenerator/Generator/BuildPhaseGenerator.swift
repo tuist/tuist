@@ -300,8 +300,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                       pbxTarget: PBXTarget,
                                       fileElements: ProjectFileElements,
                                       pbxproj: PBXProj) throws {
-        let targetNode = graph.targetDependencies(path: path, name: target.name)
-        let watchApps = targetNode.filter { $0.target.product == .watch2App }
+        let targetDependencies = graph.targetDependencies(path: path, name: target.name)
+        let watchApps = targetDependencies.filter { $0.target.product == .watch2App }
         guard !watchApps.isEmpty else { return }
 
         let embedWatchAppBuildPhase = PBXCopyFilesBuildPhase(dstPath: "$(CONTENTS_FOLDER_PATH)/Watch",
