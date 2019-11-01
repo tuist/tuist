@@ -92,7 +92,7 @@ class GraphManifestLoader: GraphManifestLoading {
     let resourceLocator: ResourceLocating
 
     /// Instance to compile and return a temporary module that contains the helper files.
-    let projectDesciptionHelpersBuilder: ProjectDesciptionHelpersBuilding
+    let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
 
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
@@ -105,9 +105,9 @@ class GraphManifestLoader: GraphManifestLoading {
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
     ///   - helpersLoader: Instance to compile and return a temporary module that contains the helper files.
     init(resourceLocator: ResourceLocating = ResourceLocator(),
-         projectDesciptionHelpersBuilder: ProjectDesciptionHelpersBuilding = ProjectDesciptionHelpersBuilder()) {
+         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder()) {
         self.resourceLocator = resourceLocator
-        self.projectDesciptionHelpersBuilder = projectDesciptionHelpersBuilder
+        self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         decoder = JSONDecoder()
     }
 
@@ -185,7 +185,7 @@ class GraphManifestLoader: GraphManifestLoading {
         ]
 
         // Helpers
-        let projectDesciptionHelpersModule = try projectDesciptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let projectDesciptionHelpersModule = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
         if let projectDesciptionHelpersModule = projectDesciptionHelpersModule {
             arguments.append(contentsOf: [
                 "-I", projectDesciptionHelpersModule.path.parentDirectory.pathString,

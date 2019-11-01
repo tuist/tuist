@@ -4,7 +4,7 @@ import TuistSupport
 
 /// This struct represents a project description helpers
 /// module that has been created temporarily to load the manifests.
-struct ProjectDescriptionHelpersModule {
+class ProjectDescriptionHelpersModule {
     /// Path to the module.
     let path: AbsolutePath
 
@@ -19,12 +19,16 @@ struct ProjectDescriptionHelpersModule {
         self.path = path
         self.cleanup = cleanup
     }
+
+    deinit {
+        try? cleanup()
+    }
 }
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
 /// from any manifest being loaded.
-protocol ProjectDesciptionHelpersBuilding: AnyObject {
+protocol ProjectDescriptionHelpersBuilding: AnyObject {
     /// Builds the helpers module and returns it.
     /// - Parameters:
     ///   - at: Path to the directory that contains the manifest being loaded.
@@ -32,7 +36,7 @@ protocol ProjectDesciptionHelpersBuilding: AnyObject {
     func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> ProjectDescriptionHelpersModule?
 }
 
-final class ProjectDesciptionHelpersBuilder: ProjectDesciptionHelpersBuilding {
+final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
     /// Instance to locate the root directory of the project.
     let rootDirectoryLocator: RootDirectoryLocating
 
@@ -52,7 +56,7 @@ final class ProjectDesciptionHelpersBuilder: ProjectDesciptionHelpersBuilding {
 
         let files = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         let temporaryDirectory = try TemporaryDirectory()
-        let outputPath = temporaryDirectory.path.appending(component: "ProjectDescriptionHelpers.dylib")
+        let outputPath = temporaryDirectory.path.appending(component: "libProjectDescriptionHelpers.dylib")
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",
             "-module-name", "ProjectDescriptionHelpers",
