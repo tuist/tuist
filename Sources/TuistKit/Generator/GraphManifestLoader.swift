@@ -93,7 +93,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     /// Instance to compile and return a temporary module that contains the helper files.
     let helpersLoader: GraphManifestHelpersLoading
-    
+
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
 
@@ -172,7 +172,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     private func loadManifestData(at path: AbsolutePath) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        
+
         var arguments: [String] = [
             "/usr/bin/xcrun",
             "swiftc",
@@ -183,7 +183,7 @@ class GraphManifestLoader: GraphManifestLoading {
             "-F", projectDescriptionPath.parentDirectory.pathString,
             "-lProjectDescription",
         ]
-        
+
         // Helpers
         let (helpersModulePath, cleanupHelpersModule) = try helpersLoader.compileHelpersModule(at: path, projectDescriptionPath: projectDescriptionPath)
         if let helpersModulePath = helpersModulePath {
@@ -191,10 +191,10 @@ class GraphManifestLoader: GraphManifestLoading {
                 "-I", helpersModulePath.parentDirectory.pathString,
                 "-L", helpersModulePath.parentDirectory.pathString,
                 "-F", helpersModulePath.parentDirectory.pathString,
-                "-lProjectDescriptionHelpers"
+                "-lProjectDescriptionHelpers",
             ])
         }
-        
+
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
@@ -202,7 +202,7 @@ class GraphManifestLoader: GraphManifestLoading {
         guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
-        
+
         try cleanupHelpersModule()
 
         return data

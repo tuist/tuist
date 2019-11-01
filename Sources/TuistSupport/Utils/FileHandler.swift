@@ -81,7 +81,7 @@ public protocol FileHandling: AnyObject {
     ///   - atomically: Whether the content should be written atomically.
     /// - Throws: An error if the writing fails.
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
-    
+
     /// Traverses the parent directories until the given path is found.
     ///
     /// - Parameters:
@@ -213,7 +213,7 @@ public class FileHandler: FileHandling {
         let exists = fileManager.fileExists(atPath: path.pathString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
     }
-        
+
     public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
         let tuistConfigPath = from.appending(component: path)
 
