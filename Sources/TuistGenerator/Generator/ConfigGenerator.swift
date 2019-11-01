@@ -153,6 +153,15 @@ final class ConfigGenerator: ConfigGenerating {
                                      target: Target,
                                      graph: Graphing,
                                      sourceRootPath: AbsolutePath) {
+        settings.merge(generalTargetDerrivedSettings(target: target, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(testBundleTargetDerrivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(deploymentTargetDerrivedSettings(target: target)) { $1 }
+        settings.merge(watchTargetDerrivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
+    }
+
+    private func generalTargetDerrivedSettings(target: Target,
+                                               sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+        var settings: [String: SettingValue] = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
         // Info.plist
@@ -177,38 +186,76 @@ final class ConfigGenerator: ConfigGenerating {
 
         settings["PRODUCT_NAME"] = .string(target.productName)
 
-        if target.product.testsBundle {
-            let appDependency = graph.targetDependencies(path: sourceRootPath, name: target.name).first { targetNode in
-                targetNode.target.product == .app
-            }
+        return settings
+    }
 
-            if let app = appDependency {
-                settings["TEST_TARGET_NAME"] = .string("\(app.target.productName)")
-
-                if target.product == .unitTests {
-                    settings["TEST_HOST"] = .string("$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.productName)")
-                    settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
-                }
-            }
+    private func testBundleTargetDerrivedSettings(target: Target,
+                                                  graph: Graphing,
+                                                  sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+        guard target.product.testsBundle else {
+            return [:]
         }
 
-        if let deploymentTarget = target.deploymentTarget {
-            switch deploymentTarget {
-            case let .iOS(version, devices):
-                var deviceFamilyValues: [Int] = []
-                if devices.contains(.iphone) { deviceFamilyValues.append(1) }
-                if devices.contains(.ipad) { deviceFamilyValues.append(2) }
-
-                settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
-                settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
-
-                if devices.contains(.ipad), devices.contains(.mac) {
-                    settings["SUPPORTS_MACCATALYST"] = "YES"
-                    settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
-                }
-            case let .macOS(version):
-                settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
-            }
+        let targetDependencies = graph.targetDependencies(path: sourceRootPath, name: target.name)
+        let appDependency = targetDependencies.first { targetNode in
+            targetNode.target.product == .app
         }
+
+        guard let app = appDependency else {
+            return [:]
+        }
+
+        var settings: [String: SettingValue] = [:]
+        settings["TEST_TARGET_NAME"] = .string("\(app.target.productName)")
+        if target.product == .unitTests {
+            settings["TEST_HOST"] = .string("$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.productName)")
+            settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
+        }
+
+        return settings
+    }
+
+    private func deploymentTargetDerrivedSettings(target: Target) -> [String: SettingValue] {
+        guard let deploymentTarget = target.deploymentTarget else {
+            return [:]
+        }
+
+        var settings: [String: SettingValue] = [:]
+
+        switch deploymentTarget {
+        case let .iOS(version, devices):
+            var deviceFamilyValues: [Int] = []
+            if devices.contains(.iphone) { deviceFamilyValues.append(1) }
+            if devices.contains(.ipad) { deviceFamilyValues.append(2) }
+
+            settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+            settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
+
+            if devices.contains(.ipad), devices.contains(.mac) {
+                settings["SUPPORTS_MACCATALYST"] = "YES"
+                settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+            }
+        case let .macOS(version):
+            settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
+        }
+
+        return settings
+    }
+
+    private func watchTargetDerrivedSettings(target: Target,
+                                             graph: Graphing,
+                                             sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+        guard target.product == .watch2App else {
+            return [:]
+        }
+
+        let targetDependencies = graph.targetDependencies(path: sourceRootPath, name: target.name)
+        guard let watchExtension = targetDependencies.first(where: { $0.target.product == .watch2Extension }) else {
+            return [:]
+        }
+
+        return [
+            "IBSC_MODULE": .string(watchExtension.target.productName),
+        ]
     }
 }
