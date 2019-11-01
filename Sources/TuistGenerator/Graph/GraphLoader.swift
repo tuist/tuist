@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol GraphLoading: AnyObject {
     func loadProject(path: AbsolutePath) throws -> (Graph, Project)

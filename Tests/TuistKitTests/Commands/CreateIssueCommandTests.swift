@@ -1,7 +1,7 @@
 import Foundation
 import SPMUtility
 import XCTest
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistKit
 
 final class CreateIssueCommandTests: TuistUnitTestCase {

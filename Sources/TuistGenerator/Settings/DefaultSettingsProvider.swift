@@ -1,5 +1,5 @@
 import Foundation
-import TuistCore
+import TuistSupport
 import XcodeProj
 
 public protocol DefaultSettingsProviding {

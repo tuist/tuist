@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 import XcodeProj
 
 /// Protocol that defines the interface of the schemes generation.

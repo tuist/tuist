@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import XcodeProj
 import XCTest
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 final class ProjectFileElementsTests: TuistUnitTestCase {

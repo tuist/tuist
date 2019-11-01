@@ -1,7 +1,7 @@
 import Basic
-import TuistCore
+import TuistSupport
 import XCTest
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 class WorkspaceStructureGeneratorTests: XCTestCase {

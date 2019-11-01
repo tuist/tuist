@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 @testable import TuistGenerator
 
 final class MockPlaygrounds: Playgrounding {

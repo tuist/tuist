@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 class FrameworkNode: PrecompiledNode {
     static func parse(path: AbsolutePath, cache: GraphLoaderCaching) throws -> FrameworkNode {

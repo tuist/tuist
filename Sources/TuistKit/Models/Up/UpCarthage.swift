@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 import TuistGenerator
 
 /// Up that updates outdated Carthage dependencies.

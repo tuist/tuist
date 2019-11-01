@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistCore
+import TuistSupport
 import TuistGenerator
 
 /// The focus command generates the Xcode workspace and launches it on Xcode.

@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// This model allows to configure Tuist.
 public class TuistConfig: Equatable, Hashable {

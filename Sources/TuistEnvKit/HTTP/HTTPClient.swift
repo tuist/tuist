@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 enum HTTPClientError: FatalError {
     case clientError(URL, Error)

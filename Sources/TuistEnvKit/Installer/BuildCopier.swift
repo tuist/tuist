@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol BuildCopying: AnyObject {
     func copy(from: AbsolutePath, to: AbsolutePath) throws

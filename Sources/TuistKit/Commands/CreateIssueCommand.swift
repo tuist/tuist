@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistCore
+import TuistSupport
 
 class CreateIssueCommand: NSObject, Command {
     static let createIssueUrl: String = "https://github.com/tuist/tuist/issues/new"

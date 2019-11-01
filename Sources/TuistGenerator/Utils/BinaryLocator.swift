@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// Protocol that defines the interface to locate the tuist binary in the environment.
 protocol BinaryLocating {

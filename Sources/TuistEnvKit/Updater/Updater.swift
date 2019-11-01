@@ -1,5 +1,5 @@
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol Updating: AnyObject {
     func update(force: Bool) throws

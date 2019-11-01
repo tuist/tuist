@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// A component responsible for generating Xcode projects & workspaces
 public protocol Generating {

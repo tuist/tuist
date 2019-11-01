@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import XCTest
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistEnvKit
 
 final class SettingsControllerTests: TuistUnitTestCase {

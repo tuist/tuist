@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistCore
+import TuistSupport
 import TuistGenerator
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.

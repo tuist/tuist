@@ -1,6 +1,6 @@
 import Foundation
 import SPMUtility
-import TuistCore
+import TuistSupport
 
 protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]

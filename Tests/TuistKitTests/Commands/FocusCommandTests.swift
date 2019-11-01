@@ -3,7 +3,7 @@ import Foundation
 import SPMUtility
 import XcodeProj
 import XCTest
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistKit
 
 final class FocusCommandTests: TuistUnitTestCase {

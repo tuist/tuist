@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 import XCTest
 
 @testable import SPMUtility
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistKit
 
 final class InitCommandErrorTests: XCTestCase {

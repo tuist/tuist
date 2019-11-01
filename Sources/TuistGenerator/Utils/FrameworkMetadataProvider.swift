@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Given the path to a framework, it returns the path to its dSYMs if they exist

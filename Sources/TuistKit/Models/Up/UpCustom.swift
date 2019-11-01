@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 /// Custom setup command defined by the user.
 class UpCustom: Up, GraphInitiatable {

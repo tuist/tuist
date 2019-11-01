@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 @testable import ProjectDescription
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 
 final class CompatibleXcodeVersionsTests: XCTestCase {
     func test_codable_when_all() {

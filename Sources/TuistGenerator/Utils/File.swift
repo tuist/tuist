@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol LibraryMetadataProviding: PrecompiledMetadataProviding {
     /// Returns the product for the library at the given path.

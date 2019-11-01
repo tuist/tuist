@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 enum BinaryArchitecture: String {
     case x8664 = "x86_64"

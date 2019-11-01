@@ -1,7 +1,7 @@
 
 import Foundation
 import ProjectDescription
-import TuistCore
+import TuistSupport
 @testable import TuistKit
 
 class MockManifestLinter: ManifestLinting {

@@ -1,6 +1,6 @@
 import Foundation
 import SPMUtility
-import TuistCore
+import TuistSupport
 
 enum ReleaseDecodeError: FatalError, Equatable {
     case invalidVersionFormat(String)

@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import TuistCore
+import TuistSupport
 
 public class Target: Equatable, Hashable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)

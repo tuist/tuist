@@ -1,8 +1,8 @@
 import Foundation
-import TuistCore
+import TuistSupport
 import XCTest
 
-@testable import TuistCoreTesting
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
 final class EnvironmentLinterTests: TuistUnitTestCase {

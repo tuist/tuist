@@ -1,5 +1,5 @@
 import ProjectDescription
-import TuistCoreTesting
+import TuistSupportTesting
 import XCTest
 
 class PackageTests: XCTestCase {

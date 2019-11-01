@@ -1,5 +1,5 @@
 import Foundation
-import TuistCore
+import TuistSupport
 
 protocol EnvironmentLinting {
     /// Lints a given Tuist configuration.

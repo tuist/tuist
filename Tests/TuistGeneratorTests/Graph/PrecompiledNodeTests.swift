@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import XCTest
 
-import TuistCoreTesting
+import TuistSupportTesting
 @testable import TuistGenerator
 
 final class PrecompiledNodeTests: XCTestCase {

@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Rename `TuistCore` to `TuistSupport` https://github.com/tuist/tuist/pull/621 by @pepibumur.
 - Introduce `Systems.shared`, `TuistTestCase`, and `TuistUnitTestCase` https://github.com/tuist/tuist/pull/519 by @pepibumur.
 - Change generated object version behaviour to mimic Xcode 11 by @adamkhazi
 - **Breaking** Refine API for Swift Packages https://github.com/tuist/tuist/pull/578 by @ollieatkinson
