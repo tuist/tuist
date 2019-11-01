@@ -1,7 +1,7 @@
 import Basic
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 class GeneratorTests: XCTestCase {
     var workspaceGenerator: MockWorkspaceGenerator!

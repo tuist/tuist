@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 class GraphCommand: NSObject, Command {

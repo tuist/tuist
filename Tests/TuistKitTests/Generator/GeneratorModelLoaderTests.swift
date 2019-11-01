@@ -1,11 +1,11 @@
 import Basic
 import Foundation
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 import XCTest
 @testable import ProjectDescription
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 class GeneratorModelLoaderTest: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace

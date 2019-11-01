@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import ProjectDescription
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 
 enum GeneratorModelLoaderError: Error, Equatable, FatalError {
     case featureNotYetSupported(String)

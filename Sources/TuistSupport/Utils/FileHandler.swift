@@ -82,6 +82,14 @@ public protocol FileHandling: AnyObject {
     /// - Throws: An error if the writing fails.
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
 
+    /// It traverses up the directories hierarchy appending the given path and returning the
+    /// resulting path if it exists.
+    /// - Parameters:
+    ///   - from: Path to traverse the hierarchy from.
+    ///   - path: Relative path to append to each path in the hierarchy.
+    /// - Returns: Any found path.
+    func locateDirectoryTraversingParents(from: AbsolutePath, _ path: String) -> AbsolutePath?
+
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
     func createFolder(_ path: AbsolutePath) throws
@@ -91,10 +99,9 @@ public protocol FileHandling: AnyObject {
 }
 
 public class FileHandler: FileHandling {
-    /// Shared instance.
-    public static var shared: FileHandling = FileHandler()
+    // MARK: - Attributes
 
-    /// File manager.
+    public static var shared: FileHandling = FileHandler()
     private let fileManager: FileManager
 
     /// Initializes the file handler with its attributes.
@@ -104,16 +111,10 @@ public class FileHandler: FileHandling {
         self.fileManager = fileManager
     }
 
-    /// Returns the current path.
     public var currentPath: AbsolutePath {
         return AbsolutePath(fileManager.currentDirectoryPath)
     }
 
-    /// Replaces a file/directory in a given path with another one.
-    ///
-    /// - Parameters:
-    ///   - to: The file/directory to be replaced.
-    ///   - with: The replacement file or directory.
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
         // To support cases where the destination is on a different volume
         // we need to create a temporary directory that is suitable
@@ -133,50 +134,23 @@ public class FileHandler: FileHandling {
         _ = try fileManager.replaceItemAt(to.url, withItemAt: tempUrl)
     }
 
-    /// Runs the given closure passing a temporary directory to it. When the closure
-    /// finishes its execution, the temporary directory gets destroyed.
-    ///
-    /// - Parameter closure: Closure to be executed with the temporary directory.
-    /// - Throws: An error if the temporary directory cannot be created or the closure throws.
     public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
         let directory = try TemporaryDirectory(removeTreeOnDeinit: true)
         try closure(directory.path)
     }
 
-    /// Returns true if there's a folder or file at the given path.
-    ///
-    /// - Parameters:
-    ///     - path: Path to check.
-    /// - Returns: True if there's a folder or file at the given path.
     public func exists(_ path: AbsolutePath) -> Bool {
         return fileManager.fileExists(atPath: path.pathString)
     }
 
-    /// It copies a file or folder to another path.
-    ///
-    /// - Parameters:
-    ///   - from: File/Folder to be copied.
-    ///   - to: Path where the file/folder will be copied.
-    /// - Throws: An error if from doesn't exist or to does.
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
 
-    /// Move a file from a location to another location
-    ///
-    /// - Parameters:
-    ///   - from: File/Folder to be moved.
-    ///   - to: Path where the file/folder will be moved.
-    /// - Throws: An error if from doesn't exist or to does.
     public func move(from: AbsolutePath, to: AbsolutePath) throws {
         try fileManager.moveItem(atPath: from.pathString, toPath: to.pathString)
     }
 
-    /// Reads a text file at the given path and returns it.
-    ///
-    /// - Parameter at: Path to the text file.
-    /// - Returns: The content of the text file.
-    /// - Throws: An error if the file doesn't exist or it's not a valid text file.
     public func readTextFile(_ at: AbsolutePath) throws -> String {
         let data = try Data(contentsOf: at.url)
         if let content = String(data: data, encoding: .utf8) {
@@ -190,17 +164,21 @@ public class FileHandler: FileHandling {
         try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }
 
-    /// Writes a string into the given path (using the utf8 encoding)
-    ///
-    /// - Parameters:
-    ///   - content: Content to be written.
-    ///   - path: Path where the content will be written into.
-    ///   - atomically: Whether the content should be written atomically.
-    /// - Throws: An error if the writing fails.
     public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
         do {
             try content.write(to: path.url, atomically: atomically, encoding: .utf8)
         } catch {}
+    }
+
+    public func locateDirectoryTraversingParents(from: AbsolutePath, _ path: String) -> AbsolutePath? {
+        let extendedPath = from.appending(RelativePath(path))
+        if exists(extendedPath) {
+            return extendedPath
+        } else if from != AbsolutePath("/") {
+            return locateDirectoryTraversingParents(from: from.parentDirectory, path)
+        } else {
+            return nil
+        }
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {

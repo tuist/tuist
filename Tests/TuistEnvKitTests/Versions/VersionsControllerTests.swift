@@ -3,8 +3,8 @@ import Foundation
 import SPMUtility
 import TuistSupport
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistEnvKit
+@testable import TuistSupportTesting
 
 final class InstalledVersionTests: XCTestCase {
     func test_description() {

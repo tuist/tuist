@@ -2,9 +2,9 @@ import Basic
 import Foundation
 import XCTest
 
+@testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
-@testable import TuistGenerator
 
 final class FrameworkNodeTests: TuistUnitTestCase {
     var subject: FrameworkNode!

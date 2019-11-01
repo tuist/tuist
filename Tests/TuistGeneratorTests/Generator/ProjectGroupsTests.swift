@@ -3,8 +3,8 @@ import Foundation
 import PathKit
 import XcodeProj
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class ProjectGroupsTests: XCTestCase {
     var subject: ProjectGroups!

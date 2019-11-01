@@ -3,9 +3,9 @@ import Foundation
 import TuistSupport
 import XCTest
 
+@testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
-@testable import TuistGenerator
 
 final class GraphErrorTests: XCTestCase {
     func test_description_when_unsupportedFileExtension() {

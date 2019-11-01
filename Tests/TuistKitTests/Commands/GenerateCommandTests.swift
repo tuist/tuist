@@ -4,8 +4,8 @@ import SPMUtility
 import TuistSupport
 import XcodeProj
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class GenerateCommandTests: TuistUnitTestCase {
     var subject: GenerateCommand!

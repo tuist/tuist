@@ -1,8 +1,8 @@
 import Foundation
 import SPMUtility
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class CreateIssueCommandTests: TuistUnitTestCase {
     var subject: CreateIssueCommand!

@@ -5,8 +5,8 @@ import TuistSupport
 import XcodeProj
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class ProjectGeneratorTests: TuistUnitTestCase {
     var subject: ProjectGenerator!
