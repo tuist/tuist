@@ -3,8 +3,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class GraphManifestLoaderTests: TuistTestCase {
     var subject: GraphManifestLoader!

@@ -2,9 +2,9 @@ import Basic
 import Foundation
 import XCTest
 @testable import SPMUtility
+@testable import TuistEnvKit
 @testable import TuistSupport
 @testable import TuistSupportTesting
-@testable import TuistEnvKit
 
 final class BundleCommandErrorTests: XCTestCase {
     func test_type() {

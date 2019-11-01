@@ -2,8 +2,8 @@ import Basic
 import Foundation
 import TuistSupport
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class SettingsLinterTests: TuistUnitTestCase {
     var subject: SettingsLinter!

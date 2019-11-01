@@ -2,8 +2,8 @@ import Basic
 import Foundation
 import XcodeProj
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class ProjectFileElementsTests: TuistUnitTestCase {
     typealias GroupFileElement = ProjectFileElements.GroupFileElement

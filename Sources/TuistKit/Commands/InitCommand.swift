@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 
 private typealias Platform = TuistGenerator.Platform
 private typealias Product = TuistGenerator.Product

@@ -1,10 +1,10 @@
 import Basic
 import Foundation
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class UpCarthageTests: TuistUnitTestCase {
     var platforms: [Platform]!

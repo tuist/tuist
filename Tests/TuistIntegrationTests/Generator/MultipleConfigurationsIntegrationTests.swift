@@ -1,9 +1,9 @@
 import Basic
 import XcodeProj
 import XCTest
+@testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
-@testable import TuistGenerator
 
 final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     override func setUp() {

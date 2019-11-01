@@ -2,8 +2,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistEnvKit
+@testable import TuistSupportTesting
 
 final class HTTPClientErrorTests: XCTestCase {
     func test_type() {

@@ -3,8 +3,8 @@ import Foundation
 import SPMUtility
 import XcodeProj
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class FocusCommandTests: TuistUnitTestCase {
     var subject: FocusCommand!
