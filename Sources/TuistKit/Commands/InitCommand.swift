@@ -45,19 +45,15 @@ class InitCommand: NSObject, Command {
     let platformArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
-    let infoplistProvisioner: InfoPlistProvisioning
     let playgroundGenerator: PlaygroundGenerating
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
-        self.init(parser: parser,
-                  infoplistProvisioner: InfoPlistProvisioner(),
-                  playgroundGenerator: PlaygroundGenerator())
+        self.init(parser: parser, playgroundGenerator: PlaygroundGenerator())
     }
 
     init(parser: ArgumentParser,
-         infoplistProvisioner: InfoPlistProvisioning,
          playgroundGenerator: PlaygroundGenerating) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         platformArgument = subParser.add(option: "--platform",
@@ -79,7 +75,6 @@ class InitCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
-        self.infoplistProvisioner = infoplistProvisioner
         self.playgroundGenerator = playgroundGenerator
     }
 
@@ -91,7 +86,6 @@ class InitCommand: NSObject, Command {
         try generateSetup(path: path)
         try generateProjectDescriptionHelpers(path: path)
         try generateProjectsDirectories(name: name, path: path)
-        try generatePlists(name: name, platform: platform, path: path)
         try generateProjectsSwift(name: name, platform: platform, path: path)
         try generateWorkspaceSwift(name: name, platform: platform, path: path)
         try generateSwiftFiles(name: name, platform: platform, path: path)
@@ -142,27 +136,6 @@ class InitCommand: NSObject, Command {
         try generate(for: supportFrameworkPath(path, name: name))
     }
 
-    private func generatePlists(name: String, platform: Platform, path: AbsolutePath) throws {
-        try infoplistProvisioner.generate(path: appPath(path, name: name).appending(component: "Info.plist"),
-                                          platform: platform,
-                                          product: .app)
-        try infoplistProvisioner.generate(path: appPath(path, name: name).appending(component: "Tests.plist"),
-                                          platform: platform,
-                                          product: .unitTests)
-        try infoplistProvisioner.generate(path: kitFrameworkPath(path, name: name).appending(component: "Info.plist"),
-                                          platform: platform,
-                                          product: .framework)
-        try infoplistProvisioner.generate(path: kitFrameworkPath(path, name: name).appending(component: "Tests.plist"),
-                                          platform: platform,
-                                          product: .unitTests)
-        try infoplistProvisioner.generate(path: supportFrameworkPath(path, name: name).appending(component: "Info.plist"),
-                                          platform: platform,
-                                          product: .framework)
-        try infoplistProvisioner.generate(path: supportFrameworkPath(path, name: name).appending(component: "Tests.plist"),
-                                          platform: platform,
-                                          product: .unitTests)
-    }
-
     private func generateProjectDescriptionHelpers(path: AbsolutePath) throws {
         let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
         try FileHandler.shared.createFolder(helpersPath)
@@ -173,21 +146,28 @@ class InitCommand: NSObject, Command {
         extension Project {
 
             public static func app(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
-                return self.project(name: name, product: .app, platform: platform, dependencies: dependencies)
+                return self.project(name: name, product: .app, platform: platform, dependencies: dependencies, infoPlist: [
+                    "CFBundleShortVersionString": "1.0",
+                    "CFBundleVersion": "1"
+                ])
             }
 
             public static func framework(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
                 return self.project(name: name, product: .framework, platform: platform, dependencies: dependencies)
             }
         
-            public static func project(name: String, product: Product, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
+            public static func project(name: String,
+                                       product: Product,
+                                       platform: Platform,
+                                       dependencies: [TargetDependency] = [],
+                                       infoPlist: [String: InfoPlist.Value] = [:]) -> Project {
                 return Project(name: name,
                                targets: [
                                 Target(name: name,
                                         platform: platform,
                                         product: product,
                                         bundleId: "io.tuist.\\(name)",
-                                        infoPlist: "Info.plist",
+                                        infoPlist: .extendingDefault(with: infoPlist),
                                         sources: ["Sources/**"],
                                         resources: [],
                                         dependencies: dependencies),
@@ -195,7 +175,7 @@ class InitCommand: NSObject, Command {
                                         platform: platform,
                                         product: .unitTests,
                                         bundleId: "io.tuist.\\(name)Tests",
-                                        infoPlist: "Tests.plist",
+                                        infoPlist: .default,
                                         sources: "Tests/**",
                                         dependencies: [
                                             .target(name: "\\(name)")
@@ -411,7 +391,6 @@ class InitCommand: NSObject, Command {
         """
         let supportSourceContent = """
         import Foundation
-        import \(name)Support
         
         public final class \(name) {}
         """
