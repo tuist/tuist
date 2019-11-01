@@ -2,8 +2,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistEnvKit
+@testable import TuistSupportTesting
 
 final class UpdaterTests: TuistUnitTestCase {
     var githubClient: MockGitHubClient!

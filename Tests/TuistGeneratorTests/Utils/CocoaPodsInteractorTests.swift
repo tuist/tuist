@@ -2,8 +2,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class CocoaPodsInteractorErrorTests: XCTestCase {
     func test_type() {

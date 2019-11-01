@@ -3,8 +3,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class UpTests: TuistUnitTestCase {
     func test_with_when_custom() throws {

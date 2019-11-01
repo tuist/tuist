@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 
 /// Up that updates outdated Carthage dependencies.
 class UpCarthage: Up, GraphInitiatable {

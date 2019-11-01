@@ -1,8 +1,8 @@
 import Basic
 import TuistSupport
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 class WorkspaceStructureGeneratorTests: XCTestCase {
     fileprivate var fileHandler: InMemoryFileHandler!
@@ -333,6 +333,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             let parent = path.parentDirectory
             try createFolder(parent)
             cache[path] = .file
+        }
+
+        func locateDirectory(_: String, traversingFrom _: AbsolutePath) -> AbsolutePath? {
+            return nil
         }
 
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {

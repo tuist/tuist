@@ -1,6 +1,6 @@
 import Foundation
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 
 protocol GraphPrinting {
     /// Outputs the graph to the standard output.

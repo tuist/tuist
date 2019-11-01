@@ -1,6 +1,6 @@
 import Foundation
 
-public class Constants {
+public struct Constants {
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -9,12 +9,13 @@ public class Constants {
     public static let swiftVersion: String = "5.0"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
+    public static let tuistFolderName: String = "Tuist"
 
-    public class EnvironmentVariables {
+    public struct EnvironmentVariables {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
     }
 
-    public class GoogleCloud {
+    public struct GoogleCloud {
         public static let relasesBucketURL = "https://storage.googleapis.com/tuist-releases/"
     }
 }

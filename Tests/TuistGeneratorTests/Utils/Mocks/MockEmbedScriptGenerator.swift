@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class MockEmbedScriptGenerator: EmbedScriptGenerating {
     var scriptArgs: [(AbsolutePath, [AbsolutePath])] = []

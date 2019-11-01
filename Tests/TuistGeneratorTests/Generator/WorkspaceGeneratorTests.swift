@@ -4,8 +4,8 @@ import TuistSupport
 import XcodeProj
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class WorkspaceGeneratorTests: TuistUnitTestCase {
     var subject: WorkspaceGenerator!

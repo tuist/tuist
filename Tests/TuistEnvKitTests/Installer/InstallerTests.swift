@@ -3,8 +3,8 @@ import Foundation
 import SPMUtility
 import TuistSupport
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistEnvKit
+@testable import TuistSupportTesting
 
 final class InstallerTests: TuistUnitTestCase {
     var buildCopier: MockBuildCopier!

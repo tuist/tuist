@@ -3,8 +3,8 @@ import Foundation
 import SPMUtility
 import TuistSupport
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
     var subject: GraphLinter!

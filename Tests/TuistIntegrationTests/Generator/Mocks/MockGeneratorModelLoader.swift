@@ -1,6 +1,6 @@
 import Basic
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 
 class MockGeneratorModelLoader: GeneratorModelLoading {
     private var projects = [String: (AbsolutePath) throws -> Project]()

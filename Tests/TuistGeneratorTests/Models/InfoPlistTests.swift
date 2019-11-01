@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class InfoPlistTests: XCTestCase {
     func test_equal_when_file() {

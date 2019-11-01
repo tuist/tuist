@@ -4,8 +4,8 @@ import TuistSupport
 import XCTest
 
 @testable import SPMUtility
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class InitCommandErrorTests: XCTestCase {
     func test_description() {

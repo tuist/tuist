@@ -3,8 +3,8 @@ import TuistSupport
 import XCTest
 
 @testable import SPMUtility
-@testable import TuistSupportTesting
 @testable import TuistEnvKit
+@testable import TuistSupportTesting
 
 final class UpdateCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
