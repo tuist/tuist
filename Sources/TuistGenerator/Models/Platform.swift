@@ -4,12 +4,14 @@ public enum Platform: String {
     case iOS = "ios"
     case macOS = "macos"
     case tvOS = "tvos"
+    case watchOS = "watchos"
 
     public var caseValue: String {
         switch self {
         case .iOS: return "iOS"
         case .macOS: return "macOS"
         case .tvOS: return "tvOS"
+        case .watchOS: return "watchOS"
         }
     }
 }
@@ -23,6 +25,8 @@ extension Platform {
             return "iphoneos"
         case .tvOS:
             return "appletvos"
+        case .watchOS:
+            return "watchos"
         }
     }
 
@@ -34,6 +38,8 @@ extension Platform {
             return "iphonesimulator iphoneos"
         case .macOS:
             return "macosx"
+        case .watchOS:
+            return "watchsimulator watchos"
         }
     }
 
@@ -46,6 +52,8 @@ extension Platform {
             return "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
         case .tvOS:
             return "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk"
+        case .watchOS:
+            return "Platforms/WatchOS.platform/Developer/SDKs/WatchOS.sdk"
         }
     }
 }

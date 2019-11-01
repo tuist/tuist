@@ -1,11 +1,11 @@
 import Basic
 import Foundation
-import TuistSupport
 import TuistGenerator
+import TuistSupport
 import XCTest
 @testable import ProjectDescription
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 class GeneratorModelLoaderTest: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
@@ -577,18 +577,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         assert(scheme: model, matches: manifest)
     }
 
-    func test_platform_watchOSNotSupported() {
-        XCTAssertThrowsSpecific(try TuistGenerator.Platform.from(manifest: .watchOS),
-                                GeneratorModelLoaderError.featureNotYetSupported("watchOS platform"))
-    }
-
     func test_generatorModelLoaderError_type() {
-        XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("").type, .abort)
         XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").type, .abort)
     }
 
     func test_generatorModelLoaderError_description() {
-        XCTAssertEqual(GeneratorModelLoaderError.featureNotYetSupported("abc").description, "abc is not yet supported")
         XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").description, "Couldn't find file at path '/missing/path'")
     }
 

@@ -12,9 +12,9 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     case bundle
     case appExtension = "app_extension"
 //    case watchApp = "watch_app"
-//    case watch2App = "watch_2_app"
+    case watch2App = "watch_2_app"
 //    case watchExtension = "watch_extension"
-//    case watch2Extension = "watch_2_extension"
+    case watch2Extension = "watch_2_extension"
 //    case tvExtension = "tv_extension"
 //    case messagesApplication = "messages_application"
 //    case messagesExtension = "messages_extension"
@@ -42,12 +42,12 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "appExtension"
 //        case .watchApp:
 //            return "watchApp"
-//        case .watch2App:
-//            return "watch2App"
+        case .watch2App:
+            return "watch2App"
 //        case .watchExtension:
 //            return "watchExtension"
-//        case .watch2Extension:
-//            return "watch2Extension"
+        case .watch2Extension:
+            return "watch2Extension"
 //        case .tvExtension:
 //            return "tvExtension"
 //        case .messagesApplication:
@@ -81,12 +81,12 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "app extension"
 //        case .watchApp:
 //            return "watch application"
-//        case .watch2App:
-//            return "watch 2 application"
+        case .watch2App:
+            return "watch 2 application"
 //        case .watchExtension:
 //            return "watch extension"
-//        case .watch2Extension:
-//            return "watch 2 extension"
+        case .watch2Extension:
+            return "watch 2 extension"
 //        case .tvExtension:
 //            return "tv extension"
 //        case .messagesApplication:
@@ -174,12 +174,12 @@ extension Product {
             return .appExtension
 //        case .watchApp:
 //            return .watchApp
-//        case .watch2App:
-//            return .watch2App
+        case .watch2App:
+            return .watch2App
 //        case .watchExtension:
 //            return .watchExtension
-//        case .watch2Extension:
-//            return .watch2Extension
+        case .watch2Extension:
+            return .watch2Extension
 //        case .tvExtension:
 //            return .tvExtension
 //        case .messagesApplication:
