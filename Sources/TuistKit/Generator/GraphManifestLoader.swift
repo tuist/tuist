@@ -92,7 +92,7 @@ class GraphManifestLoader: GraphManifestLoading {
     let resourceLocator: ResourceLocating
 
     /// Instance to compile and return a temporary module that contains the helper files.
-    let helpersLoader: GraphManifestHelpersLoading
+    let projectDesciptionHelpersBuilder: ProjectDesciptionHelpersBuilding
 
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
@@ -105,9 +105,9 @@ class GraphManifestLoader: GraphManifestLoading {
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
     ///   - helpersLoader: Instance to compile and return a temporary module that contains the helper files.
     init(resourceLocator: ResourceLocating = ResourceLocator(),
-         helpersLoader: GraphManifestHelpersLoading = GraphManifestHelpersLoader()) {
+         projectDesciptionHelpersBuilder: ProjectDesciptionHelpersBuilding = ProjectDesciptionHelpersBuilder()) {
         self.resourceLocator = resourceLocator
-        self.helpersLoader = helpersLoader
+        self.projectDesciptionHelpersBuilder = projectDesciptionHelpersBuilder
         decoder = JSONDecoder()
     }
 
@@ -185,12 +185,12 @@ class GraphManifestLoader: GraphManifestLoading {
         ]
 
         // Helpers
-        let (helpersModulePath, cleanupHelpersModule) = try helpersLoader.compileHelpersModule(at: path, projectDescriptionPath: projectDescriptionPath)
-        if let helpersModulePath = helpersModulePath {
+        let projectDesciptionHelpersModule = try projectDesciptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        if let projectDesciptionHelpersModule = projectDesciptionHelpersModule {
             arguments.append(contentsOf: [
-                "-I", helpersModulePath.parentDirectory.pathString,
-                "-L", helpersModulePath.parentDirectory.pathString,
-                "-F", helpersModulePath.parentDirectory.pathString,
+                "-I", projectDesciptionHelpersModule.path.parentDirectory.pathString,
+                "-L", projectDesciptionHelpersModule.path.parentDirectory.pathString,
+                "-F", projectDesciptionHelpersModule.path.parentDirectory.pathString,
                 "-lProjectDescriptionHelpers",
             ])
         }
@@ -203,7 +203,7 @@ class GraphManifestLoader: GraphManifestLoading {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
 
-        try cleanupHelpersModule()
+        try projectDesciptionHelpersModule?.cleanup()
 
         return data
     }

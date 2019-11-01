@@ -43,7 +43,6 @@ class InitCommand: NSObject, Command {
     static let command = "init"
     static let overview = "Bootstraps a project."
     let platformArgument: OptionArgument<String>
-    let productArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
     let infoplistProvisioner: InfoPlistProvisioning
@@ -61,14 +60,6 @@ class InitCommand: NSObject, Command {
          infoplistProvisioner: InfoPlistProvisioning,
          playgroundGenerator: PlaygroundGenerating) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
-        productArgument = subParser.add(option: "--product",
-                                        shortName: nil,
-                                        kind: String.self,
-                                        usage: "The product (application or framework) the generated project will build (Default: application).",
-                                        completion: ShellCompletion.values([
-                                            (value: "application", description: "Application"),
-                                            (value: "framework", description: "Framework"),
-                                        ]))
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
                                          kind: String.self,
@@ -93,19 +84,21 @@ class InitCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        let product = try self.product(arguments: arguments)
         let platform = try self.platform(arguments: arguments)
         let path = try self.path(arguments: arguments)
         let name = try self.name(arguments: arguments, path: path)
         try verifyDirectoryIsEmpty(path: path)
-        try generateProjectSwift(name: name, platform: platform, product: product, path: path)
-        try generateSources(name: name, platform: platform, product: product, path: path)
-        try generateTests(name: name, path: path)
-        try generatePlists(platform: platform, product: product, path: path)
-        try generatePlaygrounds(name: name, path: path, platform: platform)
-        try generateGitIgnore(path: path)
         try generateSetup(path: path)
+        try generateProjectDescriptionHelpers(path: path)
+        try generateProjectsDirectories(name: name, path: path)
+        try generatePlists(name: name, platform: platform, path: path)
+        try generateProjectsSwift(name: name, platform: platform, path: path)
+        try generateWorkspaceSwift(name: name, platform: platform, path: path)
+        try generateSwiftFiles(name: name, platform: platform, path: path)
+        try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateTuistConfig(path: path)
+        try generateGitIgnore(path: path)
+
         Printer.shared.print(success: "Project generated at path \(path.pathString).")
     }
 
@@ -121,47 +114,142 @@ class InitCommand: NSObject, Command {
         }
     }
 
-    private func generateProjectSwift(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
-        let content = """
-        import ProjectDescription
-        
-        let project = Project(name: "\(name)",
-                              targets: [
-                                Target(name: "\(name)",
-                                       platform: .\(platform.caseValue),
-                                       product: .\(product.caseValue),
-                                       bundleId: "io.tuist.\(name)",
-                                       infoPlist: "Info.plist",
-                                       sources: ["Sources/**"],
-                                       resources: [
-                                               /* Path to resouces can be defined here */
-                                               // "Resources/**"
-                                       ],
-                                       dependencies: [
-                                            /* Target dependencies can be defined here */
-                                            // .framework(path: "Frameworks/MyFramework.framework")
-                                        ]),
-                                Target(name: "\(name)Tests",
-                                       platform: .\(platform.caseValue),
-                                       product: .unitTests,
-                                       bundleId: "io.tuist.\(name)Tests",
-                                       infoPlist: "Tests.plist",
-                                       sources: "Tests/**",
-                                       dependencies: [
-                                            .target(name: "\(name)")
-                                       ])
-                              ])
-        """
-        try content.write(to: path.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
+    fileprivate func projectsPath(_ path: AbsolutePath) -> AbsolutePath {
+        path.appending(component: "Projects")
     }
 
-    private func generatePlists(platform: Platform, product: Product, path: AbsolutePath) throws {
-        try infoplistProvisioner.generate(path: path.appending(component: "Info.plist"),
+    fileprivate func appPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
+        return projectsPath(path).appending(component: name)
+    }
+
+    fileprivate func kitFrameworkPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
+        return projectsPath(path).appending(component: "\(name)Kit")
+    }
+
+    fileprivate func supportFrameworkPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
+        return projectsPath(path).appending(component: "\(name)Support")
+    }
+
+    private func generateProjectsDirectories(name: String, path: AbsolutePath) throws {
+        func generate(for projectPath: AbsolutePath) throws {
+            try FileHandler.shared.createFolder(projectPath)
+            try FileHandler.shared.createFolder(projectPath.appending(component: "Sources"))
+            try FileHandler.shared.createFolder(projectPath.appending(component: "Tests"))
+            try FileHandler.shared.createFolder(projectPath.appending(component: "Playgrounds"))
+        }
+        try generate(for: appPath(path, name: name))
+        try generate(for: kitFrameworkPath(path, name: name))
+        try generate(for: supportFrameworkPath(path, name: name))
+    }
+
+    private func generatePlists(name: String, platform: Platform, path: AbsolutePath) throws {
+        try infoplistProvisioner.generate(path: appPath(path, name: name).appending(component: "Info.plist"),
                                           platform: platform,
-                                          product: product)
-        try infoplistProvisioner.generate(path: path.appending(component: "Tests.plist"),
+                                          product: .app)
+        try infoplistProvisioner.generate(path: appPath(path, name: name).appending(component: "Tests.plist"),
                                           platform: platform,
                                           product: .unitTests)
+        try infoplistProvisioner.generate(path: kitFrameworkPath(path, name: name).appending(component: "Info.plist"),
+                                          platform: platform,
+                                          product: .framework)
+        try infoplistProvisioner.generate(path: kitFrameworkPath(path, name: name).appending(component: "Tests.plist"),
+                                          platform: platform,
+                                          product: .unitTests)
+        try infoplistProvisioner.generate(path: supportFrameworkPath(path, name: name).appending(component: "Info.plist"),
+                                          platform: platform,
+                                          product: .framework)
+        try infoplistProvisioner.generate(path: supportFrameworkPath(path, name: name).appending(component: "Tests.plist"),
+                                          platform: platform,
+                                          product: .unitTests)
+    }
+
+    private func generateProjectDescriptionHelpers(path: AbsolutePath) throws {
+        let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
+        try FileHandler.shared.createFolder(helpersPath)
+
+        let content = """
+        import ProjectDescription
+
+        extension Project {
+
+            public static func app(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
+                return self.project(name: name, product: .app, platform: platform, dependencies: dependencies)
+            }
+
+            public static func framework(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
+                return self.project(name: name, product: .framework, platform: platform, dependencies: dependencies)
+            }
+        
+            public static func project(name: String, product: Product, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
+                return Project(name: name,
+                               targets: [
+                                Target(name: name,
+                                        platform: platform,
+                                        product: product,
+                                        bundleId: "io.tuist.\\(name)",
+                                        infoPlist: "Info.plist",
+                                        sources: ["Sources/**"],
+                                        resources: [],
+                                        dependencies: dependencies),
+                                Target(name: "\\(name)Tests",
+                                        platform: platform,
+                                        product: .unitTests,
+                                        bundleId: "io.tuist.\\(name)Tests",
+                                        infoPlist: "Tests.plist",
+                                        sources: "Tests/**",
+                                        dependencies: [
+                                            .target(name: "\\(name)")
+                                        ])
+                              ])
+            }
+
+        }
+        """
+        let helperPath = helpersPath.appending(component: "Project+Templates.swift")
+        try FileHandler.shared.write(content, path: helperPath, atomically: true)
+    }
+
+    private func generateWorkspaceSwift(name: String, platform _: Platform, path: AbsolutePath) throws {
+        let content = """
+        import ProjectDescription
+        import ProjectDescriptionHelpers
+        
+        let workspace = Workspace(name: "\(name)", projects: [
+            "Projects/\(name)",
+            "Projects/\(name)Kit",
+            "Projects/\(name)Support"
+        ])
+        """
+        try FileHandler.shared.write(content, path: path.appending(component: "Workspace.swift"), atomically: true)
+    }
+
+    private func generateProjectsSwift(name: String, platform: Platform, path: AbsolutePath) throws {
+        let appContent = """
+        import ProjectDescription
+        import ProjectDescriptionHelpers
+        
+        let project = Project.app(name: "\(name)", platform: .\(platform.caseValue), dependencies: [
+            .project(target: "\(name)Kit", path: .relativeToManifest("../\(name)Kit"))
+        ])
+        """
+        let kitFrameworkContent = """
+        import ProjectDescription
+        import ProjectDescriptionHelpers
+        
+        let project = Project.framework(name: "\(name)Kit", platform: .\(platform.caseValue), dependencies: [
+            .project(target: "\(name)Support", path: .relativeToManifest("../\(name)Support"))
+        ])
+        """
+        let supportFrameworkContent = """
+        import ProjectDescription
+        import ProjectDescriptionHelpers
+        
+        let project = Project.framework(name: "\(name)Support", platform: .\(platform.caseValue), dependencies: [])
+        """
+
+        try FileHandler.shared.write(appContent, path: appPath(path, name: name).appending(component: "Project.swift"), atomically: true)
+        try FileHandler.shared.write(kitFrameworkContent, path: kitFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
+        try FileHandler.shared.write(supportFrameworkContent, path: supportFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
     }
 
     // swiftlint:disable:next function_body_length
@@ -268,18 +356,12 @@ class InitCommand: NSObject, Command {
     }
 
     // swiftlint:disable:next function_body_length
-    private func generateSources(name: String, platform: Platform, product: Product, path: AbsolutePath) throws {
-        let path = path.appending(component: "Sources")
-
-        try FileHandler.shared.createFolder(path)
-
-        var content: String!
-        var filename: String!
-
-        if platform == .macOS, product == .app {
-            filename = "AppDelegate.swift"
-            content = """
+    private func generateSwiftFiles(name: String, platform: Platform, path: AbsolutePath) throws {
+        let appContent: String!
+        if platform == .macOS {
+            appContent = """
             import Cocoa
+            import \(name)Kit
             
             @NSApplicationMain
             class AppDelegate: NSObject, NSApplicationDelegate {
@@ -296,11 +378,10 @@ class InitCommand: NSObject, Command {
             
             }
             """
-        } else if [.iOS, .tvOS].contains(platform), product == .app {
-            filename = "AppDelegate.swift"
-
-            content = """
+        } else {
+            appContent = """
             import UIKit
+            import \(name)Kit
             
             @UIApplicationMain
             class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -321,43 +402,59 @@ class InitCommand: NSObject, Command {
             
             }
             """
-        } else {
-            filename = "\(name).swift"
-            content = """
+        }
+        let kitSourceContent = """
+        import Foundation
+        import \(name)Support
+        
+        public final class \(name) {}
+        """
+        let supportSourceContent = """
+        import Foundation
+        import \(name)Support
+        
+        public final class \(name) {}
+        """
+
+        func testsContent(_ name: String) -> String {
+            return """
             import Foundation
+            import XCTest
             
-            class \(name) {
+            @testable import \(name)
+
+            final class \(name)Tests: XCTestCase {
             
             }
             """
         }
 
-        try content.write(to: path.appending(component: filename).url, atomically: true, encoding: .utf8)
-    }
+        // App
+        let appSourcesPath = appPath(path, name: name).appending(RelativePath("Sources"))
+        let appTestsPath = appPath(path, name: name).appending(RelativePath("Tests"))
+        try FileHandler.shared.write(appContent, path: appSourcesPath.appending(component: "AppDelegate.swift"), atomically: true)
+        try FileHandler.shared.write(testsContent(name), path: appTestsPath.appending(component: "\(name)Tests.swift"), atomically: true)
 
-    private func generateTests(name: String, path: AbsolutePath) throws {
-        let path = path.appending(component: "Tests")
+        // Kit
+        let kitSourcesPath = kitFrameworkPath(path, name: name).appending(RelativePath("Sources"))
+        let kitTestsPath = kitFrameworkPath(path, name: name).appending(RelativePath("Tests"))
+        try FileHandler.shared.write(kitSourceContent, path: kitSourcesPath.appending(component: "\(name)Kit.swift"), atomically: true)
+        try FileHandler.shared.write(testsContent("\(name)Kit"), path: kitTestsPath.appending(component: "\(name)KitTests.swift"), atomically: true)
 
-        try FileHandler.shared.createFolder(path)
-
-        let content = """
-        import Foundation
-        import XCTest
-        
-        @testable import \(name)
-
-        final class \(name)Tests: XCTestCase {
-        
-        }
-        """
-        try content.write(to: path.appending(component: "\(name)Tests.swift").url, atomically: true, encoding: .utf8)
+        // Support
+        let supportSourcesPath = supportFrameworkPath(path, name: name).appending(RelativePath("Sources"))
+        let supportTestsPath = supportFrameworkPath(path, name: name).appending(RelativePath("Tests"))
+        try FileHandler.shared.write(supportSourceContent, path: supportSourcesPath.appending(component: "\(name)Support.swift"), atomically: true)
+        try FileHandler.shared.write(testsContent("\(name)Support"), path: supportTestsPath.appending(component: "\(name)SupportTests.swift"), atomically: true)
     }
 
     private func generatePlaygrounds(name: String, path: AbsolutePath, platform: Platform) throws {
-        let playgroundsPath = path.appending(component: "Playgrounds")
-        try FileHandler.shared.createFolder(playgroundsPath)
-        try playgroundGenerator.generate(path: playgroundsPath,
-                                         name: name,
+        try playgroundGenerator.generate(path: kitFrameworkPath(path, name: name).appending(component: "Playgrounds"),
+                                         name: "\(name)Kit",
+                                         platform: platform,
+                                         content: PlaygroundGenerator.defaultContent())
+        try playgroundGenerator.generate(path: supportFrameworkPath(path, name: name).appending(component: "Playgrounds"),
+                                         name: "\(name)Support",
                                          platform: platform,
                                          content: PlaygroundGenerator.defaultContent())
     }
@@ -377,19 +474,6 @@ class InitCommand: NSObject, Command {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
-        }
-    }
-
-    private func product(arguments: ArgumentParser.Result) throws -> Product {
-        if let productString = arguments.get(self.productArgument) {
-            let valid = ["application", "framework"]
-            if valid.contains(productString) {
-                return (productString == "application") ? .app : .framework
-            } else {
-                throw ArgumentParserError.invalidValue(argument: "product", error: .custom("Product should be either app or framework"))
-            }
-        } else {
-            return .app
         }
     }
 
