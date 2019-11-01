@@ -86,6 +86,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                             pbxTarget: pbxTarget,
                                             fileElements: fileElements,
                                             pbxproj: pbxproj)
+
+        try generateEmbedWatchBuildPhase(path: path,
+                                         target: target,
+                                         graph: graph,
+                                         pbxTarget: pbxTarget,
+                                         fileElements: fileElements,
+                                         pbxproj: pbxproj)
     }
 
     func generateActions(actions: [TargetAction],
@@ -284,6 +291,32 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let pbxBuildFile = PBXBuildFile(file: $0)
             pbxproj.add(object: pbxBuildFile)
             appExtensionsBuildPhase.files?.append(pbxBuildFile)
+        }
+    }
+
+    func generateEmbedWatchBuildPhase(path: AbsolutePath,
+                                      target: Target,
+                                      graph: Graphing,
+                                      pbxTarget: PBXTarget,
+                                      fileElements: ProjectFileElements,
+                                      pbxproj: PBXProj) throws {
+        let targetNode = graph.targetDependencies(path: path, name: target.name)
+        let watchApps = targetNode.filter { $0.target.product == .watch2App }
+        guard !watchApps.isEmpty else { return }
+
+        let embedWatchAppBuildPhase = PBXCopyFilesBuildPhase(dstPath: "$(CONTENTS_FOLDER_PATH)/Watch",
+                                                             dstSubfolderSpec: .productsDirectory,
+                                                             name: "Embed Watch Content")
+        pbxproj.add(object: embedWatchAppBuildPhase)
+        pbxTarget.buildPhases.append(embedWatchAppBuildPhase)
+
+        let sortedWatchApps = watchApps.sorted { $0.target.name < $1.target.name }
+        let refs = sortedWatchApps.compactMap { fileElements.product(target: $0.target.name) }
+
+        refs.forEach {
+            let pbxBuildFile = PBXBuildFile(file: $0)
+            pbxproj.add(object: pbxBuildFile)
+            embedWatchAppBuildPhase.files?.append(pbxBuildFile)
         }
     }
 }
