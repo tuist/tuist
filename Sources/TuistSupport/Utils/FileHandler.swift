@@ -85,10 +85,9 @@ public protocol FileHandling: AnyObject {
     /// It traverses up the directories hierarchy appending the given path and returning the
     /// resulting path if it exists.
     /// - Parameters:
-    ///   - from: Path to traverse the hierarchy from.
     ///   - path: Relative path to append to each path in the hierarchy.
-    /// - Returns: Any found path.
-    func locateDirectoryTraversingParents(from: AbsolutePath, _ path: String) -> AbsolutePath?
+    ///   - from: Path to traverse the hierarchy from.
+    func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath?
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
@@ -170,12 +169,12 @@ public class FileHandler: FileHandling {
         } catch {}
     }
 
-    public func locateDirectoryTraversingParents(from: AbsolutePath, _ path: String) -> AbsolutePath? {
+    public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath? {
         let extendedPath = from.appending(RelativePath(path))
         if exists(extendedPath) {
             return extendedPath
-        } else if from != AbsolutePath("/") {
-            return locateDirectoryTraversingParents(from: from.parentDirectory, path)
+        } else if !from.isRoot {
+            return locateDirectory(path, traversingFrom: from.parentDirectory)
         } else {
             return nil
         }

@@ -19,13 +19,13 @@ final class RootDirectoryLocator: RootDirectoryLocating {
     /// git repository is defined if no Tuist/ directory is found.
     /// - Parameter path: Path for which we'll look the root directory.
     func locate(from path: AbsolutePath) -> AbsolutePath? {
-        if let cachedDirectory = self.cache[path] {
+        if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-        } else if let tuistDirectory = FileHandler.shared.locateDirectoryTraversingParents(from: path, Constants.tuistFolderName) {
+        } else if let tuistDirectory = FileHandler.shared.locateDirectory(Constants.tuistFolderName, traversingFrom: path) {
             let rootDirectory = tuistDirectory.parentDirectory
             cache(rootDirectory: rootDirectory, for: path)
             return rootDirectory
-        } else if let gitDirectory = FileHandler.shared.locateDirectoryTraversingParents(from: path, ".git") {
+        } else if let gitDirectory = FileHandler.shared.locateDirectory(".git", traversingFrom: path) {
             let rootDirectory = gitDirectory.parentDirectory
             cache(rootDirectory: rootDirectory, for: path)
             return rootDirectory
@@ -35,6 +35,10 @@ final class RootDirectoryLocator: RootDirectoryLocating {
     }
 
     // MARK: - Fileprivate
+
+    fileprivate func cached(path: AbsolutePath) -> AbsolutePath? {
+        if let cached = self.cache[path] { return cached } else if !path.parentDirectory.isRoot { return cached(path: path.parentDirectory) } else { return nil }
+    }
 
     /// This method caches the root directory of path, and all its parents up to the root directory.
     /// - Parameters:

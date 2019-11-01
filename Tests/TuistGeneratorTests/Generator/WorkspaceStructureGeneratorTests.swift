@@ -335,7 +335,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             cache[path] = .file
         }
 
-        func locateDirectoryTraversingParents(from _: AbsolutePath, _: String) -> AbsolutePath? {
+        func locateDirectory(_: String, traversingFrom _: AbsolutePath) -> AbsolutePath? {
             return nil
         }
 
