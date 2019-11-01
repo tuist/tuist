@@ -78,7 +78,14 @@ public class Target: Equatable, Hashable {
 
     /// Target can link staitc products (e.g. an app can link a staticLibrary)
     func canLinkStaticProducts() -> Bool {
-        return [.framework, .app, .unitTests, .uiTests].contains(product)
+        return [
+            .framework,
+            .app,
+            .unitTests,
+            .uiTests,
+            .appExtension,
+            .watch2Extension,
+        ].contains(product)
     }
 
     /// Returns the product name including the extension.
@@ -93,7 +100,7 @@ public class Target: Equatable, Hashable {
 
     var supportsSources: Bool {
         switch (platform, product) {
-        case (.iOS, .bundle), (.iOS, .stickerPackExtension):
+        case (.iOS, .bundle), (.iOS, .stickerPackExtension), (.watchOS, .watch2App):
             return false
         default:
             return true

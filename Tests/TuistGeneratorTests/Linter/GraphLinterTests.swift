@@ -3,8 +3,8 @@ import Foundation
 import SPMUtility
 import TuistSupport
 import XCTest
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
     var subject: GraphLinter!
@@ -349,6 +349,40 @@ final class GraphLinterTests: TuistUnitTestCase {
                                      (target: macStaticFramework, dependencies: [iosStaticFramework, iosStaticLibrary]),
                                      (target: iosStaticFramework, dependencies: []),
                                      (target: iosStaticLibrary, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertFalse(result.isEmpty)
+    }
+
+    func test_lint_watch_canDependOnWatchExtension() throws {
+        // Given
+        let watchExtension = Target.empty(name: "WatckExtension", platform: .watchOS, product: .watch2Extension)
+        let watchApp = Target.empty(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let graph = Graph.create(project: .empty(),
+                                 dependencies: [
+                                     (target: watchApp, dependencies: [watchExtension]),
+                                     (target: watchExtension, dependencies: []),
+                                 ])
+
+        // When
+        let result = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_lint_watch_canOnlyDependOnWatchExtension() throws {
+        // Given
+        let invalidDependency = Target.empty(name: "Framework", platform: .watchOS, product: .framework)
+        let watchApp = Target.empty(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let graph = Graph.create(project: .empty(),
+                                 dependencies: [
+                                     (target: watchApp, dependencies: [invalidDependency]),
+                                     (target: invalidDependency, dependencies: []),
                                  ])
 
         // When

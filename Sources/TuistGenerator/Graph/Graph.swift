@@ -306,6 +306,7 @@ class Graph: Graphing {
             .app,
             .unitTests,
             .uiTests,
+            .watch2Extension,
         ]
 
         if validProducts.contains(targetNode.target.product) == false {
@@ -370,7 +371,7 @@ class Graph: Graphing {
         }
 
         let validProducts: [Product] = [
-            .appExtension, .stickerPackExtension,
+            .appExtension, .stickerPackExtension, .watch2Extension,
         ]
 
         return targetNode.targetDependencies
