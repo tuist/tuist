@@ -153,14 +153,14 @@ final class ConfigGenerator: ConfigGenerating {
                                      target: Target,
                                      graph: Graphing,
                                      sourceRootPath: AbsolutePath) {
-        settings.merge(generalTargetDerrivedSettings(target: target, sourceRootPath: sourceRootPath)) { $1 }
-        settings.merge(testBundleTargetDerrivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
-        settings.merge(deploymentTargetDerrivedSettings(target: target)) { $1 }
-        settings.merge(watchTargetDerrivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(generalTargetDerivedSettings(target: target, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(testBundleTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
+        settings.merge(watchTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
     }
 
-    private func generalTargetDerrivedSettings(target: Target,
-                                               sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+    private func generalTargetDerivedSettings(target: Target,
+                                              sourceRootPath: AbsolutePath) -> [String: SettingValue] {
         var settings: [String: SettingValue] = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
@@ -189,9 +189,9 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func testBundleTargetDerrivedSettings(target: Target,
-                                                  graph: Graphing,
-                                                  sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+    private func testBundleTargetDerivedSettings(target: Target,
+                                                 graph: Graphing,
+                                                 sourceRootPath: AbsolutePath) -> [String: SettingValue] {
         guard target.product.testsBundle else {
             return [:]
         }
@@ -215,7 +215,7 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func deploymentTargetDerrivedSettings(target: Target) -> [String: SettingValue] {
+    private func deploymentTargetDerivedSettings(target: Target) -> [String: SettingValue] {
         guard let deploymentTarget = target.deploymentTarget else {
             return [:]
         }
@@ -242,9 +242,9 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func watchTargetDerrivedSettings(target: Target,
-                                             graph: Graphing,
-                                             sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+    private func watchTargetDerivedSettings(target: Target,
+                                            graph: Graphing,
+                                            sourceRootPath: AbsolutePath) -> [String: SettingValue] {
         guard target.product == .watch2App else {
             return [:]
         }
