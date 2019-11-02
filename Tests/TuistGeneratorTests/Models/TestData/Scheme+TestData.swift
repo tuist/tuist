@@ -25,12 +25,14 @@ extension TestAction {
                      arguments: Arguments? = Arguments.test(),
                      configurationName: String = BuildConfiguration.debug.name,
                      coverage: Bool = false,
+                     codeCoverageTargets: [String] = [],
                      preActions: [ExecutionAction] = [],
                      postActions: [ExecutionAction] = []) -> TestAction {
         return TestAction(targets: targets,
                           arguments: arguments,
                           configurationName: configurationName,
                           coverage: coverage,
+                          codeCoverageTargets: codeCoverageTargets,
                           preActions: preActions,
                           postActions: postActions)
     }

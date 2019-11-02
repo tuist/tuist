@@ -155,6 +155,30 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildableReference?.blueprintName, "AppTests")
         XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
     }
+    
+    func test_schemeTestAction_with_codeCoverageTargets() {
+        
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testAction = TestAction.test(targets: ["AppTests"], coverage: true, codeCoverageTargets: ["App"])
+        let buildAction = BuildAction.test(targets: ["App"])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+        let project = Project.test(targets: [target,testTarget])
+
+        let pbxTarget = PBXNativeTarget(name: "App", productType: .application)
+        let pbxTestTarget = PBXNativeTarget(name: "AppTests", productType: .unitTestBundle)
+        let generatedProject = GeneratedProject.test(targets: ["AppTests": pbxTestTarget, "App": pbxTarget])
+
+        let got = subject.schemeTestAction(scheme: scheme, project: project, generatedProject: generatedProject)
+
+        let codeCoverageTargetsBuildableReference = got?.codeCoverageTargets
+        
+        XCTAssertEqual(got?.onlyGenerateCoverageForSpecifiedTargets, true)
+        XCTAssertEqual(codeCoverageTargetsBuildableReference?.count, 1)
+        XCTAssertEqual(codeCoverageTargetsBuildableReference?.first?.buildableName, "App.app")
+    }
 
     func test_schemeBuildAction() {
         let target = Target.test(name: "App", product: .app)
