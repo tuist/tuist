@@ -145,7 +145,7 @@ final class SchemesGenerator: SchemesGenerating {
                                    macroExpansion: nil,
                                    testables: testables)
     }
-    
+
     /// Generates the array of BuildableReference for targets that the
     /// coverage report should be generated for them.
     ///
@@ -155,10 +155,9 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - generatedProject: Generated Xcode project.
     /// - Returns: Array of buildable references.
     private func testCoverageTargetReferences(testAction: TestAction, project: Project, generatedProject: GeneratedProject) -> [XCScheme.BuildableReference] {
-        
         var codeCoverageTargets: [XCScheme.BuildableReference] = []
         testAction.codeCoverageTargets.forEach { name in
-            
+
             guard let target = project.targets.first(where: { $0.name == name }) else { return }
             guard let pbxTarget = generatedProject.targets[name] else { return }
 
@@ -167,7 +166,7 @@ final class SchemesGenerator: SchemesGenerating {
                                                           projectName: generatedProject.name)
             codeCoverageTargets.append(reference)
         }
-        
+
         return codeCoverageTargets
     }
 
@@ -214,9 +213,9 @@ final class SchemesGenerator: SchemesGenerating {
             args = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
             environments = environmentVariables(arguments.environment)
         }
-        
-        let codeCoverageTargets = self.testCoverageTargetReferences(testAction: testAction, project: project, generatedProject: generatedProject)
-        
+
+        let codeCoverageTargets = testCoverageTargetReferences(testAction: testAction, project: project, generatedProject: generatedProject)
+
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
