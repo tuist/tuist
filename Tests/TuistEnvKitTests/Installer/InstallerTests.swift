@@ -181,7 +181,7 @@ final class InstallerTests: TuistUnitTestCase {
                               "--product", "ProjectDescription",
                               "--package-path", temporaryDirectory.path.pathString,
                               "--configuration", "release",
-                              "-Xswiftc", "-enable-library-evolution"")
+                              "-Xswiftc", "-enable-library-evolution")
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
