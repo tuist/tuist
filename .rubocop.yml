@@ -25,3 +25,4 @@ AllCops:
     - Sources/**/*
     - Tests/**/*
     - galaxy/node_modules/**/*
+    - .github/**/*
