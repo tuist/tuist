@@ -128,4 +128,22 @@ public extension XCTestCase {
     func XCTEmpty<S>(_ array: [S], file: StaticString = #file, line: UInt = #line) {
         XCTAssertTrue(array.isEmpty, "Expected array to be empty but it's not. It contains the following elements: \(array)", file: file, line: line)
     }
+
+    // `XCTUnwrap` is unavailable when building using SwiftPM
+    //
+    // - related: https://bugs.swift.org/browse/SR-11501
+
+    enum XCTUnwrapError: Error {
+        case nilValueDetected
+    }
+
+    func XCTUnwrap<T>(_ element: T?, file: StaticString = #file, line: UInt = #line) throws -> T {
+        guard let element = element else {
+            XCTFail("expected non-nil value of type \"\(type(of: T.self))\"",
+                    file: file,
+                    line: line)
+            throw XCTUnwrapError.nilValueDetected
+        }
+        return element
+    }
 }
