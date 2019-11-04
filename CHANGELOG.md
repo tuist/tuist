@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for sticker pack extension & app extension products https://github.com/tuist/tuist/pull/489 by @Rag0n
 - Utility to locate the root directory of a project https://github.com/tuist/tuist/pull/622 by @pepibumur.
 - Adds `codeCoverageTargets` to `TestAction` to make XCode gather coverage info only for that targets https://github.com/tuist/tuist/pull/619 by @abbasmousavi
+- Enable the library evololution for the ProjectDescription framework https://github.com/tuist/tuist/pull/625 by @pepibumur.
 - Add support for watchOS apps https://github.com/tuist/tuist/pull/623 by @kwridan
 
 ### Changed

@@ -183,7 +183,8 @@ final class Installer: Installing {
             try System.shared.run(swiftPath, "build",
                                   "--product", "ProjectDescription",
                                   "--package-path", temporaryDirectory.path.pathString,
-                                  "--configuration", "release")
+                                  "--configuration", "release",
+                                  "-Xswiftc", "-enable-library-evolution")
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)

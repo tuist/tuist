@@ -41,7 +41,7 @@ private extension SchemeLinter {
                 )
             }
         }
-        
+
         if let testAction = scheme.testAction {
             if !buildConfigurationNames.contains(testAction.configurationName) {
                 issues.append(
@@ -58,12 +58,11 @@ private extension SchemeLinter {
         let reason = "The build configuration '\(buildConfigurationName)' specified in \(actionDescription) isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
-    
+
     func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
-        
-        let targetNames = targets.map{$0.name}
+        let targetNames = targets.map { $0.name }
         var issues: [LintingIssue] = []
-        
+
         for scheme in schemes {
             for target in scheme.testAction?.codeCoverageTargets ?? [] {
                 if !targetNames.contains(target) {
@@ -71,13 +70,12 @@ private extension SchemeLinter {
                 }
             }
         }
-        
+
         return issues
     }
-    
+
     func missingCodeCoverageTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
         let reason = "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
-
 }

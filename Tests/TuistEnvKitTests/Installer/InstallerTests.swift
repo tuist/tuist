@@ -180,7 +180,8 @@ final class InstallerTests: TuistUnitTestCase {
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
                               "--package-path", temporaryDirectory.path.pathString,
-                              "--configuration", "release")
+                              "--configuration", "release",
+                              "-Xswiftc", "-enable-library-evolution")
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
@@ -221,7 +222,8 @@ final class InstallerTests: TuistUnitTestCase {
         system.succeedCommand("/path/to/swift", "build",
                               "--product", "ProjectDescription",
                               "--package-path", temporaryDirectory.path.pathString,
-                              "--configuration", "release")
+                              "--configuration", "release",
+                              "-Xswiftc", "-enable-library-evolution")
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
 

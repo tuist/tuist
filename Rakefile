@@ -81,7 +81,7 @@ def package
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
   system("swift", "build", "--product", "tuist", "--configuration", "release")
-  system("swift", "build", "--product", "ProjectDescription", "--configuration", "release")
+  system("swift", "build", "--product", "ProjectDescription", "--configuration", "release", "-Xswiftc", "-enable-library-evolution")
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
 
   Dir.chdir(".build/release") do
