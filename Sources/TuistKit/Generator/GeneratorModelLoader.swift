@@ -629,6 +629,7 @@ extension TuistGenerator.TestAction {
         let arguments = manifest.arguments.map { TuistGenerator.Arguments.from(manifest: $0) }
         let configurationName = manifest.configurationName
         let coverage = manifest.coverage
+        let codeCoverageTargets = manifest.codeCoverageTargets
         let preActions = manifest.preActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
         let postActions = manifest.postActions.map { TuistGenerator.ExecutionAction.from(manifest: $0) }
 
@@ -636,6 +637,7 @@ extension TuistGenerator.TestAction {
                           arguments: arguments,
                           configurationName: configurationName,
                           coverage: coverage,
+                          codeCoverageTargets: codeCoverageTargets,
                           preActions: preActions,
                           postActions: postActions)
     }

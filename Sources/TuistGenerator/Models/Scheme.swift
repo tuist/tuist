@@ -114,6 +114,7 @@ public class TestAction: Equatable {
     public let arguments: Arguments?
     public let configurationName: String
     public let coverage: Bool
+    public let codeCoverageTargets: [String]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
@@ -123,6 +124,7 @@ public class TestAction: Equatable {
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
+                codeCoverageTargets: [String] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
@@ -131,6 +133,7 @@ public class TestAction: Equatable {
         self.coverage = coverage
         self.preActions = preActions
         self.postActions = postActions
+        self.codeCoverageTargets = codeCoverageTargets
     }
 
     // MARK: - Equatable
@@ -140,6 +143,7 @@ public class TestAction: Equatable {
             lhs.arguments == rhs.arguments &&
             lhs.configurationName == rhs.configurationName &&
             lhs.coverage == rhs.coverage &&
+            lhs.codeCoverageTargets == rhs.codeCoverageTargets &&
             lhs.preActions == rhs.preActions &&
             lhs.postActions == rhs.postActions
     }

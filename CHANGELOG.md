@@ -10,7 +10,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - `HTTPClient` utility class to `TuistEnvKit` https://github.com/tuist/tuist/pull/508 by @pepibumur.
 - **Breaking** Allow specifying a deployment target within project manifests https://github.com/tuist/tuist/pull/541 by @mollyIV
 - Add support for sticker pack extension & app extension products https://github.com/tuist/tuist/pull/489 by @Rag0n
-- Utility to locate the root directory of a project https://github.com/tuist/tuist/pull/622/checks?check_run_id=284958709 by @pepibumur.
+- Utility to locate the root directory of a project https://github.com/tuist/tuist/pull/622 by @pepibumur.
+- Adds `codeCoverageTargets` to `TestAction` to make XCode gather coverage info only for that targets https://github.com/tuist/tuist/pull/619 by @abbasmousavi
 - Add support for watchOS apps https://github.com/tuist/tuist/pull/623 by @kwridan
 
 ### Changed
