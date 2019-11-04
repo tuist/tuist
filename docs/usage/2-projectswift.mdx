@@ -798,6 +798,14 @@ Alternatively, when leveraging custom configurations, the configuration name can
       default: 'false',
     },
     {
+      name: 'codeCoverageTargets',
+      description:
+        'A list of targets you want to gather the test coverage data for them, which are defined in the project.',
+      type: '[String]',
+      optional: true,
+      default: '[]',
+    },
+    {
       name: 'Pre-actions',
       description:
         'A list of actions that are executed before starting the tests-run process.',

@@ -145,6 +145,31 @@ final class SchemesGenerator: SchemesGenerating {
                                    macroExpansion: nil,
                                    testables: testables)
     }
+    
+    /// Generates the array of BuildableReference for targets that the
+    /// coverage report should be generated for them.
+    ///
+    /// - Parameters:
+    ///   - testAction: test actions.
+    ///   - project: Project manifest.
+    ///   - generatedProject: Generated Xcode project.
+    /// - Returns: Array of buildable references.
+    private func testCoverageTargetReferences(testAction: TestAction, project: Project, generatedProject: GeneratedProject) -> [XCScheme.BuildableReference] {
+        
+        var codeCoverageTargets: [XCScheme.BuildableReference] = []
+        testAction.codeCoverageTargets.forEach { name in
+            
+            guard let target = project.targets.first(where: { $0.name == name }) else { return }
+            guard let pbxTarget = generatedProject.targets[name] else { return }
+
+            let reference = self.targetBuildableReference(target: target,
+                                                          pbxTarget: pbxTarget,
+                                                          projectName: generatedProject.name)
+            codeCoverageTargets.append(reference)
+        }
+        
+        return codeCoverageTargets
+    }
 
     /// Generates the scheme test action.
     ///
@@ -189,6 +214,10 @@ final class SchemesGenerator: SchemesGenerating {
             args = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
             environments = environmentVariables(arguments.environment)
         }
+        
+        let codeCoverageTargets = self.testCoverageTargetReferences(testAction: testAction, project: project, generatedProject: generatedProject)
+        
+        let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
 
@@ -199,6 +228,8 @@ final class SchemesGenerator: SchemesGenerating {
                                    postActions: postActions,
                                    shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
                                    codeCoverageEnabled: testAction.coverage,
+                                   codeCoverageTargets: codeCoverageTargets,
+                                   onlyGenerateCoverageForSpecifiedTargets: onlyGenerateCoverageForSpecifiedTargets,
                                    commandlineArguments: args,
                                    environmentVariables: environments)
     }

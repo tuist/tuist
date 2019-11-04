@@ -9,6 +9,7 @@ class SchemeLinter: SchemeLinting {
     func lint(project: Project) -> [LintingIssue] {
         var issues = [LintingIssue]()
         issues.append(contentsOf: lintReferencedBuildConfigurations(schemes: project.schemes, settings: project.settings))
+        issues.append(contentsOf: lintCodeCoverageTargets(schemes: project.schemes, targets: project.targets))
         return issues
     }
 }
@@ -40,6 +41,15 @@ private extension SchemeLinter {
                 )
             }
         }
+        
+        if let testAction = scheme.testAction {
+            if !buildConfigurationNames.contains(testAction.configurationName) {
+                issues.append(
+                    missingBuildConfigurationIssue(buildConfigurationName: testAction.configurationName,
+                                                   actionDescription: "the scheme's test action")
+                )
+            }
+        }
 
         return issues
     }
@@ -48,4 +58,26 @@ private extension SchemeLinter {
         let reason = "The build configuration '\(buildConfigurationName)' specified in \(actionDescription) isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
+    
+    func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
+        
+        let targetNames = targets.map{$0.name}
+        var issues: [LintingIssue] = []
+        
+        for scheme in schemes {
+            for target in scheme.testAction?.codeCoverageTargets ?? [] {
+                if !targetNames.contains(target) {
+                    issues.append(missingCodeCoverageTargetIssue(missingTargetName: target, schemaName: scheme.name))
+                }
+            }
+        }
+        
+        return issues
+    }
+    
+    func missingCodeCoverageTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
+        let reason = "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
+        return LintingIssue(reason: reason, severity: .error)
+    }
+
 }
