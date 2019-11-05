@@ -11,7 +11,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = GraphLinter()
+        subject = GraphLinter(projectLinter: MockProjectLinter())
     }
 
     override func tearDown() {
@@ -505,5 +505,66 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result, [])
+    }
+
+    func test_lint_valid_watchTargetBundleIdentifiers() throws {
+        // Given
+        let app = Target.test(name: "App",
+                              product: .app,
+                              bundleId: "app")
+        let watchApp = Target.test(name: "WatchApp",
+                                   platform: .watchOS,
+                                   product: .watch2App,
+                                   bundleId: "app.watchapp")
+        let watchExtension = Target.test(name: "WatchExtension",
+                                         platform: .watchOS,
+                                         product: .watch2Extension,
+                                         bundleId: "app.watchapp.watchextension")
+        let project = Project.test(targets: [app, watchApp, watchExtension])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [watchApp]),
+                                     (target: watchApp, dependencies: [watchExtension]),
+                                     (target: watchExtension, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
+    func test_lint_invalid_watchTargetBundleIdentifiers() throws {
+        // Given
+        let app = Target.test(name: "App",
+                              product: .app,
+                              bundleId: "app")
+        let watchApp = Target.test(name: "WatchApp",
+                                   platform: .watchOS,
+                                   product: .watch2App,
+                                   bundleId: "watchapp")
+        let watchExtension = Target.test(name: "WatchExtension",
+                                         platform: .watchOS,
+                                         product: .watch2Extension,
+                                         bundleId: "watchextension")
+        let project = Project.test(targets: [app, watchApp, watchExtension])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [watchApp]),
+                                     (target: watchApp, dependencies: [watchExtension]),
+                                     (target: watchExtension, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "Watch app 'WatchApp' bundleId: watchapp isn't prefixed with its parent's app 'app' bundleId 'app'",
+                         severity: .error),
+            LintingIssue(reason: "Watch extension 'WatchExtension' bundleId: watchextension isn't prefixed with its parent's watch app 'watchapp' bundleId 'watchapp'",
+                         severity: .error),
+        ])
     }
 }
