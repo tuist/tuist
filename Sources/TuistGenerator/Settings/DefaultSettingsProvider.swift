@@ -33,13 +33,13 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "GCC_C_LANGUAGE_STANDARD",
         "GCC_NO_COMMON_BLOCKS",
         "PRODUCT_NAME",
+        "VALIDATE_PRODUCT",
     ]
 
     private static let essentialTargetSettings: Set<String> = [
         "SDKROOT",
         "CODE_SIGN_IDENTITY",
         "LD_RUNPATH_SEARCH_PATHS",
-        "VALIDATE_PRODUCT",
         "SWIFT_OPTIMIZATION_LEVEL",
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS",
         "CURRENT_PROJECT_VERSION",
