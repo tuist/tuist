@@ -180,4 +180,23 @@ final class TargetLinterTests: TuistUnitTestCase {
             XCTAssertTrue(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
         }
     }
+
+    func test_lint_invalidProductPlatformCombinations() throws {
+        // Given
+        let invalidTargets: [Target] = [
+            .empty(name: "WatchApp_for_iOS", platform: .iOS, product: .watch2App),
+            .empty(name: "Watch2Extension_for_iOS", platform: .iOS, product: .watch2Extension),
+        ]
+
+        // When
+        let got = invalidTargets.flatMap { subject.lint(target: $0) }
+
+        // Then
+        let expectedIssues: [LintingIssue] = [
+            LintingIssue(reason: "'WatchApp_for_iOS' for platform 'iOS' can't have a product type 'watch 2 application'", severity: .error),
+            LintingIssue(reason: "'Watch2Extension_for_iOS' for platform 'iOS' can't have a product type 'watch 2 extension'",
+                         severity: .error),
+        ]
+        XCTAssertTrue(expectedIssues.allSatisfy { got.contains($0) })
+    }
 }

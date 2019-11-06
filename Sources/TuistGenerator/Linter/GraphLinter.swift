@@ -38,6 +38,7 @@ class GraphLinter: GraphLinting {
         issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
+        issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
         return issues
     }
 
@@ -121,9 +122,9 @@ class GraphLinter: GraphLinting {
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }
-        let supportedTargets = GraphLinter.validLinks[fromTarget]!
+        let supportedTargets = GraphLinter.validLinks[fromTarget]
 
-        if !supportedTargets.contains(toTarget) {
+        if supportedTargets == nil || supportedTargets?.contains(toTarget) == false {
             let reason = "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
@@ -235,6 +236,60 @@ class GraphLinter: GraphLinting {
         return issues
     }
 
+    private func lintWatchBundleIndentifiers(graph: Graphing) -> [LintingIssue] {
+        let apps = graph
+            .targets
+            .filter { $0.target.product == .app }
+
+        let issues = apps.flatMap { app -> [LintingIssue] in
+            let watchApps = watchAppsFor(targetNode: app, graph: graph)
+            return watchApps.flatMap { watchApp -> [LintingIssue] in
+                let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
+                let watchExtensions = watchExtensionsFor(targetNode: watchApp, graph: graph)
+                let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
+                    lint(watchExtension: watchExtension, parentWatchApp: watchApp)
+                }
+                return watchAppIssues + watchExtensionIssues
+            }
+        }
+
+        return issues
+    }
+
+    private func lint(watchApp: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
+        guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
+            return [
+                LintingIssue(reason: """
+                Watch app '\(watchApp.name)' bundleId: \(watchApp.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target.bundleId)'
+                """, severity: .error),
+            ]
+        }
+        return []
+    }
+
+    private func lint(watchExtension: TargetNode, parentWatchApp: TargetNode) -> [LintingIssue] {
+        guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
+            return [
+                LintingIssue(reason: """
+                Watch extension '\(watchExtension.name)' bundleId: \(watchExtension.target.bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target.bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
+                """, severity: .error),
+            ]
+        }
+        return []
+    }
+
+    private func watchAppsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
+        return graph.targetDependencies(path: targetNode.path,
+                                        name: targetNode.name)
+            .filter { $0.target.product == .watch2App }
+    }
+
+    private func watchExtensionsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
+        return graph.targetDependencies(path: targetNode.path,
+                                        name: targetNode.name)
+            .filter { $0.target.product == .watch2Extension }
+    }
+
     struct LintableTarget: Equatable, Hashable {
         let platform: Platform
         let product: Product
@@ -251,7 +306,7 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .appExtension),
             //            LintableTarget(platform: .iOS, product: .messagesExtension),
             LintableTarget(platform: .iOS, product: .stickerPackExtension),
-//            LintableTarget(platform: .watchOS, product: .watch2App),
+            LintableTarget(platform: .watchOS, product: .watch2App),
 //            LintableTarget(platform: .watchOS, product: .watchApp),
         ],
         LintableTarget(platform: .iOS, product: .staticLibrary): [
@@ -386,7 +441,7 @@ class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
         ],
-//        LintableTarget(platform: .tvOS, product: .tvExtension): [
+        //        LintableTarget(platform: .tvOS, product: .tvExtension): [
 //            LintableTarget(platform: .tvOS, product: .staticLibrary),
 //            LintableTarget(platform: .tvOS, product: .dynamicLibrary),
 //            LintableTarget(platform: .tvOS, product: .framework),
@@ -398,30 +453,36 @@ class GraphLinter: GraphLinting {
 //            LintableTarget(platform: .watchOS, product: .framework),
 //            LintableTarget(platform: .watchOS, product: .watchExtension),
 //        ],
-//        LintableTarget(platform: .watchOS, product: .watch2App): [
+        LintableTarget(platform: .watchOS, product: .watch2App): [
+            LintableTarget(platform: .watchOS, product: .watch2Extension),
+        ],
+        LintableTarget(platform: .watchOS, product: .staticLibrary): [
+            LintableTarget(platform: .watchOS, product: .staticLibrary),
+            LintableTarget(platform: .watchOS, product: .staticFramework),
+        ],
+        LintableTarget(platform: .watchOS, product: .staticFramework): [
+            LintableTarget(platform: .watchOS, product: .staticLibrary),
+            LintableTarget(platform: .watchOS, product: .staticFramework),
+            LintableTarget(platform: .watchOS, product: .framework),
+        ],
+        LintableTarget(platform: .watchOS, product: .dynamicLibrary): [
+            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        ],
+        LintableTarget(platform: .watchOS, product: .framework): [
+            LintableTarget(platform: .watchOS, product: .staticLibrary),
+            LintableTarget(platform: .watchOS, product: .framework),
+            LintableTarget(platform: .watchOS, product: .staticFramework),
+        ],
+        //        LintableTarget(platform: .watchOS, product: .watchExtension): [
 //            LintableTarget(platform: .watchOS, product: .staticLibrary),
 //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
 //            LintableTarget(platform: .watchOS, product: .framework),
-//            LintableTarget(platform: .watchOS, product: .watch2Extension),
 //        ],
-//        LintableTarget(platform: .watchOS, product: .staticLibrary): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .dynamicLibrary): [
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .framework): [
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .watchExtension): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
-//        LintableTarget(platform: .watchOS, product: .watch2Extension): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
+        LintableTarget(platform: .watchOS, product: .watch2Extension): [
+            LintableTarget(platform: .watchOS, product: .staticLibrary),
+            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+            LintableTarget(platform: .watchOS, product: .framework),
+            LintableTarget(platform: .watchOS, product: .staticFramework),
+        ],
     ]
 }

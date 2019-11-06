@@ -21,13 +21,13 @@ final class SettingsHelper {
         case .iOS: return .iOS
         case .macOS: return .macOS
         case .tvOS: return .tvOS
-            // case .watchOS: return .watchOS
+        case .watchOS: return .watchOS
         }
     }
 
     func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
         switch target.product {
-        case .app:
+        case .app, .watch2App:
             return .application
         case .dynamicLibrary:
             return .dynamicLibrary
@@ -35,6 +35,10 @@ final class SettingsHelper {
             return .staticLibrary
         case .framework, .staticFramework:
             return .framework
+        case .appExtension:
+            return .appExtension
+        case .watch2Extension:
+            return .watchExtension
         default:
             return nil
         }

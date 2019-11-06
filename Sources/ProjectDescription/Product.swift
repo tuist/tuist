@@ -15,9 +15,9 @@ public enum Product: String, Codable, Equatable {
     // Not supported yet
     case appExtension = "app_extension"
 //    case watchApp
-//    case watch2App
+    case watch2App
 //    case watchExtension
-//    case watch2Extension
+    case watch2Extension
 //    case tvExtension
 //    case messagesApplication
 //    case messagesExtension

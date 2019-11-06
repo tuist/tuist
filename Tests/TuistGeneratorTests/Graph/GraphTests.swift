@@ -356,6 +356,53 @@ final class GraphTests: TuistUnitTestCase {
                        [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)])
     }
 
+    func test_linkableDependencies_when_watchExtension() throws {
+        // Given
+        let frameworkA = Target.test(name: "FrameworkA", product: .framework)
+        let frameworkB = Target.test(name: "FrameworkB", product: .framework)
+        let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
+        let project = Project.test(targets: [watchExtension, frameworkA, frameworkB])
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: watchExtension, dependencies: [frameworkA]),
+                                     (target: frameworkA, dependencies: [frameworkB]),
+                                     (target: frameworkB, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: project.path, name: watchExtension.name)
+
+        // Then
+        XCTAssertEqual(result, [
+            .product(target: "FrameworkA", productName: "FrameworkA.framework"),
+        ])
+    }
+
+    func test_linkableDependencies_when_watchExtension_staticDependency() throws {
+        // Given
+        let frameworkA = Target.test(name: "FrameworkA", product: .staticFramework)
+        let frameworkB = Target.test(name: "FrameworkB", product: .framework)
+        let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
+        let project = Project.test(targets: [watchExtension, frameworkA, frameworkB])
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: watchExtension, dependencies: [frameworkA]),
+                                     (target: frameworkA, dependencies: [frameworkB]),
+                                     (target: frameworkB, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: project.path, name: watchExtension.name)
+
+        // Then
+        XCTAssertEqual(result, [
+            .product(target: "FrameworkA", productName: "FrameworkA.framework"),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework"),
+        ])
+    }
+
     func test_librariesPublicHeaders() throws {
         let target = Target.test(name: "Main")
         let publicHeadersPath = AbsolutePath("/test/public/")
@@ -490,6 +537,30 @@ final class GraphTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_embeddableFrameworks_when_watchExtension() throws {
+        // Given
+        let frameworkA = Target.test(name: "FrameworkA", product: .framework)
+        let frameworkB = Target.test(name: "FrameworkB", product: .framework)
+        let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
+        let project = Project.test(targets: [watchExtension, frameworkA, frameworkB])
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: watchExtension, dependencies: [frameworkA]),
+                                     (target: frameworkA, dependencies: [frameworkB]),
+                                     (target: frameworkB, dependencies: []),
+                                 ])
+
+        // When
+        let result = try graph.embeddableFrameworks(path: project.path, name: watchExtension.name)
+
+        // Then
+        XCTAssertEqual(result, [
+            .product(target: "FrameworkA", productName: "FrameworkA.framework"),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework"),
+        ])
     }
 
     func test_embeddableFrameworks_ordered() throws {

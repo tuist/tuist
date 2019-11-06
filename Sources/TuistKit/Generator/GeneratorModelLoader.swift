@@ -5,12 +5,9 @@ import TuistGenerator
 import TuistSupport
 
 enum GeneratorModelLoaderError: Error, Equatable, FatalError {
-    case featureNotYetSupported(String)
     case missingFile(AbsolutePath)
     var type: ErrorType {
         switch self {
-        case .featureNotYetSupported:
-            return .abort
         case .missingFile:
             return .abort
         }
@@ -18,8 +15,6 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
 
     var description: String {
         switch self {
-        case let .featureNotYetSupported(details):
-            return "\(details) is not yet supported"
         case let .missingFile(path):
             return "Couldn't find file at path '\(path.pathString)'"
         }
@@ -709,6 +704,10 @@ extension TuistGenerator.Product {
             return .appExtension
         case .stickerPackExtension:
             return .stickerPackExtension
+        case .watch2App:
+            return .watch2App
+        case .watch2Extension:
+            return .watch2Extension
         }
     }
 }
@@ -723,7 +722,7 @@ extension TuistGenerator.Platform {
         case .tvOS:
             return .tvOS
         case .watchOS:
-            throw GeneratorModelLoaderError.featureNotYetSupported("watchOS platform")
+            return .watchOS
         }
     }
 }

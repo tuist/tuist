@@ -45,6 +45,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "GCC_NO_COMMON_BLOCKS": "YES",
         "ENABLE_NS_ASSERTIONS": "NO",
         "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
+        "VALIDATE_PRODUCT": "YES",
     ]
 
     private let appTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -63,7 +64,6 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "SWIFT_COMPILATION_MODE": "wholemodule",
         "SDKROOT": "iphoneos",
         "CODE_SIGN_IDENTITY": "iPhone Developer",
-        "VALIDATE_PRODUCT": "YES",
         "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
     ]
 
@@ -98,7 +98,6 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "SDKROOT": "iphoneos",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "PRODUCT_NAME": "$(TARGET_NAME:c99extidentifier)",
-        "VALIDATE_PRODUCT": "YES",
         "VERSION_INFO_PREFIX": "",
         "CODE_SIGN_IDENTITY": "",
         "SKIP_INSTALL": "YES",
@@ -222,7 +221,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: projectEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 43)
+        XCTAssertEqual(got.count, 44)
     }
 
     func testProjectSettings_whenNoneDebug() throws {
@@ -288,7 +287,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 8)
+        XCTAssertEqual(got.count, 7)
     }
 
     func testTargetSettings_whenRecommendedDebug_Framework() throws {
@@ -322,7 +321,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: frameworkTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 17)
+        XCTAssertEqual(got.count, 16)
     }
 
     func testTargetSettings_whenNoneDebug_Framework() throws {
@@ -424,7 +423,13 @@ private extension XCTestCase {
                            containsAll second: [String: SettingValue],
                            file: StaticString = #file,
                            line: UInt = #line) {
-        let filteredFirst = first.filter { second.keys.contains($0.key) }
-        XCTAssertEqual(filteredFirst, second, file: file, line: line)
+        for (key, expectedValue) in second {
+            let result = first[key]
+            XCTAssertEqual(result,
+                           expectedValue,
+                           "\(key):\(result) does not match expected \(key): \(expectedValue)",
+                           file: file,
+                           line: line)
+        }
     }
 }

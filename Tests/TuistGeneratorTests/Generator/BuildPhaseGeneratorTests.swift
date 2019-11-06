@@ -355,6 +355,34 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         XCTAssertTrue(nativeTarget.buildPhases.isEmpty)
     }
 
+    func test_generateWatchBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let watchApp = Target.test(name: "WatchApp", product: .watch2App)
+        let project = Project.test()
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [watchApp]),
+                                     (target: watchApp, dependencies: []),
+                                 ])
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, watchApp])
+
+        // When
+        try subject.generateEmbedWatchBuildPhase(path: project.path,
+                                                 target: app,
+                                                 graph: graph,
+                                                 pbxTarget: nativeTarget,
+                                                 fileElements: fileElements,
+                                                 pbxproj: pbxproj)
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "WatchApp",
+        ])
+    }
+
     // MARK: - Helpers
 
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
