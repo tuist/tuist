@@ -30,7 +30,6 @@ class ProjectLinter: ProjectLinting {
         issues.append(contentsOf: lintTargets(project: project))
         issues.append(contentsOf: settingsLinter.lint(project: project))
         issues.append(contentsOf: schemeLinter.lint(project: project))
-        issues.append(contentsOf: lintWatchTargetBundleIdentifiers(project: project))
         return issues
     }
 
@@ -55,13 +54,5 @@ class ProjectLinter: ProjectLinting {
             issues.append(issue)
         }
         return issues
-    }
-
-    private func lintWatchTargetBundleIdentifiers(project: Project) -> [LintingIssue] {
-        let applications = project.targets.filter { $0.product == .app }
-        let watchApps = project.targets.filter { $0.product == .watch2App }
-        let watchExtensions = project.targets.filter { $0.product == .watch2Extension }
-
-        return []
     }
 }
