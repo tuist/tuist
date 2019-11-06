@@ -24,6 +24,7 @@ class TargetLinter: TargetLinting {
     func lint(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintProductName(target: target))
+        issues.append(contentsOf: lintValidPlatformProductCombinations(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
@@ -150,6 +151,22 @@ class TargetLinter: TargetLinting {
 
         let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
         if !deploymentTarget.version.matches(pattern: osVersionRegex) { return [issue] }
+        return []
+    }
+
+    private func lintValidPlatformProductCombinations(target: Target) -> [LintingIssue] {
+        let invalidProductsForPlatforms: [Platform: [Product]] = [
+            .iOS: [.watch2App, .watch2Extension],
+        ]
+
+        if let invalidProducts = invalidProductsForPlatforms[target.platform],
+            invalidProducts.contains(target.product) {
+            return [
+                LintingIssue(reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
+                             severity: .error),
+            ]
+        }
+
         return []
     }
 }
