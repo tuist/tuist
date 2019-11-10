@@ -11,6 +11,7 @@ protocol RootDirectoryLocating {
 }
 
 final class RootDirectoryLocator: RootDirectoryLocating {
+    private let fileHandler: FileHandling = FileHandler.shared
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     fileprivate var cache: [AbsolutePath: AbsolutePath] = [:]
 
@@ -19,25 +20,28 @@ final class RootDirectoryLocator: RootDirectoryLocating {
     /// git repository is defined if no Tuist/ directory is found.
     /// - Parameter path: Path for which we'll look the root directory.
     func locate(from path: AbsolutePath) -> AbsolutePath? {
+        return locate(from: path, source: path)
+    }
+
+    private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
         if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-        } else if let tuistDirectory = FileHandler.shared.locateDirectory(Constants.tuistFolderName, traversingFrom: path) {
-            let rootDirectory = tuistDirectory.parentDirectory
-            cache(rootDirectory: rootDirectory, for: path)
-            return rootDirectory
-        } else if let gitDirectory = FileHandler.shared.locateDirectory(".git", traversingFrom: path) {
-            let rootDirectory = gitDirectory.parentDirectory
-            cache(rootDirectory: rootDirectory, for: path)
-            return rootDirectory
-        } else {
-            return nil
+        } else if fileHandler.exists(path.appending(RelativePath(Constants.tuistFolderName))) {
+            cache(rootDirectory: path, for: source)
+            return path
+        } else if fileHandler.exists(path.appending(RelativePath(".git"))) {
+            cache(rootDirectory: path, for: source)
+            return path
+        } else if !path.isRoot {
+            return locate(from: path.parentDirectory, source: source)
         }
+        return nil
     }
 
     // MARK: - Fileprivate
 
     fileprivate func cached(path: AbsolutePath) -> AbsolutePath? {
-        if let cached = self.cache[path] { return cached } else if !path.parentDirectory.isRoot { return cached(path: path.parentDirectory) } else { return nil }
+        return cache[path]
     }
 
     /// This method caches the root directory of path, and all its parents up to the root directory.

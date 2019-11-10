@@ -19,7 +19,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_locale_when_a_tuist_and_git_directory_exists() throws {
+    func test_locate_when_a_tuist_and_git_directory_exists() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/", "this/.git"])
@@ -31,7 +31,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is")))
     }
 
-    func test_locale_when_a_tuist_directory_exists() throws {
+    func test_locate_when_a_tuist_directory_exists() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/"])
@@ -43,7 +43,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is")))
     }
 
-    func test_locale_when_a_git_directory_exists() throws {
+    func test_locate_when_a_git_directory_exists() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory", "this/.git"])
@@ -53,5 +53,17 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this")))
+    }
+
+    func test_locate_when_multiple_tuist_directories_exists() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/Tuist/", "this/is/Tuist/"])
+
+        // When
+        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+
+        // Then
+        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/a/very/nested")))
     }
 }
