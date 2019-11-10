@@ -59,11 +59,20 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/Tuist/", "this/is/Tuist/"])
+        let paths = [
+            "this/is/a/very/directory",
+            "this/is/a/very/nested/directory",
+        ]
 
         // When
-        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = paths.map {
+            subject.locate(from: temporaryDirectory.appending(RelativePath($0)))
+        }
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/a/very/nested")))
+        XCTAssertEqual(got, [
+            "this/is",
+            "this/is/a/very/nested",
+        ].map { temporaryDirectory.appending(RelativePath($0)) })
     }
 }
