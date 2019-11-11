@@ -6302,10 +6302,12 @@ gatsby-cli@^2.8.5:
     ink "^2.5.0"
     ink-spinner "^3.0.1"
 
-gatsby-core-utils@^1.0.15:
-  version "1.0.15"
-  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.0.15.tgz#cca10e6e6bafbbfeb9fda70639a7af6c673f9d74"
-  integrity sha512-Sn94r4EEKAjngJqw761wBYkbYhAjY61cheFXSdB84m+neohislRH6a4QjW/0Rc3M36C0n5f6D8x4ZsVLdeBrcg==
+gatsby-core-utils@^1.0.15, gatsby-core-utils@^1.0.18:
+  version "1.0.18"
+  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.0.18.tgz#7be8ca6dd684baac7b546412b436cc145d70678a"
+  integrity sha512-DaCWRYltwRjFlyDwCkHDizARZwosYMTyRS6cCBpZRC4CzHaKLpio1cKoxXhB0bUDxf+loHXWNMW1S3Z+GZ7FTw==
+  dependencies:
+    ci-info "2.0.0"
 
 gatsby-graphiql-explorer@^0.2.25:
   version "0.2.25"
@@ -6366,15 +6368,15 @@ gatsby-plugin-feed@^2.3.19:
     lodash.merge "^4.6.2"
     rss "^1.2.2"
 
-gatsby-plugin-manifest@2.2.23:
-  version "2.2.23"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-2.2.23.tgz#7ee152f3758645ef4ace2c06f446dc4b2f058730"
-  integrity sha512-qlxvKlc6fBRGRKqwv5MYVc/DCx2RoOOs2GZVHUN7tN92Ma3kYw3Roce0iuxX+QCyjPT1lyMaii1Rxrq/2QSMTA==
+gatsby-plugin-manifest@2.2.27:
+  version "2.2.27"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-2.2.27.tgz#19848ad1876362ac3a76981f77dca857b878ac68"
+  integrity sha512-c9TwM3GncLMIFUb3uM/d4Nq+RXtbd79gP2FA0lKnpRcK3wsnHVbUDh0iKF802ObrkVkoBUqwT0tFD8sLONsL/w==
   dependencies:
-    "@babel/runtime" "^7.6.3"
-    gatsby-core-utils "^1.0.15"
+    "@babel/runtime" "^7.7.2"
+    gatsby-core-utils "^1.0.18"
     semver "^5.7.1"
-    sharp "^0.23.1"
+    sharp "^0.23.2"
 
 gatsby-plugin-mdx@^1.0.56:
   version "1.0.56"
@@ -12505,7 +12507,7 @@ shallowequal@^1.0.1, shallowequal@^1.1.0:
   resolved "https://registry.yarnpkg.com/shallowequal/-/shallowequal-1.1.0.tgz#188d521de95b9087404fd4dcb68b13df0ae4e7f8"
   integrity sha512-y0m1JoUZSlPAjXVtPPW70aZWfIL/dSP7AFkRnniLCrK/8MDKog3TySTBmckD+RObVxH0v4Tox67+F14PdED2oQ==
 
-sharp@0.22.1, sharp@^0.22.1, sharp@^0.23.1:
+sharp@0.22.1, sharp@^0.22.1, sharp@^0.23.1, sharp@^0.23.2:
   version "0.22.1"
   resolved "https://registry.yarnpkg.com/sharp/-/sharp-0.22.1.tgz#a67c0e75567f03dd5a7861b901fec04072c5b0f4"
   integrity sha512-lXzSk/FL5b/MpWrT1pQZneKe25stVjEbl6uhhJcTULm7PhmJgKKRbTDM/vtjyUuC/RLqL2PRyC4rpKwbv3soEw==
