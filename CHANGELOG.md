@@ -17,6 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Change dependencies in `Package.resolved` to version from branch https://github.com/tuist/tuist/pull/631 by @fortmarek
 - Rename `TuistCore` to `TuistSupport` https://github.com/tuist/tuist/pull/621 by @pepibumur.
 - Introduce `Systems.shared`, `TuistTestCase`, and `TuistUnitTestCase` https://github.com/tuist/tuist/pull/519 by @pepibumur.
 - Change generated object version behaviour to mimic Xcode 11 by @adamkhazi
