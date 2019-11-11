@@ -32,10 +32,10 @@ public final class MockSystem: Systeming {
     public func run(_ arguments: [String]) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {
-            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+            throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
-            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
+            throw TuistSupport.SystemError.terminated(code: 1, error: stub.stderror ?? "")
         }
     }
 
@@ -58,10 +58,10 @@ public final class MockSystem: Systeming {
     public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {
-            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+            throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
-            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
+            throw TuistSupport.SystemError.terminated(code: 1, error: stub.stderror ?? "")
         }
         return stub.stdout ?? ""
     }
@@ -90,13 +90,13 @@ public final class MockSystem: Systeming {
     ) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {
-            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+            throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
             if let error = stub.stderror {
                 redirection.outputClosures?.stderrClosure([UInt8](error.data(using: .utf8)!))
             }
-            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
+            throw TuistSupport.SystemError.terminated(code: 1, error: stub.stderror ?? "")
         }
     }
 
@@ -107,10 +107,10 @@ public final class MockSystem: Systeming {
     public func async(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = self.stubs[command] else {
-            throw SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
+            throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
-            throw SystemError.terminated(code: 1, error: stub.stderror ?? "")
+            throw TuistSupport.SystemError.terminated(code: 1, error: stub.stderror ?? "")
         }
     }
 
