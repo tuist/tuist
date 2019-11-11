@@ -19,7 +19,7 @@
     "gatsby-plugin-favicon": "3.1.6",
     "gatsby-plugin-feed": "^2.3.19",
     "gatsby-plugin-manifest": "2.2.23",
-    "gatsby-plugin-mdx": "^1.0.53",
+    "gatsby-plugin-mdx": "^1.0.56",
     "gatsby-plugin-netlify": "^2.1.22",
     "gatsby-plugin-offline": "^3.0.16",
     "gatsby-plugin-react-helmet": "^3.1.13",
