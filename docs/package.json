@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "react-hot-loader": "^4.12.6"
+    "react-hot-loader": "^4.12.16"
   },
   "scripts": {
     "docz:dev": "docz dev",
