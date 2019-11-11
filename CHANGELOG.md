@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Adds `codeCoverageTargets` to `TestAction` to make XCode gather coverage info only for that targets https://github.com/tuist/tuist/pull/619 by @abbasmousavi
 - Enable the library evololution for the ProjectDescription framework https://github.com/tuist/tuist/pull/625 by @pepibumur.
 - Add support for watchOS apps https://github.com/tuist/tuist/pull/623 by @kwridan
+- Add linting for duplicate dependencies https://github.com/tuist/tuist/pull/629 by @lakpa
 
 ### Changed
 
