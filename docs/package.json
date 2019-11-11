@@ -13,7 +13,7 @@
   "dependencies": {
     "@mdx-js/mdx": "^1.5.1",
     "@mdx-js/react": "^1.5.1",
-    "@theme-ui/prism": "^0.2.40",
+    "@theme-ui/prism": "^0.2.46",
     "css-loader": "^3.2.0",
     "docz": "^2.0.0-rc.64",
     "docz-plugin-netlify": "^1.1.4",
