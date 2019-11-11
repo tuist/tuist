@@ -750,10 +750,10 @@
     "@babel/plugin-transform-react-jsx-self" "^7.0.0"
     "@babel/plugin-transform-react-jsx-source" "^7.0.0"
 
-"@babel/runtime@^7.0.0", "@babel/runtime@^7.1.2", "@babel/runtime@^7.3.1", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.2", "@babel/runtime@^7.4.5", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3":
-  version "7.6.3"
-  resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.6.3.tgz#935122c74c73d2240cafd32ddb5fc2a6cd35cf1f"
-  integrity sha512-kq6anf9JGjW8Nt5rYfEuGRaEAaH1mkv3Bbu6rYvLOpPh/RusSJXuKPEAoZ7L7gybZkchE8+NV5g9vKF4AGAtsA==
+"@babel/runtime@^7.0.0", "@babel/runtime@^7.1.2", "@babel/runtime@^7.3.1", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.2", "@babel/runtime@^7.4.5", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3", "@babel/runtime@^7.7.2":
+  version "7.7.2"
+  resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.7.2.tgz#111a78002a5c25fc8e3361bedc9529c696b85a6a"
+  integrity sha512-JONRbXbTXc9WQE2mAZd1p0Z3DZ/6vaQIkgYMSTP3KjRCyd7rCZCcfhCyX+YjwcKxcZ82UrxbRD358bpExNgrjw==
   dependencies:
     regenerator-runtime "^0.13.2"
 
@@ -6393,12 +6393,12 @@ gatsby-telemetry@^1.1.33:
     stack-utils "1.0.2"
     uuid "3.3.3"
 
-gatsby-transformer-yaml@^2.2.15:
-  version "2.2.15"
-  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.2.15.tgz#f50948cbe8b58112b5100a00b9fa94a0ecdc582a"
-  integrity sha512-eydPYBj9U6/WhDZMA63eclqLUkzyF2CTwJZvTXKACp99DzUTS8HuMYUmBHFfLd9LgH61NhSQgAXlGx+mkWnBDg==
+gatsby-transformer-yaml@^2.2.16:
+  version "2.2.16"
+  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.2.16.tgz#494f65e341a9e47cf59d6be6c8ed09d73d20fa4b"
+  integrity sha512-5S3Y4FoEwA2NtETusFXnMoSqInJdrm+qocr4SMo0qvhtQrXGoyaq+55dk+KOgjzfT6xAhaYj63wj3OFNHtfXng==
   dependencies:
-    "@babel/runtime" "^7.6.3"
+    "@babel/runtime" "^7.7.2"
     js-yaml "^3.13.1"
     lodash "^4.17.15"
     unist-util-select "^1.5.0"
