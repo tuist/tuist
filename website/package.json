@@ -12,7 +12,7 @@
     "@fortawesome/react-fontawesome": "^0.1.7",
     "@mdx-js/mdx": "^1.5.1",
     "@mdx-js/tag": "^0.20.3",
-    "@theme-ui/prism": "^0.2.40",
+    "@theme-ui/prism": "^0.2.46",
     "@theme-ui/typography": "^0.2.40",
     "gatsby": "^2.17.4",
     "gatsby-image": "^2.2.29",
