@@ -1785,10 +1785,10 @@
   dependencies:
     prism-react-renderer "^1.0.2"
 
-"@theme-ui/typography@^0.2.40":
-  version "0.2.40"
-  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.2.40.tgz#fc24b8ff82e0014f42da65bf8f5854ee70e1dfac"
-  integrity sha512-mbxk4vgwXYAtxgZiGRXiiaHceT7qc5liC4dHuvlFKs8TKkLDD4FbftZ2BqFK6i9QG6I3Aos1PEKGIxgBgpUGQg==
+"@theme-ui/typography@^0.2.46":
+  version "0.2.46"
+  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.2.46.tgz#24e20989450a35eb715967b99cbfd8fa4291ba17"
+  integrity sha512-66VMjZ/7fvhwtJHwYZH4/Vl+wYpLXN2QzNU6wn/7VcBf9xJZPXEumI8wSp9P1R2eEjLAlaz8tpl1VDMGPDxsVA==
   dependencies:
     compass-vertical-rhythm "^1.4.5"
     modularscale "^2.0.1"
