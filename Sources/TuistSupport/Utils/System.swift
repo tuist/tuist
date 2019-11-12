@@ -134,10 +134,10 @@ extension ProcessResult {
     func throwIfErrored() throws {
         switch exitStatus {
         case let .signalled(code):
-            throw SystemError.signalled(code: code)
+            throw TuistSupport.SystemError.signalled(code: code)
         case let .terminated(code):
             if code != 0 {
-                throw SystemError.terminated(code: code, error: try utf8stderrOutput())
+                throw TuistSupport.SystemError.terminated(code: code, error: try utf8stderrOutput())
             }
         }
     }

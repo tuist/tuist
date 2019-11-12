@@ -16,7 +16,6 @@ AllCops:
     - docs/**/*
     - .build/**/*
     - .circleci/**/*
-    - .github/**/*
     - .vscode/**/*
     - assets/**/*
     - build/**/*

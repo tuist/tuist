@@ -1,7 +1,7 @@
 # https://help.github.com/en/github/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions#jobsjob_idname
 name: Checks
 
-on: [pull_request]
+on: push
 
 jobs:
   swiftlint:
@@ -11,15 +11,6 @@ jobs:
       - uses: actions/checkout@v1
       - name: GitHub Action for SwiftLint
         uses: pepibumur/action-swiftlint@0d4afd006bb24e4525b5afcefd4ab5e2537193ac
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  rubocop:
-    name: Rubocop
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: GitHub Action for Rubocop
-        uses: gimenete/rubocop-action@1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   changelog:

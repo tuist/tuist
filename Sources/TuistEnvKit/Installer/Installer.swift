@@ -166,7 +166,7 @@ final class Installer: Installing {
 
             do {
                 try System.shared.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version)
-            } catch let error as SystemError {
+            } catch let error as TuistSupport.SystemError {
                 if error.description.contains("did not match any file(s) known to git") {
                     throw InstallerError.versionNotFound(version)
                 }
