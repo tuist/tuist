@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import XCTest
 @testable import TuistSupport
+@testable import TuistSupportTesting
 
 final class FileHandlerErrorTests: XCTestCase {
     func test_description() {
@@ -10,7 +11,7 @@ final class FileHandlerErrorTests: XCTestCase {
     }
 }
 
-final class FileHandlerTests: XCTestCase {
+final class FileHandlerTests: TuistUnitTestCase {
     private var subject: FileHandler!
     private let fileManager = FileManager.default
 
@@ -40,15 +41,18 @@ final class FileHandlerTests: XCTestCase {
 
     func test_replace_cleans_up_temp() throws {
         // Given
-        let tempFile = try TemporaryFile()
-        let destFile = try TemporaryFile()
-        let count = try countItemsInRootTempDirectory(appropriateFor: destFile.path.asURL)
+        let temporaryPath = try self.temporaryPath()
+        let from = temporaryPath.appending(component: "from")
+        try FileHandler.shared.touch(from)
+        let to = temporaryPath.appending(component: "to")
+        
+        let count = try countItemsInRootTempDirectory(appropriateFor: to.asURL)
 
         // When
-        try subject.replace(destFile.path, with: tempFile.path)
+        try subject.replace(to, with: from)
 
         // Then
-        XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: destFile.path.asURL))
+        XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
     }
 
     // MARK: - Private
