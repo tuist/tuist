@@ -104,6 +104,15 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         "DYLIB_CURRENT_VERSION": "1",
     ]
 
+    private let testTargetEssentialDebugSettings: [String: SettingValue] = [
+        "SDKROOT": "iphoneos",
+        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "CODE_SIGN_IDENTITY": "iPhone Developer",
+        "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
+        "TARGETED_DEVICE_FAMILY": "1,2",
+    ]
+
     override func setUp() {
         super.setUp()
         subject = DefaultSettingsProvider()
@@ -354,6 +363,70 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
         XCTAssertEqual(got.count, 0)
+    }
+
+    func testTargetSettings_whenRecommendedDebug_UnitTests() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .recommended)
+        let target = Target.test(product: .unitTests, settings: settings)
+
+        // When
+        let got = try subject.targetSettings(target: target,
+                                             buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertSettings(got, containsAll: testTargetEssentialDebugSettings)
+    }
+
+    func testTargetSettings_whenRecommendedDebug_UITests() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .recommended)
+        let target = Target.test(product: .uiTests, settings: settings)
+
+        // When
+        let got = try subject.targetSettings(target: target,
+                                             buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertSettings(got, containsAll: testTargetEssentialDebugSettings)
+    }
+
+    func testTargetSettings_whenEssentialDebug_UnitTests() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .essential)
+        let target = Target.test(product: .unitTests, settings: settings)
+
+        // When
+        let got = try subject.targetSettings(target: target,
+                                             buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertEqual(got, testTargetEssentialDebugSettings)
+    }
+
+    func testTargetSettings_whenEssentialDebug_UITests() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .essential)
+        let target = Target.test(product: .uiTests, settings: settings)
+
+        // When
+        let got = try subject.targetSettings(target: target,
+                                             buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertEqual(got, testTargetEssentialDebugSettings)
     }
 }
 

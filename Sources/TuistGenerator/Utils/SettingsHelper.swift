@@ -39,6 +39,10 @@ final class SettingsHelper {
             return .appExtension
         case .watch2Extension:
             return .watchExtension
+        case .unitTests:
+            return .unitTests
+        case .uiTests:
+            return .uiTests
         default:
             return nil
         }
