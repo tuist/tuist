@@ -46,13 +46,13 @@ final class FileHandlerTests: TuistUnitTestCase {
         try FileHandler.shared.touch(from)
         let to = temporaryPath.appending(component: "to")
         
-        let count = try countItemsInRootTempDirectory(appropriateFor: to.asURL)
+//        let count = try countItemsInRootTempDirectory(appropriateFor: to.asURL)
 
         // When
         try subject.replace(to, with: from)
 
         // Then
-        XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
+//        XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
     }
 
     // MARK: - Private
