@@ -21,10 +21,3 @@ update_configs:
       - 'tuist/core'
     default_labels:
       - 'dependencies'
-  - package_manager: 'ruby:bundler'
-    directory: '/galaxy'
-    update_schedule: 'weekly'
-    default_reviewers:
-      - 'tuist/core'
-    default_labels:
-      - 'dependencies'

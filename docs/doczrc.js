@@ -1,5 +1,5 @@
 import doczPluginNetlify from 'docz-plugin-netlify'
-import prismTheme from "prism-react-renderer/themes/nightOwl"
+import prismTheme from 'prism-react-renderer/themes/nightOwl'
 
 export default {
   title: 'Tuist Documentation',
@@ -10,7 +10,7 @@ export default {
   hashRouter: true,
   public: './public',
   themeConfig: {
-    prismTheme: prismTheme
+    prismTheme: prismTheme,
   },
   menu: [
     'Getting started',
@@ -26,7 +26,6 @@ export default {
       menu: [
         'Code reviews',
         'Tuist',
-        'Galaxy',
         'Code of conduct',
         'Changelog guidelines',
         'Core team',

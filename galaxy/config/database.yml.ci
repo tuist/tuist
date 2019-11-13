@@ -1,9 +1,0 @@
-test:
-  adapter: postgresql
-  encoding: unicode
-  pool: 5
-  timeout: 5000
-  host: localhost
-  username: runner
-  password: ""
-  database: test_db
