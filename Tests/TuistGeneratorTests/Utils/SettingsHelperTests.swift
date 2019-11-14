@@ -168,9 +168,9 @@ final class SettingsHelpersTests: XCTestCase {
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .staticLibrary)), .staticLibrary)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .staticFramework)), .framework)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .framework)), .framework)
+        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .unitTests)), .unitTests)
+        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .uiTests)), .uiTests)
         XCTAssertNil(subject.settingsProviderProduct(.test(product: .bundle)))
-        XCTAssertNil(subject.settingsProviderProduct(.test(product: .unitTests)))
-        XCTAssertNil(subject.settingsProviderProduct(.test(product: .uiTests)))
     }
 
     func testVariant() {

@@ -61,7 +61,7 @@ final class FileHandlerTests: TuistUnitTestCase {
         let tempPath = AbsolutePath(try fileManager.url(for: .itemReplacementDirectory,
                                                         in: .userDomainMask,
                                                         appropriateFor: url,
-                                                        create: false).path)
+                                                        create: true).path)
         let rootTempPath = tempPath.parentDirectory
         try fileManager.removeItem(at: tempPath.asURL)
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)
