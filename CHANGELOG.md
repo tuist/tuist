@@ -29,6 +29,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix false positive cycle detection https://github.com/tuist/tuist/pull/546 by @kwridan
 - Fix test target build settings https://github.com/tuist/tuist/pull/661 by @kwridan
+- Fix hosted unit test dependencies https://github.com/tuist/tuist/pull/664/ by @kwridan
 
 ## 0.18.1
 
