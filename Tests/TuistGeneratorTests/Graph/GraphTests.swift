@@ -426,7 +426,32 @@ final class GraphTests: TuistUnitTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
-    func test_linkableDependencies_whenHostedTestTarget() throws {
+    func test_linkableDependencies_whenHostedTestTarget_withCommonDynamicProducts() throws {
+        // Given
+        let framework = Target.test(name: "Framework",
+                                    product: .framework)
+
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [framework]),
+                                     (target: framework, dependencies: []),
+                                     (target: tests, dependencies: [app, framework]),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
+
+        // Then
+        XCTAssertEqual(result, [
+            .product(target: "Framework", productName: "Framework.framework"),
+        ])
+    }
+
+    func test_linkableDependencies_whenHostedTestTarget_doNotIncludeRedundantDependencies() throws {
         // Given
         let framework = Target.test(name: "Framework",
                                     product: .framework)
