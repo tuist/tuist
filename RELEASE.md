@@ -16,5 +16,4 @@ This document describes the process of releasing new versions of tuist.
 7.  Package and upload the release to GCS by running `bundle exec rake release`.
 8.  Upload the installation scripts to GCS by running `bundle exec rake release_scripts`.
 9.  Create a release on GitHub with the version as a title, the body from the CHANGELOG file, and attach the artifacts in the `build/` directory.
-10. Deploy the documentation website to [Netlify](https://app.netlify.com/sites/peaceful-fermat-c0d5d7/deploys).
-11. Run `tuist update` and verify that the new version is installed and runs.
+10. Run `tuist update` and verify that the new version is installed and runs.
