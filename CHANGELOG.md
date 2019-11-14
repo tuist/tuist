@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 0.19.0
+
 ### Added
 
 - XCTAssertThrowsSpecific convenient function to test for specific errors https://github.com/tuist/tuist/pull/535 by @fortmarek
