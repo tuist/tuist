@@ -70,7 +70,7 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
             "-F", projectDescriptionPath.parentDirectory.pathString,
             "-working-directory", temporaryDirectory.path.pathString,
         ]
-        if projectDescriptionPath.basename.contains("dylib") {
+        if projectDescriptionPath.extension == "dylib" {
             command.append(contentsOf: ["-lProjectDescription"])
         } else {
             command.append(contentsOf: ["-framework", "ProjectDescription"])

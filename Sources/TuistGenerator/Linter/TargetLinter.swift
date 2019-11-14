@@ -170,14 +170,14 @@ class TargetLinter: TargetLinting {
 
         return []
     }
-	
-	private func lintDuplicateDependency(target: Target) -> [LintingIssue] {
-		typealias Occurence = Int
-		var seen: [Dependency: Occurence] = [:]
-		target.dependencies.forEach { seen[$0, default: 0] += 1 }
-		let duplicates = seen.enumerated().filter { $0.element.value > 1 }
-		return duplicates.map {
-			.init(reason: "Target has duplicate '\($0.element.key)' dependency specified", severity: .warning)
-		}
-	}
+
+    private func lintDuplicateDependency(target: Target) -> [LintingIssue] {
+        typealias Occurence = Int
+        var seen: [Dependency: Occurence] = [:]
+        target.dependencies.forEach { seen[$0, default: 0] += 1 }
+        let duplicates = seen.enumerated().filter { $0.element.value > 1 }
+        return duplicates.map {
+            .init(reason: "Target has duplicate '\($0.element.key)' dependency specified", severity: .warning)
+        }
+    }
 }
