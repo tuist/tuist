@@ -91,6 +91,9 @@ class GraphManifestLoader: GraphManifestLoading {
     /// Resource locator to look up Tuist-related resources.
     let resourceLocator: ResourceLocating
 
+    /// Instance to compile and return a temporary module that contains the helper files.
+    let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
+
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
 
@@ -100,8 +103,11 @@ class GraphManifestLoader: GraphManifestLoading {
     ///
     /// - Parameters:
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
-    init(resourceLocator: ResourceLocating = ResourceLocator()) {
+    ///   - helpersLoader: Instance to compile and return a temporary module that contains the helper files.
+    init(resourceLocator: ResourceLocating = ResourceLocator(),
+         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder()) {
         self.resourceLocator = resourceLocator
+        self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         decoder = JSONDecoder()
     }
 
@@ -166,6 +172,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
     private func loadManifestData(at path: AbsolutePath) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
+
         var arguments: [String] = [
             "/usr/bin/xcrun",
             "swiftc",
@@ -176,6 +183,18 @@ class GraphManifestLoader: GraphManifestLoading {
             "-F", projectDescriptionPath.parentDirectory.pathString,
             "-lProjectDescription",
         ]
+
+        // Helpers
+        let projectDesciptionHelpersModule = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        if let projectDesciptionHelpersModule = projectDesciptionHelpersModule {
+            arguments.append(contentsOf: [
+                "-I", projectDesciptionHelpersModule.path.parentDirectory.pathString,
+                "-L", projectDesciptionHelpersModule.path.parentDirectory.pathString,
+                "-F", projectDesciptionHelpersModule.path.parentDirectory.pathString,
+                "-lProjectDescriptionHelpers",
+            ])
+        }
+
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
@@ -183,6 +202,8 @@ class GraphManifestLoader: GraphManifestLoading {
         guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
+
+        try projectDesciptionHelpersModule?.cleanup()
 
         return data
     }

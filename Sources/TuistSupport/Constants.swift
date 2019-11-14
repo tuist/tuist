@@ -9,7 +9,8 @@ public struct Constants {
     public static let swiftVersion: String = "5.0"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
-    public static let tuistFolderName: String = "Tuist"
+    public static let tuistDirectoryName: String = "Tuist"
+    public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
 
     public struct EnvironmentVariables {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"

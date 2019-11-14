@@ -329,6 +329,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             return cache[path] == .folder
         }
 
+        func locateDirectoryTraversingParents(from _: AbsolutePath, path _: String) -> AbsolutePath? {
+            return nil
+        }
+
         func touch(_ path: AbsolutePath) throws {
             let parent = path.parentDirectory
             try createFolder(parent)

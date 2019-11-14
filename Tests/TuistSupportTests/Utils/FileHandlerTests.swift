@@ -46,7 +46,7 @@ final class FileHandlerTests: TuistUnitTestCase {
         // let from = temporaryPath.appending(component: "from")
         // try FileHandler.shared.touch(from)
         // let to = temporaryPath.appending(component: "to")
-        
+
         // let count = try countItemsInRootTempDirectory(appropriateFor: to.asURL)
 
         // // When

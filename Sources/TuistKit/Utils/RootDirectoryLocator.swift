@@ -26,7 +26,7 @@ final class RootDirectoryLocator: RootDirectoryLocating {
     private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
         if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-        } else if fileHandler.exists(path.appending(RelativePath(Constants.tuistFolderName))) {
+        } else if fileHandler.exists(path.appending(RelativePath(Constants.tuistDirectoryName))) {
             cache(rootDirectory: path, for: source)
             return path
         } else if fileHandler.exists(path.appending(RelativePath(".git"))) {
