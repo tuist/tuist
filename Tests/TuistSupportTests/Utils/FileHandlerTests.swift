@@ -46,13 +46,13 @@ final class FileHandlerTests: TuistUnitTestCase {
         try FileHandler.shared.touch(from)
         let to = temporaryPath.appending(component: "to")
         
-//        let count = try countItemsInRootTempDirectory(appropriateFor: to.asURL)
+        let count = try countItemsInRootTempDirectory(appropriateFor: to.asURL)
 
         // When
         try subject.replace(to, with: from)
 
         // Then
-//        XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
+        XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
     }
 
     // MARK: - Private
@@ -61,7 +61,7 @@ final class FileHandlerTests: TuistUnitTestCase {
         let tempPath = AbsolutePath(try fileManager.url(for: .itemReplacementDirectory,
                                                         in: .userDomainMask,
                                                         appropriateFor: url,
-                                                        create: false).path)
+                                                        create: true).path)
         let rootTempPath = tempPath.parentDirectory
         try fileManager.removeItem(at: tempPath.asURL)
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)
