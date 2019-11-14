@@ -403,6 +403,77 @@ final class GraphTests: TuistUnitTestCase {
         ])
     }
 
+    func test_linkableDependencies_whenHostedTestTarget_withCommonStaticProducts() throws {
+        // Given
+        let staticFramework = Target.test(name: "StaticFramework",
+                                          product: .staticFramework)
+
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [staticFramework]),
+                                     (target: staticFramework, dependencies: []),
+                                     (target: tests, dependencies: [app, staticFramework]),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_linkableDependencies_whenHostedTestTarget_withCommonDynamicProducts() throws {
+        // Given
+        let framework = Target.test(name: "Framework",
+                                    product: .framework)
+
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [framework]),
+                                     (target: framework, dependencies: []),
+                                     (target: tests, dependencies: [app, framework]),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
+
+        // Then
+        XCTAssertEqual(result, [
+            .product(target: "Framework", productName: "Framework.framework"),
+        ])
+    }
+
+    func test_linkableDependencies_whenHostedTestTarget_doNotIncludeRedundantDependencies() throws {
+        // Given
+        let framework = Target.test(name: "Framework",
+                                    product: .framework)
+
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [framework]),
+                                     (target: framework, dependencies: []),
+                                     (target: tests, dependencies: [app]),
+                                 ])
+
+        // When
+        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func test_librariesPublicHeaders() throws {
         let target = Target.test(name: "Main")
         let publicHeadersPath = AbsolutePath("/test/public/")
@@ -586,6 +657,56 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         let expected = dependencyNames.sorted().map { DependencyReference.product(target: $0, productName: "\($0).framework") }
         XCTAssertEqual(got, expected)
+    }
+
+    func test_embeddableDependencies_whenHostedTestTarget() throws {
+        // Given
+        let framework = Target.test(name: "Framework",
+                                    product: .framework)
+
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [framework]),
+                                     (target: framework, dependencies: []),
+                                     (target: tests, dependencies: [app]),
+                                 ])
+
+        // When
+        let result = try graph.embeddableFrameworks(path: projectA.path, name: tests.name)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_embeddableDependencies_whenHostedTestTarget_transitiveDepndencies() throws {
+        // Given
+        let framework = Target.test(name: "Framework",
+                                    product: .framework)
+
+        let staticFramework = Target.test(name: "StaticFramework",
+                                          product: .framework)
+
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: app, dependencies: [staticFramework]),
+                                     (target: framework, dependencies: []),
+                                     (target: staticFramework, dependencies: [framework]),
+                                     (target: tests, dependencies: [app, staticFramework]),
+                                 ])
+
+        // When
+        let result = try graph.embeddableFrameworks(path: projectA.path, name: tests.name)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
     }
 
     func test_librariesSearchPaths() throws {
