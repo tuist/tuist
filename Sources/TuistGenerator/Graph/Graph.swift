@@ -193,7 +193,7 @@ class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter(isStaticLibrary)
-            .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+            .map(productDependencyReference)
     }
 
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -219,7 +219,7 @@ class Graph: Graphing {
         // System libraries and frameworks
 
         if targetNode.target.canLinkStaticProducts() {
-            let transitiveSystemLibraries = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework).flatMap {
+            let transitiveSystemLibraries = transitiveStaticTargetNodes(for: targetNode).flatMap {
                 $0.sdkDependencies.map {
                     DependencyReference.sdk($0.path, $0.status)
                 }
@@ -246,15 +246,21 @@ class Graph: Graphing {
         // Static libraries and frameworks / Static libraries' dynamic libraries
 
         if targetNode.target.canLinkStaticProducts() {
-            let staticLibraryTargetNodes = findAll(targetNode: targetNode, test: isStaticLibrary, skip: isFramework)
-            let staticLibraries = staticLibraryTargetNodes.map {
-                DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension)
+            var staticLibraryTargetNodes = transitiveStaticTargetNodes(for: targetNode)
+
+            // Exclude any static products linked in a host application
+            if targetNode.target.product == .unitTests {
+                if let hostApp = hostApplication(for: targetNode) {
+                    staticLibraryTargetNodes.subtract(transitiveStaticTargetNodes(for: hostApp))
+                }
             }
+
+            let staticLibraries = staticLibraryTargetNodes.map(productDependencyReference)
 
             let staticDependenciesDynamicLibraries = staticLibraryTargetNodes.flatMap {
                 $0.targetDependencies
                     .filter(or(isFramework, isDynamicLibrary))
-                    .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+                    .map(productDependencyReference)
             }
 
             references = references.union(staticLibraries + staticDependenciesDynamicLibraries)
@@ -264,7 +270,7 @@ class Graph: Graphing {
 
         let dynamicLibrariesAndFrameworks = targetNode.targetDependencies
             .filter(or(isFramework, isDynamicLibrary))
-            .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+            .map(productDependencyReference)
 
         references = references.union(dynamicLibrariesAndFrameworks)
         return Array(references).sorted()
@@ -298,22 +304,12 @@ class Graph: Graphing {
     }
 
     func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [DependencyReference] {
-        guard let targetNode = findTargetNode(path: path, name: name) else {
+        guard let targetNode = findTargetNode(path: path, name: name),
+            canEmbedProducts(targetNode: targetNode) else {
             return []
         }
 
-        let validProducts: [Product] = [
-            .app,
-            .unitTests,
-            .uiTests,
-            .watch2Extension,
-        ]
-
-        if validProducts.contains(targetNode.target.product) == false {
-            return []
-        }
-
-        var references: [DependencyReference] = []
+        var references: Set<DependencyReference> = Set([])
 
         let isDynamicAndLinkable = frameworkUsesDynamicLinking()
 
@@ -323,15 +319,22 @@ class Graph: Graphing {
             .map(\.path)
             .map(DependencyReference.absolute)
 
-        references.append(contentsOf: precompiledFrameworks)
+        references.formUnion(precompiledFrameworks)
 
         /// Other targets' frameworks.
-        let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework)
-            .map { DependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+        let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework, skip: canEmbedProducts)
+            .map(productDependencyReference)
 
-        references.append(contentsOf: otherTargetFrameworks)
+        references.formUnion(otherTargetFrameworks)
 
-        return Set(references).sorted()
+        // Exclude any products embed in unit test host apps
+        if targetNode.target.product == .unitTests {
+            if let hostApp = hostApplication(for: targetNode) {
+                references.subtract(try embeddableFrameworks(path: hostApp.path, name: hostApp.name))
+            }
+        }
+
+        return references.sorted()
     }
 
     func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference] {
@@ -343,7 +346,7 @@ class Graph: Graphing {
 
         dependencies.append(contentsOf:
             resourceBundleDependencies(path: path, name: target.name)
-                .map { .product(target: $0.target.name, productName: $0.target.productNameWithExtension) })
+                .map(productDependencyReference))
 
         return Set(dependencies).sorted()
     }
@@ -397,25 +400,56 @@ class Graph: Graphing {
 
         return cachedTargetNodesForPath[name]
     }
+
+    // Obtains all static dependencies for a targetNode (including transitive ones)
+    private func transitiveStaticTargetNodes(for targetNode: TargetNode) -> Set<TargetNode> {
+        return findAll(targetNode: targetNode,
+                       test: isStaticLibrary,
+                       skip: canLinkStaticProducts)
+    }
+
+    private func productDependencyReference(for targetNode: TargetNode) -> DependencyReference {
+        return .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
+    }
+
+    private func hostApplication(for targetNode: TargetNode) -> TargetNode? {
+        return targetDependencies(path: targetNode.path, name: targetNode.name)
+            .first(where: { $0.target.product == .app })
+    }
 }
 
 // MARK: - Predicates
 
 extension Graph {
-    internal func isStaticLibrary(targetNode: TargetNode) -> Bool {
+    func isStaticLibrary(targetNode: TargetNode) -> Bool {
         return targetNode.target.product.isStatic
     }
 
-    internal func isDynamicLibrary(targetNode: TargetNode) -> Bool {
+    func isDynamicLibrary(targetNode: TargetNode) -> Bool {
         return targetNode.target.product == .dynamicLibrary
     }
 
-    internal func isFramework(targetNode: TargetNode) -> Bool {
+    func isFramework(targetNode: TargetNode) -> Bool {
         return targetNode.target.product == .framework
     }
 
+    func canLinkStaticProducts(targetNode: TargetNode) -> Bool {
+        return targetNode.target.canLinkStaticProducts()
+    }
+
+    func canEmbedProducts(targetNode: TargetNode) -> Bool {
+        let validProducts: [Product] = [
+            .app,
+            .unitTests,
+            .uiTests,
+            .watch2Extension,
+        ]
+
+        return validProducts.contains(targetNode.target.product)
+    }
+
     // swiftlint:disable:next line_length
-    internal func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool {
+    func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool {
         return { frameworkNode in
             let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
             return isDynamicLink ?? false
