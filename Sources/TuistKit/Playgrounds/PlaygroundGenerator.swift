@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 import TuistGenerator
 import TuistSupport
 
@@ -66,7 +67,7 @@ final class PlaygroundGenerator: PlaygroundGenerating {
         """
     }
 
-    static func xcplaygroundContent(platform: Platform) -> String {
+    static func xcplaygroundContent(platform: TuistCore.Platform) -> String {
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <playground version='5.0' target-platform='\(platform.rawValue.lowercased())'>

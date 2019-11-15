@@ -1,13 +1,14 @@
 import Foundation
 import ProjectDescription
+import TuistCore
 import TuistSupport
 
 protocol ManifestLinting {
-    func lint(project: Project) -> [LintingIssue]
+    func lint(project: ProjectDescription.Project) -> [LintingIssue]
 }
 
 class ManifestLinter: ManifestLinting {
-    func lint(project: Project) -> [LintingIssue] {
+    func lint(project: ProjectDescription.Project) -> [LintingIssue] {
         var issues = [LintingIssue]()
 
         if let settings = project.settings {
@@ -19,7 +20,7 @@ class ManifestLinter: ManifestLinting {
         return issues
     }
 
-    private func lint(target: Target) -> [LintingIssue] {
+    private func lint(target: ProjectDescription.Target) -> [LintingIssue] {
         var issues = [LintingIssue]()
 
         if let settings = target.settings {
@@ -29,7 +30,7 @@ class ManifestLinter: ManifestLinting {
         return issues
     }
 
-    private func lint(settings: Settings, declarationLocation: String) -> [LintingIssue] {
+    private func lint(settings: ProjectDescription.Settings, declarationLocation: String) -> [LintingIssue] {
         let configurationNames = settings.configurations.map(\.name)
 
         return configurationNames.spm_findDuplicates().map {

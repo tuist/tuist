@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 import TuistSupport
 
 /// A component responsible for generating Xcode projects & workspaces
@@ -57,7 +58,7 @@ public class Generator: Generating {
     public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                             modelLoader: GeneratorModelLoading) {
         let graphLinter = GraphLinter()
-        let graphLoader = GraphLoader(linter: graphLinter, modelLoader: modelLoader)
+        let graphLoader = GraphLoader(modelLoader: modelLoader)
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,

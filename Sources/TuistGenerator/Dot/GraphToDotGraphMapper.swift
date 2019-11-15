@@ -1,4 +1,5 @@
 import Foundation
+import TuistCore
 
 /// Interface that describes a mapper that convers a project graph into a dot graph.
 protocol GraphToDotGraphMapping {

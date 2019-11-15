@@ -1,4 +1,5 @@
 import Foundation
+import TuistCore
 import TuistSupport
 
 enum CocoaPodsInteractorError: FatalError, Equatable {

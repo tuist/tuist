@@ -1,4 +1,5 @@
 import Foundation
+import TuistCore
 import TuistSupport
 import XcodeProj
 
