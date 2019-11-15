@@ -30,6 +30,14 @@ public class MockEnvironment: Environmenting {
         return directory.path.appending(component: "settings.json")
     }
 
+    public var cacheDirectory: AbsolutePath {
+        return directory.path.appending(component: "Cache")
+    }
+
+    public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
+        return cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+    }
+
     func path(version: String) -> AbsolutePath {
         return versionsDirectory.appending(component: version)
     }

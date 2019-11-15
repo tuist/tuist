@@ -35,7 +35,6 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
 
         // Then
         XCTAssertNotNil(got)
-        XCTAssertTrue(FileHandler.shared.exists(got!.path))
-        try got!.cleanup()
+        XCTAssertTrue(FileHandler.shared.exists(got!))
     }
 }
