@@ -32,7 +32,7 @@ let package = Package(
     targets: [
         .target(
             name: "TuistCore",
-            dependencies: ["SPMUtility", "TuistSupport", "SPMUtility", "XcodeProj"]
+            dependencies: ["SPMUtility", "TuistSupport", "XcodeProj"]
         ),
         .target(
             name: "TuistCoreTesting",
