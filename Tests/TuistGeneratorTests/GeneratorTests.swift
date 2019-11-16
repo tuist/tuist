@@ -19,9 +19,19 @@ class GeneratorTests: XCTestCase {
         environmentLinter = MockEnvironmentLinter()
 
         subject = Generator(graphLoader: graphLoader,
+                            graphLinter: MockGraphLinter(),
                             workspaceGenerator: workspaceGenerator,
                             projectGenerator: projectGenerator,
                             environmentLinter: environmentLinter)
+    }
+
+    override func tearDown() {
+        workspaceGenerator = nil
+        projectGenerator = nil
+        graphLoader = nil
+        environmentLinter = nil
+        subject = nil
+        super.tearDown()
     }
 
     // MARK: - Tests
