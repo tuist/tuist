@@ -1,8 +1,10 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistCore
 import TuistSupport
 import XCTest
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 

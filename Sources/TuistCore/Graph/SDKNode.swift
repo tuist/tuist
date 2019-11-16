@@ -6,9 +6,9 @@ public class SDKNode: GraphNode {
     public let status: SDKStatus
     public let type: Type
 
-    init(name: String,
-         platform: Platform,
-         status: SDKStatus) throws {
+    public init(name: String,
+                platform: Platform,
+                status: SDKStatus) throws {
         let sdk = AbsolutePath("/\(name)")
 
         guard let sdkExtension = sdk.extension,

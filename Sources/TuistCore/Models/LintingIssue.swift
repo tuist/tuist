@@ -4,6 +4,7 @@ import TuistSupport
 public struct LintingError: FatalError, Equatable {
     public var description: String = "Fatal linting issues found"
     public var type: ErrorType = .abort
+    public init() {}
 }
 
 /// Linting issue.

@@ -3,6 +3,9 @@ import Foundation
 
 /// Graph loader cache.
 public class GraphLoaderCache: GraphLoaderCaching {
+    /// Initializer
+    public init() {}
+
     // MARK: - GraphLoaderCaching
 
     var tuistConfigs: [AbsolutePath: TuistConfig] = [:]

@@ -32,11 +32,15 @@ let package = Package(
     targets: [
         .target(
             name: "TuistCore",
-            dependencies: ["SPMUtility", "TuistSupport"]
+            dependencies: ["SPMUtility", "TuistSupport", "SPMUtility", "XcodeProj"]
+        ),
+        .target(
+            name: "TuistCoreTesting",
+            dependencies: ["TuistCore"]
         ),
         .testTarget(
             name: "TuistCoreTests",
-            dependencies: ["TuistCore", "TuistSupportTesting"]
+            dependencies: ["TuistCore", "TuistCoreTesting", "TuistSupportTesting"]
         ),
         .testTarget(
             name: "TuistCoreIntegrationTests",

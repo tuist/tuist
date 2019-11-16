@@ -1,7 +1,7 @@
 import Basic
 import Foundation
+import TuistCore
 import XCTest
-
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 

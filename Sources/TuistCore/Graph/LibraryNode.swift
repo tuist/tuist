@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-class LibraryNode: PrecompiledNode {
+public class LibraryNode: PrecompiledNode {
     // MARK: - Attributes
 
     let publicHeaders: AbsolutePath
@@ -18,7 +18,7 @@ class LibraryNode: PrecompiledNode {
         super.init(path: path)
     }
 
-    override func hash(into hasher: inout Hasher) {
+    public override func hash(into hasher: inout Hasher) {
         super.hash(into: &hasher)
         hasher.combine(publicHeaders)
         hasher.combine(swiftModuleMap)
@@ -62,11 +62,11 @@ class LibraryNode: PrecompiledNode {
         return libraryNode
     }
 
-    override var binaryPath: AbsolutePath {
+    public override var binaryPath: AbsolutePath {
         return path
     }
 
-    override func encode(to encoder: Encoder) throws {
+    public override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         let metadataProvider = LibraryMetadataProvider()
 

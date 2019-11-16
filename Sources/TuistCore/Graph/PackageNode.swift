@@ -15,7 +15,7 @@ public class PackageProductNode: GraphNode {
 public class PackageNode: GraphNode {
     public let package: Package
 
-    init(package: Package, path: AbsolutePath) {
+    public init(package: Package, path: AbsolutePath) {
         self.package = package
 
         let name: String

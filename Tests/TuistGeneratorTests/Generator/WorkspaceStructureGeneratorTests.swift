@@ -1,4 +1,6 @@
 import Basic
+import TuistCore
+import TuistCoreTesting
 import TuistSupport
 import XCTest
 @testable import TuistGenerator

@@ -56,3 +56,9 @@ extension AbsolutePath {
         return ancestorPath
     }
 }
+
+extension AbsolutePath: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        self = AbsolutePath(value)
+    }
+}

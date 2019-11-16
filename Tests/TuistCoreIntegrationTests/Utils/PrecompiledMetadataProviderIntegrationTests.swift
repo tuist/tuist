@@ -3,7 +3,7 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistGenerator
+@testable import TuistCore
 @testable import TuistSupportTesting
 
 final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
