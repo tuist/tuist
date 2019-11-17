@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 import TuistGenerator
 import TuistSupport
 import XCTest
@@ -345,7 +346,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = SettingsManifest(base: ["base": .string("base")], debug: debug, release: release)
 
         // When
-        let model = TuistGenerator.Settings.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.Settings.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         assert(settings: model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths)
@@ -357,7 +358,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = TuistGenerator.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
+        let got = TuistCore.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
 
         // Then
         guard case let .cocoapods(path) = got else {
@@ -373,7 +374,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = TuistGenerator.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
+        let got = TuistCore.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
 
         // Then
         guard
@@ -411,7 +412,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: "Sources/project/**")
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -456,7 +457,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -493,7 +494,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
 
         // When
-        let model = TuistGenerator.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -515,7 +516,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistGenerator.CoreDataModel.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.CoreDataModel.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertTrue(coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
@@ -531,7 +532,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                                             order: .pre,
                                                             arguments: ["arg1", "arg2"])
         // When
-        let model = TuistGenerator.TargetAction.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.TargetAction.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -546,7 +547,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = SchemeManifest.test(name: "Scheme",
                                            shared: false)
         // When
-        let model = TuistGenerator.Scheme.from(manifest: manifest)
+        let model = TuistCore.Scheme.from(manifest: manifest)
 
         // Then
         assert(scheme: model, matches: manifest)
@@ -571,7 +572,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                            testAction: testAction,
                                            runAction: runActions)
         // When
-        let model = TuistGenerator.Scheme.from(manifest: manifest)
+        let model = TuistCore.Scheme.from(manifest: manifest)
 
         // Then
         assert(scheme: model, matches: manifest)
@@ -597,10 +598,10 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest,
-                                                    path: temporaryPath,
-                                                    generatorPaths: generatorPaths,
-                                                    includeFiles: { !FileHandler.shared.isFolder($0) })
+        let model = TuistCore.FileElement.from(manifest: manifest,
+                                               path: temporaryPath,
+                                               generatorPaths: generatorPaths,
+                                               includeFiles: { !FileHandler.shared.isFolder($0) })
 
         // Then
         let documentationPath = temporaryPath.appending(component: "Documentation").pathString
@@ -615,7 +616,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation/**")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         let documentationPath = temporaryPath.appending(RelativePath("Documentation/**"))
@@ -634,7 +635,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.folderReference(path: "README.md")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -648,7 +649,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
 
         // When
-        let model = TuistGenerator.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = TuistCore.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -660,7 +661,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "13.1", devices: .iphone)
 
         // When
-        let got = TuistGenerator.DeploymentTarget.from(manifest: manifest)
+        let got = TuistCore.DeploymentTarget.from(manifest: manifest)
 
         // Then
         guard
@@ -727,7 +728,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         return manifestLoader
     }
 
-    func assert(target: TuistGenerator.Target,
+    func assert(target: TuistCore.Target,
                 matches manifest: ProjectDescription.Target,
                 at path: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -746,7 +747,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         }
     }
 
-    func assert(settings: TuistGenerator.Settings,
+    func assert(settings: TuistCore.Settings,
                 matches manifest: ProjectDescription.Settings,
                 at path: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -761,7 +762,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         }
     }
 
-    func assert(configuration: (TuistGenerator.BuildConfiguration, TuistGenerator.Configuration?),
+    func assert(configuration: (TuistCore.BuildConfiguration, TuistCore.Configuration?),
                 matches manifest: ProjectDescription.CustomConfiguration,
                 at _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -776,7 +777,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                        file: file, line: line)
     }
 
-    func assert(coreDataModels: [TuistGenerator.CoreDataModel],
+    func assert(coreDataModels: [TuistCore.CoreDataModel],
                 matches manifests: [ProjectDescription.CoreDataModel],
                 at path: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -788,7 +789,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                       line: line)
     }
 
-    func coreDataModel(_ coreDataModel: TuistGenerator.CoreDataModel,
+    func coreDataModel(_ coreDataModel: TuistCore.CoreDataModel,
                        matches manifest: ProjectDescription.CoreDataModel,
                        at _: AbsolutePath,
                        generatorPaths: GeneratorPaths) -> Bool {
@@ -796,7 +797,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
             && coreDataModel.currentVersion == manifest.currentVersion
     }
 
-    func assert(scheme: TuistGenerator.Scheme,
+    func assert(scheme: TuistCore.Scheme,
                 matches manifest: ProjectDescription.Scheme,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -815,14 +816,14 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         }
     }
 
-    func assert(buildAction: TuistGenerator.BuildAction,
+    func assert(buildAction: TuistCore.BuildAction,
                 matches manifest: ProjectDescription.BuildAction,
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(buildAction.targets, manifest.targets, file: file, line: line)
     }
 
-    func assert(testAction: TuistGenerator.TestAction,
+    func assert(testAction: TuistCore.TestAction,
                 matches manifest: ProjectDescription.TestAction,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -834,7 +835,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         }
     }
 
-    func assert(runAction: TuistGenerator.RunAction,
+    func assert(runAction: TuistCore.RunAction,
                 matches manifest: ProjectDescription.RunAction,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -845,7 +846,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         }
     }
 
-    func assert(arguments: TuistGenerator.Arguments,
+    func assert(arguments: TuistCore.Arguments,
                 matches manifest: ProjectDescription.Arguments,
                 file: StaticString = #file,
                 line: UInt = #line) {
@@ -869,9 +870,9 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     }
 }
 
-private func == (_ lhs: TuistGenerator.Platform,
+private func == (_ lhs: TuistCore.Platform,
                  _ rhs: ProjectDescription.Platform) -> Bool {
-    let map: [TuistGenerator.Platform: ProjectDescription.Platform] = [
+    let map: [TuistCore.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
         .tvOS: .tvOS,
@@ -879,9 +880,9 @@ private func == (_ lhs: TuistGenerator.Platform,
     return map[lhs] == rhs
 }
 
-private func == (_ lhs: TuistGenerator.Product,
+private func == (_ lhs: TuistCore.Product,
                  _ rhs: ProjectDescription.Product) -> Bool {
-    let map: [TuistGenerator.Product: ProjectDescription.Product] = [
+    let map: [TuistCore.Product: ProjectDescription.Product] = [
         .app: .app,
         .framework: .framework,
         .staticFramework: .staticFramework,
@@ -901,10 +902,4 @@ private func == (_ lhs: BuildConfiguration,
         .release: .release,
     ]
     return map[lhs.variant] == rhs.variant && lhs.name == rhs.name
-}
-
-extension AbsolutePath: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self.init(value)
-    }
 }

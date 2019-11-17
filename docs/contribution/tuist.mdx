@@ -52,11 +52,12 @@ To start working on the project, we can follow the steps below:
 
 The project is organized in several targets that are defined in the `Package.swift` manifest file:
 
-- **TuistCore:** Contains support utilities and extensions that are share across the other targets.
-- **ProjectManifest:** Contains the models that the developers can use to declare their projects in the `Project.swift` manifest file.
-- **TuistGenerator:** It contains all the business logic to read the project definition and generate Xcode projects
-- **TuistEnv:** It contains the commands and the logic to manage multiple Tuist versions in the environment.
 - **TuistKit:** It contains the commands and Tuist's business logic.
+- **TuistEnvKit:** It contains the commands and the logic to manage multiple Tuist versions in the environment.
+- **TuistGenerator:** It contains all the business logic to read the project definition and generate Xcode projects
+- **TuistCore:** Contains the models that are specific to the Tuist domain and protocols to allow doing dependency inversion between the features in the layers above.
+- **TuistSupport:** Contains support utilities and extensions that are share across the other targets. They are Tuist-agnostic.
+- **ProjectManifest:** Contains the models that the developers can use to declare their projects in the `Project.swift` manifest file.
 - **tuist:** It's the actual CLI that exposes the commands defined in `TuistKit`.
 - **tuistenv:** It's the CLI of `tuistenv`. It exposes the commands defined in `TuistEnvKit`.
 

@@ -1,5 +1,6 @@
 import Foundation
 import SPMUtility
+import TuistCore
 import TuistSupport
 
 protocol GraphLinting: AnyObject {
@@ -291,7 +292,7 @@ class GraphLinter: GraphLinting {
     }
 
     struct LintableTarget: Equatable, Hashable {
-        let platform: Platform
+        let platform: TuistCore.Platform
         let product: Product
     }
 

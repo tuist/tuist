@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 
 /// This protocols defines the interface of an utility that given a list of embeddable frameworks
 /// returns a bash script that can be executed in a script build phase to copy the frameworks to

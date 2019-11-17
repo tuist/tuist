@@ -1,5 +1,6 @@
 import Foundation
-
+import TuistCore
+import TuistCoreTesting
 @testable import TuistGenerator
 
 final class MockInfoPlistContentProvider: InfoPlistContentProviding {

@@ -1,4 +1,5 @@
 import Basic
+import TuistCore
 import TuistGenerator
 import TuistSupport
 

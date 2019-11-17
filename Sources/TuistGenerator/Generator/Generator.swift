@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 import TuistSupport
 
 /// A component responsible for generating Xcode projects & workspaces
@@ -48,6 +49,7 @@ public protocol Generating {
 /// - seealso: GeneratorModelLoading
 public class Generator: Generating {
     private let graphLoader: GraphLoading
+    private let graphLinter: GraphLinting
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating
 
@@ -57,7 +59,7 @@ public class Generator: Generating {
     public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
                             modelLoader: GeneratorModelLoading) {
         let graphLinter = GraphLinter()
-        let graphLoader = GraphLoader(linter: graphLinter, modelLoader: modelLoader)
+        let graphLoader = GraphLoader(modelLoader: modelLoader)
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
@@ -69,16 +71,19 @@ public class Generator: Generating {
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
                                                     cocoapodsInteractor: cocoapodsInteractor)
         self.init(graphLoader: graphLoader,
+                  graphLinter: graphLinter,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,
                   environmentLinter: environmentLinter)
     }
 
     init(graphLoader: GraphLoading,
+         graphLinter: GraphLinting,
          workspaceGenerator: WorkspaceGenerating,
          projectGenerator: ProjectGenerating,
          environmentLinter: EnvironmentLinting) {
         self.graphLoader = graphLoader
+        self.graphLinter = graphLinter
         self.workspaceGenerator = workspaceGenerator
         self.projectGenerator = projectGenerator
         self.environmentLinter = environmentLinter
@@ -89,6 +94,8 @@ public class Generator: Generating {
         try environmentLinter.lint(config: tuistConfig)
 
         let (graph, project) = try graphLoader.loadProject(path: path)
+        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
+
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
                                                              sourceRootPath: path)
@@ -101,6 +108,8 @@ public class Generator: Generating {
         try environmentLinter.lint(config: tuistConfig)
 
         let (graph, project) = try graphLoader.loadProject(path: path)
+        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
+
         let workspace = Workspace(name: project.name,
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
@@ -116,6 +125,7 @@ public class Generator: Generating {
         let tuistConfig = try graphLoader.loadTuistConfig(path: path)
         try environmentLinter.lint(config: tuistConfig)
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
         let updatedWorkspace = workspace
             .merging(projects: graph.projectPaths)

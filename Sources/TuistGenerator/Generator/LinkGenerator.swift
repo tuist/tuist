@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import PathKit
+import TuistCore
 import TuistSupport
 import XcodeProj
 

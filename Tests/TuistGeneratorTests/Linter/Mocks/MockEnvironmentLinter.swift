@@ -1,5 +1,5 @@
 import Foundation
-
+import TuistCore
 @testable import TuistGenerator
 
 final class MockEnvironmentLinter: EnvironmentLinting {
