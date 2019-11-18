@@ -17,10 +17,17 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     /// Instance to locate the root directory of the project.
     let rootDirectoryLocator: RootDirectoryLocating
 
+    /// Path to the cache directory.
+    let cacheDirectory: AbsolutePath
+
     /// Initializes the builder with its attributes.
-    /// - Parameter rootDirectoryLocator: Instance to locate the root directory of the project.
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    /// - Parameters:
+    ///   - rootDirectoryLocator: Instance to locate the root directory of the project.
+    ///   - cacheDirectory: Path to the cache directory.
+    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+         cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory) {
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.cacheDirectory = cacheDirectory
     }
 
     func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
@@ -29,8 +36,7 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         let prefixHash = self.prefixHash(helpersDirectory: helpersDirectory)
 
         // Get paths
-        let cachePath = Environment.shared.projectDescriptionHelpersCacheDirectory
-        let helpersCachePath = cachePath.appending(component: prefixHash)
+        let helpersCachePath = cacheDirectory.appending(component: prefixHash)
         let helpersModuleCachePath = helpersCachePath.appending(component: hash)
         let dylibName = "libProjectDescriptionHelpers.dylib"
 
