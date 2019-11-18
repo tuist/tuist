@@ -15,6 +15,7 @@ export default {
   menu: [
     'Getting started',
     'Project & Workspace',
+    'Project description helpers',
     'Configuration',
     'Dependencies',
     'Setup',
