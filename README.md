@@ -73,7 +73,7 @@ bash <(curl -Ls https://install.tuist.io)
 ## Bootstrap your first project 🌀
 
 ```bash
-tuist init --platform ios --product application
+tuist init --platform ios
 tuist generate # Generates Xcode project & workspace
 ```
 
