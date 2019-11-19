@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- Add `ProjectDescription.Settings.defaultSettings` none case that don't override any `Project` or `Target` settings. https://github.com/tuist/tuist/pull/698 by @rowwingman
+
 ## 0.19.0
 
 ### Added
