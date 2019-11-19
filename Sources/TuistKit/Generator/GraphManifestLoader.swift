@@ -185,12 +185,12 @@ class GraphManifestLoader: GraphManifestLoading {
         ]
 
         // Helpers
-        let projectDesciptionHelpersModule = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
-        if let projectDesciptionHelpersModule = projectDesciptionHelpersModule {
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
-                "-I", projectDesciptionHelpersModule.path.parentDirectory.pathString,
-                "-L", projectDesciptionHelpersModule.path.parentDirectory.pathString,
-                "-F", projectDesciptionHelpersModule.path.parentDirectory.pathString,
+                "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-L", projectDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-F", projectDesciptionHelpersModulePath.parentDirectory.pathString,
                 "-lProjectDescriptionHelpers",
             ])
         }
@@ -202,8 +202,6 @@ class GraphManifestLoader: GraphManifestLoading {
         guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
             throw GraphManifestLoaderError.unexpectedOutput(path)
         }
-
-        try projectDesciptionHelpersModule?.cleanup()
 
         return data
     }

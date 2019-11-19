@@ -16,6 +16,12 @@ public protocol Environmenting: AnyObject {
 
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
+
+    /// Returns the cache directory
+    var cacheDirectory: AbsolutePath { get }
+
+    /// Returns the directory where the project description helper modules are cached.
+    var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
 }
 
 /// Local environment controller.
@@ -79,6 +85,16 @@ public class Environment: Environmenting {
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
         return directory.appending(component: "Versions")
+    }
+
+    /// Returns the directory where the project description helper modules are cached.
+    public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
+        return cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+    }
+
+    /// Returns the cache directory
+    public var cacheDirectory: AbsolutePath {
+        return directory.appending(component: "Cache")
     }
 
     /// Returns the directory where all the derived projects are generated.

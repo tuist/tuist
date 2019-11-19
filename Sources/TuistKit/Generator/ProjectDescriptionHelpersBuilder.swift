@@ -2,29 +2,6 @@ import Basic
 import Foundation
 import TuistSupport
 
-/// This struct represents a project description helpers
-/// module that has been created temporarily to load the manifests.
-class ProjectDescriptionHelpersModule {
-    /// Path to the module.
-    let path: AbsolutePath
-
-    /// Function to clean up the temporary module.
-    let cleanup: () throws -> Void
-
-    /// Initializes an instance with the given attributes.
-    /// - Parameters:
-    ///   - path: Path to the module.
-    ///   - cleanup: Function to clean up the temporary module.
-    init(path: AbsolutePath, cleanup: @escaping () throws -> Void) {
-        self.path = path
-        self.cleanup = cleanup
-    }
-
-    deinit {
-        try? cleanup()
-    }
-}
-
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
 /// from any manifest being loaded.
@@ -33,42 +10,92 @@ protocol ProjectDescriptionHelpersBuilding: AnyObject {
     /// - Parameters:
     ///   - at: Path to the directory that contains the manifest being loaded.
     ///   - projectDescriptionPath: Path to the project description module.
-    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> ProjectDescriptionHelpersModule?
+    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath?
 }
 
 final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
+    /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
+    /// in the current process for helpers directories (key of the dictionary)
+    fileprivate var builtHelpers: [AbsolutePath: AbsolutePath] = [:]
+
     /// Instance to locate the root directory of the project.
     let rootDirectoryLocator: RootDirectoryLocating
 
+    /// Path to the cache directory.
+    let cacheDirectory: AbsolutePath
+
     /// Initializes the builder with its attributes.
-    /// - Parameter rootDirectoryLocator: Instance to locate the root directory of the project.
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    /// - Parameters:
+    ///   - rootDirectoryLocator: Instance to locate the root directory of the project.
+    ///   - cacheDirectory: Path to the cache directory.
+    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+         cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory) {
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.cacheDirectory = cacheDirectory
     }
 
-    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> ProjectDescriptionHelpersModule? {
-        // We return if the helpers directory doesn't exist at /Tuist/ProjectDesciptionHelpers
+    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
+        guard let helpersDirectory = self.helpersDirectory(at: at) else { return nil }
+        if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
+
+        let hash = try self.hash(helpersDirectory: helpersDirectory)
+        let prefixHash = self.prefixHash(helpersDirectory: helpersDirectory)
+
+        // Get paths
+        let helpersCachePath = cacheDirectory.appending(component: prefixHash)
+        let helpersModuleCachePath = helpersCachePath.appending(component: hash)
+        let dylibName = "libProjectDescriptionHelpers.dylib"
+
+        if FileHandler.shared.exists(helpersModuleCachePath) {
+            return helpersModuleCachePath.appending(component: dylibName)
+        }
+
+        // If the same helpers directory has been previously compiled
+        // we delete it before compiling the new changes.
+        if FileHandler.shared.exists(helpersCachePath) {
+            try FileHandler.shared.delete(helpersCachePath)
+        }
+        try FileHandler.shared.createFolder(helpersModuleCachePath)
+
+        let command = self.command(outputDirectory: helpersModuleCachePath,
+                                   helpersDirectory: helpersDirectory,
+                                   projectDescriptionPath: projectDescriptionPath)
+        try System.shared.runAndPrint(command)
+
+        let modulePath = helpersModuleCachePath.appending(component: dylibName)
+        builtHelpers[helpersDirectory] = modulePath
+        return modulePath
+    }
+
+    // MARK: - Fileprivate
+
+    /// Returns the path to the helpers directory if it exists.
+    /// - Parameter at: Path from which we traverse the hierarchy to obtain the helpers directory.
+    fileprivate func helpersDirectory(at: AbsolutePath) -> AbsolutePath? {
         guard let rootDirectory = self.rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.helpersDirectoryName)
         if !FileHandler.shared.exists(helpersDirectory) { return nil }
+        return helpersDirectory
+    }
 
+    fileprivate func command(outputDirectory: AbsolutePath,
+                             helpersDirectory: AbsolutePath,
+                             projectDescriptionPath: AbsolutePath) -> [String] {
         let files = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
-        let temporaryDirectory = try TemporaryDirectory()
-        let outputPath = temporaryDirectory.path.appending(component: "libProjectDescriptionHelpers.dylib")
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",
             "-module-name", "ProjectDescriptionHelpers",
             "-emit-module",
-            "-emit-module-path", temporaryDirectory.path.appending(component: "ProjectDescriptionHelpers.swiftmodule").pathString,
+            "-emit-module-path", outputDirectory.appending(component: "ProjectDescriptionHelpers.swiftmodule").pathString,
             "-parse-as-library",
             "-emit-library",
             "-suppress-warnings",
             "-I", projectDescriptionPath.parentDirectory.pathString,
             "-L", projectDescriptionPath.parentDirectory.pathString,
             "-F", projectDescriptionPath.parentDirectory.pathString,
-            "-working-directory", temporaryDirectory.path.pathString,
+            "-working-directory", outputDirectory.pathString,
         ]
         if projectDescriptionPath.extension == "dylib" {
             command.append(contentsOf: ["-lProjectDescription"])
@@ -77,10 +104,31 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         }
 
         command.append(contentsOf: files.map { $0.pathString })
+        return command
+    }
 
-        try System.shared.runAndPrint(command)
+    /// This method returns a hash based on the content in the helpers directory
+    /// and the Swift version used to compile the module.
+    /// - Parameter helpersDirectory: Path to the helpers directory.
+    fileprivate func hash(helpersDirectory: AbsolutePath) throws -> String {
+        let fileHashes = FileHandler.shared
+            .glob(helpersDirectory, glob: "**/*.swift")
+            .compactMap { $0.sha256() }
+            .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
+        let swiftVersion = try System.shared.swiftVersion() ?? ""
+        let tuistVersion = Constants.version
 
-        let cleanup = { try FileHandler.shared.delete(temporaryDirectory.path) }
-        return ProjectDescriptionHelpersModule(path: outputPath, cleanup: cleanup)
+        let identifiers = [swiftVersion, tuistVersion] + fileHashes
+
+        return identifiers.joined(separator: "-").md5
+    }
+
+    /// Gets the prefix hash for the given helpers directory.
+    /// This is useful to uniquely identify a helpers directory in the cache.
+    /// - Parameter helpersDirectory: Path to the helpers directory.
+    fileprivate func prefixHash(helpersDirectory: AbsolutePath) -> String {
+        let pathString = helpersDirectory.pathString
+        let index = pathString.index(pathString.startIndex, offsetBy: 7)
+        return String(helpersDirectory.pathString.md5[..<index])
     }
 }
