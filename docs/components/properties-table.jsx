@@ -1,6 +1,7 @@
 import React from 'react'
 import { Responsive, Label, Table } from 'semantic-ui-react'
 import StyledCode from "./styled-code"
+import ReactMarkdown from "react-markdown"
 
 const PropertiesTable = ({ properties }) => {
   return (
@@ -32,7 +33,7 @@ const PropertiesTable = ({ properties }) => {
                 {prop.deprecated && <Label ribbon>Deprecated</Label>}
                 {prop.name}
               </Table.Cell>
-              <Table.Cell>{prop.description}</Table.Cell>
+              <Table.Cell><ReactMarkdown source={prop.description}/></Table.Cell>
               <Table.Cell>
                 <Responsive as="b" {...Responsive.onlyMobile}>
                   Type:{' '}
