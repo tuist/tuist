@@ -1,5 +1,6 @@
 import React from 'react'
 import { Message as SemanticMessage } from 'semantic-ui-react'
+import ReactMarkdown from "react-markdown"
 
 const Message = ({ title, description, success, warning, info, error }) => (
   <SemanticMessage
@@ -9,7 +10,7 @@ const Message = ({ title, description, success, warning, info, error }) => (
     error={error}
   >
     <SemanticMessage.Header>{title}</SemanticMessage.Header>
-    <p>{description}</p>
+    <ReactMarkdown source={description}/>
   </SemanticMessage>
 )
 
