@@ -19,6 +19,7 @@ final class BuildCopierTests: XCTestCase {
             "tuist",
             "ProjectDescription.swiftmodule",
             "ProjectDescription.swiftdoc",
+            "ProjectDescription.swiftinterface",
             "libProjectDescription.dylib",
         ])
     }
