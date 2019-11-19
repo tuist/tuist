@@ -31,14 +31,13 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         let projectDescriptionPath = try resourceLocator.projectDescription()
 
         // When
-        _ = try subject.build(at: path, projectDescriptionPath: projectDescriptionPath)
-        let got = try subject.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionPath: projectDescriptionPath) }
 
         // Then
-        XCTAssertNotNil(got)
+        XCTAssertEqual(Set(paths).count, 1)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftmodule").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libProjectDescriptionHelpers.dylib").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftdoc").first)
-        XCTAssertTrue(FileHandler.shared.exists(got!))
+        XCTAssertTrue(FileHandler.shared.exists(paths.first!!))
     }
 }

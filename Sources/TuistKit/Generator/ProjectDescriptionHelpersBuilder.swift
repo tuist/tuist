@@ -14,6 +14,10 @@ protocol ProjectDescriptionHelpersBuilding: AnyObject {
 }
 
 final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
+    /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
+    /// in the current process for helpers directories (key of the dictionary)
+    fileprivate var builtHelpers: [AbsolutePath: AbsolutePath] = [:]
+
     /// Instance to locate the root directory of the project.
     let rootDirectoryLocator: RootDirectoryLocating
 
@@ -32,6 +36,8 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
 
     func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
         guard let helpersDirectory = self.helpersDirectory(at: at) else { return nil }
+        if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
+
         let hash = try self.hash(helpersDirectory: helpersDirectory)
         let prefixHash = self.prefixHash(helpersDirectory: helpersDirectory)
 
@@ -56,7 +62,9 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
                                    projectDescriptionPath: projectDescriptionPath)
         try System.shared.runAndPrint(command)
 
-        return helpersModuleCachePath.appending(component: dylibName)
+        let modulePath = helpersModuleCachePath.appending(component: dylibName)
+        builtHelpers[helpersDirectory] = modulePath
+        return modulePath
     }
 
     // MARK: - Fileprivate
