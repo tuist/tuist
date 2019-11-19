@@ -180,11 +180,15 @@ final class Installer: Installing {
                                   "--product", "tuist",
                                   "--package-path", temporaryDirectory.path.pathString,
                                   "--configuration", "release")
+
             try System.shared.run(swiftPath, "build",
                                   "--product", "ProjectDescription",
                                   "--package-path", temporaryDirectory.path.pathString,
                                   "--configuration", "release",
-                                  "-Xswiftc", "-enable-library-evolution")
+                                  "-Xswiftc", "-enable-library-evolution",
+                                  "-Xswiftc", "-emit-module-interface",
+                                  "-Xswiftc", "-emit-module-interface-path",
+                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString)
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)

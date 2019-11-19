@@ -81,14 +81,22 @@ def package
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
   system("swift", "build", "--product", "tuist", "--configuration", "release")
-  system("swift", "build", "--product", "ProjectDescription", "--configuration", "release", "-Xswiftc", "-enable-library-evolution")
+  system(
+    "swift", "build",
+    "--product", "ProjectDescription",
+    "--configuration", "release",
+    "-Xswiftc", "-enable-library-evolution",
+    "-Xswiftc", "-emit-module-interface",
+    "-Xswiftc", "-emit-module-interface-path",
+    "-Xswiftc", ".build/release/ProjectDescription.swiftinterface"
+  )
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
 
   Dir.chdir(".build/release") do
     system(
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
-      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib"
+      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface"
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
