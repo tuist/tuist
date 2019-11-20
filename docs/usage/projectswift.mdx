@@ -191,10 +191,10 @@ Each target in the list of project targets can be initialized with the following
     },
     {
       name: 'Bundle id',
-      description: 'The product bundle identifier.',
+      description: 'The product bundle identifier. Can be nil if you provide `PRODUCT_BUNDLE_IDENTIFIER` in `xcconfig` file otherwise it is required.',
       type: 'String',
-      optional: false,
-      default: '',
+      optional: true,
+      default: 'nil',
     },
     {
       name: 'Info plist',

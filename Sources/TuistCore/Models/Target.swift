@@ -15,7 +15,7 @@ public class Target: Equatable, Hashable {
     public let name: String
     public let platform: Platform
     public let product: Product
-    public let bundleId: String
+    public let bundleId: String?
     public let productName: String
     public let deploymentTarget: DeploymentTarget?
 
@@ -39,7 +39,7 @@ public class Target: Equatable, Hashable {
                 platform: Platform,
                 product: Product,
                 productName: String?,
-                bundleId: String,
+                bundleId: String?,
                 deploymentTarget: DeploymentTarget? = nil,
                 infoPlist: InfoPlist? = nil,
                 entitlements: AbsolutePath? = nil,

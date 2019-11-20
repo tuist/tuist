@@ -13,7 +13,7 @@ public struct Target: Codable, Equatable {
     public let product: Product
 
     /// Bundle identifier.
-    public let bundleId: String
+    public let bundleId: String?
 
     /// The name of the product output by this target.
     /// passing nil in the initialiser will default
@@ -93,7 +93,7 @@ public struct Target: Codable, Equatable {
                 platform: Platform,
                 product: Product,
                 productName: String? = nil,
-                bundleId: String,
+                bundleId: String?,
                 deploymentTarget: DeploymentTarget? = nil,
                 infoPlist: InfoPlist,
                 sources: SourceFilesList? = nil,

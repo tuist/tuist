@@ -163,7 +163,9 @@ final class ConfigGenerator: ConfigGenerating {
     private func generalTargetDerivedSettings(target: Target,
                                               sourceRootPath: AbsolutePath) -> [String: SettingValue] {
         var settings: [String: SettingValue] = [:]
-        settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
+        if let bundleId = target.bundleId {
+            settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(bundleId)
+        }
 
         // Info.plist
         if let infoPlist = target.infoPlist, let path = infoPlist.path {

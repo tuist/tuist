@@ -62,7 +62,7 @@ final class TargetNodeTests: XCTestCase {
         {
         "type": "source",
         "path" : "\(node.path.pathString)",
-        "bundle_id" : "\(node.target.bundleId)",
+        "bundle_id" : "\(node.target.bundleId!)",
         "product" : "\(node.target.product.rawValue)",
         "name" : "\(node.target.name)",
         "dependencies" : [

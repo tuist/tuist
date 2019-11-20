@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- `Target.bundleId` is optional now, if you set your `PRODUCT_BUNDLE_IDENTIFIER` with `xcconfig` file, you don't need to duplicate it in `Project.swift` file anymore.  https://github.com/tuist/tuist/pull/700 by @rowwingman
+
 ## 0.19.0
 
 ### Added

@@ -258,10 +258,12 @@ class GraphLinter: GraphLinting {
     }
 
     private func lint(watchApp: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
-        guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
+        guard let watchAppBundleId = watchApp.target.bundleId else { return [] }
+        guard let parentBundleId = parentApp.target.bundleId else { return [] }
+        guard watchAppBundleId.hasPrefix(parentBundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch app '\(watchApp.name)' bundleId: \(watchApp.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target.bundleId)'
+                Watch app '\(watchApp.name)' bundleId: \(watchAppBundleId) isn't prefixed with its parent's app '\(parentBundleId)' bundleId '\(parentBundleId)'
                 """, severity: .error),
             ]
         }
@@ -269,10 +271,12 @@ class GraphLinter: GraphLinting {
     }
 
     private func lint(watchExtension: TargetNode, parentWatchApp: TargetNode) -> [LintingIssue] {
-        guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
+        guard let watchExtensionBundleId = watchExtension.target.bundleId else { return [] }
+        guard let parentBundleId = parentWatchApp.target.bundleId else { return [] }
+        guard watchExtensionBundleId.hasPrefix(parentBundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch extension '\(watchExtension.name)' bundleId: \(watchExtension.target.bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target.bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
+                Watch extension '\(watchExtension.name)' bundleId: \(watchExtensionBundleId) isn't prefixed with its parent's watch app '\(parentBundleId)' bundleId '\(parentBundleId)'
                 """, severity: .error),
             ]
         }

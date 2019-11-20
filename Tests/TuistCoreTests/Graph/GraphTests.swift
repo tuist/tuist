@@ -895,7 +895,7 @@ final class GraphTests: TuistUnitTestCase {
             },
             {
               "product" : "\(target.target.product.rawValue)",
-              "bundle_id" : "\(target.target.bundleId)",
+              "bundle_id" : "\(target.target.bundleId!)",
               "platform" : "\(target.target.platform.rawValue)",
               "path" : "\(target.path)",
               "dependencies" : [
