@@ -140,6 +140,7 @@ public extension CustomConfiguration {
 public enum DefaultSettings: String, Codable {
     case recommended
     case essential
+    case none
 }
 
 // MARK: - Settings
