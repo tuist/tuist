@@ -141,6 +141,15 @@ public class Graph: Graphing {
 
     // MARK: - Init
 
+    public convenience init(name: String,
+                            entryPath: AbsolutePath,
+                            cache: GraphLoaderCaching) {
+        self.init(name: name,
+                  entryPath: entryPath,
+                  cache: cache,
+                  entryNodes: [])
+    }
+
     init(name: String,
          entryPath: AbsolutePath,
          cache: GraphLoaderCaching,

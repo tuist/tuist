@@ -18,24 +18,24 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     /// in the current process for helpers directories (key of the dictionary)
     fileprivate var builtHelpers: [AbsolutePath: AbsolutePath] = [:]
 
-    /// Instance to locate the root directory of the project.
-    let rootDirectoryLocator: RootDirectoryLocating
-
     /// Path to the cache directory.
     let cacheDirectory: AbsolutePath
 
+    /// Instance to locate the helpers directory.
+    let helpersDirectoryLocator: HelpersDirectoryLocating
+
     /// Initializes the builder with its attributes.
     /// - Parameters:
-    ///   - rootDirectoryLocator: Instance to locate the root directory of the project.
     ///   - cacheDirectory: Path to the cache directory.
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-         cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory) {
-        self.rootDirectoryLocator = rootDirectoryLocator
+    ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
+    init(cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
+         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
         self.cacheDirectory = cacheDirectory
+        self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
     func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
-        guard let helpersDirectory = self.helpersDirectory(at: at) else { return nil }
+        guard let helpersDirectory = self.helpersDirectoryLocator.locate(at: at) else { return nil }
         if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
 
         let hash = try self.hash(helpersDirectory: helpersDirectory)
@@ -68,17 +68,6 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     }
 
     // MARK: - Fileprivate
-
-    /// Returns the path to the helpers directory if it exists.
-    /// - Parameter at: Path from which we traverse the hierarchy to obtain the helpers directory.
-    fileprivate func helpersDirectory(at: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = self.rootDirectoryLocator.locate(from: at) else { return nil }
-        let helpersDirectory = rootDirectory
-            .appending(component: Constants.tuistDirectoryName)
-            .appending(component: Constants.helpersDirectoryName)
-        if !FileHandler.shared.exists(helpersDirectory) { return nil }
-        return helpersDirectory
-    }
 
     fileprivate func command(outputDirectory: AbsolutePath,
                              helpersDirectory: AbsolutePath,

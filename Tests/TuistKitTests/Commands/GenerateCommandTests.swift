@@ -157,7 +157,7 @@ final class GenerateCommandTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
-        generator.generateProjectStub = { path in
+        generator.generateProjectAtStub = { path in
             generationPath = path
             return path.appending(component: "project.xcodeproj")
         }
