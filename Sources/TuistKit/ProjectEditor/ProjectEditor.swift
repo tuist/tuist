@@ -26,7 +26,8 @@ protocol ProjectEditing: AnyObject {
     /// - Parameters:
     ///   - at: Directory whose project will be edited.
     ///   - destinationDirectory: Directory in which the Xcode project will be generated.
-    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws
+    /// - Returns: The path to the generated Xcode project.
+    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath
 }
 
 final class ProjectEditor: ProjectEditing {
@@ -57,7 +58,7 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws {
+    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath {
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locate(at: at)
         var helpers: [AbsolutePath] = []
@@ -74,6 +75,6 @@ final class ProjectEditor: ProjectEditing {
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        projectDescriptionPath: projectDesciptionPath)
-        _ = try generator.generateProject(project, graph: graph)
+        return try generator.generateProject(project, graph: graph)
     }
 }

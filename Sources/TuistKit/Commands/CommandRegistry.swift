@@ -26,6 +26,7 @@ public final class CommandRegistry {
         register(command: FocusCommand.self)
         register(command: UpCommand.self)
         register(command: GraphCommand.self)
+        register(command: EditCommand.self)
         register(rawCommand: BuildCommand.self)
     }
 
