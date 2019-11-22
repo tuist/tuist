@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistSupport
 import XCTest
 
 @testable import TuistKit
@@ -46,6 +47,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsTarget?.sources.map { $0.path }, manifestPaths)
         XCTAssertEqual(manifestsTarget?.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(manifestsTarget?.dependencies, [.target(name: "ProjectDescriptionHelpers")])
+        assertRightSettings(manifestsTarget, sourceRootPath: sourceRootPath)
 
         XCTAssertEqual(helpersTarget?.name, "ProjectDescriptionHelpers")
         XCTAssertEqual(helpersTarget?.platform, .macOS)
@@ -54,6 +56,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(helpersTarget?.sources.map { $0.path }, helperPaths)
         XCTAssertEqual(helpersTarget?.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(helpersTarget?.dependencies, [])
+        assertRightSettings(helpersTarget, sourceRootPath: sourceRootPath)
 
         let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
         XCTAssertEqual(targetNodes.count, 2)
@@ -89,10 +92,23 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsTarget?.sources.map { $0.path }, manifestPaths)
         XCTAssertEqual(manifestsTarget?.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(manifestsTarget?.dependencies, [])
+        assertRightSettings(manifestsTarget, sourceRootPath: sourceRootPath)
 
         let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
         XCTAssertEqual(targetNodes.count, 1)
         XCTAssertEqual(targetNodes.first?.target, manifestsTarget)
         XCTAssertEqual(targetNodes.first?.dependencies, [])
+    }
+
+    fileprivate func assertRightSettings(_ target: Target?, sourceRootPath: AbsolutePath, file _: StaticString = #file, line _: UInt = #line) {
+        XCTAssertEqual(target?.settings?.defaultSettings, .recommended)
+        let base = target?.settings?.base
+
+        XCTAssertEqual(base, [
+            "FRAMEWORK_SEARCH_PATHS": .string(sourceRootPath.pathString),
+            "LIBRARY_SEARCH_PATHS": .string(sourceRootPath.pathString),
+            "SWIFT_INCLUDE_PATHS": .string(sourceRootPath.pathString),
+            "SWIFT_VERSION": .string(Constants.swiftVersion),
+        ])
     }
 }
