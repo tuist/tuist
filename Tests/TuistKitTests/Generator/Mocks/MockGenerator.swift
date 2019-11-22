@@ -1,11 +1,17 @@
 import Basic
 import Foundation
+import TuistCore
 import TuistGenerator
 
 class MockGenerator: Generating {
-    var generateProjectStub: ((AbsolutePath) throws -> AbsolutePath)?
+    var generateProjectAtStub: ((AbsolutePath) throws -> AbsolutePath)?
     func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
-        return try generateProjectStub?(path) ?? AbsolutePath("/test")
+        return try generateProjectAtStub?(path) ?? AbsolutePath("/test")
+    }
+
+    var generateProjectStub: ((Project) throws -> AbsolutePath)?
+    func generateProject(_ project: Project, graph _: Graphing) throws -> AbsolutePath {
+        return try generateProjectStub?(project) ?? AbsolutePath("/test")
     }
 
     var generateProjectWorkspaceStub: ((AbsolutePath, [AbsolutePath]) throws -> AbsolutePath)?

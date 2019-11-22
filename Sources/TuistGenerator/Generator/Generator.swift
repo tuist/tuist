@@ -14,6 +14,12 @@ public protocol Generating {
     /// - seealso: TuistCore.FatalError
     func generateProject(at path: AbsolutePath) throws -> AbsolutePath
 
+    /// Generates the given project in the same directory where it's defined.
+    /// - Parameters:
+    ///     - project: The project to be generated.
+    ///     - graph: The dependencies graph.
+    func generateProject(_ project: Project, graph: Graphing) throws -> AbsolutePath
+
     /// Generate an Xcode workspace for the project at a given path. All the project's dependencies will also be generated and included.
     ///
     /// - Parameters:
@@ -87,6 +93,13 @@ public class Generator: Generating {
         self.workspaceGenerator = workspaceGenerator
         self.projectGenerator = projectGenerator
         self.environmentLinter = environmentLinter
+    }
+
+    public func generateProject(_ project: Project, graph: Graphing) throws -> AbsolutePath {
+        let generatedProject = try projectGenerator.generate(project: project,
+                                                             graph: graph,
+                                                             sourceRootPath: project.path)
+        return generatedProject.path
     }
 
     public func generateProject(at path: AbsolutePath) throws -> AbsolutePath {

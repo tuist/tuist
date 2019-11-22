@@ -16,7 +16,7 @@ public class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible 
 
     // MARK: - Init
 
-    init(path: AbsolutePath, name: String) {
+    public init(path: AbsolutePath, name: String) {
         self.path = path
         self.name = name
     }

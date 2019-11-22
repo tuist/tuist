@@ -49,9 +49,9 @@ public class Project: Equatable, CustomStringConvertible {
                 fileName: String? = nil,
                 settings: Settings,
                 filesGroup: ProjectGroup,
-                targets: [Target],
-                packages: [Package],
-                schemes: [Scheme],
+                targets: [Target] = [],
+                packages: [Package] = [],
+                schemes: [Scheme] = [],
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name

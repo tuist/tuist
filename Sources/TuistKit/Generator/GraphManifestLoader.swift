@@ -94,6 +94,9 @@ class GraphManifestLoader: GraphManifestLoading {
     /// Instance to compile and return a temporary module that contains the helper files.
     let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
 
+    /// Utility to locate manifest files.
+    let manifestFilesLocator: ManifestFilesLocating
+
     /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
 
@@ -104,10 +107,13 @@ class GraphManifestLoader: GraphManifestLoading {
     /// - Parameters:
     ///   - resourceLocator: Resource locator to look up Tuist-related resources.
     ///   - helpersLoader: Instance to compile and return a temporary module that contains the helper files.
+    ///   - manifestFilesLocator: Utility to locate manifest files.
     init(resourceLocator: ResourceLocating = ResourceLocator(),
-         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder()) {
+         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder(),
+         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()) {
         self.resourceLocator = resourceLocator
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
+        self.manifestFilesLocator = manifestFilesLocator
         decoder = JSONDecoder()
     }
 
@@ -122,9 +128,7 @@ class GraphManifestLoader: GraphManifestLoading {
     }
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        return .init(Manifest.allCases.filter {
-            FileHandler.shared.exists(path.appending(component: $0.fileName))
-        })
+        return Set(manifestFilesLocator.locate(at: path).map { $0.0 })
     }
 
     /// Loads the TuistConfig.swift in the given directory.
