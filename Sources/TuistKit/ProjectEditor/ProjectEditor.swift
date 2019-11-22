@@ -4,6 +4,10 @@ import TuistGenerator
 import TuistSupport
 
 protocol ProjectEditing: AnyObject {
+    /// Generates an Xcode project to edit the Project defined in the given directory.
+    /// - Parameters:
+    ///   - at: Directory whose project will be edited.
+    ///   - destinationDirectory: Directory in which the Xcode project will be generated.
     func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws
 }
 

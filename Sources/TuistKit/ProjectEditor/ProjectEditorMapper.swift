@@ -25,22 +25,26 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                                       defaultSettings: .recommended)
 
         // Targets
+        var manifestsDependencies: [Dependency] = []
+        if !helpers.isEmpty {
+            manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
+        }
         let manifestsTarget = Target(name: "Manifests",
                                      platform: .macOS,
                                      product: .staticFramework,
                                      productName: "Manifests",
-                                     bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
+                                     bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
                                      settings: targetSettings,
                                      sources: manifests.map { (path: $0, compilerFlags: nil) },
                                      filesGroup: .group(name: "Manifests"),
-                                     dependencies: [.target(name: "ProjectDescriptionHelpers")])
+                                     dependencies: manifestsDependencies)
         var helpersTarget: Target?
         if !helpers.isEmpty {
             helpersTarget = Target(name: "ProjectDescriptionHelpers",
                                    platform: .macOS,
                                    product: .staticFramework,
                                    productName: "ProjectDescriptionHelpers",
-                                   bundleId: "io.tuist.manifests.${PRODUCT_NAME:rfc1034identifier}",
+                                   bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
                                    settings: targetSettings,
                                    sources: helpers.map { (path: $0, compilerFlags: nil) },
                                    filesGroup: .group(name: "Manifests"))
