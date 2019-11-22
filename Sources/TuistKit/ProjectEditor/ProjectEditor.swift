@@ -3,6 +3,24 @@ import Foundation
 import TuistGenerator
 import TuistSupport
 
+enum ProjectEditorError: FatalError, Equatable {
+    /// This error is thrown when we try to edit in a project in a directory that has no editable files.
+    case noEditableFiles(AbsolutePath)
+
+    var type: ErrorType {
+        switch self {
+        case .noEditableFiles: return .abort
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .noEditableFiles(path):
+            return "There are no editable files at \(path.pathString)"
+        }
+    }
+}
+
 protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
@@ -45,6 +63,11 @@ final class ProjectEditor: ProjectEditing {
         var helpers: [AbsolutePath] = []
         if let helpersDirectory = self.helpersDirectoryLocator.locate(at: at) {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
+        }
+
+        /// We error if the user tries to edit a project in a directory where there are no editable files.
+        if manifests.isEmpty, helpers.isEmpty {
+            throw ProjectEditorError.noEditableFiles(at)
         }
 
         let (project, graph) = projectEditorMapper.map(sourceRootPath: destinationDirectory,

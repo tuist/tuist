@@ -7,6 +7,16 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
+final class ProjectEditorErrorTests: TuistUnitTestCase {
+    func test_type() {
+        XCTAssertEqual(ProjectEditorError.noEditableFiles(AbsolutePath.root).type, .abort)
+    }
+
+    func test_description() {
+        XCTAssertEqual(ProjectEditorError.noEditableFiles(AbsolutePath.root).description, "There are no editable files at \(AbsolutePath.root.pathString)")
+    }
+}
+
 final class ProjectEditorTests: TuistUnitTestCase {
     var generator: MockGenerator!
     var projectEditorMapper: MockProjectEditorMapper!
@@ -72,5 +82,23 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
 
         XCTAssertEqual(generatedProject, project)
+    }
+
+    func test_edit_when_there_are_no_editable_files() throws {
+        // Given
+        let directory = try temporaryPath()
+        let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
+        let project = Project.test(path: directory, name: "Edit")
+        let graph = Graph.test(name: "Edit")
+        let helpersDirectory = directory.appending(component: "ProjectDDescriptionHelpers")
+        try FileHandler.shared.createFolder(helpersDirectory)
+
+        resourceLocator.projectDescriptionStub = { projectDescriptionPath }
+        manifestFilesLocator.locateStub = []
+        helpersDirectoryLocator.locateStub = helpersDirectory
+        projectEditorMapper.mapStub = (project, graph)
+
+        // When
+        XCTAssertThrowsSpecific(try subject.edit(at: directory, in: directory), ProjectEditorError.noEditableFiles(directory))
     }
 }
