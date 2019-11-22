@@ -36,27 +36,32 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Then
         let manifestsTarget = project.targets.first
         let helpersTarget = project.targets.last
-
-        XCTAssertEqual(project.name, "Manifests")
-        XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
-
-        XCTAssertEqual(manifestsTarget?.name, "Manifests")
-        XCTAssertEqual(manifestsTarget?.platform, .macOS)
-        XCTAssertEqual(manifestsTarget?.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget?.bundleId, "io.tuist.${PRODUCT_NAME:rfc1034identifier}")
-        XCTAssertEqual(manifestsTarget?.sources.map { $0.path }, manifestPaths)
-        XCTAssertEqual(manifestsTarget?.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(manifestsTarget?.dependencies, [.target(name: "ProjectDescriptionHelpers")])
-        assertRightSettings(manifestsTarget, sourceRootPath: sourceRootPath)
-
-        XCTAssertEqual(helpersTarget?.name, "ProjectDescriptionHelpers")
-        XCTAssertEqual(helpersTarget?.platform, .macOS)
-        XCTAssertEqual(helpersTarget?.product, .staticFramework)
-        XCTAssertEqual(helpersTarget?.bundleId, "io.tuist.${PRODUCT_NAME:rfc1034identifier}")
-        XCTAssertEqual(helpersTarget?.sources.map { $0.path }, helperPaths)
-        XCTAssertEqual(helpersTarget?.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(helpersTarget?.dependencies, [])
-        assertRightSettings(helpersTarget, sourceRootPath: sourceRootPath)
+        let expectedManifestsTarget = Target(name: "Manifests",
+                                             platform: .macOS,
+                                             product: .staticFramework,
+                                             productName: "Manifests",
+                                             bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+                                             settings: expectedSettings(sourceRootPath: sourceRootPath),
+                                             sources: manifestPaths.map { (path: $0, compilerFlags: nil) },
+                                             filesGroup: .group(name: "Manifests"),
+                                             dependencies: [.target(name: "ProjectDescriptionHelpers")])
+        let expectedHelpersTarget = Target(name: "ProjectDescriptionHelpers",
+                                           platform: .macOS,
+                                           product: .staticFramework,
+                                           productName: "ProjectDescriptionHelpers",
+                                           bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+                                           settings: expectedSettings(sourceRootPath: sourceRootPath),
+                                           sources: helperPaths.map { (path: $0, compilerFlags: nil) },
+                                           filesGroup: .group(name: "Manifests"),
+                                           dependencies: [])
+        let expectedProject = Project(path: sourceRootPath,
+                                      name: "Manifests",
+                                      settings: Settings(base: [:],
+                                                         configurations: Settings.default.configurations,
+                                                         defaultSettings: .recommended),
+                                      filesGroup: .group(name: "Manifests"),
+                                      targets: [expectedManifestsTarget, expectedHelpersTarget])
+        XCTAssertEqual(project, expectedProject)
 
         let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
         XCTAssertEqual(targetNodes.count, 2)
@@ -82,17 +87,23 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let manifestsTarget = project.targets.first
         XCTAssertEqual(project.targets.count, 1)
 
-        XCTAssertEqual(project.name, "Manifests")
-        XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
-
-        XCTAssertEqual(manifestsTarget?.name, "Manifests")
-        XCTAssertEqual(manifestsTarget?.platform, .macOS)
-        XCTAssertEqual(manifestsTarget?.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget?.bundleId, "io.tuist.${PRODUCT_NAME:rfc1034identifier}")
-        XCTAssertEqual(manifestsTarget?.sources.map { $0.path }, manifestPaths)
-        XCTAssertEqual(manifestsTarget?.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(manifestsTarget?.dependencies, [])
-        assertRightSettings(manifestsTarget, sourceRootPath: sourceRootPath)
+        let expectedManifestsTarget = Target(name: "Manifests",
+                                             platform: .macOS,
+                                             product: .staticFramework,
+                                             productName: "Manifests",
+                                             bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+                                             settings: expectedSettings(sourceRootPath: sourceRootPath),
+                                             sources: manifestPaths.map { (path: $0, compilerFlags: nil) },
+                                             filesGroup: .group(name: "Manifests"),
+                                             dependencies: [])
+        let expectedProject = Project(path: sourceRootPath,
+                                      name: "Manifests",
+                                      settings: Settings(base: [:],
+                                                         configurations: Settings.default.configurations,
+                                                         defaultSettings: .recommended),
+                                      filesGroup: .group(name: "Manifests"),
+                                      targets: [expectedManifestsTarget])
+        XCTAssertEqual(project, expectedProject)
 
         let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
         XCTAssertEqual(targetNodes.count, 1)
@@ -100,15 +111,15 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(targetNodes.first?.dependencies, [])
     }
 
-    fileprivate func assertRightSettings(_ target: Target?, sourceRootPath: AbsolutePath, file _: StaticString = #file, line _: UInt = #line) {
-        XCTAssertEqual(target?.settings?.defaultSettings, .recommended)
-        let base = target?.settings?.base
-
-        XCTAssertEqual(base, [
+    fileprivate func expectedSettings(sourceRootPath: AbsolutePath) -> Settings {
+        let base: [String: SettingValue] = [
             "FRAMEWORK_SEARCH_PATHS": .string(sourceRootPath.pathString),
             "LIBRARY_SEARCH_PATHS": .string(sourceRootPath.pathString),
             "SWIFT_INCLUDE_PATHS": .string(sourceRootPath.pathString),
             "SWIFT_VERSION": .string(Constants.swiftVersion),
-        ])
+        ]
+        return Settings(base: base,
+                        configurations: Settings.default.configurations,
+                        defaultSettings: .recommended)
     }
 }
