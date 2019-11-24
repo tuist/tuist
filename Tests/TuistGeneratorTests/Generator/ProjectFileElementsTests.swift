@@ -224,8 +224,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_targetFiles() throws {
         // Given
-        let sourceRootPath = AbsolutePath("/a/project/")
-
         let settings = Settings.test(
             base: [:],
             debug: Configuration(settings: ["Configuration": "A"], xcconfig: AbsolutePath("/project/debug.xcconfig")),

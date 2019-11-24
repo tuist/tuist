@@ -31,7 +31,6 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// - Parameters:
     ///   - modelLoader: Instance to load the models.
     public convenience init(modelLoader: GeneratorModelLoading) {
-        let graphLinter = GraphLinter()
         let graphLoader = GraphLoader(modelLoader: modelLoader)
         self.init(graphLoader: graphLoader, graphToDotGraphMapper: GraphToDotGraphMapper())
     }

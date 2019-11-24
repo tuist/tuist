@@ -500,9 +500,10 @@ private extension XCTestCase {
                            line: UInt = #line) {
         for (key, expectedValue) in second {
             let result = first[key]
+            let resultDescription = result.map { "\($0)" } ?? "nil"
             XCTAssertEqual(result,
                            expectedValue,
-                           "\(key):\(result) does not match expected \(key): \(expectedValue)",
+                           "\(key):\(resultDescription) does not match expected \(key): \(expectedValue)",
                            file: file,
                            line: line)
         }
