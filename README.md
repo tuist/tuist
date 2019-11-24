@@ -64,20 +64,10 @@ The list of actions will likely grow as we get feedback from you.
 
 ## Install ⬇️
 
-### Running script (Recommended):
+### Running script (Recommended)
+
 ```bash
 bash <(curl -Ls https://install.tuist.io)
-```
-
-
-### Using [Homebrew](http://brew.sh/):
-```
-brew install tuist
-```
-
-### Using [Mint](https://github.com/yonaskolb/mint)
-```
-$ mint install tuist/tuist
 ```
 
 ## Bootstrap your first project 🌀
