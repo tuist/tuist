@@ -52,7 +52,7 @@
     "gatsby-plugin-theme-ui": "^0.2.43",
     "prettier": "^1.19.1",
     "slug": "^1.1.0",
-    "theme-ui": "^0.2.44"
+    "theme-ui": "^0.2.49"
   },
   "keywords": [
     "gatsby"
