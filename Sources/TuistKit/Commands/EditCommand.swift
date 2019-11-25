@@ -31,7 +31,6 @@ class EditCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the directory whose project will be edited.",
                                      completion: .filename)
-
         permanentArgument = subparser.add(option: "--permanent",
                                           shortName: "-P",
                                           kind: Bool.self,
@@ -48,6 +47,7 @@ class EditCommand: NSObject, Command {
 
         if !permanent {
             Signals.trap(signals: [.int, .abrt]) { _ in
+                // swiftlint:disable:next force_try
                 try! FileHandler.shared.delete(EditCommand.temporaryDirectory.path)
                 exit(0)
             }
@@ -62,7 +62,9 @@ class EditCommand: NSObject, Command {
 
     fileprivate static var _temporaryDirectory: TemporaryDirectory?
     fileprivate static var temporaryDirectory: TemporaryDirectory {
+        // swiftlint:disable:next identifier_name
         if let _temporaryDirectory = _temporaryDirectory { return _temporaryDirectory }
+        // swiftlint:disable:next force_try
         _temporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
         return _temporaryDirectory!
     }
