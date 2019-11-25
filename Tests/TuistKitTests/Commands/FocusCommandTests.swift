@@ -68,6 +68,6 @@ final class FocusCommandTests: TuistUnitTestCase {
         }
         try subject.run(with: result)
 
-        XCTAssertEqual(opener.openArgs.last, workspacePath)
+        XCTAssertEqual(opener.openArgs.last?.0, workspacePath)
     }
 }

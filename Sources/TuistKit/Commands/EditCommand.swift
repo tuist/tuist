@@ -16,6 +16,7 @@ class EditCommand: NSObject, Command {
     private let projectEditor: ProjectEditing
     private let opener: Opening
     private let pathArgument: OptionArgument<String>
+    private let nonTemporaryArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -30,23 +31,30 @@ class EditCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the directory whose project will be edited.",
                                      completion: .filename)
+
+        nonTemporaryArgument = subparser.add(option: "--non-temporary",
+                                             shortName: "-n",
+                                             kind: Bool.self,
+                                             usage: "It creates the project in the current directory or the one indicated by -p and doesn't block the process.")
         self.projectEditor = projectEditor
         self.opener = opener
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
+        let temporary = self.temporary(arguments: arguments)
+        let generationDirectory = temporary ? EditCommand.temporaryDirectory.path : path
+        let xcodeprojPath = try projectEditor.edit(at: path, in: generationDirectory)
 
-        let xcodeprojPath = try projectEditor.edit(at: path, in: EditCommand.temporaryDirectory.path)
-        Printer.shared.print("Opening Xcode to edit the project. Press CTRL + C once you are done editing")
-        try opener.open(path: xcodeprojPath)
-
-        Signals.trap(signals: [.int, .abrt]) { _ in
-            try! FileHandler.shared.delete(EditCommand.temporaryDirectory.path)
-            exit(0)
+        if !temporary {
+            Signals.trap(signals: [.int, .abrt]) { _ in
+                try! FileHandler.shared.delete(EditCommand.temporaryDirectory.path)
+                exit(0)
+            }
         }
-        let semaphore = DispatchSemaphore(value: 0)
-        semaphore.wait()
+
+        Printer.shared.print("Opening Xcode to edit the project. Press CTRL + C once you are done editing")
+        try opener.open(path: xcodeprojPath, wait: temporary)
     }
 
     // MARK: - Fileprivate
@@ -63,6 +71,14 @@ class EditCommand: NSObject, Command {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
+        }
+    }
+
+    private func temporary(arguments: ArgumentParser.Result) -> Bool {
+        if let nonTemporary = arguments.get(nonTemporaryArgument) {
+            return !nonTemporary
+        } else {
+            return true
         }
     }
 }
