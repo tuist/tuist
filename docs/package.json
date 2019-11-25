@@ -18,7 +18,7 @@
     "docz": "^2.0.0-rc.72",
     "docz-plugin-netlify": "^1.1.4",
     "gatsby-plugin-mdx": "^1.0.56",
-    "gatsby-theme-docz": "^2.0.0-rc.75",
+    "gatsby-theme-docz": "^2.0.0-rc.76",
     "lodash": "^4.17.15",
     "node-sass": "^4.13.0",
     "prismjs": "^1.17.1",
