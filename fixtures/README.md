@@ -268,3 +268,7 @@ An example of a workspace that has a dependency cycle between targets in differe
 ## ios_app_with_carthage_frameworks
 
 An example of an iOS app that contains Carthage frameworks \*(fat frameworks with device & simulators architectures)\*. This fixture is useful to test the script that embeds them stripping the architectures that are not necessary.
+
+## ios_app_with_helpers
+
+A basic iOS app that has some manifest bits extracted into helpers. 

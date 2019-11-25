@@ -16,7 +16,7 @@ class EditCommand: NSObject, Command {
     private let projectEditor: ProjectEditing
     private let opener: Opening
     private let pathArgument: OptionArgument<String>
-    private let nonTemporaryArgument: OptionArgument<Bool>
+    private let permanentArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -32,29 +32,30 @@ class EditCommand: NSObject, Command {
                                      usage: "The path to the directory whose project will be edited.",
                                      completion: .filename)
 
-        nonTemporaryArgument = subparser.add(option: "--non-temporary",
-                                             shortName: "-n",
-                                             kind: Bool.self,
-                                             usage: "It creates the project in the current directory or the one indicated by -p and doesn't block the process.")
+        permanentArgument = subparser.add(option: "--permanent",
+                                          shortName: "-P",
+                                          kind: Bool.self,
+                                          usage: "It creates the project in the current directory or the one indicated by -p and doesn't block the process.")
         self.projectEditor = projectEditor
         self.opener = opener
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        let temporary = self.temporary(arguments: arguments)
-        let generationDirectory = temporary ? EditCommand.temporaryDirectory.path : path
+        let permanent = self.permanent(arguments: arguments)
+        let generationDirectory = permanent ? path : EditCommand.temporaryDirectory.path
         let xcodeprojPath = try projectEditor.edit(at: path, in: generationDirectory)
 
-        if !temporary {
+        if !permanent {
             Signals.trap(signals: [.int, .abrt]) { _ in
                 try! FileHandler.shared.delete(EditCommand.temporaryDirectory.path)
                 exit(0)
             }
+            Printer.shared.print(success: "Opening Xcode to edit the project. Press CTRL + C once you are done editing")
+            try opener.open(path: xcodeprojPath, wait: true)
+        } else {
+            Printer.shared.print(success: "Xcode project generated at \(xcodeprojPath.pathString)")
         }
-
-        Printer.shared.print("Opening Xcode to edit the project. Press CTRL + C once you are done editing")
-        try opener.open(path: xcodeprojPath, wait: temporary)
     }
 
     // MARK: - Fileprivate
@@ -74,11 +75,11 @@ class EditCommand: NSObject, Command {
         }
     }
 
-    private func temporary(arguments: ArgumentParser.Result) -> Bool {
-        if let nonTemporary = arguments.get(nonTemporaryArgument) {
-            return !nonTemporary
+    private func permanent(arguments: ArgumentParser.Result) -> Bool {
+        if let permanent = arguments.get(permanentArgument) {
+            return permanent
         } else {
-            return true
+            return false
         }
     }
 }
