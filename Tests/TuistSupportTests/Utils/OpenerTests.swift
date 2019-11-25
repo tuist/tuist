@@ -41,7 +41,15 @@ final class OpenerTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let path = temporaryPath.appending(component: "tool")
         try FileHandler.shared.touch(path)
-        system.succeedCommand("/usr/bin/open", path.pathString)
+        system.succeedCommand("/usr/bin/open", "-W", path.pathString)
         try subject.open(path: path)
+    }
+
+    func test_open_when_wait_is_false() throws {
+        let temporaryPath = try self.temporaryPath()
+        let path = temporaryPath.appending(component: "tool")
+        try FileHandler.shared.touch(path)
+        system.succeedCommand("/usr/bin/open", path.pathString)
+        try subject.open(path: path, wait: false)
     }
 }
