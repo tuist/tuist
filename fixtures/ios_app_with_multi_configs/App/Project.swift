@@ -11,9 +11,10 @@ let settings = Settings(base: [
 ], configurations: configurations)
 
 let betaScheme = Scheme(name: "App-Beta",
-                         shared: true,
-                         buildAction: BuildAction(targets: ["App"]),
-                         runAction: RunAction(configurationName: "Beta", executable: "App"))
+                        shared: true,
+                        buildAction: BuildAction(targets: ["App"]),
+                        runAction: RunAction(configurationName: "Beta", executable: "App"),
+                        archiveAction: ArchiveAction(configurationName: "Beta"))
 
 let project = Project(name: "MainApp",
                       settings: settings,

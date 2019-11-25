@@ -73,6 +73,7 @@ final class SchemesGenerator: SchemesGenerating {
         let generatedTestAction = schemeTestAction(scheme: scheme, project: project, generatedProject: generatedProject)
         let generatedLaunchAction = schemeLaunchAction(scheme: scheme, project: project, generatedProject: generatedProject)
         let generatedProfileAction = schemeProfileAction(scheme: scheme, project: project, generatedProject: generatedProject)
+        let generatedArchiveAction = schemeArchiveAction(scheme: scheme, project: project, generatedProject: generatedProject)
 
         let scheme = XCScheme(name: scheme.name,
                               lastUpgradeVersion: SchemesGenerator.defaultLastUpgradeVersion,
@@ -82,7 +83,7 @@ final class SchemesGenerator: SchemesGenerating {
                               launchAction: generatedLaunchAction,
                               profileAction: generatedProfileAction,
                               analyzeAction: schemeAnalyzeAction(for: project),
-                              archiveAction: schemeArchiveAction(for: project))
+                              archiveAction: generatedArchiveAction)
         try scheme.write(path: schemePath.path, override: true)
     }
 
@@ -146,6 +147,29 @@ final class SchemesGenerator: SchemesGenerating {
                                    macroExpansion: nil,
                                    testables: testables)
     }
+
+    /// Generates the scheme archive action.
+    /// - Parameter scheme: Scheme manifest.
+    /// - Parameter project: Project manifest.
+    /// - Parameter generatedProject: Generated Xcode project.
+    /// - Returns: Scheme archive action.
+    func schemeArchiveAction(scheme: Scheme,
+                             project: Project,
+                             generatedProject: GeneratedProject) -> XCScheme.ArchiveAction {
+        guard let archiveAction = scheme.archiveAction else {
+            return defaultSchemeArchiveAction(for: project)
+        }
+
+        return XCScheme.ArchiveAction(buildConfiguration: archiveAction.configurationName,
+                                      revealArchiveInOrganizer: archiveAction.revealArchiveInOrganizer,
+                                      customArchiveName: archiveAction.customArchiveName,
+                                      preActions: schemeExecutionActions(actions: archiveAction.preActions,
+                                                                         project: project,
+                                                                         generatedProject: generatedProject),
+                                      postActions: schemeExecutionActions(actions: archiveAction.postActions,
+                                                                          project: project,
+                                                                          generatedProject: generatedProject))
+	}
 
     /// Generates the array of BuildableReference for targets that the
     /// coverage report should be generated for them.
@@ -439,7 +463,7 @@ final class SchemesGenerator: SchemesGenerating {
     /// Returns the scheme archive action
     ///
     /// - Returns: Scheme archive action.
-    func schemeArchiveAction(for project: Project) -> XCScheme.ArchiveAction {
+    func defaultSchemeArchiveAction(for project: Project) -> XCScheme.ArchiveAction {
         let buildConfiguration = defaultReleaseBuildConfigurationName(in: project)
         return XCScheme.ArchiveAction(buildConfiguration: buildConfiguration,
                                       revealArchiveInOrganizer: true)
