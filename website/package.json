@@ -30,7 +30,7 @@
     "gatsby-remark-autolink-headers": "^2.1.18",
     "gatsby-remark-smartypants": "^2.1.16",
     "gatsby-remark-social-cards": "https://github.com/pepibumur/gatsby-remark-social-cards.git#0.5.2",
-    "gatsby-source-filesystem": "^2.1.37",
+    "gatsby-source-filesystem": "^2.1.38",
     "gatsby-transformer-yaml": "^2.2.17",
     "moment": "^2.24.0",
     "polished": "^3.4.2",
