@@ -5266,10 +5266,10 @@ docz-utils@2.0.0-rc.69:
     unist-util-is "^3.0.0"
     unist-util-visit "^1.4.1"
 
-docz@2.0.0-rc.75, docz@^2.0.0-rc.72:
-  version "2.0.0-rc.75"
-  resolved "https://registry.yarnpkg.com/docz/-/docz-2.0.0-rc.75.tgz#a451e0acd7e791ec16bb1e47539917d146b7a156"
-  integrity sha512-dBMrPXGAymNTLLfl6EBclzl4hfD6m8IRl/cflzDxLjLB0gnO7yanW8BJbW0orZ2S0kDNxubVergsD1KK1Vu5DQ==
+docz@2.0.0-rc.76, docz@^2.0.0-rc.72:
+  version "2.0.0-rc.76"
+  resolved "https://registry.yarnpkg.com/docz/-/docz-2.0.0-rc.76.tgz#af6c4f6b2247688bee9db7ef689550b15f308099"
+  integrity sha512-R80Pv8SSqWqKj4ib7we1XL/DGt//jso2w+YanM/RPHj7Bid6MmRcSer9SWYz8hZ38mHeYYs4iMMWwM+v1bqwzg==
   dependencies:
     "@emotion/core" "^10.0.16"
     "@mdx-js/react" "^1.0.27"
@@ -5280,7 +5280,7 @@ docz@2.0.0-rc.75, docz@^2.0.0-rc.72:
     gatsby "^2.13.27"
     gatsby-plugin-eslint "^2.0.5"
     gatsby-plugin-typescript "^2.1.6"
-    gatsby-theme-docz "2.0.0-rc.75"
+    gatsby-theme-docz "2.0.0-rc.76"
     lodash "^4.17.14"
     marksy "^8.0.0"
     match-sorter "^3.1.1"
@@ -6875,10 +6875,10 @@ gatsby-telemetry@^1.1.33:
     stack-utils "1.0.2"
     uuid "3.3.3"
 
-gatsby-theme-docz@2.0.0-rc.75, gatsby-theme-docz@^2.0.0-rc.75:
-  version "2.0.0-rc.75"
-  resolved "https://registry.yarnpkg.com/gatsby-theme-docz/-/gatsby-theme-docz-2.0.0-rc.75.tgz#e96163a49147a5c00dbf75a401f9a4f2a97877c2"
-  integrity sha512-f/6g1QqCvoMjtKcMvEuiFVaqA44rE1SONxzgMZOQE6VVvY1yzs8BLdPtUZf3PGtEYK3R39bVsNRmZyEtTUXhRQ==
+gatsby-theme-docz@2.0.0-rc.76, gatsby-theme-docz@^2.0.0-rc.76:
+  version "2.0.0-rc.76"
+  resolved "https://registry.yarnpkg.com/gatsby-theme-docz/-/gatsby-theme-docz-2.0.0-rc.76.tgz#bd917d77f96a4d89acd460a2e120e7ff55b8682b"
+  integrity sha512-I7y68YZWhV971aWmaPvMjbuKqA4dk0n3pqrt+PElRpD30XnrRs3fieCRY8NVzwLzJ0FRdKMNiQwi9ATxQlluyA==
   dependencies:
     "@emotion/core" "^10.0.14"
     "@emotion/styled" "^10.0.14"
@@ -6888,7 +6888,7 @@ gatsby-theme-docz@2.0.0-rc.75, gatsby-theme-docz@^2.0.0-rc.75:
     "@theme-ui/typography" "^0.2.5"
     babel-plugin-export-metadata "2.0.0-rc.69"
     copy-text-to-clipboard "^2.1.0"
-    docz "2.0.0-rc.75"
+    docz "2.0.0-rc.76"
     docz-core "2.0.0-rc.75"
     emotion-theming "^10.0.14"
     fs-extra "^8.1.0"
