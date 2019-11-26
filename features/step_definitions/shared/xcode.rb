@@ -8,9 +8,13 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
 
   args = [
     "-scheme", scheme,
-    "-workspace", @workspace_path,
     "-derivedDataPath", @derived_data_path
   ]
+  unless @workspace_path.nil?
+    args.concat(["-workspace", @workspace_path]) unless @workspace_path.nil?
+  else
+    args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
+  end
 
   if action == "test" && platform == "iOS"
     args << "-destination\ \'name=iPhone 11\'"
@@ -23,7 +27,9 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   args << "clean"
   args << action
   args << "CODE_SIGNING_ALLOWED=NO"
-  args << "CODE_SIGNING_IDENTITY=\"iPhone Developer\""
+  args << "CODE_SIGNING_IDENTITY=\"\""
+  args << "CODE_SIGNING_REQUIRED=NO"
+  args << "CODE_SIGN_ENTITLEMENTS=\"\""
 
   xcodebuild(*args)
 end

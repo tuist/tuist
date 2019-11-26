@@ -3,12 +3,31 @@ import Foundation
 import TuistGenerator
 import TuistSupport
 
+enum ProjectEditorError: FatalError, Equatable {
+    /// This error is thrown when we try to edit in a project in a directory that has no editable files.
+    case noEditableFiles(AbsolutePath)
+
+    var type: ErrorType {
+        switch self {
+        case .noEditableFiles: return .abort
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .noEditableFiles(path):
+            return "There are no editable files at \(path.pathString)"
+        }
+    }
+}
+
 protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
     ///   - at: Directory whose project will be edited.
     ///   - destinationDirectory: Directory in which the Xcode project will be generated.
-    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws
+    /// - Returns: The path to the generated Xcode project.
+    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath
 }
 
 final class ProjectEditor: ProjectEditing {
@@ -39,7 +58,7 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws {
+    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath {
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locate(at: at)
         var helpers: [AbsolutePath] = []
@@ -47,10 +66,15 @@ final class ProjectEditor: ProjectEditing {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         }
 
+        /// We error if the user tries to edit a project in a directory where there are no editable files.
+        if manifests.isEmpty, helpers.isEmpty {
+            throw ProjectEditorError.noEditableFiles(at)
+        }
+
         let (project, graph) = projectEditorMapper.map(sourceRootPath: destinationDirectory,
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        projectDescriptionPath: projectDesciptionPath)
-        _ = try generator.generateProject(project, graph: graph)
+        return try generator.generateProject(project, graph: graph)
     }
 }
