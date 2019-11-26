@@ -24,15 +24,12 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
 
 class GeneratorModelLoader: GeneratorModelLoading {
     private let manifestLoader: GraphManifestLoading
-    private let manifestTargetGenerator: ManifestTargetGenerating?
     private let manifestLinter: ManifestLinting
 
     init(manifestLoader: GraphManifestLoading,
-         manifestLinter: ManifestLinting,
-         manifestTargetGenerator: ManifestTargetGenerating? = nil) {
+         manifestLinter: ManifestLinting) {
         self.manifestLoader = manifestLoader
         self.manifestLinter = manifestLinter
-        self.manifestTargetGenerator = manifestTargetGenerator
     }
 
     /// Load a Project model at the specified path
@@ -79,13 +76,6 @@ class GeneratorModelLoader: GeneratorModelLoading {
                           with config: TuistCore.TuistConfig) throws -> TuistCore.Project {
         var enrichedModel = model
 
-        // Manifest target
-        if let manifestTargetGenerator = manifestTargetGenerator, config.generationOptions.contains(.generateManifest) {
-            let manifestTarget = try manifestTargetGenerator.generateManifestTarget(for: enrichedModel.name,
-                                                                                    at: enrichedModel.path)
-            enrichedModel = enrichedModel.adding(target: manifestTarget)
-        }
-
         // Xcode project file name
         let xcodeFileName = xcodeFileNameOverride(from: config, for: model)
         enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)
@@ -127,8 +117,6 @@ extension TuistCore.TuistConfig.GenerationOption {
     static func from(manifest: ProjectDescription.TuistConfig.GenerationOptions,
                      path _: AbsolutePath) throws -> TuistCore.TuistConfig.GenerationOption {
         switch manifest {
-        case .generateManifest:
-            return .generateManifest
         case let .xcodeProjectName(templateString):
             return .xcodeProjectName(templateString.description)
         }
@@ -647,10 +635,10 @@ extension TuistCore.ArchiveAction {
         let postActions = manifest.postActions.map { TuistCore.ExecutionAction.from(manifest: $0) }
 
         return TuistCore.ArchiveAction(configurationName: configurationName,
-                                            revealArchiveInOrganizer: revealArchiveInOrganizer,
-                                            customArchiveName: customArchiveName,
-                                            preActions: preActions,
-                                            postActions: postActions)
+                                       revealArchiveInOrganizer: revealArchiveInOrganizer,
+                                       customArchiveName: customArchiveName,
+                                       preActions: preActions,
+                                       postActions: postActions)
     }
 }
 

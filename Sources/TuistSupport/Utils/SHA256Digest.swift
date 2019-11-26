@@ -5,8 +5,8 @@
 //  Created by Maksym Prokopchuk on 23.11.19.
 //
 
-import Foundation
 import CommonCrypto
+import Foundation
 
 // https://inneka.com/programming/swift/sha256-in-swift/
 
@@ -48,23 +48,23 @@ final class SHA256Digest {
         while true {
             let bytesRead = inputStream.read(buffer, maxLength: bufferSize)
             if bytesRead < 0 {
-                //Stream error occured
+                // Stream error occured
                 throw (inputStream.streamError ?? InputStreamError.readFailed)
             } else if bytesRead == 0 {
-                //EOF
+                // EOF
                 break
             }
-            self.update(bytes: buffer, length: bytesRead)
+            update(bytes: buffer, length: bytesRead)
         }
     }
 
     private func update(bytes: UnsafeRawPointer?, length: Int) {
-        _ = CC_SHA256_Update(&self.context, bytes, CC_LONG(length))
+        _ = CC_SHA256_Update(&context, bytes, CC_LONG(length))
     }
 
     private func finalize() -> Data {
         var resultBuffer = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        CC_SHA256_Final(&resultBuffer, &self.context)
+        CC_SHA256_Final(&resultBuffer, &context)
         return Data(resultBuffer)
     }
 }

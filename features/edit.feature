@@ -6,4 +6,3 @@ Feature: Edit an existing project using Tuist
     Then I copy the fixture ios_app_with_helpers into the working directory
     Then tuist edits the project
     Then I should be able to build for macOS the scheme ProjectDescriptionHelpers
-    Then I should be able to build for macOS the scheme Manifests

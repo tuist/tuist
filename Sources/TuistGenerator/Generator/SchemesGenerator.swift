@@ -169,7 +169,7 @@ final class SchemesGenerator: SchemesGenerating {
                                       postActions: schemeExecutionActions(actions: archiveAction.postActions,
                                                                           project: project,
                                                                           generatedProject: generatedProject))
-	}
+    }
 
     /// Generates the array of BuildableReference for targets that the
     /// coverage report should be generated for them.

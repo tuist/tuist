@@ -5,8 +5,7 @@ import XCTest
 final class TuistConfigTests: XCTestCase {
     func test_tuistconfig_toJSON() throws {
         let tuistConfig = TuistConfig(generationOptions:
-            [.generateManifest,
-             .xcodeProjectName("someprefix-\(.projectName)")])
+            [.xcodeProjectName("someprefix-\(.projectName)")])
 
         XCTAssertCodable(tuistConfig)
     }
