@@ -18,8 +18,9 @@ export default {
     'Project description helpers',
     'Configuration',
     'Dependencies',
-    'Setup',
-    'Graph',
+    'Set up the environment',
+    'Editing your projects',
+    'Dependencies graph',
     'Managing versions',
     'Frequently asked questions',
     {
