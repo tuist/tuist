@@ -55,7 +55,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let project = Project.test(path: directory, name: "Edit")
         let graph = Graph.test(name: "Edit")
-        let helpersDirectory = directory.appending(component: "ProjectDDescriptionHelpers")
+        let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(helpersDirectory)
         let helpers = ["A.swift", "B.swift"].map { helpersDirectory.appending(component: $0) }
         try helpers.forEach { try FileHandler.shared.touch($0) }
@@ -90,7 +90,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let project = Project.test(path: directory, name: "Edit")
         let graph = Graph.test(name: "Edit")
-        let helpersDirectory = directory.appending(component: "ProjectDDescriptionHelpers")
+        let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
