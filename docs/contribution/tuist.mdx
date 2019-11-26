@@ -64,6 +64,21 @@ The project is organized in several targets that are defined in the `Package.swi
 <Message info title="Package.swift" description="The Package.swift file declares the structure of our project (a Swift package) and the Swift Package Manager uses it to generate the Xcode project and provide us with a set of commands to interact with it, like 'swift build'"/>
 <Message info title="Tests" description="The targets have an associated target that contains the tests. They are named with the same name suffixed with 'Tests'"/>
 
+## Utilities
+
+All generic utilities live in the `TuistSupport` framework. This section documents some of the utilities and how to use them.
+
+### Printer
+
+When printing output for the user, this is the utility that should be used over the global `print` method. The utility provides formatting that varies depending on the terminal the process is run from, and determines whether the standard output or error should be used based on the type of content being output.
+
+The methods from the public interface take a `PrintableString` as an input. Printable strings support interpolating formatted strings. For instance, if we want to tell users they need to run a command, we can do the following:
+
+```swift
+Printer.shared.print("Please run the folling command to setup the environment: \(.command("tuist up"))")
+```
+
+
 ## Testing
 
 Tuist employs a diverse suite tests that help ensure it works as intended and prevents regressions as it continues to grow and evolve.
