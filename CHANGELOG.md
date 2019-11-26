@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Removed
+- **Breaking** Generate manifests target as part of the generated project https://github.com/tuist/tuist/pull/724 by @pepibumur.
+
 ### Added
 
 - Add `ProjectDescription.Settings.defaultSettings` none case that don't override any `Project` or `Target` settings. https://github.com/tuist/tuist/pull/698 by @rowwingman.

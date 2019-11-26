@@ -21,7 +21,7 @@ public class TuistConfig: Equatable, Hashable {
     /// Returns the default Tuist configuration.
     public static var `default`: TuistConfig {
         return TuistConfig(compatibleXcodeVersions: .all,
-                           generationOptions: [.generateManifest])
+                           generationOptions: [])
     }
 
     /// Initializes the tuist cofiguration.
@@ -60,8 +60,6 @@ public class TuistConfig: Equatable, Hashable {
 
 public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
     switch (lhs, rhs) {
-    case (.generateManifest, .generateManifest):
-        return true
     case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
         return lhs == rhs
     default: return false

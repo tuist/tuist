@@ -32,7 +32,6 @@ import ProjectDescription
 let config = TuistConfig(
   compatibleXcodeVersions: ["10.3"],
   generationOptions: [
-    .generateManifest,
     .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix")
   ]
 )
@@ -94,9 +93,6 @@ Generation options allow customizing the generation of Xcode projects.
 <EnumTable
   cases={[
     {
-      case: '.generateManifest',
-      description:
-        'Generate the target, schemes, and file elements to build compile the project manifest files.',
       case: '.xcodeProjectName(TemplateString)',
       description:
         'Customise the name of the generated .xcodeproj.',

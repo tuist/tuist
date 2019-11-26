@@ -24,7 +24,7 @@ final class GraphManifestLoaderTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let content = """
         import ProjectDescription
-        let config = TuistConfig(generationOptions: [.generateManifest])
+        let config = TuistConfig(generationOptions: [])
         """
 
         let manifestPath = temporaryPath.appending(component: Manifest.tuistConfig.fileName)
@@ -33,10 +33,7 @@ final class GraphManifestLoaderTests: TuistTestCase {
                           encoding: .utf8)
 
         // When
-        let got = try subject.loadTuistConfig(at: temporaryPath)
-
-        // Then
-        XCTAssertTrue(got.generationOptions.contains(.generateManifest))
+        _ = try subject.loadTuistConfig(at: temporaryPath)
     }
 
     func test_loadProject() throws {

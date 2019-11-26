@@ -6,12 +6,8 @@ extension Generator {
     convenience init() {
         let resourceLocator = ResourceLocator()
         let manifestLoader = GraphManifestLoader(resourceLocator: resourceLocator)
-        let manifestTargetGenerator = ManifestTargetGenerator(manifestLoader: manifestLoader,
-                                                              resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
-        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                               manifestLinter: manifestLinter,
-                                               manifestTargetGenerator: manifestTargetGenerator)
+        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader, manifestLinter: manifestLinter)
         self.init(modelLoader: modelLoader)
     }
 }
