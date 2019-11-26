@@ -13,6 +13,18 @@ on:
       - fixtures/**/*
       - features/**/*
       - .github/workflows/tuist.yml
+  pull_request:
+    paths:
+      - Sources/**/*
+      - Tests/**/*
+      - Gemfile*
+      - Rakefile
+      - Package.swift
+      - Package.resolved
+      - script/**/*
+      - fixtures/**/*
+      - features/**/*
+      - .github/workflows/tuist.yml
 
 jobs:
   unit_tests:
