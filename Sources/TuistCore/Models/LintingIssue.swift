@@ -51,12 +51,12 @@ public extension Array where Element == LintingIssue {
 
         if !warningIssues.isEmpty {
             let message = warningIssues.map { "- \($0.description)" }.joined(separator: "\n")
-            Printer.shared.print(warning: message)
+            Printer.shared.print(warning: "\(message)")
         }
 
         if !errorIssues.isEmpty {
             let message = errorIssues.map { "- \($0.description)" }.joined(separator: "\n")
-            Printer.shared.print(errorMessage: message)
+            Printer.shared.print(errorMessage: "\(message)")
 
             throw LintingError()
         }

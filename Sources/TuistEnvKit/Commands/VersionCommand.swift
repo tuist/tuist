@@ -18,6 +18,6 @@ class VersionCommand: NSObject, Command {
     // MARK: - Command
 
     func run(with _: ArgumentParser.Result) {
-        Printer.shared.print(Constants.version)
+        Printer.shared.print("\(Constants.version)")
     }
 }

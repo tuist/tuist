@@ -1,15 +1,100 @@
 import Basic
 import Foundation
 
+public struct PrintableString: Encodable, Decodable, Equatable {
+    /// Contains a string that can be interpolated with options.
+    let rawString: String
+}
+
+extension PrintableString: ExpressibleByStringLiteral {
+    public init(stringLiteral: String) {
+        rawString = stringLiteral
+    }
+}
+
+extension PrintableString: CustomStringConvertible {
+    public var description: String {
+        return rawString
+    }
+}
+
+extension PrintableString: ExpressibleByStringInterpolation {
+    public init(stringInterpolation: StringInterpolation) {
+        rawString = stringInterpolation.string
+    }
+
+    public struct StringInterpolation: StringInterpolationProtocol {
+        var string: String
+
+        public init(literalCapacity _: Int, interpolationCount _: Int) {
+            string = String()
+        }
+
+        public mutating func appendLiteral(_ literal: String) {
+            string.append(literal)
+        }
+
+        public mutating func appendInterpolation(_ token: PrintableString.Token) {
+            string.append(token.description)
+        }
+
+        public mutating func appendInterpolation(_ value: String) {
+            string.append(value)
+        }
+
+        public mutating func appendInterpolation(_ value: CustomStringConvertible) {
+            string.append(value.description)
+        }
+    }
+}
+
+extension PrintableString {
+    public indirect enum Token: ExpressibleByStringLiteral {
+        case raw(String)
+        case command(Token)
+        case keystroke(Token)
+        case bold(Token)
+        case error(Token)
+        case success(Token)
+        case warning(Token)
+        case info(Token)
+
+        public init(stringLiteral: String) {
+            self = .raw(stringLiteral)
+        }
+
+        public var description: String {
+            switch self {
+            case let .raw(string):
+                return string
+            case let .command(token):
+                return Environment.shared.shouldOutputBeColoured ? token.description.cyan() : token.description
+            case let .keystroke(token):
+                return Environment.shared.shouldOutputBeColoured ? token.description.cyan() : token.description
+            case let .bold(token):
+                return Environment.shared.shouldOutputBeColoured ? token.description.bold() : token.description
+            case let .error(token):
+                return Environment.shared.shouldOutputBeColoured ? token.description.red() : token.description
+            case let .success(token):
+                return Environment.shared.shouldOutputBeColoured ? token.description.green() : token.description
+            case let .warning(token):
+                return Environment.shared.shouldOutputBeColoured ? token.description.yellow() : token.description
+            case let .info(token):
+                return Environment.shared.shouldOutputBeColoured ? token.description.lightBlue() : token.description
+            }
+        }
+    }
+}
+
 public protocol Printing: AnyObject {
-    func print(_ text: String)
-    func print(section: String)
-    func print(subsection: String)
-    func print(warning: String)
+    func print(_ text: PrintableString)
+    func print(section: PrintableString)
+    func print(subsection: PrintableString)
+    func print(warning: PrintableString)
     func print(error: Error)
-    func print(success: String)
-    func print(errorMessage: String)
-    func print(deprecation: String)
+    func print(success: PrintableString)
+    func print(errorMessage: PrintableString)
+    func print(deprecation: PrintableString)
 }
 
 public class Printer: Printing {
@@ -22,8 +107,8 @@ public class Printer: Printing {
 
     // MARK: - Public
 
-    public func print(_ text: String) {
-        printStandardOutputLine(text)
+    public func print(_ text: PrintableString) {
+        printStandardOutputLine(text.description)
     }
 
     public func print(error: Error) {
@@ -34,7 +119,7 @@ public class Printer: Printing {
         }
     }
 
-    public func print(success: String) {
+    public func print(success: PrintableString) {
         if Environment.shared.shouldOutputBeColoured {
             printStandardOutputLine("Success: \(success)".green().bold())
         } else {
@@ -45,7 +130,7 @@ public class Printer: Printing {
     /// Prints a deprecation message (yellow color)
     ///
     /// - Parameter deprecation: Deprecation message.
-    public func print(deprecation: String) {
+    public func print(deprecation: PrintableString) {
         if Environment.shared.shouldOutputBeColoured {
             printStandardOutputLine("Deprecated: \(deprecation)".yellow().bold())
         } else {
@@ -53,7 +138,7 @@ public class Printer: Printing {
         }
     }
 
-    public func print(warning: String) {
+    public func print(warning: PrintableString) {
         if Environment.shared.shouldOutputBeColoured {
             printStandardOutputLine("Warning: \(warning)".yellow().bold())
         } else {
@@ -61,7 +146,7 @@ public class Printer: Printing {
         }
     }
 
-    public func print(errorMessage: String) {
+    public func print(errorMessage: PrintableString) {
         if Environment.shared.shouldOutputBeColoured {
             printStandardErrorLine("Error: \(errorMessage)".red().bold())
         } else {
@@ -69,19 +154,19 @@ public class Printer: Printing {
         }
     }
 
-    public func print(section: String) {
+    public func print(section: PrintableString) {
         if Environment.shared.shouldOutputBeColoured {
-            printStandardOutputLine(section.cyan().bold())
+            printStandardOutputLine(section.description.cyan().bold())
         } else {
-            printStandardOutputLine(section)
+            printStandardOutputLine(section.description)
         }
     }
 
-    public func print(subsection: String) {
+    public func print(subsection: PrintableString) {
         if Environment.shared.shouldOutputBeColoured {
-            printStandardOutputLine(subsection.cyan())
+            printStandardOutputLine(subsection.description.cyan())
         } else {
-            printStandardOutputLine(subsection)
+            printStandardOutputLine(subsection.description)
         }
     }
 
