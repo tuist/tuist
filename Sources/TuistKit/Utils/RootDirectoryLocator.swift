@@ -15,6 +15,12 @@ final class RootDirectoryLocator: RootDirectoryLocating {
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     fileprivate var cache: [AbsolutePath: AbsolutePath] = [:]
 
+    /// Shared instance
+    static var shared = RootDirectoryLocator()
+
+    /// Constructor
+    internal init() {}
+
     /// Given a path, it finds the root directory by traversing up the hierarchy.
     /// The root directory is considered the directory that contains a Tuist/ directory or the directory where the
     /// git repository is defined if no Tuist/ directory is found.

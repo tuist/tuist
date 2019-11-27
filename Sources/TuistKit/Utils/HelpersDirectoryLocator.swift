@@ -14,7 +14,7 @@ final class HelpersDirectoryLocator: HelpersDirectoryLocating {
 
     /// Initializes the locator with its dependencies.
     /// - Parameter rootDirectoryLocator: Instance to locate the root directory of the project.
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator.shared) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 

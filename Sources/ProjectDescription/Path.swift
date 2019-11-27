@@ -2,6 +2,7 @@ public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
     public enum PathType: String, Codable {
         case relativeToCurrentFile
         case relativeToManifest
+        case relativeToRoot
     }
 
     public let type: PathType
@@ -26,6 +27,10 @@ public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
 
     public static func relativeToManifest(_ pathString: String) -> Path {
         return Path(pathString, type: .relativeToManifest)
+    }
+
+    public static func relativeToRoot(_ pathString: String) -> Path {
+        return Path(pathString, type: .relativeToRoot)
     }
 
     // MARK: - ExpressibleByStringLiteral
