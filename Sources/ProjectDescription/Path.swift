@@ -36,6 +36,10 @@ public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
     // MARK: - ExpressibleByStringLiteral
 
     public init(stringLiteral: String) {
-        self.init(stringLiteral, type: .relativeToManifest)
+        if stringLiteral.starts(with: "//") {
+            self.init(stringLiteral.replacingOccurrences(of: "//", with: ""), type: .relativeToRoot)
+        } else {
+            self.init(stringLiteral, type: .relativeToManifest)
+        }
     }
 }

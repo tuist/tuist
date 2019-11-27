@@ -1285,6 +1285,6 @@ A path represents a path to a file, directory, or a group of files represented b
 
 <Message
   info
-  title="ExpressibleByStringLiteral and ExpressibleByArrayLiteral"
-  description="The path can be initialized with a plain string. It's equivalent to using .relativeToManifest."
+  title="ExpressibleByStringLiteral"
+  description="The path can be initialized with a plain string. It's equivalent to using `.relativeToManifest.` except when the path starts with `//`, in which case the path is considered relative to the root directory."
 />
