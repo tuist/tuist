@@ -25,6 +25,7 @@ on:
       - fixtures/**/*
       - features/**/*
       - .github/workflows/tuist.yml
+    types: [edited, dismissed]
 
 jobs:
   unit_tests:
@@ -45,6 +46,8 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
+        with: 
+           github_token: ${{ secrets.GITHUB_TOKEN }} 
       - name: Select Xcode 11.1
         run: sudo xcode-select -switch /Applications/Xcode_11.1.app
       - name: Build Tuist for release
