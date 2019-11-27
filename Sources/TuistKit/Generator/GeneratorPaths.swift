@@ -3,7 +3,7 @@ import Foundation
 import ProjectDescription
 import TuistSupport
 
-enum GeneratorPathsError: FatalError {
+enum GeneratorPathsError: FatalError, Equatable {
     /// Thrown when the root directory can't be located.
     case rootDirectoryNotFound(AbsolutePath)
 
@@ -42,8 +42,8 @@ struct GeneratorPaths {
         case .relativeToManifest:
             return AbsolutePath(path.pathString, relativeTo: manifestDirectory)
         case .relativeToRoot:
-            guard let rootPath = RootDirectoryLocator.shared.locate(from: AbsolutePath(path.pathString)) else {
-                throw GeneratorPathsError.rootDirectoryNotFound(AbsolutePath(path.pathString))
+            guard let rootPath = RootDirectoryLocator.shared.locate(from: AbsolutePath(manifestDirectory.pathString)) else {
+                throw GeneratorPathsError.rootDirectoryNotFound(AbsolutePath(manifestDirectory.pathString))
             }
             return AbsolutePath(path.pathString, relativeTo: rootPath)
         }

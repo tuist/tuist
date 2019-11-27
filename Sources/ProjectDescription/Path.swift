@@ -1,3 +1,5 @@
+import Foundation
+
 public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
     public enum PathType: String, Codable {
         case relativeToCurrentFile
@@ -13,9 +15,9 @@ public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
         self.init(path, type: .relativeToManifest)
     }
 
-    private init(_ pathString: String,
-                 type: PathType,
-                 callerPath: String? = nil) {
+    init(_ pathString: String,
+         type: PathType,
+         callerPath: String? = nil) {
         self.type = type
         self.pathString = pathString
         self.callerPath = callerPath
