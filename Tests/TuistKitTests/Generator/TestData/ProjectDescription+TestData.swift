@@ -100,7 +100,7 @@ extension BuildAction {
 }
 
 extension TestAction {
-    static func test(targets: [String] = [],
+    static func test(targets: [TestableTarget] = [],
                      arguments: Arguments? = nil,
                      config: PresetBuildConfiguration = .debug,
                      coverage: Bool = true) -> TestAction {

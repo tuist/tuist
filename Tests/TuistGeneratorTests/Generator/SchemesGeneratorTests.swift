@@ -125,7 +125,7 @@ final class SchemeGeneratorTests: XCTestCase {
 
         let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: "AppTests")
         let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: "AppTests")
-        let testAction = TestAction.test(targets: ["AppTests"], preActions: [preAction], postActions: [postAction])
+        let testAction = TestAction.test(targets: [TestableTarget(target: "AppTests")], preActions: [preAction], postActions: [postAction])
 
         let scheme = Scheme.test(name: "AppTests", shared: true, testAction: testAction)
         let project = Project.test(targets: [testTarget])
@@ -162,7 +162,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
 
-        let testAction = TestAction.test(targets: ["AppTests"], coverage: true, codeCoverageTargets: ["App"])
+        let testAction = TestAction.test(targets: [TestableTarget(target: "AppTests")], coverage: true, codeCoverageTargets: ["App"])
         let buildAction = BuildAction.test(targets: ["App"])
 
         let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
@@ -179,6 +179,28 @@ final class SchemeGeneratorTests: XCTestCase {
         XCTAssertEqual(got?.onlyGenerateCoverageForSpecifiedTargets, true)
         XCTAssertEqual(codeCoverageTargetsBuildableReference?.count, 1)
         XCTAssertEqual(codeCoverageTargetsBuildableReference?.first?.buildableName, "App.app")
+    }
+
+    func test_schemeTestAction_with_testable_info() {
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testableTarget = TestableTarget(target: "AppTests", skipped: false, parallelizable: true, randomExecutionOrdering: true)
+        let testAction = TestAction.test(targets: [testableTarget])
+        let buildAction = BuildAction.test(targets: ["App"])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+        let project = Project.test(targets: [target, testTarget])
+
+        let pbxTarget = PBXNativeTarget(name: "App", productType: .application)
+        let pbxTestTarget = PBXNativeTarget(name: "AppTests", productType: .unitTestBundle)
+        let generatedProject = GeneratedProject.test(targets: ["AppTests": pbxTestTarget, "App": pbxTarget])
+
+        let got = subject.schemeTestAction(scheme: scheme, project: project, generatedProject: generatedProject)
+        let testableTargetReference = got!.testables[0]
+        XCTAssertEqual(testableTargetReference.skipped, false)
+        XCTAssertEqual(testableTargetReference.parallelizable, true)
+        XCTAssertEqual(testableTargetReference.randomExecutionOrdering, true)
     }
 
     func test_schemeBuildAction() {
@@ -268,7 +290,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let pbxTarget = PBXNativeTarget(name: "App")
 
         let buildAction = BuildAction.test(targets: ["Library"])
-        let testAction = TestAction.test(targets: ["Library"])
+        let testAction = TestAction.test(targets: [TestableTarget(target: "Library")])
 
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
 
@@ -321,7 +343,7 @@ final class SchemeGeneratorTests: XCTestCase {
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
         let buildAction = BuildAction.test(targets: ["Library"])
-        let testAction = TestAction.test(targets: ["Library"])
+        let testAction = TestAction.test(targets: [TestableTarget(target: "Library")])
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
 
         let project = Project.test(path: AbsolutePath("/project.xcodeproj"), targets: [target])
