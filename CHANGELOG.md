@@ -17,6 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - `tuist edit` command https://github.com/tuist/tuist/pull/703 by @pepibumur.
 - Support interpolating formatted strings in the printer https://github.com/tuist/tuist/pull/726 by @pepibumur.
 - Support for paths relative to root https://github.com/tuist/tuist/pull/727 by @pepibumur.
+- Replace `Sheme.testAction.targets` type from `String` to `TestableTarget` is a description of target that adds to the `TestAction`, you can specify execution tests parallelizable, random execution order or skip tests https://github.com/tuist/tuist/pull/728 by @rowwingman.
 
 ## 0.19.0
 
