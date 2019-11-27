@@ -51,7 +51,7 @@ class EditCommand: NSObject, Command {
                 try! FileHandler.shared.delete(EditCommand.temporaryDirectory.path)
                 exit(0)
             }
-            Printer.shared.print(success: "Opening Xcode to edit the project. Press CTRL + C once you are done editing")
+            Printer.shared.print(success: "Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
             try opener.open(path: xcodeprojPath, wait: true)
         } else {
             Printer.shared.print(success: "Xcode project generated at \(xcodeprojPath.pathString)")

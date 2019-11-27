@@ -49,7 +49,7 @@ class LocalCommand: Command {
         Printer.shared.print(section: "The following versions are available in the local environment:")
         let versions = versionController.semverVersions()
         let output = versions.sorted().reversed().map { "- \($0)" }.joined(separator: "\n")
-        Printer.shared.print(output)
+        Printer.shared.print("\(output)")
     }
 
     private func createVersionFile(version: String) throws {

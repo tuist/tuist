@@ -20,7 +20,6 @@ public final class Deprecator: Deprecating {
     ///   - deprecation: Feature that will be deprecated.
     ///   - suggestion: Suggestions for the user to migrate.
     public func notify(deprecation: String, suggestion: String) {
-        let message = "\(deprecation) will be deprecated in the next major release. Use \(suggestion) instead."
-        Printer.shared.print(deprecation: message)
+        Printer.shared.print(deprecation: "\(.raw(deprecation)) will be deprecated in the next major release. Use \(suggestion) instead.")
     }
 }

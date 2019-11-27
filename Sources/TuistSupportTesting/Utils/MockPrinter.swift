@@ -7,23 +7,23 @@ public final class MockPrinter: Printing {
     var standardOutput: String = ""
     var standardError: String = ""
 
-    public func print(_ text: String) {
+    public func print(_ text: PrintableString) {
         standardOutput.append("\(text)\n")
     }
 
-    public func print(section: String) {
+    public func print(section: PrintableString) {
         standardOutput.append("\(section)\n")
     }
 
-    public func print(warning: String) {
+    public func print(warning: PrintableString) {
         standardOutput.append("\(warning)\n")
     }
 
-    public func print(deprecation: String) {
+    public func print(deprecation: PrintableString) {
         standardOutput.append("\(deprecation)\n")
     }
 
-    public func print(errorMessage: String) {
+    public func print(errorMessage: PrintableString) {
         standardError.append("\(errorMessage)\n")
     }
 
@@ -31,11 +31,11 @@ public final class MockPrinter: Printing {
         standardError.append("\(error.localizedDescription)\n")
     }
 
-    public func print(success: String) {
+    public func print(success: PrintableString) {
         standardOutput.append("\(success)\n")
     }
 
-    public func print(subsection: String) {
+    public func print(subsection: PrintableString) {
         standardOutput.append("\(subsection)\n")
     }
 
