@@ -1274,6 +1274,11 @@ A path represents a path to a file, directory, or a group of files represented b
       case: '.relativeToManifest(String)',
       description:
         'Initialize a path that is relative to the directory that contains the manifest file being loaded, for example the directory that contains the Project.swift file.',
+    },
+    {
+      case: '.relativeToRoot(String)',
+      description:
+        'Initialize a path that is relative to the closest directory that contains a Tuist or a .git directory.',
     }
   ]}
 />
