@@ -44,7 +44,7 @@ final class SchemesGenerator: SchemesGenerating {
                 let scheme = Scheme(name: target.name,
                                     shared: true,
                                     buildAction: BuildAction(targets: [target.name]),
-                                    testAction: TestAction(targets: [target.name], configurationName: buildConfiguration),
+                                    testAction: TestAction(targets: [TestableTarget(target: target.name)], configurationName: buildConfiguration),
                                     runAction: RunAction(configurationName: buildConfiguration,
                                                          executable: target.productName,
                                                          arguments: Arguments(environment: target.environment)))
@@ -211,15 +211,19 @@ final class SchemesGenerator: SchemesGenerating {
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
-        testAction.targets.forEach { name in
-            guard let target = project.targets.first(where: { $0.name == name }), target.product.testsBundle else { return }
-            guard let pbxTarget = generatedProject.targets[name] else { return }
+        testAction.targets.forEach { test in
+            let targetName = test.target
+            guard let target = project.targets.first(where: { $0.name == targetName }), target.product.testsBundle else { return }
+            guard let pbxTarget = generatedProject.targets[targetName] else { return }
 
             let reference = self.targetBuildableReference(target: target,
                                                           pbxTarget: pbxTarget,
                                                           projectName: generatedProject.name)
 
-            let testable = XCScheme.TestableReference(skipped: false, buildableReference: reference)
+            let testable = XCScheme.TestableReference(skipped: test.isSkipped,
+                                                      parallelizable: test.isParallelizable,
+                                                      randomExecutionOrdering: test.isRandomExecutionOrdering,
+                                                      buildableReference: reference)
             testables.append(testable)
         }
 

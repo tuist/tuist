@@ -28,7 +28,7 @@ public extension TestAction {
                      codeCoverageTargets: [String] = [],
                      preActions: [ExecutionAction] = [],
                      postActions: [ExecutionAction] = []) -> TestAction {
-        return TestAction(targets: targets,
+        return TestAction(targets: targets.map { TestableTarget(target: $0) },
                           arguments: arguments,
                           configurationName: configurationName,
                           coverage: coverage,
