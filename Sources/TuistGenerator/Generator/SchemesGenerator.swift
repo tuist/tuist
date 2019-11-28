@@ -42,8 +42,8 @@ final class SchemesGenerator: SchemesGenerating {
          /// Generate scheme from manifest
          try project.schemes.forEach { scheme in
              try generateScheme(scheme: scheme,
-                                xcworkspacePath: xcprojectPath,
-                                workspacePath: project.path,
+                                xcPath: xcprojectPath,
+                                path: project.path,
                                 graph: graph,
                                 generatedProjects: [project.path: generatedProject])
          }
@@ -60,8 +60,8 @@ final class SchemesGenerator: SchemesGenerating {
                                                           executable: targetReference,
                                                           arguments: Arguments(environment: target.environment)))
                  try generateScheme(scheme: scheme,
-                                    xcworkspacePath: xcprojectPath,
-                                    workspacePath: project.path,
+                                    xcPath: xcprojectPath,
+                                    path: project.path,
                                     graph: graph,
                                     generatedProjects: [project.path: generatedProject])
             }
@@ -71,42 +71,42 @@ final class SchemesGenerator: SchemesGenerating {
     /// Generate schemes for a project or workspace.
     /// - Parameters:
     ///     - scheme: Project scheme.
-    ///     - xcworkspacePath: Path to workspace's .xcworkspace.
-    ///     - workspacePath: Path to workspace folder.
+    ///     - xcPath: Path to workspace's .xcworkspace or project's .xcodeproj.
+    ///     - path: Path to workspace or project folder.
     ///     - graph: Tuist graph.
     ///     - generatedProjects: Project paths mapped to generated projects.
     private func generateScheme(scheme: Scheme,
-                                xcworkspacePath: AbsolutePath,
-                                workspacePath: AbsolutePath,
+                                xcPath: AbsolutePath,
+                                path: AbsolutePath,
                                 graph: Graphing,
                                 generatedProjects: [AbsolutePath: GeneratedProject]) throws {
-        let schemeDirectory = try createSchemesDirectory(path: xcworkspacePath, shared: scheme.shared)
+        let schemeDirectory = try createSchemesDirectory(path: xcPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.name).xcscheme")
         let generatedBuildAction = try schemeBuildAction(scheme: scheme,
                                                          graph: graph,
-                                                         rootPath: workspacePath,
+                                                         rootPath: path,
                                                          generatedProjects: generatedProjects)
         let generatedTestAction = try schemeTestAction(scheme: scheme,
                                                        graph: graph,
-                                                       rootPath: workspacePath,
+                                                       rootPath: path,
                                                        generatedProjects: generatedProjects)
         let generatedLaunchAction = try schemeLaunchAction(scheme: scheme,
                                                            graph: graph,
-                                                           rootPath: workspacePath,
+                                                           rootPath: path,
                                                            generatedProjects: generatedProjects)
         let generatedProfileAction = try schemeProfileAction(scheme: scheme,
                                                              graph: graph,
-                                                             rootPath: workspacePath,
+                                                             rootPath: path,
                                                              generatedProjects: generatedProjects)
         
         let generatedArchiveAction = try schemeArchiveAction(scheme: scheme,
                                                              graph: graph,
-                                                             rootPath: workspacePath,
+                                                             rootPath: path,
                                                              generatedProjects: generatedProjects)
         
         let generatedAnalyzeAction = try schemeAnalyzeAction(scheme: scheme,
                                                              graph: graph,
-                                                             rootPath: workspacePath,
+                                                             rootPath: path,
                                                              generatedProjects: generatedProjects)
 
         let scheme = XCScheme(name: scheme.name,
