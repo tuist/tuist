@@ -50,26 +50,6 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     }
 }
 
-enum Manifest: CaseIterable {
-    case project
-    case workspace
-    case tuistConfig
-    case setup
-
-    var fileName: String {
-        switch self {
-        case .project:
-            return "Project.swift"
-        case .workspace:
-            return "Workspace.swift"
-        case .tuistConfig:
-            return "TuistConfig.swift"
-        case .setup:
-            return "Setup.swift"
-        }
-    }
-}
-
 protocol GraphManifestLoading {
     /// Loads the TuistConfig.swift in the given directory.
     ///
@@ -77,6 +57,13 @@ protocol GraphManifestLoading {
     /// - Returns: Loaded TuistConfig.swift file.
     /// - Throws: An error if the file has a syntax error.
     func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig
+
+    /// Loads the Galaxy.swift in the given directory.
+    ///
+    /// - Parameter path: Path to the directory that contains the Galaxy.swift file.
+    /// - Returns: Loaded Galaxy.swift file.
+    /// - Throws: An error if the file has a syntax error.
+    func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy
 
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
@@ -88,26 +75,13 @@ protocol GraphManifestLoading {
 class GraphManifestLoader: GraphManifestLoading {
     // MARK: - Attributes
 
-    /// Resource locator to look up Tuist-related resources.
     let resourceLocator: ResourceLocating
-
-    /// Instance to compile and return a temporary module that contains the helper files.
     let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
-
-    /// Utility to locate manifest files.
     let manifestFilesLocator: ManifestFilesLocating
-
-    /// A decoder instance for decoding the raw manifest data to their concrete types
     private let decoder: JSONDecoder
 
     // MARK: - Init
 
-    /// Initializes the manifest loader with its attributes.
-    ///
-    /// - Parameters:
-    ///   - resourceLocator: Resource locator to look up Tuist-related resources.
-    ///   - helpersLoader: Instance to compile and return a temporary module that contains the helper files.
-    ///   - manifestFilesLocator: Utility to locate manifest files.
     init(resourceLocator: ResourceLocating = ResourceLocator(),
          projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder(),
          manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()) {
@@ -131,13 +105,12 @@ class GraphManifestLoader: GraphManifestLoading {
         return Set(manifestFilesLocator.locate(at: path).map { $0.0 })
     }
 
-    /// Loads the TuistConfig.swift in the given directory.
-    ///
-    /// - Parameter path: Path to the directory that contains the TuistConfig.swift file.
-    /// - Returns: Loaded TuistConfig.swift file.
-    /// - Throws: An error if the file has a syntax error.
     func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig {
         return try loadManifest(.tuistConfig, at: path)
+    }
+
+    func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy {
+        return try loadManifest(.galaxy, at: path)
     }
 
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
