@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Removed
 - **Breaking** Generate manifests target as part of the generated project https://github.com/tuist/tuist/pull/724 by @pepibumur.
+- The installation no longer checks if the Swift version is compatible https://github.com/tuist/tuist/pull/727 by @pepibumur.
 
 ### Added
 

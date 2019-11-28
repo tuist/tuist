@@ -33,24 +33,6 @@ final class InstallerTests: TuistUnitTestCase {
         subject = nil
     }
 
-    func test_install_when_invalid_swift_version() throws {
-        let version = "3.2.1"
-        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        system.swiftVersionStub = { "4.2.1" }
-        githubClient.getContentStub = { ref, path in
-            if ref == version, path == ".swift-version" {
-                return "5.0.0"
-            } else {
-                throw NSError.test()
-            }
-        }
-
-        let expectedError = InstallerError.incompatibleSwiftVersion(local: "4.2.1", expected: "5.0.0")
-        XCTAssertThrowsSpecific(try subject.install(version: version,
-                                                    temporaryDirectory: temporaryDirectory), expectedError)
-        XCTAssertPrinterOutputContains("Verifying the Swift version is compatible with your version 4.2.1")
-    }
-
     func test_install_when_bundled_release() throws {
         let version = "3.2.1"
         let temporaryPath = try self.temporaryPath()
@@ -84,7 +66,6 @@ final class InstallerTests: TuistUnitTestCase {
                             temporaryDirectory: temporaryDirectory)
 
         XCTAssertPrinterOutputContains("""
-        Verifying the Swift version is compatible with your version 5.0.0
         Downloading version from \(downloadURL.absoluteString)
         Installing...
         Version \(version) installed
@@ -189,7 +170,6 @@ final class InstallerTests: TuistUnitTestCase {
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
         XCTAssertPrinterOutputContains("""
-        Verifying the Swift version is compatible with your version 5.0.0
         The release \(version) is not bundled
         Pulling source code
         Building using Swift (it might take a while)
