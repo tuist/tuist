@@ -83,8 +83,6 @@ final class Installer: Installing {
             return
         }
 
-        try verifySwiftVersion(version: version)
-
         var bundleURL: URL?
         do {
             bundleURL = try self.bundleURL(version: version)
@@ -97,29 +95,6 @@ final class Installer: Installing {
         } else {
             try installFromSource(version: version,
                                   temporaryDirectory: temporaryDirectory)
-        }
-    }
-
-    func verifySwiftVersion(version: String) throws {
-        guard let localVersionString = try System.shared.swiftVersion() else { return }
-        Printer.shared.print("Verifying the Swift version is compatible with your version \(localVersionString)")
-        var remoteVersionString: String!
-        do {
-            remoteVersionString = try githubClient.getContent(ref: version, path: ".swift-version").spm_chomp()
-        } catch is GitHubClientError {
-            Printer.shared.print(warning: "Couldn't get the Swift version needed for \(version). Continuing...")
-        }
-
-        let localVersion = SwiftVersion(localVersionString)
-        let remoteVersion = SwiftVersion(remoteVersionString)
-        let versionFive = SwiftVersion("5")
-
-        if localVersion >= versionFive, remoteVersion >= versionFive {
-            return
-        } else if localVersion == remoteVersion {
-            return
-        } else {
-            throw InstallerError.incompatibleSwiftVersion(local: localVersionString, expected: remoteVersionString)
         }
     }
 

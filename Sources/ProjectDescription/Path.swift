@@ -1,7 +1,10 @@
+import Foundation
+
 public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
     public enum PathType: String, Codable {
         case relativeToCurrentFile
         case relativeToManifest
+        case relativeToRoot
     }
 
     public let type: PathType
@@ -12,9 +15,9 @@ public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
         self.init(path, type: .relativeToManifest)
     }
 
-    private init(_ pathString: String,
-                 type: PathType,
-                 callerPath: String? = nil) {
+    init(_ pathString: String,
+         type: PathType,
+         callerPath: String? = nil) {
         self.type = type
         self.pathString = pathString
         self.callerPath = callerPath
@@ -28,9 +31,17 @@ public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
         return Path(pathString, type: .relativeToManifest)
     }
 
+    public static func relativeToRoot(_ pathString: String) -> Path {
+        return Path(pathString, type: .relativeToRoot)
+    }
+
     // MARK: - ExpressibleByStringLiteral
 
     public init(stringLiteral: String) {
-        self.init(stringLiteral, type: .relativeToManifest)
+        if stringLiteral.starts(with: "//") {
+            self.init(stringLiteral.replacingOccurrences(of: "//", with: ""), type: .relativeToRoot)
+        } else {
+            self.init(stringLiteral, type: .relativeToManifest)
+        }
     }
 }
