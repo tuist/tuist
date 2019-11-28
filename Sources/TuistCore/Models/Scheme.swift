@@ -66,13 +66,13 @@ public class ExecutionAction: Equatable {
 
     public let title: String
     public let scriptText: String
-    public let target: String?
+    public let target: TargetReference?
 
     // MARK: - Init
 
     public init(title: String,
                 scriptText: String,
-                target: String?) {
+                target: TargetReference?) {
         self.title = title
         self.scriptText = scriptText
         self.target = target
@@ -85,16 +85,35 @@ public class ExecutionAction: Equatable {
     }
 }
 
+public class TargetReference: Equatable {
+    public var projectPath: AbsolutePath
+    public var name: String
+
+    public static func project(path: AbsolutePath, target: String) -> TargetReference {
+        return .init(projectPath: path, name: target)
+    }
+    
+    public init(projectPath: AbsolutePath, name: String) {
+        self.projectPath = projectPath
+        self.name = name
+    }
+    
+    public static func == (lhs: TargetReference, rhs: TargetReference) -> Bool {
+        return lhs.projectPath == rhs.projectPath &&
+            lhs.name == rhs.name
+    }
+}
+
 public class BuildAction: Equatable {
     // MARK: - Attributes
 
-    public let targets: [String]
+    public let targets: [TargetReference]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
     // MARK: - Init
 
-    public init(targets: [String] = [],
+    public init(targets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
@@ -114,21 +133,21 @@ public class BuildAction: Equatable {
 public class TestAction: Equatable {
     // MARK: - Attributes
 
-    public let targets: [String]
+    public let targets: [TargetReference]
     public let arguments: Arguments?
     public let configurationName: String
     public let coverage: Bool
-    public let codeCoverageTargets: [String]
+    public let codeCoverageTargets: [TargetReference]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
     // MARK: - Init
 
-    public init(targets: [String] = [],
+    public init(targets: [TargetReference] = [],
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
-                codeCoverageTargets: [String] = [],
+                codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
@@ -157,13 +176,13 @@ public class RunAction: Equatable {
     // MARK: - Attributes
 
     public let configurationName: String
-    public let executable: String?
+    public let executable: TargetReference?
     public let arguments: Arguments?
 
     // MARK: - Init
 
     public init(configurationName: String,
-                executable: String? = nil,
+                executable: TargetReference? = nil,
                 arguments: Arguments? = nil) {
         self.configurationName = configurationName
         self.executable = executable
