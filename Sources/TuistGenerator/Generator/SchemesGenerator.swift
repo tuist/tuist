@@ -39,31 +39,33 @@ final class SchemesGenerator: SchemesGenerating {
                                 xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
                                 graph: Graphing) throws {
-         /// Generate scheme from manifest
-         try project.schemes.forEach { scheme in
-             try generateScheme(scheme: scheme,
-                                xcPath: xcprojectPath,
-                                path: project.path,
-                                graph: graph,
-                                generatedProjects: [project.path: generatedProject])
-         }
-         /// Generate scheme for every targets in Project that is not defined in Manifest
-         let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
-         try project.targets.forEach { target in
+        /// Generate scheme from manifest
+        try project.schemes.forEach { scheme in
+            try generateScheme(scheme: scheme,
+                               xcPath: xcprojectPath,
+                               path: project.path,
+                               graph: graph,
+                               generatedProjects: [project.path: generatedProject])
+        }
+        /// Generate scheme for targets in Project that are not defined in Manifest
+        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
+        try project.targets.forEach { target in
             let targetReference = TargetReference.project(path: project.path, target: target.name)
-             if !project.schemes.contains(where: { $0.name == target.name }) {
-                 let scheme = Scheme(name: target.name,
-                                     shared: true,
-                                     buildAction: BuildAction(targets: [targetReference]),
-                                     testAction: TestAction(targets: [targetReference], configurationName: buildConfiguration),
-                                     runAction: RunAction(configurationName: buildConfiguration,
-                                                          executable: targetReference,
-                                                          arguments: Arguments(environment: target.environment)))
-                 try generateScheme(scheme: scheme,
-                                    xcPath: xcprojectPath,
-                                    path: project.path,
-                                    graph: graph,
-                                    generatedProjects: [project.path: generatedProject])
+            if !project.schemes.contains(where: { $0.name == target.name }) {
+                let testTargets = target.product == .uiTests || target.product == .unitTests ? [targetReference] : []
+                let scheme = Scheme(name: target.name,
+                                    shared: true,
+                                    buildAction: BuildAction(targets: [targetReference]),
+                                    testAction: TestAction(targets: testTargets,
+                                                           configurationName: buildConfiguration),
+                                    runAction: RunAction(configurationName: buildConfiguration,
+                                                         executable: targetReference,
+                                                         arguments: Arguments(environment: target.environment)))
+                try generateScheme(scheme: scheme,
+                                   xcPath: xcprojectPath,
+                                   path: project.path,
+                                   graph: graph,
+                                   generatedProjects: [project.path: generatedProject])
             }
         }
     }
