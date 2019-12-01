@@ -597,7 +597,7 @@ extension TuistCore.BuildAction {
 
 extension TuistCore.TestAction {
     static func from(manifest: ProjectDescription.TestAction) -> TuistCore.TestAction {
-        let targets = manifest.targets
+        let targets = manifest.targets.map { TuistCore.TestableTarget.from(manifest: $0) }
         let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
         let configurationName = manifest.configurationName
         let coverage = manifest.coverage
@@ -612,6 +612,15 @@ extension TuistCore.TestAction {
                           codeCoverageTargets: codeCoverageTargets,
                           preActions: preActions,
                           postActions: postActions)
+    }
+}
+
+extension TuistCore.TestableTarget {
+    static func from(manifest: ProjectDescription.TestableTarget) -> TuistCore.TestableTarget {
+        return TestableTarget(target: manifest.target,
+                              skipped: manifest.isSkipped,
+                              parallelizable: manifest.isParallelizable,
+                              randomExecutionOrdering: manifest.isRandomExecutionOrdering)
     }
 }
 
