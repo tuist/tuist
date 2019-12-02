@@ -133,7 +133,7 @@ public class BuildAction: Equatable {
 public class TestAction: Equatable {
     // MARK: - Attributes
 
-    public let targets: [TargetReference]
+    public let targets: [TestableTarget]
     public let arguments: Arguments?
     public let configurationName: String
     public let coverage: Bool
@@ -143,7 +143,7 @@ public class TestAction: Equatable {
 
     // MARK: - Init
 
-    public init(targets: [TargetReference] = [],
+    public init(targets: [TestableTarget] = [],
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
@@ -169,6 +169,20 @@ public class TestAction: Equatable {
             lhs.codeCoverageTargets == rhs.codeCoverageTargets &&
             lhs.preActions == rhs.preActions &&
             lhs.postActions == rhs.postActions
+    }
+}
+
+public struct TestableTarget: Equatable {
+    public let target: TargetReference
+    public let isSkipped: Bool
+    public let isParallelizable: Bool
+    public let isRandomExecutionOrdering: Bool
+
+    public init(target: TargetReference, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) {
+        self.target = target
+        self.isSkipped = skipped
+        self.isParallelizable = parallelizable
+        self.isRandomExecutionOrdering = randomExecutionOrdering
     }
 }
 

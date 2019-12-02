@@ -827,7 +827,9 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                 path: AbsolutePath,
                 file: StaticString = #file,
                 line: UInt = #line) {
-        XCTAssertEqual(testAction.targets, manifest.targets.map { TargetReference(projectPath: path, name: $0) }, file: file, line: line)
+
+        let targets = manifest.targets.map { TestableTarget.from(manifest: $0, projectPath: path) }
+        XCTAssertEqual(testAction.targets, targets, file: file, line: line)
         XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
         XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)
         optionalAssert(testAction.arguments, manifest.arguments) {

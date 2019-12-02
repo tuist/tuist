@@ -71,7 +71,7 @@ public struct BuildAction: Equatable, Codable {
 // MARK: - TestAction
 
 public struct TestAction: Equatable, Codable {
-    public let targets: [String]
+    public let targets: [TestableTarget]
     public let arguments: Arguments?
     public let configurationName: String
     public let coverage: Bool
@@ -79,7 +79,7 @@ public struct TestAction: Equatable, Codable {
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
-    public init(targets: [String],
+    public init(targets: [TestableTarget] = [],
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
@@ -95,7 +95,7 @@ public struct TestAction: Equatable, Codable {
         self.codeCoverageTargets = codeCoverageTargets
     }
 
-    public init(targets: [String],
+    public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,
                 coverage: Bool = false,
@@ -109,6 +109,24 @@ public struct TestAction: Equatable, Codable {
                   codeCoverageTargets: codeCoverageTargets,
                   preActions: preActions,
                   postActions: postActions)
+    }
+}
+
+public struct TestableTarget: Equatable, Hashable, Codable, ExpressibleByStringLiteral {
+    public let target: String
+    public let isSkipped: Bool
+    public let isParallelizable: Bool
+    public let isRandomExecutionOrdering: Bool
+
+    public init(target: String, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) {
+        self.target = target
+        self.isSkipped = skipped
+        self.isParallelizable = parallelizable
+        self.isRandomExecutionOrdering = randomExecutionOrdering
+    }
+
+    public init(stringLiteral value: String) {
+        self.init(target: value)
     }
 }
 

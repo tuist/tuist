@@ -54,22 +54,24 @@ final class SchemesGenerator: SchemesGenerating {
         let userDefinedSchemes = Set(project.schemes.map(\.name))
         let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
         try defaultSchemeTargets.forEach { target in
-            let targetReference = TargetReference.project(path: project.path, target: target.name)
-            let testTargets = target.product.testsBundle ? [targetReference] : []
-            let scheme = Scheme(name: target.name,
-                                shared: true,
-                                buildAction: BuildAction(targets: [targetReference]),
-                                testAction: TestAction(targets: testTargets,
-                                                       configurationName: buildConfiguration),
-                                runAction: RunAction(configurationName: buildConfiguration,
-                                                     executable: targetReference,
-                                                     arguments: Arguments(environment: target.environment)))
+            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration)
             try generateScheme(scheme: scheme,
                                xcPath: xcprojectPath,
                                path: project.path,
                                graph: graph,
                                generatedProjects: [project.path: generatedProject])
+
         }
+    }
+    
+    private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String) -> Scheme {
+        let targetReference = TargetReference.project(path: project.path, target: target.name)
+        let testTargets = target.product.testsBundle ? [TestableTarget(target: targetReference)] : []
+        return Scheme(name: target.name,
+                      shared: true,
+                      buildAction: BuildAction(targets: [targetReference]),
+                      testAction: TestAction(targets: testTargets, configurationName: buildConfiguration),
+                      runAction: RunAction(configurationName: buildConfiguration, executable: targetReference, arguments: Arguments(environment: target.environment)))
     }
     
     /// Generate schemes for a project or workspace.
@@ -189,13 +191,16 @@ final class SchemesGenerator: SchemesGenerating {
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
-        try testAction.targets.forEach { testActionTarget in
-            guard let reference = try createBuildableReference(targetReference: testActionTarget,
+        try testAction.targets.forEach { testableTarget in
+            guard let reference = try createBuildableReference(targetReference: testableTarget.target,
                                                                graph: graph,
                                                                rootPath: rootPath,
                                                                generatedProjects: generatedProjects) else { return }
             
-            let testable = XCScheme.TestableReference(skipped: false, buildableReference: reference)
+            let testable = XCScheme.TestableReference(skipped: testableTarget.isSkipped,
+                                                      parallelizable: testableTarget.isParallelizable,
+                                                      randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
+                                                      buildableReference: reference)
             testables.append(testable)
         }
         

@@ -787,10 +787,11 @@ Alternatively, when leveraging custom configurations, the configuration name can
     {
       name: 'Targets',
       description:
-        'A list of targets to test, which are defined in the project.',
-      type: '[String]',
+        'A list of testable targets, that are targets which are defined in the project with testable information.',
+      type: '[TestableTarget]',
+      typeLink: '#testableTarget',
       optional: false,
-      default: '',
+      default: '[]',
     },
     {
       name: 'Arguments',
@@ -887,6 +888,39 @@ Scheme run scripts can be defined with the following attributes:
       type: 'String',
       optional: true,
       default: 'nil',
+    },
+  ]}
+/>
+
+### TestableTarget
+
+Testable target descibe target and tests information.
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Skipped',
+      description:
+        'Skip test target from TestAction.',
+      type: 'Bool',
+      optional: true,
+      default: 'false',
+    },
+    {
+      name: 'Parallelizable',
+      description:
+        'Execute tests in parallel.',
+      type: 'Bool',
+      optional: true,
+      default: 'false',
+    },
+    {
+      name: 'RandomExecutionOrdering',
+      description:
+        'Execute tests in random order.',
+      type: 'Bool',
+      optional: true,
+      default: 'false',
     },
   ]}
 />

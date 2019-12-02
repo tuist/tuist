@@ -21,7 +21,7 @@ public extension RunAction {
 }
 
 public extension TestAction {
-    static func test(targets: [TargetReference] = [TargetReference(projectPath: "/Project", name: "AppTests")],
+    static func test(targets: [TestableTarget] = [TestableTarget(target: TargetReference(projectPath: "/Project", name: "AppTests"))],
                      arguments: Arguments? = Arguments.test(),
                      configurationName: String = BuildConfiguration.debug.name,
                      coverage: Bool = false,
