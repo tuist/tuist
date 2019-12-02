@@ -29,6 +29,7 @@ final class SchemesGenerator: SchemesGenerating {
     private static let defaultVersion = "1.3"
     
     /// Generate schemes for a project.
+    ///
     /// - Parameters:
     ///     - project: Project manifest.
     ///     - xcprojectPath: Path to project's .xcodeproj.
@@ -72,6 +73,7 @@ final class SchemesGenerator: SchemesGenerating {
     }
     
     /// Generate schemes for a project or workspace.
+    ///
     /// - Parameters:
     ///     - scheme: Project scheme.
     ///     - xcPath: Path to workspace's .xcworkspace or project's .xcodeproj.
@@ -325,7 +327,8 @@ final class SchemesGenerator: SchemesGenerating {
                                       macroExpansion: macroExpansion)
     }
     
-    /// Returns the scheme analyze action
+    /// Returns the scheme analyze action.
+    ///
     /// - Parameters:
     ///     - scheme: Scheme manifest.
     ///     - graph: Tuist graph.
@@ -344,6 +347,7 @@ final class SchemesGenerator: SchemesGenerating {
     }
 
     /// Generates the scheme archive action.
+    ///
     /// - Parameters:
     ///     - scheme: Scheme manifest.
     ///     - graph: Tuist graph.
@@ -435,6 +439,13 @@ final class SchemesGenerator: SchemesGenerating {
         return xcodeProjectPath.relative(to: rootPath)
     }
     
+    /// Creates a target buildable refernece for a target
+    ///
+    /// - Parameters:
+    ///     - targetReference: The target reference.
+    ///     - graph: Tuist graph.
+    ///     - rootPath: Path to the project or workspace.
+    ///     - generatedProjects: Project paths mapped to generated projects.
     private func createBuildableReference(targetReference: TargetReference,
                                           graph: Graphing,
                                           rootPath: AbsolutePath,
