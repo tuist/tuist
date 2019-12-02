@@ -250,33 +250,21 @@ final class SchemesGenerator: SchemesGenerating {
                             graph: Graphing,
                             rootPath: AbsolutePath,
                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.LaunchAction? {
-        
-        guard var (targetNode, generatedProject) = try defaultTargetAndProject(scheme: scheme,
-                                                                               graph: graph,
-                                                                               rootPath: rootPath,
-                                                                               generatedProjects: generatedProjects) else { return nil }
+        guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
         
         if let executable = scheme.runAction?.executable {
-            guard let (runnableTargetNode, runnableTargetGeneratedProject) = try lookupTarget(reference: executable,
-                                                                                              graph: graph,
-                                                                                              generatedProjects: generatedProjects,
-                                                                                              rootPath: rootPath) else {
-                return nil
-            }
-            targetNode = runnableTargetNode
-            generatedProject = runnableTargetGeneratedProject
+            target = executable
         }
         
-        guard let pbxTarget = generatedProject.targets[targetNode.target.name] else { return nil }
-
+        guard let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
+        guard let buildableReference = try createBuildableReference(targetReference: target,
+                                                                    graph: graph,
+                                                                    rootPath: rootPath,
+                                                                    generatedProjects: generatedProjects) else { return nil }
+        
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
-        let relativeXcodeProjectPath = resolveRelativeProjectPath(targetNode: targetNode,
-                                                                  generatedProject: generatedProject,
-                                                                  rootPath: rootPath)
-        let buildableReference = targetBuildableReference(target: targetNode.target,
-                                                          pbxTarget: pbxTarget,
-                                                          projectPath: relativeXcodeProjectPath.pathString)
+
         if targetNode.target.product.runnable {
             buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
         } else {
@@ -312,31 +300,18 @@ final class SchemesGenerator: SchemesGenerating {
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction? {
         
-        guard var (targetNode, generatedProject) = try defaultTargetAndProject(scheme: scheme,
-                                                                               graph: graph,
-                                                                               rootPath: rootPath,
-                                                                               generatedProjects: generatedProjects) else { return nil }
-        
-        
+        guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
         if let executable = scheme.runAction?.executable {
-            guard let (runnableTargetNode, runnableTargetGeneratedProject) = try lookupTarget(reference: executable,
-                                                                                              graph: graph,
-                                                                                              generatedProjects: generatedProjects,
-                                                                                              rootPath: rootPath) else { return nil }
-            targetNode = runnableTargetNode
-            generatedProject = runnableTargetGeneratedProject
+            target = executable
         }
-
-        guard let pbxTarget = generatedProject.targets[targetNode.target.name] else { return nil }
-
+        guard let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
+        guard let buildableReference = try createBuildableReference(targetReference: target,
+                                                                    graph: graph,
+                                                                    rootPath: rootPath,
+                                                                    generatedProjects: generatedProjects) else { return nil }
+        
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
-        let relativeXcodeProjectPath = resolveRelativeProjectPath(targetNode: targetNode,
-                                                                  generatedProject: generatedProject,
-                                                                  rootPath: rootPath)
-        let buildableReference = targetBuildableReference(target: targetNode.target,
-                                                          pbxTarget: pbxTarget,
-                                                          projectPath: relativeXcodeProjectPath.pathString)
         
         if targetNode.target.product.runnable {
             buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
@@ -361,10 +336,8 @@ final class SchemesGenerator: SchemesGenerating {
                              graph: Graphing,
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction? {
-        guard let (targetNode, _) = try defaultTargetAndProject(scheme: scheme,
-                                                                graph: graph,
-                                                                rootPath: rootPath,
-                                                                generatedProjects: generatedProjects) else { return nil }
+        guard let target = try defaultTargetReference(scheme: scheme),
+            let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
         
         let buildConfiguration = defaultDebugBuildConfigurationName(in: targetNode.project)
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
@@ -382,10 +355,8 @@ final class SchemesGenerator: SchemesGenerating {
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction? {
         
-        guard let (targetNode, _) = try defaultTargetAndProject(scheme: scheme,
-                                                                graph: graph,
-                                                                rootPath: rootPath,
-                                                                generatedProjects: generatedProjects) else { return nil }
+        guard let target = try defaultTargetReference(scheme: scheme),
+            let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         guard let archiveAction = scheme.archiveAction else {
             return defaultSchemeArchiveAction(for: targetNode.project)
@@ -405,35 +376,6 @@ final class SchemesGenerator: SchemesGenerating {
                                       preActions: preActions,
                                       postActions: postActions)
     }
-
-    // swiftlint:disable:next function_body_length
-    /// Generates the test action for the project scheme.
-    ///
-    /// - Parameters:
-    ///   - project: Project manifest.
-    ///   - generatedProject: Generated Xcode project.
-    /// - Returns: Scheme test action.
-    func projectTestAction(project: Project,
-                           generatedProject: GeneratedProject) -> XCScheme.TestAction {
-        var testables: [XCScheme.TestableReference] = []
-        let testTargets = project.targets.filter { $0.product.testsBundle }
-
-        testTargets.forEach { target in
-            let pbxTarget = generatedProject.targets[target.name]!
-
-            let reference = targetBuildableReference(target: target,
-                                                     pbxTarget: pbxTarget,
-                                                     projectPath: generatedProject.name)
-            let testable = XCScheme.TestableReference(skipped: false,
-                                                      buildableReference: reference)
-            testables.append(testable)
-        }
-
-        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
-        return XCScheme.TestAction(buildConfiguration: buildConfiguration,
-                                   macroExpansion: nil,
-                                   testables: testables)
-    }
     
     func schemeExecutionAction(action: ExecutionAction,
                                graph: Graphing,
@@ -441,10 +383,8 @@ final class SchemesGenerator: SchemesGenerating {
                                rootPath: AbsolutePath) throws -> XCScheme.ExecutionAction {
 
         guard let targetReference = action.target,
-            let (targetNode, generatedProject) = try lookupTarget(reference: targetReference,
-                                                                  graph: graph,
-                                                                  generatedProjects: generatedProjects,
-                                                                  rootPath: rootPath) else {
+            let targetNode = try graph.target(path: targetReference.projectPath, name: targetReference.name),
+            let generatedProject = generatedProjects[targetReference.projectPath] else {
                 return schemeExecutionAction(action: action)
         }
         return schemeExecutionAction(action: action,
@@ -513,23 +453,6 @@ final class SchemesGenerator: SchemesGenerating {
                                         projectPath: relativeXcodeProjectPath.pathString)
     }
     
-    private func lookupTarget(reference: TargetReference,
-                              graph: Graphing,
-                              generatedProjects: [AbsolutePath: GeneratedProject],
-                              rootPath: AbsolutePath) throws -> (TargetNode, GeneratedProject)? {
-        
-        guard let targetNode = try graph.target(path: reference.projectPath, name: reference.name) else {
-            return nil
-        }
-        
-        guard let generatedProject = generatedProjects[reference.projectPath] else {
-            return nil
-        }
-        
-        return (targetNode, generatedProject)
-    }
-    
-    
     /// Generates the array of BuildableReference for targets that the
     /// coverage report should be generated for them.
     ///
@@ -574,7 +497,7 @@ final class SchemesGenerator: SchemesGenerating {
     /// Returns the scheme commandline argument passed on launch
     ///
     /// - Parameters:
-    /// - environments: commandline argument keys.
+    ///     - environments: commandline argument keys.
     /// - Returns: XCScheme.CommandLineArguments.CommandLineArgument.
     private func commandlineArgruments(_ arguments: [String: Bool]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
         return arguments.map { key, enabled in
@@ -608,8 +531,8 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - projectPath: Project name with the .xcodeproj extension.
     /// - Returns: Buildable reference.
     private func targetBuildableReference(target: Target,
-                                  pbxTarget: PBXNativeTarget,
-                                  projectPath: String) -> XCScheme.BuildableReference {
+                                          pbxTarget: PBXNativeTarget,
+                                          projectPath: String) -> XCScheme.BuildableReference {
         return XCScheme.BuildableReference(referencedContainer: "container:\(projectPath)",
                                            blueprint: pbxTarget,
                                            buildableName: target.productNameWithExtension,
@@ -633,18 +556,7 @@ final class SchemesGenerator: SchemesGenerating {
         return buildConfiguration?.name ?? BuildConfiguration.release.name
     }
     
-    private func defaultTargetAndProject(scheme: Scheme,
-                                         graph: Graphing,
-                                         rootPath: AbsolutePath,
-                                         generatedProjects: [AbsolutePath: GeneratedProject])
-                                                                                    throws -> (TargetNode, GeneratedProject)? {
-                                                                                        
-        guard let firstBuildAction = scheme.buildAction?.targets.first else { return nil }
-        
-        guard let (targetNode, generatedProject) = try lookupTarget(reference: firstBuildAction,
-                                                                    graph: graph,
-                                                                    generatedProjects: generatedProjects,
-                                                                    rootPath: rootPath) else { return nil }
-        return (targetNode, generatedProject)
+    private func defaultTargetReference(scheme: Scheme) throws  -> TargetReference? {
+        return scheme.buildAction?.targets.first
     }
 }
