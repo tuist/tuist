@@ -1,6 +1,6 @@
 import Foundation
 
-struct SimulatorRuntimeVersion: CustomStringConvertible, Equatable, ExpressibleByStringLiteral, Comparable {
+struct SimulatorRuntimeVersion: CustomStringConvertible, Equatable, ExpressibleByStringLiteral, Comparable, Decodable {
     
     // MARK: - Attributes
     
@@ -14,6 +14,11 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Equatable, ExpressibleB
         self.major = major
         self.minor = minor
         self.patch = patch
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        self.init(stringLiteral: try container.decode(String.self))
     }
     
     // MARK: - Internal
