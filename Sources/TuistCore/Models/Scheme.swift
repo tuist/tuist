@@ -85,7 +85,7 @@ public class ExecutionAction: Equatable {
     }
 }
 
-public class TargetReference: Equatable {
+public struct TargetReference: Equatable {
     public var projectPath: AbsolutePath
     public var name: String
 
@@ -96,11 +96,6 @@ public class TargetReference: Equatable {
     public init(projectPath: AbsolutePath, name: String) {
         self.projectPath = projectPath
         self.name = name
-    }
-    
-    public static func == (lhs: TargetReference, rhs: TargetReference) -> Bool {
-        return lhs.projectPath == rhs.projectPath &&
-            lhs.name == rhs.name
     }
 }
 

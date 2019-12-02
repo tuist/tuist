@@ -188,10 +188,7 @@ public class Graph: Graphing {
     }
     
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
-        guard let targetNode = findTargetNode(path: path, name: name) else {
-            return nil
-        }
-        return targetNode
+        return findTargetNode(path: path, name: name)
     }
 
     public func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
