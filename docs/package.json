@@ -15,7 +15,7 @@
     "@mdx-js/react": "^1.5.1",
     "@theme-ui/prism": "^0.2.46",
     "css-loader": "^3.2.0",
-    "docz": "^2.0.0-rc.72",
+    "docz": "^2.1.1",
     "docz-plugin-netlify": "^1.1.4",
     "gatsby-plugin-mdx": "^1.0.58",
     "gatsby-theme-docz": "^2.0.0-rc.76",
