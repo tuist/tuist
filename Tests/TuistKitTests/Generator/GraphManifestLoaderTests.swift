@@ -20,11 +20,3 @@ final class GraphManifestLoaderErrorTests: TuistUnitTestCase {
         XCTAssertEqual(GraphManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).type, .abort)
     }
 }
-
-final class ManifestTests: TuistUnitTestCase {
-    func test_fileName() {
-        XCTAssertEqual(Manifest.project.fileName, "Project.swift")
-        XCTAssertEqual(Manifest.workspace.fileName, "Workspace.swift")
-        XCTAssertEqual(Manifest.setup.fileName, "Setup.swift")
-    }
-}
