@@ -20,11 +20,10 @@ final class SimulatorsControllerIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    
     func test_runtimes_parses_simctl_output_and_returns_a_list_of_runtimes() throws {
         // Given
         let runtimes = try subject.runtimes()
-        
+
         // Then
         XCTAssertNotEqual(runtimes.count, 0)
     }
