@@ -52,7 +52,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = Target.test(name: "Target", platform: .iOS, product: .framework)
-        let sharedScheme = Scheme.test(name: "Target-Scheme", shared: true, buildAction: BuildAction(targets: ["Target"]))
+        let sharedScheme = Scheme.test(name: "Target-Scheme", shared: true, buildAction: BuildAction(targets: [TargetReference(projectPath: temporaryPath, name: "Target")]))
 
         let targets = [target]
         let project = Project.test(path: temporaryPath, name: "Project", targets: targets, schemes: [sharedScheme])
@@ -79,7 +79,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = Target.test(name: "Target", platform: .iOS, product: .framework)
-        let localScheme = Scheme.test(name: "Target-Local", shared: false, buildAction: BuildAction(targets: ["Target"]))
+        let localScheme = Scheme.test(name: "Target-Local", shared: false, buildAction: BuildAction(targets: [TargetReference(projectPath: temporaryPath, name: "Target")]))
 
         let targets = [target]
         let project = Project.test(path: temporaryPath, name: "Project", targets: targets, schemes: [localScheme])

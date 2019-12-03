@@ -66,13 +66,13 @@ public class ExecutionAction: Equatable {
 
     public let title: String
     public let scriptText: String
-    public let target: String?
+    public let target: TargetReference?
 
     // MARK: - Init
 
     public init(title: String,
                 scriptText: String,
-                target: String?) {
+                target: TargetReference?) {
         self.title = title
         self.scriptText = scriptText
         self.target = target
@@ -85,16 +85,30 @@ public class ExecutionAction: Equatable {
     }
 }
 
+public struct TargetReference: Equatable {
+    public var projectPath: AbsolutePath
+    public var name: String
+
+    public static func project(path: AbsolutePath, target: String) -> TargetReference {
+        return .init(projectPath: path, name: target)
+    }
+    
+    public init(projectPath: AbsolutePath, name: String) {
+        self.projectPath = projectPath
+        self.name = name
+    }
+}
+
 public class BuildAction: Equatable {
     // MARK: - Attributes
 
-    public let targets: [String]
+    public let targets: [TargetReference]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
     // MARK: - Init
 
-    public init(targets: [String] = [],
+    public init(targets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
@@ -118,7 +132,7 @@ public class TestAction: Equatable {
     public let arguments: Arguments?
     public let configurationName: String
     public let coverage: Bool
-    public let codeCoverageTargets: [String]
+    public let codeCoverageTargets: [TargetReference]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
@@ -128,7 +142,7 @@ public class TestAction: Equatable {
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
-                codeCoverageTargets: [String] = [],
+                codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
@@ -153,13 +167,13 @@ public class TestAction: Equatable {
     }
 }
 
-public struct TestableTarget: Equatable, Hashable {
-    public let target: String
+public struct TestableTarget: Equatable {
+    public let target: TargetReference
     public let isSkipped: Bool
     public let isParallelizable: Bool
     public let isRandomExecutionOrdering: Bool
 
-    public init(target: String, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) {
+    public init(target: TargetReference, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) {
         self.target = target
         self.isSkipped = skipped
         self.isParallelizable = parallelizable
@@ -171,13 +185,13 @@ public class RunAction: Equatable {
     // MARK: - Attributes
 
     public let configurationName: String
-    public let executable: String?
+    public let executable: TargetReference?
     public let arguments: Arguments?
 
     // MARK: - Init
 
     public init(configurationName: String,
-                executable: String? = nil,
+                executable: TargetReference? = nil,
                 arguments: Arguments? = nil) {
         self.configurationName = configurationName
         self.executable = executable

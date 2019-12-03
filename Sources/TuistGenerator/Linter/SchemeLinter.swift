@@ -66,8 +66,8 @@ private extension SchemeLinter {
 
         for scheme in schemes {
             for target in scheme.testAction?.codeCoverageTargets ?? [] {
-                if !targetNames.contains(target) {
-                    issues.append(missingCodeCoverageTargetIssue(missingTargetName: target, schemaName: scheme.name))
+                if !targetNames.contains(target.name) {
+                    issues.append(missingCodeCoverageTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
                 }
             }
         }

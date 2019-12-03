@@ -101,6 +101,7 @@ public protocol Graphing: AnyObject, Encodable {
     func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
     func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath]
     func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [DependencyReference]
+    func target(path: AbsolutePath, name: String) throws -> TargetNode?
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
     func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
@@ -184,6 +185,10 @@ public class Graph: Graphing {
     /// Returns all the targets that are part of the graph.
     public var targets: [TargetNode] {
         return cache.targetNodes.flatMap { $0.value.values }
+    }
+    
+    public func target(path: AbsolutePath, name: String) -> TargetNode? {
+        return findTargetNode(path: path, name: name)
     }
 
     public func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
