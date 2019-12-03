@@ -329,7 +329,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createWorkspace(projects: [String]) throws -> Workspace {
-        return Workspace(name: "Workspace", projects: try projects.map { try pathTo($0) })
+        return Workspace(path: AbsolutePath("/"), name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {

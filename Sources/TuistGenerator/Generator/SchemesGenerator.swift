@@ -6,6 +6,19 @@ import XcodeProj
 
 /// Protocol that defines the interface of the schemes generation.
 protocol SchemesGenerating {
+    /// Generates the schemes for the workspace targets.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - xcworkspacePath: Path to the workspace.
+    ///   - generatedProject: Generated Xcode project.
+    ///   - graph: Tuist graph.
+    /// - Throws: A FatalError if the generation of the schemes fails.
+    func generateWorkspaceSchemes(workspace: Workspace,
+                                  xcworkspacePath: AbsolutePath,
+                                  generatedProjects: [AbsolutePath: GeneratedProject],
+                                  graph: Graphing) throws
+    
     /// Generates the schemes for the project targets.
     ///
     /// - Parameters:
@@ -27,6 +40,27 @@ final class SchemesGenerator: SchemesGenerating {
 
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
+    
+    /// Generates the schemes for the workspace targets.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - xcworkspacePath: Path to the workspace.
+    ///   - generatedProject: Generated Xcode project.
+    ///   - graph: Tuist graph.
+    /// - Throws: A FatalError if the generation of the schemes fails.
+    func generateWorkspaceSchemes(workspace: Workspace,
+                                  xcworkspacePath: AbsolutePath,
+                                  generatedProjects: [AbsolutePath: GeneratedProject],
+                                  graph: Graphing) throws {
+        try workspace.schemes.forEach { scheme in
+            try generateScheme(scheme: scheme,
+                               xcPath: xcworkspacePath,
+                               path: workspace.path,
+                               graph: graph,
+                               generatedProjects: generatedProjects)
+        }
+    }
     
     /// Generate schemes for a project.
     ///

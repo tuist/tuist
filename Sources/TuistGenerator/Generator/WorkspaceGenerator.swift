@@ -44,6 +44,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let projectGenerator: ProjectGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting
+    private let schemesGenerator: SchemesGenerating
 
     // MARK: - Init
 
@@ -55,15 +56,18 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                 configGenerator: configGenerator)
         self.init(projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  cocoapodsInteractor: cocoapodsInteractor)
+                  cocoapodsInteractor: cocoapodsInteractor,
+                  schemesGenerator: SchemesGenerator())
     }
 
     init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         cocoapodsInteractor: CocoaPodsInteracting) {
+         cocoapodsInteractor: CocoaPodsInteracting,
+         schemesGenerator: SchemesGenerating) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.cocoapodsInteractor = cocoapodsInteractor
+        self.schemesGenerator = schemesGenerator
     }
 
     // MARK: - WorkspaceGenerating
@@ -110,7 +114,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                       path: path)
         }
 
-        try write(xcworkspace: xcWorkspace, to: workspacePath)
+        try write(workspace: workspace,
+                  xcworkspace: xcWorkspace,
+                  generatedProjects: generatedProjects,
+                  graph: graph,
+                  to: workspacePath)
 
         // SPM
 
@@ -170,7 +178,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
     }
 
-    private func write(xcworkspace: XCWorkspace, to: AbsolutePath) throws {
+    private func write(workspace: Workspace,
+                       xcworkspace: XCWorkspace,
+                       generatedProjects: [AbsolutePath: GeneratedProject],
+                       graph: Graphing,
+                       to: AbsolutePath) throws {
         // If the workspace doesn't exist we can write it because there isn't any
         // Xcode instance that might depend on it.
         if !FileHandler.shared.exists(to.appending(component: "contents.xcworkspacedata")) {
@@ -188,6 +200,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 let dataPath = $0.appending(component: "contents.xcworkspacedata")
                 return try Data(contentsOf: dataPath.url)
             }
+            
+            try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
+                                                          xcworkspacePath: to,
+                                                          generatedProjects: generatedProjects,
+                                                          graph: graph)
 
             let currentData = try workspaceData(to)
             let currentWorkspaceData = try workspaceData(temporaryPath)
