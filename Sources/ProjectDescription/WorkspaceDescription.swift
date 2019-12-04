@@ -158,6 +158,10 @@ public struct WorkspaceDescription {
             self.isParallelizable = parallelizable
             self.isRandomExecutionOrdering = randomExecutionOrdering
         }
+        
+        public static func testableTarget(target: TargetReference, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) -> TestableTarget {
+            return .init(target: target, skipped: skipped, parallelizable: parallelizable, randomExecutionOrdering: randomExecutionOrdering)
+        }
     }
 
     // MARK: - RunAction
