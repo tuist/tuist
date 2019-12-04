@@ -31,10 +31,13 @@ protocol SchemesGenerating {
                                 xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
                                 graph: Graphing) throws
+    
+    func wipeSchemes(at: AbsolutePath) throws
 }
 
 // swiftlint:disable:next type_body_length
 final class SchemesGenerator: SchemesGenerating {
+    
     /// Default last upgrade version for generated schemes.
     private static let defaultLastUpgradeVersion = "1010"
 
@@ -96,6 +99,14 @@ final class SchemesGenerator: SchemesGenerating {
                                generatedProjects: [project.path: generatedProject])
 
         }
+    }
+    
+    func wipeSchemes(at path: AbsolutePath) throws {
+        let fileHandler = FileHandler.shared
+        let userPath = schemeDirectory(path: path, shared: false)
+        let sharedPath = schemeDirectory(path: path, shared: true)
+        if fileHandler.exists(userPath) { try fileHandler.delete(userPath) }
+        if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
     
     private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String) -> Scheme {
@@ -531,17 +542,20 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Returns: Path to the schemes directory.
     /// - Throws: A FatalError if the creation of the directory fails.
     private func createSchemesDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
-        let schemePath: AbsolutePath
-        if shared {
-            schemePath = path.appending(RelativePath("xcshareddata/xcschemes"))
-        } else {
-            let username = NSUserName()
-            schemePath = path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
-        }
+        let schemePath = schemeDirectory(path: path, shared: shared)
         if !FileHandler.shared.exists(schemePath) {
             try FileHandler.shared.createFolder(schemePath)
         }
         return schemePath
+    }
+    
+    private func schemeDirectory(path: AbsolutePath, shared: Bool = true) -> AbsolutePath {
+        if shared {
+            return path.appending(RelativePath("xcshareddata/xcschemes"))
+        } else {
+            let username = NSUserName()
+            return path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
+        }
     }
     
     /// Returns the scheme commandline argument passed on launch

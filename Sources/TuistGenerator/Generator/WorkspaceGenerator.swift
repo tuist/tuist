@@ -120,10 +120,14 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   graph: graph,
                   to: workspacePath)
         
-        try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
-                                                      xcworkspacePath: workspacePath,
-                                                      generatedProjects: generatedProjects,
-                                                      graph: graph)
+        
+        // Schemes
+        
+        try writeSchemes(workspace: workspace,
+                         xcworkspace: xcWorkspace,
+                         generatedProjects: generatedProjects,
+                         graph: graph,
+                         to: workspacePath)
 
         // SPM
 
@@ -206,11 +210,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 return try Data(contentsOf: dataPath.url)
             }
             
-            try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
-                                                          xcworkspacePath: to,
-                                                          generatedProjects: generatedProjects,
-                                                          graph: graph)
-
             let currentData = try workspaceData(to)
             let currentWorkspaceData = try workspaceData(temporaryPath)
 
@@ -218,6 +217,18 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 try FileHandler.shared.replace(to, with: temporaryPath)
             }
         }
+    }
+    
+    private func writeSchemes(workspace: Workspace,
+                              xcworkspace: XCWorkspace,
+                              generatedProjects: [AbsolutePath: GeneratedProject],
+                              graph: Graphing,
+                              to path: AbsolutePath) throws {
+        try schemesGenerator.wipeSchemes(at: path)
+        try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
+                                                      xcworkspacePath: path,
+                                                      generatedProjects: generatedProjects,
+                                                      graph: graph)
     }
 
     /// Create a XCWorkspaceDataElement.file from a path string.
