@@ -590,7 +590,7 @@ extension TuistCore.Scheme {
                       archiveAction: archiveAction)
     }
     
-    static func from(manifest: WorkspaceDescription.Scheme, workspacePath: AbsolutePath) -> TuistCore.Scheme {
+    static func from(manifest: WorkspaceScheme, workspacePath: AbsolutePath) -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
         let buildAction = manifest.buildAction.map { TuistCore.BuildAction.from(manifest: $0, workspacePath: workspacePath) }

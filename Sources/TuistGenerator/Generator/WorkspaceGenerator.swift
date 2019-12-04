@@ -119,6 +119,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   generatedProjects: generatedProjects,
                   graph: graph,
                   to: workspacePath)
+        
+        try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
+                                                      xcworkspacePath: workspacePath,
+                                                      generatedProjects: generatedProjects,
+                                                      graph: graph)
 
         // SPM
 

@@ -1,32 +1,31 @@
 import Foundation
 
 // MARK: - Scheme
-public struct WorkspaceDescription {
-    public struct Scheme: Equatable, Codable {
-        public let name: String
-        public let shared: Bool
-        public let buildAction: BuildAction?
-        public let testAction: TestAction?
-        public let runAction: RunAction?
-        public let archiveAction: ArchiveAction?
+public struct WorkspaceScheme: Equatable, Codable {
+    public let name: String
+    public let shared: Bool
+    public let buildAction: WorkspaceDescription.BuildAction?
+    public let testAction: WorkspaceDescription.TestAction?
+    public let runAction: WorkspaceDescription.RunAction?
+    public let archiveAction: WorkspaceDescription.ArchiveAction?
 
-        public init(name: String,
-                    shared: Bool = true,
-                    buildAction: BuildAction? = nil,
-                    testAction: TestAction? = nil,
-                    runAction: RunAction? = nil,
-                    archiveAction: ArchiveAction? = nil) {
-            self.name = name
-            self.shared = shared
-            self.buildAction = buildAction
-            self.testAction = testAction
-            self.runAction = runAction
-            self.archiveAction = archiveAction
-        }
+    public init(name: String,
+                shared: Bool = true,
+                buildAction: WorkspaceDescription.BuildAction? = nil,
+                testAction: WorkspaceDescription.TestAction? = nil,
+                runAction: WorkspaceDescription.RunAction? = nil,
+                archiveAction: WorkspaceDescription.ArchiveAction? = nil) {
+        self.name = name
+        self.shared = shared
+        self.buildAction = buildAction
+        self.testAction = testAction
+        self.runAction = runAction
+        self.archiveAction = archiveAction
     }
+}
 
+public struct WorkspaceDescription {
     // MARK: - ExecutionAction
-
     public struct ExecutionAction: Equatable, Codable {
         public let title: String
         public let scriptText: String
@@ -77,6 +76,14 @@ public struct WorkspaceDescription {
             self.preActions = preActions
             self.postActions = postActions
         }
+        
+        public static func buildAction(targets: [TargetReference],
+                                       preActions: [ExecutionAction] = [],
+                                       postActions: [ExecutionAction] = []) -> BuildAction {
+            return .init(targets: targets,
+                         preActions: preActions,
+                         postActions: postActions)
+        }
     }
 
     // MARK: - TestAction
@@ -121,6 +128,22 @@ public struct WorkspaceDescription {
                       preActions: preActions,
                       postActions: postActions)
         }
+        
+        public static func testAction(targets: [TestableTarget],
+                                      arguments: Arguments? = nil,
+                                      config: PresetBuildConfiguration = .debug,
+                                      coverage: Bool = false,
+                                      codeCoverageTargets: [String] = [],
+                                      preActions: [ExecutionAction] = [],
+                                      postActions: [ExecutionAction] = []) -> TestAction {
+            return .init(targets: targets,
+                         arguments: arguments,
+                         configurationName: config.name,
+                         coverage: coverage,
+                         codeCoverageTargets: codeCoverageTargets,
+                         preActions: preActions,
+                         postActions: postActions)
+        }
     }
     
     public struct TestableTarget: Equatable, Codable {
@@ -159,6 +182,14 @@ public struct WorkspaceDescription {
                       executable: executable,
                       arguments: arguments)
         }
+        
+        public static func runAction(configurationName: PresetBuildConfiguration = .debug,
+                                     executable: TargetReference? = nil,
+                                     arguments: Arguments? = nil) -> RunAction {
+            return .init(config: configurationName,
+                         executable: executable,
+                         arguments: arguments)
+        }
     }
     
     // MARK: - ArchiveAction
@@ -170,18 +201,28 @@ public struct WorkspaceDescription {
         public let preActions: [ExecutionAction]
         public let postActions: [ExecutionAction]
 
-        public init(
-            configurationName: String,
-            revealArchiveInOrganizer: Bool = true,
-            customArchiveName: String? = nil,
-            preActions: [ExecutionAction] = [],
-            postActions: [ExecutionAction] = []
-        ) {
+        public init(configurationName: String,
+                    revealArchiveInOrganizer: Bool = true,
+                    customArchiveName: String? = nil,
+                    preActions: [ExecutionAction] = [],
+                    postActions: [ExecutionAction] = []) {
             self.configurationName = configurationName
             self.revealArchiveInOrganizer = revealArchiveInOrganizer
             self.customArchiveName = customArchiveName
             self.preActions = preActions
             self.postActions = postActions
+        }
+        
+        public static func archiveAction(configurationName: String,
+                                         revealArchiveInOrganizer: Bool = true,
+                                         customArchiveName: String? = nil,
+                                         preActions: [ExecutionAction] = [],
+                                         postActions: [ExecutionAction] = []) -> ArchiveAction {
+            return .init(configurationName: configurationName,
+                         revealArchiveInOrganizer: revealArchiveInOrganizer,
+                         customArchiveName: customArchiveName,
+                         preActions: preActions,
+                         postActions: postActions)
         }
     }
 }
