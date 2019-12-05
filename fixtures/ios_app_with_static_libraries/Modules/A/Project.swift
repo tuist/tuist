@@ -13,7 +13,7 @@ let project = Project(name: "A",
                                      .library(path: "../C/prebuilt/C/libC.a",
                                              publicHeaders: "../C/prebuilt/C",
                                              swiftModuleMap: "../C/prebuilt/C/C.swiftmodule")
-                          ]),
+                          ], settings: Settings(base: ["HEADER_SEARCH_PATHS": "$(SRCROOT)/CustomHeaders"])),
                           Target(name: "ATests",
                                  platform: .iOS,
                                  product: .unitTests,
