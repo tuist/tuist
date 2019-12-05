@@ -24,6 +24,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Make scheme generation methods more generic by @adamkhazi @kwridan.
 - `SimulatorController` with method to fetch the runtimes https://github.com/tuist/tuist/pull/746 by @pepibumur.
 
+### Fixed
+
+- Ensure custom search path settings are included in generated projects https://github.com/tuist/tuist/pull/751 by @kwridan
+
 ## 0.19.0
 
 ### Added
