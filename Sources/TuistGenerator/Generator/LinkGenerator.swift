@@ -244,7 +244,7 @@ final class LinkGenerator: LinkGenerating {
             return
         }
         let value = SettingValue
-            .array(["$(inherited)"] + paths
+            .array(["$(inherited)"] + paths.sorted()
                 .map { $0.relative(to: sourceRootPath).pathString }
                 .map { "$(SRCROOT)/\($0)" })
         let newSetting = [name: value]
