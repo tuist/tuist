@@ -3,7 +3,7 @@ import ProjectDescription
 let debugAction = ExecutionAction(scriptText: "echo Debug", target: "App")
 let debugScheme = Scheme(name: "App-Debug",
                          shared: true,
-                         buildAction: BuildAction(targets: [.project(path: "App", target: "App")], preActions: [debugAction]),
+                         buildAction: BuildAction(targets: ["App"], preActions: [debugAction]),
                          testAction: TestAction(targets: ["AppTests"]),
                          runAction: RunAction(executable: "App"))
 
@@ -19,10 +19,6 @@ let userScheme = Scheme(name: "App-Local",
                         buildAction: BuildAction(targets: ["App"], preActions: [debugAction]),
                         testAction: TestAction(targets: ["AppTests"]),
                         runAction: RunAction(executable: "App"))
-
-let referenceRemoteTargets = Scheme(name: "",
-                                    shared: false,
-                                    buildAction: BuildAction(targets: [.project()]))
 
 let project = Project(name: "MainApp",
                       targets: [

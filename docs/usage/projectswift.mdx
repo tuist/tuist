@@ -1346,7 +1346,25 @@ A path represents a path to a file, directory, or a group of files represented b
   description="The path can be initialized with a plain string. It's equivalent to using `.relativeToManifest.` except when the path starts with `//`, in which case the path is considered relative to the root directory."
 />
 
-<TargetReference
-  path="Project to the target's project."
-  name="Name of the target."
+## Target Reference
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'path',
+      description:
+        'Path to the target's project.',
+      type: 'Path',
+      typeLink: '#path',
+      optional: true,
+      default: 'Workspace or project path.',
+    },
+    {
+      name: 'name',
+      description:
+        'Name of the target.',
+      type: 'String',
+      optional: false,
+    }
+  ]}
 />

@@ -112,7 +112,7 @@ public struct TestAction: Equatable, Codable {
     }
 }
 
-public struct TestableTarget: Equatable, Hashable, Codable, ExpressibleByStringLiteral {
+public struct TestableTarget: Equatable, Codable, ExpressibleByStringLiteral {
     public let target: TargetReference
     public let isSkipped: Bool
     public let isParallelizable: Bool
@@ -180,11 +180,11 @@ public struct ArchiveAction: Equatable, Codable {
 
 // MARK: - Target Reference
 
-public struct TargetReference: Hashable, Codable, ExpressibleByStringLiteral {
-    public var projectPath: String?
+public struct TargetReference: Equatable, Codable, ExpressibleByStringLiteral {
+    public var projectPath: Path?
     public var targetName: String
     
-    public init(projectPath: String?, target: String) {
+    public init(projectPath: Path?, target: String) {
         self.projectPath = projectPath
         self.targetName = target
     }
@@ -193,7 +193,7 @@ public struct TargetReference: Hashable, Codable, ExpressibleByStringLiteral {
         self = .init(projectPath: nil, target: value)
     }
     
-    public static func project(path: String, target: String) -> TargetReference {
+    public static func project(path: Path, target: String) -> TargetReference {
         return .init(projectPath: path, target: target)
     }
 }
