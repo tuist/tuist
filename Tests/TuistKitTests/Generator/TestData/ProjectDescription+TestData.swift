@@ -98,7 +98,7 @@ extension Scheme {
 }
 
 extension BuildAction {
-    static func test(targets: [String] = []) -> BuildAction {
+    static func test(targets: [TargetReference] = []) -> BuildAction {
         return BuildAction(targets: targets,
                            preActions: [ExecutionAction.test()],
                            postActions: [ExecutionAction.test()])
@@ -121,7 +121,7 @@ extension TestAction {
 
 extension RunAction {
     static func test(config: PresetBuildConfiguration = .debug,
-                     executable: String? = nil,
+                     executable: TargetReference? = nil,
                      arguments: Arguments? = nil) -> RunAction {
         return RunAction(config: config,
                          executable: executable,
@@ -132,7 +132,7 @@ extension RunAction {
 extension ExecutionAction {
     static func test(title: String = "Test Script",
                      scriptText: String = "echo Test",
-                     target: String? = "Target") -> ExecutionAction {
+                     target: TargetReference? = TargetReference(projectPath: nil, target: "Target")) -> ExecutionAction {
         return ExecutionAction(title: title,
                                scriptText: scriptText,
                                target: target)

@@ -553,11 +553,14 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let arguments = ArgumentsManifest.test(environment: ["FOO": "BAR", "FIZ": "BUZZ"],
                                                launch: ["--help": true,
                                                         "subcommand": false])
-        let buildAction = BuildActionManifest.test(targets: ["A", "B"])
+        
+        let projectPath = AbsolutePath("/somepath")
+
+        let buildAction = BuildActionManifest.test(targets: [.init(projectPath: "Project", target: "A"), .init(projectPath: nil, target: "B")])
         let runActions = RunActionManifest.test(config: .release,
-                                                executable: "A",
+                                                executable: .init(projectPath: "Project", target: "A"),
                                                 arguments: arguments)
-        let testAction = TestActionManifest.test(targets: ["B"],
+        let testAction = TestActionManifest.test(targets: [.init(target: .init(projectPath: nil, target: "B"))],
                                                  arguments: arguments,
                                                  config: .debug,
                                                  coverage: true)
@@ -566,8 +569,6 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                            buildAction: buildAction,
                                            testAction: testAction,
                                            runAction: runActions)
-        
-        let projectPath = AbsolutePath("/somepath/Project")
         
         // When
         let model = TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath)
@@ -819,7 +820,12 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                 path: AbsolutePath,
                 file: StaticString = #file,
                 line: UInt = #line) {
-        XCTAssertEqual(buildAction.targets, manifest.targets.map { TargetReference(projectPath: path, name: $0) }, file: file, line: line)
+        let convertedTargets: [TuistCore.TargetReference] = manifest.targets.map {
+            var resolvedPath = path
+            if let projectPath = $0.projectPath { resolvedPath = path.appending(RelativePath(projectPath)) }
+            return .init(projectPath: resolvedPath, name: $0.targetName)
+        }
+        XCTAssertEqual(buildAction.targets, convertedTargets, file: file, line: line)
     }
 
     func assert(testAction: TuistCore.TestAction,
@@ -844,7 +850,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         var runActionExecutable: String?
         if let executable = runAction.executable { runActionExecutable = executable.name }
             
-        XCTAssertEqual(runActionExecutable, manifest.executable, file: file, line: line)
+        XCTAssertEqual(runActionExecutable, manifest.executable?.targetName, file: file, line: line)
         XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
         optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)

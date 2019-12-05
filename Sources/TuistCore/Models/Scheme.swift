@@ -85,7 +85,7 @@ public class ExecutionAction: Equatable {
     }
 }
 
-public struct TargetReference: Equatable {
+public struct TargetReference: Hashable {
     public var projectPath: AbsolutePath
     public var name: String
 

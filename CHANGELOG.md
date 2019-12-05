@@ -20,7 +20,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for paths relative to root https://github.com/tuist/tuist/pull/727 by @pepibumur.
 - Replace `Sheme.testAction.targets` type from `String` to `TestableTarget` is a description of target that adds to the `TestAction`, you can specify execution tests parallelizable, random execution order or skip tests https://github.com/tuist/tuist/pull/728 by @rowwingman.
 - Galaxy manifest model https://github.com/tuist/tuist/pull/729 by @pepibumur.
-- Make scheme generation methods more generic https://github.com/tuist/tuist/pull/730  by @adamkhazi @kwridan.
+- Make scheme generation methods more generic https://github.com/tuist/tuist/pull/730 by @adamkhazi @kwridan.
+- Workspace Schemes by @adamkhazi @kwridan.
 
 
 ## 0.19.0
