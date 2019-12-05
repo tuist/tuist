@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - name: Generate Xcode project
         run: swift package generate-xcodeproj
       - name: Run tests
@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - name: Build Tuist for release
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - name: Install Tuist
         run: ./script/install
       - name: Run 'tuist --help'
@@ -70,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
@@ -84,7 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
