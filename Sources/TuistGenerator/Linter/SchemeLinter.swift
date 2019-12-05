@@ -87,23 +87,10 @@ private extension SchemeLinter {
     
     func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        var targets = [TargetReference?]()
         
-        scheme.buildAction?.targets.forEach { targets.append($0) }
-        scheme.buildAction?.preActions.forEach { targets.append($0.target) }
-        scheme.buildAction?.postActions.forEach { targets.append($0.target) }
-        scheme.testAction?.targets.forEach{ targets.append($0.target) }
-        scheme.testAction?.codeCoverageTargets.forEach{ targets.append($0) }
-        scheme.testAction?.preActions.forEach { targets.append($0.target) }
-        scheme.testAction?.postActions.forEach { targets.append($0.target) }
-        targets.append(scheme.runAction?.executable)
-        scheme.archiveAction?.preActions.forEach{ targets.append($0.target) }
-        scheme.archiveAction?.postActions.forEach{ targets.append($0.target) }
-        let uniqueTargets = targets.compactMap { $0 }
-        
-        uniqueTargets.forEach {
+        scheme.targetDependencies().forEach {
             if $0.projectPath != project.path {
-                issues.append(.init(reason: "The target '\($0.name)' specified in '\(scheme.name)' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
+                issues.append(.init(reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
             }
         }
         

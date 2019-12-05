@@ -26,6 +26,27 @@ public class Scheme: Equatable {
         self.runAction = runAction
         self.archiveAction = archiveAction
     }
+    
+    public func targetDependencies() -> [TargetReference] {
+        var targets = [TargetReference?]()
+        
+        self.buildAction?.targets.forEach { targets.append($0) }
+        self.buildAction?.preActions.forEach { targets.append($0.target) }
+        self.buildAction?.postActions.forEach { targets.append($0.target) }
+        self.testAction?.targets.forEach{ targets.append($0.target) }
+        self.testAction?.codeCoverageTargets.forEach{ targets.append($0) }
+        self.testAction?.preActions.forEach { targets.append($0.target) }
+        self.testAction?.postActions.forEach { targets.append($0.target) }
+        targets.append(self.runAction?.executable)
+        self.archiveAction?.preActions.forEach{ targets.append($0.target) }
+        self.archiveAction?.postActions.forEach{ targets.append($0.target) }
+        
+        let allTargets = targets.compactMap{ $0 }.uniqued()
+        
+        return allTargets.sorted { (one: TargetReference, two: TargetReference) -> Bool in
+            return one.name < two.name
+        }
+    }
 
     // MARK: - Equatable
 

@@ -32,6 +32,12 @@ protocol SchemesGenerating {
                                 generatedProject: GeneratedProject,
                                 graph: Graphing) throws
     
+    /// Wipes shared and user schemes at a workspace or project path. This is needed
+    /// currently to support the workspace scheme generation case where a workspace that
+    /// already exists on disk is being regenerated. Wiping the schemes directory prevents
+    /// older custom schemes from persisting after regeneration.
+    ///
+    /// - Parameter at: Path to the workspace or project.
     func wipeSchemes(at: AbsolutePath) throws
 }
 
@@ -101,6 +107,12 @@ final class SchemesGenerator: SchemesGenerating {
         }
     }
     
+    /// Wipes shared and user schemes at a workspace or project path. This is needed
+    /// currently to support the workspace scheme generation case where a workspace that
+    /// already exists on disk is being regenerated. Wiping the schemes directory prevents
+    /// older custom schemes from persisting after regeneration.
+    ///
+    /// - Parameter at: Path to the workspace or project.
     func wipeSchemes(at path: AbsolutePath) throws {
         let fileHandler = FileHandler.shared
         let userPath = schemeDirectory(path: path, shared: false)
