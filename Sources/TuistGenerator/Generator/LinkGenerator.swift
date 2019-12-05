@@ -244,15 +244,13 @@ final class LinkGenerator: LinkGenerating {
             return
         }
         let value = SettingValue
-            .array(paths
+            .array(["$(inherited)"] + paths
                 .map { $0.relative(to: sourceRootPath).pathString }
                 .map { "$(SRCROOT)/\($0)" })
         let newSetting = [name: value]
-        let inheritedSetting = [name: SettingValue.string("$(inherited)")]
         let helper = SettingsHelper()
         try configurationList.buildConfigurations.forEach { configuration in
             try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
-            try helper.extend(buildSettings: &configuration.buildSettings, with: inheritedSetting)
         }
     }
 

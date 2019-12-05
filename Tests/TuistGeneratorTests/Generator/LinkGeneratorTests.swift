@@ -144,6 +144,31 @@ final class LinkGeneratorErrorTests: XCTestCase {
         XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], expected)
     }
 
+    func test_setupHeadersSearchPaths_extendCustomSettings() throws {
+        // Given
+        let searchPaths = [
+            AbsolutePath("/path/to/libraries"),
+            AbsolutePath("/path/to/other/libraries"),
+        ]
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+        xcodeprojElements.config.buildSettings["HEADER_SEARCH_PATHS"] = "my/custom/path"
+
+        // When
+        try subject.setupHeadersSearchPath(searchPaths,
+                                           pbxTarget: xcodeprojElements.pbxTarget,
+                                           sourceRootPath: sourceRootPath)
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], [
+            "$(inherited)",
+            "$(SRCROOT)/to/libraries",
+            "$(SRCROOT)/to/other/libraries",
+            "my/custom/path",
+        ])
+    }
+
     func test_setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {
         let headersFolders = [AbsolutePath("/headers")]
         let pbxproj = PBXProj()
