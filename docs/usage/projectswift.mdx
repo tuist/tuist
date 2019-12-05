@@ -706,7 +706,7 @@ It represents the scheme action that builds targets:
       name: 'Targets',
       description:
         'A list of targets to build, which are defined in the Project.',
-      type: '[String]',
+      type: '[TargetReference]',
       optional: false,
       default: '',
     },
@@ -749,7 +749,7 @@ It represents the scheme action that runs the built products on the supported pl
     {
       name: 'Executable',
       description: 'The name of the executable or target to run.',
-      type: 'String',
+      type: 'TargetReference',
       optional: true,
       default: 'nil',
     },
@@ -822,7 +822,7 @@ Alternatively, when leveraging custom configurations, the configuration name can
       name: 'codeCoverageTargets',
       description:
         'A list of targets you want to gather the test coverage data for them, which are defined in the project.',
-      type: '[String]',
+      type: '[TargetReference]',
       optional: true,
       default: '[]',
     },
@@ -885,7 +885,7 @@ Scheme run scripts can be defined with the following attributes:
       name: 'Target',
       description:
         "Name of the build or test target that will provide the action's build settings.",
-      type: 'String',
+      type: 'TargetReference',
       optional: true,
       default: 'nil',
     },
@@ -898,6 +898,12 @@ Testable target descibe target and tests information.
 
 <PropertiesTable
   properties={[
+    {
+      name: 'Target',
+      description: 'The target name and its project path.',
+      type: 'TargetReference',
+      optional: false
+    },
     {
       name: 'Skipped',
       description:
@@ -1251,12 +1257,12 @@ let workspace = Workspace(name: "CustomWorkspace",
                             "Modules/**"
                           ],
                           schemes: [
-                            WorkspaceScheme(name: "Workspace-App",
-                                            shared: true,
-                                            buildAction: .buildAction(targets: [.project(path: "App", target: "App")], preActions: []),
-                                            testAction: .testAction(targets: [.testableTarget(target: .project(path: "App", target: "AppTests"))]),
-                                            runAction: .runAction(executable: .project(path: "App", target: "App")),
-                                            archiveAction: .archiveAction(configurationName: "Debug", customArchiveName: "Something2"))
+                            Scheme(name: "Workspace-App",
+                                   shared: true,
+                                   buildAction: BuildAction(targets: [.project(path: "App", target: "App")], preActions: []),
+                                   testAction: TestAction(targets: [TestableTarget(target: .project(path: "App", target: "AppTests"))]),
+                                   runAction: RunAction(executable: .project(path: "App", target: "App")),
+                                   archiveAction: ArchiveAction(configurationName: "Debug", customArchiveName: "Something2"))
                           ],
                           additionalFiles: [
                             "Documentation/**",
@@ -1293,8 +1299,8 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
       name: 'Schemes',
       description:
         "List of custom schemes to include in the workspace",
-      type: '[WorkspaceScheme]',
-      typeLink: '#workspacescheme',
+      type: '[Scheme]',
+      typeLink: '#scheme',
       optional: true,
       default: '[]',
     },
