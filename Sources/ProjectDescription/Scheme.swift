@@ -120,9 +120,9 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringLiteral {
 
     public init(target: TargetReference, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) {
         self.target = target
-        self.isSkipped = skipped
-        self.isParallelizable = parallelizable
-        self.isRandomExecutionOrdering = randomExecutionOrdering
+        isSkipped = skipped
+        isParallelizable = parallelizable
+        isRandomExecutionOrdering = randomExecutionOrdering
     }
 
     public init(stringLiteral value: String) {
