@@ -92,7 +92,7 @@ public struct TargetReference: Equatable {
     public static func project(path: AbsolutePath, target: String) -> TargetReference {
         return .init(projectPath: path, name: target)
     }
-    
+
     public init(projectPath: AbsolutePath, name: String) {
         self.projectPath = projectPath
         self.name = name

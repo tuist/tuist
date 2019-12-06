@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** Generate manifests target as part of the generated project https://github.com/tuist/tuist/pull/724 by @pepibumur.
 - The installation no longer checks if the Swift version is compatible https://github.com/tuist/tuist/pull/727 by @pepibumur.
+- Don't include the manifests in the generated workspace https://github.com/tuist/tuist/pull/754 by @pepibumur.
 
 ### Added
 
@@ -20,7 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for paths relative to root https://github.com/tuist/tuist/pull/727 by @pepibumur.
 - Replace `Sheme.testAction.targets` type from `String` to `TestableTarget` is a description of target that adds to the `TestAction`, you can specify execution tests parallelizable, random execution order or skip tests https://github.com/tuist/tuist/pull/728 by @rowwingman.
 - Galaxy manifest model https://github.com/tuist/tuist/pull/729 by @pepibumur.
-- Make scheme generation methods more generic https://github.com/tuist/tuist/pull/730  by @adamkhazi @kwridan.
+- Make scheme generation methods more generic https://github.com/tuist/tuist/pull/730 by @adamkhazi @kwridan.
 - Make scheme generation methods more generic by @adamkhazi @kwridan.
 - `SimulatorController` with method to fetch the runtimes https://github.com/tuist/tuist/pull/746 by @pepibumur.
 

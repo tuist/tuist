@@ -607,7 +607,7 @@ extension TuistCore.TestAction {
         let codeCoverageTargets = manifest.codeCoverageTargets.map { TuistCore.TargetReference(projectPath: projectPath, name: $0) }
         let preActions = manifest.preActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
         let postActions = manifest.postActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
-        
+
         return TestAction(targets: targets,
                           arguments: arguments,
                           configurationName: configurationName,
@@ -631,7 +631,7 @@ extension TuistCore.RunAction {
     static func from(manifest: ProjectDescription.RunAction, projectPath: AbsolutePath) -> TuistCore.RunAction {
         let configurationName = manifest.configurationName
         let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
-        
+
         var executableResolved: TuistCore.TargetReference?
         if let executable = manifest.executable {
             executableResolved = TargetReference(projectPath: projectPath, name: executable)
