@@ -37,6 +37,23 @@ enum InitCommandError: FatalError, Equatable {
     }
 }
 
+enum Template: String {
+    case swiftUI = "swiftui"
+}
+
+extension Template: ArgumentKind {
+    static var completion: ShellCompletion {
+        .values([(value: Template.swiftUI.rawValue, description: "SwiftUI template")])
+    }
+
+    init(argument: String) throws {
+        guard
+            let template: Template = Template(rawValue: argument)
+        else { throw ArgumentParserError.invalidValue(argument: argument, error: .custom("Template should be swiftui or omitted")) }
+        self = template
+    }
+}
+
 // swiftlint:disable:next type_body_length
 class InitCommand: NSObject, Command {
     // MARK: - Attributes
@@ -46,6 +63,7 @@ class InitCommand: NSObject, Command {
     let platformArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
+    let templateArgument: OptionArgument<Template>
     let playgroundGenerator: PlaygroundGenerating
 
     // MARK: - Init
@@ -62,7 +80,7 @@ class InitCommand: NSObject, Command {
                                          kind: String.self,
                                          usage: "The platform (ios, tvos or macos) the product will be for (Default: ios).",
                                          completion: ShellCompletion.values([
-                                             (value: "ios", description: "iOS platform"),
+                                             (value: "ios", description: ""),
                                              (value: "tvos", description: "tvOS platform"),
                                              (value: "macos", description: "macOS platform"),
                                          ]))
@@ -76,6 +94,10 @@ class InitCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
+        templateArgument = subParser.add(option: "--template",
+                                         shortName: "-t",
+                                         kind: Template.self,
+                                         usage: "Choose template to initialize your new project with.")
         self.playgroundGenerator = playgroundGenerator
     }
 
