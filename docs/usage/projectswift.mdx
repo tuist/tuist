@@ -1348,12 +1348,14 @@ A path represents a path to a file, directory, or a group of files represented b
 
 ## Target Reference
 
+A target within a specified project. The project is specified through the path and should contain the target name.
+
 <PropertiesTable
   properties={[
     {
       name: 'path',
       description:
-        'Path to the target's project.',
+        'Path to the target's project directory.',
       type: 'Path',
       typeLink: '#path',
       optional: true,

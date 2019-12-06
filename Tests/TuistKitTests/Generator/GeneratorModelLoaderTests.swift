@@ -890,6 +890,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
             XCTFail("mismatch of optionals", file: file, line: line)
         }
     }
+    
+    private func resolveProjectPath(projectPath: Path?, defaultPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> AbsolutePath {
+        if let projectPath = projectPath { return try generatorPaths.resolve(path: projectPath) }
+        return defaultPath
+    }
 }
 
 private func == (_ lhs: TuistCore.Platform,
@@ -924,9 +929,4 @@ private func == (_ lhs: BuildConfiguration,
         .release: .release,
     ]
     return map[lhs.variant] == rhs.variant && lhs.name == rhs.name
-}
-
-private func resolveProjectPath(projectPath: Path?, defaultPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> AbsolutePath {
-    if let projectPath = projectPath { return try generatorPaths.resolve(path: projectPath) }
-    return defaultPath
 }
