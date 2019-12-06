@@ -186,7 +186,7 @@ public class Graph: Graphing {
     public var targets: [TargetNode] {
         return cache.targetNodes.flatMap { $0.value.values }
     }
-    
+
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
         return findTargetNode(path: path, name: name)
     }

@@ -540,7 +540,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = SchemeManifest.test(name: "Scheme",
                                            shared: false)
         let projectPath = AbsolutePath("/somepath/Project")
-        
+
         // When
         let model = TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath)
 
@@ -566,9 +566,9 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                            buildAction: buildAction,
                                            testAction: testAction,
                                            runAction: runActions)
-        
+
         let projectPath = AbsolutePath("/somepath/Project")
-        
+
         // When
         let model = TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath)
 
@@ -827,7 +827,6 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                 path: AbsolutePath,
                 file: StaticString = #file,
                 line: UInt = #line) {
-
         let targets = manifest.targets.map { TestableTarget.from(manifest: $0, projectPath: path) }
         XCTAssertEqual(testAction.targets, targets, file: file, line: line)
         XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
@@ -843,7 +842,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                 line: UInt = #line) {
         var runActionExecutable: String?
         if let executable = runAction.executable { runActionExecutable = executable.name }
-            
+
         XCTAssertEqual(runActionExecutable, manifest.executable, file: file, line: line)
         XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
         optionalAssert(runAction.arguments, manifest.arguments) {

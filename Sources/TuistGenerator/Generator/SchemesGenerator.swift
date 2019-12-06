@@ -27,7 +27,7 @@ final class SchemesGenerator: SchemesGenerating {
 
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
-    
+
     /// Generate schemes for a project.
     ///
     /// - Parameters:
@@ -39,7 +39,6 @@ final class SchemesGenerator: SchemesGenerating {
                                 xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
                                 graph: Graphing) throws {
-        
         /// Generate custom schemes from manifest
         try project.schemes.forEach { scheme in
             try generateScheme(scheme: scheme,
@@ -48,7 +47,7 @@ final class SchemesGenerator: SchemesGenerating {
                                graph: graph,
                                generatedProjects: [project.path: generatedProject])
         }
-        
+
         /// Generate default schemes for targets in Project that are not defined in Manifest
         let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
         let userDefinedSchemes = Set(project.schemes.map(\.name))
@@ -60,10 +59,9 @@ final class SchemesGenerator: SchemesGenerating {
                                path: project.path,
                                graph: graph,
                                generatedProjects: [project.path: generatedProject])
-
         }
     }
-    
+
     private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String) -> Scheme {
         let targetReference = TargetReference.project(path: project.path, target: target.name)
         let testTargets = target.product.testsBundle ? [TestableTarget(target: targetReference)] : []
@@ -73,7 +71,7 @@ final class SchemesGenerator: SchemesGenerating {
                       testAction: TestAction(targets: testTargets, configurationName: buildConfiguration),
                       runAction: RunAction(configurationName: buildConfiguration, executable: targetReference, arguments: Arguments(environment: target.environment)))
     }
-    
+
     /// Generate schemes for a project or workspace.
     ///
     /// - Parameters:
@@ -89,7 +87,7 @@ final class SchemesGenerator: SchemesGenerating {
                                 generatedProjects: [AbsolutePath: GeneratedProject]) throws {
         let schemeDirectory = try createSchemesDirectory(path: xcPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.name).xcscheme")
-        
+
         let generatedBuildAction = try schemeBuildAction(scheme: scheme,
                                                          graph: graph,
                                                          rootPath: path,
@@ -124,10 +122,10 @@ final class SchemesGenerator: SchemesGenerating {
                               profileAction: generatedProfileAction,
                               analyzeAction: generatedAnalyzeAction,
                               archiveAction: generatedArchiveAction)
-                              
+
         try scheme.write(path: schemePath.path, override: true)
     }
-    
+
     /// Generates the scheme build action.
     ///
     /// - Parameters:
@@ -157,11 +155,11 @@ final class SchemesGenerator: SchemesGenerating {
                                                                         generatedProjects: generatedProjects) else { return }
             entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
         }
-        
+
         preActions = try buildAction.preActions.map {
             try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
         }
-        
+
         postActions = try buildAction.postActions.map {
             try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
         }
@@ -172,7 +170,7 @@ final class SchemesGenerator: SchemesGenerating {
                                     parallelizeBuild: true,
                                     buildImplicitDependencies: true)
     }
-    
+
     /// Generates the scheme test action.
     ///
     /// - Parameters:
@@ -186,7 +184,7 @@ final class SchemesGenerator: SchemesGenerating {
                           rootPath: AbsolutePath,
                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.TestAction? {
         guard let testAction = scheme.testAction else { return nil }
-        
+
         var testables: [XCScheme.TestableReference] = []
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
@@ -196,14 +194,14 @@ final class SchemesGenerator: SchemesGenerating {
                                                                graph: graph,
                                                                rootPath: rootPath,
                                                                generatedProjects: generatedProjects) else { return }
-            
+
             let testable = XCScheme.TestableReference(skipped: testableTarget.isSkipped,
                                                       parallelizable: testableTarget.isParallelizable,
                                                       randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
                                                       buildableReference: reference)
             testables.append(testable)
         }
-        
+
         preActions = try testAction.preActions.map { try schemeExecutionAction(action: $0,
                                                                                graph: graph,
                                                                                generatedProjects: generatedProjects,
@@ -220,7 +218,7 @@ final class SchemesGenerator: SchemesGenerating {
             args = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
             environments = environmentVariables(arguments.environment)
         }
-        
+
         let codeCoverageTargets = try testAction.codeCoverageTargets.compactMap {
             try testCoverageTargetReferences(target: $0,
                                              graph: graph,
@@ -244,7 +242,7 @@ final class SchemesGenerator: SchemesGenerating {
                                    commandlineArguments: args,
                                    environmentVariables: environments)
     }
-    
+
     /// Generates the scheme launch action.
     ///
     /// - Parameters:
@@ -258,17 +256,17 @@ final class SchemesGenerator: SchemesGenerating {
                             rootPath: AbsolutePath,
                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.LaunchAction? {
         guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
-        
+
         if let executable = scheme.runAction?.executable {
             target = executable
         }
-        
+
         guard let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
         guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                     graph: graph,
                                                                     rootPath: rootPath,
                                                                     generatedProjects: generatedProjects) else { return nil }
-        
+
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
 
@@ -293,7 +291,7 @@ final class SchemesGenerator: SchemesGenerating {
                                      commandlineArguments: commandlineArguments,
                                      environmentVariables: environments)
     }
-    
+
     /// Generates the scheme profile action for a given target.
     ///
     /// - Parameters:
@@ -306,7 +304,6 @@ final class SchemesGenerator: SchemesGenerating {
                              graph: Graphing,
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction? {
-        
         guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
         if let executable = scheme.runAction?.executable {
             target = executable
@@ -316,22 +313,22 @@ final class SchemesGenerator: SchemesGenerating {
                                                                     graph: graph,
                                                                     rootPath: rootPath,
                                                                     generatedProjects: generatedProjects) else { return nil }
-        
+
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
-        
+
         if targetNode.target.product.runnable {
             buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
         } else {
             macroExpansion = buildableReference
         }
-        
+
         let buildConfiguration = defaultReleaseBuildConfigurationName(in: targetNode.project)
         return XCScheme.ProfileAction(buildableProductRunnable: buildableProductRunnable,
                                       buildConfiguration: buildConfiguration,
                                       macroExpansion: macroExpansion)
     }
-    
+
     /// Returns the scheme analyze action.
     ///
     /// - Parameters:
@@ -342,11 +339,11 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Returns: Scheme analyze action.
     func schemeAnalyzeAction(scheme: Scheme,
                              graph: Graphing,
-                             rootPath: AbsolutePath,
-                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction? {
+                             rootPath _: AbsolutePath,
+                             generatedProjects _: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction? {
         guard let target = try defaultTargetReference(scheme: scheme),
             let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
-        
+
         let buildConfiguration = defaultDebugBuildConfigurationName(in: targetNode.project)
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
     }
@@ -363,18 +360,17 @@ final class SchemesGenerator: SchemesGenerating {
                              graph: Graphing,
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction? {
-        
         guard let target = try defaultTargetReference(scheme: scheme),
             let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         guard let archiveAction = scheme.archiveAction else {
             return defaultSchemeArchiveAction(for: targetNode.project)
         }
-        
+
         let preActions = try archiveAction.preActions.map {
             try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
         }
-        
+
         let postActions = try archiveAction.postActions.map {
             try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
         }
@@ -385,28 +381,27 @@ final class SchemesGenerator: SchemesGenerating {
                                       preActions: preActions,
                                       postActions: postActions)
     }
-    
+
     func schemeExecutionAction(action: ExecutionAction,
                                graph: Graphing,
                                generatedProjects: [AbsolutePath: GeneratedProject],
-                               rootPath: AbsolutePath) throws -> XCScheme.ExecutionAction {
-
+                               rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction {
         guard let targetReference = action.target,
             let targetNode = try graph.target(path: targetReference.projectPath, name: targetReference.name),
             let generatedProject = generatedProjects[targetReference.projectPath] else {
-                return schemeExecutionAction(action: action)
+            return schemeExecutionAction(action: action)
         }
         return schemeExecutionAction(action: action,
                                      target: targetNode.target,
                                      generatedProject: generatedProject)
     }
-    
+
     private func schemeExecutionAction(action: ExecutionAction) -> XCScheme.ExecutionAction {
         return XCScheme.ExecutionAction(scriptText: action.scriptText,
                                         title: action.title,
                                         environmentBuildable: nil)
     }
-    
+
     /// Returns the scheme pre/post actions.
     ///
     /// - Parameters:
@@ -420,7 +415,7 @@ final class SchemesGenerator: SchemesGenerating {
         /// Return Buildable Reference for Scheme Action
         func schemeBuildableReference(target: Target, generatedProject: GeneratedProject) -> XCScheme.BuildableReference? {
             guard let pbxTarget = generatedProject.targets[target.name] else { return nil }
-            
+
             return targetBuildableReference(target: target,
                                             pbxTarget: pbxTarget,
                                             projectPath: generatedProject.name)
@@ -434,16 +429,16 @@ final class SchemesGenerator: SchemesGenerating {
                                                                      generatedProject: generatedProject)
         return schemeAction
     }
-    
+
     // MARK: - Helpers
-    
+
     private func resolveRelativeProjectPath(targetNode: TargetNode,
                                             generatedProject: GeneratedProject,
                                             rootPath: AbsolutePath) -> RelativePath {
         let xcodeProjectPath = targetNode.path.appending(component: generatedProject.name)
         return xcodeProjectPath.relative(to: rootPath)
     }
-    
+
     /// Creates a target buildable refernece for a target
     ///
     /// - Parameters:
@@ -455,7 +450,6 @@ final class SchemesGenerator: SchemesGenerating {
                                           graph: Graphing,
                                           rootPath: AbsolutePath,
                                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildableReference? {
-        
         let projectPath = targetReference.projectPath
         guard let target = try graph.target(path: projectPath, name: targetReference.name) else { return nil }
         guard let generatedProject = generatedProjects[projectPath] else { return nil }
@@ -463,12 +457,12 @@ final class SchemesGenerator: SchemesGenerating {
         let relativeXcodeProjectPath = resolveRelativeProjectPath(targetNode: target,
                                                                   generatedProject: generatedProject,
                                                                   rootPath: rootPath)
-        
+
         return targetBuildableReference(target: target.target,
                                         pbxTarget: pbxTarget,
                                         projectPath: relativeXcodeProjectPath.pathString)
     }
-    
+
     /// Generates the array of BuildableReference for targets that the
     /// coverage report should be generated for them.
     ///
@@ -487,7 +481,7 @@ final class SchemesGenerator: SchemesGenerating {
                                             rootPath: rootPath,
                                             generatedProjects: generatedProjects)
     }
-    
+
     /// Creates the directory where the schemes are stored inside the project.
     /// If the directory exists it does not re-create it.
     ///
@@ -509,7 +503,7 @@ final class SchemesGenerator: SchemesGenerating {
         }
         return schemePath
     }
-    
+
     /// Returns the scheme commandline argument passed on launch
     ///
     /// - Parameters:
@@ -520,7 +514,7 @@ final class SchemesGenerator: SchemesGenerating {
             XCScheme.CommandLineArguments.CommandLineArgument(name: key, enabled: enabled)
         }
     }
-    
+
     /// Returns the scheme environment variables
     ///
     /// - Parameters:
@@ -531,14 +525,14 @@ final class SchemesGenerator: SchemesGenerating {
             XCScheme.EnvironmentVariable(variable: key, value: value, enabled: true)
         }
     }
-    
+
     private func defaultDebugBuildConfigurationName(in project: Project) -> String {
         let debugConfiguration = project.settings.defaultDebugBuildConfiguration()
         let buildConfiguration = debugConfiguration ?? project.settings.configurations.keys.first
 
         return buildConfiguration?.name ?? BuildConfiguration.debug.name
     }
-    
+
     /// Returns the scheme buildable reference for a given target.
     ///
     /// - Parameters:
@@ -564,15 +558,15 @@ final class SchemesGenerator: SchemesGenerating {
         return XCScheme.ArchiveAction(buildConfiguration: buildConfiguration,
                                       revealArchiveInOrganizer: true)
     }
-    
+
     private func defaultReleaseBuildConfigurationName(in project: Project) -> String {
         let releaseConfiguration = project.settings.defaultReleaseBuildConfiguration()
         let buildConfiguration = releaseConfiguration ?? project.settings.configurations.keys.first
 
         return buildConfiguration?.name ?? BuildConfiguration.release.name
     }
-    
-    private func defaultTargetReference(scheme: Scheme) throws  -> TargetReference? {
+
+    private func defaultTargetReference(scheme: Scheme) throws -> TargetReference? {
         return scheme.buildAction?.targets.first
     }
 }
