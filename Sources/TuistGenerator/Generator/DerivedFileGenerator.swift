@@ -86,7 +86,9 @@ final class DerivedFileGenerator: DerivedFileGenerating {
             if case let InfoPlist.dictionary(content) = infoPlist {
                 dictionary = content.mapValues { $0.value }
             } else if case let InfoPlist.extendingDefault(extended) = infoPlist,
-                let content = self.infoPlistContentProvider.content(target: target, extendedWith: extended) {
+                let content = self.infoPlistContentProvider.content(project: project,
+                                                                    target: target,
+                                                                    extendedWith: extended) {
                 dictionary = content
             } else {
                 return

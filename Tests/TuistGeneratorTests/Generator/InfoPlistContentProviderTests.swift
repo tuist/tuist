@@ -17,7 +17,9 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .iOS, product: .app)
 
         // When
-        let got = subject.content(target: target, extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(project: .empty(),
+                                  target: target,
+                                  extendedWith: ["ExtraAttribute": "Value"])
 
         // Then
         assertEqual(got, [
@@ -53,7 +55,9 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .app)
 
         // When
-        let got = subject.content(target: target, extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(project: .empty(),
+                                  target: target,
+                                  extendedWith: ["ExtraAttribute": "Value"])
 
         // Then
         assertEqual(got, [
@@ -79,7 +83,9 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .framework)
 
         // When
-        let got = subject.content(target: target, extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(project: .empty(),
+                                  target: target,
+                                  extendedWith: ["ExtraAttribute": "Value"])
 
         // Then
         assertEqual(got, [
@@ -101,7 +107,9 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .staticLibrary)
 
         // When
-        let got = subject.content(target: target, extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(project: .empty(),
+                                  target: target,
+                                  extendedWith: ["ExtraAttribute": "Value"])
 
         // Then
         XCTAssertNil(got)
@@ -112,20 +120,115 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .dynamicLibrary)
 
         // When
-        let got = subject.content(target: target, extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(project: .empty(),
+                                  target: target,
+                                  extendedWith: ["ExtraAttribute": "Value"])
 
         // Then
         XCTAssertNil(got)
     }
 
     func test_contentPackageType() {
-        assertPackageType(subject.content(target: .test(product: .app), extendedWith: [:]), "APPL")
-        assertPackageType(subject.content(target: .test(product: .unitTests), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(target: .test(product: .uiTests), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(target: .test(product: .bundle), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(target: .test(product: .framework), extendedWith: [:]), "FMWK")
-        assertPackageType(subject.content(target: .test(product: .staticFramework), extendedWith: [:]), "FMWK")
+        assertPackageType(subject.content(project: .empty(), target: .test(product: .app), extendedWith: [:]), "APPL")
+        assertPackageType(subject.content(project: .empty(), target: .test(product: .unitTests), extendedWith: [:]), "BNDL")
+        assertPackageType(subject.content(project: .empty(), target: .test(product: .uiTests), extendedWith: [:]), "BNDL")
+        assertPackageType(subject.content(project: .empty(), target: .test(product: .bundle), extendedWith: [:]), "BNDL")
+        assertPackageType(subject.content(project: .empty(), target: .test(product: .framework), extendedWith: [:]), "FMWK")
+        assertPackageType(subject.content(project: .empty(), target: .test(product: .staticFramework), extendedWith: [:]), "FMWK")
+        assertPackageType(subject.content(project: .empty(), target: .test(product: .watch2App), extendedWith: [:]), "$(PRODUCT_BUNDLE_PACKAGE_TYPE)")
     }
+
+    func test_content_whenWatchOSApp() {
+        // Given
+        let watchApp = Target.test(name: "MyWatchApp",
+                                   platform: .watchOS,
+                                   product: .watch2App)
+        let app = Target.test(platform: .iOS,
+                              product: .app,
+                              bundleId: "io.tuist.my.app.id",
+                              dependencies: [
+                                  .target(name: "MyWatchApp"),
+                              ])
+        let project = Project.test(targets: [
+            app,
+            watchApp,
+        ])
+
+        // When
+        let got = subject.content(project: project,
+                                  target: watchApp,
+                                  extendedWith: [
+                                      "ExtraAttribute": "Value",
+                                  ])
+
+        // Then
+        assertEqual(got, [
+            "CFBundleName": "$(PRODUCT_NAME)",
+            "CFBundleShortVersionString": "1.0",
+            "CFBundlePackageType": "$(PRODUCT_BUNDLE_PACKAGE_TYPE)",
+            "UISupportedInterfaceOrientations": [
+                "UIInterfaceOrientationPortrait",
+                "UIInterfaceOrientationPortraitUpsideDown",
+            ],
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleVersion": "1",
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleDisplayName": "MyWatchApp",
+            "WKWatchKitApp": true,
+            "WKCompanionAppBundleIdentifier": "io.tuist.my.app.id",
+            "ExtraAttribute": "Value",
+
+        ])
+    }
+
+    func test_content_whenWatchOSAppExtension() {
+        // Given
+        let watchAppExtension = Target.test(name: "MyWatchAppExtension",
+                                            platform: .watchOS,
+                                            product: .watch2Extension)
+        let watchApp = Target.test(platform: .watchOS,
+                                   product: .watch2App,
+                                   bundleId: "io.tuist.my.app.id.mywatchapp",
+                                   dependencies: [
+                                       .target(name: "MyWatchAppExtension"),
+                                   ])
+        let project = Project.test(targets: [
+            watchApp,
+            watchAppExtension,
+        ])
+
+        // When
+        let got = subject.content(project: project,
+                                  target: watchAppExtension,
+                                  extendedWith: [
+                                      "ExtraAttribute": "Value",
+                                  ])
+
+        // Then
+        assertEqual(got, [
+            "CFBundleName": "$(PRODUCT_NAME)",
+            "CFBundleShortVersionString": "1.0",
+            "CFBundlePackageType": "$(PRODUCT_BUNDLE_PACKAGE_TYPE)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleVersion": "1",
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleDisplayName": "MyWatchAppExtension",
+            "NSExtension": [
+                "NSExtensionAttributes": [
+                    "WKAppBundleIdentifier": "io.tuist.my.app.id.mywatchapp",
+                ],
+                "NSExtensionPointIdentifier": "com.apple.watchkit",
+            ],
+            "WKExtensionDelegateClassName": "$(PRODUCT_MODULE_NAME).ExtensionDelegate",
+            "ExtraAttribute": "Value",
+        ])
+    }
+
+    // MARK: - Helpers
 
     fileprivate func assertPackageType(_ lhs: [String: Any]?,
                                        _ packageType: String?,
