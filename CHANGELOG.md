@@ -22,7 +22,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Galaxy manifest model https://github.com/tuist/tuist/pull/729 by @pepibumur.
 - Make scheme generation methods more generic https://github.com/tuist/tuist/pull/730 by @adamkhazi @kwridan.
 - `SimulatorController` with method to fetch the runtimes https://github.com/tuist/tuist/pull/746 by @pepibumur.
-- Workspace Schemes by https://github.com/tuist/tuist/pull/752 @adamkhazi @kwridan.
+- Workspace Schemes https://github.com/tuist/tuist/pull/752 by @adamkhazi @kwridan.
 
 ### Fixed
 
