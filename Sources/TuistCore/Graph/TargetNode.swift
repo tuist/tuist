@@ -143,4 +143,11 @@ public class TargetNode: GraphNode {
         return "\(project.name) at \(project.path) with dependencies: \(dependencies)"
     }
 }
+
+extension TargetNode: ContentHashable {
+    /// The hash that uniquely identifies the content of the node. Returns nil if the node can't be hashed
+    public var contentHash: Int? {
+        guard target.product == .framework else { return nil }
+        return -1 // TODO: The calculation of the hash will be implemented in a subsequent PR
+    }
 }

@@ -20,14 +20,14 @@ final class TargetNodeTests: XCTestCase {
         let d = TargetNode(project: .test(path: AbsolutePath("/d")),
                            target: .test(name: "c"),
                            dependencies: [])
-
+        
         // When / Then
         XCTAssertEqual(c1, c2)
         XCTAssertNotEqual(c2, c3)
         XCTAssertNotEqual(c1, d)
         XCTAssertEqual(d, d)
     }
-
+    
     func test_equality_asGraphNodes() {
         // Given
         let c1: GraphNode = TargetNode(project: .test(path: AbsolutePath("/c")),
@@ -42,13 +42,13 @@ final class TargetNodeTests: XCTestCase {
         let d: GraphNode = TargetNode(project: .test(path: AbsolutePath("/d")),
                                       target: .test(name: "c"),
                                       dependencies: [])
-
+        
         // When / Then
         XCTAssertEqual(c1, c2)
         XCTAssertNotEqual(c2, c3)
         XCTAssertNotEqual(c1, d)
     }
-
+    
     func test_encode() {
         // Given
         let library = LibraryNode.test()
@@ -57,7 +57,7 @@ final class TargetNodeTests: XCTestCase {
         let node = TargetNode(project: .test(path: AbsolutePath("/")),
                               target: .test(name: "Target"),
                               dependencies: [library, framework, cocoapods])
-
+        
         let expected = """
         {
         "type": "source",
@@ -73,8 +73,29 @@ final class TargetNodeTests: XCTestCase {
         "platform" : "\(node.target.platform.rawValue)"
         }
         """
-
+        
         // Then
         XCTAssertEncodableEqualToJson(node, expected)
     }
+    
+    func test_contentHash_targetProductIsFramework_returnsValue() {
+        //Given
+        let frameworkNode = TargetNode(project: .test(),
+                                       target: .test(product: .framework),
+                                       dependencies: [])
+        //Then
+        XCTAssertNotNil(frameworkNode.contentHash)
+    }
+    
+    func test_contentHash_targetProductIsNotFramework_returnsNil() {
+        for product in Product.allCases.filter({ $0 != .framework }) {
+            //Given
+            let frameworkNode = TargetNode(project: .test(),
+                                           target: .test(product: product),
+                                           dependencies: [])
+            //Then
+            XCTAssertNil(frameworkNode.contentHash)
+        }
+    }
+    
 }
