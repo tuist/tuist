@@ -10,7 +10,7 @@ class MockGenerator: Generating {
     }
 
     var generateProjectStub: ((Project) throws -> AbsolutePath)?
-    func generateProject(_ project: Project, graph _: Graphing) throws -> AbsolutePath {
+    func generateProject(_ project: Project, graph _: Graphable) throws -> AbsolutePath {
         return try generateProjectStub?(project) ?? AbsolutePath("/test")
     }
 

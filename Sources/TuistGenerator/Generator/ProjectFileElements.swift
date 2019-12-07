@@ -46,7 +46,7 @@ class ProjectFileElements {
     }
 
     func generateProjectFiles(project: Project,
-                              graph: Graphing,
+                              graph: Graphable,
                               groups: ProjectGroups,
                               pbxproj: PBXProj,
                               sourceRootPath: AbsolutePath) throws {

@@ -33,7 +33,7 @@ protocol CocoaPodsInteracting {
     ///
     /// - Parameter graph: Project graph.
     /// - Throws: An error if the installation of the pods fails.
-    func install(graph: Graphing) throws
+    func install(graph: Graphable) throws
 }
 
 final class CocoaPodsInteractor: CocoaPodsInteracting {
@@ -41,7 +41,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
     ///
     /// - Parameter graph: Project graph.
     /// - Throws: An error if the installation of the pods fails.
-    func install(graph: Graphing) throws {
+    func install(graph: Graphable) throws {
         do {
             try install(graph: graph, updatingRepo: false)
         } catch let error as CocoaPodsInteractorError {
@@ -54,7 +54,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
         }
     }
 
-    fileprivate func install(graph: Graphing, updatingRepo: Bool) throws {
+    fileprivate func install(graph: Graphable, updatingRepo: Bool) throws {
         guard !graph.cocoapods.isEmpty else {
             return
         }

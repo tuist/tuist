@@ -5,7 +5,7 @@ import TuistSupport
 @testable import TuistGenerator
 
 class MockGraphLinter: GraphLinting {
-    func lint(graph _: Graphing) -> [LintingIssue] {
+    func lint(graph _: Graphable) -> [LintingIssue] {
         return []
     }
 }
