@@ -39,17 +39,21 @@ enum InitCommandError: FatalError, Equatable {
 
 enum Template: String {
     case swiftUI = "swiftui"
+    case storyboard = "storyboard"
 }
 
 extension Template: ArgumentKind {
     static var completion: ShellCompletion {
-        .values([(value: Template.swiftUI.rawValue, description: "SwiftUI template")])
+        .values([
+            (value: Template.swiftUI.rawValue, description: "SwiftUI template"),
+            (value: Template.storyboard.rawValue, description: "Storyboard template"),
+        ])
     }
 
     init(argument: String) throws {
         guard
             let template: Template = Template(rawValue: argument)
-        else { throw ArgumentParserError.invalidValue(argument: argument, error: .custom("Template should be swiftui or omitted")) }
+        else { throw ArgumentParserError.invalidValue(argument: argument, error: .custom("Template should be swiftui, or storyboard")) }
         self = template
     }
 }
@@ -105,13 +109,14 @@ class InitCommand: NSObject, Command {
         let platform = try self.platform(arguments: arguments)
         let path = try self.path(arguments: arguments)
         let name = try self.name(arguments: arguments, path: path)
+        let template: Template = try arguments.get(templateArgument) ?? .storyboard
         try verifyDirectoryIsEmpty(path: path)
         try generateSetup(path: path)
         try generateProjectDescriptionHelpers(path: path)
         try generateProjectsDirectories(name: name, path: path)
         try generateProjectsSwift(name: name, platform: platform, path: path)
         try generateWorkspaceSwift(name: name, platform: platform, path: path)
-        try generateSwiftFiles(name: name, platform: platform, path: path)
+        try generateSwiftFiles(name: name, platform: platform, template: template, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateTuistConfig(path: path)
         try generateGitIgnore(path: path)
@@ -358,7 +363,7 @@ class InitCommand: NSObject, Command {
     }
 
     // swiftlint:disable:next function_body_length
-    private func generateSwiftFiles(name: String, platform: Platform, path: AbsolutePath) throws {
+    private func generateSwiftFiles(name: String, platform: Platform, template: Template, path: AbsolutePath) throws {
         let appContent: String!
         if platform == .macOS {
             appContent = """
@@ -381,6 +386,20 @@ class InitCommand: NSObject, Command {
             }
             """
         } else {
+            let rootViewControllerContent: String
+            switch template {
+            case .storyboard:
+                rootViewControllerContent = """
+                let viewController = UIViewController()
+                        viewController.view.backgroundColor = .white
+                        window?.rootViewController = viewController
+                """
+            case .swiftUI:
+                rootViewControllerContent = """
+                let contentView = ContentView()
+                        window?.rootViewController = UIHostingController(rootView: contentView)
+                """
+            }
             appContent = """
             import UIKit
             import \(name)Kit
@@ -395,9 +414,7 @@ class InitCommand: NSObject, Command {
                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
                 ) -> Bool {
                     window = UIWindow(frame: UIScreen.main.bounds)
-                    let viewController = UIViewController()
-                    viewController.view.backgroundColor = .white
-                    window?.rootViewController = viewController
+                    \(rootViewControllerContent)
                     window?.makeKeyAndVisible()
                     return true
                 }
@@ -429,11 +446,31 @@ class InitCommand: NSObject, Command {
             }
             """
         }
+        
+        let contentViewContent = """
+        import SwiftUI
+
+        struct ContentView: View {
+            var body: some View {
+                Text("Hello, World!")
+            }
+        }
+
+        struct ContentView_Previews: PreviewProvider {
+            static var previews: some View {
+                ContentView()
+            }
+        }
+
+        """
 
         // App
         let appSourcesPath = appPath(path, name: name).appending(RelativePath("Sources"))
         let appTestsPath = appPath(path, name: name).appending(RelativePath("Tests"))
         try FileHandler.shared.write(appContent, path: appSourcesPath.appending(component: "AppDelegate.swift"), atomically: true)
+        if template == .swiftUI {
+            try FileHandler.shared.write(contentViewContent, path: appSourcesPath.appending(component: "ContentView.swift"), atomically: true)
+        }
         try FileHandler.shared.write(testsContent(name), path: appTestsPath.appending(component: "\(name)Tests.swift"), atomically: true)
 
         // Kit
