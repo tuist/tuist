@@ -29,6 +29,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.5.0")),
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMajor(from: "0.5.0")),
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
+        .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1"))
     ],
     targets: [
         .target(
@@ -49,15 +50,15 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "ProjectDescription", "Signals"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "ProjectDescription", "Signals", "RxSwift"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription"]
+            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
-            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription"]
+            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking"]
         ),
         .target(
             name: "tuist",
