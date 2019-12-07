@@ -22,6 +22,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the directory where the project description helper modules are cached.
     var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
+
+    /// Returns the directory where the xcframeworks are cached.
+    var xcframeworksCacheDirectory: AbsolutePath { get }
 }
 
 /// Local environment controller.
@@ -85,6 +88,11 @@ public class Environment: Environmenting {
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
         directory.appending(component: "Versions")
+    }
+
+    /// Returns the directory where the xcframeworks are cached.
+    public var xcframeworksCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "xcframeworks")
     }
 
     /// Returns the directory where the project description helper modules are cached.
