@@ -9,6 +9,12 @@ public final class GraphContentHasher: GraphContentHashing {
     public init() {}
     
     public func contentHashes(for graph: Graphing) -> Dictionary<TargetNode, Int> {
-        return Dictionary()
+        let hashableTargets = graph.targets.filter { $0.target.product == .framework }
+        let hashes = hashableTargets.map { makeContentHash(of: $0) }
+        return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
+    }
+    
+    private func makeContentHash(of targetNode: TargetNode) -> Int {
+        return -1 //TODO: will be implemented in subsequent PR
     }
 }
