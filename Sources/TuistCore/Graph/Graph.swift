@@ -464,9 +464,9 @@ extension Graph {
 
     // swiftlint:disable:next line_length
     func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool { { frameworkNode in
-            let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
-            return isDynamicLink ?? false
-        }
+        let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
+        return isDynamicLink ?? false
+    }
     }
 }
 
