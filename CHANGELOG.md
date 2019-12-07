@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+- Run pipelines with Xcode 11.2.1 on CI @pepibumur.
+
 ### Removed
 
 - **Breaking** Generate manifests target as part of the generated project https://github.com/tuist/tuist/pull/724 by @pepibumur.

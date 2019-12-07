@@ -189,4 +189,4 @@ DEPENDENCIES
   xcodeproj (~> 1.13)
 
 BUNDLED WITH
-   1.17.3
+   2.0.2
