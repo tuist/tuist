@@ -30,6 +30,48 @@ extension Platform {
         }
     }
 
+    /// Returns whether the platform has simulators.
+    public var hasSimulators: Bool {
+        switch self {
+        case .macOS: return false
+        default: return true
+        }
+    }
+
+    /// It returns the destination that should be used to
+    /// compile a product for this platform's simulator.
+    public var xcodeSimulatorDestination: String? {
+        switch self {
+        case .macOS: return nil
+        default: return "\(caseValue) Simulator"
+        }
+    }
+
+    /// Returns the SDK of the platform's simulator
+    /// If the platform doesn't have simulators, like macOS, it returns nil.
+    public var xcodeSimulatorSDK: String? {
+        switch self {
+        case .tvOS: return "appletvsimulator"
+        case .iOS: return "iphonesimulator"
+        case .watchOS: return "watchsimulator"
+        case .macOS: return nil
+        }
+    }
+
+    /// Returns the SDK to build for the platform's device.
+    public var xcodeDeviceSDK: String {
+        switch self {
+        case .tvOS:
+            return "appletvos"
+        case .iOS:
+            return "iphoneos"
+        case .macOS:
+            return "macosx"
+        case .watchOS:
+            return "watchos"
+        }
+    }
+
     public var xcodeSupportedPlatforms: String {
         switch self {
         case .tvOS:

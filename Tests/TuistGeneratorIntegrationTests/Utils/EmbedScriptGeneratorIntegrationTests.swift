@@ -22,7 +22,7 @@ final class EmbedScriptGeneratorIntegrationTests: TuistTestCase {
 
     func test_script() throws {
         // Given
-        let carthagePath = temporaryFixture("Carthage/")
+        let carthagePath = try temporaryFixture("Carthage/")
         let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
         let framework = FrameworkNode(path: frameworkPath)
 
@@ -44,13 +44,5 @@ final class EmbedScriptGeneratorIntegrationTests: TuistTestCase {
         XCTAssertTrue(got.script.contains("install_dsym \"RxBlocking.framework.dSYM\""))
         XCTAssertTrue(got.script.contains("install_bcsymbolmap \"2510FE01-4D40-3956-BB71-857D3B2D9E73.bcsymbolmap\""))
         XCTAssertTrue(got.script.contains("install_bcsymbolmap \"773847A9-0D05-35AF-9865-94A9A670080B.bcsymbolmap\""))
-    }
-
-    fileprivate func temporaryFixture(_ pathString: String) -> AbsolutePath {
-        let path = RelativePath(pathString)
-        let fixturePath = self.fixturePath(path: path)
-        let destinationPath = (try! temporaryPath()).appending(component: path.basename)
-        try! FileHandler.shared.copy(from: fixturePath, to: destinationPath)
-        return destinationPath
     }
 }
