@@ -61,6 +61,40 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         XCTAssertNotEqual(contentHashes[framework1], contentHashes[framework2])
     }
     
+    func test_contentHashes_frameworksWithSameSources_differentPlatform() throws {
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        
+        let temporaryDirectoryPath = try self.temporaryPath()
+        let source1 = try createTemporaryFile(on: temporaryDirectoryPath, name: "1", content: "1")
+        let source2 = try createTemporaryFile(on: temporaryDirectoryPath, name: "2", content: "2")
+        let framework1 = makeFramework(named: "f1", platform: .iOS, withSources: [source1, source2])
+        let framework2 = makeFramework(named: "f2", platform: .macOS, withSources: [source1, source2])
+        cache.add(targetNode: framework1)
+        cache.add(targetNode: framework2)
+        
+        let contentHashes = try subject.contentHashes(for: graph)
+    
+        XCTAssertNotEqual(contentHashes[framework1], contentHashes[framework2])
+    }
+    
+    func test_contentHashes_frameworksWithSameSources_differentProductName() throws {
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        
+        let temporaryDirectoryPath = try self.temporaryPath()
+        let source1 = try createTemporaryFile(on: temporaryDirectoryPath, name: "1", content: "1")
+        let source2 = try createTemporaryFile(on: temporaryDirectoryPath, name: "2", content: "2")
+        let framework1 = makeFramework(named: "f1", productName: "1", withSources: [source1, source2])
+        let framework2 = makeFramework(named: "f2", productName: "2", withSources: [source1, source2])
+        cache.add(targetNode: framework1)
+        cache.add(targetNode: framework2)
+        
+        let contentHashes = try subject.contentHashes(for: graph)
+    
+        XCTAssertNotEqual(contentHashes[framework1], contentHashes[framework2])
+    }
+    
     func test_contentHashes_hashIsConsistent() throws {
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
@@ -77,8 +111,28 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         
         let contentHashes = try subject.contentHashes(for: graph)
         
-        XCTAssertEqual(contentHashes[framework1], "302cbafc0dfbc97f30d576a6f394dad3")
-        XCTAssertEqual(contentHashes[framework2], "284914d9fc3eba381602a8adc626fbfd")
+        XCTAssertEqual(contentHashes[framework1], "f2156057d610c867d1eca703e1552124")
+        XCTAssertEqual(contentHashes[framework2], "10e9b3ae9839c28fbf03bab0931df7a9")
+    }
+    
+    func test_contentHashes_sourcesInDifferentOrder_hashIsConsistent() throws {
+        let cache = GraphLoaderCache()
+        let graph = Graph.test(cache: cache)
+        
+        let temporaryDirectoryPath = try self.temporaryPath()
+        let source1 = try createTemporaryFile(on: temporaryDirectoryPath, name: "1", content: "1")
+        let source2 = try createTemporaryFile(on: temporaryDirectoryPath, name: "2", content: "2")
+        let source3 = try createTemporaryFile(on: temporaryDirectoryPath, name: "3", content: "3")
+        let source4 = try createTemporaryFile(on: temporaryDirectoryPath, name: "4", content: "4")
+        let framework1 = makeFramework(named: "f1", withSources: [source2, source1])
+        let framework2 = makeFramework(named: "f2", withSources: [source4, source3])
+        cache.add(targetNode: framework1)
+        cache.add(targetNode: framework2)
+        
+        let contentHashes = try subject.contentHashes(for: graph)
+        
+        XCTAssertEqual(contentHashes[framework1], "f2156057d610c867d1eca703e1552124")
+        XCTAssertEqual(contentHashes[framework2], "10e9b3ae9839c28fbf03bab0931df7a9")
     }
     
     // MARK: - Private helpers
@@ -90,7 +144,15 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         return Target.SourceFile(path: filePath, compilerFlags: nil)
     }
     
-    private func makeFramework(named: String, withSources sources: [Target.SourceFile]) -> TargetNode {
-        return TargetNode.test(project: .test(path: AbsolutePath("/test/\(named)")), target: .test(product: .framework, sources: sources))
+    private func makeFramework(named: String,
+                               platform: Platform = .iOS,
+                               productName: String? = nil,
+                               withSources sources: [Target.SourceFile]) -> TargetNode {
+        return TargetNode.test(
+            project: .test(path: AbsolutePath("/test/\(named)")),
+            target: .test(platform: platform,
+                          product: .framework,
+                          productName: productName,
+                          sources: sources))
     }
 }
