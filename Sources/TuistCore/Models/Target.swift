@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Target: Equatable, Hashable {
+public class Target: Equatable, Hashable, CustomStringConvertible {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
 
     // MARK: - Static
@@ -160,6 +160,10 @@ public class Target: Equatable, Hashable {
         hasher.combine(productName)
         hasher.combine(entitlements)
         hasher.combine(environment)
+    }
+    
+    public var description: String {
+        return name
     }
 }
 
