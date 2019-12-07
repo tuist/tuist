@@ -5,8 +5,8 @@ import TuistSupport
 
 enum ContentHashingError: FatalError, Equatable {
     case fileNotFound(AbsolutePath)
-    case checksumFileFailed(AbsolutePath)
-    case checksumStringFailed(String)
+    case fileHashingFailed(AbsolutePath)
+    case stringHashingFailed(String)
 
     var type: ErrorType {
         .abort
@@ -15,11 +15,11 @@ enum ContentHashingError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .fileNotFound(path):
-            return "Couldn't find file at path \(path.pathString)."
-        case let .checksumFileFailed(path):
-            return "Couldn't calculate checksum for file at path \(path.pathString)."
-        case let .checksumStringFailed(string):
-            return "Couldn't calculate checksum for string \(string)."
+            return "Couldn't find file at path \(path.pathString) while hashing the target for caching."
+        case let .fileHashingFailed(path):
+            return "Couldn't calculate hash of file at path \(path.pathString) for caching."
+        case let .stringHashingFailed(string):
+            return "Couldn't calculate hash of string \(string) for caching."
         }
     }
 
@@ -27,8 +27,10 @@ enum ContentHashingError: FatalError, Equatable {
         switch (lhs, rhs) {
         case let (.fileNotFound(lhsPath), .fileNotFound(rhsPath)):
             return lhsPath == rhsPath
-        case let (.checksumFileFailed(lhsPath), .checksumFileFailed(rhsPath)):
+        case let (.fileHashingFailed(lhsPath), .fileHashingFailed(rhsPath)):
             return lhsPath == rhsPath
+        case let (.stringHashingFailed(lhsPath), .stringHashingFailed(rhsPath)):
+                return lhsPath == rhsPath
         default:
             return false
         }

@@ -29,7 +29,7 @@ public final class GraphContentHasher: GraphContentHashing {
     private func hashSources(of targetNode: TargetNode) throws -> String {
         let hashes = try targetNode.target.sources.map(md5)
         guard let joinedHash = hashes.joined().checksum(algorithm: .md5) else {
-            throw ContentHashingError.checksumStringFailed(hashes.joined())
+            throw ContentHashingError.stringHashingFailed(hashes.joined())
         }
         return joinedHash
     }
@@ -39,7 +39,7 @@ public final class GraphContentHasher: GraphContentHashing {
             throw ContentHashingError.fileNotFound(source.path)
         }
         guard let checksum = sourceData.checksum(algorithm: .md5) else {
-            throw ContentHashingError.checksumFileFailed(source.path)
+            throw ContentHashingError.fileHashingFailed(source.path)
         }
         return checksum
     }
