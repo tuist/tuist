@@ -3,19 +3,19 @@ import Foundation
 import RxSwift
 import TuistSupport
 
-enum CacheLocalStorageError: FatalError {
-    case fileNotFound(hash: String)
+enum CacheLocalStorageError: FatalError, Equatable {
+    case xcframeworkNotFound(hash: String)
 
     var type: ErrorType {
         switch self {
-        case .fileNotFound: return .abort
+        case .xcframeworkNotFound: return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .fileNotFound(hash):
-            return "File with hash \(hash) not found in the local cache"
+        case let .xcframeworkNotFound(hash):
+            return ".xcframework with hash '\(hash)' not found in the local cache"
         }
     }
 }
@@ -45,23 +45,26 @@ final class CacheLocalStorage: CacheStoraging {
             if let path = FileHandler.shared.glob(self.cacheDirectory, glob: "\(hash)/*").first {
                 completed(.success(path))
             } else {
-                completed(.error(CacheLocalStorageError.fileNotFound(hash: hash)))
+                completed(.error(CacheLocalStorageError.xcframeworkNotFound(hash: hash)))
             }
             return Disposables.create()
         }
     }
 
-    func store(hash: String, path: AbsolutePath) -> Completable {
+    func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
         let copy = Completable.create { (completed) -> Disposable in
             let hashFolder = self.cacheDirectory.appending(component: hash)
-            let destinationPath = hashFolder.appending(component: path.basename)
+            let destinationPath = hashFolder.appending(component: xcframeworkPath.basename)
 
             do {
                 if !FileHandler.shared.exists(hashFolder) {
                     try FileHandler.shared.createFolder(hashFolder)
                 }
+                if FileHandler.shared.exists(destinationPath) {
+                    try FileHandler.shared.delete(destinationPath)
+                }
 
-                try FileHandler.shared.copy(from: path, to: destinationPath)
+                try FileHandler.shared.copy(from: xcframeworkPath, to: destinationPath)
 
             } catch {
                 completed(.error(error))

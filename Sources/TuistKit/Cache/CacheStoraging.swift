@@ -15,5 +15,9 @@ protocol CacheStoraging {
     /// - Returns: An observable that returns a boolean indicating whether the target is cached.
     func fetch(hash: String) -> Single<AbsolutePath>
 
-    func store(hash: String, path: AbsolutePath) -> Completable
+    /// It stores the xcframework at the given path in the cache.
+    /// - Parameters:
+    ///   - hash: Hash of the target the xcframework belongs to.
+    ///   - xcframeworkPath: Path to the .xcframework.
+    func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable
 }

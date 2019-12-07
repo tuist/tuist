@@ -1,22 +1,22 @@
-import Foundation
-import XCTest
-import TuistCoreTesting
-import TuistCore
 import Basic
+import Foundation
+import TuistCore
+import TuistCoreTesting
+import XCTest
 @testable import TuistKit
 
 final class GraphContentHasherTests: XCTestCase {
     private var sut: GraphContentHasher!
-    
+
     override func setUp() {
         super.setUp()
         sut = GraphContentHasher()
-     }
+    }
 
     override func tearDown() {
-         sut = nil
-         super.tearDown()
-     }
+        sut = nil
+        super.tearDown()
+    }
 
     func test_contentHashes_emptyGraph() {
         let graph = Graph.test()
@@ -25,7 +25,7 @@ final class GraphContentHasherTests: XCTestCase {
     }
 
     func test_contentHashes_returnsOnlyFrameworks() {
-        //Given
+        // Given
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
         let frameworkTarget = TargetNode.test(project: .test(path: AbsolutePath("/test/1")), target: .test(product: .framework))
@@ -39,13 +39,13 @@ final class GraphContentHasherTests: XCTestCase {
         cache.add(targetNode: dynamicLibraryTarget)
         cache.add(targetNode: staticFrameworkTarget)
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget]
-        
+
         // When
         let hashes = sut.contentHashes(for: graph)
-        let hashedTargets: [TargetNode] = hashes.keys.sorted{ left, right -> Bool in
+        let hashedTargets: [TargetNode] = hashes.keys.sorted { left, right -> Bool in
             left.project.path.pathString < right.project.path.pathString
         }
-        
+
         // Then
         XCTAssertEqual(hashedTargets, expectedCachableTargets)
     }
