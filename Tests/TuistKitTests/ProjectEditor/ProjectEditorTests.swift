@@ -72,7 +72,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.edit(at: directory, in: directory)
+        try _ = subject.edit(at: directory, in: directory)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
