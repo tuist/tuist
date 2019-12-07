@@ -133,11 +133,11 @@ public class Graph: Graphing {
     public let entryNodes: [GraphNode]
 
     public var projects: [Project] {
-        return Array(cache.projects.values)
+        Array(cache.projects.values)
     }
 
     public var projectPaths: [AbsolutePath] {
-        return Array(cache.projects.keys)
+        Array(cache.projects.keys)
     }
 
     // MARK: - Init
@@ -165,30 +165,30 @@ public class Graph: Graphing {
 
     /// Returns all the CocoaPods nodes that are part of the graph.
     public var cocoapods: [CocoaPodsNode] {
-        return Array(cache.cocoapodsNodes.values)
+        Array(cache.cocoapodsNodes.values)
     }
 
     public var packages: [PackageNode] {
-        return cache.packages.values.flatMap { $0 }
+        cache.packages.values.flatMap { $0 }
     }
 
     /// Returns all the frameworks that are part of the graph
     public var frameworks: [FrameworkNode] {
-        return cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
+        cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
     }
 
     /// Returns all the precompiled nodes that are part of the graph.
     public var precompiled: [PrecompiledNode] {
-        return Array(cache.precompiledNodes.values)
+        Array(cache.precompiledNodes.values)
     }
 
     /// Returns all the targets that are part of the graph.
     public var targets: [TargetNode] {
-        return cache.targetNodes.flatMap { $0.value.values }
+        cache.targetNodes.flatMap { $0.value.values }
     }
 
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
-        return findTargetNode(path: path, name: name)
+        findTargetNode(path: path, name: name)
     }
 
     public func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
@@ -220,7 +220,7 @@ public class Graph: Graphing {
     }
 
     public func packages(path: AbsolutePath, name _: String) throws -> [PackageNode] {
-        return cache.packages[path] ?? []
+        cache.packages[path] ?? []
     }
 
     public func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
@@ -399,7 +399,7 @@ public class Graph: Graphing {
 
     private func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
         func isPathAndNameEqual(node: TargetNode) -> Bool {
-            return node.path == path && node.target.name == name
+            node.path == path && node.target.name == name
         }
 
         let targetNodes = entryNodes.compactMap { $0 as? TargetNode }
@@ -417,17 +417,17 @@ public class Graph: Graphing {
 
     // Obtains all static dependencies for a targetNode (including transitive ones)
     private func transitiveStaticTargetNodes(for targetNode: TargetNode) -> Set<TargetNode> {
-        return findAll(targetNode: targetNode,
-                       test: isStaticLibrary,
-                       skip: canLinkStaticProducts)
+        findAll(targetNode: targetNode,
+                test: isStaticLibrary,
+                skip: canLinkStaticProducts)
     }
 
     private func productDependencyReference(for targetNode: TargetNode) -> DependencyReference {
-        return .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
+        .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
     }
 
     private func hostApplication(for targetNode: TargetNode) -> TargetNode? {
-        return targetDependencies(path: targetNode.path, name: targetNode.name)
+        targetDependencies(path: targetNode.path, name: targetNode.name)
             .first(where: { $0.target.product == .app })
     }
 }
@@ -436,19 +436,19 @@ public class Graph: Graphing {
 
 extension Graph {
     func isStaticLibrary(targetNode: TargetNode) -> Bool {
-        return targetNode.target.product.isStatic
+        targetNode.target.product.isStatic
     }
 
     func isDynamicLibrary(targetNode: TargetNode) -> Bool {
-        return targetNode.target.product == .dynamicLibrary
+        targetNode.target.product == .dynamicLibrary
     }
 
     func isFramework(targetNode: TargetNode) -> Bool {
-        return targetNode.target.product == .framework
+        targetNode.target.product == .framework
     }
 
     func canLinkStaticProducts(targetNode: TargetNode) -> Bool {
-        return targetNode.target.canLinkStaticProducts()
+        targetNode.target.canLinkStaticProducts()
     }
 
     func canEmbedProducts(targetNode: TargetNode) -> Bool {
@@ -463,8 +463,7 @@ extension Graph {
     }
 
     // swiftlint:disable:next line_length
-    func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool {
-        return { frameworkNode in
+    func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool { { frameworkNode in
             let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
             return isDynamicLink ?? false
         }
@@ -475,27 +474,27 @@ extension Graph {
 
 extension TargetNode {
     fileprivate var targetDependencies: [TargetNode] {
-        return dependencies.lazy.compactMap { $0 as? TargetNode }
+        dependencies.lazy.compactMap { $0 as? TargetNode }
     }
 
     fileprivate var precompiledDependencies: [PrecompiledNode] {
-        return dependencies.lazy.compactMap { $0 as? PrecompiledNode }
+        dependencies.lazy.compactMap { $0 as? PrecompiledNode }
     }
 
     fileprivate var packages: [PackageProductNode] {
-        return dependencies.lazy.compactMap { $0 as? PackageProductNode }
+        dependencies.lazy.compactMap { $0 as? PackageProductNode }
     }
 
     fileprivate var libraryDependencies: [LibraryNode] {
-        return dependencies.lazy.compactMap { $0 as? LibraryNode }
+        dependencies.lazy.compactMap { $0 as? LibraryNode }
     }
 
     fileprivate var frameworkDependencies: [FrameworkNode] {
-        return dependencies.lazy.compactMap { $0 as? FrameworkNode }
+        dependencies.lazy.compactMap { $0 as? FrameworkNode }
     }
 
     fileprivate var sdkDependencies: [SDKNode] {
-        return dependencies.lazy.compactMap { $0 as? SDKNode }
+        dependencies.lazy.compactMap { $0 as? SDKNode }
     }
 }
 

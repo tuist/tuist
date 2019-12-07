@@ -75,7 +75,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     public init() {}
 
     public func architectures(precompiled: PrecompiledNode) throws -> [BinaryArchitecture] {
-        return try architectures(binaryPath: precompiled.binaryPath)
+        try architectures(binaryPath: precompiled.binaryPath)
     }
 
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
@@ -100,7 +100,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     public func linking(precompiled: PrecompiledNode) throws -> BinaryLinking {
-        return try linking(binaryPath: precompiled.binaryPath)
+        try linking(binaryPath: precompiled.binaryPath)
     }
 
     public func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
@@ -109,7 +109,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     public func uuids(precompiled: PrecompiledNode) throws -> Set<UUID> {
-        return try uuids(binaryPath: precompiled.binaryPath)
+        try uuids(binaryPath: precompiled.binaryPath)
     }
 
     public func uuids(binaryPath: AbsolutePath) throws -> Set<UUID> {

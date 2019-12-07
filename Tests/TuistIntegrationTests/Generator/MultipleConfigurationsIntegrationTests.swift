@@ -324,33 +324,33 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createTuistConfig() -> TuistConfig {
-        return TuistConfig(compatibleXcodeVersions: .all,
-                           generationOptions: [])
+        TuistConfig(compatibleXcodeVersions: .all,
+                    generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) throws -> Workspace {
-        return Workspace(name: "Workspace", projects: try projects.map { try pathTo($0) })
+        Workspace(name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
-        return Project(path: path,
-                       name: "App",
-                       settings: settings,
-                       filesGroup: .group(name: "Project"),
-                       targets: targets,
-                       packages: packages,
-                       schemes: schemes)
+        Project(path: path,
+                name: "App",
+                settings: settings,
+                filesGroup: .group(name: "Project"),
+                targets: targets,
+                packages: packages,
+                schemes: schemes)
     }
 
     private func createAppTarget(settings: Settings?) throws -> Target {
-        return Target(name: "AppTarget",
-                      platform: .iOS,
-                      product: .app,
-                      productName: "AppTarget",
-                      bundleId: "test.bundle",
-                      settings: settings,
-                      sources: [(path: try pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],
-                      filesGroup: .group(name: "ProjectGroup"))
+        Target(name: "AppTarget",
+               platform: .iOS,
+               product: .app,
+               productName: "AppTarget",
+               bundleId: "test.bundle",
+               settings: settings,
+               sources: [(path: try pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],
+               filesGroup: .group(name: "ProjectGroup"))
     }
 
     private func pathTo(_ relativePath: String) throws -> AbsolutePath {
@@ -436,19 +436,19 @@ private struct ExtractedBuildSettings {
     let rawBuildSettings: String
 
     func contains(_ key: String, _ value: String) -> Bool {
-        return contains((key, value))
+        contains((key, value))
     }
 
     func containsKey(_ key: String) -> Bool {
-        return rawBuildSettings.contains(" \(key)) = ")
+        rawBuildSettings.contains(" \(key)) = ")
     }
 
     func contains(_ pair: (key: String, value: String)) -> Bool {
-        return rawBuildSettings.contains("\(pair.key) = \(pair.value)")
+        rawBuildSettings.contains("\(pair.key) = \(pair.value)")
     }
 
     func contains(settings: [String: String]) -> Bool {
-        return settings.allSatisfy { contains($0) }
+        settings.allSatisfy { contains($0) }
     }
 }
 

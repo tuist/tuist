@@ -24,17 +24,17 @@ public struct BuildConfiguration {
     }
 
     public static func release(_ name: String) -> BuildConfiguration {
-        return BuildConfiguration(name: name, variant: .release)
+        BuildConfiguration(name: name, variant: .release)
     }
 
     public static func debug(_ name: String) -> BuildConfiguration {
-        return BuildConfiguration(name: name, variant: .debug)
+        BuildConfiguration(name: name, variant: .debug)
     }
 }
 
 extension BuildConfiguration: Equatable {
     public static func == (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
-        return lhs.name.caseInsensitiveCompare(rhs.name) == .orderedSame && lhs.variant == rhs.variant
+        lhs.name.caseInsensitiveCompare(rhs.name) == .orderedSame && lhs.variant == rhs.variant
     }
 }
 
@@ -47,16 +47,16 @@ extension BuildConfiguration: Hashable {
 
 extension BuildConfiguration: Comparable {
     public static func < (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
-        return lhs.name < rhs.name
+        lhs.name < rhs.name
     }
 }
 
 extension BuildConfiguration: XcodeRepresentable {
-    public var xcodeValue: String { return name }
+    public var xcodeValue: String { name }
 }
 
 extension BuildConfiguration: CustomStringConvertible {
     public var description: String {
-        return "\(name) (\(variant.rawValue))"
+        "\(name) (\(variant.rawValue))"
     }
 }

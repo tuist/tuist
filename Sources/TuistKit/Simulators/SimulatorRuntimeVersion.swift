@@ -23,9 +23,9 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Equatable, ExpressibleB
     // MARK: - Internal
 
     func flattened() -> SimulatorRuntimeVersion {
-        return SimulatorRuntimeVersion(major: major,
-                                       minor: minor ?? 0,
-                                       patch: patch ?? 0)
+        SimulatorRuntimeVersion(major: major,
+                                minor: minor ?? 0,
+                                patch: patch ?? 0)
     }
 
     // MARK: - CustomStringConvertible
@@ -48,7 +48,7 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Equatable, ExpressibleB
     // MARK: - Equatable
 
     static func == (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {
-        return lhs.major == rhs.major &&
+        lhs.major == rhs.major &&
             lhs.minor == rhs.minor &&
             lhs.patch == rhs.patch
     }

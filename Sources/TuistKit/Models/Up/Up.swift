@@ -84,6 +84,6 @@ class Up: Upping {
     ///   - name: Name of the tool.
     /// - Returns: True if homwebrew is installed in the system.
     func toolInstalled(_ name: String) -> Bool {
-        return (try? System.shared.which(name)) != nil
+        (try? System.shared.which(name)) != nil
     }
 }

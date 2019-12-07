@@ -27,7 +27,7 @@ public final class MockGraphLoaderCache: GraphLoaderCaching {
     public var packages: [AbsolutePath: [PackageNode]] = [:]
 
     public func package(_ path: AbsolutePath) -> PackageProductNode? {
-        return packagesStub[path]
+        packagesStub[path]
     }
 
     public func add(package: PackageProductNode) {
@@ -35,7 +35,7 @@ public final class MockGraphLoaderCache: GraphLoaderCaching {
     }
 
     public func cocoapods(_ path: AbsolutePath) -> CocoaPodsNode? {
-        return cocoapodsStub[path]
+        cocoapodsStub[path]
     }
 
     public func add(cocoapods: CocoaPodsNode) {
@@ -43,7 +43,7 @@ public final class MockGraphLoaderCache: GraphLoaderCaching {
     }
 
     public func tuistConfig(_ path: AbsolutePath) -> TuistConfig? {
-        return tuistConfigStub[path]
+        tuistConfigStub[path]
     }
 
     public func add(tuistConfig: TuistConfig, path: AbsolutePath) {
@@ -74,6 +74,6 @@ public final class MockGraphLoaderCache: GraphLoaderCaching {
     }
 
     public func targetNode(_ path: AbsolutePath, name: String) -> TargetNode? {
-        return targetNodeStub?(path, name)
+        targetNodeStub?(path, name)
     }
 }

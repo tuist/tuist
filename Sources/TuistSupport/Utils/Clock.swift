@@ -23,13 +23,13 @@ public protocol ClockTimer {
 /// the `Clock` interface
 public class WallClock: Clock {
     public var now: Date {
-        return Date()
+        Date()
     }
 
     public init() {}
 
     public func startTimer() -> ClockTimer {
-        return Timer(clock: self)
+        Timer(clock: self)
     }
 
     private class Timer: ClockTimer {
@@ -42,7 +42,7 @@ public class WallClock: Clock {
         }
 
         func stop() -> TimeInterval {
-            return clock.now.timeIntervalSince(start)
+            clock.now.timeIntervalSince(start)
         }
     }
 }

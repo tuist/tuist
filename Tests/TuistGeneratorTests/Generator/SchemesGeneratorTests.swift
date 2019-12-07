@@ -551,7 +551,7 @@ final class SchemesGeneratorTests: XCTestCase {
     }
 
     private func createGeneratedProjects(projects: [Project]) -> [AbsolutePath: GeneratedProject] {
-        return Dictionary(uniqueKeysWithValues: projects.map {
+        Dictionary(uniqueKeysWithValues: projects.map {
             ($0.path, generatedProject(targets: $0.targets,
                                        projectPath: $0.path.appending(component: "\($0.name).xcodeproj").pathString))
         })

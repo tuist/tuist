@@ -44,15 +44,15 @@ public final class MockSystem: Systeming {
     }
 
     public func capture(_ arguments: [String]) throws -> String {
-        return try capture(arguments, verbose: false, environment: [:])
+        try capture(arguments, verbose: false, environment: [:])
     }
 
     public func capture(_ arguments: String...) throws -> String {
-        return try capture(arguments, verbose: false, environment: [:])
+        try capture(arguments, verbose: false, environment: [:])
     }
 
     public func capture(_ arguments: String..., verbose: Bool, environment: [String: String]) throws -> String {
-        return try capture(arguments, verbose: verbose, environment: environment)
+        try capture(arguments, verbose: verbose, environment: environment)
     }
 
     public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
@@ -115,7 +115,7 @@ public final class MockSystem: Systeming {
     }
 
     public func swiftVersion() throws -> String? {
-        return try swiftVersionStub?()
+        try swiftVersionStub?()
     }
 
     public func which(_ name: String) throws -> String {

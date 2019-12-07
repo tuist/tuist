@@ -35,7 +35,7 @@ public struct Version: Hashable {
 
 extension Version: Comparable {
     func isEqualWithoutPrerelease(_ other: Version) -> Bool {
-        return major == other.major && minor == other.minor && patch == other.patch
+        major == other.major && minor == other.minor && patch == other.patch
     }
 
     public static func < (lhs: Version, rhs: Version) -> Bool {

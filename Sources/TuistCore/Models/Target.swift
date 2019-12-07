@@ -73,12 +73,12 @@ public class Target: Equatable, Hashable {
 
     /// Target can be included in the link phase of other targets
     public func isLinkable() -> Bool {
-        return [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
+        [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
     }
 
     /// Target can link staitc products (e.g. an app can link a staticLibrary)
     public func canLinkStaticProducts() -> Bool {
-        return [
+        [
             .framework,
             .app,
             .unitTests,
@@ -136,7 +136,7 @@ public class Target: Equatable, Hashable {
     // MARK: - Equatable
 
     public static func == (lhs: Target, rhs: Target) -> Bool {
-        return lhs.name == rhs.name &&
+        lhs.name == rhs.name &&
             lhs.platform == rhs.platform &&
             lhs.product == rhs.product &&
             lhs.bundleId == rhs.bundleId &&
@@ -166,11 +166,11 @@ public class Target: Equatable, Hashable {
 extension Sequence where Element == Target {
     /// Filters and returns only the targets that are test bundles.
     var testBundles: [Target] {
-        return filter { $0.product.testsBundle }
+        filter { $0.product.testsBundle }
     }
 
     /// Filters and returns only the targets that are apps.
     var apps: [Target] {
-        return filter { $0.product == .app }
+        filter { $0.product == .app }
     }
 }

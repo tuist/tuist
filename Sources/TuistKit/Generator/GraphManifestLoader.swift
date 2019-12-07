@@ -9,7 +9,7 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     case manifestNotFound(Manifest?, AbsolutePath)
 
     static func manifestNotFound(_ path: AbsolutePath) -> GraphManifestLoaderError {
-        return .manifestNotFound(nil, path)
+        .manifestNotFound(nil, path)
     }
 
     var description: String {
@@ -102,23 +102,23 @@ class GraphManifestLoader: GraphManifestLoading {
     }
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        return Set(manifestFilesLocator.locate(at: path).map { $0.0 })
+        Set(manifestFilesLocator.locate(at: path).map { $0.0 })
     }
 
     func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig {
-        return try loadManifest(.tuistConfig, at: path)
+        try loadManifest(.tuistConfig, at: path)
     }
 
     func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy {
-        return try loadManifest(.galaxy, at: path)
+        try loadManifest(.galaxy, at: path)
     }
 
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        return try loadManifest(.project, at: path)
+        try loadManifest(.project, at: path)
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
-        return try loadManifest(.workspace, at: path)
+        try loadManifest(.workspace, at: path)
     }
 
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {

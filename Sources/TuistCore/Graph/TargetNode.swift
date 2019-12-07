@@ -36,7 +36,7 @@ public class TargetNode: GraphNode {
     }
 
     static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
-        return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
+        lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
 
     override func isEqual(to otherNode: GraphNode) -> Bool {

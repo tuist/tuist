@@ -677,8 +677,8 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     // MARK: - Helpers
 
     func createGeneratorModelLoader(with manifestLoader: GraphManifestLoading) -> GeneratorModelLoader {
-        return GeneratorModelLoader(manifestLoader: manifestLoader,
-                                    manifestLinter: manifestLinter)
+        GeneratorModelLoader(manifestLoader: manifestLoader,
+                             manifestLinter: manifestLinter)
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
@@ -790,7 +790,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                        matches manifest: ProjectDescription.CoreDataModel,
                        at _: AbsolutePath,
                        generatorPaths: GeneratorPaths) throws -> Bool {
-        return coreDataModel.path == (try generatorPaths.resolve(path: manifest.path))
+        coreDataModel.path == (try generatorPaths.resolve(path: manifest.path))
             && coreDataModel.currentVersion == manifest.currentVersion
     }
 

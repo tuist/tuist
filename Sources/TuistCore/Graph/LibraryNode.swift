@@ -25,7 +25,7 @@ public class LibraryNode: PrecompiledNode {
     }
 
     static func == (lhs: LibraryNode, rhs: LibraryNode) -> Bool {
-        return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
+        lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
 
     override func isEqual(to otherNode: GraphNode) -> Bool {
@@ -63,7 +63,7 @@ public class LibraryNode: PrecompiledNode {
     }
 
     public override var binaryPath: AbsolutePath {
-        return path
+        path
     }
 
     public override func encode(to encoder: Encoder) throws {

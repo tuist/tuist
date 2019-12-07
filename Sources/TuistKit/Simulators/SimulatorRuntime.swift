@@ -43,7 +43,7 @@ struct SimulatorRuntime: CustomStringConvertible, Decodable {
 
     /// Runtime description.
     var description: String {
-        return "\(platform.caseValue) \(version) runtime"
+        "\(platform.caseValue) \(version) runtime"
     }
 
     enum CodingKeys: String, CodingKey {

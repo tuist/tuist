@@ -13,7 +13,7 @@ struct Device: Hashable, Equatable {
     }
 
     var available: Bool {
-        return !availability.contains("unavailable")
+        !availability.contains("unavailable")
     }
 
     // MARK: - Init

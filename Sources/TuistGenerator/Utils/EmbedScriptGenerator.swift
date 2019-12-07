@@ -82,7 +82,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     // swiftlint:disable function_body_length
     // swiftlint:disable line_length
     fileprivate func baseScript() -> String {
-        return """
+        """
         #!/bin/sh
         set -e
         set -u

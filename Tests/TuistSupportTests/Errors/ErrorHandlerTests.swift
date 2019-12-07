@@ -4,7 +4,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 private struct TestError: FatalError {
-    var description: String { return "Error" }
+    var description: String { "Error" }
     var type: ErrorType
 }
 

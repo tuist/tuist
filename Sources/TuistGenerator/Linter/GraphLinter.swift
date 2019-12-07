@@ -28,7 +28,7 @@ class GraphLinter: GraphLinting {
         }
 
         static func == (lhs: StaticDepedencyWarning, rhs: StaticDepedencyWarning) -> Bool {
-            return lhs.toTargetNode == rhs.toTargetNode
+            lhs.toTargetNode == rhs.toTargetNode
         }
     }
 
@@ -209,7 +209,7 @@ class GraphLinter: GraphLinting {
     /// - Parameter graph: Project graph.
     /// - Returns: Linting issues.
     private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
-        return graph.cocoapods.compactMap { node in
+        graph.cocoapods.compactMap { node in
             let podfilePath = node.podfilePath
             if !FileHandler.shared.exists(podfilePath) {
                 return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
@@ -280,14 +280,14 @@ class GraphLinter: GraphLinting {
     }
 
     private func watchAppsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
-        return graph.targetDependencies(path: targetNode.path,
-                                        name: targetNode.name)
+        graph.targetDependencies(path: targetNode.path,
+                                 name: targetNode.name)
             .filter { $0.target.product == .watch2App }
     }
 
     private func watchExtensionsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
-        return graph.targetDependencies(path: targetNode.path,
-                                        name: targetNode.name)
+        graph.targetDependencies(path: targetNode.path,
+                                 name: targetNode.name)
             .filter { $0.target.product == .watch2Extension }
     }
 

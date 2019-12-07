@@ -110,7 +110,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 
     /// Returns true if the product is a tests bundle.
     public var testsBundle: Bool {
-        return self == .uiTests || self == .unitTests
+        self == .uiTests || self == .unitTests
     }
 
     public static func forPlatform(_ platform: Platform) -> Set<Product> {
@@ -151,7 +151,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     }
 
     public var isStatic: Bool {
-        return [.staticLibrary, .staticFramework].contains(self)
+        [.staticLibrary, .staticFramework].contains(self)
     }
 
     public var xcodeValue: PBXProductType {

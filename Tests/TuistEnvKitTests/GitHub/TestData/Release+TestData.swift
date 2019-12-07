@@ -9,10 +9,10 @@ extension Release {
                      name: String? = "name",
                      body: String? = "body",
                      assets: [Asset] = []) -> Release {
-        return Release(id: id,
-                       version: version,
-                       name: name,
-                       body: body,
-                       assets: assets)
+        Release(id: id,
+                version: version,
+                name: name,
+                body: body,
+                assets: assets)
     }
 }

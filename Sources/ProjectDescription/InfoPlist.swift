@@ -81,7 +81,7 @@ public enum InfoPlist: Codable, Equatable {
 
     /// Default value.
     public static var `default`: InfoPlist {
-        return .extendingDefault(with: [:])
+        .extendingDefault(with: [:])
     }
 
     // MARK: - Error

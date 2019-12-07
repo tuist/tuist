@@ -69,7 +69,7 @@ public enum TargetDependency: Codable, Equatable {
     ///
     /// Note: Defaults to using a `required` dependency status
     public static func sdk(name: String) -> TargetDependency {
-        return .sdk(name: name, status: .required)
+        .sdk(name: name, status: .required)
     }
 
     public var typeName: String {

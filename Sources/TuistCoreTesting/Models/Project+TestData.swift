@@ -12,15 +12,15 @@ public extension Project {
                      packages: [Package] = [],
                      schemes: [Scheme] = [],
                      additionalFiles: [FileElement] = []) -> Project {
-        return Project(path: path,
-                       name: name,
-                       fileName: fileName,
-                       settings: settings,
-                       filesGroup: filesGroup,
-                       targets: targets,
-                       packages: packages,
-                       schemes: schemes,
-                       additionalFiles: additionalFiles)
+        Project(path: path,
+                name: name,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                additionalFiles: additionalFiles)
     }
 
     static func empty(path: AbsolutePath = AbsolutePath("/test/"),
@@ -31,13 +31,13 @@ public extension Project {
                       packages: [Package] = [],
                       schemes: [Scheme] = [],
                       additionalFiles: [FileElement] = []) -> Project {
-        return Project(path: path,
-                       name: name,
-                       settings: settings,
-                       filesGroup: filesGroup,
-                       targets: targets,
-                       packages: packages,
-                       schemes: schemes,
-                       additionalFiles: additionalFiles)
+        Project(path: path,
+                name: name,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                additionalFiles: additionalFiles)
     }
 }

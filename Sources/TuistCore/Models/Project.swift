@@ -100,7 +100,7 @@ public class Project: Equatable, CustomStringConvertible {
     /// - Parameter graph: Dependencies graph.
     /// - Returns: Sorted targets.
     public func sortedTargetsForProjectScheme(graph: Graphing) -> [Target] {
-        return targets.sorted { (first, second) -> Bool in
+        targets.sorted { (first, second) -> Bool in
             // First criteria: Test bundles at the end
             if first.product.testsBundle, !second.product.testsBundle {
                 return false
@@ -132,13 +132,13 @@ public class Project: Equatable, CustomStringConvertible {
     // MARK: - CustomStringConvertible
 
     public var description: String {
-        return name
+        name
     }
 
     // MARK: - Equatable
 
     public static func == (lhs: Project, rhs: Project) -> Bool {
-        return lhs.path == rhs.path &&
+        lhs.path == rhs.path &&
             lhs.name == rhs.name &&
             lhs.targets == rhs.targets &&
             lhs.schemes == rhs.schemes &&

@@ -27,7 +27,7 @@ enum GraphLoadingError: FatalError, Equatable {
     }
 
     var type: ErrorType {
-        return .abort
+        .abort
     }
 
     var description: String {

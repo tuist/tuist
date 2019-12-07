@@ -8,6 +8,6 @@ extension GeneratedProject {
                      path: AbsolutePath = AbsolutePath("/project.xcodeproj"),
                      targets: [String: PBXNativeTarget] = [:],
                      name: String = "project.xcodeproj") -> GeneratedProject {
-        return GeneratedProject(pbxproj: pbxproj, path: path, targets: targets, name: name)
+        GeneratedProject(pbxproj: pbxproj, path: path, targets: targets, name: name)
     }
 }

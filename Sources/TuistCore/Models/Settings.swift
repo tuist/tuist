@@ -43,7 +43,7 @@ public class Configuration: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: Configuration, rhs: Configuration) -> Bool {
-        return lhs.settings == rhs.settings && lhs.xcconfig == rhs.xcconfig
+        lhs.settings == rhs.settings && lhs.xcconfig == rhs.xcconfig
     }
 }
 
@@ -76,7 +76,7 @@ public class Settings: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: Settings, rhs: Settings) -> Bool {
-        return lhs.base == rhs.base && lhs.configurations == rhs.configurations
+        lhs.base == rhs.base && lhs.configurations == rhs.configurations
     }
 }
 
@@ -106,11 +106,11 @@ extension Settings {
 
 extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
     public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
-        return sorted(by: { first, second -> Bool in first.key < second.key })
+        sorted(by: { first, second -> Bool in first.key < second.key })
     }
 
     public func xcconfigs() -> [AbsolutePath] {
-        return sortedByBuildConfigurationName()
+        sortedByBuildConfigurationName()
             .map { $0.value }
             .compactMap { $0?.xcconfig }
     }
@@ -118,7 +118,7 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
 
 extension Dictionary where Key == String, Value == SettingValue {
     public func toAny() -> [String: Any] {
-        return mapValues { value in
+        mapValues { value in
             switch value {
             case let .array(array):
                 return array

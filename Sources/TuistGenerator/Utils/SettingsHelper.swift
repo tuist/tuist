@@ -50,7 +50,7 @@ final class SettingsHelper {
     }
 
     func variant(_ buildConfiguration: BuildConfiguration) -> BuildSettingsProvider.Variant {
-        return buildConfiguration.variant == .debug ? .debug : .release
+        buildConfiguration.variant == .debug ? .debug : .release
     }
 
     // MARK: - Private

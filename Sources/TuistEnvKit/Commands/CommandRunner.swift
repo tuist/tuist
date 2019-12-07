@@ -125,6 +125,6 @@ class CommandRunner: CommandRunning {
     // MARK: - Static
 
     static func arguments() -> [String] {
-        return Array(ProcessInfo.processInfo.arguments)
+        Array(ProcessInfo.processInfo.arguments)
     }
 }

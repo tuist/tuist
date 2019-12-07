@@ -40,7 +40,7 @@ public final class CommandRegistry {
     }
 
     public static func processArguments() -> [String] {
-        return Array(ProcessInfo.processInfo.arguments)
+        Array(ProcessInfo.processInfo.arguments)
     }
 
     // MARK: - Internal
@@ -86,7 +86,7 @@ public final class CommandRegistry {
     // MARK: - Fileprivate
 
     func argumentsDroppingCommand() -> [String] {
-        return Array(processArguments().dropFirst(2))
+        Array(processArguments().dropFirst(2))
     }
 
     /// Returns the command name.

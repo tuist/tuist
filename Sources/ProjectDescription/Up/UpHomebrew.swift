@@ -31,6 +31,6 @@ class UpHomebrew: Up {
     }
 
     public static func == (lhs: UpHomebrew, rhs: UpHomebrew) -> Bool {
-        return lhs.packages == rhs.packages
+        lhs.packages == rhs.packages
     }
 }

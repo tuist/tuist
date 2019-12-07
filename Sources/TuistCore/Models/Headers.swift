@@ -26,7 +26,7 @@ public class Headers: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: Headers, rhs: Headers) -> Bool {
-        return lhs.public == rhs.public &&
+        lhs.public == rhs.public &&
             lhs.private == rhs.private &&
             lhs.project == rhs.project
     }

@@ -17,15 +17,15 @@ class MockGeneratorModelLoader: GeneratorModelLoading {
     // MARK: - GeneratorModelLoading
 
     func loadProject(at path: AbsolutePath) throws -> Project {
-        return try projects[path.pathString]!(path)
+        try projects[path.pathString]!(path)
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
-        return try workspaces[path.pathString]!(path)
+        try workspaces[path.pathString]!(path)
     }
 
     func loadTuistConfig(at path: AbsolutePath) throws -> TuistConfig {
-        return try tuistConfigs[path.pathString]!(path)
+        try tuistConfigs[path.pathString]!(path)
     }
 
     // MARK: - Mock

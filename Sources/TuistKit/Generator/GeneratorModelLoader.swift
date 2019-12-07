@@ -248,27 +248,27 @@ extension TuistCore.Project {
     }
 
     func adding(target: TuistCore.Target) -> TuistCore.Project {
-        return Project(path: path,
-                       name: name,
-                       fileName: fileName,
-                       settings: settings,
-                       filesGroup: filesGroup,
-                       targets: targets + [target],
-                       packages: packages,
-                       schemes: schemes,
-                       additionalFiles: additionalFiles)
+        Project(path: path,
+                name: name,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets + [target],
+                packages: packages,
+                schemes: schemes,
+                additionalFiles: additionalFiles)
     }
 
     func replacing(fileName: String?) -> TuistCore.Project {
-        return Project(path: path,
-                       name: name,
-                       fileName: fileName,
-                       settings: settings,
-                       filesGroup: filesGroup,
-                       targets: targets,
-                       packages: packages,
-                       schemes: schemes,
-                       additionalFiles: additionalFiles)
+        Project(path: path,
+                name: name,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                additionalFiles: additionalFiles)
     }
 }
 
@@ -503,7 +503,7 @@ extension TuistCore.Headers {
     }
 
     private static func headerFiles(_ path: AbsolutePath) -> [AbsolutePath] {
-        return FileHandler.shared.glob(AbsolutePath("/"), glob: String(path.pathString.dropFirst())).filter {
+        FileHandler.shared.glob(AbsolutePath("/"), glob: String(path.pathString.dropFirst())).filter {
             if let `extension` = $0.extension, Headers.extensions.contains(".\(`extension`)") {
                 return true
             }
@@ -620,10 +620,10 @@ extension TuistCore.TestAction {
 
 extension TuistCore.TestableTarget {
     static func from(manifest: ProjectDescription.TestableTarget, projectPath: AbsolutePath) -> TuistCore.TestableTarget {
-        return TestableTarget(target: TuistCore.TargetReference(projectPath: projectPath, name: manifest.target),
-                              skipped: manifest.isSkipped,
-                              parallelizable: manifest.isParallelizable,
-                              randomExecutionOrdering: manifest.isRandomExecutionOrdering)
+        TestableTarget(target: TuistCore.TargetReference(projectPath: projectPath, name: manifest.target),
+                       skipped: manifest.isSkipped,
+                       parallelizable: manifest.isParallelizable,
+                       randomExecutionOrdering: manifest.isRandomExecutionOrdering)
     }
 }
 
@@ -669,8 +669,8 @@ extension TuistCore.ExecutionAction {
 
 extension TuistCore.Arguments {
     static func from(manifest: ProjectDescription.Arguments) -> TuistCore.Arguments {
-        return Arguments(environment: manifest.environment,
-                         launch: manifest.launch)
+        Arguments(environment: manifest.environment,
+                  launch: manifest.launch)
     }
 }
 

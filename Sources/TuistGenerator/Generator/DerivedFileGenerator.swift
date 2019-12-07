@@ -113,7 +113,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     /// - Parameter sourceRootPath: Directory where the project will be generated.
     /// - Returns: Path to the directory that contains all the derived files.
     static func path(sourceRootPath: AbsolutePath) -> AbsolutePath {
-        return sourceRootPath
+        sourceRootPath
             .appending(component: DerivedFileGenerator.derivedFolderName)
     }
 
@@ -122,7 +122,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     /// - Parameter sourceRootPath: Directory where the Xcode project gets genreated.
     /// - Returns: The path to the directory where all the Info.plist files will be generated.
     static func infoPlistsPath(sourceRootPath: AbsolutePath) -> AbsolutePath {
-        return path(sourceRootPath: sourceRootPath)
+        path(sourceRootPath: sourceRootPath)
             .appending(component: DerivedFileGenerator.infoPlistsFolderName)
     }
 
@@ -133,7 +133,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     ///   - sourceRootPath: The directory where the Xcode project will be generated.
     /// - Returns: The path where the derived Info.plist is generated.
     static func infoPlistPath(target: Target, sourceRootPath: AbsolutePath) -> AbsolutePath {
-        return infoPlistsPath(sourceRootPath: sourceRootPath)
+        infoPlistsPath(sourceRootPath: sourceRootPath)
             .appending(component: "\(target.name).plist")
     }
 }

@@ -7,14 +7,14 @@ final class MockGitHubClient: GitHubClienting {
     var getContentStub: ((String, String) throws -> String)?
 
     func releases() throws -> [Release] {
-        return try releasesStub?() ?? []
+        try releasesStub?() ?? []
     }
 
     func release(tag: String) throws -> Release {
-        return try releaseWithTagStub?(tag) ?? Release.test()
+        try releaseWithTagStub?(tag) ?? Release.test()
     }
 
     func getContent(ref: String, path: String) throws -> String {
-        return try getContentStub?(ref, path) ?? ""
+        try getContentStub?(ref, path) ?? ""
     }
 }

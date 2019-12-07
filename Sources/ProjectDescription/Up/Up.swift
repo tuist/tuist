@@ -10,7 +10,7 @@ public class Up: Codable, Equatable {
     /// - Parameter packages: Packages to be installed.
     /// - Returns: Up instance to install Homebrew packages.
     public static func homebrew(packages: [String]) -> Up {
-        return UpHomebrew(packages: packages)
+        UpHomebrew(packages: packages)
     }
 
     /// Returns an up that configures Homebrew tap repositories.
@@ -18,7 +18,7 @@ public class Up: Codable, Equatable {
     /// - Parameter repositories: Repositories to be tapped.
     /// - Returns: Up to tap repositories in Homebrew.
     public static func homebrewTap(repositories: [String]) -> Up {
-        return UpHomebrewTap(repositories: repositories)
+        UpHomebrewTap(repositories: repositories)
     }
 
     /// Returns a user-defined up.
@@ -29,7 +29,7 @@ public class Up: Codable, Equatable {
     ///   - isMet: Shell command that should return a 0 exit status if the setup has already been done (e.g. which carthage)
     /// - Returns: User-defined up.
     public static func custom(name: String, meet: [String], isMet: [String]) -> Up {
-        return UpCustom(name: name, meet: meet, isMet: isMet)
+        UpCustom(name: name, meet: meet, isMet: isMet)
     }
 
     /// Returns an up that updates Carthage dependencies in the project directory.

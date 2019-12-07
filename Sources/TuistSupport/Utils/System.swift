@@ -156,7 +156,7 @@ public enum SystemError: FatalError {
         }
     }
 
-    public var type: ErrorType { return .abort }
+    public var type: ErrorType { .abort }
 }
 
 public final class System: Systeming {
@@ -181,7 +181,7 @@ public final class System: Systeming {
 
     /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.
     public var env: [String: String] {
-        return ProcessInfo.processInfo.environment.filter { System.acceptedEnvironmentVariables.contains($0.key) }
+        ProcessInfo.processInfo.environment.filter { System.acceptedEnvironmentVariables.contains($0.key) }
     }
 
     // MARK: - Init
@@ -223,7 +223,7 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: String...) throws -> String {
-        return try capture(arguments)
+        try capture(arguments)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -233,7 +233,7 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String]) throws -> String {
-        return try capture(arguments, verbose: false, environment: env)
+        try capture(arguments, verbose: false, environment: env)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -247,7 +247,7 @@ public final class System: Systeming {
     public func capture(_ arguments: String...,
                         verbose: Bool,
                         environment: [String: String]) throws -> String {
-        return try capture(arguments, verbose: verbose, environment: environment)
+        try capture(arguments, verbose: verbose, environment: environment)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -398,6 +398,6 @@ public final class System: Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
-        return try capture("/usr/bin/env", "which", name).spm_chomp()
+        try capture("/usr/bin/env", "which", name).spm_chomp()
     }
 }

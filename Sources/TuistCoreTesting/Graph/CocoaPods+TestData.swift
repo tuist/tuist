@@ -5,6 +5,6 @@ import Foundation
 
 public extension CocoaPodsNode {
     static func test(path: AbsolutePath = AbsolutePath("/")) -> CocoaPodsNode {
-        return CocoaPodsNode(path: path)
+        CocoaPodsNode(path: path)
     }
 }

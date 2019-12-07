@@ -451,31 +451,31 @@ class ProjectFileElements {
     }
 
     func group(path: AbsolutePath) -> PBXGroup? {
-        return elements[path] as? PBXGroup
+        elements[path] as? PBXGroup
     }
 
     func product(target name: String) -> PBXFileReference? {
-        return products[name]
+        products[name]
     }
 
     func sdk(path: AbsolutePath) -> PBXFileReference? {
-        return sdks[path]
+        sdks[path]
     }
 
     func file(path: AbsolutePath) -> PBXFileReference? {
-        return elements[path] as? PBXFileReference
+        elements[path] as? PBXFileReference
     }
 
     func isLocalized(path: AbsolutePath) -> Bool {
-        return path.extension == "lproj"
+        path.extension == "lproj"
     }
 
     func isVersionGroup(path: AbsolutePath) -> Bool {
-        return path.extension == "xcdatamodeld"
+        path.extension == "xcdatamodeld"
     }
 
     func isXcassets(path: AbsolutePath) -> Bool {
-        return path.extension == "xcassets"
+        path.extension == "xcassets"
     }
 
     /// Normalizes a path. Some paths have no direct representation in Xcode,

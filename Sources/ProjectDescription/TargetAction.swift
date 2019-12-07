@@ -99,15 +99,15 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: tool,
-                            path: nil,
-                            order: .pre,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: tool,
+                     path: nil,
+                     order: .pre,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -128,15 +128,15 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: tool,
-                            path: nil,
-                            order: .pre,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: tool,
+                     path: nil,
+                     order: .pre,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -157,15 +157,15 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: nil,
-                            path: path,
-                            order: .pre,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: nil,
+                     path: path,
+                     order: .pre,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -186,15 +186,15 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: nil,
-                            path: path,
-                            order: .pre,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: nil,
+                     path: path,
+                     order: .pre,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -215,15 +215,15 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: tool,
-                            path: nil,
-                            order: .post,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: tool,
+                     path: nil,
+                     order: .post,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -244,15 +244,15 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: tool,
-                            path: nil,
-                            order: .post,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: tool,
+                     path: nil,
+                     order: .post,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -273,15 +273,15 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: nil,
-                            path: path,
-                            order: .post,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: nil,
+                     path: path,
+                     order: .post,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -302,15 +302,15 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: nil,
-                            path: path,
-                            order: .post,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     tool: nil,
+                     path: path,
+                     order: .post,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     // MARK: - Codable

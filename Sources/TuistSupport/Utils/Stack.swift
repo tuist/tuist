@@ -5,11 +5,11 @@ public struct Stack<T> {
     public init() {}
 
     public var isEmpty: Bool {
-        return array.isEmpty
+        array.isEmpty
     }
 
     public var count: Int {
-        return array.count
+        array.count
     }
 
     public mutating func push(_ element: T) {
@@ -17,6 +17,6 @@ public struct Stack<T> {
     }
 
     public mutating func pop() -> T? {
-        return array.popLast()
+        array.popLast()
     }
 }

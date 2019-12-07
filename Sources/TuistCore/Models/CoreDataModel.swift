@@ -22,7 +22,7 @@ public class CoreDataModel: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: CoreDataModel, rhs: CoreDataModel) -> Bool {
-        return lhs.path == rhs.path &&
+        lhs.path == rhs.path &&
             lhs.currentVersion == rhs.currentVersion &&
             lhs.versions == rhs.versions
     }

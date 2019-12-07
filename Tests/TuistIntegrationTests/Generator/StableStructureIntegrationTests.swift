@@ -93,37 +93,37 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     private func createTuistConfig() -> TuistConfig {
-        return TuistConfig(compatibleXcodeVersions: .all,
-                           generationOptions: [])
+        TuistConfig(compatibleXcodeVersions: .all,
+                    generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) throws -> Workspace {
-        return Workspace(name: "Workspace", projects: try projects.map { try pathTo($0) })
+        Workspace(name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
-        return Project(path: path,
-                       name: "App",
-                       settings: settings,
-                       filesGroup: .group(name: "Project"),
-                       targets: targets,
-                       packages: packages,
-                       schemes: schemes,
-                       additionalFiles: createAdditionalFiles())
+        Project(path: path,
+                name: "App",
+                settings: settings,
+                filesGroup: .group(name: "Project"),
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                additionalFiles: createAdditionalFiles())
     }
 
     private func createAppTarget(settings: Settings?, dependencies: [String]) -> Target {
-        return Target(name: "AppTarget",
-                      platform: .iOS,
-                      product: .app,
-                      productName: "AppTarget",
-                      bundleId: "test.bundle",
-                      settings: settings,
-                      sources: createSources(),
-                      resources: createResources(),
-                      headers: createHeaders(),
-                      filesGroup: .group(name: "ProjectGroup"),
-                      dependencies: dependencies.map { Dependency.target(name: $0) })
+        Target(name: "AppTarget",
+               platform: .iOS,
+               product: .app,
+               productName: "AppTarget",
+               bundleId: "test.bundle",
+               settings: settings,
+               sources: createSources(),
+               resources: createResources(),
+               headers: createHeaders(),
+               filesGroup: .group(name: "ProjectGroup"),
+               dependencies: dependencies.map { Dependency.target(name: $0) })
     }
 
     private func createSources() -> [Target.SourceFile] {
@@ -190,15 +190,15 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     private func createFrameworkTarget(name: String, depenendencies: [Dependency] = []) throws -> Target {
-        return Target(name: name,
-                      platform: .iOS,
-                      product: .framework,
-                      productName: name,
-                      bundleId: "test.bundle.\(name)",
-                      settings: nil,
-                      sources: [],
-                      filesGroup: .group(name: "ProjectGroup"),
-                      dependencies: depenendencies)
+        Target(name: name,
+               platform: .iOS,
+               product: .framework,
+               productName: name,
+               bundleId: "test.bundle.\(name)",
+               settings: nil,
+               sources: [],
+               filesGroup: .group(name: "ProjectGroup"),
+               dependencies: depenendencies)
     }
 
     private func createDependencies(relativeTo path: AbsolutePath) throws -> [Dependency] {
@@ -240,7 +240,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
 
 extension XCWorkspace {
     var projectPaths: [String] {
-        return data.children.flatMap { $0.projectPaths }
+        data.children.flatMap { $0.projectPaths }
     }
 }
 

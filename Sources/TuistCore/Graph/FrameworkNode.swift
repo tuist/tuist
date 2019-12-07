@@ -11,12 +11,12 @@ public class FrameworkNode: PrecompiledNode {
     }
 
     public var isCarthage: Bool {
-        return path.pathString.contains("Carthage/Build")
+        path.pathString.contains("Carthage/Build")
     }
 
     /// Return the framework's binary path.
     public override var binaryPath: AbsolutePath {
-        return FrameworkNode.binaryPath(frameworkPath: path)
+        FrameworkNode.binaryPath(frameworkPath: path)
     }
 
     public override func encode(to encoder: Encoder) throws {

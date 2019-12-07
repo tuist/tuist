@@ -62,11 +62,11 @@ class VersionsController: VersionsControlling {
     }
 
     func path(version: String) -> AbsolutePath {
-        return Environment.shared.versionsDirectory.appending(component: version)
+        Environment.shared.versionsDirectory.appending(component: version)
     }
 
     func versions() -> [InstalledVersion] {
-        return Environment.shared.versionsDirectory.glob("*").map { path in
+        Environment.shared.versionsDirectory.glob("*").map { path in
             let versionStringValue = path.components.last!
             if let version = Version(string: versionStringValue) {
                 return InstalledVersion.semver(version)
@@ -77,7 +77,7 @@ class VersionsController: VersionsControlling {
     }
 
     func semverVersions() -> [Version] {
-        return versions().compactMap { version in
+        versions().compactMap { version in
             if case let InstalledVersion.semver(semver) = version {
                 return semver
             }

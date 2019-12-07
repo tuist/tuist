@@ -118,7 +118,7 @@ public class FileHandler: FileHandling {
     }
 
     public var currentPath: AbsolutePath {
-        return AbsolutePath(fileManager.currentDirectoryPath)
+        AbsolutePath(fileManager.currentDirectoryPath)
     }
 
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
@@ -146,7 +146,7 @@ public class FileHandler: FileHandling {
     }
 
     public func exists(_ path: AbsolutePath) -> Bool {
-        return fileManager.fileExists(atPath: path.pathString)
+        fileManager.fileExists(atPath: path.pathString)
     }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
@@ -188,7 +188,7 @@ public class FileHandler: FileHandling {
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
-        return path.glob(glob)
+        path.glob(glob)
     }
 
     public func createFolder(_ path: AbsolutePath) throws {

@@ -20,26 +20,26 @@ public class Workspace: Equatable {
     // MARK: - Public
 
     public func adding(files: [AbsolutePath]) -> Workspace {
-        return Workspace(name: name,
-                         projects: projects,
-                         additionalFiles: additionalFiles + files.map { .file(path: $0) })
+        Workspace(name: name,
+                  projects: projects,
+                  additionalFiles: additionalFiles + files.map { .file(path: $0) })
     }
 
     public func replacing(projects: [AbsolutePath]) -> Workspace {
-        return Workspace(name: name,
-                         projects: projects,
-                         additionalFiles: additionalFiles)
+        Workspace(name: name,
+                  projects: projects,
+                  additionalFiles: additionalFiles)
     }
 
     public func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
-        return Workspace(name: name,
-                         projects: Array(Set(projects + otherProjects)),
-                         additionalFiles: additionalFiles)
+        Workspace(name: name,
+                  projects: Array(Set(projects + otherProjects)),
+                  additionalFiles: additionalFiles)
     }
 
     // MARK: - Equatable
 
     public static func == (lhs: Workspace, rhs: Workspace) -> Bool {
-        return lhs.projects == rhs.projects
+        lhs.projects == rhs.projects
     }
 }

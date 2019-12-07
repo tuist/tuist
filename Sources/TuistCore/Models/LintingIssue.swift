@@ -29,13 +29,13 @@ public struct LintingIssue: CustomStringConvertible, Equatable {
     // MARK: - CustomStringConvertible
 
     public var description: String {
-        return reason
+        reason
     }
 
     // MARK: - Equatable
 
     public static func == (lhs: LintingIssue, rhs: LintingIssue) -> Bool {
-        return lhs.severity == rhs.severity &&
+        lhs.severity == rhs.severity &&
             lhs.reason == rhs.reason
     }
 }

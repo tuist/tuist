@@ -40,10 +40,10 @@ public final class MockPrinter: Printing {
     }
 
     func standardOutputMatches(with pattern: String) -> Bool {
-        return standardOutput.contains(pattern)
+        standardOutput.contains(pattern)
     }
 
     func standardErrorMatches(with pattern: String) -> Bool {
-        return standardError.contains(pattern)
+        standardError.contains(pattern)
     }
 }

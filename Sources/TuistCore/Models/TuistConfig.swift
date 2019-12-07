@@ -20,8 +20,8 @@ public class TuistConfig: Equatable, Hashable {
 
     /// Returns the default Tuist configuration.
     public static var `default`: TuistConfig {
-        return TuistConfig(compatibleXcodeVersions: .all,
-                           generationOptions: [])
+        TuistConfig(compatibleXcodeVersions: .all,
+                    generationOptions: [])
     }
 
     /// Initializes the tuist cofiguration.
@@ -54,7 +54,7 @@ public class TuistConfig: Equatable, Hashable {
     // MARK: - Equatable
 
     public static func == (lhs: TuistConfig, rhs: TuistConfig) -> Bool {
-        return lhs.generationOptions == rhs.generationOptions
+        lhs.generationOptions == rhs.generationOptions
     }
 }
 

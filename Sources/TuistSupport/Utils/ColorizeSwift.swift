@@ -62,35 +62,35 @@ extension String {
     public static var isColorizationEnabled = true
 
     public func bold() -> String {
-        return applyStyle(TerminalStyle.bold)
+        applyStyle(TerminalStyle.bold)
     }
 
     public func dim() -> String {
-        return applyStyle(TerminalStyle.dim)
+        applyStyle(TerminalStyle.dim)
     }
 
     public func italic() -> String {
-        return applyStyle(TerminalStyle.italic)
+        applyStyle(TerminalStyle.italic)
     }
 
     public func underline() -> String {
-        return applyStyle(TerminalStyle.underline)
+        applyStyle(TerminalStyle.underline)
     }
 
     public func blink() -> String {
-        return applyStyle(TerminalStyle.blink)
+        applyStyle(TerminalStyle.blink)
     }
 
     public func reverse() -> String {
-        return applyStyle(TerminalStyle.reverse)
+        applyStyle(TerminalStyle.reverse)
     }
 
     public func hidden() -> String {
-        return applyStyle(TerminalStyle.hidden)
+        applyStyle(TerminalStyle.hidden)
     }
 
     public func strikethrough() -> String {
-        return applyStyle(TerminalStyle.strikethrough)
+        applyStyle(TerminalStyle.strikethrough)
     }
 
     public func reset() -> String {
@@ -99,15 +99,15 @@ extension String {
     }
 
     public func foregroundColor(_ color: TerminalColor) -> String {
-        return applyStyle(color.foregroundStyleCode())
+        applyStyle(color.foregroundStyleCode())
     }
 
     public func backgroundColor(_ color: TerminalColor) -> String {
-        return applyStyle(color.backgroundStyleCode())
+        applyStyle(color.backgroundStyleCode())
     }
 
     public func colorize(_ foreground: TerminalColor, background: TerminalColor) -> String {
-        return applyStyle(foreground.foregroundStyleCode()).applyStyle(background.backgroundStyleCode())
+        applyStyle(foreground.foregroundStyleCode()).applyStyle(background.backgroundStyleCode())
     }
 
     fileprivate func applyStyle(_ codeStyle: TerminalStyleCode) -> String {
@@ -120,131 +120,131 @@ extension String {
 
 extension String {
     public func black() -> String {
-        return applyStyle(TerminalStyle.black)
+        applyStyle(TerminalStyle.black)
     }
 
     public func red() -> String {
-        return applyStyle(TerminalStyle.red)
+        applyStyle(TerminalStyle.red)
     }
 
     public func green() -> String {
-        return applyStyle(TerminalStyle.green)
+        applyStyle(TerminalStyle.green)
     }
 
     public func yellow() -> String {
-        return applyStyle(TerminalStyle.yellow)
+        applyStyle(TerminalStyle.yellow)
     }
 
     public func blue() -> String {
-        return applyStyle(TerminalStyle.blue)
+        applyStyle(TerminalStyle.blue)
     }
 
     public func magenta() -> String {
-        return applyStyle(TerminalStyle.magenta)
+        applyStyle(TerminalStyle.magenta)
     }
 
     public func cyan() -> String {
-        return applyStyle(TerminalStyle.cyan)
+        applyStyle(TerminalStyle.cyan)
     }
 
     public func lightGray() -> String {
-        return applyStyle(TerminalStyle.lightGray)
+        applyStyle(TerminalStyle.lightGray)
     }
 
     public func darkGray() -> String {
-        return applyStyle(TerminalStyle.darkGray)
+        applyStyle(TerminalStyle.darkGray)
     }
 
     public func lightRed() -> String {
-        return applyStyle(TerminalStyle.lightRed)
+        applyStyle(TerminalStyle.lightRed)
     }
 
     public func lightGreen() -> String {
-        return applyStyle(TerminalStyle.lightGreen)
+        applyStyle(TerminalStyle.lightGreen)
     }
 
     public func lightYellow() -> String {
-        return applyStyle(TerminalStyle.lightYellow)
+        applyStyle(TerminalStyle.lightYellow)
     }
 
     public func lightBlue() -> String {
-        return applyStyle(TerminalStyle.lightBlue)
+        applyStyle(TerminalStyle.lightBlue)
     }
 
     public func lightMagenta() -> String {
-        return applyStyle(TerminalStyle.lightMagenta)
+        applyStyle(TerminalStyle.lightMagenta)
     }
 
     public func lightCyan() -> String {
-        return applyStyle(TerminalStyle.lightCyan)
+        applyStyle(TerminalStyle.lightCyan)
     }
 
     public func white() -> String {
-        return applyStyle(TerminalStyle.white)
+        applyStyle(TerminalStyle.white)
     }
 
     public func onBlack() -> String {
-        return applyStyle(TerminalStyle.onBlack)
+        applyStyle(TerminalStyle.onBlack)
     }
 
     public func onRed() -> String {
-        return applyStyle(TerminalStyle.onRed)
+        applyStyle(TerminalStyle.onRed)
     }
 
     public func onGreen() -> String {
-        return applyStyle(TerminalStyle.onGreen)
+        applyStyle(TerminalStyle.onGreen)
     }
 
     public func onYellow() -> String {
-        return applyStyle(TerminalStyle.onYellow)
+        applyStyle(TerminalStyle.onYellow)
     }
 
     public func onBlue() -> String {
-        return applyStyle(TerminalStyle.onBlue)
+        applyStyle(TerminalStyle.onBlue)
     }
 
     public func onMagenta() -> String {
-        return applyStyle(TerminalStyle.onMagenta)
+        applyStyle(TerminalStyle.onMagenta)
     }
 
     public func onCyan() -> String {
-        return applyStyle(TerminalStyle.onCyan)
+        applyStyle(TerminalStyle.onCyan)
     }
 
     public func onLightGray() -> String {
-        return applyStyle(TerminalStyle.onLightGray)
+        applyStyle(TerminalStyle.onLightGray)
     }
 
     public func onDarkGray() -> String {
-        return applyStyle(TerminalStyle.onDarkGray)
+        applyStyle(TerminalStyle.onDarkGray)
     }
 
     public func onLightRed() -> String {
-        return applyStyle(TerminalStyle.onLightRed)
+        applyStyle(TerminalStyle.onLightRed)
     }
 
     public func onLightGreen() -> String {
-        return applyStyle(TerminalStyle.onLightGreen)
+        applyStyle(TerminalStyle.onLightGreen)
     }
 
     public func onLightYellow() -> String {
-        return applyStyle(TerminalStyle.onLightYellow)
+        applyStyle(TerminalStyle.onLightYellow)
     }
 
     public func onLightBlue() -> String {
-        return applyStyle(TerminalStyle.onLightBlue)
+        applyStyle(TerminalStyle.onLightBlue)
     }
 
     public func onLightMagenta() -> String {
-        return applyStyle(TerminalStyle.onLightMagenta)
+        applyStyle(TerminalStyle.onLightMagenta)
     }
 
     public func onLightCyan() -> String {
-        return applyStyle(TerminalStyle.onLightCyan)
+        applyStyle(TerminalStyle.onLightCyan)
     }
 
     public func onWhite() -> String {
-        return applyStyle(TerminalStyle.onWhite)
+        applyStyle(TerminalStyle.onWhite)
     }
 }
 
@@ -508,10 +508,10 @@ public enum TerminalColor: UInt8 {
     case grey93
 
     public func foregroundStyleCode() -> TerminalStyleCode {
-        return ("\u{001B}[38;5;\(rawValue)m", TerminalStyle.reset.open)
+        ("\u{001B}[38;5;\(rawValue)m", TerminalStyle.reset.open)
     }
 
     public func backgroundStyleCode() -> TerminalStyleCode {
-        return ("\u{001B}[48;5;\(rawValue)m", TerminalStyle.reset.open)
+        ("\u{001B}[48;5;\(rawValue)m", TerminalStyle.reset.open)
     }
 }

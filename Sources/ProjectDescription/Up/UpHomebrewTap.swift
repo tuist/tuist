@@ -31,6 +31,6 @@ class UpHomebrewTap: Up {
     }
 
     public static func == (lhs: UpHomebrewTap, rhs: UpHomebrewTap) -> Bool {
-        return lhs.repositories == rhs.repositories
+        lhs.repositories == rhs.repositories
     }
 }

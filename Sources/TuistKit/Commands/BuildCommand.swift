@@ -6,11 +6,11 @@ import TuistSupport
 enum BuildCommandError: FatalError {
     // Error description
     var description: String {
-        return ""
+        ""
     }
 
     // Error type
-    var type: ErrorType { return .abort }
+    var type: ErrorType { .abort }
 }
 
 /// Command that builds a target from the project in the current directory.

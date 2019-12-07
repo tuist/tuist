@@ -397,9 +397,9 @@ final class SchemesGenerator: SchemesGenerating {
     }
 
     private func schemeExecutionAction(action: ExecutionAction) -> XCScheme.ExecutionAction {
-        return XCScheme.ExecutionAction(scriptText: action.scriptText,
-                                        title: action.title,
-                                        environmentBuildable: nil)
+        XCScheme.ExecutionAction(scriptText: action.scriptText,
+                                 title: action.title,
+                                 environmentBuildable: nil)
     }
 
     /// Returns the scheme pre/post actions.
@@ -476,10 +476,10 @@ final class SchemesGenerator: SchemesGenerating {
                                               graph: Graphing,
                                               generatedProjects: [AbsolutePath: GeneratedProject],
                                               rootPath: AbsolutePath) throws -> XCScheme.BuildableReference? {
-        return try createBuildableReference(targetReference: target,
-                                            graph: graph,
-                                            rootPath: rootPath,
-                                            generatedProjects: generatedProjects)
+        try createBuildableReference(targetReference: target,
+                                     graph: graph,
+                                     rootPath: rootPath,
+                                     generatedProjects: generatedProjects)
     }
 
     /// Creates the directory where the schemes are stored inside the project.
@@ -510,7 +510,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - environments: commandline argument keys.
     /// - Returns: XCScheme.CommandLineArguments.CommandLineArgument.
     private func commandlineArgruments(_ arguments: [String: Bool]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
-        return arguments.map { key, enabled in
+        arguments.map { key, enabled in
             XCScheme.CommandLineArguments.CommandLineArgument(name: key, enabled: enabled)
         }
     }
@@ -521,7 +521,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - environments: environment variables
     /// - Returns: XCScheme.EnvironmentVariable.
     private func environmentVariables(_ environments: [String: String]) -> [XCScheme.EnvironmentVariable] {
-        return environments.map { key, value in
+        environments.map { key, value in
             XCScheme.EnvironmentVariable(variable: key, value: value, enabled: true)
         }
     }
@@ -543,11 +543,11 @@ final class SchemesGenerator: SchemesGenerating {
     private func targetBuildableReference(target: Target,
                                           pbxTarget: PBXNativeTarget,
                                           projectPath: String) -> XCScheme.BuildableReference {
-        return XCScheme.BuildableReference(referencedContainer: "container:\(projectPath)",
-                                           blueprint: pbxTarget,
-                                           buildableName: target.productNameWithExtension,
-                                           blueprintName: target.name,
-                                           buildableIdentifier: "primary")
+        XCScheme.BuildableReference(referencedContainer: "container:\(projectPath)",
+                                    blueprint: pbxTarget,
+                                    buildableName: target.productNameWithExtension,
+                                    blueprintName: target.name,
+                                    buildableIdentifier: "primary")
     }
 
     /// Returns the scheme archive action
@@ -567,6 +567,6 @@ final class SchemesGenerator: SchemesGenerating {
     }
 
     private func defaultTargetReference(scheme: Scheme) throws -> TargetReference? {
-        return scheme.buildAction?.targets.first
+        scheme.buildAction?.targets.first
     }
 }

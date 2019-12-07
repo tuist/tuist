@@ -59,12 +59,12 @@ public struct Configuration: Equatable, Codable {
     }
 
     public static func settings(_ settings: [String: SettingValue], xcconfig: Path? = nil) -> Configuration {
-        return Configuration(settings: settings, xcconfig: xcconfig)
+        Configuration(settings: settings, xcconfig: xcconfig)
     }
 
     @available(*, deprecated, message: "Please use settings(_ settings: [String: SettingValue], xcconfig: String?)")
     public static func settings(_ settings: [String: String], xcconfig: Path? = nil) -> Configuration {
-        return Configuration(settings: settings, xcconfig: xcconfig)
+        Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
 

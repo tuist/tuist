@@ -22,18 +22,18 @@ struct SwiftVersion: Comparable, Equatable, CustomStringConvertible {
     }
 
     var description: String {
-        return "\(major).\(minor).\(patch)"
+        "\(major).\(minor).\(patch)"
     }
 
     // MARK: - Comparable
 
     static func < (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
-        return lhs.major < rhs.major || lhs.minor < rhs.minor || lhs.patch < lhs.patch
+        lhs.major < rhs.major || lhs.minor < rhs.minor || lhs.patch < lhs.patch
     }
 
     // MARK: - Equatable
 
     static func == (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
-        return lhs.major == rhs.major && lhs.minor == rhs.minor && lhs.patch == rhs.patch
+        lhs.major == rhs.major && lhs.minor == rhs.minor && lhs.patch == rhs.patch
     }
 }

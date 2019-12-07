@@ -67,7 +67,7 @@ private class DirectoryStructure {
     }
 
     func buildGraph() -> Graph {
-        return buildGraph(path: path)
+        buildGraph(path: path)
     }
 
     private func buildGraph(path: AbsolutePath) -> Graph {
@@ -104,7 +104,7 @@ private class DirectoryStructure {
     }
 
     private func projectNode(from path: AbsolutePath) -> Node {
-        return .project(path)
+        .project(path)
     }
 
     private func isFileOrFolderReference(element: FileElement) -> Bool {
@@ -156,12 +156,12 @@ extension DirectoryStructure {
         }
 
         var debugDescription: String {
-            return nodes.debugDescription
+            nodes.debugDescription
         }
 
         static func == (lhs: DirectoryStructure.Graph,
                         rhs: DirectoryStructure.Graph) -> Bool {
-            return lhs.nodes == rhs.nodes
+            lhs.nodes == rhs.nodes
         }
     }
 }
@@ -174,7 +174,7 @@ extension DirectoryStructure {
         case folderReference(AbsolutePath)
 
         static func directory(_ path: AbsolutePath) -> Node {
-            return .directory(path, Graph())
+            .directory(path, Graph())
         }
 
         var path: AbsolutePath {

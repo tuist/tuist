@@ -4,7 +4,7 @@ import Foundation
 public class CocoaPodsNode: GraphNode {
     /// Path to the Podfile.
     public var podfilePath: AbsolutePath {
-        return path.appending(component: "Podfile")
+        path.appending(component: "Podfile")
     }
 
     /// Initializes the node with the path to the directory

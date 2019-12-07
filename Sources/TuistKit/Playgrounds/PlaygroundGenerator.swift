@@ -59,7 +59,7 @@ final class PlaygroundGenerator: PlaygroundGenerating {
     }
 
     static func defaultContent() -> String {
-        return """
+        """
         //: Playground - noun: a place where people can play
         
         import Foundation
@@ -68,7 +68,7 @@ final class PlaygroundGenerator: PlaygroundGenerating {
     }
 
     static func xcplaygroundContent(platform: TuistCore.Platform) -> String {
-        return """
+        """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <playground version='5.0' target-platform='\(platform.rawValue.lowercased())'>
         <timeline fileName='timeline.xctimeline'/>

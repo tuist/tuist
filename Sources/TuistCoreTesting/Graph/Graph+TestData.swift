@@ -7,10 +7,10 @@ public extension Graph {
                      entryPath: AbsolutePath = AbsolutePath("/test/graph"),
                      cache: GraphLoaderCaching = GraphLoaderCache(),
                      entryNodes: [GraphNode] = []) -> Graph {
-        return Graph(name: name,
-                     entryPath: entryPath,
-                     cache: cache,
-                     entryNodes: entryNodes)
+        Graph(name: name,
+              entryPath: entryPath,
+              cache: cache,
+              entryNodes: entryNodes)
     }
 
     /// Creates a test dependency graph for targets within a single project

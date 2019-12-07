@@ -70,7 +70,7 @@ public class Environment: Environmenting {
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
-        return isStandardOutputInteractive || isColouredOutputEnvironmentTrue
+        isStandardOutputInteractive || isColouredOutputEnvironmentTrue
     }
 
     /// Returns true if the standard output is interactive.
@@ -84,27 +84,27 @@ public class Environment: Environmenting {
 
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
-        return directory.appending(component: "Versions")
+        directory.appending(component: "Versions")
     }
 
     /// Returns the directory where the project description helper modules are cached.
     public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
-        return cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+        cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
 
     /// Returns the cache directory
     public var cacheDirectory: AbsolutePath {
-        return directory.appending(component: "Cache")
+        directory.appending(component: "Cache")
     }
 
     /// Returns the directory where all the derived projects are generated.
     public var derivedProjectsDirectory: AbsolutePath {
-        return directory.appending(component: "DerivedProjects")
+        directory.appending(component: "DerivedProjects")
     }
 
     /// Settings path.
     public var settingsPath: AbsolutePath {
-        return directory.appending(component: "settings.json")
+        directory.appending(component: "settings.json")
     }
 
     // MARK: - Fileprivate

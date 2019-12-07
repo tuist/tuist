@@ -4,6 +4,6 @@ import PathKit
 
 extension AbsolutePath {
     var path: Path {
-        return Path(pathString)
+        Path(pathString)
     }
 }
