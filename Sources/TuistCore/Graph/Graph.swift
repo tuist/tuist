@@ -94,7 +94,10 @@ public protocol Graphing: AnyObject, Encodable {
 
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] { get }
-
+    
+    ///Returns all the cachable targets that are part of the graph.
+    var cachableTargets: [TargetNode] { get }
+    
     func packages(path: AbsolutePath, name: String) throws -> [PackageNode]
     func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
@@ -185,6 +188,10 @@ public class Graph: Graphing {
     /// Returns all the targets that are part of the graph.
     public var targets: [TargetNode] {
         return cache.targetNodes.flatMap { $0.value.values }
+    
+    ///Returns all the cachable targets that are part of the graph.
+    public var cachableTargets: [TargetNode] {
+        targets.filter{ $0.contentHash != nil }
     }
 
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
