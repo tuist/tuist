@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "tuist",
+    platforms: [.macOS(.v10_11)],
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
@@ -30,6 +31,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMajor(from: "0.5.0")),
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
+        .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
     ],
     targets: [
         .target(
@@ -50,15 +52,15 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "ProjectDescription", "Signals", "RxSwift"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "ProjectDescription", "Signals", "RxSwift", "Checksum"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking"]
+            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "Checksum"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
-            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking"]
+            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "Checksum"]
         ),
         .target(
             name: "tuist",
