@@ -90,6 +90,8 @@ jobs:
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
+      - name: Install Bundler 2.0.2
+        run: gem install bundler --version 2.0.2
       - name: Install Bundler dependencies
         run: bundle install
       - name: Package build and upload it to GCS
