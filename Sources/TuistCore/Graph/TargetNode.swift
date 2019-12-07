@@ -138,4 +138,9 @@ public class TargetNode: GraphNode {
             )
         }
     }
+    
+    public override var description: String {
+        return "\(project.name) at \(project.path) with dependencies: \(dependencies)"
+    }
+}
 }
