@@ -15,7 +15,7 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
         case let .missingRequiredFile(path):
             return "The .xcframework at path \(path.pathString) doesn't contain an Info.plist. It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
         case let .supportedArchitectureReferencesNotFound(path):
-            return "Couldn't find supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
+            return "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
         }
     }
     
@@ -56,7 +56,7 @@ public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
         guard let library = libraries.first(where: { !$0.architectures.filter(archs.contains).isEmpty }) else {
             let infoPlist = frameworkPath.appending(component: "Info.plist")
-            throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(infoPlist)
+            throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(frameworkPath)
         }
         let binaryName = frameworkPath.basenameWithoutExt
         let binaryPath =  AbsolutePath(library.identifier, relativeTo: frameworkPath)

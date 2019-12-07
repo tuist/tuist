@@ -21,19 +21,23 @@ final class XCFrameworkMetadataProviderTests: XCTestCase {
         super.tearDown()
     }
     
-    func test_libraries() {
-        let libraries = try! subject.libraries(frameworkPath: frameworkPath)
-        XCTAssertEqual(libraries.first!.identifier, "ios-x86_64-simulator")
-        XCTAssertEqual(libraries.last!.identifier, "ios-arm64")
-        XCTAssertEqual(libraries.first!.path, RelativePath("MyFramework.framework"))
-        
-        let architectures = libraries.flatMap { $0.architectures }
-        XCTAssertEqual([.x8664, .arm64], architectures)
+    func test_libraries() throws {
+        let libraries = try subject.libraries(frameworkPath: frameworkPath)
+
+        // Then
+        XCTAssertEqual(libraries, [
+            .init(identifier: "ios-x86_64-simulator",
+                  path: RelativePath("MyFramework.framework"),
+                  architectures: [.x8664]),
+            .init(identifier: "ios-arm64",
+                  path: RelativePath("MyFramework.framework"),
+                  architectures: [.arm64]),
+        ])
     }
 
-    func test_binaryPath() {
-        let libraries = try! subject.libraries(frameworkPath: frameworkPath)
-        let binaryPath = try! subject.binaryPath(frameworkPath: frameworkPath, libraries: libraries)
+    func test_binaryPath() throws {
+        let libraries = try subject.libraries(frameworkPath: frameworkPath)
+        let binaryPath = try subject.binaryPath(frameworkPath: frameworkPath, libraries: libraries)
         XCTAssertEqual(
             binaryPath,
             frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework"))

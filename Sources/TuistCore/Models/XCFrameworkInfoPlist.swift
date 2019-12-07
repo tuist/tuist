@@ -1,13 +1,13 @@
 import Basic
 import Foundation
 
-public struct XCFrameworkInfoPlist: Codable {
+public struct XCFrameworkInfoPlist: Codable, Equatable {
     
     enum CodingKeys: String, CodingKey {
         case libraries = "AvailableLibraries"
     }
 
-    public struct Library: Codable {
+    public struct Library: Codable, Equatable {
     
          enum CodingKeys: String, CodingKey {
                case identifier = "LibraryIdentifier"
@@ -22,13 +22,6 @@ public struct XCFrameworkInfoPlist: Codable {
         public let identifier: String
         public let path: RelativePath
         public let architectures: [BinaryArchitecture]
-        
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            identifier = try container.decode(String.self, forKey: .identifier)
-            path = try container.decode(RelativePath.self, forKey: .path)
-            architectures = try container.decode([BinaryArchitecture].self, forKey: .architectures)
-        }
         
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
