@@ -27,6 +27,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Make scheme generation methods more generic https://github.com/tuist/tuist/pull/730 by @adamkhazi @kwridan.
 - Make scheme generation methods more generic by @adamkhazi @kwridan.
 - `SimulatorController` with method to fetch the runtimes https://github.com/tuist/tuist/pull/746 by @pepibumur.
+- Add RxSwift as a dependency of `TuistKit` https://github.com/tuist/tuist/pull/760 by @pepibumur.
 
 ### Fixed
 
