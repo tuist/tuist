@@ -2,10 +2,9 @@ import Foundation
 import TuistCore
 import Checksum
 import TuistSupport
-import TuistCore
 
 public protocol GraphContentHashing {
-    func contentHashes(for graph: Graphing) throws -> Dictionary<TargetNode, String>
+    func contentHashes(for graph: Graphing) throws -> [TargetNode: String]
 }
 
 public final class GraphContentHasher: GraphContentHashing {
@@ -15,7 +14,7 @@ public final class GraphContentHasher: GraphContentHashing {
         self.fileHandler = fileHandler
     }
     
-    public func contentHashes(for graph: Graphing) throws -> Dictionary<TargetNode, String> {
+    public func contentHashes(for graph: Graphing) throws -> [TargetNode: String] {
         let hashableTargets = graph.targets.filter { $0.target.product == .framework }
         let hashes = try hashableTargets.map { try makeContentHash(of: $0) }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
@@ -49,7 +48,7 @@ public final class GraphContentHasher: GraphContentHashing {
         return joinedHash
     }
     
-    private func md5(of source: Target.SourceFile) throws -> String{
+    private func md5(of source: Target.SourceFile) throws -> String {
         guard let sourceData = try? fileHandler.readFile(source.path) else {
             throw ContentHashingError.fileNotFound(source.path)
         }
