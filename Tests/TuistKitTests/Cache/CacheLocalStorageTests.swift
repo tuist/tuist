@@ -10,6 +10,6 @@ final class CacheLocalStorageErrorTests: TuistUnitTestCase {
     }
 
     func test_description() {
-        XCTAssertEqual(CacheLocalStorageError.xcframeworkNotFound(hash: "hash").description, "File with hash 'hash' not found in the local cache")
+        XCTAssertEqual(CacheLocalStorageError.xcframeworkNotFound(hash: "hash").description, "xcframework with hash 'hash' not found in the local cache")
     }
 }

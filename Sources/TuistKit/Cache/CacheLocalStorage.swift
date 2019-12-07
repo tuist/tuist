@@ -15,7 +15,7 @@ enum CacheLocalStorageError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .xcframeworkNotFound(hash):
-            return ".xcframework with hash '\(hash)' not found in the local cache"
+            return "xcframework with hash '\(hash)' not found in the local cache"
         }
     }
 }
