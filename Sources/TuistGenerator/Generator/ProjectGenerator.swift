@@ -24,7 +24,7 @@ extension ProjectConstants {
 
 protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
-                  graph: Graphable,
+                  graph: Graphing,
                   sourceRootPath: AbsolutePath?) throws -> GeneratedProject
 }
 
@@ -65,7 +65,7 @@ final class ProjectGenerator: ProjectGenerating {
     // MARK: - ProjectGenerating
 
     func generate(project: Project,
-                  graph: Graphable,
+                  graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
         Printer.shared.print("Generating project \(project.name)")
 
@@ -84,7 +84,7 @@ final class ProjectGenerator: ProjectGenerating {
     // MARK: - Fileprivate
 
     private func generateProjectAndWorkspace(project: Project,
-                                             graph: Graphable,
+                                             graph: Graphing,
                                              sourceRootPath: AbsolutePath,
                                              xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
         // Derived files
@@ -161,7 +161,7 @@ final class ProjectGenerator: ProjectGenerating {
                                  groups _: ProjectGroups,
                                  fileElements: ProjectFileElements,
                                  sourceRootPath: AbsolutePath,
-                                 graph: Graphable) throws -> [String: PBXNativeTarget] {
+                                 graph: Graphing) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -250,7 +250,7 @@ final class ProjectGenerator: ProjectGenerating {
                        workspace: XCWorkspace,
                        pbxproj: PBXProj,
                        project: Project,
-                       graph: Graphable) throws -> GeneratedProject {
+                       graph: Graphing) throws -> GeneratedProject {
         var generatedProject: GeneratedProject!
 
         try FileHandler.shared.inTemporaryDirectory { temporaryPath in
@@ -282,14 +282,14 @@ final class ProjectGenerator: ProjectGenerating {
     private func writeSchemes(project: Project,
                               generatedProject: GeneratedProject,
                               xcprojectPath: AbsolutePath,
-                              graph: Graphable) throws {
+                              graph: Graphing) throws {
         try schemesGenerator.generateProjectSchemes(project: project,
                                                     xcprojectPath: xcprojectPath,
                                                     generatedProject: generatedProject,
                                                     graph: graph)
     }
 
-    private func determineProjectConstants(graph: Graphable) throws -> ProjectConstants {
+    private func determineProjectConstants(graph: Graphing) throws -> ProjectConstants {
         if !graph.packages.isEmpty {
             return .xcode11
         } else {

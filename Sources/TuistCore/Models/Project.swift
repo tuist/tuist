@@ -99,7 +99,7 @@ public class Project: Equatable, CustomStringConvertible {
     ///
     /// - Parameter graph: Dependencies graph.
     /// - Returns: Sorted targets.
-    public func sortedTargetsForProjectScheme(graph: Graphable) -> [Target] {
+    public func sortedTargetsForProjectScheme(graph: Graphing) -> [Target] {
         return targets.sorted { (first, second) -> Bool in
             // First criteria: Test bundles at the end
             if first.product.testsBundle, !second.product.testsBundle {

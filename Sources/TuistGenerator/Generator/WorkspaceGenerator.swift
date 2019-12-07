@@ -34,7 +34,7 @@ protocol WorkspaceGenerating: AnyObject {
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphable,
+                  graph: Graphing,
                   tuistConfig: TuistConfig) throws -> AbsolutePath
 }
 
@@ -80,7 +80,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphable,
+                  graph: Graphing,
                   tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
 
@@ -130,7 +130,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         at path: AbsolutePath,
         workspace _: Workspace,
         workspaceName: String,
-        graph: Graphable
+        graph: Graphing
     ) throws {
         let packages = graph.packages
 

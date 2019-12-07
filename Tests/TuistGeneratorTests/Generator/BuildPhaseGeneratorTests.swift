@@ -22,7 +22,7 @@ final class BuildPhaseGenerationErrorTests: XCTestCase {
 final class BuildPhaseGeneratorTests: XCTestCase {
     var subject: BuildPhaseGenerator!
     var errorHandler: MockErrorHandler!
-    var graph: Graphable!
+    var graph: Graphing!
 
     override func setUp() {
         subject = BuildPhaseGenerator()

@@ -32,7 +32,7 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
 protocol BuildPhaseGenerating: AnyObject {
     func generateBuildPhases(path: AbsolutePath,
                              target: Target,
-                             graph: Graphable,
+                             graph: Graphing,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj,
@@ -57,7 +57,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateBuildPhases(path: AbsolutePath,
                              target: Target,
-                             graph: Graphable,
+                             graph: Graphing,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj,
@@ -166,7 +166,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateResourcesBuildPhase(path: AbsolutePath,
                                      target: Target,
-                                     graph: Graphable,
+                                     graph: Graphing,
                                      pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
                                      pbxproj: PBXProj) throws {
@@ -257,7 +257,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     private func generateResourceBundle(path: AbsolutePath,
                                         target: Target,
-                                        graph: Graphable,
+                                        graph: Graphing,
                                         fileElements: ProjectFileElements,
                                         pbxproj: PBXProj,
                                         resourcesBuildPhase: PBXResourcesBuildPhase) {
@@ -274,7 +274,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateAppExtensionsBuildPhase(path: AbsolutePath,
                                          target: Target,
-                                         graph: Graphable,
+                                         graph: Graphing,
                                          pbxTarget: PBXTarget,
                                          fileElements: ProjectFileElements,
                                          pbxproj: PBXProj) throws {
@@ -297,7 +297,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateEmbedWatchBuildPhase(path: AbsolutePath,
                                       target: Target,
-                                      graph: Graphable,
+                                      graph: Graphing,
                                       pbxTarget: PBXTarget,
                                       fileElements: ProjectFileElements,
                                       pbxproj: PBXProj) throws {

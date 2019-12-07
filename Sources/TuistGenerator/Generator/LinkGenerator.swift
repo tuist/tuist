@@ -49,7 +49,7 @@ protocol LinkGenerating: AnyObject {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphable) throws
+                       graph: Graphing) throws
 }
 
 // swiftlint:disable type_body_length
@@ -77,7 +77,7 @@ final class LinkGenerator: LinkGenerating {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphable) throws {
+                       graph: Graphing) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
 
@@ -115,7 +115,7 @@ final class LinkGenerator: LinkGenerating {
                                             pbxTarget: PBXTarget,
                                             sourceRootPath: AbsolutePath,
                                             path: AbsolutePath,
-                                            graph: Graphable,
+                                            graph: Graphing,
                                             linkableModules: [DependencyReference]) throws {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
@@ -294,7 +294,7 @@ final class LinkGenerator: LinkGenerating {
 
     func generateCopyProductsdBuildPhase(path: AbsolutePath,
                                          target: Target,
-                                         graph: Graphable,
+                                         graph: Graphing,
                                          pbxTarget: PBXTarget,
                                          pbxproj: PBXProj,
                                          fileElements: ProjectFileElements) throws {

@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 protocol GraphLinting: AnyObject {
-    func lint(graph: Graphable) -> [LintingIssue]
+    func lint(graph: Graphing) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -34,7 +34,7 @@ class GraphLinter: GraphLinting {
 
     // MARK: - GraphLinting
 
-    func lint(graph: Graphable) -> [LintingIssue] {
+    func lint(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
         issues.append(contentsOf: lintDependencies(graph: graph))
@@ -45,7 +45,7 @@ class GraphLinter: GraphLinting {
 
     // MARK: - Fileprivate
 
-    func lintDependencies(graph: Graphable) -> [LintingIssue] {
+    func lintDependencies(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         var evaluatedNodes: [GraphNode] = []
         var linkedStaticProducts = Set<StaticDepedencyWarning>()
@@ -156,7 +156,7 @@ class GraphLinter: GraphLinting {
         return [issue]
     }
 
-    private func lintMismatchingConfigurations(graph: Graphable) -> [LintingIssue] {
+    private func lintMismatchingConfigurations(graph: Graphing) -> [LintingIssue] {
         let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project }
 
         let knownConfigurations = entryNodeProjects.reduce(into: Set()) {
@@ -184,7 +184,7 @@ class GraphLinter: GraphLinting {
     ///
     /// - Parameter graph: Project graph.
     /// - Returns: Linting issues.
-    private func lintPackageDependencies(graph: Graphable) -> [LintingIssue] {
+    private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
         let containsPackageDependency = graph.packages.count > 0
 
         guard containsPackageDependency else { return [] }
@@ -208,7 +208,7 @@ class GraphLinter: GraphLinting {
     ///
     /// - Parameter graph: Project graph.
     /// - Returns: Linting issues.
-    private func lintCocoaPodsDependencies(graph: Graphable) -> [LintingIssue] {
+    private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
         return graph.cocoapods.compactMap { node in
             let podfilePath = node.podfilePath
             if !FileHandler.shared.exists(podfilePath) {
@@ -218,7 +218,7 @@ class GraphLinter: GraphLinting {
         }
     }
 
-    private func lintCarthageDependencies(graph: Graphable) -> [LintingIssue] {
+    private func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
         let frameworks = graph.frameworks
         let carthageFrameworks = frameworks.filter { $0.isCarthage }
         let nonCarthageFrameworks = frameworks.filter { !$0.isCarthage }
@@ -237,7 +237,7 @@ class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintWatchBundleIndentifiers(graph: Graphable) -> [LintingIssue] {
+    private func lintWatchBundleIndentifiers(graph: Graphing) -> [LintingIssue] {
         let apps = graph
             .targets
             .filter { $0.target.product == .app }
@@ -279,13 +279,13 @@ class GraphLinter: GraphLinting {
         return []
     }
 
-    private func watchAppsFor(targetNode: TargetNode, graph: Graphable) -> [TargetNode] {
+    private func watchAppsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
         return graph.targetDependencies(path: targetNode.path,
                                         name: targetNode.name)
             .filter { $0.target.product == .watch2App }
     }
 
-    private func watchExtensionsFor(targetNode: TargetNode, graph: Graphable) -> [TargetNode] {
+    private func watchExtensionsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
         return graph.targetDependencies(path: targetNode.path,
                                         name: targetNode.name)
             .filter { $0.target.product == .watch2Extension }

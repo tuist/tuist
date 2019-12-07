@@ -18,7 +18,7 @@ public protocol Generating {
     /// - Parameters:
     ///     - project: The project to be generated.
     ///     - graph: The dependencies graph.
-    func generateProject(_ project: Project, graph: Graphable) throws -> AbsolutePath
+    func generateProject(_ project: Project, graph: Graphing) throws -> AbsolutePath
 
     /// Generate an Xcode workspace for the project at a given path. All the project's dependencies will also be generated and included.
     ///
@@ -95,7 +95,7 @@ public class Generator: Generating {
         self.environmentLinter = environmentLinter
     }
 
-    public func generateProject(_ project: Project, graph: Graphable) throws -> AbsolutePath {
+    public func generateProject(_ project: Project, graph: Graphing) throws -> AbsolutePath {
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
                                                              sourceRootPath: project.path)

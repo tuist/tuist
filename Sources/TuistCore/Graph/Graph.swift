@@ -74,7 +74,7 @@ public enum DependencyReference: Equatable, Comparable, Hashable {
     }
 }
 
-public protocol Graphable: AnyObject, Encodable {
+public protocol Graphing: AnyObject, Encodable {
     var name: String { get }
     var entryPath: AbsolutePath { get }
     var entryNodes: [GraphNode] { get }
@@ -124,7 +124,7 @@ public protocol Graphable: AnyObject, Encodable {
     func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T>
 }
 
-public class Graph: Graphable {
+public class Graph: Graphing {
     // MARK: - Attributes
 
     private let cache: GraphLoaderCaching

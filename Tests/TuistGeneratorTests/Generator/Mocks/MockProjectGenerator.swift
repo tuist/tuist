@@ -7,10 +7,10 @@ import TuistSupport
 
 final class MockProjectGenerator: ProjectGenerating {
     var generatedProjects: [Project] = []
-    var generateStub: ((Project, Graphable, AbsolutePath?) throws -> GeneratedProject)?
+    var generateStub: ((Project, Graphing, AbsolutePath?) throws -> GeneratedProject)?
 
     func generate(project: Project,
-                  graph: Graphable,
+                  graph: Graphing,
                   sourceRootPath: AbsolutePath?) throws -> GeneratedProject {
         generatedProjects.append(project)
         return try generateStub?(project, graph, sourceRootPath) ?? GeneratedProject.test()
