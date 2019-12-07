@@ -11,9 +11,6 @@ public protocol Environmenting: AnyObject {
     /// Returns the path to the settings.
     var settingsPath: AbsolutePath { get }
 
-    /// Returns the directory where all the derived projects are generated.
-    var derivedProjectsDirectory: AbsolutePath { get }
-
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
 
@@ -63,7 +60,7 @@ public class Environment: Environmenting {
 
     /// Sets up the local environment.
     private func setup() {
-        [directory, versionsDirectory, derivedProjectsDirectory].forEach {
+        [directory, versionsDirectory, cacheDirectory].forEach {
             if !fileHandler.exists($0) {
                 // swiftlint:disable:next force_try
                 try! fileHandler.createFolder($0)
@@ -87,7 +84,11 @@ public class Environment: Environmenting {
 
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
-        directory.appending(component: "Versions")
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
+            return AbsolutePath(envVariable)
+        } else {
+            return directory.appending(component: "Versions")
+        }
     }
 
     /// Returns the directory where the xcframeworks are cached.
@@ -102,12 +103,11 @@ public class Environment: Environmenting {
 
     /// Returns the cache directory
     public var cacheDirectory: AbsolutePath {
-        directory.appending(component: "Cache")
-    }
-
-    /// Returns the directory where all the derived projects are generated.
-    public var derivedProjectsDirectory: AbsolutePath {
-        directory.appending(component: "DerivedProjects")
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.cacheDirectory] {
+            return AbsolutePath(envVariable)
+        } else {
+            return directory.appending(component: "Cache")
+        }
     }
 
     /// Settings path.

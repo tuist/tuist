@@ -22,10 +22,6 @@ public class MockEnvironment: Environmenting {
         directory.path.appending(component: "Versions")
     }
 
-    public var derivedProjectsDirectory: AbsolutePath {
-        directory.path.appending(component: "DerivedProjects")
-    }
-
     public var settingsPath: AbsolutePath {
         directory.path.appending(component: "settings.json")
     }

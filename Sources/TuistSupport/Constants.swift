@@ -16,6 +16,8 @@ public struct Constants {
 
     public struct EnvironmentVariables {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
+        public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
+        public static let cacheDirectory = "TUIST_CACHE_DIRECTORY"
     }
 
     public struct GoogleCloud {

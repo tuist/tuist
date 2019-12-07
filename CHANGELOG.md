@@ -31,6 +31,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add cache command https://github.com/tuist/tuist/pull/762 by @pepibumur.
 - Utility to build xcframeworks https://github.com/tuist/tuist/pull/759 by @pepibumur.
 - Add `CacheStoraging` protocol and a implementation for a local cache https://github.com/tuist/tuist/pull/763 by @pepibumur.
+- Add support for changing the cache and versions directory using environment variables https://github.com/tuist/tuist/pull/765 by @pepibumur.
 
 ### Fixed
 
