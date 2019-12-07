@@ -15,7 +15,7 @@ final class XCFrameworkBuilderIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
         plistDecoder = PropertyListDecoder()
-        subject = XCFrameworkBuilder(printOutput: false)
+        subject = XCFrameworkBuilder(printOutput: true)
     }
 
     override func tearDown() {
