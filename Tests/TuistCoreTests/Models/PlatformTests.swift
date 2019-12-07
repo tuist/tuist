@@ -15,6 +15,27 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(Platform.tvOS.xcodeSupportedPlatforms, "appletvsimulator appletvos")
     }
 
+    func test_xcodeSimulatorSDK() {
+        XCTAssertEqual(Platform.tvOS.xcodeSimulatorSDK, "appletvsimulator")
+        XCTAssertEqual(Platform.iOS.xcodeSimulatorSDK, "iphonesimulator")
+        XCTAssertEqual(Platform.watchOS.xcodeSimulatorSDK, "watchsimulator")
+        XCTAssertNil(Platform.macOS.xcodeSimulatorSDK)
+    }
+
+    func test_xcodeDeviceSDK() {
+        XCTAssertEqual(Platform.tvOS.xcodeDeviceSDK, "appletvos")
+        XCTAssertEqual(Platform.iOS.xcodeDeviceSDK, "iphoneos")
+        XCTAssertEqual(Platform.watchOS.xcodeDeviceSDK, "watchos")
+        XCTAssertEqual(Platform.macOS.xcodeDeviceSDK, "macosx")
+    }
+
+    func test_hasSimulators() {
+        XCTAssertFalse(Platform.macOS.hasSimulators)
+        XCTAssertTrue(Platform.tvOS.hasSimulators)
+        XCTAssertTrue(Platform.watchOS.hasSimulators)
+        XCTAssertTrue(Platform.tvOS.hasSimulators)
+    }
+
     func test_xcodeSdkRootPath() {
         // Given
         let platforms: [Platform] = [

@@ -29,6 +29,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - `SimulatorController` with method to fetch the runtimes https://github.com/tuist/tuist/pull/746 by @pepibumur.
 - Add RxSwift as a dependency of `TuistKit` https://github.com/tuist/tuist/pull/760 by @pepibumur.
 - Add cache command https://github.com/tuist/tuist/pull/762 by @pepibumur.
+- Utility to build xcframeworks https://github.com/tuist/tuist/pull/759 by @pepibumur.
 
 ### Fixed
 

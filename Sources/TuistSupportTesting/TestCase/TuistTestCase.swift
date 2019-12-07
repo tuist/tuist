@@ -102,4 +102,12 @@ public class TuistTestCase: XCTestCase {
         """
         XCTAssertTrue(printer.standardErrorMatches(with: expected), message, file: file, line: line)
     }
+
+    public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {
+        let path = RelativePath(pathString)
+        let fixturePath = self.fixturePath(path: path)
+        let destinationPath = (try temporaryPath()).appending(component: path.basename)
+        try FileHandler.shared.copy(from: fixturePath, to: destinationPath)
+        return destinationPath
+    }
 }

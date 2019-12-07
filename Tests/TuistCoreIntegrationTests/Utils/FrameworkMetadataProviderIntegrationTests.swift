@@ -21,7 +21,7 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
 
     func test_bcsymbolmapPaths() throws {
         // Given
-        let carthagePath = temporaryFixture("Carthage/")
+        let carthagePath = try temporaryFixture("Carthage/")
         let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
         let framework = FrameworkNode(path: frameworkPath)
 
@@ -37,7 +37,7 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
 
     func test_dsymPath() throws {
         // Given
-        let carthagePath = temporaryFixture("Carthage/")
+        let carthagePath = try temporaryFixture("Carthage/")
         let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
         let framework = FrameworkNode(path: frameworkPath)
 
@@ -46,13 +46,5 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
 
         // Then
         XCTAssertTrue(got == carthagePath.appending(component: "\(frameworkPath.basename).dSYM"))
-    }
-
-    fileprivate func temporaryFixture(_ pathString: String) -> AbsolutePath {
-        let path = RelativePath(pathString)
-        let fixturePath = self.fixturePath(path: path)
-        let destinationPath = (try! temporaryPath()).appending(component: path.basename)
-        try! FileHandler.shared.copy(from: fixturePath, to: destinationPath)
-        return destinationPath
     }
 }
