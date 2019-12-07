@@ -2,18 +2,6 @@ import Basic
 import Foundation
 import TuistSupport
 
-public enum BinaryArchitecture: String {
-    case x8664 = "x86_64"
-    case i386
-    case armv7
-    case armv7s
-    case arm64
-}
-
-public enum BinaryLinking: String {
-    case `static`, dynamic
-}
-
 enum PrecompiledMetadataProviderError: FatalError, Equatable {
     case architecturesNotFound(AbsolutePath)
 
