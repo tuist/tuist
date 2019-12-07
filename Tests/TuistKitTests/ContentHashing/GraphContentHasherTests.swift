@@ -18,13 +18,13 @@ final class GraphContentHasherTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_contentHashes_emptyGraph() {
+    func test_contentHashes_emptyGraph() throws {
         let graph = Graph.test()
-        let hashes = sut.contentHashes(for: graph)
+        let hashes = try sut.contentHashes(for: graph)
         XCTAssertEqual(hashes, Dictionary())
     }
 
-    func test_contentHashes_returnsOnlyFrameworks() {
+    func test_contentHashes_returnsOnlyFrameworks() throws {
         // Given
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
@@ -41,7 +41,7 @@ final class GraphContentHasherTests: XCTestCase {
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget]
 
         // When
-        let hashes = sut.contentHashes(for: graph)
+        let hashes = try sut.contentHashes(for: graph)
         let hashedTargets: [TargetNode] = hashes.keys.sorted { left, right -> Bool in
             left.project.path.pathString < right.project.path.pathString
         }
