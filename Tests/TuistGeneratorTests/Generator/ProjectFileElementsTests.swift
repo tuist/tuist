@@ -367,8 +367,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
                                             sourceRootPath: sourceRootPath)
-        var dependencies: Set<DependencyReference> = Set()
-        let precompiledNode = DependencyReference.absolute(project.path.appending(component: "waka.framework"))
+        var dependencies: Set<GraphDependencyReference> = Set()
+        let precompiledNode = GraphDependencyReference.absolute(project.path.appending(component: "waka.framework"))
         dependencies.insert(precompiledNode)
 
         try subject.generate(dependencyReferences: dependencies,
@@ -569,7 +569,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let sdk = try SDKNode(name: "ARKit.framework",
                               platform: .iOS,
                               status: .required)
-        let sdkDependency = DependencyReference.sdk(sdk.path, sdk.status)
+        let sdkDependency = GraphDependencyReference.sdk(sdk.path, sdk.status)
 
         // When
         try subject.generate(dependencyReferences: [sdkDependency],

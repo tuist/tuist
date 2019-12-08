@@ -30,10 +30,14 @@ public class TargetNode: GraphNode {
         super.init(path: project.path, name: target.name)
     }
 
+    // MARK: - Hashable
+
     public override func hash(into hasher: inout Hasher) {
         super.hash(into: &hasher)
         hasher.combine(target.name)
     }
+
+    // MARK: - Equatable
 
     static func == (lhs: TargetNode, rhs: TargetNode) -> Bool {
         lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
@@ -46,6 +50,8 @@ public class TargetNode: GraphNode {
         return path == otherTagetNode.path
             && target == otherTagetNode.target
     }
+
+    // MARK: - Encodable
 
     public override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
@@ -68,5 +74,31 @@ public class TargetNode: GraphNode {
             }
         }
         try container.encode(dependencies, forKey: .dependencies)
+    }
+
+    // MARK: - Helpers
+
+    public var targetDependencies: [TargetNode] {
+        dependencies.lazy.compactMap { $0 as? TargetNode }
+    }
+
+    public var precompiledDependencies: [PrecompiledNode] {
+        dependencies.lazy.compactMap { $0 as? PrecompiledNode }
+    }
+
+    public var packages: [PackageProductNode] {
+        dependencies.lazy.compactMap { $0 as? PackageProductNode }
+    }
+
+    public var libraryDependencies: [LibraryNode] {
+        dependencies.lazy.compactMap { $0 as? LibraryNode }
+    }
+
+    public var frameworkDependencies: [FrameworkNode] {
+        dependencies.lazy.compactMap { $0 as? FrameworkNode }
+    }
+
+    public var sdkDependencies: [SDKNode] {
+        dependencies.lazy.compactMap { $0 as? SDKNode }
     }
 }

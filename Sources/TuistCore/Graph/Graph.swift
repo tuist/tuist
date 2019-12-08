@@ -20,60 +20,6 @@ enum GraphError: FatalError {
     }
 }
 
-public enum DependencyReference: Equatable, Comparable, Hashable {
-    case absolute(AbsolutePath)
-    case product(target: String, productName: String)
-    case sdk(AbsolutePath, SDKStatus)
-
-    public func hash(into hasher: inout Hasher) {
-        switch self {
-        case let .absolute(path):
-            hasher.combine(path)
-        case let .product(target, productName):
-            hasher.combine(target)
-            hasher.combine(productName)
-        case let .sdk(path, status):
-            hasher.combine(path)
-            hasher.combine(status)
-        }
-    }
-
-    public static func == (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
-        switch (lhs, rhs) {
-        case let (.absolute(lhsPath), .absolute(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
-            return lhsTarget == rhsTarget && lhsProductName == rhsProductName
-        case let (.sdk(lhsPath, lhsStatus), .sdk(rhsPath, rhsStatus)):
-            return lhsPath == rhsPath && lhsStatus == rhsStatus
-        default:
-            return false
-        }
-    }
-
-    public static func < (lhs: DependencyReference, rhs: DependencyReference) -> Bool {
-        switch (lhs, rhs) {
-        case let (.absolute(lhsPath), .absolute(rhsPath)):
-            return lhsPath < rhsPath
-        case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
-            if lhsTarget == rhsTarget {
-                return lhsProductName < rhsProductName
-            }
-            return lhsTarget < rhsTarget
-        case let (.sdk(lhsPath, _), .sdk(rhsPath, _)):
-            return lhsPath < rhsPath
-        case (.sdk, .absolute):
-            return true
-        case (.sdk, .product):
-            return true
-        case (.product, .absolute):
-            return true
-        default:
-            return false
-        }
-    }
-}
-
 public protocol Graphing: AnyObject, Encodable {
     var name: String { get }
     var entryPath: AbsolutePath { get }
@@ -95,33 +41,99 @@ public protocol Graphing: AnyObject, Encodable {
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] { get }
 
-    func packages(path: AbsolutePath, name: String) throws -> [PackageNode]
-    func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference]
-    func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath]
-    func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [DependencyReference]
+    /// Returns the target with the given name and at the given directory.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
     func target(path: AbsolutePath, name: String) throws -> TargetNode?
+
+    /// Returns all the non-transitive target dependencies for the given target.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
-    func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference]
+
+    /// Returns all non-transitive target static dependencies for the given target.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func staticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference]
+
+    /// Returns the resource bundle dependencies for the given target.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode]
+
+    /// Returns all package dependencies for the given target.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func packages(path: AbsolutePath, name: String) throws -> [PackageNode]
+
+    /// It returns the libraries a given target should be linked against.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func linkableDependencies(path: AbsolutePath, name: String) throws -> [GraphDependencyReference]
+
+    /// Returns the paths for the given target to be able to import the headers from its library dependencies.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> [AbsolutePath]
+
+    /// Returns the search paths for the given target to be able to link its library dependencies.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func librariesSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath]
+
+    /// Returns all the include paths of the library dependencies form the given target.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> [AbsolutePath]
+
+    /// Returns the list of products that should be embedded into the product of the given target.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [GraphDependencyReference]
+
+    /// Returns that are added to a dummy copy files phase to enforce build order between dependencies that Xcode doesn't usually respect (e.g. Resouce Bundles)
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - target: Target.
+    func copyProductDependencies(path: AbsolutePath, target: Target) -> [GraphDependencyReference]
+
+    /// For the given project it returns all its expected dependency references.
+    /// This method is useful to know which references should be added to the products directory in the generated project.
+    /// - Parameter project: Project whose dependency references will be returned.
+    func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference]
+
+    /// Finds all the app extension dependencies for the target at the given path with the given name.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
     func appExtensionDependencies(path: AbsolutePath, name: String) -> [TargetNode]
-
-    /// Products that are added to a dummy copy files phase to enforce build order between dependencies that Xcode doesn't usually respect (e.g. Resouce Bundles)
-    func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference]
-
-    /// All dependency referrences expected to present within a Project
-    func allDependencyReferences(for project: Project) throws -> [DependencyReference]
-
-    // MARK: - Depth First Search
 
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
     /// and explores as far as possible along each branch before backtracking.
     ///
     /// This implementation looks for TargetNode's and traverses their dependencies so that we are able to build
     /// up a graph of dependencies to later be used to define the "Link Binary with Library" in an xcodeproj.
-
     func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T>
+
+    /// Find a target with the given name and in the given directory.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func findTargetNode(path: AbsolutePath, name: String) -> TargetNode?
+
+    /// Returns all the transitive dependencies of the given target that are static libraries.
+    /// - Parameter targetNode: Target node whose transitive static libraries will be returned.
+    func transitiveStaticTargetNodes(for targetNode: TargetNode) -> Set<TargetNode>
 }
 
 public class Graph: Graphing {
@@ -132,19 +144,9 @@ public class Graph: Graphing {
     public let entryPath: AbsolutePath
     public let entryNodes: [GraphNode]
 
-    public var projects: [Project] {
-        Array(cache.projects.values)
-    }
-
-    public var projectPaths: [AbsolutePath] {
-        Array(cache.projects.keys)
-    }
-
     // MARK: - Init
 
-    public convenience init(name: String,
-                            entryPath: AbsolutePath,
-                            cache: GraphLoaderCaching) {
+    public convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching) {
         self.init(name: name,
                   entryPath: entryPath,
                   cache: cache,
@@ -161,9 +163,28 @@ public class Graph: Graphing {
         self.entryNodes = entryNodes
     }
 
-    // MARK: - Internal
+    // MARK: - Encodable
 
-    /// Returns all the CocoaPods nodes that are part of the graph.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        var nodes: [GraphNode] = []
+
+        nodes.append(contentsOf: cache.targetNodes.values.flatMap { $0.values })
+        nodes.append(contentsOf: Array(cache.precompiledNodes.values))
+
+        try container.encode(nodes.sorted(by: { $0.path < $1.path }))
+    }
+
+    // MARK: - Graphing
+
+    public var projects: [Project] {
+        Array(cache.projects.values)
+    }
+
+    public var projectPaths: [AbsolutePath] {
+        Array(cache.projects.keys)
+    }
+
     public var cocoapods: [CocoaPodsNode] {
         Array(cache.cocoapodsNodes.values)
     }
@@ -172,17 +193,14 @@ public class Graph: Graphing {
         cache.packages.values.flatMap { $0 }
     }
 
-    /// Returns all the frameworks that are part of the graph
     public var frameworks: [FrameworkNode] {
         cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
     }
 
-    /// Returns all the precompiled nodes that are part of the graph.
     public var precompiled: [PrecompiledNode] {
         Array(cache.precompiledNodes.values)
     }
 
-    /// Returns all the targets that are part of the graph.
     public var targets: [TargetNode] {
         cache.targetNodes.flatMap { $0.value.values }
     }
@@ -200,7 +218,7 @@ public class Graph: Graphing {
             .filter { $0.path == path }
     }
 
-    public func staticDependencies(path: AbsolutePath, name: String) -> [DependencyReference] {
+    public func staticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -223,19 +241,19 @@ public class Graph: Graphing {
         cache.packages[path] ?? []
     }
 
-    public func linkableDependencies(path: AbsolutePath, name: String) throws -> [DependencyReference] {
+    public func linkableDependencies(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
 
-        var references = Set<DependencyReference>()
+        var references = Set<GraphDependencyReference>()
 
         // System libraries and frameworks
 
         if targetNode.target.canLinkStaticProducts() {
             let transitiveSystemLibraries = transitiveStaticTargetNodes(for: targetNode).flatMap {
                 $0.sdkDependencies.map {
-                    DependencyReference.sdk($0.path, $0.status)
+                    GraphDependencyReference.sdk($0.path, $0.status)
                 }
             }
 
@@ -243,7 +261,7 @@ public class Graph: Graphing {
         }
 
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
-            DependencyReference.sdk($0.path, $0.status)
+            GraphDependencyReference.sdk($0.path, $0.status)
         }
 
         references = references.union(directSystemLibrariesAndFrameworks)
@@ -253,7 +271,7 @@ public class Graph: Graphing {
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies
             .lazy
             .map(\.path)
-            .map(DependencyReference.absolute)
+            .map(GraphDependencyReference.absolute)
 
         references = references.union(precompiledLibrariesAndFrameworks)
 
@@ -317,13 +335,13 @@ public class Graph: Graphing {
             .compactMap { $0.swiftModuleMap?.removingLastComponent() }
     }
 
-    public func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [DependencyReference] {
+    public func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name),
             canEmbedProducts(targetNode: targetNode) else {
             return []
         }
 
-        var references: Set<DependencyReference> = Set([])
+        var references: Set<GraphDependencyReference> = Set([])
 
         let isDynamicAndLinkable = frameworkUsesDynamicLinking()
 
@@ -331,7 +349,7 @@ public class Graph: Graphing {
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable)
             .lazy
             .map(\.path)
-            .map(DependencyReference.absolute)
+            .map(GraphDependencyReference.absolute)
 
         references.formUnion(precompiledFrameworks)
 
@@ -351,8 +369,8 @@ public class Graph: Graphing {
         return references.sorted()
     }
 
-    public func copyProductDependencies(path: AbsolutePath, target: Target) -> [DependencyReference] {
-        var dependencies = [DependencyReference]()
+    public func copyProductDependencies(path: AbsolutePath, target: Target) -> [GraphDependencyReference] {
+        var dependencies = [GraphDependencyReference]()
 
         if target.product.isStatic {
             dependencies.append(contentsOf: staticDependencies(path: path, name: target.name))
@@ -365,7 +383,7 @@ public class Graph: Graphing {
         return Set(dependencies).sorted()
     }
 
-    public func allDependencyReferences(for project: Project) throws -> [DependencyReference] {
+    public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
         let linkableDependencies = try project.targets.flatMap {
             try self.linkableDependencies(path: project.path, name: $0.name)
         }
@@ -395,110 +413,6 @@ public class Graph: Graphing {
             .filter { validProducts.contains($0.target.product) }
     }
 
-    // MARK: - Fileprivate
-
-    private func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
-        func isPathAndNameEqual(node: TargetNode) -> Bool {
-            node.path == path && node.target.name == name
-        }
-
-        let targetNodes = entryNodes.compactMap { $0 as? TargetNode }
-
-        if let targetNode = targetNodes.first(where: isPathAndNameEqual) {
-            return targetNode
-        }
-
-        guard let cachedTargetNodesForPath = cache.targetNodes[path] else {
-            return nil
-        }
-
-        return cachedTargetNodesForPath[name]
-    }
-
-    // Obtains all static dependencies for a targetNode (including transitive ones)
-    private func transitiveStaticTargetNodes(for targetNode: TargetNode) -> Set<TargetNode> {
-        findAll(targetNode: targetNode,
-                test: isStaticLibrary,
-                skip: canLinkStaticProducts)
-    }
-
-    private func productDependencyReference(for targetNode: TargetNode) -> DependencyReference {
-        .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
-    }
-
-    private func hostApplication(for targetNode: TargetNode) -> TargetNode? {
-        targetDependencies(path: targetNode.path, name: targetNode.name)
-            .first(where: { $0.target.product == .app })
-    }
-}
-
-// MARK: - Predicates
-
-extension Graph {
-    func isStaticLibrary(targetNode: TargetNode) -> Bool {
-        targetNode.target.product.isStatic
-    }
-
-    func isDynamicLibrary(targetNode: TargetNode) -> Bool {
-        targetNode.target.product == .dynamicLibrary
-    }
-
-    func isFramework(targetNode: TargetNode) -> Bool {
-        targetNode.target.product == .framework
-    }
-
-    func canLinkStaticProducts(targetNode: TargetNode) -> Bool {
-        targetNode.target.canLinkStaticProducts()
-    }
-
-    func canEmbedProducts(targetNode: TargetNode) -> Bool {
-        let validProducts: [Product] = [
-            .app,
-            .unitTests,
-            .uiTests,
-            .watch2Extension,
-        ]
-
-        return validProducts.contains(targetNode.target.product)
-    }
-
-    // swiftlint:disable:next line_length
-    func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool { { frameworkNode in
-        let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
-        return isDynamicLink ?? false
-    }
-    }
-}
-
-// MARK: - TargetNode helper computed properties, provide lazy arrays by default.
-
-extension TargetNode {
-    fileprivate var targetDependencies: [TargetNode] {
-        dependencies.lazy.compactMap { $0 as? TargetNode }
-    }
-
-    fileprivate var precompiledDependencies: [PrecompiledNode] {
-        dependencies.lazy.compactMap { $0 as? PrecompiledNode }
-    }
-
-    fileprivate var packages: [PackageProductNode] {
-        dependencies.lazy.compactMap { $0 as? PackageProductNode }
-    }
-
-    fileprivate var libraryDependencies: [LibraryNode] {
-        dependencies.lazy.compactMap { $0 as? LibraryNode }
-    }
-
-    fileprivate var frameworkDependencies: [FrameworkNode] {
-        dependencies.lazy.compactMap { $0 as? FrameworkNode }
-    }
-
-    fileprivate var sdkDependencies: [SDKNode] {
-        dependencies.lazy.compactMap { $0 as? SDKNode }
-    }
-}
-
-extension Graph {
     public func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T> {
         guard let targetNodes = cache.targetNodes[path] else {
             return []
@@ -513,8 +427,7 @@ extension Graph {
         return references
     }
 
-    // Traverse the graph from the target node using DFS and return all results passing the test.
-    func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool = { _ in true }, skip: (T) -> Bool = { _ in false }) -> Set<T> {
+    public func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool = { _ in true }, skip: (T) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         stack.push(targetNode)
@@ -548,18 +461,73 @@ extension Graph {
 
         return references
     }
-}
 
-// MARK: - Encodable
+    public func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
+        func isPathAndNameEqual(node: TargetNode) -> Bool {
+            node.path == path && node.target.name == name
+        }
 
-extension Graph {
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        var nodes: [GraphNode] = []
+        let targetNodes = entryNodes.compactMap { $0 as? TargetNode }
 
-        nodes.append(contentsOf: cache.targetNodes.values.flatMap { $0.values })
-        nodes.append(contentsOf: Array(cache.precompiledNodes.values))
+        if let targetNode = targetNodes.first(where: isPathAndNameEqual) {
+            return targetNode
+        }
 
-        try container.encode(nodes.sorted(by: { $0.path < $1.path }))
+        guard let cachedTargetNodesForPath = cache.targetNodes[path] else {
+            return nil
+        }
+
+        return cachedTargetNodesForPath[name]
+    }
+
+    public func transitiveStaticTargetNodes(for targetNode: TargetNode) -> Set<TargetNode> {
+        findAll(targetNode: targetNode,
+                test: isStaticLibrary,
+                skip: canLinkStaticProducts)
+    }
+
+    // MARK: - Fileprivate
+
+    fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {
+        .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
+    }
+
+    fileprivate func hostApplication(for targetNode: TargetNode) -> TargetNode? {
+        targetDependencies(path: targetNode.path, name: targetNode.name)
+            .first(where: { $0.target.product == .app })
+    }
+
+    fileprivate func isStaticLibrary(targetNode: TargetNode) -> Bool {
+        targetNode.target.product.isStatic
+    }
+
+    fileprivate func isDynamicLibrary(targetNode: TargetNode) -> Bool {
+        targetNode.target.product == .dynamicLibrary
+    }
+
+    fileprivate func isFramework(targetNode: TargetNode) -> Bool {
+        targetNode.target.product == .framework
+    }
+
+    fileprivate func canLinkStaticProducts(targetNode: TargetNode) -> Bool {
+        targetNode.target.canLinkStaticProducts()
+    }
+
+    fileprivate func canEmbedProducts(targetNode: TargetNode) -> Bool {
+        let validProducts: [Product] = [
+            .app,
+            .unitTests,
+            .uiTests,
+            .watch2Extension,
+        ]
+
+        return validProducts.contains(targetNode.target.product)
+    }
+
+    // swiftlint:disable:next line_length
+    fileprivate func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool { { frameworkNode in
+        let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
+        return isDynamicLink ?? false
+    }
     }
 }

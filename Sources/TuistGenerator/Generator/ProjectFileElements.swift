@@ -77,7 +77,7 @@ class ProjectFileElements {
 
         // Products
         let directProducts = project.targets.map {
-            DependencyReference.product(target: $0.name, productName: $0.productNameWithExtension)
+            GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension)
         }
 
         // Dependencies
@@ -176,7 +176,7 @@ class ProjectFileElements {
         }
     }
 
-    func generate(dependencyReferences: Set<DependencyReference>,
+    func generate(dependencyReferences: Set<GraphDependencyReference>,
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath,
