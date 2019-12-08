@@ -24,4 +24,52 @@ extension Observable where Element == SystemEvent<String> {
             return collected
         }
     }
+
+    /// Returns an observable that forwards the system events filtering the standard output ones using the given function.
+    /// - Parameter filter: Function to filter the standard output events.
+    func filterStandardOutput(_ filter: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
+        self.filter {
+            if case let SystemEvent.standardOutput(output) = $0 {
+                return filter(output)
+            } else {
+                return true
+            }
+        }
+    }
+
+    /// Returns an observable that forwards all the system except the standard output ones rejected by the given function.
+    /// - Parameter rejector: Function to reject standard output events.
+    func rejectStandardOutput(_ rejector: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
+        filter {
+            if case let SystemEvent.standardOutput(output) = $0 {
+                return !rejector(output)
+            } else {
+                return true
+            }
+        }
+    }
+
+    /// Returns an observable that forwards the system events filtering the standard error ones using the given function.
+    /// - Parameter filter: Function to filter the standard error events.
+    func filterStandardError(_ filter: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
+        self.filter {
+            if case let SystemEvent.standardError(error) = $0 {
+                return filter(error)
+            } else {
+                return true
+            }
+        }
+    }
+
+    /// Returns an observable that forwards all the system except the standard error ones rejected by the given function.
+    /// - Parameter rejector: Function to reject standard error events.
+    func rejectStandardError(_ rejector: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
+        filter {
+            if case let SystemEvent.standardError(error) = $0 {
+                return !rejector(error)
+            } else {
+                return true
+            }
+        }
+    }
 }

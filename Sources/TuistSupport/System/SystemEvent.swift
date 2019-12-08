@@ -2,8 +2,12 @@ import Basic
 import Foundation
 import RxSwift
 
+/// It represents an event sent by a running process.
 public enum SystemEvent<T> {
+    /// Data sent through the standard output pipe.
     case standardOutput(T)
+
+    /// Data sent through the standard error pipe.
     case standardError(T)
 }
 
