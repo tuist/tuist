@@ -11,14 +11,14 @@ final class GenerateCommandTests: TuistUnitTestCase {
     var subject: GenerateCommand!
     var generator: MockGenerator!
     var parser: ArgumentParser!
-    var manifestLoader: MockGraphManifestLoader!
+    var manifestLoader: MockManifestLoader!
     var clock: StubClock!
 
     override func setUp() {
         super.setUp()
         generator = MockGenerator()
         parser = ArgumentParser.test()
-        manifestLoader = MockGraphManifestLoader()
+        manifestLoader = MockManifestLoader()
         clock = StubClock()
 
         subject = GenerateCommand(parser: parser,
@@ -179,7 +179,7 @@ final class GenerateCommandTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(with: result),
-                                GraphManifestLoaderError.manifestNotFound(temporaryPath))
+                                ManifestLoaderError.manifestNotFound(temporaryPath))
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {

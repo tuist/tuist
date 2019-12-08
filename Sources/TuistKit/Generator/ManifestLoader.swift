@@ -3,12 +3,12 @@ import Foundation
 import ProjectDescription
 import TuistSupport
 
-enum GraphManifestLoaderError: FatalError, Equatable {
+enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
     case manifestNotFound(Manifest?, AbsolutePath)
 
-    static func manifestNotFound(_ path: AbsolutePath) -> GraphManifestLoaderError {
+    static func manifestNotFound(_ path: AbsolutePath) -> ManifestLoaderError {
         .manifestNotFound(nil, path)
     }
 
@@ -36,7 +36,7 @@ enum GraphManifestLoaderError: FatalError, Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: GraphManifestLoaderError, rhs: GraphManifestLoaderError) -> Bool {
+    static func == (lhs: ManifestLoaderError, rhs: ManifestLoaderError) -> Bool {
         switch (lhs, rhs) {
         case let (.projectDescriptionNotFound(lhsPath), .projectDescriptionNotFound(rhsPath)):
             return lhsPath == rhsPath
@@ -50,7 +50,7 @@ enum GraphManifestLoaderError: FatalError, Equatable {
     }
 }
 
-protocol GraphManifestLoading {
+protocol ManifestLoading {
     /// Loads the TuistConfig.swift in the given directory.
     ///
     /// - Parameter path: Path to the directory that contains the TuistConfig.swift file.
@@ -72,7 +72,7 @@ protocol GraphManifestLoading {
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath
 }
 
-class GraphManifestLoader: GraphManifestLoading {
+class ManifestLoader: ManifestLoading {
     // MARK: - Attributes
 
     let resourceLocator: ResourceLocating
@@ -97,7 +97,7 @@ class GraphManifestLoader: GraphManifestLoading {
         if FileHandler.shared.exists(filePath) {
             return filePath
         } else {
-            throw GraphManifestLoaderError.manifestNotFound(manifest, path)
+            throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
     }
 
@@ -124,7 +124,7 @@ class GraphManifestLoader: GraphManifestLoading {
     func loadSetup(at path: AbsolutePath) throws -> [Upping] {
         let setupPath = path.appending(component: Manifest.setup.fileName)
         guard FileHandler.shared.exists(setupPath) else {
-            throw GraphManifestLoaderError.manifestNotFound(.setup, path)
+            throw ManifestLoaderError.manifestNotFound(.setup, path)
         }
 
         let setup = try loadManifestData(at: setupPath)
@@ -141,7 +141,7 @@ class GraphManifestLoader: GraphManifestLoading {
     private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
         let manifestPath = path.appending(component: manifest.fileName)
         guard FileHandler.shared.exists(manifestPath) else {
-            throw GraphManifestLoaderError.manifestNotFound(manifest, path)
+            throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
         let data = try loadManifestData(at: manifestPath)
         return try decoder.decode(T.self, from: data)
@@ -177,7 +177,7 @@ class GraphManifestLoader: GraphManifestLoading {
 
         let result = try System.shared.capture(arguments).spm_chuzzle()
         guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
-            throw GraphManifestLoaderError.unexpectedOutput(path)
+            throw ManifestLoaderError.unexpectedOutput(path)
         }
 
         return data

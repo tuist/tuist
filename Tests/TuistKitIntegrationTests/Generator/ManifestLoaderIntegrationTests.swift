@@ -6,12 +6,12 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class GraphManifestLoaderTests: TuistTestCase {
-    var subject: GraphManifestLoader!
+final class ManifestLoaderTests: TuistTestCase {
+    var subject: ManifestLoader!
 
     override func setUp() {
         super.setUp()
-        subject = GraphManifestLoader()
+        subject = ManifestLoader()
     }
 
     override func tearDown() {
@@ -126,7 +126,7 @@ final class GraphManifestLoaderTests: TuistTestCase {
         XCTAssertThrowsError(
             try subject.loadProject(at: temporaryPath)
         ) { error in
-            XCTAssertEqual(error as? GraphManifestLoaderError, GraphManifestLoaderError.manifestNotFound(.project, temporaryPath))
+            XCTAssertEqual(error as? ManifestLoaderError, ManifestLoaderError.manifestNotFound(.project, temporaryPath))
         }
     }
 

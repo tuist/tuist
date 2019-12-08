@@ -10,13 +10,13 @@ import XCTest
 final class GraphCommandTests: TuistUnitTestCase {
     var subject: GraphCommand!
     var dotGraphGenerator: MockDotGraphGenerator!
-    var manifestLoader: MockGraphManifestLoader!
+    var manifestLoader: MockManifestLoader!
     var parser: ArgumentParser!
 
     override func setUp() {
         super.setUp()
         dotGraphGenerator = MockDotGraphGenerator()
-        manifestLoader = MockGraphManifestLoader()
+        manifestLoader = MockManifestLoader()
         parser = ArgumentParser.test()
         subject = GraphCommand(parser: parser,
                                dotGraphGenerator: dotGraphGenerator,

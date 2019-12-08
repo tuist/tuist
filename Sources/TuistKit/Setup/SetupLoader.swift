@@ -17,24 +17,24 @@ class SetupLoader: SetupLoading {
     /// Linter for up commands.
     private let upLinter: UpLinting
 
-    /// Graph manifset loader instance to load the setup.
-    private let graphManifestLoader: GraphManifestLoading
+    /// Manifset loader instance to load the setup.
+    private let manifestLoader: ManifestLoading
 
     convenience init() {
         let upLinter = UpLinter()
-        let graphManifestLoader = GraphManifestLoader()
-        self.init(upLinter: upLinter, graphManifestLoader: graphManifestLoader)
+        let manifestLoader = ManifestLoader()
+        self.init(upLinter: upLinter, manifestLoader: manifestLoader)
     }
 
     /// Initializes the command with its arguments.
     ///
     /// - Parameters:
     ///   - upLinter: Linter for up commands.
-    ///   - graphManifestLoader: Graph manifset loader instance to load the setup.
+    ///   - manifestLoader: Manifset loader instance to load the setup.
     init(upLinter: UpLinting,
-         graphManifestLoader: GraphManifestLoading) {
+         manifestLoader: ManifestLoading) {
         self.upLinter = upLinter
-        self.graphManifestLoader = graphManifestLoader
+        self.manifestLoader = manifestLoader
     }
 
     /// It runs meet on each command if it is not met.
@@ -43,7 +43,7 @@ class SetupLoader: SetupLoading {
     /// - Throws: An error if any of the commands exit unsuccessfully
     ///           or if there isn't a `Setup.swift` file within the project path.
     func meet(at path: AbsolutePath) throws {
-        let setup = try graphManifestLoader.loadSetup(at: path)
+        let setup = try manifestLoader.loadSetup(at: path)
         try setup.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }
             .printAndThrowIfNeeded()

@@ -11,13 +11,13 @@ final class DumpCommandTests: TuistTestCase {
     var errorHandler: MockErrorHandler!
     var subject: DumpCommand!
     var parser: ArgumentParser!
-    var manifestLoading: GraphManifestLoading!
+    var manifestLoading: ManifestLoading!
 
     override func setUp() {
         super.setUp()
         errorHandler = MockErrorHandler()
         parser = ArgumentParser.test()
-        manifestLoading = GraphManifestLoader()
+        manifestLoading = ManifestLoader()
         subject = DumpCommand(manifestLoader: manifestLoading,
                               parser: parser)
     }

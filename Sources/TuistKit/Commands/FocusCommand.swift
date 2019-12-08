@@ -20,7 +20,7 @@ class FocusCommand: NSObject, Command {
     private let generator: Generating
 
     /// Manifest loader instance that can load project maifests from disk
-    private let manifestLoader: GraphManifestLoading
+    private let manifestLoader: ManifestLoading
 
     /// Opener instance to run open in the system.
     private let opener: Opening
@@ -32,7 +32,7 @@ class FocusCommand: NSObject, Command {
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
         let resourceLocator = ResourceLocator()
-        let manifestLoader = GraphManifestLoader(resourceLocator: resourceLocator)
+        let manifestLoader = ManifestLoader(resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
@@ -52,7 +52,7 @@ class FocusCommand: NSObject, Command {
     ///   - opener: Opener instance to run open in the system.
     init(parser: ArgumentParser,
          generator: Generating,
-         manifestLoader: GraphManifestLoading,
+         manifestLoader: ManifestLoading,
          opener: Opening) {
         parser.add(subparser: FocusCommand.command, overview: FocusCommand.overview)
         self.generator = generator

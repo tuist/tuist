@@ -11,17 +11,17 @@ class DumpCommand: NSObject, Command {
 
     // MARK: - Attributes
 
-    private let manifestLoader: GraphManifestLoading
+    private let manifestLoader: ManifestLoading
     let pathArgument: OptionArgument<String>
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
-        self.init(manifestLoader: GraphManifestLoader(),
+        self.init(manifestLoader: ManifestLoader(),
                   parser: parser)
     }
 
-    init(manifestLoader: GraphManifestLoading,
+    init(manifestLoader: ManifestLoading,
          parser: ArgumentParser) {
         let subParser = parser.add(subparser: DumpCommand.command, overview: DumpCommand.overview)
         self.manifestLoader = manifestLoader

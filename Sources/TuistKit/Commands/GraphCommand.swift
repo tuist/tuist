@@ -16,11 +16,11 @@ class GraphCommand: NSObject, Command {
     let dotGraphGenerator: DotGraphGenerating
 
     /// Manifest loader.
-    let manifestLoader: GraphManifestLoading
+    let manifestLoader: ManifestLoading
 
     required convenience init(parser: ArgumentParser) {
         let resourceLocator = ResourceLocator()
-        let manifestLoader = GraphManifestLoader(resourceLocator: resourceLocator)
+        let manifestLoader = ManifestLoader(resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
@@ -33,7 +33,7 @@ class GraphCommand: NSObject, Command {
 
     init(parser: ArgumentParser,
          dotGraphGenerator: DotGraphGenerating,
-         manifestLoader: GraphManifestLoading) {
+         manifestLoader: ManifestLoading) {
         parser.add(subparser: GraphCommand.command, overview: GraphCommand.overview)
         self.dotGraphGenerator = dotGraphGenerator
         self.manifestLoader = manifestLoader

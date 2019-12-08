@@ -47,7 +47,7 @@ final class ResourceLocator: ResourceLocating {
 
     private func frameworkPath(_ name: String) throws -> AbsolutePath {
         let frameworkNames = ["\(name).framework", "lib\(name).dylib"]
-        let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
+        let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,
@@ -62,7 +62,7 @@ final class ResourceLocator: ResourceLocating {
     }
 
     private func toolPath(_ name: String) throws -> AbsolutePath {
-        let bundlePath = AbsolutePath(Bundle(for: GraphManifestLoader.self).bundleURL.path)
+        let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
         let paths = [bundlePath, bundlePath.parentDirectory]
         let candidates = paths.map { $0.appending(component: name) }
         guard let path = candidates.first(where: { FileHandler.shared.exists($0) }) else {

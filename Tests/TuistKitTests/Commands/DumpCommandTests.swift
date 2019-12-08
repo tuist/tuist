@@ -11,13 +11,13 @@ final class DumpCommandTests: TuistUnitTestCase {
     var errorHandler: MockErrorHandler!
     var subject: DumpCommand!
     var parser: ArgumentParser!
-    var manifestLoading: GraphManifestLoading!
+    var manifestLoading: ManifestLoading!
 
     override func setUp() {
         super.setUp()
         errorHandler = MockErrorHandler()
         parser = ArgumentParser.test()
-        manifestLoading = GraphManifestLoader()
+        manifestLoading = ManifestLoader()
         subject = DumpCommand(manifestLoader: manifestLoading,
                               parser: parser)
     }
@@ -42,7 +42,7 @@ final class DumpCommandTests: TuistUnitTestCase {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
         XCTAssertThrowsSpecific(try subject.run(with: result),
-                                GraphManifestLoaderError.manifestNotFound(.project, tmpDir.path))
+                                ManifestLoaderError.manifestNotFound(.project, tmpDir.path))
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
