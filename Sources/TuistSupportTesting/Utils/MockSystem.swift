@@ -101,15 +101,15 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func rxRun(_ arguments: [String]) -> Observable<SystemEvent> {
+    public func rxRun(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
         rxRun(arguments, verbose: false)
     }
 
-    public func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent> {
+    public func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
         rxRun(arguments, verbose: verbose, environment: [:])
     }
 
-    public func rxRun(_ arguments: [String], verbose _: Bool, environment _: [String: String]) -> Observable<SystemEvent> {
+    public func rxRun(_ arguments: [String], verbose _: Bool, environment _: [String: String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
