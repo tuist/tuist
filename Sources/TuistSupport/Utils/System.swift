@@ -1,5 +1,12 @@
 import Basic
 import Foundation
+import RxSwift
+
+public enum SystemEvent {
+    case standardOutput(Data)
+    case standardError(Data)
+    case completed(ProcessResult)
+}
 
 public protocol Systeming {
     /// System environment.
@@ -94,6 +101,24 @@ public protocol Systeming {
     ///   - redirection: Instance through which the output will be redirected.
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: Basic.Process.OutputRedirection) throws
+
+    /// Runs a command in the shell and wraps the standard output and error in a observable.
+    /// - Parameters:
+    ///   - arguments: Command.
+    func rxRun(_ arguments: [String]) -> Observable<SystemEvent>
+
+    /// Runs a command in the shell and wraps the standard output and error in a observable.
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent>
+
+    /// Runs a command in the shell and wraps the standard output and error in a observable.
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    ///   - environment: Environment that should be used when running the command.
+    func rxRun(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent>
 
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
@@ -351,6 +376,40 @@ public final class System: Systeming {
         let result = try process.waitUntilExit()
 
         try result.throwIfErrored()
+    }
+
+    public func rxRun(_ arguments: [String]) -> Observable<SystemEvent> {
+        rxRun(arguments, verbose: false)
+    }
+
+    public func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent> {
+        rxRun(arguments, verbose: verbose, environment: env)
+    }
+
+    public func rxRun(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent> {
+        Observable.create { (observer) -> Disposable in
+            let process = Process(arguments: arguments,
+                                  environment: environment,
+                                  outputRedirection: .stream(stdout: { bytes in
+                                      observer.onNext(.standardOutput(Data(bytes)))
+                                  }, stderr: { bytes in
+                                      observer.onNext(.standardError(Data(bytes)))
+                                  }),
+                                  verbose: verbose,
+                                  startNewProcessGroup: false)
+            do {
+                try process.launch()
+                try process.waitUntilExit().throwIfErrored()
+                observer.onCompleted()
+            } catch {
+                observer.onError(error)
+            }
+            return Disposables.create {
+                if process.launched {
+                    process.signal(9) // SIGKILL
+                }
+            }
+        }.subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
     /// Runs a command in the shell asynchronously.

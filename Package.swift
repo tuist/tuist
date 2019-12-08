@@ -88,7 +88,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SPMUtility"]
+            dependencies: ["SPMUtility", "RxSwift"]
         ),
         .target(
             name: "TuistSupportTesting",
