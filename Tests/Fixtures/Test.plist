@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>platforms</key>
+	<array>
+		<dict>
+			<key>name</key>
+			<string>iOS</string>
+			<key>supportedLanguages</key>
+			<array>
+				<string>swift</string>
+				<string>objective C</string>
+			</array>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>mac</string>
+			<key>supportedLanguages</key>
+			<array>
+				<string>swift</string>
+				<string>objective C</string>
+				<string>C++</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -4,6 +4,7 @@ import Foundation
 enum FileHandlerError: FatalError {
     case invalidTextEncoding(AbsolutePath)
     case writingError(AbsolutePath)
+    case fileNotFound(AbsolutePath)
 
     var description: String {
         switch self {
@@ -11,6 +12,8 @@ enum FileHandlerError: FatalError {
             return "The file at \(path.pathString) is not a utf8 text file"
         case let .writingError(path):
             return "Couldn't write to the file \(path.pathString)"
+        case let .fileNotFound(path):
+            return "File not found at \(path.pathString)"
         }
     }
 
@@ -18,7 +21,7 @@ enum FileHandlerError: FatalError {
         switch self {
         case .invalidTextEncoding:
             return .bug
-        case .writingError:
+        case .writingError, .fileNotFound:
             return .abort
         }
     }
@@ -66,6 +69,13 @@ public protocol FileHandling: AnyObject {
     /// - Throws: An error if the file doesn't exist or it's not a valid text file.
     func readTextFile(_ at: AbsolutePath) throws -> String
 
+    /// Reads a plist file at the given path and return decoded data
+    ///
+    /// - Parameter at: Path to the plist file.
+    /// - Returns: The content of the plist file in data format
+    /// - Throws: An error if the file doesn't exist or it's not a valid plist file.
+    func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T
+
     /// Runs the given closure passing a temporary directory to it. When the closure
     /// finishes its execution, the temporary directory gets destroyed.
     ///
@@ -109,6 +119,7 @@ public class FileHandler: FileHandling {
 
     public static var shared: FileHandling = FileHandler()
     private let fileManager: FileManager
+    private let propertyListDecoder = PropertyListDecoder()
 
     /// Initializes the file handler with its attributes.
     ///
@@ -164,6 +175,14 @@ public class FileHandler: FileHandling {
         } else {
             throw FileHandlerError.invalidTextEncoding(at)
         }
+    }
+    
+
+    public func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T {
+        guard let data = fileManager.contents(atPath: at.pathString) else {
+            throw FileHandlerError.fileNotFound(at)
+        }
+        return try propertyListDecoder.decode(T.self, from: data)
     }
 
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {

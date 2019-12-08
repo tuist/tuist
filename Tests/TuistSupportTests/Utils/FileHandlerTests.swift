@@ -38,6 +38,12 @@ final class FileHandlerTests: TuistUnitTestCase {
         let content = try String(contentsOf: destFile.path.asURL)
         XCTAssertEqual(content, "content")
     }
+    
+    func test_decode() throws {
+        let testPlistPath = fixturePath(path: RelativePath("Test.plist"))
+        let xcFrameworkInfoPlist:TestPlist = try subject.readPlistFile(testPlistPath)
+        XCTAssertNotNil(xcFrameworkInfoPlist)
+    }
 
     func test_replace_cleans_up_temp() throws {
         // FIX: This test runs fine locally but it fails on CI.
@@ -68,4 +74,23 @@ final class FileHandlerTests: TuistUnitTestCase {
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)
         return content.count
     }
+}
+
+private struct TestPlist: Decodable {
+
+    enum CodingKeys: CodingKey {
+        case platforms
+    }
+    
+    struct Platform: Decodable {
+        enum CodingKeys: CodingKey {
+            case name
+            case supportedLanguages
+        }
+        
+        let name: String
+        let supportedLanguages: [String]
+    }
+    
+    let platforms: [Platform]
 }
