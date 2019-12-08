@@ -98,6 +98,10 @@ let package = Package(
             name: "TuistSupportTests",
             dependencies: ["TuistSupport", "TuistSupportTesting"]
         ),
+        .testTarget(
+            name: "TuistSupportIntegrationTests",
+            dependencies: ["TuistSupport", "TuistSupportTesting", "RxBlocking"]
+        ),
         .target(
             name: "TuistGenerator",
             dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
