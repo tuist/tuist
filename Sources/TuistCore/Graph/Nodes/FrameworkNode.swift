@@ -3,13 +3,6 @@ import Foundation
 import TuistSupport
 
 public class FrameworkNode: PrecompiledNode {
-    static func parse(path: AbsolutePath, cache: GraphLoaderCaching) throws -> FrameworkNode {
-        if let frameworkNode = cache.precompiledNode(path) as? FrameworkNode { return frameworkNode }
-        let framewokNode = FrameworkNode(path: path)
-        cache.add(precompiledNode: framewokNode)
-        return framewokNode
-    }
-
     public var isCarthage: Bool {
         path.pathString.contains("Carthage/Build")
     }

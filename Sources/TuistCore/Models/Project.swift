@@ -64,36 +64,6 @@ public class Project: Equatable, CustomStringConvertible {
         self.additionalFiles = additionalFiles
     }
 
-    // MARK: - Init
-
-    /// Returns a project model from the cache if present, otherwise loads a new instance.
-    ///
-    /// - Parameters:
-    ///   - path: Path of the project
-    ///   - cache: Cache instance to cache projects and dependencies.
-    ///   - circularDetector: Utility to find circular dependencies between targets.
-    ///   - modelLoader: Entity responsible for providing new instances of project models
-    /// - Returns: Project instance.
-    /// - Throws: An error if the project can't be loaded, or if circular dependencies are detected.
-    static func at(_ path: AbsolutePath,
-                   cache: GraphLoaderCaching,
-                   circularDetector: GraphCircularDetecting,
-                   modelLoader: GeneratorModelLoading) throws -> Project {
-        if let project = cache.project(path) {
-            return project
-        } else {
-            let project = try modelLoader.loadProject(at: path)
-            cache.add(project: project)
-
-            for target in project.targets {
-                if cache.targetNode(path, name: target.name) != nil { continue }
-                _ = try TargetNode.read(name: target.name, path: path, cache: cache, circularDetector: circularDetector, modelLoader: modelLoader)
-            }
-
-            return project
-        }
-    }
-
     /// It returns the project targets sorted based on the target type and the dependencies between them.
     /// The most dependent and non-tests targets are sorted first in the list.
     ///

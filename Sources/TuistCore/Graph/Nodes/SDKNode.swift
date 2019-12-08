@@ -11,6 +11,7 @@ public class SDKNode: GraphNode {
                 status: SDKStatus) throws {
         let sdk = AbsolutePath("/\(name)")
 
+        // TODO: Validate using a linter
         guard let sdkExtension = sdk.extension,
             let type = Type(rawValue: sdkExtension) else {
             throw Error.unsupported(sdk: name)
