@@ -65,11 +65,21 @@ protocol ManifestLoading {
     /// - Throws: An error if the file has a syntax error.
     func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy
 
+    /// Loads the Project.swift in the given directory.
+    /// - Parameter path: Path to the directory that contains the Project.swift.
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
+
+    /// Loads the Workspace.swift in the given directory.
+    /// - Parameter path: Path to the directory that contains the Workspace.swift
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
+
+    /// Loads the Setup.swift in the given directory.
+    /// - Parameter path: Path to the directory that contains the Setup.swift.
     func loadSetup(at path: AbsolutePath) throws -> [Upping]
+
+    /// List all the manifests in the given directory.
+    /// - Parameter path: Path to the directory whose manifest files will be returend.
     func manifests(at path: AbsolutePath) -> Set<Manifest>
-    func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath
 }
 
 class ManifestLoader: ManifestLoading {
@@ -89,16 +99,6 @@ class ManifestLoader: ManifestLoading {
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         self.manifestFilesLocator = manifestFilesLocator
         decoder = JSONDecoder()
-    }
-
-    func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
-        let filePath = path.appending(component: manifest.fileName)
-
-        if FileHandler.shared.exists(filePath) {
-            return filePath
-        } else {
-            throw ManifestLoaderError.manifestNotFound(manifest, path)
-        }
     }
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {

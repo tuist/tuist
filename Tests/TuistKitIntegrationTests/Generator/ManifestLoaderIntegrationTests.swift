@@ -130,24 +130,6 @@ final class ManifestLoaderTests: TuistTestCase {
         }
     }
 
-    func test_manifestPath() throws {
-        // Given
-        let fileHandler = FileHandler()
-        let temporaryPath = try self.temporaryPath()
-        let manifestsPaths = Manifest.allCases.map {
-            temporaryPath.appending(component: $0.fileName)
-        }
-        try manifestsPaths.forEach { try fileHandler.touch($0) }
-
-        // When
-        let got = try Manifest.allCases.map {
-            try subject.manifestPath(at: temporaryPath, manifest: $0)
-        }
-
-        // Then
-        XCTAssertEqual(got, manifestsPaths)
-    }
-
     func test_manifestsAt() throws {
         // Given
         let fileHandler = FileHandler()
