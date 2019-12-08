@@ -88,6 +88,46 @@ final class LinkGeneratorErrorTests: XCTestCase {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
+    
+    func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
+        // Given
+        var dependencies: [DependencyReference] = []
+        dependencies.append(DependencyReference.absolute(AbsolutePath("/Frameworks/Test.xcframework")))
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let sourceRootPath = AbsolutePath("/")
+
+        let group = PBXGroup()
+        pbxproj.add(object: group)
+    
+        let from = AbsolutePath("/Frameworks/")
+        let fileAbsolutePath = AbsolutePath("/Frameworks/Test.xcframework")
+        let fileRelativePath = RelativePath("./Test.xcframework")
+        let fileElements = ProjectFileElements()
+        fileElements.addFileElement(from: from,
+                                          fileAbsolutePath: fileAbsolutePath,
+                                          fileRelativePath: fileRelativePath,
+                                          name: nil,
+                                          toGroup: group,
+                                          pbxproj: pbxproj)
+
+        let wakaFile = fileElements.file(path: fileAbsolutePath)
+
+        // When
+        try subject.generateEmbedPhase(dependencies: dependencies,
+                                       pbxTarget: pbxTarget,
+                                       pbxproj: pbxproj,
+                                       fileElements: fileElements,
+                                       sourceRootPath: sourceRootPath)
+
+        // Then
+        let copyBuildPhase: PBXCopyFilesBuildPhase? = pbxTarget.buildPhases.last as? PBXCopyFilesBuildPhase
+        XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")
+        let wakaBuildFile: PBXBuildFile? = copyBuildPhase?.files?.last
+        XCTAssertEqual(wakaBuildFile?.file, wakaFile)
+        let settings: [String: [String]]? = wakaBuildFile?.settings as? [String: [String]]
+        XCTAssertEqual(settings, ["ATTRIBUTES": ["CodeSignOnCopy"]])
+    }
 
     func test_setupFrameworkSearchPath() throws {
         let dependencies = [

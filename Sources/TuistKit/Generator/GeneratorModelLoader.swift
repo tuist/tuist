@@ -565,6 +565,8 @@ extension TuistCore.Dependency {
                         status: .from(manifest: status))
         case let .cocoapods(path):
             return .cocoapods(path: try generatorPaths.resolve(path: path))
+        case let .xcFramework(path):
+            return .xcFramework(path: try generatorPaths.resolve(path: path))
         }
     }
 }
