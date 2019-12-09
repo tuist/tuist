@@ -59,8 +59,10 @@ public class GraphLoader: GraphLoading {
         }
 
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
-            try project.1.targets.map { target in
-                try self.loadTarget(name: target.name, path: project.0, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
+            let projectPath = project.0
+            let projectManifest = project.1
+            return try projectManifest.targets.map { target in
+                try self.loadTarget(name: target.name, path: projectPath, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
             }
         }
 
