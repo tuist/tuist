@@ -169,7 +169,19 @@ final class LinkGenerator: LinkGenerating {
 
         try dependencies.forEach { dependency in
             if case let GraphDependencyReference.absolute(path) = dependency {
-                precompiledFrameworkPaths.append(path)
+                if path.extension == "xcframework" {
+                    guard let fileRef = fileElements.file(path: path) else {
+                        throw LinkGeneratorError.missingReference(path: path)
+                    }
+                    let buildFile = PBXBuildFile(
+                        file: fileRef,
+                        settings: ["ATTRIBUTES": ["CodeSignOnCopy"]]
+                    )
+                    pbxproj.add(object: buildFile)
+                    embedPhase.files?.append(buildFile)
+                } else {
+                    precompiledFrameworkPaths.append(path)
+                }
             } else if case let GraphDependencyReference.product(target, _) = dependency {
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)

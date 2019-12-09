@@ -91,8 +91,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
     
     func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
         // Given
-        var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.absolute(AbsolutePath("/Frameworks/Test.xcframework")))
+        var dependencies: [GraphDependencyReference] = []
+        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/Frameworks/Test.xcframework")))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let sourceRootPath = AbsolutePath("/")
