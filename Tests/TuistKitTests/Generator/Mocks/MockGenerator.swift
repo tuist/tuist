@@ -6,21 +6,21 @@ import TuistGenerator
 class MockGenerator: Generating {
     var generateProjectAtStub: ((AbsolutePath) throws -> AbsolutePath)?
     func generateProject(at path: AbsolutePath) throws -> AbsolutePath {
-        return try generateProjectAtStub?(path) ?? AbsolutePath("/test")
+        try generateProjectAtStub?(path) ?? AbsolutePath("/test")
     }
 
     var generateProjectStub: ((Project) throws -> AbsolutePath)?
     func generateProject(_ project: Project, graph _: Graphing) throws -> AbsolutePath {
-        return try generateProjectStub?(project) ?? AbsolutePath("/test")
+        try generateProjectStub?(project) ?? AbsolutePath("/test")
     }
 
     var generateProjectWorkspaceStub: ((AbsolutePath, [AbsolutePath]) throws -> AbsolutePath)?
     func generateProjectWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
-        return try generateProjectWorkspaceStub?(path, workspaceFiles) ?? AbsolutePath("/test")
+        try generateProjectWorkspaceStub?(path, workspaceFiles) ?? AbsolutePath("/test")
     }
 
     var generateWorkspaceStub: ((AbsolutePath, [AbsolutePath]) throws -> AbsolutePath)?
     func generateWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> AbsolutePath {
-        return try generateWorkspaceStub?(path, workspaceFiles) ?? AbsolutePath("/test")
+        try generateWorkspaceStub?(path, workspaceFiles) ?? AbsolutePath("/test")
     }
 }

@@ -190,7 +190,7 @@ final class SettingsTests: XCTestCase {
     // MARK: - Helpers
 
     private func emptyConfiguration() -> Configuration {
-        return Configuration(settings: [:], xcconfig: nil)
+        Configuration(settings: [:], xcconfig: nil)
     }
 }
 

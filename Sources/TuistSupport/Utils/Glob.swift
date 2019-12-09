@@ -70,8 +70,8 @@ public class Glob: Collection {
 
     public let behavior: Behavior
     var paths = [String]()
-    public var startIndex: Int { return paths.startIndex }
-    public var endIndex: Int { return paths.endIndex }
+    public var startIndex: Int { paths.startIndex }
+    public var endIndex: Int { paths.endIndex }
 
     public init(pattern: String, behavior: Behavior = Glob.defaultBehavior) {
         self.behavior = behavior
@@ -111,7 +111,7 @@ public class Glob: Collection {
     private var globalFlags = GLOB_TILDE | GLOB_BRACE | GLOB_MARK
 
     private func executeGlob(pattern: UnsafePointer<CChar>, gt: UnsafeMutablePointer<glob_t>) -> Bool {
-        return glob(pattern, globalFlags, nil, gt) == 0
+        glob(pattern, globalFlags, nil, gt) == 0
     }
 
     private func expandGlobstar(pattern: String) -> [String] {
@@ -210,12 +210,12 @@ public class Glob: Collection {
     // MARK: Subscript Support
 
     public subscript(i: Int) -> String {
-        return paths[i]
+        paths[i]
     }
 
     // MARK: IndexableBase
 
     public func index(after i: Glob.Index) -> Glob.Index {
-        return i + 1
+        i + 1
     }
 }

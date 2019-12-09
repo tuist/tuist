@@ -17,6 +17,6 @@ final class Playgrounds: Playgrounding {
     /// - Parameter path: Directory where the project is defined.
     /// - Returns: List of paths.
     func paths(path: AbsolutePath) -> [AbsolutePath] {
-        return path.glob("Playgrounds/*.playground").sorted()
+        path.glob("Playgrounds/*.playground").sorted()
     }
 }

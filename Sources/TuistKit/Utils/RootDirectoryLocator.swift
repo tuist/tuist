@@ -26,7 +26,7 @@ final class RootDirectoryLocator: RootDirectoryLocating {
     /// git repository is defined if no Tuist/ directory is found.
     /// - Parameter path: Path for which we'll look the root directory.
     func locate(from path: AbsolutePath) -> AbsolutePath? {
-        return locate(from: path, source: path)
+        locate(from: path, source: path)
     }
 
     private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
@@ -47,7 +47,7 @@ final class RootDirectoryLocator: RootDirectoryLocating {
     // MARK: - Fileprivate
 
     fileprivate func cached(path: AbsolutePath) -> AbsolutePath? {
-        return cache[path]
+        cache[path]
     }
 
     /// This method caches the root directory of path, and all its parents up to the root directory.

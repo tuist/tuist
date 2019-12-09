@@ -16,6 +16,6 @@ class Settings: Codable, Equatable {
     ///   - rhs: second instance to be compared.
     /// - Returns: true if the two instances are equal.
     static func == (_: Settings, _: Settings) -> Bool {
-        return true
+        true
     }
 }

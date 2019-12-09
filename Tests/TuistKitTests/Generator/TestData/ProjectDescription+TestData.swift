@@ -3,7 +3,7 @@ import Foundation
 
 extension TuistConfig {
     static func test(generationOptions: [TuistConfig.GenerationOptions] = []) -> TuistConfig {
-        return TuistConfig(generationOptions: generationOptions)
+        TuistConfig(generationOptions: generationOptions)
     }
 }
 
@@ -11,15 +11,15 @@ extension Workspace {
     static func test(name: String = "Workspace",
                      projects: [Path] = [],
                      additionalFiles: [FileElement] = []) -> Workspace {
-        return Workspace(name: name,
-                         projects: projects,
-                         additionalFiles: additionalFiles)
+        Workspace(name: name,
+                  projects: projects,
+                  additionalFiles: additionalFiles)
     }
 }
 
 extension Galaxy {
     static func test(token: String = "xyz") -> Galaxy {
-        return Galaxy(token: token)
+        Galaxy(token: token)
     }
 }
 
@@ -28,10 +28,10 @@ extension Project {
                      settings: Settings? = nil,
                      targets: [Target] = [],
                      additionalFiles: [FileElement] = []) -> Project {
-        return Project(name: name,
-                       settings: settings,
-                       targets: targets,
-                       additionalFiles: additionalFiles)
+        Project(name: name,
+                settings: settings,
+                targets: targets,
+                additionalFiles: additionalFiles)
     }
 }
 
@@ -51,21 +51,21 @@ extension Target {
                      settings: Settings? = nil,
                      coreDataModels: [CoreDataModel] = [],
                      environment: [String: String] = [:]) -> Target {
-        return Target(name: name,
-                      platform: platform,
-                      product: product,
-                      productName: productName,
-                      bundleId: bundleId,
-                      infoPlist: infoPlist,
-                      sources: sources,
-                      resources: resources,
-                      headers: headers,
-                      entitlements: entitlements,
-                      actions: actions,
-                      dependencies: dependencies,
-                      settings: settings,
-                      coreDataModels: coreDataModels,
-                      environment: environment)
+        Target(name: name,
+               platform: platform,
+               product: product,
+               productName: productName,
+               bundleId: bundleId,
+               infoPlist: infoPlist,
+               sources: sources,
+               resources: resources,
+               headers: headers,
+               entitlements: entitlements,
+               actions: actions,
+               dependencies: dependencies,
+               settings: settings,
+               coreDataModels: coreDataModels,
+               environment: environment)
     }
 }
 
@@ -75,11 +75,11 @@ extension TargetAction {
                      path: Path? = nil,
                      order: Order = .pre,
                      arguments: [String] = []) -> TargetAction {
-        return TargetAction(name: name,
-                            tool: tool,
-                            path: path,
-                            order: order,
-                            arguments: arguments)
+        TargetAction(name: name,
+                     tool: tool,
+                     path: path,
+                     order: order,
+                     arguments: arguments)
     }
 }
 
@@ -89,11 +89,11 @@ extension Scheme {
                      buildAction: BuildAction? = nil,
                      testAction: TestAction? = nil,
                      runAction: RunAction? = nil) -> Scheme {
-        return Scheme(name: name,
-                      shared: shared,
-                      buildAction: buildAction,
-                      testAction: testAction,
-                      runAction: runAction)
+        Scheme(name: name,
+               shared: shared,
+               buildAction: buildAction,
+               testAction: testAction,
+               runAction: runAction)
     }
 }
 
@@ -110,12 +110,12 @@ extension TestAction {
                      arguments: Arguments? = nil,
                      config: PresetBuildConfiguration = .debug,
                      coverage: Bool = true) -> TestAction {
-        return TestAction(targets: targets,
-                          arguments: arguments,
-                          config: config,
-                          coverage: coverage,
-                          preActions: [ExecutionAction.test()],
-                          postActions: [ExecutionAction.test()])
+        TestAction(targets: targets,
+                   arguments: arguments,
+                   config: config,
+                   coverage: coverage,
+                   preActions: [ExecutionAction.test()],
+                   postActions: [ExecutionAction.test()])
     }
 }
 
@@ -123,9 +123,9 @@ extension RunAction {
     static func test(config: PresetBuildConfiguration = .debug,
                      executable: TargetReference? = nil,
                      arguments: Arguments? = nil) -> RunAction {
-        return RunAction(config: config,
-                         executable: executable,
-                         arguments: arguments)
+        RunAction(config: config,
+                  executable: executable,
+                  arguments: arguments)
     }
 }
 
@@ -142,7 +142,7 @@ extension ExecutionAction {
 extension Arguments {
     static func test(environment: [String: String] = [:],
                      launch: [String: Bool] = [:]) -> Arguments {
-        return Arguments(environment: environment,
-                         launch: launch)
+        Arguments(environment: environment,
+                  launch: launch)
     }
 }

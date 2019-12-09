@@ -3,7 +3,7 @@ import XcodeProj
 
 extension PBXFileElement {
     var nameOrPath: String {
-        return name ?? path ?? ""
+        name ?? path ?? ""
     }
 }
 

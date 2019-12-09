@@ -65,7 +65,7 @@ class VersionResolver: VersionResolving {
     // MARK: - VersionResolving
 
     func resolve(path: AbsolutePath) throws -> ResolvedVersion {
-        return try resolveTraversing(from: path)
+        try resolveTraversing(from: path)
     }
 
     // MARK: - Fileprivate

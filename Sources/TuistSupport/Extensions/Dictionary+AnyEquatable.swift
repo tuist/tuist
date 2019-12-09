@@ -4,6 +4,6 @@ import Foundation
 
 public extension Dictionary where Value: Any {
     func isEqual(to otherDict: [Key: Any]) -> Bool {
-        return NSDictionary(dictionary: self).isEqual(to: NSDictionary(dictionary: otherDict))
+        NSDictionary(dictionary: self).isEqual(to: NSDictionary(dictionary: otherDict))
     }
 }

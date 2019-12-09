@@ -12,7 +12,7 @@ public class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible 
     public let name: String
 
     /// The description of the node.
-    public var description: String { return name }
+    public var description: String { name }
 
     // MARK: - Init
 
@@ -24,11 +24,11 @@ public class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible 
     // MARK: - Equatable
 
     public static func == (lhs: GraphNode, rhs: GraphNode) -> Bool {
-        return lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
+        lhs.isEqual(to: rhs) && rhs.isEqual(to: lhs)
     }
 
     func isEqual(to otherNode: GraphNode) -> Bool {
-        return path == otherNode.path &&
+        path == otherNode.path &&
             name == otherNode.name
     }
 

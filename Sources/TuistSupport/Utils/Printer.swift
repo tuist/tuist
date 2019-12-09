@@ -14,7 +14,7 @@ extension PrintableString: ExpressibleByStringLiteral {
 
 extension PrintableString: CustomStringConvertible {
     public var description: String {
-        return rawString
+        rawString
     }
 }
 

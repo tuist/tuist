@@ -31,11 +31,11 @@ final class MockGraphManifestLoader: GraphManifestLoading {
     }
 
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        return try loadProjectStub?(path) ?? ProjectDescription.Project.test()
+        try loadProjectStub?(path) ?? ProjectDescription.Project.test()
     }
 
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
-        return try loadWorkspaceStub?(path) ?? ProjectDescription.Workspace.test()
+        try loadWorkspaceStub?(path) ?? ProjectDescription.Workspace.test()
     }
 
     func manifests(at path: AbsolutePath) -> Set<Manifest> {

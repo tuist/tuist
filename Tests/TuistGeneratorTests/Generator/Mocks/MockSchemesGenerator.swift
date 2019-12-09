@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 import TuistCore
 import TuistCoreTesting
 @testable import TuistGenerator

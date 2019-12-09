@@ -23,6 +23,6 @@ final class LibraryMetadataProvider: PrecompiledMetadataProvider, LibraryMetadat
     }
 
     func product(library: LibraryNode) throws -> Product {
-        return try product(libraryPath: library.path)
+        try product(libraryPath: library.path)
     }
 }

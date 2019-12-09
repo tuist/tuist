@@ -13,7 +13,7 @@ extension TemplateString: ExpressibleByStringLiteral {
 
 extension TemplateString: CustomStringConvertible {
     public var description: String {
-        return rawString
+        rawString
     }
 }
 

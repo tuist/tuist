@@ -13,7 +13,7 @@ enum InitCommandError: FatalError, Equatable {
     case nonEmptyDirectory(AbsolutePath)
 
     var type: ErrorType {
-        return .abort
+        .abort
     }
 
     var description: String {
@@ -114,15 +114,15 @@ class InitCommand: NSObject, Command {
     }
 
     fileprivate func appPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
-        return projectsPath(path).appending(component: name)
+        projectsPath(path).appending(component: name)
     }
 
     fileprivate func kitFrameworkPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
-        return projectsPath(path).appending(component: "\(name)Kit")
+        projectsPath(path).appending(component: "\(name)Kit")
     }
 
     fileprivate func supportFrameworkPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
-        return projectsPath(path).appending(component: "\(name)Support")
+        projectsPath(path).appending(component: "\(name)Support")
     }
 
     private func generateProjectsDirectories(name: String, path: AbsolutePath) throws {
@@ -396,7 +396,7 @@ class InitCommand: NSObject, Command {
         """
 
         func testsContent(_ name: String) -> String {
-            return """
+            """
             import Foundation
             import XCTest
             

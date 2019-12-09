@@ -278,6 +278,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
     }
 
     fileprivate class InMemoryFileHandler: FileHandling {
+        
         private enum Node {
             case file
             case folder
@@ -290,7 +291,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func replace(_: AbsolutePath, with _: AbsolutePath) throws {}
 
         func exists(_ path: AbsolutePath) -> Bool {
-            return cache[path] != nil
+            cache[path] != nil
         }
 
         func move(from _: AbsolutePath, to _: AbsolutePath) throws {}
@@ -298,13 +299,21 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func copy(from _: AbsolutePath, to _: AbsolutePath) throws {}
 
         func readTextFile(_: AbsolutePath) throws -> String {
-            return ""
+            ""
+        }
+        
+        func readFile(_ at: AbsolutePath) throws -> Data {
+            return Data()
+        }
+
+        func readPlistFile<T>(_ at: AbsolutePath) throws -> T where T : Decodable {
+            return try JSONDecoder().decode(T.self, from: Data())
         }
 
         func inTemporaryDirectory(_: (AbsolutePath) throws -> Void) throws {}
 
         func glob(_: AbsolutePath, glob _: String) -> [AbsolutePath] {
-            return []
+            []
         }
 
         func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
@@ -328,11 +337,11 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         }
 
         func isFolder(_ path: AbsolutePath) -> Bool {
-            return cache[path] == .folder
+            cache[path] == .folder
         }
 
         func locateDirectoryTraversingParents(from _: AbsolutePath, path _: String) -> AbsolutePath? {
-            return nil
+            nil
         }
 
         func touch(_ path: AbsolutePath) throws {
@@ -342,11 +351,11 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         }
 
         func locateDirectory(_: String, traversingFrom _: AbsolutePath) -> AbsolutePath? {
-            return nil
+            nil
         }
 
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {
-            return []
+            []
         }
     }
 }
@@ -355,18 +364,18 @@ extension WorkspaceStructure.Element {
     static func group(_ name: String,
                       _ path: AbsolutePath,
                       _ contents: [WorkspaceStructure.Element]) -> WorkspaceStructure.Element {
-        return .group(name: name, path: path, contents: contents)
+        .group(name: name, path: path, contents: contents)
     }
 
     static func project(_ path: AbsolutePath) -> WorkspaceStructure.Element {
-        return .project(path: path)
+        .project(path: path)
     }
 
     static func file(_ path: AbsolutePath) -> WorkspaceStructure.Element {
-        return .file(path: path)
+        .file(path: path)
     }
 
     static func folderReference(_ path: AbsolutePath) -> WorkspaceStructure.Element {
-        return .folderReference(path: path)
+        .folderReference(path: path)
     }
 }

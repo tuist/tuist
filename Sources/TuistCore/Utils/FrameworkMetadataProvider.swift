@@ -40,7 +40,7 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
     }
 
     public func dsymPath(framework: FrameworkNode) -> AbsolutePath? {
-        return dsymPath(frameworkPath: framework.path)
+        dsymPath(frameworkPath: framework.path)
     }
 
     public func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
@@ -52,7 +52,7 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
     }
 
     public func bcsymbolmapPaths(framework: FrameworkNode) throws -> [AbsolutePath] {
-        return try bcsymbolmapPaths(frameworkPath: framework.path)
+        try bcsymbolmapPaths(frameworkPath: framework.path)
     }
 
     public func product(frameworkPath: AbsolutePath) throws -> Product {
@@ -66,6 +66,6 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
     }
 
     public func product(framework: FrameworkNode) throws -> Product {
-        return try product(frameworkPath: framework.path)
+        try product(frameworkPath: framework.path)
     }
 }

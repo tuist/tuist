@@ -24,15 +24,15 @@ public struct Path: Codable, ExpressibleByStringLiteral, Equatable {
     }
 
     public static func relativeToCurrentFile(_ pathString: String, callerPath: StaticString = #file) -> Path {
-        return Path(pathString, type: .relativeToCurrentFile, callerPath: "\(callerPath)")
+        Path(pathString, type: .relativeToCurrentFile, callerPath: "\(callerPath)")
     }
 
     public static func relativeToManifest(_ pathString: String) -> Path {
-        return Path(pathString, type: .relativeToManifest)
+        Path(pathString, type: .relativeToManifest)
     }
 
     public static func relativeToRoot(_ pathString: String) -> Path {
-        return Path(pathString, type: .relativeToRoot)
+        Path(pathString, type: .relativeToRoot)
     }
 
     // MARK: - ExpressibleByStringLiteral

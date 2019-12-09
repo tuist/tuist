@@ -31,6 +31,6 @@ class UpCarthage: Up {
     }
 
     public static func == (lhs: UpCarthage, rhs: UpCarthage) -> Bool {
-        return lhs.platforms == rhs.platforms
+        lhs.platforms == rhs.platforms
     }
 }

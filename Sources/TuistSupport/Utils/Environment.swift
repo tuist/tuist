@@ -11,9 +11,6 @@ public protocol Environmenting: AnyObject {
     /// Returns the path to the settings.
     var settingsPath: AbsolutePath { get }
 
-    /// Returns the directory where all the derived projects are generated.
-    var derivedProjectsDirectory: AbsolutePath { get }
-
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
 
@@ -22,6 +19,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the directory where the project description helper modules are cached.
     var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
+
+    /// Returns the directory where the xcframeworks are cached.
+    var xcframeworksCacheDirectory: AbsolutePath { get }
 }
 
 /// Local environment controller.
@@ -60,7 +60,7 @@ public class Environment: Environmenting {
 
     /// Sets up the local environment.
     private func setup() {
-        [directory, versionsDirectory, derivedProjectsDirectory].forEach {
+        [directory, versionsDirectory, cacheDirectory].forEach {
             if !fileHandler.exists($0) {
                 // swiftlint:disable:next force_try
                 try! fileHandler.createFolder($0)
@@ -70,7 +70,7 @@ public class Environment: Environmenting {
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
-        return isStandardOutputInteractive || isColouredOutputEnvironmentTrue
+        isStandardOutputInteractive || isColouredOutputEnvironmentTrue
     }
 
     /// Returns true if the standard output is interactive.
@@ -84,27 +84,35 @@ public class Environment: Environmenting {
 
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
-        return directory.appending(component: "Versions")
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
+            return AbsolutePath(envVariable)
+        } else {
+            return directory.appending(component: "Versions")
+        }
+    }
+
+    /// Returns the directory where the xcframeworks are cached.
+    public var xcframeworksCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "xcframeworks")
     }
 
     /// Returns the directory where the project description helper modules are cached.
     public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
-        return cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+        cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
 
     /// Returns the cache directory
     public var cacheDirectory: AbsolutePath {
-        return directory.appending(component: "Cache")
-    }
-
-    /// Returns the directory where all the derived projects are generated.
-    public var derivedProjectsDirectory: AbsolutePath {
-        return directory.appending(component: "DerivedProjects")
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.cacheDirectory] {
+            return AbsolutePath(envVariable)
+        } else {
+            return directory.appending(component: "Cache")
+        }
     }
 
     /// Settings path.
     public var settingsPath: AbsolutePath {
-        return directory.appending(component: "settings.json")
+        directory.appending(component: "settings.json")
     }
 
     // MARK: - Fileprivate

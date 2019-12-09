@@ -48,7 +48,7 @@ public struct SourceFilesList: Codable, Equatable {
     /// Initializes a sources list with a list of paths.
     /// - Parameter paths: Source paths.
     public static func paths(_ paths: [Path]) -> SourceFilesList {
-        return SourceFilesList(globs: paths.map { SourceFileGlob($0) })
+        SourceFilesList(globs: paths.map { SourceFileGlob($0) })
     }
 
     public init(from decoder: Decoder) throws {

@@ -50,7 +50,7 @@ class UpCustom: Up {
     }
 
     public static func == (lhs: UpCustom, rhs: UpCustom) -> Bool {
-        return lhs.meet == rhs.meet &&
+        lhs.meet == rhs.meet &&
             lhs.isMet == rhs.isMet &&
             lhs.name == rhs.name
     }

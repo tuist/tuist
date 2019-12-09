@@ -36,11 +36,11 @@ final class ResourceLocator: ResourceLocating {
     // MARK: - ResourceLocating
 
     func projectDescription() throws -> AbsolutePath {
-        return try frameworkPath("ProjectDescription")
+        try frameworkPath("ProjectDescription")
     }
 
     func cliPath() throws -> AbsolutePath {
-        return try toolPath("tuist")
+        try toolPath("tuist")
     }
 
     // MARK: - Fileprivate

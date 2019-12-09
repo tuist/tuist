@@ -30,6 +30,5 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func useStaticLibraryCode() {
         let staticFrameworkClass = StaticFrameworkClass()
         print(staticFrameworkClass.hello())
-        print(staticFrameworkClass.packageCode())
     }
 }

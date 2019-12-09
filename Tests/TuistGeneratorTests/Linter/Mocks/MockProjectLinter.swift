@@ -6,6 +6,6 @@ import TuistSupport
 
 class MockProjectLinter: ProjectLinting {
     func lint(_: Project) -> [LintingIssue] {
-        return []
+        []
     }
 }

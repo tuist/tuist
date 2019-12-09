@@ -22,7 +22,7 @@ public class GraphLoaderCache: GraphLoaderCaching {
     /// - Parameter path: Path to the directory where the Podfile is defined.
     /// - Returns: The CocoaPods node if it exists in the cache.
     public func cocoapods(_ path: AbsolutePath) -> CocoaPodsNode? {
-        return cocoapodsNodes[path]
+        cocoapodsNodes[path]
     }
 
     /// Adds a parsed CocoaPods graph node to the cache.
@@ -40,7 +40,7 @@ public class GraphLoaderCache: GraphLoaderCaching {
     /// - Parameter path: Path to the directory where the Podfile is defined.
     /// - Returns: The Package node if it exists in the cache.
     public func package(_ path: AbsolutePath) -> PackageProductNode? {
-        return packageNodes[path]
+        packageNodes[path]
     }
 
     /// Adds a parsed Package graph node to the cache.
@@ -51,7 +51,7 @@ public class GraphLoaderCache: GraphLoaderCaching {
     }
 
     public func tuistConfig(_ path: AbsolutePath) -> TuistConfig? {
-        return tuistConfigs[path]
+        tuistConfigs[path]
     }
 
     public func add(tuistConfig: TuistConfig, path: AbsolutePath) {
@@ -59,7 +59,7 @@ public class GraphLoaderCache: GraphLoaderCaching {
     }
 
     public func project(_ path: AbsolutePath) -> Project? {
-        return projects[path]
+        projects[path]
     }
 
     public func add(project: Project) {
@@ -72,7 +72,7 @@ public class GraphLoaderCache: GraphLoaderCaching {
     }
 
     public func precompiledNode(_ path: AbsolutePath) -> PrecompiledNode? {
-        return precompiledNodes[path]
+        precompiledNodes[path]
     }
 
     public func add(targetNode: TargetNode) {
@@ -83,6 +83,6 @@ public class GraphLoaderCache: GraphLoaderCaching {
     }
 
     public func targetNode(_ path: AbsolutePath, name: String) -> TargetNode? {
-        return targetNodes[path]?[name]
+        targetNodes[path]?[name]
     }
 }

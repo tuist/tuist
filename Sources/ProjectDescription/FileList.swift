@@ -12,7 +12,7 @@ public struct FileList: Codable, Equatable {
     }
 
     public static func == (lhs: FileList, rhs: FileList) -> Bool {
-        return lhs.globs == rhs.globs
+        lhs.globs == rhs.globs
     }
 }
 

@@ -30,7 +30,7 @@ extension Workspace {
                          schemes: schemes,
                          additionalFiles: additionalFiles + files.map { .file(path: $0) })
     }
-
+    
     public func replacing(projects: [AbsolutePath]) -> Workspace {
         return Workspace(path: path,
                          name: name,
@@ -38,7 +38,7 @@ extension Workspace {
                          schemes: schemes,
                          additionalFiles: additionalFiles)
     }
-
+    
     public func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
         return Workspace(path: path,
                          name: name,
@@ -50,6 +50,6 @@ extension Workspace {
     // MARK: - Equatable
 
     public static func == (lhs: Workspace, rhs: Workspace) -> Bool {
-        return lhs.projects == rhs.projects
+        lhs.projects == rhs.projects
     }
 }

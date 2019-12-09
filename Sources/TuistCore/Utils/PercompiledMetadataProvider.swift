@@ -2,18 +2,6 @@ import Basic
 import Foundation
 import TuistSupport
 
-public enum BinaryArchitecture: String {
-    case x8664 = "x86_64"
-    case i386
-    case armv7
-    case armv7s
-    case arm64
-}
-
-public enum BinaryLinking: String {
-    case `static`, dynamic
-}
-
 enum PrecompiledMetadataProviderError: FatalError, Equatable {
     case architecturesNotFound(AbsolutePath)
 
@@ -75,7 +63,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     public init() {}
 
     public func architectures(precompiled: PrecompiledNode) throws -> [BinaryArchitecture] {
-        return try architectures(binaryPath: precompiled.binaryPath)
+        try architectures(binaryPath: precompiled.binaryPath)
     }
 
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
@@ -100,7 +88,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     public func linking(precompiled: PrecompiledNode) throws -> BinaryLinking {
-        return try linking(binaryPath: precompiled.binaryPath)
+        try linking(binaryPath: precompiled.binaryPath)
     }
 
     public func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
@@ -109,7 +97,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     public func uuids(precompiled: PrecompiledNode) throws -> Set<UUID> {
-        return try uuids(binaryPath: precompiled.binaryPath)
+        try uuids(binaryPath: precompiled.binaryPath)
     }
 
     public func uuids(binaryPath: AbsolutePath) throws -> Set<UUID> {

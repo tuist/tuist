@@ -6,6 +6,6 @@ import TuistSupport
 
 class MockGraphLinter: GraphLinting {
     func lint(graph _: Graphing) -> [LintingIssue] {
-        return []
+        []
     }
 }

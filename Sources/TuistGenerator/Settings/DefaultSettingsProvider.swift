@@ -138,7 +138,7 @@ enum BuildSettingsError: FatalError {
 
 extension BuildSettings {
     func toSettings() throws -> [String: SettingValue] {
-        return try mapValues { value in
+        try mapValues { value in
             switch value {
             case let value as String:
                 return .string(value)

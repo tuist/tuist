@@ -151,7 +151,7 @@ extension Package {
     ///     - url: The valid Git URL of the package.
     ///     - version: The minimum version requirement.
     public static func package(url: String, from version: Version) -> Package {
-        return .package(url: url, .upToNextMajor(from: version))
+        .package(url: url, .upToNextMajor(from: version))
     }
 
     /// Add a remote package dependency given a version requirement.
@@ -160,7 +160,7 @@ extension Package {
     ///     - url: The valid Git URL of the package.
     ///     - requirement: A dependency requirement. See static methods on `Package.Dependency.Requirement` for available options.
     public static func package(url: String, _ requirement: Package.Requirement) -> Package {
-        return .remote(url: url, requirement: requirement)
+        .remote(url: url, requirement: requirement)
     }
 
     /// Add a package dependency starting with a specific minimum version, up to
@@ -175,7 +175,7 @@ extension Package {
     ///     - url: The valid Git URL of the package.
     ///     - range: The custom version range requirement.
     public static func package(url: String, _ range: Range<Version>) -> Package {
-        return .remote(url: url, requirement: .range(from: range.lowerBound, to: range.upperBound))
+        .remote(url: url, requirement: .range(from: range.lowerBound, to: range.upperBound))
     }
 
     /// Add a package dependency starting with a specific minimum version, going
@@ -209,7 +209,7 @@ extension Package {
     ///
     /// - Parameter path: The path of the package.
     public static func package(path: Path) -> Package {
-        return .local(path: path)
+        .local(path: path)
     }
 }
 

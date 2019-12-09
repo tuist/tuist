@@ -5,6 +5,6 @@ import TuistSupport
 
 class MockSchemeLinter: SchemeLinting {
     func lint(project _: Project) -> [LintingIssue] {
-        return []
+        []
     }
 }

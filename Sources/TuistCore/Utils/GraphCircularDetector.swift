@@ -8,7 +8,7 @@ struct GraphCircularDetectorNode: Hashable {
 
 extension GraphCircularDetectorNode: CustomDebugStringConvertible {
     var debugDescription: String {
-        return "\(path).\(name)"
+        "\(path).\(name)"
     }
 }
 
@@ -93,11 +93,11 @@ public final class GraphCircularDetector: GraphCircularDetecting {
         }
 
         static func == (lhs: GraphCircularDetector.Node, rhs: GraphCircularDetector.Node) -> Bool {
-            return lhs.element == rhs.element
+            lhs.element == rhs.element
         }
 
         var debugDescription: String {
-            return "\(element.debugDescription)"
+            "\(element.debugDescription)"
         }
     }
 }

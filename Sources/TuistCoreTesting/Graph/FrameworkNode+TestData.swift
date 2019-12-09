@@ -5,6 +5,6 @@ import Foundation
 
 public extension FrameworkNode {
     static func test(path: AbsolutePath = "/Test.framework") -> FrameworkNode {
-        return FrameworkNode(path: path)
+        FrameworkNode(path: path)
     }
 }

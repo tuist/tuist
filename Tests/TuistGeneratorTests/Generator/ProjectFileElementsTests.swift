@@ -637,7 +637,7 @@ private extension PBXGroup {
     /// Would return:
     ///         ["A/B", "A/C/D"]
     var flattenedChildren: [String] {
-        return children.flatMap { (element: PBXFileElement) -> [String] in
+        children.flatMap { (element: PBXFileElement) -> [String] in
             switch element {
             case let group as PBXGroup:
                 return group.flattenedChildren.map { group.nameOrPath + "/" + $0 }
@@ -649,7 +649,7 @@ private extension PBXGroup {
 
     /// Retuns all the child variant groups (recursively)
     var debugVariantGroupPaths: [String] {
-        return children.flatMap { (element: PBXFileElement) -> [String] in
+        children.flatMap { (element: PBXFileElement) -> [String] in
             switch element {
             case let group as PBXVariantGroup:
                 return [group.nameOrPath]

@@ -5,6 +5,6 @@ import TuistSupport
 
 class MockTargetLinter: TargetLinting {
     func lint(target _: Target) -> [LintingIssue] {
-        return []
+        []
     }
 }

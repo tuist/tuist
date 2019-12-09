@@ -19,26 +19,26 @@ public class MockEnvironment: Environmenting {
     public var isStandardOutputInteractive: Bool = false
 
     public var versionsDirectory: AbsolutePath {
-        return directory.path.appending(component: "Versions")
-    }
-
-    public var derivedProjectsDirectory: AbsolutePath {
-        return directory.path.appending(component: "DerivedProjects")
+        directory.path.appending(component: "Versions")
     }
 
     public var settingsPath: AbsolutePath {
-        return directory.path.appending(component: "settings.json")
+        directory.path.appending(component: "settings.json")
     }
 
     public var cacheDirectory: AbsolutePath {
-        return directory.path.appending(component: "Cache")
+        directory.path.appending(component: "Cache")
     }
 
     public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
-        return cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+        cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+    }
+
+    public var xcframeworksCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "xcframeworks")
     }
 
     func path(version: String) -> AbsolutePath {
-        return versionsDirectory.appending(component: version)
+        versionsDirectory.appending(component: version)
     }
 }

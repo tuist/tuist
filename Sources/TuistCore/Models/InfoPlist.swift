@@ -126,6 +126,6 @@ extension InfoPlist.Value: ExpressibleByArrayLiteral {
 
 extension Dictionary where Value == InfoPlist.Value {
     public func unwrappingValues() -> [Key: Any] {
-        return mapValues { $0.value }
+        mapValues { $0.value }
     }
 }

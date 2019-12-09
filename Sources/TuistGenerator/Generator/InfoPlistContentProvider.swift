@@ -58,7 +58,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///
     /// - Returns: Base content.
     func base() -> [String: Any] {
-        return [
+        [
             "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
             "CFBundleExecutable": "$(EXECUTABLE_NAME)",
             "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
@@ -103,7 +103,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///
     /// - Returns: Info.plist content.
     func iosApp() -> [String: Any] {
-        return [
+        [
             "LSRequiresIPhoneOS": true,
             "UILaunchStoryboardName": "LaunchScreen",
             "UIMainStoryboardFile": "Main",
@@ -128,7 +128,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///
     /// - Returns: Info.plist content.
     func macosApp() -> [String: Any] {
-        return [
+        [
             "CFBundleIconFile": "",
             "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
             "NSMainStoryboardFile": "Main",
@@ -140,7 +140,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///
     /// - Returns: Info.plist content.
     func macos() -> [String: Any] {
-        return [
+        [
             "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
         ]
     }

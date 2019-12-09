@@ -6,7 +6,7 @@ public extension XCTestCase {
     // MARK: - Fixtures
 
     func fixturePath(path: RelativePath) -> AbsolutePath {
-        return AbsolutePath(#file)
+        AbsolutePath(#file)
             .appending(RelativePath("../../../../Tests/Fixtures"))
             .appending(path)
     }

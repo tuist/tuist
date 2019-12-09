@@ -233,10 +233,10 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     func anyTarget(dependencies: [Dependency] = []) -> Target {
-        return Target.test(infoPlist: nil,
-                           entitlements: nil,
-                           settings: nil,
-                           dependencies: dependencies)
+        Target.test(infoPlist: nil,
+                    entitlements: nil,
+                    settings: nil,
+                    dependencies: dependencies)
     }
 }
 
@@ -253,6 +253,6 @@ extension XCWorkspaceDataElement: CustomDebugStringConvertible {
 
 extension XCWorkspaceDataGroup: CustomDebugStringConvertible {
     public var debugDescription: String {
-        return children.debugDescription
+        children.debugDescription
     }
 }

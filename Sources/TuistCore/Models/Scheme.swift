@@ -51,7 +51,7 @@ public class Scheme: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: Scheme, rhs: Scheme) -> Bool {
-        return lhs.name == rhs.name &&
+        lhs.name == rhs.name &&
             lhs.shared == rhs.shared &&
             lhs.buildAction == rhs.buildAction &&
             lhs.testAction == rhs.testAction &&
@@ -77,7 +77,7 @@ public class Arguments: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: Arguments, rhs: Arguments) -> Bool {
-        return lhs.environment == rhs.environment &&
+        lhs.environment == rhs.environment &&
             lhs.launch == rhs.launch
     }
 }
@@ -100,7 +100,7 @@ public class ExecutionAction: Equatable {
     }
 
     public static func == (lhs: ExecutionAction, rhs: ExecutionAction) -> Bool {
-        return lhs.title == rhs.title &&
+        lhs.title == rhs.title &&
             lhs.scriptText == rhs.scriptText &&
             lhs.target == rhs.target
     }
@@ -111,9 +111,9 @@ public struct TargetReference: Hashable {
     public var name: String
 
     public static func project(path: AbsolutePath, target: String) -> TargetReference {
-        return .init(projectPath: path, name: target)
+        .init(projectPath: path, name: target)
     }
-    
+
     public init(projectPath: AbsolutePath, name: String) {
         self.projectPath = projectPath
         self.name = name
@@ -140,7 +140,7 @@ public class BuildAction: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: BuildAction, rhs: BuildAction) -> Bool {
-        return lhs.targets == rhs.targets &&
+        lhs.targets == rhs.targets &&
             lhs.preActions == rhs.preActions &&
             lhs.postActions == rhs.postActions
     }
@@ -178,7 +178,7 @@ public class TestAction: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: TestAction, rhs: TestAction) -> Bool {
-        return lhs.targets == rhs.targets &&
+        lhs.targets == rhs.targets &&
             lhs.arguments == rhs.arguments &&
             lhs.configurationName == rhs.configurationName &&
             lhs.coverage == rhs.coverage &&
@@ -222,7 +222,7 @@ public class RunAction: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: RunAction, rhs: RunAction) -> Bool {
-        return lhs.configurationName == rhs.configurationName &&
+        lhs.configurationName == rhs.configurationName &&
             lhs.executable == rhs.executable &&
             lhs.arguments == rhs.arguments
     }
@@ -256,7 +256,7 @@ public class ArchiveAction: Equatable {
     // MARK: - Equatable
 
     public static func == (lhs: ArchiveAction, rhs: ArchiveAction) -> Bool {
-        return lhs.configurationName == rhs.configurationName
+        lhs.configurationName == rhs.configurationName
             && lhs.revealArchiveInOrganizer == rhs.revealArchiveInOrganizer
             && lhs.customArchiveName == rhs.customArchiveName
             && lhs.preActions == rhs.preActions

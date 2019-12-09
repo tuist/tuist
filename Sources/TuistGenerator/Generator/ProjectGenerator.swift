@@ -12,13 +12,13 @@ struct ProjectConstants {
 
 extension ProjectConstants {
     static var xcode10: ProjectConstants {
-        return ProjectConstants(objectVersion: 50,
-                                archiveVersion: Xcode.LastKnown.archiveVersion)
+        ProjectConstants(objectVersion: 50,
+                         archiveVersion: Xcode.LastKnown.archiveVersion)
     }
 
     static var xcode11: ProjectConstants {
-        return ProjectConstants(objectVersion: 52,
-                                archiveVersion: Xcode.LastKnown.archiveVersion)
+        ProjectConstants(objectVersion: 52,
+                         archiveVersion: Xcode.LastKnown.archiveVersion)
     }
 }
 

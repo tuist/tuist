@@ -7,6 +7,6 @@ import TuistSupport
 class MockManifestLinter: ManifestLinting {
     var stubLintProject: [LintingIssue] = []
     func lint(project _: ProjectDescription.Project) -> [LintingIssue] {
-        return stubLintProject
+        stubLintProject
     }
 }

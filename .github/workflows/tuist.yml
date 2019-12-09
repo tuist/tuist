@@ -32,8 +32,8 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+      - name: Select Xcode 11.2.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - name: Generate Xcode project
         run: swift package generate-xcodeproj
       - name: Run tests
@@ -45,8 +45,8 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+      - name: Select Xcode 11.2.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - name: Build Tuist for release
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
@@ -56,8 +56,8 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+      - name: Select Xcode 11.2.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - name: Install Tuist
         run: ./script/install
       - name: Run 'tuist --help'
@@ -69,11 +69,13 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+      - name: Select Xcode 11.2.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
+      - name: Install Bundler 2.0.2
+        run: gem install bundler --version 2.0.2
       - name: Install Bundler dependencies
         run: bundle install
       - name: Run tests
@@ -83,11 +85,13 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.1.app
+      - name: Select Xcode 11.2.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
+      - name: Install Bundler 2.0.2
+        run: gem install bundler --version 2.0.2
       - name: Install Bundler dependencies
         run: bundle install
       - name: Package build and upload it to GCS

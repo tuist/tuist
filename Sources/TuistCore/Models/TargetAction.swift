@@ -89,10 +89,10 @@ public struct TargetAction {
 
 extension Array where Element == TargetAction {
     public var preActions: [TargetAction] {
-        return filter { $0.order == .pre }
+        filter { $0.order == .pre }
     }
 
     public var postActions: [TargetAction] {
-        return filter { $0.order == .post }
+        filter { $0.order == .post }
     }
 }
