@@ -19,18 +19,18 @@ public enum SystemEvent<T> {
     }
 }
 
-// extension SystemEvent: Equatable where T is Equatable {
-//    public static func == (lhs: SystemEvent<T>, rhs: SystemEvent<T>) -> Bool {
-//        switch (lhs, rhs) {
-//        case (.standardOutput(let lhsValue), .standardOutput(let rhsValue)):
-//            return lhsValue == rhsValue
-//        case (.standardError(let lhsValue), .standardError(let rhsValue)):
-//            return lhsValue == rhsValue
-//        default:
-//            return false
-//        }
-//    }
-// }
+extension SystemEvent: Equatable where T: Equatable {
+    public static func == (lhs: SystemEvent<T>, rhs: SystemEvent<T>) -> Bool {
+        switch (lhs, rhs) {
+        case let (.standardOutput(lhsValue), .standardOutput(rhsValue)):
+            return lhsValue == rhsValue
+        case let (.standardError(lhsValue), .standardError(rhsValue)):
+            return lhsValue == rhsValue
+        default:
+            return false
+        }
+    }
+}
 
 extension SystemEvent where T == Data {
     /// Maps the standard output and error from data to string using the utf8 encoding
