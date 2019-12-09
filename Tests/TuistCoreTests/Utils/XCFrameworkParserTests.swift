@@ -12,7 +12,7 @@ final class XCFrameworkParserTests: TuistUnitTestCase {
 
         let architectures = xcFramework.libraries.flatMap { $0.architectures }
         XCTAssertEqual([.x8664, .arm64], architectures)
-        
-        XCTAssertEqual(xcFramework.binaryPath, frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework")) )
+
+        XCTAssertEqual(xcFramework.binaryPath, frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework")))
     }
 }

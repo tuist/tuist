@@ -55,12 +55,12 @@ public class GraphLoader: GraphLoading {
         let workspace = try modelLoader.loadWorkspace(at: path)
 
         let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
-            try (projectPath, self.loadProject(at: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector))
+            try (projectPath, self.loadProject(at: projectPath, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector))
         }
 
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
             try project.1.targets.map { target in
-                try self.loadTarget(name: target.name, path: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
+                try self.loadTarget(name: target.name, path: project.0, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
             }
         }
 

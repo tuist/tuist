@@ -12,10 +12,10 @@ public extension XCFrameworkNode {
                   path: RelativePath("MyFramework.framework"),
                   architectures: [.arm64]),
         ]
-        
+
         let primaryBinaryPath = path.appending(RelativePath("ios-arm64/MyFramework.framework/MyFramework"))
         return XCFrameworkNode(path: path,
-                        libraries: libraries,
-                        primaryBinaryPath: primaryBinaryPath)
+                               libraries: libraries,
+                               primaryBinaryPath: primaryBinaryPath)
     }
 }

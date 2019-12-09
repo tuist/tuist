@@ -278,7 +278,6 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
     }
 
     fileprivate class InMemoryFileHandler: FileHandling {
-        
         private enum Node {
             case file
             case folder
@@ -301,12 +300,12 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func readTextFile(_: AbsolutePath) throws -> String {
             ""
         }
-        
-        func readFile(_ at: AbsolutePath) throws -> Data {
-            return Data()
+
+        func readFile(_: AbsolutePath) throws -> Data {
+            Data()
         }
 
-        func readPlistFile<T>(_ at: AbsolutePath) throws -> T where T : Decodable {
+        func readPlistFile<T>(_: AbsolutePath) throws -> T where T: Decodable {
             return try JSONDecoder().decode(T.self, from: Data())
         }
 
