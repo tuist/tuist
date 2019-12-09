@@ -28,7 +28,7 @@
     "react-helmet": "^5.2.1",
     "react-markdown": "^4.2.2",
     "sass-loader": "^8.0.0",
-    "semantic-ui-react": "^0.88.1",
+    "semantic-ui-react": "^0.88.2",
     "style-loader": "^0.23.1"
   }
 }
