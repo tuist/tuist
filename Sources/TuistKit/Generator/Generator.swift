@@ -3,7 +3,7 @@ import TuistGenerator
 
 extension Generating {
     func generate(at path: AbsolutePath,
-                  manifestLoader: GraphManifestLoading,
+                  manifestLoader: ManifestLoading,
                   projectOnly: Bool) throws -> AbsolutePath {
         if projectOnly {
             return try generateProject(at: path)
@@ -14,14 +14,14 @@ extension Generating {
     }
 
     func generateWorkspace(at path: AbsolutePath,
-                           manifestLoader: GraphManifestLoading) throws -> AbsolutePath {
+                           manifestLoader: ManifestLoading) throws -> AbsolutePath {
         let manifests = manifestLoader.manifests(at: path)
         if manifests.contains(.workspace) {
             return try generateWorkspace(at: path, workspaceFiles: [])
         } else if manifests.contains(.project) {
             return try generateProjectWorkspace(at: path, workspaceFiles: [])
         } else {
-            throw GraphManifestLoaderError.manifestNotFound(path)
+            throw ManifestLoaderError.manifestNotFound(path)
         }
     }
 }

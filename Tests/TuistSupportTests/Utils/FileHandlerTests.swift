@@ -38,10 +38,10 @@ final class FileHandlerTests: TuistUnitTestCase {
         let content = try String(contentsOf: destFile.path.asURL)
         XCTAssertEqual(content, "content")
     }
-    
+
     func test_decode() throws {
         let testPlistPath = fixturePath(path: RelativePath("Test.plist"))
-        let xcFrameworkInfoPlist:TestPlist = try subject.readPlistFile(testPlistPath)
+        let xcFrameworkInfoPlist: TestPlist = try subject.readPlistFile(testPlistPath)
         XCTAssertNotNil(xcFrameworkInfoPlist)
     }
 
@@ -77,20 +77,19 @@ final class FileHandlerTests: TuistUnitTestCase {
 }
 
 private struct TestPlist: Decodable {
-
     enum CodingKeys: CodingKey {
         case platforms
     }
-    
+
     struct Platform: Decodable {
         enum CodingKeys: CodingKey {
             case name
             case supportedLanguages
         }
-        
+
         let name: String
         let supportedLanguages: [String]
     }
-    
+
     let platforms: [Platform]
 }

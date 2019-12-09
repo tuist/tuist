@@ -37,31 +37,6 @@ public class LibraryNode: PrecompiledNode {
             && publicHeaders == otherLibraryNode.publicHeaders
     }
 
-    static func parse(publicHeaders: AbsolutePath,
-                      swiftModuleMap: AbsolutePath?,
-                      path: AbsolutePath,
-                      cache: GraphLoaderCaching) throws -> LibraryNode {
-        if !FileHandler.shared.exists(path) {
-            throw GraphLoadingError.missingFile(path)
-        }
-        if let libraryNode = cache.precompiledNode(path) as? LibraryNode { return libraryNode }
-
-        if !FileHandler.shared.exists(publicHeaders) {
-            throw GraphLoadingError.missingFile(publicHeaders)
-        }
-
-        if let swiftModuleMap = swiftModuleMap {
-            if !FileHandler.shared.exists(swiftModuleMap) {
-                throw GraphLoadingError.missingFile(swiftModuleMap)
-            }
-        }
-        let libraryNode = LibraryNode(path: path,
-                                      publicHeaders: publicHeaders,
-                                      swiftModuleMap: swiftModuleMap)
-        cache.add(precompiledNode: libraryNode)
-        return libraryNode
-    }
-
     public override var binaryPath: AbsolutePath {
         path
     }

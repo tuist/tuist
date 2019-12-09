@@ -116,7 +116,7 @@ final class LinkGenerator: LinkGenerating {
                                             sourceRootPath: AbsolutePath,
                                             path: AbsolutePath,
                                             graph: Graphing,
-                                            linkableModules: [DependencyReference]) throws {
+                                            linkableModules: [GraphDependencyReference]) throws {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
         let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
@@ -151,7 +151,7 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    func generateEmbedPhase(dependencies: [DependencyReference],
+    func generateEmbedPhase(dependencies: [GraphDependencyReference],
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
@@ -168,9 +168,9 @@ final class LinkGenerator: LinkGenerating {
         var precompiledFrameworkPaths: [AbsolutePath] = []
 
         try dependencies.forEach { dependency in
-            if case let DependencyReference.absolute(path) = dependency {
+            if case let GraphDependencyReference.absolute(path) = dependency {
                 precompiledFrameworkPaths.append(path)
-            } else if case let DependencyReference.product(target, _) = dependency {
+            } else if case let GraphDependencyReference.product(target, _) = dependency {
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
@@ -190,10 +190,10 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    func setupFrameworkSearchPath(dependencies: [DependencyReference],
+    func setupFrameworkSearchPath(dependencies: [GraphDependencyReference],
                                   pbxTarget: PBXTarget,
                                   sourceRootPath: AbsolutePath) throws {
-        let paths = dependencies.compactMap { (dependency: DependencyReference) -> AbsolutePath? in
+        let paths = dependencies.compactMap { (dependency: GraphDependencyReference) -> AbsolutePath? in
             if case let .absolute(path) = dependency { return path }
             return nil
         }
@@ -254,7 +254,7 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    func generateLinkingPhase(dependencies: [DependencyReference],
+    func generateLinkingPhase(dependencies: [GraphDependencyReference],
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               fileElements: ProjectFileElements) throws {
@@ -324,7 +324,7 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    private func generateDependenciesBuildPhase(dependencies: [DependencyReference],
+    private func generateDependenciesBuildPhase(dependencies: [GraphDependencyReference],
                                                 pbxTarget: PBXTarget,
                                                 pbxproj: PBXProj,
                                                 fileElements: ProjectFileElements) throws {

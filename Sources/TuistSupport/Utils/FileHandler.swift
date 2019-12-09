@@ -68,7 +68,7 @@ public protocol FileHandling: AnyObject {
     /// - Returns: The content of the file.
     /// - Throws: An error if the file doesn't exist
     func readFile(_ at: AbsolutePath) throws -> Data
-    
+
     /// Reads a text file at the given path and returns it.
     ///
     /// - Parameter at: Path to the text file.
@@ -176,9 +176,9 @@ public class FileHandler: FileHandling {
     }
 
     public func readFile(_ at: AbsolutePath) throws -> Data {
-        return try Data(contentsOf: at.url)
+        try Data(contentsOf: at.url)
     }
-    
+
     public func readTextFile(_ at: AbsolutePath) throws -> String {
         let data = try Data(contentsOf: at.url)
         if let content = String(data: data, encoding: .utf8) {
@@ -187,7 +187,6 @@ public class FileHandler: FileHandling {
             throw FileHandlerError.invalidTextEncoding(at)
         }
     }
-    
 
     public func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T {
         guard let data = fileManager.contents(atPath: at.pathString) else {

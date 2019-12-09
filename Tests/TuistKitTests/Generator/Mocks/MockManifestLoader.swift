@@ -3,7 +3,7 @@ import Foundation
 import ProjectDescription
 @testable import TuistKit
 
-final class MockGraphManifestLoader: GraphManifestLoading {
+final class MockManifestLoader: ManifestLoading {
     var loadProjectCount: UInt = 0
     var loadProjectStub: ((AbsolutePath) throws -> ProjectDescription.Project)?
 

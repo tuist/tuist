@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 import TuistCore
 import TuistSupport
 
@@ -30,7 +30,7 @@ enum ContentHashingError: FatalError, Equatable {
         case let (.fileHashingFailed(lhsPath), .fileHashingFailed(rhsPath)):
             return lhsPath == rhsPath
         case let (.stringHashingFailed(lhsPath), .stringHashingFailed(rhsPath)):
-                return lhsPath == rhsPath
+            return lhsPath == rhsPath
         default:
             return false
         }

@@ -5,7 +5,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class XCFrameworkMetadataProviderTests: XCTestCase {
-
     var subject: XCFrameworkMetadataProvider!
     var frameworkPath: AbsolutePath!
 
@@ -20,7 +19,7 @@ final class XCFrameworkMetadataProviderTests: XCTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_libraries() throws {
         let libraries = try subject.libraries(frameworkPath: frameworkPath)
 

@@ -11,14 +11,14 @@ final class FocusCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
     var opener: MockOpener!
     var generator: MockGenerator!
-    var manifestLoader: MockGraphManifestLoader!
+    var manifestLoader: MockManifestLoader!
 
     override func setUp() {
         super.setUp()
         parser = ArgumentParser.test()
         opener = MockOpener()
         generator = MockGenerator()
-        manifestLoader = MockGraphManifestLoader()
+        manifestLoader = MockManifestLoader()
 
         subject = FocusCommand(parser: parser,
                                generator: generator,

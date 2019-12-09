@@ -23,10 +23,10 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
 }
 
 class GeneratorModelLoader: GeneratorModelLoading {
-    private let manifestLoader: GraphManifestLoading
+    private let manifestLoader: ManifestLoading
     private let manifestLinter: ManifestLinting
 
-    init(manifestLoader: GraphManifestLoading,
+    init(manifestLoader: ManifestLoading,
          manifestLinter: ManifestLinting) {
         self.manifestLoader = manifestLoader
         self.manifestLinter = manifestLinter
@@ -138,7 +138,7 @@ extension TuistCore.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
                      generatorPaths: GeneratorPaths,
-                     manifestLoader: GraphManifestLoading) throws -> TuistCore.Workspace {
+                     manifestLoader: ManifestLoading) throws -> TuistCore.Workspace {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
             let projects = FileHandler.shared.glob(AbsolutePath("/"), glob: String(resolvedPath.pathString.dropFirst()))

@@ -36,9 +36,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateEmbedPhase() throws {
         // Given
-        var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
+        var dependencies: [GraphDependencyReference] = []
+        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/test.framework")))
+        dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -73,8 +73,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
-        var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
+        var dependencies: [GraphDependencyReference] = []
+        dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -91,9 +91,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_setupFrameworkSearchPath() throws {
         let dependencies = [
-            DependencyReference.absolute(AbsolutePath("/Dependencies/A.framework")),
-            DependencyReference.absolute(AbsolutePath("/Dependencies/B.framework")),
-            DependencyReference.absolute(AbsolutePath("/Dependencies/C/C.framework")),
+            GraphDependencyReference.absolute(AbsolutePath("/Dependencies/A.framework")),
+            GraphDependencyReference.absolute(AbsolutePath("/Dependencies/B.framework")),
+            GraphDependencyReference.absolute(AbsolutePath("/Dependencies/C/C.framework")),
         ]
         let sourceRootPath = AbsolutePath("/")
 
@@ -257,9 +257,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func test_generateLinkingPhase() throws {
-        var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
-        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
+        var dependencies: [GraphDependencyReference] = []
+        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/test.framework")))
+        dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -285,8 +285,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func test_generateLinkingPhase_throws_whenFileReferenceIsMissing() throws {
-        var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.absolute(AbsolutePath("/test.framework")))
+        var dependencies: [GraphDependencyReference] = []
+        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/test.framework")))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -300,8 +300,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
-        var dependencies: [DependencyReference] = []
-        dependencies.append(DependencyReference.product(target: "Test", productName: "Test.framework"))
+        var dependencies: [GraphDependencyReference] = []
+        dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -316,7 +316,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateLinkingPhase_sdkNodes() throws {
         // Given
-        let dependencies: [DependencyReference] = [
+        let dependencies: [GraphDependencyReference] = [
             .sdk("/Strong/Foo.framework", .required),
             .sdk("/Weak/Bar.framework", .optional),
         ]

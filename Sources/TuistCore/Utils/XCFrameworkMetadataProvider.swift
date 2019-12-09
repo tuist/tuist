@@ -3,13 +3,11 @@ import Foundation
 import TuistSupport
 
 enum XCFrameworkMetadataProviderError: FatalError, Equatable {
-    
     case missingRequiredFile(AbsolutePath)
     case supportedArchitectureReferencesNotFound(AbsolutePath)
-    
-    
+
     // MARK: - FatalError
-    
+
     var description: String {
         switch self {
         case let .missingRequiredFile(path):
@@ -18,7 +16,7 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
             return "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
         }
     }
-    
+
     var type: ErrorType {
         switch self {
         case .missingRequiredFile, .supportedArchitectureReferencesNotFound:
@@ -28,11 +26,10 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
 }
 
 public protocol XCFrameworkMetadataProviding {
-    
     /// Returns the available libraries for the xcframework at the given path.
     /// - Parameter frameworkPath: Path to the xcframework.
     func libraries(frameworkPath: AbsolutePath) throws -> [XCFrameworkInfoPlist.Library]
-    
+
     /// Given a framework path and libraries it returns the path to its binary.
     /// - Parameter frameworkPath: Framework path.
     /// - Parameter libraries: Framework available libraries
@@ -40,18 +37,17 @@ public protocol XCFrameworkMetadataProviding {
 }
 
 public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
-    
     public func libraries(frameworkPath: AbsolutePath) throws -> [XCFrameworkInfoPlist.Library] {
         let fileHandler = FileHandler.shared
         let infoPlist = frameworkPath.appending(component: "Info.plist")
         guard fileHandler.exists(infoPlist) else {
             throw XCFrameworkMetadataProviderError.missingRequiredFile(infoPlist)
         }
-        
+
         let config: XCFrameworkInfoPlist = try fileHandler.readPlistFile(infoPlist)
         return config.libraries
     }
-    
+
     public func binaryPath(frameworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
         guard let library = libraries.first(where: { !$0.architectures.filter(archs.contains).isEmpty }) else {
@@ -59,10 +55,10 @@ public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
             throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(frameworkPath)
         }
         let binaryName = frameworkPath.basenameWithoutExt
-        let binaryPath =  AbsolutePath(library.identifier, relativeTo: frameworkPath)
+        let binaryPath = AbsolutePath(library.identifier, relativeTo: frameworkPath)
             .appending(RelativePath(library.path.pathString))
             .appending(component: binaryName)
-        
+
         return binaryPath
     }
 }

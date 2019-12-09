@@ -4,7 +4,7 @@ import TuistGenerator
 
 extension DotGraphGenerating {
     func generate(at path: AbsolutePath,
-                  manifestLoader: GraphManifestLoading) throws -> String {
+                  manifestLoader: ManifestLoading) throws -> String {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {
@@ -12,7 +12,7 @@ extension DotGraphGenerating {
         } else if manifests.contains(.project) {
             return try generateProject(at: path)
         } else {
-            throw GraphManifestLoaderError.manifestNotFound(path)
+            throw ManifestLoaderError.manifestNotFound(path)
         }
     }
 }

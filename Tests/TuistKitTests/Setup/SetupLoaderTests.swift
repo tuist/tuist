@@ -8,18 +8,18 @@ import XCTest
 final class SetupLoaderTests: TuistUnitTestCase {
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
-    var graphManifestLoader: MockGraphManifestLoader!
+    var manifestLoader: MockManifestLoader!
 
     override func setUp() {
         super.setUp()
         upLinter = MockUpLinter()
-        graphManifestLoader = MockGraphManifestLoader()
-        subject = SetupLoader(upLinter: upLinter, graphManifestLoader: graphManifestLoader)
+        manifestLoader = MockManifestLoader()
+        subject = SetupLoader(upLinter: upLinter, manifestLoader: manifestLoader)
     }
 
     override func tearDown() {
         upLinter = nil
-        graphManifestLoader = nil
+        manifestLoader = nil
         subject = nil
         super.tearDown()
     }
@@ -28,7 +28,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         // given
         let projectPath = AbsolutePath("/test/test1")
         var receivedPaths = [String]()
-        graphManifestLoader.loadSetupStub = { gotPath in
+        manifestLoader.loadSetupStub = { gotPath in
             receivedPaths.append(gotPath.pathString)
             return []
         }
@@ -49,7 +49,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
-        graphManifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
+        manifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
 
         // when / then
         XCTAssertNoThrow(try subject.meet(at: projectPath))
@@ -66,11 +66,11 @@ final class SetupLoaderTests: TuistUnitTestCase {
     func test_meet_when_loadSetup_throws() {
         // given
         let projectPath = AbsolutePath("/test/test1")
-        graphManifestLoader.loadSetupStub = { _ in throw GraphManifestLoaderError.manifestNotFound(.setup, projectPath) }
+        manifestLoader.loadSetupStub = { _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then
         XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
-                                GraphManifestLoaderError.manifestNotFound(.setup, projectPath))
+                                ManifestLoaderError.manifestNotFound(.setup, projectPath))
     }
 
     func test_meet_when_actions_provided_then_lint_all_before_meet() {
@@ -99,7 +99,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
             }
             return []
         }
-        graphManifestLoader.loadSetupStub = { _ in mockUps }
+        manifestLoader.loadSetupStub = { _ in mockUps }
 
         // when / then
         XCTAssertThrowsSpecific(try subject.meet(at: projectPath),

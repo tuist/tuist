@@ -25,19 +25,4 @@ public class CocoaPodsNode: GraphNode {
         }
         return super.isEqual(to: otherTagetNode)
     }
-
-    /// Reads the CocoaPods node. If it it exists in the cache, it returns it from the cache.
-    /// Otherwise, it initializes it, stores it in the cache, and then returns it.
-    ///
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the Podfile.
-    ///   - cache: Cache instance where the nodes are cached.
-    /// - Returns: The initialized instance of the CocoaPods node.
-    static func read(path: AbsolutePath,
-                     cache: GraphLoaderCaching) -> CocoaPodsNode {
-        if let cached = cache.cocoapods(path) { return cached }
-        let node = CocoaPodsNode(path: path)
-        cache.add(cocoapods: node)
-        return node
-    }
 }

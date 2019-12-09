@@ -139,8 +139,8 @@ final class GraphTests: TuistUnitTestCase {
         let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
-        XCTAssertEqual(result, [DependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
-                                DependencyReference.product(target: "StaticFramework", productName: "StaticFramework.framework")])
+        XCTAssertEqual(result, [GraphDependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+                                GraphDependencyReference.product(target: "StaticFramework", productName: "StaticFramework.framework")])
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
@@ -177,12 +177,12 @@ final class GraphTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appResult, [
-            DependencyReference.product(target: "DynamicFramework1", productName: "DynamicFramework1.framework"),
+            GraphDependencyReference.product(target: "DynamicFramework1", productName: "DynamicFramework1.framework"),
         ])
         XCTAssertEqual(dynamicFramework1Result, [
-            DependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework"),
-            DependencyReference.product(target: "StaticFramework1", productName: "libStaticFramework1.a"),
-            DependencyReference.product(target: "StaticFramework2", productName: "libStaticFramework2.a"),
+            GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework"),
+            GraphDependencyReference.product(target: "StaticFramework1", productName: "libStaticFramework1.a"),
+            GraphDependencyReference.product(target: "StaticFramework2", productName: "libStaticFramework2.a"),
         ])
     }
 
@@ -222,7 +222,7 @@ final class GraphTests: TuistUnitTestCase {
         let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
-        XCTAssertEqual(dynamicFramework1Result, [DependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
+        XCTAssertEqual(dynamicFramework1Result, [GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
     }
 
     func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
@@ -529,7 +529,7 @@ final class GraphTests: TuistUnitTestCase {
         system.succeedCommand([], output: "dynamically linked")
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name)
-        XCTAssertEqual(got.first, DependencyReference.product(target: "Dependency", productName: "Dependency.framework"))
+        XCTAssertEqual(got.first, GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"))
     }
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
@@ -549,7 +549,7 @@ final class GraphTests: TuistUnitTestCase {
 
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
-        XCTAssertEqual(got.first, DependencyReference.absolute(frameworkPath))
+        XCTAssertEqual(got.first, GraphDependencyReference.absolute(frameworkPath))
     }
 
     func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
@@ -580,8 +580,8 @@ final class GraphTests: TuistUnitTestCase {
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         XCTAssertEqual(got, [
-            DependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
-            DependencyReference.absolute(frameworkPath),
+            GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
+            GraphDependencyReference.absolute(frameworkPath),
         ])
     }
 
@@ -655,7 +655,7 @@ final class GraphTests: TuistUnitTestCase {
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        let expected = dependencyNames.sorted().map { DependencyReference.product(target: $0, productName: "\($0).framework") }
+        let expected = dependencyNames.sorted().map { GraphDependencyReference.product(target: $0, productName: "\($0).framework") }
         XCTAssertEqual(got, expected)
     }
 
@@ -914,75 +914,13 @@ final class GraphTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    private func sdkDependency(from dependency: DependencyReference) -> SDKPathAndStatus? {
+    private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
         switch dependency {
         case let .sdk(path, status):
             return SDKPathAndStatus(name: path.basename, status: status)
         default:
             return nil
         }
-    }
-}
-
-final class DependencyReferenceTests: XCTestCase {
-    func test_equal() {
-        let subjects: [(DependencyReference, DependencyReference, Bool)] = [
-            // Absolute
-            (.absolute(.init("/a.framework")), .absolute(.init("/a.framework")), true),
-            (.absolute(.init("/a.framework")), .product(target: "Main", productName: "Main.app"), false),
-            (.absolute(.init("/a.framework")), .sdk(.init("/CoreData.framework"), .required), false),
-
-            // Product
-            (.product(target: "Main", productName: "Main.app"), .product(target: "Main", productName: "Main.app"), true),
-            (.product(target: "Main", productName: "Main.app"), .absolute(.init("/a.framework")), false),
-            (.product(target: "Main", productName: "Main.app"), .sdk(.init("/CoreData.framework"), .required), false),
-            (.product(target: "Main-iOS", productName: "Main.app"), .product(target: "Main-macOS", productName: "Main.app"), false),
-
-            // SDK
-            (.sdk(.init("/CoreData.framework"), .required), .sdk(.init("/CoreData.framework"), .required), true),
-            (.sdk(.init("/CoreData.framework"), .required), .product(target: "Main", productName: "Main.app"), false),
-            (.sdk(.init("/CoreData.framework"), .required), .absolute(.init("/a.framework")), false),
-        ]
-
-        XCTAssertEqualPairs(subjects)
-    }
-
-    func test_compare() {
-        XCTAssertFalse(DependencyReference.absolute("/A") < .absolute("/A"))
-        XCTAssertTrue(DependencyReference.absolute("/A") < .absolute("/B"))
-        XCTAssertFalse(DependencyReference.absolute("/B") < .absolute("/A"))
-
-        XCTAssertFalse(DependencyReference.product(target: "A", productName: "A.framework") < .product(target: "A", productName: "A.framework"))
-        XCTAssertTrue(DependencyReference.product(target: "A", productName: "A.framework") < .product(target: "B", productName: "B.framework"))
-        XCTAssertFalse(DependencyReference.product(target: "B", productName: "B.framework") < .product(target: "A", productName: "A.framework"))
-        XCTAssertTrue(DependencyReference.product(target: "A", productName: "A.app") < .product(target: "A", productName: "A.framework"))
-
-        XCTAssertTrue(DependencyReference.product(target: "/A", productName: "A.framework") < .absolute("/A"))
-        XCTAssertTrue(DependencyReference.product(target: "/A", productName: "A.framework") < .absolute("/B"))
-        XCTAssertTrue(DependencyReference.product(target: "/B", productName: "B.framework") < .absolute("/A"))
-
-        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/A", productName: "A.framework"))
-        XCTAssertFalse(DependencyReference.absolute("/A") < .product(target: "/B", productName: "B.framework"))
-        XCTAssertFalse(DependencyReference.absolute("/B") < .product(target: "/A", productName: "A.framework"))
-    }
-
-    func test_compare_isStable() {
-        // Given
-        let subject: [DependencyReference] = [
-            .absolute("/A"),
-            .absolute("/B"),
-            .product(target: "A", productName: "A.framework"),
-            .product(target: "B", productName: "B.framework"),
-            .sdk("/A.framework", .required),
-            .sdk("/B.framework", .optional),
-        ]
-
-        // When
-        let sorted = (0 ..< 10).map { _ in subject.shuffled().sorted() }
-
-        // Then
-        let unstable = sorted.dropFirst().filter { $0 != sorted.first }
-        XCTAssertTrue(unstable.isEmpty)
     }
 }
 

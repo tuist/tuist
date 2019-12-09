@@ -676,23 +676,23 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    func createGeneratorModelLoader(with manifestLoader: GraphManifestLoading) -> GeneratorModelLoader {
+    func createGeneratorModelLoader(with manifestLoader: ManifestLoading) -> GeneratorModelLoader {
         GeneratorModelLoader(manifestLoader: manifestLoader,
                              manifestLinter: manifestLinter)
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
-                              configs: [AbsolutePath: ProjectDescription.TuistConfig] = [:]) -> GraphManifestLoading {
-        let manifestLoader = MockGraphManifestLoader()
+                              configs: [AbsolutePath: ProjectDescription.TuistConfig] = [:]) -> ManifestLoading {
+        let manifestLoader = MockManifestLoader()
         manifestLoader.loadProjectStub = { path in
             guard let manifest = projects[path] else {
-                throw GraphManifestLoaderError.manifestNotFound(path)
+                throw ManifestLoaderError.manifestNotFound(path)
             }
             return manifest
         }
         manifestLoader.loadTuistConfigStub = { path in
             guard let manifest = configs[path] else {
-                throw GraphManifestLoaderError.manifestNotFound(path)
+                throw ManifestLoaderError.manifestNotFound(path)
             }
             return manifest
         }
@@ -711,11 +711,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     }
 
     func createManifestLoader(with workspaces: [AbsolutePath: ProjectDescription.Workspace],
-                              projects: [AbsolutePath] = []) -> GraphManifestLoading {
-        let manifestLoader = MockGraphManifestLoader()
+                              projects: [AbsolutePath] = []) -> ManifestLoading {
+        let manifestLoader = MockManifestLoader()
         manifestLoader.loadWorkspaceStub = { path in
             guard let manifest = workspaces[path] else {
-                throw GraphManifestLoaderError.manifestNotFound(path)
+                throw ManifestLoaderError.manifestNotFound(path)
             }
             return manifest
         }

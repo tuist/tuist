@@ -13,7 +13,7 @@ class GenerateCommand: NSObject, Command {
     // MARK: - Attributes
 
     private let generator: Generating
-    private let manifestLoader: GraphManifestLoading
+    private let manifestLoader: ManifestLoading
     private let clock: Clock
     let pathArgument: OptionArgument<String>
     let projectOnlyArgument: OptionArgument<Bool>
@@ -22,7 +22,7 @@ class GenerateCommand: NSObject, Command {
 
     required convenience init(parser: ArgumentParser) {
         let resourceLocator = ResourceLocator()
-        let manifestLoader = GraphManifestLoader(resourceLocator: resourceLocator)
+        let manifestLoader = ManifestLoader(resourceLocator: resourceLocator)
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader, manifestLinter: manifestLinter)
         let generator = Generator(modelLoader: modelLoader)
@@ -34,7 +34,7 @@ class GenerateCommand: NSObject, Command {
 
     init(parser: ArgumentParser,
          generator: Generating,
-         manifestLoader: GraphManifestLoading,
+         manifestLoader: ManifestLoading,
          clock: Clock) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.generator = generator
