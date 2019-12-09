@@ -231,7 +231,7 @@ Scenario: The project is an iOS application with watch app (ios_app_with_watchap
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Watch/WatchApp.app'
     Then the product 'WatchApp.app' with destination 'Debug-watchos' contains extension 'WatchAppExtension' 
 
-Scenario: The project is an iOS application with Xcframeworks (ios_app_with_xcframeworks)
+Scenario: The project is an iOS application with xcframeworks (ios_app_with_xcframeworks)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_xcframeworks into the working directory

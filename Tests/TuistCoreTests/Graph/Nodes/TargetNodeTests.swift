@@ -49,12 +49,12 @@ final class TargetNodeTests: XCTestCase {
         XCTAssertNotEqual(c1, d)
     }
 
-    func test_encode() throws {
+    func test_encode() {
         // Given
         let library = LibraryNode.test()
         let framework = FrameworkNode.test()
         let cocoapods = CocoaPodsNode.test()
-        let xcframework = try XCFrameworkNode.test()
+        let xcframework = XCFrameworkNode.test()
         let node = TargetNode(project: .test(path: AbsolutePath("/")),
                               target: .test(name: "Target"),
                               dependencies: [library, framework, cocoapods, xcframework])

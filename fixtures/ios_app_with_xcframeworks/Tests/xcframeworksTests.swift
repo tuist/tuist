@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-@testable import xcframeworks
+@testable import App
 
 final class xcframeworksTests: XCTestCase {
 
