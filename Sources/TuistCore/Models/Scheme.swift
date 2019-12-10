@@ -26,6 +26,24 @@ public class Scheme: Equatable {
         self.runAction = runAction
         self.archiveAction = archiveAction
     }
+    
+    public func targetDependencies() -> [TargetReference] {
+        let targetSources: [[TargetReference]?] = [
+            buildAction?.targets,
+            buildAction?.preActions.compactMap(\.target),
+            buildAction?.postActions.compactMap(\.target),
+            testAction?.targets.map(\.target),
+            testAction?.codeCoverageTargets,
+            testAction?.preActions.compactMap(\.target),
+            testAction?.postActions.compactMap(\.target),
+            runAction?.executable.map { [$0] },
+            archiveAction?.preActions.compactMap(\.target),
+            archiveAction?.postActions.compactMap(\.target)
+        ]
+        
+        let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
+        return targets.sorted { ($0.name < $1.name) }
+    }
 
     // MARK: - Equatable
 
@@ -85,7 +103,7 @@ public class ExecutionAction: Equatable {
     }
 }
 
-public struct TargetReference: Equatable {
+public struct TargetReference: Hashable {
     public var projectPath: AbsolutePath
     public var name: String
 

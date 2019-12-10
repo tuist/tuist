@@ -10,15 +10,15 @@ final class SchemeTests: XCTestCase {
 
     func test_codable() throws {
         // Given
-        let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: "target")]
-        let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: "target")]
+        let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: TargetReference(projectPath: nil, target: "target"))]
+        let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: TargetReference(projectPath: nil, target: "target"))]
 
         let subject = Scheme(name: "scheme",
                              shared: true,
-                             buildAction: BuildAction(targets: ["target"],
+                             buildAction: BuildAction(targets: [.init(projectPath: nil, target: "target")],
                                                       preActions: buildAction,
                                                       postActions: buildAction),
-                             testAction: TestAction(targets: ["target"],
+                             testAction: TestAction(targets: [.init(target: .init(projectPath: nil, target: "target"))],
                                                     arguments: Arguments(environment: ["test": "b"],
                                                                          launch: ["test": true]),
                                                     config: .debug,
@@ -26,7 +26,7 @@ final class SchemeTests: XCTestCase {
                                                     preActions: testAction,
                                                     postActions: testAction),
                              runAction: RunAction(config: .debug,
-                                                  executable: "executable",
+                                                  executable: .init(projectPath: nil, target: "executable"),
                                                   arguments: Arguments(environment: ["run": "b"],
                                                                        launch: ["run": true])))
 
@@ -40,15 +40,15 @@ final class SchemeTests: XCTestCase {
 
     func test_defaultConfigurationNames() throws {
         // Given / When
-        let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: "target")]
-        let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: "target")]
+        let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: .init(projectPath: nil, target: "target"))]
+        let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: .init(projectPath: nil, target: "target"))]
 
         let subject = Scheme(name: "scheme",
                              shared: true,
-                             buildAction: BuildAction(targets: ["target"],
+                             buildAction: BuildAction(targets: [.init(projectPath: nil, target: "target")],
                                                       preActions: buildAction,
                                                       postActions: buildAction),
-                             testAction: TestAction(targets: ["target"],
+                             testAction: TestAction(targets: [.init(target: .init(projectPath: nil, target: "target"))],
                                                     arguments: Arguments(environment: ["test": "b"],
                                                                          launch: ["test": true]),
                                                     config: .debug,
@@ -56,7 +56,7 @@ final class SchemeTests: XCTestCase {
                                                     preActions: testAction,
                                                     postActions: testAction),
                              runAction: RunAction(config: .release,
-                                                  executable: "executable",
+                                                  executable: .init(projectPath: nil, target: "executable"),
                                                   arguments: Arguments(environment: ["run": "b"],
                                                                        launch: ["run": true])))
 

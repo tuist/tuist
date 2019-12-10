@@ -161,8 +161,12 @@ extension TuistCore.Workspace {
                                            generatorPaths: generatorPaths)
         }
 
-        return TuistCore.Workspace(name: manifest.name,
+        let schemes = try manifest.schemes.map { try TuistCore.Scheme.from(manifest: $0, workspacePath: path, generatorPaths: generatorPaths) }
+
+        return TuistCore.Workspace(path: path,
+                                   name: manifest.name,
                                    projects: try manifest.projects.flatMap(globProjects),
+                                   schemes: schemes,
                                    additionalFiles: additionalFiles)
     }
 }
@@ -225,7 +229,7 @@ extension TuistCore.Project {
                                       generatorPaths: generatorPaths)
         }
 
-        let schemes = manifest.schemes.map { TuistCore.Scheme.from(manifest: $0, projectPath: path) }
+        let schemes = try manifest.schemes.map { try TuistCore.Scheme.from(manifest: $0, projectPath: path, generatorPaths: generatorPaths) }
 
         let additionalFiles = try manifest.additionalFiles.flatMap {
             try TuistCore.FileElement.from(manifest: $0,
@@ -570,13 +574,29 @@ extension TuistCore.Dependency {
 }
 
 extension TuistCore.Scheme {
-    static func from(manifest: ProjectDescription.Scheme, projectPath: AbsolutePath) -> TuistCore.Scheme {
+    static func from(manifest: ProjectDescription.Scheme, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
-        let buildAction = manifest.buildAction.map { TuistCore.BuildAction.from(manifest: $0, projectPath: projectPath) }
-        let testAction = manifest.testAction.map { TuistCore.TestAction.from(manifest: $0, projectPath: projectPath) }
-        let runAction = manifest.runAction.map { TuistCore.RunAction.from(manifest: $0, projectPath: projectPath) }
-        let archiveAction = manifest.archiveAction.map { TuistCore.ArchiveAction.from(manifest: $0, projectPath: projectPath) }
+        let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let runAction = try manifest.runAction.map { try TuistCore.RunAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+
+        return Scheme(name: name,
+                      shared: shared,
+                      buildAction: buildAction,
+                      testAction: testAction,
+                      runAction: runAction,
+                      archiveAction: archiveAction)
+    }
+    
+    static func from(manifest: ProjectDescription.Scheme, workspacePath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
+        let name = manifest.name
+        let shared = manifest.shared
+        let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
+        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
+        let runAction = try manifest.runAction.map { try TuistCore.RunAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
+        let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
 
         return Scheme(name: name,
                       shared: shared,
@@ -588,26 +608,29 @@ extension TuistCore.Scheme {
 }
 
 extension TuistCore.BuildAction {
-    static func from(manifest: ProjectDescription.BuildAction, projectPath: AbsolutePath) -> TuistCore.BuildAction {
-        let preActions = manifest.preActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
-        let postActions = manifest.postActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
-        let targets: [TuistCore.TargetReference] = manifest.targets.map {
-            .project(path: projectPath, target: $0)
+    static func from(manifest: ProjectDescription.BuildAction, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.BuildAction {
+        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let targets: [TuistCore.TargetReference] = try manifest.targets.map {
+            .project(path: try resolveProjectPath(projectPath: $0.projectPath, defaultPath: projectPath, generatorPaths: generatorPaths), target: $0.targetName)
         }
         return TuistCore.BuildAction(targets: targets, preActions: preActions, postActions: postActions)
     }
 }
 
 extension TuistCore.TestAction {
-    static func from(manifest: ProjectDescription.TestAction, projectPath: AbsolutePath) -> TuistCore.TestAction {
-        let targets = manifest.targets.map { TuistCore.TestableTarget.from(manifest: $0, projectPath: projectPath) }
+    static func from(manifest: ProjectDescription.TestAction, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.TestAction {
+        let targets = try manifest.targets.map { try TuistCore.TestableTarget.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
         let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
         let configurationName = manifest.configurationName
         let coverage = manifest.coverage
-        let codeCoverageTargets = manifest.codeCoverageTargets.map { TuistCore.TargetReference(projectPath: projectPath, name: $0) }
-        let preActions = manifest.preActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
-        let postActions = manifest.postActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
-
+        let codeCoverageTargets = try manifest.codeCoverageTargets.map { TuistCore.TargetReference(projectPath: try resolveProjectPath(projectPath: $0.projectPath,
+                                                                                                                                       defaultPath: projectPath,
+                                                                                                                                       generatorPaths: generatorPaths),
+                                                                                               name: $0.targetName) }
+        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        
         return TestAction(targets: targets,
                           arguments: arguments,
                           configurationName: configurationName,
@@ -619,22 +642,28 @@ extension TuistCore.TestAction {
 }
 
 extension TuistCore.TestableTarget {
-    static func from(manifest: ProjectDescription.TestableTarget, projectPath: AbsolutePath) -> TuistCore.TestableTarget {
-        TestableTarget(target: TuistCore.TargetReference(projectPath: projectPath, name: manifest.target),
-                       skipped: manifest.isSkipped,
-                       parallelizable: manifest.isParallelizable,
-                       randomExecutionOrdering: manifest.isRandomExecutionOrdering)
+    static func from(manifest: ProjectDescription.TestableTarget, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.TestableTarget {
+        return TestableTarget(target: TuistCore.TargetReference(projectPath: try resolveProjectPath(projectPath: manifest.target.projectPath,
+                                                                                                    defaultPath: projectPath,
+                                                                                                    generatorPaths: generatorPaths),
+                                                                name: manifest.target.targetName),
+                              skipped: manifest.isSkipped,
+                              parallelizable: manifest.isParallelizable,
+                              randomExecutionOrdering: manifest.isRandomExecutionOrdering)
     }
 }
 
 extension TuistCore.RunAction {
-    static func from(manifest: ProjectDescription.RunAction, projectPath: AbsolutePath) -> TuistCore.RunAction {
+    static func from(manifest: ProjectDescription.RunAction, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.RunAction {
         let configurationName = manifest.configurationName
         let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
 
         var executableResolved: TuistCore.TargetReference?
         if let executable = manifest.executable {
-            executableResolved = TargetReference(projectPath: projectPath, name: executable)
+            executableResolved = TargetReference(projectPath: try resolveProjectPath(projectPath: executable.projectPath,
+                                                                                     defaultPath: projectPath,
+                                                                                     generatorPaths: generatorPaths),
+                                                 name: executable.targetName)
         }
 
         return RunAction(configurationName: configurationName,
@@ -644,12 +673,12 @@ extension TuistCore.RunAction {
 }
 
 extension TuistCore.ArchiveAction {
-    static func from(manifest: ProjectDescription.ArchiveAction, projectPath: AbsolutePath) -> TuistCore.ArchiveAction {
+    static func from(manifest: ProjectDescription.ArchiveAction, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.ArchiveAction {
         let configurationName = manifest.configurationName
         let revealArchiveInOrganizer = manifest.revealArchiveInOrganizer
         let customArchiveName = manifest.customArchiveName
-        let preActions = manifest.preActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
-        let postActions = manifest.postActions.map { TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath) }
+        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
 
         return TuistCore.ArchiveAction(configurationName: configurationName,
                                        revealArchiveInOrganizer: revealArchiveInOrganizer,
@@ -661,8 +690,12 @@ extension TuistCore.ArchiveAction {
 
 extension TuistCore.ExecutionAction {
     static func from(manifest: ProjectDescription.ExecutionAction,
-                     projectPath: AbsolutePath) -> TuistCore.ExecutionAction {
-        let targetReference: TuistCore.TargetReference? = manifest.target.map { .project(path: projectPath, target: $0) }
+                     projectPath: AbsolutePath,
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.ExecutionAction {
+        let targetReference: TuistCore.TargetReference? = try manifest.target.map { .project(path: try resolveProjectPath(projectPath: $0.projectPath,
+                                                                                                                  defaultPath: projectPath,
+                                                                                                                  generatorPaths: generatorPaths),
+                                                                                         target: $0.targetName) }
         return ExecutionAction(title: manifest.title, scriptText: manifest.scriptText, target: targetReference)
     }
 }
@@ -753,4 +786,9 @@ extension TuistCore.DeploymentTarget {
             return .macOS(version)
         }
     }
+}
+
+private func resolveProjectPath(projectPath: Path?, defaultPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> AbsolutePath {
+    if let projectPath = projectPath { return try generatorPaths.resolve(path: projectPath) }
+    return defaultPath
 }

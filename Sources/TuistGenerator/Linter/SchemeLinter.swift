@@ -11,6 +11,7 @@ class SchemeLinter: SchemeLinting {
         var issues = [LintingIssue]()
         issues.append(contentsOf: lintReferencedBuildConfigurations(schemes: project.schemes, settings: project.settings))
         issues.append(contentsOf: lintCodeCoverageTargets(schemes: project.schemes, targets: project.targets))
+        issues.append(contentsOf: projectSchemeCantReferenceRemoteTargets(schemes: project.schemes, project: project))
         return issues
     }
 }
@@ -78,5 +79,21 @@ private extension SchemeLinter {
     func missingCodeCoverageTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
         let reason = "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
+    }
+    
+    func projectSchemeCantReferenceRemoteTargets(schemes: [Scheme], project: Project) -> [LintingIssue] {
+        return schemes.flatMap { projectSchemeCantReferenceRemoteTargets(scheme: $0, project: project) }
+    }
+    
+    func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+        
+        scheme.targetDependencies().forEach {
+            if $0.projectPath != project.path {
+                issues.append(.init(reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
+            }
+        }
+        
+        return issues
     }
 }

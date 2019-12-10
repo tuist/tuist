@@ -30,9 +30,9 @@ public struct Scheme: Equatable, Codable {
 public struct ExecutionAction: Equatable, Codable {
     public let title: String
     public let scriptText: String
-    public let target: String?
+    public let target: TargetReference?
 
-    public init(title: String = "Run Script", scriptText: String, target: String? = nil) {
+    public init(title: String = "Run Script", scriptText: String, target: TargetReference? = nil) {
         self.title = title
         self.scriptText = scriptText
         self.target = target
@@ -55,11 +55,11 @@ public struct Arguments: Equatable, Codable {
 // MARK: - BuildAction
 
 public struct BuildAction: Equatable, Codable {
-    public let targets: [String]
+    public let targets: [TargetReference]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
-    public init(targets: [String],
+    public init(targets: [TargetReference],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
@@ -75,7 +75,7 @@ public struct TestAction: Equatable, Codable {
     public let arguments: Arguments?
     public let configurationName: String
     public let coverage: Bool
-    public let codeCoverageTargets: [String]
+    public let codeCoverageTargets: [TargetReference]
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
 
@@ -83,7 +83,7 @@ public struct TestAction: Equatable, Codable {
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
-                codeCoverageTargets: [String] = [],
+                codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.targets = targets
@@ -99,7 +99,7 @@ public struct TestAction: Equatable, Codable {
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,
                 coverage: Bool = false,
-                codeCoverageTargets: [String] = [],
+                codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = []) {
         self.init(targets: targets,
@@ -112,13 +112,13 @@ public struct TestAction: Equatable, Codable {
     }
 }
 
-public struct TestableTarget: Equatable, Hashable, Codable, ExpressibleByStringLiteral {
-    public let target: String
+public struct TestableTarget: Equatable, Codable, ExpressibleByStringLiteral {
+    public let target: TargetReference
     public let isSkipped: Bool
     public let isParallelizable: Bool
     public let isRandomExecutionOrdering: Bool
 
-    public init(target: String, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) {
+    public init(target: TargetReference, skipped: Bool = false, parallelizable: Bool = false, randomExecutionOrdering: Bool = false) {
         self.target = target
         isSkipped = skipped
         isParallelizable = parallelizable
@@ -126,7 +126,7 @@ public struct TestableTarget: Equatable, Hashable, Codable, ExpressibleByStringL
     }
 
     public init(stringLiteral value: String) {
-        self.init(target: value)
+        self.init(target: .init(projectPath: nil, target: value))
     }
 }
 
@@ -134,11 +134,11 @@ public struct TestableTarget: Equatable, Hashable, Codable, ExpressibleByStringL
 
 public struct RunAction: Equatable, Codable {
     public let configurationName: String
-    public let executable: String?
+    public let executable: TargetReference?
     public let arguments: Arguments?
 
     public init(configurationName: String,
-                executable: String? = nil,
+                executable: TargetReference? = nil,
                 arguments: Arguments? = nil) {
         self.configurationName = configurationName
         self.executable = executable
@@ -146,7 +146,7 @@ public struct RunAction: Equatable, Codable {
     }
 
     public init(config: PresetBuildConfiguration = .debug,
-                executable: String? = nil,
+                executable: TargetReference? = nil,
                 arguments: Arguments? = nil) {
         self.init(configurationName: config.name,
                   executable: executable,
@@ -175,5 +175,25 @@ public struct ArchiveAction: Equatable, Codable {
         self.customArchiveName = customArchiveName
         self.preActions = preActions
         self.postActions = postActions
+    }
+}
+
+// MARK: - Target Reference
+
+public struct TargetReference: Equatable, Codable, ExpressibleByStringLiteral {
+    public var projectPath: Path?
+    public var targetName: String
+    
+    public init(projectPath: Path?, target: String) {
+        self.projectPath = projectPath
+        self.targetName = target
+    }
+    
+    public init(stringLiteral value: String) {
+        self = .init(projectPath: nil, target: value)
+    }
+    
+    public static func project(path: Path, target: String) -> TargetReference {
+        return .init(projectPath: path, target: target)
     }
 }
