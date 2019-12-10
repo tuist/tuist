@@ -215,6 +215,30 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: debugConfig, contains: expectedSettings)
         assert(config: releaseConfig, contains: expectedSettings)
     }
+    
+    func test_generateTargetWithNoSettings() throws {
+        // Given
+        let target = Target.test(settings: Settings(base: [:], configurations: [:], defaultSettings: .none))
+        
+        // When
+        try subject.generateTargetConfig(target,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: Settings(base: [:], configurations: [:], defaultSettings: .none),
+                                         fileElements: ProjectFileElements(),
+                                         graph: Graph.test(),
+                                         sourceRootPath: AbsolutePath("/project"))
+        
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+        
+        XCTAssertEqual(debugConfig?.buildSettings.count, 0)
+        XCTAssertEqual(releaseConfig?.buildSettings.count, 0)
+    }
+
+    // MARK: - Helpers
 
     private func generateProjectConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -300,8 +324,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                              graph: graph,
                                              sourceRootPath: dir.path)
     }
-
-    // MARK: - Helpers
+ 
 
     func assert(config: XCBuildConfiguration?,
                 contains settings: [String: String],

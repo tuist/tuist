@@ -154,6 +154,7 @@ final class ConfigGenerator: ConfigGenerating {
                                      target: Target,
                                      graph: Graphing,
                                      sourceRootPath: AbsolutePath) {
+        guard target.settings?.defaultSettings != DefaultSettings.none else { return }
         settings.merge(generalTargetDerivedSettings(target: target, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(testBundleTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
