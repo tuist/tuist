@@ -3,7 +3,9 @@ import ProjectDescription
 let customAppScheme = Scheme(name: "Workspace-App",
                                       shared: true,
                                       buildAction: BuildAction(targets: [.project(path: "App", target: "App")], preActions: []),
-                                      testAction: TestAction(targets: [TestableTarget(target: .project(path: "App", target: "AppTests"))]),
+                                      testAction: TestAction(targets: [TestableTarget(target: .project(path: "App", target: "AppTests"),
+                                                                                              .project(path: "Frameworks/Framework1", target: "Framework1Tests"),
+                                                                                              .project(path: "Frameworks/Framework2", target: "Framework2Tests"))]),
                                       runAction: RunAction(executable: .project(path: "App", target: "App")),
                                       archiveAction: ArchiveAction(configurationName: "Debug", customArchiveName: "Something2"))
 

@@ -28,24 +28,21 @@ public class Scheme: Equatable {
     }
     
     public func targetDependencies() -> [TargetReference] {
-        var targets = [TargetReference?]()
+        let targetSources: [[TargetReference]?] = [
+            buildAction?.targets,
+            buildAction?.preActions.compactMap(\.target),
+            buildAction?.postActions.compactMap(\.target),
+            testAction?.targets.map(\.target),
+            testAction?.codeCoverageTargets,
+            testAction?.preActions.compactMap(\.target),
+            testAction?.postActions.compactMap(\.target),
+            runAction?.executable.map { [$0] },
+            archiveAction?.preActions.compactMap(\.target),
+            archiveAction?.postActions.compactMap(\.target)
+        ]
         
-        self.buildAction?.targets.forEach { targets.append($0) }
-        self.buildAction?.preActions.forEach { targets.append($0.target) }
-        self.buildAction?.postActions.forEach { targets.append($0.target) }
-        self.testAction?.targets.forEach{ targets.append($0.target) }
-        self.testAction?.codeCoverageTargets.forEach{ targets.append($0) }
-        self.testAction?.preActions.forEach { targets.append($0.target) }
-        self.testAction?.postActions.forEach { targets.append($0.target) }
-        targets.append(self.runAction?.executable)
-        self.archiveAction?.preActions.forEach{ targets.append($0.target) }
-        self.archiveAction?.postActions.forEach{ targets.append($0.target) }
-        
-        let allTargets = targets.compactMap{ $0 }.uniqued()
-        
-        return allTargets.sorted { (one: TargetReference, two: TargetReference) -> Bool in
-            return one.name < two.name
-        }
+        let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
+        return targets.sorted { ($0.name < $1.name) }
     }
 
     // MARK: - Equatable

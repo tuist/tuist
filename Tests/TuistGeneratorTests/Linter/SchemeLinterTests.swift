@@ -41,7 +41,7 @@ class SchemeLinterTests: XCTestCase {
     func test_lint_referenceLocalTarget() {
         // Given
         let project = Project.test(schemes: [
-            .init(name: "SchemeDoesExist",
+            .init(name: "SchemeWithTargetThatDoesExist",
                   shared: true,
                   buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project"), name: "Target")]))
         ])
@@ -56,7 +56,7 @@ class SchemeLinterTests: XCTestCase {
     func test_lint_referenceRemoteTargetBuildAction() {
         // Given
         let project = Project.test(schemes: [
-            .init(name: "SchemeDoesNotExist",
+            .init(name: "SchemeWithTargetThatDoesNotExist",
                   shared: true,
                   buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework")]))
         ])
@@ -66,7 +66,7 @@ class SchemeLinterTests: XCTestCase {
         
         // Then
         XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "The target 'Framework' specified in scheme 'SchemeDoesNotExist' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.")
+        XCTAssertEqual(got.first?.reason, "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.")
     }
     
     func test_lint_referenceRemoteTargetTestAction() {
@@ -77,7 +77,7 @@ class SchemeLinterTests: XCTestCase {
         
         let project = Project.test(settings: settings,
                                    schemes: [
-            .init(name: "SchemeDoesNotExist",
+            .init(name: "SchemeWithTargetThatDoesNotExist",
                   shared: true,
                   testAction: .init(targets: [.init(target: .init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework"))], configurationName: "Beta"))
         ])
@@ -87,13 +87,13 @@ class SchemeLinterTests: XCTestCase {
         
         // Then
         XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "The target 'Framework' specified in scheme 'SchemeDoesNotExist' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.")
+        XCTAssertEqual(got.first?.reason, "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.")
     }
     
     func test_lint_referenceRemoteTargetExecutionAction() {
         // Given
         let project = Project.test(schemes: [
-            .init(name: "SchemeDoesNotExist",
+            .init(name: "SchemeWithTargetThatDoesNotExist",
                   shared: true,
                   buildAction: .init(preActions: [.init(title: "Something",
                                                         scriptText: "Script",
@@ -106,6 +106,6 @@ class SchemeLinterTests: XCTestCase {
         
         // Then
         XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "The target 'Target2' specified in scheme 'SchemeDoesNotExist' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.")
+        XCTAssertEqual(got.first?.reason, "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.")
     }
 }

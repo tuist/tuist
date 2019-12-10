@@ -558,11 +558,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let projectPath = AbsolutePath("/somepath")
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
-        let buildAction = BuildActionManifest.test(targets: [.init(projectPath: "Project", target: "A"), .init(projectPath: nil, target: "B")])
+        let buildAction = BuildActionManifest.test(targets: ["A", "B"])
         let runActions = RunActionManifest.test(config: .release,
-                                                executable: .init(projectPath: "Project", target: "A"),
+                                                executable: "A",
                                                 arguments: arguments)
-        let testAction = TestActionManifest.test(targets: [.init(target: .init(projectPath: nil, target: "B"))],
+        let testAction = TestActionManifest.test(targets: ["B"],
                                                  arguments: arguments,
                                                  config: .debug,
                                                  coverage: true)
