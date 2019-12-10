@@ -116,7 +116,7 @@ public final class MockSystem: Systeming {
                 observer.onError(TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed"))
                 return Disposables.create()
             }
-            if stub.exitstatus != 0 {
+            guard stub.exitstatus == 0 else {
                 if let error = stub.stderror {
                     observer.onNext(.standardError(error.data(using: .utf8)!))
                 }
