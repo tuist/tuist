@@ -66,8 +66,7 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
     },
     {
       name: 'Packages',
-      description:
-        "List of Swift Packages used by the project.",
+      description: 'List of Swift Packages used by the project.',
       type: '[Package]',
       typeLink: '#package',
       optional: true,
@@ -75,8 +74,7 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
     },
     {
       name: 'Targets',
-      description:
-        "List of targets within the project.",
+      description: 'List of targets within the project.',
       type: '[Target]',
       typeLink: '#target',
       optional: false,
@@ -182,8 +180,7 @@ Each target in the list of project targets can be initialized with the following
     },
     {
       name: 'Deployment Target',
-      description:
-        'The minimum iOS version your product will support.',
+      description: 'The minimum iOS version your product will support.',
       type: 'DeploymentTarget',
       typeLink: '#deployment-target',
       optional: true,
@@ -200,7 +197,7 @@ Each target in the list of project targets can be initialized with the following
       name: 'Info plist',
       description: 'Relative path to the Info.plist',
       type: 'Path',
-      typeLink: "#path",
+      typeLink: '#path',
       optional: false,
       default: '',
     },
@@ -224,7 +221,7 @@ Each target in the list of project targets can be initialized with the following
       name: 'Entitlements',
       description: 'Path to the entitlement file.',
       type: 'Path',
-      typeLink: "#path",
+      typeLink: '#path',
       optional: true,
       default: 'nil',
     },
@@ -308,13 +305,11 @@ It represents a list of source files that are part of a target:
     },
   ]}
 />
-
 <Message
   info
   title="ExpressibleByStringLiteral and ExpressibleByArrayLiteral"
   description="The list of source files can be initialized with a string that represents the glob pattern, or an array of strings, which represents a list of glob patterns. In both cases the comiler flags will have no value."
 />
-
 <Message
   info
   title="Patterns matching the same paths"
@@ -386,7 +381,7 @@ It represents a list of glob patterns that refer to files:
       name: 'Globs',
       description: 'Glob pattern to the files.',
       type: '[Path]',
-      typeLink: "#path",
+      typeLink: '#path',
       optional: false,
       default: '',
     },
@@ -403,7 +398,7 @@ The `CoreDataModel` type represents a Core Data model:
       name: 'Path',
       description: 'Relative path to the Core Data model.',
       type: 'Path',
-      typeLink: "#path",
+      typeLink: '#path',
       optional: false,
       default: '',
     },
@@ -523,7 +518,6 @@ The `InfoPlist` model represents a target `Info.plist` file. It can have any of 
     },
   ]}
 />
-
 <Message
   info
   title="ExpressibleByStringLiteral"
@@ -558,7 +552,6 @@ It represents the values of the InfoPlist file dictionary. The reason this type 
     },
   ]}
 />
-
 <Message
   info
   title="ExpressiveByLiteral"
@@ -683,13 +676,11 @@ A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyz
     },
   ]}
 />
-
 <Message
   info
   title="Auto-generation of schemes"
   description="Tuist will auto-generate a scheme for each target by default in addition to any defined schemes."
 />
-
 <Message
   info
   title="Schemes & Configurations"
@@ -902,28 +893,25 @@ Testable target descibe target and tests information.
       name: 'Target',
       description: 'The target name and its project path.',
       type: 'TargetReference',
-      optional: false
+      optional: false,
     },
     {
       name: 'Skipped',
-      description:
-        'Skip test target from TestAction.',
+      description: 'Skip test target from TestAction.',
       type: 'Bool',
       optional: true,
       default: 'false',
     },
     {
       name: 'Parallelizable',
-      description:
-        'Execute tests in parallel.',
+      description: 'Execute tests in parallel.',
       type: 'Bool',
       optional: true,
       default: 'false',
     },
     {
       name: 'RandomExecutionOrdering',
-      description:
-        'Execute tests in random order.',
+      description: 'Execute tests in random order.',
       type: 'Bool',
       optional: true,
       default: 'false',
@@ -962,8 +950,7 @@ Arguments contain commandline arguments passed on launch and Environment variabl
   properties={[
     {
       name: 'Configuration Name',
-      description:
-        'Indicates the build configuration to run the archive with.',
+      description: 'Indicates the build configuration to run the archive with.',
       type: 'String',
       optional: false,
       default: '',
@@ -978,8 +965,7 @@ Arguments contain commandline arguments passed on launch and Environment variabl
     },
     {
       name: 'Custom Archive Name',
-      description:
-        "Set if you want to override Xcode's default archive name.",
+      description: "Set if you want to override Xcode's default archive name.",
       type: 'String',
       optional: true,
       default: 'nil',
@@ -1075,7 +1061,6 @@ To specify multiple configurations beyond the default Debug and Release configur
     },
   ]}
 />
-
 <Message
   warning
   title="Custom Configurations"
@@ -1100,7 +1085,7 @@ A `Configuration` object describes the build settings and the `.xcconfig` file o
       name: 'Path',
       description: 'The path to the xcconfig file',
       type: 'Path',
-      typeLink: "#path",
+      typeLink: '#path',
       optional: true,
       default: 'nil',
     },
@@ -1118,8 +1103,7 @@ For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Ono
 <EnumTable
   cases={[
     {
-      case:
-        '.debug(name: String, settings: [String: String], xcconfig: Path?)',
+      case: '.debug(name: String, settings: [String: String], xcconfig: Path?)',
       description: 'A custom debug configuration',
     },
     {
@@ -1191,9 +1175,16 @@ A `DefaultSettings` can be one of the following options:
     },
   ]}
 />
-
-<Message info title="Essential Settings" description="The .essential option can be used in the event all warnings are defined in an `xcconfig` file to prevent Tuist from overriding them at the project or target level."/>
-<Message warning title="None settings" description="Projects may fail to compile if some essential settings are missing. Use .none only if you are specifying all the necessary build settings manually or via xcconfig files."/>
+<Message
+  info
+  title="Essential Settings"
+  description="The .essential option can be used in the event all warnings are defined in an `xcconfig` file to prevent Tuist from overriding them at the project or target level."
+/>
+<Message
+  warning
+  title="None settings"
+  description="Projects may fail to compile if some essential settings are missing. Use .none only if you are specifying all the necessary build settings manually or via xcconfig files."
+/>
 
 ## Deployment Target
 
@@ -1208,8 +1199,7 @@ The `DeploymentTarget` model represents the minimum operating system version you
     },
     {
       case: '.macOS(targetVersion: String)',
-      description:
-        'The minimum macOS version your product will support.',
+      description: 'The minimum macOS version your product will support.',
     },
   ]}
 />
@@ -1222,18 +1212,15 @@ The `DeploymentDevice` model represents the device your product will support. It
   cases={[
     {
       case: '.iphone',
-      description:
-        'An iPhone device.',
+      description: 'An iPhone device.',
     },
     {
       case: '.ipad',
-      description:
-        'An iPad device.',
+      description: 'An iPad device.',
     },
     {
       case: '.mac',
-      description:
-        'A mac device.',
+      description: 'A mac device.',
     },
   ]}
 />
@@ -1291,14 +1278,13 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
       description:
         'List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.',
       type: '[Path]',
-      typeLink: "#path",
+      typeLink: '#path',
       optional: false,
       default: '',
     },
     {
       name: 'Schemes',
-      description:
-        "List of custom schemes to include in the workspace",
+      description: 'List of custom schemes to include in the workspace',
       type: '[Scheme]',
       typeLink: '#scheme',
       optional: true,
@@ -1336,10 +1322,9 @@ A path represents a path to a file, directory, or a group of files represented b
       case: '.relativeToRoot(String)',
       description:
         'Initialize a path that is relative to the closest directory that contains a Tuist or a .git directory.',
-    }
+    },
   ]}
 />
-
 <Message
   info
   title="ExpressibleByStringLiteral"
@@ -1354,8 +1339,7 @@ A target within a specified project. The project is specified through the path a
   properties={[
     {
       name: 'path',
-      description:
-        'Path to the target's project directory.',
+      description: "Path to the target's project directory.",
       type: 'Path',
       typeLink: '#path',
       optional: true,
@@ -1363,10 +1347,9 @@ A target within a specified project. The project is specified through the path a
     },
     {
       name: 'name',
-      description:
-        'Name of the target.',
+      description: 'Name of the target.',
       type: 'String',
       optional: false,
-    }
+    },
   ]}
 />

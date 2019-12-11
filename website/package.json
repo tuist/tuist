@@ -1,7 +1,7 @@
 {
   "name": "tuist-website",
-  "private": true,
   "description": "Tuist website",
+  "private": true,
   "version": "0.1.0",
   "author": "Pedro Piñera <pedro@ppinera.es>",
   "dependencies": {
@@ -44,9 +44,7 @@
     "react-spring": "^8.0.22",
     "react-typography": "^0.16.19",
     "typography": "^0.16.19",
-    "typography-theme-ocean-beach": "^0.16.19"
-  },
-  "devDependencies": {
+    "typography-theme-ocean-beach": "^0.16.19",
     "@emotion/core": "^10.0.22",
     "@mdx-js/react": "^1.5.1",
     "gatsby-plugin-theme-ui": "^0.2.43",
