@@ -88,7 +88,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SPMUtility"]
+            dependencies: ["SPMUtility", "RxSwift", "RxRelay"]
         ),
         .target(
             name: "TuistSupportTesting",
@@ -97,6 +97,10 @@ let package = Package(
         .testTarget(
             name: "TuistSupportTests",
             dependencies: ["TuistSupport", "TuistSupportTesting"]
+        ),
+        .testTarget(
+            name: "TuistSupportIntegrationTests",
+            dependencies: ["TuistSupport", "TuistSupportTesting", "RxBlocking"]
         ),
         .target(
             name: "TuistGenerator",

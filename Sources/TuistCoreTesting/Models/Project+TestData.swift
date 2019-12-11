@@ -3,7 +3,7 @@ import Foundation
 @testable import TuistCore
 
 public extension Project {
-    static func test(path: AbsolutePath = AbsolutePath("/test/"),
+    static func test(path: AbsolutePath = AbsolutePath("/Project"),
                      name: String = "Project",
                      fileName: String? = nil,
                      settings: Settings = Settings.test(),

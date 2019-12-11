@@ -66,7 +66,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
         let got = subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got, [LintingIssue(reason: "The project at path /test has no configurations", severity: .error)])
+        XCTAssertEqual(got, [LintingIssue(reason: "The project at path /Project has no configurations", severity: .error)])
     }
 
     func test_lint_target_when_no_configurations() {

@@ -5,6 +5,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Changed
+
 - Run pipelines with Xcode 11.2.1 on CI @pepibumur.
 
 ### Removed
@@ -25,13 +26,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Replace `Sheme.testAction.targets` type from `String` to `TestableTarget` is a description of target that adds to the `TestAction`, you can specify execution tests parallelizable, random execution order or skip tests https://github.com/tuist/tuist/pull/728 by @rowwingman.
 - Galaxy manifest model https://github.com/tuist/tuist/pull/729 by @pepibumur.
 - Make scheme generation methods more generic https://github.com/tuist/tuist/pull/730 by @adamkhazi @kwridan.
-- Make scheme generation methods more generic by @adamkhazi @kwridan.
+- Workspace Schemes https://github.com/tuist/tuist/pull/752 by @adamkhazi @kwridan.
 - `SimulatorController` with method to fetch the runtimes https://github.com/tuist/tuist/pull/746 by @pepibumur.
 - Add RxSwift as a dependency of `TuistKit` https://github.com/tuist/tuist/pull/760 by @pepibumur.
 - Add cache command https://github.com/tuist/tuist/pull/762 by @pepibumur.
 - Utility to build xcframeworks https://github.com/tuist/tuist/pull/759 by @pepibumur.
 - Add `CacheStoraging` protocol and a implementation for a local cache https://github.com/tuist/tuist/pull/763 by @pepibumur.
 - Add support for changing the cache and versions directory using environment variables https://github.com/tuist/tuist/pull/765 by @pepibumur.
+- Reactive interface to the System utility https://github.com/tuist/tuist/pull/770 by @pepibumur
+- Workflow to make sure that documentation and website build https://github.com/tuist/tuist/pull/783 by @pepibumur.
 - Support for `xcframework`  https://github.com/tuist/tuist/pull/769 by @lakpa
 
 ### Fixed

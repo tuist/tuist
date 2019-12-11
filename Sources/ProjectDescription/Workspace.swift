@@ -8,6 +8,9 @@ public struct Workspace: Codable, Equatable {
 
     /// List of project relative paths (or glob patterns) to generate and include
     public let projects: [Path]
+    
+    /// List of custom schemes
+    public let schemes: [Scheme]
 
     /// List of files to include in the workspace (e.g. Documentation)
     public let additionalFiles: [FileElement]
@@ -20,9 +23,10 @@ public struct Workspace: Codable, Equatable {
     ///   - name: Name of the workspace.
     ///   - projects: List of project relative paths (or glob patterns) to generate and include.
     ///   - additionalFiles: List of files to include in the workspace (e.g. Documentation)
-    public init(name: String, projects: [Path], additionalFiles: [FileElement] = []) {
+    public init(name: String, projects: [Path], schemes: [Scheme] = [], additionalFiles: [FileElement] = []) {
         self.name = name
         self.projects = projects
+        self.schemes = schemes
         self.additionalFiles = additionalFiles
         dumpIfNeeded(self)
     }

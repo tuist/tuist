@@ -155,8 +155,8 @@ module.exports = {
                 }
               }
             `,
-            output: '/feed.xml',
             title: "Tuist's Blog RSS Feed",
+            output: '/feed.xml',
           },
         ],
       },

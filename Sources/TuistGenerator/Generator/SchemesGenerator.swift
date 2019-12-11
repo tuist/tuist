@@ -6,6 +6,19 @@ import XcodeProj
 
 /// Protocol that defines the interface of the schemes generation.
 protocol SchemesGenerating {
+    /// Generates the schemes for the workspace targets.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - xcworkspacePath: Path to the workspace.
+    ///   - generatedProject: Generated Xcode project.
+    ///   - graph: Tuist graph.
+    /// - Throws: A FatalError if the generation of the schemes fails.
+    func generateWorkspaceSchemes(workspace: Workspace,
+                                  xcworkspacePath: AbsolutePath,
+                                  generatedProjects: [AbsolutePath: GeneratedProject],
+                                  graph: Graphing) throws
+    
     /// Generates the schemes for the project targets.
     ///
     /// - Parameters:
@@ -18,16 +31,46 @@ protocol SchemesGenerating {
                                 xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
                                 graph: Graphing) throws
+    
+    /// Wipes shared and user schemes at a workspace or project path. This is needed
+    /// currently to support the workspace scheme generation case where a workspace that
+    /// already exists on disk is being regenerated. Wiping the schemes directory prevents
+    /// older custom schemes from persisting after regeneration.
+    ///
+    /// - Parameter at: Path to the workspace or project.
+    func wipeSchemes(at: AbsolutePath) throws
 }
 
 // swiftlint:disable:next type_body_length
 final class SchemesGenerator: SchemesGenerating {
+    
     /// Default last upgrade version for generated schemes.
     private static let defaultLastUpgradeVersion = "1010"
 
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
-
+    
+    /// Generates the schemes for the workspace targets.
+    ///
+    /// - Parameters:
+    ///   - workspace: Workspace model.
+    ///   - xcworkspacePath: Path to the workspace.
+    ///   - generatedProject: Generated Xcode project.
+    ///   - graph: Tuist graph.
+    /// - Throws: A FatalError if the generation of the schemes fails.
+    func generateWorkspaceSchemes(workspace: Workspace,
+                                  xcworkspacePath: AbsolutePath,
+                                  generatedProjects: [AbsolutePath: GeneratedProject],
+                                  graph: Graphing) throws {
+        try workspace.schemes.forEach { scheme in
+            try generateScheme(scheme: scheme,
+                               xcPath: xcworkspacePath,
+                               path: workspace.path,
+                               graph: graph,
+                               generatedProjects: generatedProjects)
+        }
+    }
+    
     /// Generate schemes for a project.
     ///
     /// - Parameters:
@@ -61,7 +104,21 @@ final class SchemesGenerator: SchemesGenerating {
                                generatedProjects: [project.path: generatedProject])
         }
     }
-
+    
+    /// Wipes shared and user schemes at a workspace or project path. This is needed
+    /// currently to support the workspace scheme generation case where a workspace that
+    /// already exists on disk is being regenerated. Wiping the schemes directory prevents
+    /// older custom schemes from persisting after regeneration.
+    ///
+    /// - Parameter at: Path to the workspace or project.
+    func wipeSchemes(at path: AbsolutePath) throws {
+        let fileHandler = FileHandler.shared
+        let userPath = schemeDirectory(path: path, shared: false)
+        let sharedPath = schemeDirectory(path: path, shared: true)
+        if fileHandler.exists(userPath) { try fileHandler.delete(userPath) }
+        if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
+    }
+    
     private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String) -> Scheme {
         let targetReference = TargetReference.project(path: project.path, target: target.name)
         let testTargets = target.product.testsBundle ? [TestableTarget(target: targetReference)] : []
@@ -491,19 +548,22 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Returns: Path to the schemes directory.
     /// - Throws: A FatalError if the creation of the directory fails.
     private func createSchemesDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
-        let schemePath: AbsolutePath
-        if shared {
-            schemePath = path.appending(RelativePath("xcshareddata/xcschemes"))
-        } else {
-            let username = NSUserName()
-            schemePath = path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
-        }
+        let schemePath = schemeDirectory(path: path, shared: shared)
         if !FileHandler.shared.exists(schemePath) {
             try FileHandler.shared.createFolder(schemePath)
         }
         return schemePath
     }
-
+    
+    private func schemeDirectory(path: AbsolutePath, shared: Bool = true) -> AbsolutePath {
+        if shared {
+            return path.appending(RelativePath("xcshareddata/xcschemes"))
+        } else {
+            let username = NSUserName()
+            return path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
+        }
+    }
+    
     /// Returns the scheme commandline argument passed on launch
     ///
     /// - Parameters:

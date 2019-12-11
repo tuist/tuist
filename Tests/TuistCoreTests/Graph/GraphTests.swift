@@ -875,6 +875,18 @@ final class GraphTests: TuistUnitTestCase {
         let expected = """
         [
             {
+              "product" : "\(target.target.product.rawValue)",
+              "bundle_id" : "\(target.target.bundleId)",
+              "platform" : "\(target.target.platform.rawValue)",
+              "path" : "\(target.path)",
+              "dependencies" : [
+                "xpm",
+                "libStaticLibrary"
+              ],
+              "name" : "Target",
+              "type" : "source"
+            },
+            {
               "path" : "\(library.path)",
               "architectures" : [
                 "x86_64"
@@ -892,18 +904,6 @@ final class GraphTests: TuistUnitTestCase {
               "product" : "framework",
               "name" : "\(framework.name)",
               "type" : "precompiled"
-            },
-            {
-              "product" : "\(target.target.product.rawValue)",
-              "bundle_id" : "\(target.target.bundleId)",
-              "platform" : "\(target.target.platform.rawValue)",
-              "path" : "\(target.path)",
-              "dependencies" : [
-                "xpm",
-                "libStaticLibrary"
-              ],
-              "name" : "Target",
-              "type" : "source"
             }
         ]
         """

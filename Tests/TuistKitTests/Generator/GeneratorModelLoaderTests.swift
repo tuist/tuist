@@ -540,12 +540,13 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = SchemeManifest.test(name: "Scheme",
                                            shared: false)
         let projectPath = AbsolutePath("/somepath/Project")
+        let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
         // When
-        let model = TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath)
+        let model = try TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath, generatorPaths: generatorPaths)
 
         // Then
-        assert(scheme: model, matches: manifest, path: projectPath)
+        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
 
     func test_scheme_withActions() throws {
@@ -553,6 +554,10 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let arguments = ArgumentsManifest.test(environment: ["FOO": "BAR", "FIZ": "BUZZ"],
                                                launch: ["--help": true,
                                                         "subcommand": false])
+        
+        let projectPath = AbsolutePath("/somepath")
+        let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
+
         let buildAction = BuildActionManifest.test(targets: ["A", "B"])
         let runActions = RunActionManifest.test(config: .release,
                                                 executable: "A",
@@ -566,14 +571,12 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                            buildAction: buildAction,
                                            testAction: testAction,
                                            runAction: runActions)
-
-        let projectPath = AbsolutePath("/somepath/Project")
-
+        
         // When
-        let model = TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath)
+        let model = try TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath, generatorPaths: generatorPaths)
 
         // Then
-        assert(scheme: model, matches: manifest, path: projectPath)
+        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
 
     func test_generatorModelLoaderError_type() {
@@ -739,7 +742,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         XCTAssertEqual(target.entitlements, try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }, file: file, line: line)
         XCTAssertEqual(target.environment, manifest.environment, file: file, line: line)
         try assert(coreDataModels: target.coreDataModels, matches: manifest.coreDataModels, at: path, generatorPaths: generatorPaths, file: file, line: line)
-        optionalAssert(target.settings, manifest.settings, file: file, line: line) {
+        try optionalAssert(target.settings, manifest.settings, file: file, line: line) {
             assert(settings: $0, matches: $1, at: path, generatorPaths: generatorPaths, file: file, line: line)
         }
     }
@@ -797,55 +800,69 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
     func assert(scheme: TuistCore.Scheme,
                 matches manifest: ProjectDescription.Scheme,
                 path: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) {
+                line: UInt = #line) throws {
         XCTAssertEqual(scheme.name, manifest.name, file: file, line: line)
         XCTAssertEqual(scheme.shared, manifest.shared, file: file, line: line)
-        optionalAssert(scheme.buildAction, manifest.buildAction) {
-            assert(buildAction: $0, matches: $1, path: path, file: file, line: line)
+        try optionalAssert(scheme.buildAction, manifest.buildAction) {
+            try assert(buildAction: $0, matches: $1, path: path, generatorPaths: generatorPaths, file: file, line: line)
         }
 
-        optionalAssert(scheme.testAction, manifest.testAction) {
-            assert(testAction: $0, matches: $1, path: path, file: file, line: line)
+        try optionalAssert(scheme.testAction, manifest.testAction) {
+            try assert(testAction: $0, matches: $1, path: path, generatorPaths: generatorPaths, file: file, line: line)
         }
 
-        optionalAssert(scheme.runAction, manifest.runAction) {
-            assert(runAction: $0, matches: $1, file: file, line: line)
+        try optionalAssert(scheme.runAction, manifest.runAction) {
+            try assert(runAction: $0, matches: $1, path: path, generatorPaths: generatorPaths, file: file, line: line)
         }
     }
 
     func assert(buildAction: TuistCore.BuildAction,
                 matches manifest: ProjectDescription.BuildAction,
                 path: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) {
-        XCTAssertEqual(buildAction.targets, manifest.targets.map { TargetReference(projectPath: path, name: $0) }, file: file, line: line)
+                line: UInt = #line) throws {
+        let convertedTargets: [TuistCore.TargetReference] = try manifest.targets.map {
+            let resolvedPath = try resolveProjectPath(projectPath: $0.projectPath,
+                                                      defaultPath: path,
+                                                      generatorPaths: generatorPaths)
+            return .init(projectPath: resolvedPath, name: $0.targetName)
+        }
+        XCTAssertEqual(buildAction.targets, convertedTargets, file: file, line: line)
     }
 
     func assert(testAction: TuistCore.TestAction,
                 matches manifest: ProjectDescription.TestAction,
                 path: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) {
-        let targets = manifest.targets.map { TestableTarget.from(manifest: $0, projectPath: path) }
+                line: UInt = #line) throws {
+
+        let targets = try manifest.targets.map { try TestableTarget.from(manifest: $0, projectPath: path, generatorPaths: generatorPaths) }
         XCTAssertEqual(testAction.targets, targets, file: file, line: line)
         XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
         XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)
-        optionalAssert(testAction.arguments, manifest.arguments) {
+        try optionalAssert(testAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
         }
     }
 
     func assert(runAction: TuistCore.RunAction,
                 matches manifest: ProjectDescription.RunAction,
+                path: AbsolutePath,
+                generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) {
-        var runActionExecutable: String?
-        if let executable = runAction.executable { runActionExecutable = executable.name }
-
-        XCTAssertEqual(runActionExecutable, manifest.executable, file: file, line: line)
+                line: UInt = #line) throws {
+        XCTAssertEqual(runAction.executable?.name, manifest.executable?.targetName)
+        XCTAssertEqual(runAction.executable?.projectPath, try resolveProjectPath(projectPath: manifest.executable?.projectPath,
+                                                                                 defaultPath: path,
+                                                                                 generatorPaths: generatorPaths),
+                       file: file,
+                       line: line)
         XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
-        optionalAssert(runAction.arguments, manifest.arguments) {
+        try optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)
         }
     }
@@ -862,15 +879,20 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                               _ optionalB: B?,
                               file: StaticString = #file,
                               line: UInt = #line,
-                              compare: (A, B) -> Void) {
+                              compare: (A, B) throws -> Void) throws {
         switch (optionalA, optionalB) {
         case let (a?, b?):
-            compare(a, b)
+            try compare(a, b)
         case (nil, nil):
             break
         default:
             XCTFail("mismatch of optionals", file: file, line: line)
         }
+    }
+    
+    private func resolveProjectPath(projectPath: Path?, defaultPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> AbsolutePath {
+        if let projectPath = projectPath { return try generatorPaths.resolve(path: projectPath) }
+        return defaultPath
     }
 }
 

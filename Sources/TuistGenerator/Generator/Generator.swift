@@ -73,9 +73,11 @@ public class Generator: Generating {
         let environmentLinter = EnvironmentLinter()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
         let cocoapodsInteractor = CocoaPodsInteractor()
+        let schemesGenerator = SchemesGenerator()
         let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
-                                                    cocoapodsInteractor: cocoapodsInteractor)
+                                                    cocoapodsInteractor: cocoapodsInteractor,
+                                                    schemesGenerator: schemesGenerator)
         self.init(graphLoader: graphLoader,
                   graphLinter: graphLinter,
                   workspaceGenerator: workspaceGenerator,
@@ -123,7 +125,8 @@ public class Generator: Generating {
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
-        let workspace = Workspace(name: project.name,
+        let workspace = Workspace(path: path,
+                                  name: project.name,
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
 

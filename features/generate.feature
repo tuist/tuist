@@ -1,7 +1,7 @@
 Feature: Generate a new project using Tuist
 
   Scenario: The project is an iOS application with tests (ios_app_with_tests)
-    Given that tuist is available 
+    Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_tests into the working directory
     Then tuist generates the project
@@ -150,6 +150,10 @@ Scenario: The project is an iOS application that has resources (ios_app_with_cus
     Then I should be able to test for iOS the scheme Framework1Tests
     Then I should be able to build for iOS the scheme Framework2
     Then I should be able to test for iOS the scheme Framework2Tests
+    Then I should be able to build for iOS the scheme Workspace-App
+    Then I should be able to test for iOS the scheme Workspace-App
+    Then I should be able to build for iOS the scheme Workspace-Framework
+    Then I should be able to test for iOS the scheme Workspace-Framework
 
 Scenario: The project is an iOS application with local Swift package (ios_app_with_local_swift_package)
   Given that tuist is available
@@ -202,7 +206,7 @@ Scenario: The project is an iOS application with remote Swift package (ios_app_w
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme AppTests
-    
+
 Scenario: The project is an iOS application with Carthage frameworks (ios_app_with_carthage_frameworks)
     Given that tuist is available
     And I have a working directory
@@ -219,8 +223,8 @@ Scenario: The project is an iOS application with extensions (ios_app_with_extens
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'StickersPackExtension'
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension' 
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension' 
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension'
 
 Scenario: The project is an iOS application with watch app (ios_app_with_watchapp2)
     Given that tuist is available
@@ -238,3 +242,4 @@ Scenario: The project is an iOS application with xcframeworks (ios_app_with_xcfr
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'MyFramework' with architecture 'arm64'
+

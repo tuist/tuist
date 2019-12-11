@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Introducing Tuist"
+title: 'Introducing Tuist'
 date: 2018-09-05
 categories: [introduction, tuist]
 excerpt: Tuist was oficially released. Read more on this blog post about what motivated us to build Tuist and how it can help you scale your Xcode projects.
