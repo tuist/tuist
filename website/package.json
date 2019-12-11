@@ -1,7 +1,7 @@
 {
   "name": "tuist-website",
-  "private": true,
   "description": "Tuist website",
+  "private": true,
   "version": "0.1.0",
   "author": "Pedro Piñera <pedro@ppinera.es>",
   "dependencies": {
