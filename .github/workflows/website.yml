@@ -1,0 +1,26 @@
+name: Website
+
+on:
+  push:
+    paths:
+      - website/**/*
+  pull_request:
+    paths:
+      - website/**/*
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Set Node.js
+        uses: actions/setup-node@master
+        with:
+          node-version: 12.x
+      - name: Install dependencies
+        working-directory: ./website
+        run: yarn install --prod --pure-lockfile
+      - name: Build
+        working-directory: ./website
+        run: yarn build
