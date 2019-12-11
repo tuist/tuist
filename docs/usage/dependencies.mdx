@@ -10,7 +10,7 @@ import Message from '../components/message'
 
 Imagine a modular app made of 8 projects, with at least two targets each of them \(to compile the framework/library and run the tests\), with dependencies between them. That's a very common setup in large projects, especially if you need to reuse code across different targets. With 16 targets to set up, **there's much knowledge that the developers need to keep in mind to do things the right way**. Who is depending on this target? Where do I need to embed this dynamic framework? Which build settings should I update to make the public interface of the library available?
 
-Fortunately, **Tuist takes care of all that work for you**. It allows you to define dependencies and it uses that knowledge to set up the targets with the right build phases and build settings.  
+Fortunately, **Tuist takes care of all that work for you**. It allows you to define dependencies and it uses that knowledge to set up the targets with the right build phases and build settings.
 If you noticed when we first introduced the manifest file, there isn't any public model for defining linking build phases. We made that on purpose because **we'd like to figure out all those things for you**.
 
 ## Defining dependencies
@@ -112,6 +112,14 @@ Tuist looks up CocoaPods using Bundler. If it's not defined, it falls back to th
   title="Podfile validation"
   description="Tuist does not parse the CocoaPods dependency graph nor runs any validation. It's the user responsibility ensure the right format of the 'Podfile'."
 />
+
+## XCFramework dependencies
+
+```swift
+.xcFramework(path: "Frameworks/Alamofire.xcframework")
+```
+
+It defines a dependency with a pre-compiled xcframework.
 
 ---
 

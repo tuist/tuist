@@ -54,4 +54,12 @@ final class TargetDependencyTests: XCTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+    
+    func test_xcframework_codable() {
+        // Given
+        let subject = TargetDependency.xcFramework(path: "/path/framework.xcframework")
+        
+        // Then
+        XCTAssertCodable(subject)
+    }
 }

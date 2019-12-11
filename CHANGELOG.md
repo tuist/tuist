@@ -33,9 +33,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Utility to build xcframeworks https://github.com/tuist/tuist/pull/759 by @pepibumur.
 - Add `CacheStoraging` protocol and a implementation for a local cache https://github.com/tuist/tuist/pull/763 by @pepibumur.
 - Add support for changing the cache and versions directory using environment variables https://github.com/tuist/tuist/pull/765 by @pepibumur.
-- Add `XCFrameworkNode`, respective parser and metadata provider to facilitate supporting xcframework dependency type https://github.com/tuist/tuist/pull/757 by @lakpa
 - Reactive interface to the System utility https://github.com/tuist/tuist/pull/770 by @pepibumur
 - Workflow to make sure that documentation and website build https://github.com/tuist/tuist/pull/783 by @pepibumur.
+- Support for `xcframework`  https://github.com/tuist/tuist/pull/769 by @lakpa
 
 ### Fixed
 

@@ -51,7 +51,6 @@ public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
     public func binaryPath(frameworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
         guard let library = libraries.first(where: { !$0.architectures.filter(archs.contains).isEmpty }) else {
-            let infoPlist = frameworkPath.appending(component: "Info.plist")
             throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(frameworkPath)
         }
         let binaryName = frameworkPath.basenameWithoutExt

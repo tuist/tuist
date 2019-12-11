@@ -187,6 +187,10 @@ public class GraphLoader: GraphLoading {
                                        swiftModuleMap: swiftModuleMap,
                                        libraryPath: libraryPath,
                                        graphLoaderCache: graphLoaderCache)
+        // XCFramework
+        case let .xcFramework(frameworkPath):
+            return try loadXCFrameworkNode(path: frameworkPath, graphLoaderCache: graphLoaderCache)
+            
         // System SDK
         case let .sdk(name, status):
             return try SDKNode(name: name, platform: platform, status: status)
@@ -259,5 +263,17 @@ public class GraphLoader: GraphLoading {
         let node = CocoaPodsNode(path: path)
         graphLoaderCache.add(cocoapods: node)
         return node
+    }
+    
+    /// Loads the XCFramework node. If it it exists in the cache, it returns it from the cache.
+    /// Otherwise, it initializes it, stores it in the cache, and then returns it.
+    ///
+    /// - Parameters:
+    ///   - xcframeworkPath: Path to the .xcframework.
+    ///   - graphLoaderCache: Graph loader cache.
+    fileprivate func loadXCFrameworkNode(
+        path: AbsolutePath,
+        graphLoaderCache: GraphLoaderCaching) throws -> XCFrameworkNode {
+        return try XCFrameworkParser.parse(path: path, cache: graphLoaderCache)
     }
 }

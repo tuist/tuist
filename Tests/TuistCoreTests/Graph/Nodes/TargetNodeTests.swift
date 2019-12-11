@@ -54,9 +54,10 @@ final class TargetNodeTests: XCTestCase {
         let library = LibraryNode.test()
         let framework = FrameworkNode.test()
         let cocoapods = CocoaPodsNode.test()
+        let xcframework = XCFrameworkNode.test()
         let node = TargetNode(project: .test(path: AbsolutePath("/")),
                               target: .test(name: "Target"),
-                              dependencies: [library, framework, cocoapods])
+                              dependencies: [library, framework, cocoapods, xcframework])
 
         let expected = """
         {
@@ -68,7 +69,8 @@ final class TargetNodeTests: XCTestCase {
         "dependencies" : [
         "\(library.name)",
         "\(framework.name)",
-        "\(cocoapods.name)"
+        "\(cocoapods.name)",
+        "\(xcframework.name)"
         ],
         "platform" : "\(node.target.platform.rawValue)"
         }

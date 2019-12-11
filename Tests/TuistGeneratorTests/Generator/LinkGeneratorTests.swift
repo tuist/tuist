@@ -88,6 +88,37 @@ final class LinkGeneratorErrorTests: XCTestCase {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
+    
+    func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
+        // Given
+        var dependencies: [GraphDependencyReference] = []
+        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/Frameworks/Test.xcframework")))
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let sourceRootPath = AbsolutePath("/")
+
+        let group = PBXGroup()
+        pbxproj.add(object: group)
+
+        let fileAbsolutePath = AbsolutePath("/Frameworks/Test.xcframework")
+        let fileElements = createFileElements(fileAbsolutePath: fileAbsolutePath)
+
+        // When
+        try subject.generateEmbedPhase(dependencies: dependencies,
+                                       pbxTarget: pbxTarget,
+                                       pbxproj: pbxproj,
+                                       fileElements: fileElements,
+                                       sourceRootPath: sourceRootPath)
+
+        // Then
+        let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
+        XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
+        let buildFiles = try XCTUnwrap(copyBuildPhase.files)
+        XCTAssertEqual(buildFiles.map { $0.file?.path }, [ "Test.xcframework"])
+        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+            ["ATTRIBUTES": ["CodeSignOnCopy"]]
+        ])
+    }
 
     func test_setupFrameworkSearchPath() throws {
         let dependencies = [
@@ -481,5 +512,11 @@ final class LinkGeneratorErrorTests: XCTestCase {
         }
 
         return projectFileElements
+    }
+    
+    private func createFileElements(fileAbsolutePath: AbsolutePath) -> ProjectFileElements {
+        let fileElements = ProjectFileElements()
+        fileElements.elements[fileAbsolutePath] = PBXFileReference(path: fileAbsolutePath.basename)
+        return fileElements
     }
 }

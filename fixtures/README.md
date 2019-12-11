@@ -272,3 +272,11 @@ An example of an iOS app that contains Carthage frameworks \*(fat frameworks wit
 ## ios_app_with_helpers
 
 A basic iOS app that has some manifest bits extracted into helpers. 
+
+## ios_app_with_xcframeworks
+
+An example of an application which depends on prebuilt `.xcframework`s.
+
+The `.xcframework` can be obtained by running the `build.sh` script within the each of the framework directories.
+
+e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
