@@ -88,7 +88,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
-    
+
     func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
         // Given
         var dependencies: [GraphDependencyReference] = []
@@ -114,9 +114,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
-        XCTAssertEqual(buildFiles.map { $0.file?.path }, [ "Test.xcframework"])
+        XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
         XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
-            ["ATTRIBUTES": ["CodeSignOnCopy"]]
+            ["ATTRIBUTES": ["CodeSignOnCopy"]],
         ])
     }
 
@@ -197,6 +197,29 @@ final class LinkGeneratorErrorTests: XCTestCase {
             "$(SRCROOT)/to/libraries",
             "$(SRCROOT)/to/other/libraries",
             "my/custom/path",
+        ])
+    }
+
+    func test_setupHeadersSearchPaths_mergesDuplicates() throws {
+        // Given
+        let searchPaths = [
+            AbsolutePath("/path/to/libraries"),
+            AbsolutePath("/path/to/libraries"),
+            AbsolutePath("/path/to/libraries"),
+        ]
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+
+        // When
+        try subject.setupHeadersSearchPath(searchPaths,
+                                           pbxTarget: xcodeprojElements.pbxTarget,
+                                           sourceRootPath: sourceRootPath)
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], [
+            "$(inherited)",
+            "$(SRCROOT)/to/libraries",
         ])
     }
 
@@ -513,7 +536,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         return projectFileElements
     }
-    
+
     private func createFileElements(fileAbsolutePath: AbsolutePath) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
         fileElements.elements[fileAbsolutePath] = PBXFileReference(path: fileAbsolutePath.basename)

@@ -40,6 +40,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Ensure custom search path settings are included in generated projects https://github.com/tuist/tuist/pull/751 by @kwridan
+- Remove duplicate HEADER_SEARCH_PATHS https://github.com/tuist/tuist/pull/787 by @kwridan
 
 ## 0.19.0
 
