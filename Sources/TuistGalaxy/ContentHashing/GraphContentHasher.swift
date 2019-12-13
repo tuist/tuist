@@ -21,6 +21,8 @@ public final class GraphContentHasher: GraphContentHashing {
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 
+    // MARK: - Private
+    
     private func hash(targetNode: TargetNode) throws -> String {
         let target = targetNode.target
         let sourcesHash = try hash(sources: target.sources)
@@ -60,7 +62,10 @@ public final class GraphContentHasher: GraphContentHashing {
             stringsToHash.append(try hash(filePath: entitlements))
         }
         
-        //TODO: hash dependencies
+        //TODO: hash targetNode.project
+        //TODO: hash targetNode.dependencies
+        //TODO: hash targetNode.target.dependencies
+        
         return try hash(strings: stringsToHash)
     }
 
