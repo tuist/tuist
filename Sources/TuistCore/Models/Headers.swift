@@ -4,7 +4,7 @@ import TuistSupport
 import XcodeProj
 
 /// Headers
-public class Headers: Equatable {
+public class Headers: Equatable, Hashable {
     public static let extensions = Xcode.headersExtensions
 
     // MARK: - Attributes
@@ -29,5 +29,13 @@ public class Headers: Equatable {
         lhs.public == rhs.public &&
             lhs.private == rhs.private &&
             lhs.project == rhs.project
+    }
+    
+    // MARK: - Hashable
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`public`.hashValue)
+        hasher.combine(`private`.hashValue)
+        hasher.combine(project.hashValue)
     }
 }

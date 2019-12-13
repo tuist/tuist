@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
-public enum FileElement: Codable, Equatable {
+public enum FileElement: Codable, Equatable, Hashable {
     /// A glob pattern of files to include
     case glob(pattern: Path)
 
@@ -56,6 +56,15 @@ public enum FileElement: Codable, Equatable {
             try container.encode(pattern, forKey: .pattern)
         case let .folderReference(path: path):
             try container.encode(path, forKey: .path)
+        }
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        switch self {
+            case .glob(let path):
+                return hasher.combine(path.pathString)
+            case .folderReference(let path):
+                return hasher.combine(path.pathString)
         }
     }
 }

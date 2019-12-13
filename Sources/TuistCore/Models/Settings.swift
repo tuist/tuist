@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Hashable {
     case string(String)
     case array([String])
 
@@ -24,10 +24,10 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
         case .string:
             return self
         }
-    }
+    }    
 }
 
-public class Configuration: Equatable {
+public class Configuration: Equatable, Hashable {
     // MARK: - Attributes
 
     public let settings: [String: SettingValue]
@@ -45,15 +45,22 @@ public class Configuration: Equatable {
     public static func == (lhs: Configuration, rhs: Configuration) -> Bool {
         lhs.settings == rhs.settings && lhs.xcconfig == rhs.xcconfig
     }
+    
+    // MARK: - Hashable
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(xcconfig?.pathString)
+        hasher.combine(settings)
+    }
 }
 
-public enum DefaultSettings {
+public enum DefaultSettings: Hashable {
     case recommended
     case essential
     case none
 }
 
-public class Settings: Equatable {
+public class Settings: Equatable, Hashable {
     public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
                                            defaultSettings: .recommended)
 
@@ -77,6 +84,13 @@ public class Settings: Equatable {
 
     public static func == (lhs: Settings, rhs: Settings) -> Bool {
         lhs.base == rhs.base && lhs.configurations == rhs.configurations
+    }
+    
+    // MARK: - Hashable
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(base)
+        hasher.combine(configurations)
+        hasher.combine(defaultSettings)
     }
 }
 
