@@ -17,7 +17,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .iOS, product: .app)
 
         // When
-        let got = subject.content(project: .empty(),
+        let got = subject.content(graph: Graph.test(),
+                                  project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -55,7 +56,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .app)
 
         // When
-        let got = subject.content(project: .empty(),
+        let got = subject.content(graph: Graph.test(),
+                                  project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -83,7 +85,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .framework)
 
         // When
-        let got = subject.content(project: .empty(),
+        let got = subject.content(graph: Graph.test(),
+                                  project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -107,7 +110,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .staticLibrary)
 
         // When
-        let got = subject.content(project: .empty(),
+        let got = subject.content(graph: Graph.test(),
+                                  project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -120,7 +124,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .dynamicLibrary)
 
         // When
-        let got = subject.content(project: .empty(),
+        let got = subject.content(graph: Graph.test(),
+                                  project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -129,13 +134,20 @@ final class InfoPlistContentProviderTests: XCTestCase {
     }
 
     func test_contentPackageType() {
-        assertPackageType(subject.content(project: .empty(), target: .test(product: .app), extendedWith: [:]), "APPL")
-        assertPackageType(subject.content(project: .empty(), target: .test(product: .unitTests), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(project: .empty(), target: .test(product: .uiTests), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(project: .empty(), target: .test(product: .bundle), extendedWith: [:]), "BNDL")
-        assertPackageType(subject.content(project: .empty(), target: .test(product: .framework), extendedWith: [:]), "FMWK")
-        assertPackageType(subject.content(project: .empty(), target: .test(product: .staticFramework), extendedWith: [:]), "FMWK")
-        assertPackageType(subject.content(project: .empty(), target: .test(product: .watch2App), extendedWith: [:]), "$(PRODUCT_BUNDLE_PACKAGE_TYPE)")
+        func content(for target: Target) -> [String: Any]? {
+            subject.content(graph: Graph.test(),
+                            project: .empty(),
+                            target: target,
+                            extendedWith: [:])
+        }
+
+        assertPackageType(content(for: .test(product: .app)), "APPL")
+        assertPackageType(content(for: .test(product: .unitTests)), "BNDL")
+        assertPackageType(content(for: .test(product: .uiTests)), "BNDL")
+        assertPackageType(content(for: .test(product: .bundle)), "BNDL")
+        assertPackageType(content(for: .test(product: .framework)), "FMWK")
+        assertPackageType(content(for: .test(product: .staticFramework)), "FMWK")
+        assertPackageType(content(for: .test(product: .watch2App)), "$(PRODUCT_BUNDLE_PACKAGE_TYPE)")
     }
 
     func test_content_whenWatchOSApp() {
@@ -145,17 +157,19 @@ final class InfoPlistContentProviderTests: XCTestCase {
                                    product: .watch2App)
         let app = Target.test(platform: .iOS,
                               product: .app,
-                              bundleId: "io.tuist.my.app.id",
-                              dependencies: [
-                                  .target(name: "MyWatchApp"),
-                              ])
+                              bundleId: "io.tuist.my.app.id")
         let project = Project.test(targets: [
             app,
             watchApp,
         ])
+        let graph = Graph.create(project: project, dependencies: [
+            (target: app, dependencies: [watchApp]),
+            (target: watchApp, dependencies: []),
+        ])
 
         // When
-        let got = subject.content(project: project,
+        let got = subject.content(graph: graph,
+                                  project: project,
                                   target: watchApp,
                                   extendedWith: [
                                       "ExtraAttribute": "Value",
@@ -190,17 +204,19 @@ final class InfoPlistContentProviderTests: XCTestCase {
                                             product: .watch2Extension)
         let watchApp = Target.test(platform: .watchOS,
                                    product: .watch2App,
-                                   bundleId: "io.tuist.my.app.id.mywatchapp",
-                                   dependencies: [
-                                       .target(name: "MyWatchAppExtension"),
-                                   ])
+                                   bundleId: "io.tuist.my.app.id.mywatchapp")
         let project = Project.test(targets: [
             watchApp,
             watchAppExtension,
         ])
+        let graph = Graph.create(project: project, dependencies: [
+            (target: watchApp, dependencies: [watchAppExtension]),
+            (target: watchAppExtension, dependencies: []),
+        ])
 
         // When
-        let got = subject.content(project: project,
+        let got = subject.content(graph: graph,
+                                  project: project,
                                   target: watchAppExtension,
                                   extendedWith: [
                                       "ExtraAttribute": "Value",

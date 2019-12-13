@@ -88,7 +88,7 @@ final class ProjectGenerator: ProjectGenerating {
                                              sourceRootPath: AbsolutePath,
                                              xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
         // Derived files
-        let deleteOldDerivedFiles = try derivedFileGenerator.generate(project: project, sourceRootPath: sourceRootPath)
+        let deleteOldDerivedFiles = try derivedFileGenerator.generate(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
