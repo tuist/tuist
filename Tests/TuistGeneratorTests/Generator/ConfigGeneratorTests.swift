@@ -216,6 +216,49 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
+    func test_generateProjectConfig_defaultConfigurationName() throws {
+        // Given
+        let settings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+            .release("CustomRelease"): nil,
+        ])
+        let project = Project.test(settings: settings)
+
+        // When
+        let result = try subject.generateProjectConfig(project: project,
+                                                       pbxproj: pbxproj,
+                                                       fileElements: ProjectFileElements())
+
+        // Then
+        XCTAssertEqual(result.defaultConfigurationName, "CustomRelease")
+    }
+
+    func test_generateTargetConfig_defaultConfigurationName() throws {
+        // Given
+        let projectSettings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+            .release("CustomRelease"): nil,
+        ])
+        let target = Target.test()
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: projectSettings,
+                                         fileElements: ProjectFileElements(),
+                                         graph: Graph.test(),
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let result = pbxTarget.buildConfigurationList
+        XCTAssertEqual(result?.defaultConfigurationName, "CustomRelease")
+    }
+
+    // MARK: - Helpers
+
     private func generateProjectConfig(config _: BuildConfiguration) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
@@ -300,8 +343,6 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                              graph: graph,
                                              sourceRootPath: dir.path)
     }
-
-    // MARK: - Helpers
 
     func assert(config: XCBuildConfiguration?,
                 contains settings: [String: String],

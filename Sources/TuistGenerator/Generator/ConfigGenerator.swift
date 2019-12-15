@@ -38,7 +38,9 @@ final class ConfigGenerator: ConfigGenerating {
                                pbxproj: PBXProj,
                                fileElements: ProjectFileElements) throws -> XCConfigurationList {
         /// Configuration list
-        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
+        let configurationList = XCConfigurationList(buildConfigurations: [],
+                                                    defaultConfigurationName: defaultConfiguration?.name)
         pbxproj.add(object: configurationList)
 
         try project.settings.configurations.sortedByBuildConfigurationName().forEach {
@@ -60,7 +62,9 @@ final class ConfigGenerator: ConfigGenerating {
                               fileElements: ProjectFileElements,
                               graph: Graphing,
                               sourceRootPath: AbsolutePath) throws {
-        let configurationList = XCConfigurationList(buildConfigurations: [])
+        let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
+        let configurationList = XCConfigurationList(buildConfigurations: [],
+                                                    defaultConfigurationName: defaultConfiguration?.name)
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
 
