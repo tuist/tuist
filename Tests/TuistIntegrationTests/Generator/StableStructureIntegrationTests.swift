@@ -79,10 +79,11 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         let dependencies = try createDependencies(relativeTo: projectPath)
         let frameworkTargets = try frameworksNames.map { try createFrameworkTarget(name: $0, depenendencies: dependencies) }
         let appTarget = createAppTarget(settings: targetSettings, dependencies: frameworksNames)
+        let schemes = try createSchemes(appTarget: appTarget, frameworkTargets: frameworkTargets)
         let project = createProject(path: projectPath,
                                     settings: projectSettings,
                                     targets: [appTarget] + frameworkTargets,
-                                    schemes: [])
+                                    schemes: schemes)
         let workspace = try createWorkspace(projects: ["App"])
         let tuistConfig = createTuistConfig()
 
@@ -232,9 +233,60 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         return libraries
     }
 
+    private func createSchemes(appTarget: Target, frameworkTargets: [Target]) throws -> [Scheme] {
+        let targets = try ([appTarget] + frameworkTargets).map(targetReference(from:))
+        return (0 ..< 10).map {
+            let boolStub = $0 % 2 == 0
+            return Scheme(
+                name: "Scheme \($0)",
+                shared: boolStub,
+                buildAction: BuildAction(targets: targets,
+                                         preActions: createExecutionActions(),
+                                         postActions: createExecutionActions()),
+                testAction: TestAction(targets: targets.map { TestableTarget(target: $0) },
+                                       arguments: createArguments(),
+                                       configurationName: "Debug",
+                                       coverage: boolStub,
+                                       codeCoverageTargets: targets,
+                                       preActions: createExecutionActions(),
+                                       postActions: createExecutionActions()),
+                runAction: RunAction(configurationName: "Debug",
+                                     executable: nil,
+                                     arguments: createArguments()),
+                archiveAction: ArchiveAction(configurationName: "Debug",
+                                             revealArchiveInOrganizer: boolStub,
+                                             preActions: createExecutionActions(),
+                                             postActions: createExecutionActions()))
+        }
+    }
+
+    private func createArguments() -> Arguments {
+        let environment = ( 0..<10 ).reduce([String: String]()) { acc, value in
+            var acc = acc
+            acc["Environment\(value)"] = "EnvironmentValue\(value)"
+            return acc
+        }
+        let launch = ( 0..<10 ).reduce([String: Bool]()) { acc, value in
+            var acc = acc
+            acc["Launch\(value)"] = value % 2 == 0
+            return acc
+        }
+        return Arguments(environment: environment, launch: launch)
+    }
+
+    private func createExecutionActions() -> [ExecutionAction] {
+        ( 0..<10 ).map {
+            ExecutionAction(title: "ExecutionAction\($0)", scriptText: "ScripText\($0)", target: nil)
+        }
+    }
+
     private func pathTo(_ relativePath: String) throws -> AbsolutePath {
         let temporaryPath = try self.temporaryPath()
         return temporaryPath.appending(RelativePath(relativePath))
+    }
+
+    private func targetReference(from target: Target) throws -> TargetReference {
+        return TargetReference(projectPath: try pathTo("App"), name: target.name)
     }
 }
 
