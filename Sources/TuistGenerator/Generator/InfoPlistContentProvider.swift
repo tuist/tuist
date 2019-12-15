@@ -8,10 +8,12 @@ protocol InfoPlistContentProviding {
     /// and product, and extends them with the values provided by the user.
     ///
     /// - Parameters:
+    ///   - graph: The dependencies graph.
+    ///   - project: The project that hosts the target for which the Info.plist content will be returned
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
+    func content(graph: Graphing, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
 }
 
 final class InfoPlistContentProvider: InfoPlistContentProviding {
@@ -20,10 +22,12 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     /// and product, and extends them with the values provided by the user.
     ///
     /// - Parameters:
+    ///   - graph: The dependencies graph.
+    ///   - project: The project that hosts the target for which the Info.plist content will be returned
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
+    func content(graph: Graphing, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
         if target.product == .staticLibrary || target.product == .dynamicLibrary {
             return nil
         }
@@ -46,6 +50,20 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         // macOS
         if target.platform == .macOS {
             extend(&content, with: macos())
+        }
+
+        // watchOS app
+        if target.product == .watch2App, target.platform == .watchOS {
+            let host = graph.hostTargetNodeFor(path: project.path, name: target.name)
+            extend(&content, with: watchosApp(name: target.name,
+                                              hostAppBundleId: host?.target.bundleId))
+        }
+
+        // watchOS app extension
+        if target.product == .watch2Extension, target.platform == .watchOS {
+            let host = graph.hostTargetNodeFor(path: project.path, name: target.name)
+            extend(&content, with: watchosAppExtension(name: target.name,
+                                                       hostAppBundleId: host?.target.bundleId))
         }
 
         extend(&content, with: extendedWith.unwrappingValues())
@@ -142,6 +160,39 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     func macos() -> [String: Any] {
         [
             "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+        ]
+    }
+
+    /// Returns the default Info.plist content for a watchOS App
+    ///
+    /// - Parameter hostAppBundleId: The host application's bundle identifier
+    private func watchosApp(name: String, hostAppBundleId: String?) -> [String: Any] {
+        var infoPlist: [String: Any] = [
+            "CFBundleDisplayName": name,
+            "WKWatchKitApp": true,
+            "UISupportedInterfaceOrientations": [
+                "UIInterfaceOrientationPortrait",
+                "UIInterfaceOrientationPortraitUpsideDown",
+            ],
+        ]
+        if let hostAppBundleId = hostAppBundleId {
+            infoPlist["WKCompanionAppBundleIdentifier"] = hostAppBundleId
+        }
+        return infoPlist
+    }
+
+    /// Returns the default Info.plist content for a watchOS App Extension
+    ///
+    /// - Parameter hostAppBundleId: The host application's bundle identifier
+    private func watchosAppExtension(name: String, hostAppBundleId: String?) -> [String: Any] {
+        let extensionAttributes: [String: Any] = hostAppBundleId.map { ["WKAppBundleIdentifier": $0] } ?? [:]
+        return [
+            "CFBundleDisplayName": name,
+            "NSExtension": [
+                "NSExtensionAttributes": extensionAttributes,
+                "NSExtensionPointIdentifier": "com.apple.watchkit",
+            ],
+            "WKExtensionDelegateClassName": "$(PRODUCT_MODULE_NAME).ExtensionDelegate",
         ]
     }
 

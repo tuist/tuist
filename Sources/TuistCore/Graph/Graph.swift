@@ -134,6 +134,16 @@ public protocol Graphing: AnyObject, Encodable {
     /// Returns all the transitive dependencies of the given target that are static libraries.
     /// - Parameter targetNode: Target node whose transitive static libraries will be returned.
     func transitiveStaticTargetNodes(for targetNode: TargetNode) -> Set<TargetNode>
+
+    /// Retuns the first host target node for a given target node
+    ///
+    /// (e.g. finding host application for an extension)
+    ///
+    /// - Parameter path: Path of the hosted target
+    /// - Parameter name: Name of the hosted target
+    ///
+    /// - Note: Search is limited to nodes with a matching path (i.e. targets within the same project)
+    func hostTargetNodeFor(path: AbsolutePath, name: String) -> TargetNode?
 }
 
 public class Graph: Graphing {
@@ -484,6 +494,15 @@ public class Graph: Graphing {
         findAll(targetNode: targetNode,
                 test: isStaticLibrary,
                 skip: canLinkStaticProducts)
+    }
+
+    public func hostTargetNodeFor(path: AbsolutePath, name: String) -> TargetNode? {
+        guard let cachedTargetNodesForPath = cache.targetNodes[path] else {
+            return nil
+        }
+        return cachedTargetNodesForPath.values.first {
+            $0.dependencies.contains(where: { $0.path == path && $0.name == name })
+        }
     }
 
     // MARK: - Fileprivate

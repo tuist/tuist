@@ -8,11 +8,12 @@ protocol DerivedFileGenerating {
     /// Generates the derived files that are associated to the given project.
     ///
     /// - Parameters:
+    ///   - graph: The dependencies graph.
     ///   - project: Project whose derived files will be generated.
     ///   - sourceRootPath: Path to the directory in which the Xcode project will be generated.
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
@@ -33,16 +34,17 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     /// Generates the derived files that are associated to the given project.
     ///
     /// - Parameters:
+    ///   - graph: The dependencies graph.
     ///   - project: Project whose derived files will be generated.
     ///   - sourceRootPath: Path to the directory in which the Xcode project will be generated.
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void {
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void {
         /// The files that are not necessary anymore should be deleted after we generate the project.
         /// Otherwise, Xcode will try to reload their references before the project generation.
         var toDelete: Set<AbsolutePath> = []
 
-        toDelete.formUnion(try generateInfoPlists(project: project, sourceRootPath: sourceRootPath))
+        toDelete.formUnion(try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath))
 
         return {
             try toDelete.forEach { try FileHandler.shared.delete($0) }
@@ -52,11 +54,12 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     /// Genreates the Info.plist files.
     ///
     /// - Parameters:
+    ///   - graph: The dependencies graph.
     ///   - project: Project that contains the targets whose Info.plist files will be generated.
     ///   - sourceRootPath: Path to the directory in which the project is getting generated.
     /// - Returns: A set with paths to the Info.plist files that are no longer necessary and therefore need to be removed.
     /// - Throws: An error if the encoding of the Info.plist content fails.
-    func generateInfoPlists(project: Project, sourceRootPath: AbsolutePath) throws -> Set<AbsolutePath> {
+    func generateInfoPlists(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> Set<AbsolutePath> {
         let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
         let targetsWithGeneratableInfoPlists = project.targets.filter {
             if let infoPlist = $0.infoPlist, case InfoPlist.file = infoPlist {
@@ -86,7 +89,10 @@ final class DerivedFileGenerator: DerivedFileGenerating {
             if case let InfoPlist.dictionary(content) = infoPlist {
                 dictionary = content.mapValues { $0.value }
             } else if case let InfoPlist.extendingDefault(extended) = infoPlist,
-                let content = self.infoPlistContentProvider.content(target: target, extendedWith: extended) {
+                let content = self.infoPlistContentProvider.content(graph: graph,
+                                                                    project: project,
+                                                                    target: target,
+                                                                    extendedWith: extended) {
                 dictionary = content
             } else {
                 return

@@ -21,7 +21,7 @@ let project = Project(name: "App",
                                platform: .watchOS,
                                product: .watch2App,
                                bundleId: "io.tuist.App.watchkitapp",
-                               infoPlist: "Support/WatchApp-Info.plist",
+                               infoPlist: .default,
                                resources: "WatchApp/**",
                                dependencies: [
                                     .target(name: "WatchAppExtension")
@@ -30,7 +30,9 @@ let project = Project(name: "App",
                                platform: .watchOS,
                                product: .watch2Extension,
                                bundleId: "io.tuist.App.watchkitapp.watchkitextension",
-                               infoPlist: "Support/WatchAppExtension-Info.plist",
+                               infoPlist: .extendingDefault(with: [
+                                      "CFBundleDisplayName": "WatchApp Extension"
+                               ]),
                                sources: ["WatchAppExtension/**"],
                                resources: ["WatchAppExtension/**/*.xcassets"],
                                dependencies: [
