@@ -105,6 +105,7 @@ final class ProjectGenerator: ProjectGenerating {
                                               sourceRootPath: sourceRootPath)
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
+                                                projectFileElements: fileElements,
                                                 configurationList: configurationList,
                                                 groups: groups,
                                                 pbxproj: pbxproj)
@@ -134,16 +135,19 @@ final class ProjectGenerator: ProjectGenerating {
     }
 
     private func generatePbxproject(project: Project,
+                                    projectFileElements: ProjectFileElements,
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
                                     pbxproj: PBXProj) throws -> PBXProject {
+        let defaultRegions = ["en"]
+        let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
                                     mainGroup: groups.main,
                                     developmentRegion: Xcode.Default.developmentRegion,
                                     hasScannedForEncodings: 0,
-                                    knownRegions: ["en"],
+                                    knownRegions: knownRegions,
                                     productsGroup: groups.products,
                                     projectDirPath: "",
                                     projects: [],

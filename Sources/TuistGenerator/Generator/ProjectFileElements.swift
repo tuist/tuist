@@ -32,8 +32,12 @@ class ProjectFileElements {
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
     var sdks: [AbsolutePath: PBXFileReference] = [:]
-    let playgrounds: Playgrounding
-    let filesSortener: ProjectFilesSortening
+    var knownRegions: Set<String> = Set([])
+
+    // MARK: - Private
+
+    private let playgrounds: Playgrounding
+    private let filesSortener: ProjectFilesSortening
 
     // MARK: - Init
 
@@ -372,13 +376,14 @@ class ProjectFileElements {
                                          pbxproj: PBXProj) {
         let localizedFilePath = localizedFile.relative(to: localizedContainer.parentDirectory)
         let lastKnownFileType = localizedFile.extension.flatMap { Xcode.filetype(extension: $0) }
-        let name = localizedContainer.basename.split(separator: ".").first
+        let language = localizedContainer.basenameWithoutExt
         let localizedFileReference = PBXFileReference(sourceTree: .group,
-                                                      name: name.map { String($0) },
+                                                      name: language,
                                                       lastKnownFileType: lastKnownFileType,
                                                       path: localizedFilePath.pathString)
         pbxproj.add(object: localizedFileReference)
         variantGroup.children.append(localizedFileReference)
+        knownRegions.insert(language)
     }
 
     func addVersionGroupElement(from: AbsolutePath,
