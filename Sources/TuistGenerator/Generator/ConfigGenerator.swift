@@ -39,6 +39,7 @@ final class ConfigGenerator: ConfigGenerating {
                                fileElements: ProjectFileElements) throws -> XCConfigurationList {
         /// Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
+            ?? project.settings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(buildConfigurations: [],
                                                     defaultConfigurationName: defaultConfiguration?.name)
         pbxproj.add(object: configurationList)
@@ -63,6 +64,7 @@ final class ConfigGenerator: ConfigGenerating {
                               graph: Graphing,
                               sourceRootPath: AbsolutePath) throws {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
+            ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(buildConfigurations: [],
                                                     defaultConfigurationName: defaultConfiguration?.name)
         pbxproj.add(object: configurationList)

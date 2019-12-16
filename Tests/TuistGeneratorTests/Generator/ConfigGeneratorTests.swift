@@ -234,6 +234,23 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(result.defaultConfigurationName, "CustomRelease")
     }
 
+    func test_generateProjectConfig_defaultConfigurationName_whenNoReleaseConfiguration() throws {
+        // Given
+        let settings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+        ])
+        let project = Project.test(settings: settings)
+
+        // When
+        let result = try subject.generateProjectConfig(project: project,
+                                                       pbxproj: pbxproj,
+                                                       fileElements: ProjectFileElements())
+
+        // Then
+        XCTAssertEqual(result.defaultConfigurationName, "AnotherDebug")
+    }
+
     func test_generateTargetConfig_defaultConfigurationName() throws {
         // Given
         let projectSettings = Settings(configurations: [
@@ -255,6 +272,28 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Then
         let result = pbxTarget.buildConfigurationList
         XCTAssertEqual(result?.defaultConfigurationName, "CustomRelease")
+    }
+
+    func test_generateTargetConfig_defaultConfigurationName_whenNoReleaseConfiguration() throws {
+        // Given
+        let projectSettings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+        ])
+        let target = Target.test()
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: projectSettings,
+                                         fileElements: ProjectFileElements(),
+                                         graph: Graph.test(),
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let result = pbxTarget.buildConfigurationList
+        XCTAssertEqual(result?.defaultConfigurationName, "AnotherDebug")
     }
 
     // MARK: - Helpers
