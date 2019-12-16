@@ -4968,7 +4968,7 @@ docz-core@^0.10.3:
     ws "^6.0.0"
     yargs "^12.0.1"
 
-docz-core@^2.2.0-alpha.3, docz-core@v2.2.0:
+docz-core@^2.2.0, docz-core@v2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/docz-core/-/docz-core-2.2.0.tgz#b78b75c931d4e8041b31ee0fff908f37b3440930"
   integrity sha512-qp2dEcq1Zx9pnd1ryswzAOnP1O5fNrmWoBQglOOcOOrKK2xFd/MTN5KOrux4qiPprIkrhGp3y7qKpjaSgMEWiw==
@@ -5039,21 +5039,21 @@ docz-utils@^2.1.0:
     unist-util-is "^3.0.0"
     unist-util-visit "^1.4.1"
 
-docz@v2.2.0-alpha.8:
-  version "2.2.0-alpha.8"
-  resolved "https://registry.yarnpkg.com/docz/-/docz-2.2.0-alpha.8.tgz#cf4a318200f03f32306eeb578461ef82d5e64666"
-  integrity sha512-wBgFA9yL1Up17pCNRsHYgPsO+NVM2OUCJ7Zy1UykJmZVK91Z1DxRPZDCzpLx2WaIoHA210sH56iH6hE7PO34ww==
+docz@v2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/docz/-/docz-2.2.0.tgz#a7d22ce256c437d068bf88ae7b13ca5d581f65ef"
+  integrity sha512-rsxjQABy07dDqq5rus0TBx64FI2DL7KN+11mv394bRFINqC/T0WZTruKzVSGjsodrTBmIGhW47t5iqMB14XQyw==
   dependencies:
     "@emotion/core" "^10.0.16"
     "@mdx-js/react" "^1.0.27"
     array-sort "^1.0.0"
     capitalize "^2.0.0"
-    docz-core "^2.2.0-alpha.3"
+    docz-core "^2.2.0"
     fast-deep-equal "^2.0.1"
     gatsby "^2.13.27"
     gatsby-plugin-eslint "^2.0.5"
     gatsby-plugin-typescript "^2.1.6"
-    gatsby-theme-docz "^2.2.0-alpha.8"
+    gatsby-theme-docz "^2.2.0"
     lodash "^4.17.14"
     marksy "^8.0.0"
     match-sorter "^3.1.1"
@@ -6636,7 +6636,50 @@ gatsby-telemetry@^1.1.42:
     stack-utils "1.0.2"
     uuid "3.3.3"
 
-gatsby-theme-docz@^2.2.0-alpha.8, gatsby-theme-docz@v2.2.0-alpha.8:
+gatsby-theme-docz@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/gatsby-theme-docz/-/gatsby-theme-docz-2.2.0.tgz#8fa586b1c16f74d4707fdd0de67384d192eee46d"
+  integrity sha512-W/R0xSy8jopC1x4PHQneeu7/PUk7Ppp2b3RLep0l/YcaVDsoZFAO6zdeIqCSsYVqqGUMiDaOhvDzDvkT0KT0kQ==
+  dependencies:
+    "@emotion/core" "^10.0.14"
+    "@emotion/styled" "^10.0.14"
+    "@loadable/component" "^5.10.2"
+    "@mdx-js/mdx" "^1.1.0"
+    "@mdx-js/react" "^1.0.27"
+    "@theme-ui/typography" "^0.2.5"
+    babel-plugin-export-metadata "^2.1.0"
+    copy-text-to-clipboard "^2.1.0"
+    emotion-theming "^10.0.14"
+    fs-extra "^8.1.0"
+    gatsby "^2.13.27"
+    gatsby-plugin-alias-imports "^1.0.5"
+    gatsby-plugin-compile-es6-packages "^2.0.0"
+    gatsby-plugin-emotion "^4.1.2"
+    gatsby-plugin-manifest "^2.2.3"
+    gatsby-plugin-mdx "^1.0.13"
+    gatsby-plugin-react-helmet-async "^1.0.5"
+    gatsby-plugin-root-import "^2.0.5"
+    gatsby-source-filesystem "^2.1.35"
+    lodash "^4.17.14"
+    mdx-utils "^0.2.0"
+    prism-react-renderer "^1.0.2"
+    prop-types "^15.7.2"
+    re-resizable "^6.1.0"
+    react-feather "^2.0.3"
+    react-frame-component "^4.1.1"
+    react-helmet-async "^1.0.4"
+    react-live "^2.2.1"
+    react-resize-detector "^4.2.1"
+    rehype-docz "^2.1.0"
+    rehype-slug "^2.0.3"
+    remark-docz "^2.1.0"
+    remark-frontmatter "^1.3.2"
+    theme-ui "^0.2.38"
+    typescript "3.5.3"
+    typography-theme-moraga "^0.16.19"
+    yargs "^13.3.0"
+
+gatsby-theme-docz@v2.2.0-alpha.8:
   version "2.2.0-alpha.8"
   resolved "https://registry.yarnpkg.com/gatsby-theme-docz/-/gatsby-theme-docz-2.2.0-alpha.8.tgz#35dd4cf60528fe45ad2021daa6e49dc21e2d874c"
   integrity sha512-O6qAszejAlpHfthhDKvQNIlfWOkY+VH+SrFL7GuFOlOsh2oxrp7zaR4Fjcp0Sxe9v+hM1mSFAzvu2XJ1pP8aAQ==
