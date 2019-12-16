@@ -572,7 +572,7 @@ final class SchemesGenerator: SchemesGenerating {
     private func commandlineArgruments(_ arguments: [String: Bool]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
         arguments.map { key, enabled in
             XCScheme.CommandLineArguments.CommandLineArgument(name: key, enabled: enabled)
-        }
+        }.sorted { $0.name < $1.name }
     }
 
     /// Returns the scheme environment variables
@@ -583,7 +583,7 @@ final class SchemesGenerator: SchemesGenerating {
     private func environmentVariables(_ environments: [String: String]) -> [XCScheme.EnvironmentVariable] {
         environments.map { key, value in
             XCScheme.EnvironmentVariable(variable: key, value: value, enabled: true)
-        }
+        }.sorted { $0.variable < $1.variable }
     }
 
     private func defaultDebugBuildConfigurationName(in project: Project) -> String {
