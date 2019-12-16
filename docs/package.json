@@ -18,7 +18,7 @@
     "docz": "v2.2.0-alpha.8",
     "docz-core": "v2.2.0",
     "docz-plugin-netlify": "^1.1.4",
-    "gatsby-plugin-mdx": "^1.0.59",
+    "gatsby-plugin-mdx": "^1.0.62",
     "gatsby-theme-docz": "v2.2.0-alpha.8",
     "lodash": "^4.17.15",
     "node-sass": "^4.13.0",
