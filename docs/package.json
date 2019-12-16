@@ -14,7 +14,7 @@
     "@mdx-js/mdx": "^1.5.1",
     "@mdx-js/react": "^1.5.1",
     "@theme-ui/prism": "^0.2.46",
-    "css-loader": "^3.2.0",
+    "css-loader": "^3.3.2",
     "docz": "v2.2.0-alpha.8",
     "docz-core": "v2.2.0-alpha.3",
     "docz-plugin-netlify": "^1.1.4",
