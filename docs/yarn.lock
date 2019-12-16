@@ -4968,10 +4968,10 @@ docz-core@^0.10.3:
     ws "^6.0.0"
     yargs "^12.0.1"
 
-docz-core@^2.2.0-alpha.3, docz-core@v2.2.0-alpha.3:
-  version "2.2.0-alpha.3"
-  resolved "https://registry.yarnpkg.com/docz-core/-/docz-core-2.2.0-alpha.3.tgz#75ac5afa94c537cb903679438172578d3f9d87db"
-  integrity sha512-nxfawLCPbQa4+zGS5lQ9FkNq6mH18KEI17LIk5+2e0Z0GX9SYyy9Gf8RP9ilrtfA7YbpHM0uKLlYgucfJWpkrw==
+docz-core@^2.2.0-alpha.3, docz-core@v2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/docz-core/-/docz-core-2.2.0.tgz#b78b75c931d4e8041b31ee0fff908f37b3440930"
+  integrity sha512-qp2dEcq1Zx9pnd1ryswzAOnP1O5fNrmWoBQglOOcOOrKK2xFd/MTN5KOrux4qiPprIkrhGp3y7qKpjaSgMEWiw==
   dependencies:
     "@sindresorhus/slugify" "^0.9.1"
     chalk "^2.4.2"
