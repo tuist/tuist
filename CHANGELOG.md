@@ -44,6 +44,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Remove duplicate HEADER_SEARCH_PATHS https://github.com/tuist/tuist/pull/787 by @kwridan
 - Fix unstable scheme generation https://github.com/tuist/tuist/pull/790 by @marciniwanicki
 - Add defaultConfigurationName to generated projects https://github.com/tuist/tuist/pull/793 by @kwridan
+- Add knownRegions to generated projects https://github.com/tuist/tuist/pull/792 by @kwridan
 
 ## 0.19.0
 

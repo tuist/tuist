@@ -237,4 +237,35 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(got.pbxproj.objectVersion, 50)
         XCTAssertEqual(got.pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
     }
+
+    func test_knownRegions() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(entryPath: path)
+        let resources = [
+            "resources/en.lproj/App.strings",
+            "resources/en.lproj/Extension.strings",
+            "resources/fr.lproj/App.strings",
+            "resources/fr.lproj/Extension.strings",
+            "resources/Base.lproj/App.strings",
+            "resources/Base.lproj/Extension.strings",
+        ]
+        let project = Project.test(path: path,
+                                   targets: [
+                                       .test(resources: resources.map {
+                                           .file(path: path.appending(RelativePath($0)))
+                                       }),
+                                   ])
+
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.pbxproj.rootProject())
+        XCTAssertEqual(pbxProject.knownRegions, [
+            "Base",
+            "en",
+            "fr",
+        ])
+    }
 }

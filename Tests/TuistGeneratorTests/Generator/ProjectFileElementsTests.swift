@@ -222,6 +222,41 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_addElement_lproj_knownRegions() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let resouces = try createFiles([
+            "resources/en.lproj/App.strings",
+            "resources/en.lproj/Extension.strings",
+            "resources/fr.lproj/App.strings",
+            "resources/fr.lproj/Extension.strings",
+            "resources/Base.lproj/App.strings",
+            "resources/Base.lproj/Extension.strings",
+        ])
+
+        let elements = resouces.map {
+            GroupFileElement(path: $0,
+                             group: .group(name: "Project"),
+                             isReference: true)
+        }
+
+        // When
+        try elements.forEach {
+            try subject.generate(fileElement: $0,
+                                 groups: groups,
+                                 pbxproj: pbxproj,
+                                 sourceRootPath: temporaryPath)
+        }
+
+        // Then
+
+        XCTAssertEqual(subject.knownRegions, Set([
+            "en",
+            "fr",
+            "Base",
+        ]))
+    }
+
     func test_targetFiles() throws {
         // Given
         let settings = Settings.test(
