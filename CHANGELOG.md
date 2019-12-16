@@ -36,11 +36,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Reactive interface to the System utility https://github.com/tuist/tuist/pull/770 by @pepibumur
 - Workflow to make sure that documentation and website build https://github.com/tuist/tuist/pull/783 by @pepibumur.
 - Support for `xcframework`  https://github.com/tuist/tuist/pull/769 by @lakpa
+- Support generating info.plist for Watch Apps & Extensions https://github.com/tuist/tuist/pull/756 by @kwridan
 
 ### Fixed
 
 - Ensure custom search path settings are included in generated projects https://github.com/tuist/tuist/pull/751 by @kwridan
 - Remove duplicate HEADER_SEARCH_PATHS https://github.com/tuist/tuist/pull/787 by @kwridan
+- Fix unstable scheme generation https://github.com/tuist/tuist/pull/790 by @marciniwanicki
+- Add defaultConfigurationName to generated projects https://github.com/tuist/tuist/pull/793 by @kwridan
 - Add knownRegions to generated projects https://github.com/tuist/tuist/pull/792 by @kwridan
 
 ## 0.19.0

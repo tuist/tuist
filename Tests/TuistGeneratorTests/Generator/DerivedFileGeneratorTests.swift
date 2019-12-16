@@ -33,7 +33,7 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         let path = infoPlistsPath.appending(component: "Target.plist")
 
         // When
-        _ = try subject.generate(project: project, sourceRootPath: temporaryPath)
+        _ = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(path))
@@ -53,7 +53,7 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         infoPlistContentProvider.contentStub = ["test": "value"]
 
         // When
-        _ = try subject.generate(project: project, sourceRootPath: temporaryPath)
+        _ = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(path))
@@ -78,7 +78,8 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         try FileHandler.shared.touch(oldPlistPath)
 
         // When
-        let deleteOldDerivedFiles = try subject.generate(project: project,
+        let deleteOldDerivedFiles = try subject.generate(graph: Graph.test(),
+                                                         project: project,
                                                          sourceRootPath: temporaryPath)
         try deleteOldDerivedFiles()
 
@@ -95,7 +96,7 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         let path = infoPlistsPath.appending(component: "Target.plist")
 
         // When
-        _ = try subject.generate(project: project, sourceRootPath: temporaryPath)
+        _ = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(path))

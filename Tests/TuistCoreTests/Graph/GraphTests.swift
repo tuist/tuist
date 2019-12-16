@@ -859,6 +859,44 @@ final class GraphTests: TuistUnitTestCase {
         XCTAssertEqual(got.first?.name, "StickerPackExtension")
     }
 
+    func test_hostTargetNode_watchApp() {
+        // Given
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let project = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [watchApp]),
+                                     (target: watchApp, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.hostTargetNodeFor(path: project.path, name: "WatchApp")
+
+        // Then
+        XCTAssertEqual(result?.target, app)
+    }
+
+    func test_hostTargetNode_watchAppExtension() {
+        // Given
+        let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let watchAppExtension = Target.test(name: "WatchAppExtension", platform: .watchOS, product: .watch2Extension)
+        let project = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: watchApp, dependencies: [watchAppExtension]),
+                                     (target: watchAppExtension, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.hostTargetNodeFor(path: project.path, name: "WatchAppExtension")
+
+        // Then
+        XCTAssertEqual(result?.target, watchApp)
+    }
+
     func test_encode() {
         // Given
         System.shared = System()
