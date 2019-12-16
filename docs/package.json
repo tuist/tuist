@@ -16,7 +16,7 @@
     "@theme-ui/prism": "^0.2.46",
     "css-loader": "^3.2.0",
     "docz": "v2.2.0-alpha.8",
-    "docz-core": "v2.2.0-alpha.3",
+    "docz-core": "v2.2.0",
     "docz-plugin-netlify": "^1.1.4",
     "gatsby-plugin-mdx": "^1.0.59",
     "gatsby-theme-docz": "v2.2.0-alpha.8",
