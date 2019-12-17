@@ -19,7 +19,7 @@ const Message = ({ title, description, success, warning, info, error }) => {
     prefix = 'Information'
   }
   return (
-    <div sx={{ bg: 'gray6', display: 'flex', flexDirection: 'row', my: 2 }}>
+    <quote sx={{ bg: 'gray6', display: 'flex', flexDirection: 'row', my: 2 }}>
       <div sx={{ width: '10px', bg: color }} />
       <div sx={{ flex: 1, p: 3 }}>
         <div sx={{ fontWeight: 'heading', fontSize: 2 }}>
@@ -30,7 +30,7 @@ const Message = ({ title, description, success, warning, info, error }) => {
         </div>
         <ReactMarkdown source={description} />
       </div>
-    </div>
+    </quote>
   )
 }
 

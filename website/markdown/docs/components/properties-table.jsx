@@ -1,22 +1,33 @@
+/** @jsx jsx */
+import { jsx, Styled } from 'theme-ui'
+
 import React from 'react'
-import { Responsive, Label, Table } from 'semantic-ui-react'
-import StyledCode from "./styled-code"
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown from 'react-markdown'
 
 const PropertiesTable = ({ properties }) => {
+  const borderStyle = {
+    border: theme => `1px solid ${theme.colors.gray5}`,
+    borderCollapse: 'collapse',
+  }
+  const cellStyle = {
+    ...borderStyle,
+    p: 2,
+  }
   return (
-    <Table celled>
-      <Responsive as={Table.Header} {...Responsive.onlyComputer}>
-        <Table.Row>
-          <Table.HeaderCell>Property</Table.HeaderCell>
-          <Table.HeaderCell>Description</Table.HeaderCell>
-          <Table.HeaderCell>Type</Table.HeaderCell>
-          <Table.HeaderCell>Optional</Table.HeaderCell>
-          <Table.HeaderCell>Default</Table.HeaderCell>
-        </Table.Row>
-      </Responsive>
+    <table
+      sx={{
+        ...borderStyle,
+      }}
+    >
+      <tr sx={{ bg: 'gray6', ...borderStyle }}>
+        <th sx={{ ...cellStyle }}>Property</th>
+        <th sx={{ ...cellStyle }}>Description</th>
+        <th sx={{ ...cellStyle }}>Type</th>
+        <th sx={{ ...cellStyle }}>Optional</th>
+        <th sx={{ ...cellStyle }}>Default</th>
+      </tr>
 
-      <Table.Body>
+      <tbody>
         {properties.map((prop, index) => {
           let type
           if (prop.typeLink) {
@@ -28,35 +39,25 @@ const PropertiesTable = ({ properties }) => {
           const optionalValue = prop.optional ? 'Yes' : 'No'
 
           return (
-            <Table.Row warning={prop.deprecated} key={index}>
-              <Table.Cell>
-                {prop.deprecated && <Label ribbon>Deprecated</Label>}
-                {prop.name}
-              </Table.Cell>
-              <Table.Cell><ReactMarkdown source={prop.description}/></Table.Cell>
-              <Table.Cell>
-                <Responsive as="b" {...Responsive.onlyMobile}>
-                  Type:{' '}
-                </Responsive>
-                <StyledCode>{type}</StyledCode>
-              </Table.Cell>
-              <Table.Cell>
-                <Responsive as="b" {...Responsive.onlyMobile}>
-                  Optional:{' '}
-                </Responsive>
-                {optionalValue}
-              </Table.Cell>
-              <Table.Cell>
-                <Responsive as="b" {...Responsive.onlyMobile}>
-                  Default:{' '}
-                </Responsive>
-                <StyledCode>{prop.default}</StyledCode>
-              </Table.Cell>
-            </Table.Row>
+            <tr key={index} sx={{ ...borderStyle }}>
+              <td sx={{ ...cellStyle }}>{prop.name}</td>
+              <td sx={{ ...cellStyle }}>
+                <ReactMarkdown source={prop.description} />
+              </td>
+              <td sx={{ ...cellStyle }}>
+                <Styled.code>{type}</Styled.code>
+              </td>
+              <td sx={{ ...cellStyle }}>{optionalValue}</td>
+              <td sx={{ ...cellStyle }}>
+                {prop.default != '' && (
+                  <Styled.code>{prop.default}</Styled.code>
+                )}
+              </td>
+            </tr>
           )
         })}
-      </Table.Body>
-    </Table>
+      </tbody>
+    </table>
   )
 }
 

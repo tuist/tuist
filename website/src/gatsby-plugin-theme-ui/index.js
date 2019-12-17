@@ -106,7 +106,7 @@ const styles = {
     borderRadius: 2,
   },
   code: {
-    fontSize: 1,
+    fontSize: 0,
   },
   blockquote: {
     bg: 'muted',
