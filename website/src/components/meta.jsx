@@ -1,6 +1,7 @@
 import React from 'react'
 import Helmet from 'react-helmet'
-import { useStaticQuery, graphql } from 'gatsby'
+import { useStaticQuery, graphql, withPrefix } from 'gatsby'
+import urljoin from 'url-join'
 
 function Meta({ description, lang, meta, keywords, title, author, slug }) {
   const { site } = useStaticQuery(
@@ -31,6 +32,13 @@ function Meta({ description, lang, meta, keywords, title, author, slug }) {
       <meta property="og:title" content={title} />
       <meta property="og:description" content={metaDescription} />
       <meta property="og:type" content="website" />
+      <meta
+        property="og:image"
+        content={urljoin(
+          site.siteMetadata.siteUrl,
+          withPrefix('squared-logo.png')
+        )}
+      />
 
       <meta name="twitter:card" content="summary" />
       <meta name="twitter:creator" content={site.siteMetadata.author} />

@@ -118,7 +118,11 @@ export default () => {
                   alt="The project's GitHub organization"
                 >
                   <span>GITHUB</span>
-                  <FontAwesomeIcon sx={{ ml: 2, mt: -1 }} icon={faGithub} />
+                  <FontAwesomeIcon
+                    sx={{ ml: 2, mt: -1 }}
+                    icon={faGithub}
+                    size="s"
+                  />
                 </a>
                 <a
                   sx={{
@@ -133,7 +137,11 @@ export default () => {
                   alt="Join the organization's Slack channel"
                 >
                   <span>SLACK</span>
-                  <FontAwesomeIcon sx={{ ml: 2, mt: -1 }} icon={faSlack} />
+                  <FontAwesomeIcon
+                    sx={{ ml: 2, mt: -1 }}
+                    icon={faSlack}
+                    size="s"
+                  />
                 </a>
               </div>
             )

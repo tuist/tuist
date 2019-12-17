@@ -1,31 +1,41 @@
+/** @jsx jsx */
+import { jsx, Styled } from 'theme-ui'
+
 import React from 'react'
 import { Label, Table } from 'semantic-ui-react'
-import StyledCode from "./styled-code"
+import StyledCode from './styled-code'
 
 const EnumTable = ({ cases }) => {
+  const borderStyle = {
+    border: theme => `1px solid ${theme.colors.gray5}`,
+    borderCollapse: 'collapse',
+  }
+  const cellStyle = {
+    ...borderStyle,
+    p: 2,
+  }
   return (
-    <Table celled>
-      <Table.Header>
-        <Table.Row>
-          <Table.HeaderCell>Case</Table.HeaderCell>
-          <Table.HeaderCell>Description</Table.HeaderCell>
-        </Table.Row>
-      </Table.Header>
+    <table sx={{ ...borderStyle }}>
+      <thead>
+        <tr sx={{ bg: 'gray6' }}>
+          <th sx={{ ...cellStyle }}>Case</th>
+          <th sx={{ ...cellStyle }}>Description</th>
+        </tr>
+      </thead>
 
-      <Table.Body>
+      <tbody>
         {cases.map((prop, index) => {
           return (
-            <Table.Row warning={prop.deprecated} key={index}>
-              <Table.Cell>
-                {prop.deprecated && <Label ribbon>Deprecated</Label>}
-                <StyledCode>{prop.case}</StyledCode>
-              </Table.Cell>
-              <Table.Cell>{prop.description}</Table.Cell>
-            </Table.Row>
+            <tr key={index}>
+              <td sx={{ ...cellStyle }}>
+                <Styled.code>{prop.case}</Styled.code>
+              </td>
+              <td sx={{ ...cellStyle }}>{prop.description}</td>
+            </tr>
           )
         })}
-      </Table.Body>
-    </Table>
+      </tbody>
+    </table>
   )
 }
 

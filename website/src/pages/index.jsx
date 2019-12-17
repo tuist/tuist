@@ -417,7 +417,6 @@ const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
           textAlign: 'center',
           color: 'gray3',
           p: 3,
-          height: ['inherit', 170],
         }}
       >
         <quote>"{testimony}"</quote>
@@ -518,7 +517,7 @@ const Reflections = () => {
         bg: 'white',
       }}
     >
-      <div sx={{ mb: [0, 50], pb: [5, 0] }}>
+      <div sx={{ mb: [0, 0, 50], pb: [5, 5, 0] }}>
         <div sx={{ bg: 'gray5', alignSelf: 'stretch', height: '1px' }} />
         <Main py="0">
           <div
@@ -541,7 +540,7 @@ const Reflections = () => {
                 mt: 5,
                 display: 'flex',
                 flexDirection: ['column', 'row'],
-                mb: [0, -48],
+                mb: [0, 0, -48],
                 alignItems: ['stretch', 'center'],
                 justifyContent: ['flex-start', 'space-between'],
               }}
@@ -563,7 +562,7 @@ const Reflections = () => {
               <Reflection
                 name="ROMAIN BOULAY"
                 testimony="Tuist has delivered more than the SoundCloud iOS Collective expected! We aimed to make modularization more accessible and maintainable. We got this... and better build times!."
-                role="IOS PLATFORM LEAD"
+                role="IOS LEAD"
                 company="SOUNDCLOUD"
                 avatarUrl="https://avatars2.githubusercontent.com/u/169323?s=460&v=4"
               />
