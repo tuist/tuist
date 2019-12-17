@@ -40,13 +40,11 @@ function Meta({ description, lang, meta, keywords, title, author, slug }) {
         )}
       />
 
-      <meta name="twitter:card" content="summary" />
       <meta name="twitter:creator" content={site.siteMetadata.author} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={metaDescription} />
 
       <meta name="description" content={metaDescription} />
-      <meta name="twitter:card" content="summary_large_image" />
       <meta name="keywords" content={keywords.join(`, `)} />
 
       {slug && (
@@ -55,6 +53,7 @@ function Meta({ description, lang, meta, keywords, title, author, slug }) {
           content={`${site.siteMetadata.siteUrl}${slug}twitter-card.jpg`}
         />
       )}
+      {slug && <meta name="twitter:card" content="summary_large_image" />}
     </Helmet>
   )
 }
