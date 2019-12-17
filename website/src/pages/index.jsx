@@ -314,8 +314,8 @@ const Principles = () => {
         <SectionTitle
           title="Principles"
           subtitle="DESIGN"
-          description="Tuist is not a project generator, it’s a tool to empower you build apps
-        of any scale"
+          description="Tuist is not a project generator, it’s a tool to empower you to build apps
+        of any scale."
         />
         <div
           sx={{
@@ -351,7 +351,7 @@ const Principles = () => {
           <Feature
             color="blue"
             name="Early errors"
-            description="If we know your project won’t compile, we fail early. We don't want you waste time waiting  for the build system to bubble up errors."
+            description="If we know your project won’t compile, we fail early. We don't want you *to* waste time waiting for the build system to bubble up errors."
           >
             <Warning />
           </Feature>
