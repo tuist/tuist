@@ -6,9 +6,8 @@ import TuistSupport
 public class TuistConfig: Equatable, Hashable {
     /// Contains options related to the project generation.
     ///
-    /// - generateManifestElement: When passed, Tuist generates the projects, targets and schemes to compile the project manifest.
+    /// - xcodeProjectName: Name used for the Xcode project
     public enum GenerationOption: Hashable, Equatable {
-        case generateManifest
         case xcodeProjectName(String)
     }
 

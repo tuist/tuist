@@ -30,7 +30,6 @@ public struct TuistConfig: Codable, Equatable {
 
 extension TuistConfig.GenerationOptions {
     enum CodingKeys: String, CodingKey {
-        case generateManifest
         case xcodeProjectName
     }
 

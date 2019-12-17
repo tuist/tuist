@@ -330,7 +330,7 @@ const Principles = () => {
           <Feature
             color="purple"
             name="Plain and easy language"
-            description="Describe your projects as you think about them.  Build settings, phases and other intricacies become implementation details"
+            description="Describe your projects as you think about them.  Build settings, phases and other intricacies become implementation details."
           >
             <Heart />
           </Feature>
@@ -344,28 +344,28 @@ const Principles = () => {
           <Feature
             color="blue"
             name="Focus"
-            description="Generated projects are optimized for your focus and productivity. They contain just what you need for the task at hand. "
+            description="Generated projects are optimized for your focus and productivity. They contain just what you need for the task at hand."
           >
             <Eye />
           </Feature>
           <Feature
             color="blue"
             name="Early errors"
-            description="If we know your project won’t compile, we fail early. Your time is valuable as to waste it waiting for the build system to bubble up errors"
+            description="If we know your project won’t compile, we fail early. We don't want you waste time waiting  for the build system to bubble up errors."
           >
             <Warning />
           </Feature>
           <Feature
             color="green"
             name="Conventions"
-            description="Be opinionated about the structure of the projects; define project factories that teams can use to create new projects"
+            description="Be opinionated about the structure of the projects; define project factories that teams can use to create new projects."
           >
             <Message />
           </Feature>
           <Feature
             color="purple"
             name="Scale"
-            description="Tuist is optimized to support projects at scale. Whether your project is 1 target, or 1000, it should make no diffference "
+            description="Tuist is optimized to support projects at scale. Whether your project is 1 target, or 1000, it should make no diffference."
           >
             <Arrow />
           </Feature>
