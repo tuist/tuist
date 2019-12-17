@@ -188,7 +188,7 @@ module.exports = {
                 x: null,
                 y: null,
               },
-              background: '#17223b',
+              background: '#3195E6',
               xMargin: 24,
               yMargin: 24,
             },

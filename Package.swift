@@ -96,7 +96,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistSupportTests",
-            dependencies: ["TuistSupport", "TuistSupportTesting"]
+            dependencies: ["TuistSupport", "TuistSupportTesting", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistSupportIntegrationTests",
