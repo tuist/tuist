@@ -13,14 +13,12 @@ AllCops:
   Exclude:
     - features/**/*
     - fixtures/**/*
-    - docs/**/*
     - .build/**/*
     - .circleci/**/*
     - .vscode/**/*
     - assets/**/*
     - build/**/*
     - Carthage/**/*
-    - docs/**/*
     - Sources/**/*
     - Tests/**/*
     - .github/**/*

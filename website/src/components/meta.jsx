@@ -1,6 +1,6 @@
-import React from "react";
-import Helmet from "react-helmet";
-import { useStaticQuery, graphql } from "gatsby";
+import React from 'react'
+import Helmet from 'react-helmet'
+import { useStaticQuery, graphql } from 'gatsby'
 
 function Meta({ description, lang, meta, keywords, title, author, slug }) {
   const { site } = useStaticQuery(
@@ -15,63 +15,32 @@ function Meta({ description, lang, meta, keywords, title, author, slug }) {
         }
       }
     `
-  );
+  )
 
-  const metaDescription = description || site.siteMetadata.description;
-  const metaTitle = title || site.siteMetadata.title;
-  const titleTemplate = title ? `%s | ${site.siteMetadata.title}` : `%s`;
+  const metaDescription = description || site.siteMetadata.description
+  const metaTitle = title || site.siteMetadata.title
+  const titleTemplate = title ? `%s | ${site.siteMetadata.title}` : `%s`
   return (
     <Helmet
       htmlAttributes={{
-        lang
+        lang,
       }}
       title={metaTitle}
       titleTemplate={titleTemplate}
-      meta={[
-        {
-          name: `description`,
-          content: metaDescription
-        },
-        {
-          property: `og:title`,
-          content: title
-        },
-        {
-          property: `og:description`,
-          content: metaDescription
-        },
-        {
-          property: `og:type`,
-          content: `website`
-        },
-        {
-          name: `twitter:card`,
-          content: `summary`
-        },
-        {
-          name: `twitter:creator`,
-          content: site.siteMetadata.author
-        },
-        {
-          name: `twitter:title`,
-          content: title
-        },
-        {
-          name: `twitter:description`,
-          content: metaDescription
-        }
-      ]
-        .concat(
-          keywords.length > 0
-            ? {
-                name: `keywords`,
-                content: keywords.join(`, `)
-              }
-            : []
-        )
-        .concat(meta)}
     >
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={metaDescription} />
+      <meta property="og:type" content="website" />
+
+      <meta name="twitter:card" content="summary" />
+      <meta name="twitter:creator" content={site.siteMetadata.author} />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={metaDescription} />
+
+      <meta name="description" content={metaDescription} />
       <meta name="twitter:card" content="summary_large_image" />
+      <meta name="keywords" content={keywords.join(`, `)} />
+
       {slug && (
         <meta
           name="twitter:image"
@@ -79,13 +48,28 @@ function Meta({ description, lang, meta, keywords, title, author, slug }) {
         />
       )}
     </Helmet>
-  );
+  )
 }
 
 Meta.defaultProps = {
   lang: `en`,
   meta: [],
-  keywords: [`tuist`, `engineering`, `xcode`, `swift`]
-};
+  keywords: [
+    `tuist`,
+    `engineering`,
+    `xcode`,
+    `swift`,
+    `project generation`,
+    'ios',
+    'uikit',
+    'foundation',
+    'tvos',
+    'ios',
+    'watchos',
+    'objective-c',
+    'swift package manager',
+    'swift packages',
+  ],
+}
 
-export default Meta;
+export default Meta

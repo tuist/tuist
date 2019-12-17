@@ -1,79 +1,161 @@
 //* @jsx jsx */
-import { jsx } from "theme-ui";
-import { useStaticQuery, graphql, Link } from "gatsby";
+import { jsx, Styled } from 'theme-ui'
+import { withPrefix, useStaticQuery, graphql, Link } from 'gatsby'
+import Margin from './margin'
 
-const Footer = () => {
-  const centerStyle = { textAlign: "center" };
+export default () => {
   const {
-    site: { siteMetadata }
+    site: {
+      siteMetadata: { githubUrl, slackUrl, releasesUrl },
+    },
   } = useStaticQuery(graphql`
     query {
       site {
         siteMetadata {
           githubUrl
-          releasesUrl
-          documentationUrl
           slackUrl
+          releasesUrl
         }
       }
     }
-  `);
+  `)
+  const copyrightMessage =
+    'Tuist © Copyright 2019. All rights reserved. Crafted with ♥ by Pedro Piñera & the contributors.'
+  const linkStyle = {
+    color: 'white',
+    '&:hover': { textDecoration: 'underline' },
+    '&:focus-visible': { textDecoration: 'underline' },
+  }
   return (
-    <div
-      sx={{
-        display: "flex",
-        bg: "secondary",
-        fontSize: 1,
-        padding: 4,
-        color: "primary",
-        flexDirection: ["column", "row"]
-      }}
-    >
-      <div
-        sx={{
-          textAlign: ["center", "left"],
-          marginBottom: [3, 0]
-        }}
-      >
-        Tuist is a project from{" "}
-        <a href="https://twitter.com/pepibumur">Pedro Piñera</a> and the Tuist
-        community
-      </div>
-      <div sx={{ flex: 1 }} />
-      <div
-        sx={{
-          display: "flex",
-          marginTop: [3, 0],
-          flexDirection: ["column", "row"],
-          justifyContent: ["center", "center"]
-        }}
-      >
-        <div sx={{ ...centerStyle, marginRight: 2 }}>
-          <a href={siteMetadata.githubUrl} target="__blank">
-            GitHub
-          </a>
+    <footer sx={{ py: 3, bg: 'gray1', flex: 1 }}>
+      <Margin>
+        <div
+          sx={{
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            flexDirection: 'column',
+            flex: 1,
+          }}
+        >
+          <div
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              flexDirection: ['column', 'row'],
+              flex: 1,
+              alignSelf: 'stretch',
+            }}
+          >
+            <div
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <div
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <img
+                  src={withPrefix('logo.svg')}
+                  sx={{ height: 30, width: 30 }}
+                  alt="Tuist's logotype"
+                />
+                <Styled.h3 sx={{ color: 'white', ml: 2, my: 0 }}>
+                  Tuist
+                </Styled.h3>
+              </div>
+            </div>
+            <div
+              sx={{
+                mt: [3, 0],
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <Styled.h3 sx={{ color: 'white', mb: 9, mt: 0 }}>
+                Documentation
+              </Styled.h3>
+              <Link to="/docs/usage/getting-started/" sx={linkStyle}>
+                Getting started
+              </Link>
+              <Link to="/docs/usage/projectswift/" sx={linkStyle}>
+                Manifest specification
+              </Link>
+              <Link to="/docs/usage/dependencies/" sx={linkStyle}>
+                Dependencies
+              </Link>
+              <Link to="/docs/contribution/tuist/" sx={linkStyle}>
+                Contributors
+              </Link>
+              <div
+                sx={{
+                  fontSize: 1,
+                  mt: 3,
+                  display: ['none', 'block'],
+                  color: 'gray3',
+                }}
+              >
+                {copyrightMessage}
+              </div>
+            </div>
+            <div
+              sx={{
+                mt: [3, 0],
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <Styled.h3 sx={{ color: 'white', mb: 9, mt: 0 }}>Other</Styled.h3>
+              <a
+                sx={linkStyle}
+                target="__blank"
+                href={githubUrl}
+                alt="Opens the Tuist's organizqtion on GitHub"
+              >
+                GitHub organization
+              </a>
+              <a
+                sx={linkStyle}
+                target="__blank"
+                href={slackUrl}
+                alt="Join the Slack group"
+              >
+                Join our Slack
+              </a>
+              <Link to="/blog" sx={linkStyle}>
+                Blog
+              </Link>
+              <a
+                sx={linkStyle}
+                target="__blank"
+                href={releasesUrl}
+                alt="Check out the releases on GitHub"
+              >
+                Releases
+              </a>
+            </div>
+            <div
+              sx={{
+                fontSize: 1,
+                mt: 3,
+                display: ['block', 'none'],
+                textAlign: 'center',
+                color: 'gray3',
+              }}
+            >
+              {copyrightMessage}
+            </div>
+          </div>
         </div>
-        <div sx={{ ...centerStyle, marginRight: 2 }}>
-          <Link to="/blog">Blog</Link>
-        </div>
-        <div sx={{ ...centerStyle, marginRight: 2 }}>
-          <a href={siteMetadata.releasesUrl} target="__blank">
-            Releases
-          </a>
-        </div>
-        <div sx={{ ...centerStyle, marginRight: 2 }}>
-          <a href={siteMetadata.documentationUrl} target="__blank">
-            Documentation
-          </a>
-        </div>
-        <div sx={{ ...centerStyle, marginRight: 2 }}>
-          <a href={siteMetadata.slackUrl} target="__blank">
-            Slack
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default Footer;
+      </Margin>
+    </footer>
+  )
+}

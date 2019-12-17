@@ -1,9 +1,9 @@
 ---
 layout: post
-title: Tuist 0.11.0
+title: Tuist 0.11.0 has been released
 date: 2019-02-14
 categories: [tuist, release, swift]
-excerpt: In this blog post we announce the Tuist version 0.11.0 and talk about the new features, improvements and fixes that come with it.
+excerpt: Tuist 0.11.0 is out and it includes features like "tuist up" that help users configure their environment before working with the projects, or support for generating target schemes. This version also adds support for defining environment variables for targets, as well as some minor improvements and fixes.
 author: pepibumur
 ---
 

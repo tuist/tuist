@@ -1,30 +1,32 @@
 /** @jsx jsx */
-import { jsx } from "theme-ui";
+import { jsx } from 'theme-ui'
 
-const Main = ({ background, children }) => {
+const Main = ({ children, py }) => {
+  if (!py) {
+    py = 4
+  }
   return (
-    <main
+    <div
       sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        bg: ["background", "primary"]
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
       }}
     >
       <div
         sx={{
-          bg: "background",
           mt: 3,
           px: [2, 5],
+          py: py,
           borderTopLeftRadius: 2,
           borderTopRightRadius: 2,
-          width: theme => ["90%", "90%", "80%", "80%", theme.breakpoints.md]
+          width: theme => ['90%', '90%', '80%', '80%', theme.breakpoints.md],
         }}
       >
         {children}
       </div>
-    </main>
-  );
-};
+    </div>
+  )
+}
 
-export default Main;
+export default Main

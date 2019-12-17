@@ -1,19 +1,19 @@
 ---
 layout: post
-title: Tuist 0.17.0
+title: Visualize your projects graph from Tuist 0.17.0
 date: 2019-06-21
 categories: [tuist, release, swift]
-excerpt: This blog post announces Tuist 0.1.70 features, improvements and bug fixes!
+excerpt: One of the difficulties of scaling up Xcode projects comes from the fact that Xcode doesn't provide a high-level picture of the structure of the project. Tuist 0.17.0 fixes that by providing a new command, 'tuist graph', that exports a graph of the project to help users of the tool visualize their project dependencies. This version also adds support for configuring Tuist globally, and also indicate the version of Xcode that is required to run the project.
 author: pepibumur
 ---
 
 Hola 👋
 
-Last week we released a new version of Tuist, 
-0.17.0, 
+Last week we released a new version of Tuist,
+0.17.0,
 which comes packed with a handful of great improvements that will make your experience interacting with your projects more pleasing.
 
-In this post, 
+In this post,
 I'd like to guide you through some of those new features,
 as well as showing you some minor improvements and bug fixes that we have also introduced.
 
@@ -62,8 +62,8 @@ That generates a `graph.dot` file that we can turn into a visual representation 
 
 ## Global configuration 📝
 
-We are glad to welcome `TuistConfig.swift` to the family! 
-We realized that configuring Tuist for all the projects that are part of a repository was not possible and required having to pass argument when calling different tuist commands. 
+We are glad to welcome `TuistConfig.swift` to the family!
+We realized that configuring Tuist for all the projects that are part of a repository was not possible and required having to pass argument when calling different tuist commands.
 To make that easier we introduced the concept of a configuration that is globally applied to all the projects that are part of a repository.
 Imagine we have the following folder structure:
 
@@ -94,7 +94,7 @@ all the generated Xcode projects will follow the configured naming convention.
 
 ## Compatible Xcode versions ✅
 
-*Have you ever tried to compile a project with an Xcode version that the project is not compatible with?*
+_Have you ever tried to compile a project with an Xcode version that the project is not compatible with?_
 It often results in compilation errors because the project hasn't been updated yet.
 Xcode doesn't allow pinning a project to a specific Xcode version,
 and thus when the OS updates Xcode automatically,
@@ -116,7 +116,7 @@ Tuist will fail letting developers know why.
 
 ## CocoaPods support 📦
 
-In order to use CocoaPods with Tuist, 
+In order to use CocoaPods with Tuist,
 developers had to manually execute `pod install` right after the project generation.
 
 That's not necessary anymore because we've added support for a new type of dependency, `.cocoapods`. Targets can use that type of dependency to indicate that `pod install` needs to be run after generating the project the target belongs to.
@@ -132,21 +132,21 @@ we suggest defining CocoaPods dependencies from the app targets and not from its
 Targets can now specify their product name without having to define a build setting for that:
 
 ```swift
-let macosTarget = Target(name: "CoremacOS", productName: "Core") 
-let iosTarget = Target(name: "CoreiOS", productName: "Core") 
+let macosTarget = Target(name: "CoremacOS", productName: "Core")
+let iosTarget = Target(name: "CoreiOS", productName: "Core")
 ```
 
 ### Support static products depending on dynamic frameworks
 
-Before this version, 
-it was not possible to link a static product against a dynamic framework. 
+Before this version,
+it was not possible to link a static product against a dynamic framework.
 That's possible now.
 As always,
 Tuist will take care of defining the right build settings and phases for you.
 
 ### Swift project
 
-Tuist is now more integrated into the `swift` command line namespace. 
+Tuist is now more integrated into the `swift` command line namespace.
 Its command line interface is now available through the `swift project` namespace.
 For example,
 if you try to run `swift project init`,
@@ -156,10 +156,10 @@ It'll generate an empty project using Tuist.
 
 By default,
 `tuist generate` generates all the projects that are part of the dependency graph.
-However, 
+However,
 there are some scenarios where the users might just be interested in generating the project in the current directory.
 For that reason,
-we added support for generating only the project in the current directory. 
+we added support for generating only the project in the current directory.
 
 It's as easy as passing the `--project-only` argument to the generate command:
 
@@ -181,11 +181,11 @@ let headers = Headers(public: ["Headers/**/*.h", "Other/**/*.h"])
 
 This release also fixes bugs that have been detected and reported by users:
 
-* Ensure that transitive SDK dependencies are added correctly.
-* Ensure that the correct platform SDK dependencies path is set.
-* Update manifest target name such that its product has a valid name.
-* Do not create Derived/InfoPlists folder when no InfoPlist dictionary is specified.
-* Set the correct `lastKnownFileType` for localized files.
+- Ensure that transitive SDK dependencies are added correctly.
+- Ensure that the correct platform SDK dependencies path is set.
+- Update manifest target name such that its product has a valid name.
+- Do not create Derived/InfoPlists folder when no InfoPlist dictionary is specified.
+- Set the correct `lastKnownFileType` for localized files.
 
 ## Some final words
 

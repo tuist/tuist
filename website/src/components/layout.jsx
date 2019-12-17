@@ -1,16 +1,20 @@
-import React from "react";
-import Menu from "./menu";
-import { ColorMode } from "theme-ui";
-import "../styles/main.css";
+import React from 'react'
+import { Styled } from 'theme-ui'
+import GlobalStyle from './global-style'
+import Header from '../components/header'
+import { LogoStructuredData } from '../components/structured-data'
 
 const Layout = ({ children }) => {
   return (
     <>
-      <ColorMode />
-      <Menu />
-      {children}
+      <GlobalStyle />
+      <LogoStructuredData />
+      <Styled.root>
+        <Header />
+        <main>{children}</main>
+      </Styled.root>
     </>
-  );
-};
+  )
+}
 
-export default Layout;
+export default Layout

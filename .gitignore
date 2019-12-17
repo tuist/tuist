@@ -71,18 +71,6 @@ playground.xcworkspace
 
 # Carthage - Refactored to standalone file
 
-# fastlane
-#
-# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
-# screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/#source-control
-
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots
-fastlane/test_output
-
 # End of https://www.gitignore.io/api/swift,macos
 
 *.xcodeproj

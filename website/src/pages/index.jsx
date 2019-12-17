@@ -1,604 +1,734 @@
 /** @jsx jsx */
-import { jsx } from "theme-ui";
+import { jsx, Styled } from 'theme-ui'
 
-import Layout from "../components/layout";
-import Meta from "../components/meta";
-import HomeHeader from "../components/home-header";
-import Footer from "../components/footer";
-import { graphql } from "gatsby";
+import Layout from '../components/layout'
+import Meta from '../components/meta'
+import Footer from '../components/footer'
+import Main from '../components/main'
+import { graphql, Link } from 'gatsby'
+import Heart from '../../assets/heart.svg'
+import Paper from '../../assets/paper.svg'
+import Eye from '../../assets/eye.svg'
+import Warning from '../../assets/warning.svg'
+import Message from '../../assets/message.svg'
+import Framework from '../../assets/framework.svg'
+import Arrow from '../../assets/arrow.svg'
+import Swift from '../../assets/swift.svg'
+import Soundcloud from '../../assets/soundcloud.svg'
+import Mytaxi from '../../assets/mytaxi.svg'
+import posed from 'react-pose'
+import Code from '../gatsby-plugin-theme-ui/code'
+import Quote from '../../assets/quote.svg'
 
-import BoxIcon from "../../assets/box.svg";
-import Check from "../../assets/check.svg";
-import Truck from "../../assets/truck.svg";
-import Report from "../../assets/report.svg";
-import Developer from "../../assets/developer.svg";
-import Desk from "../../assets/desk.svg";
-import Asteroid from "../../assets/asteroid.svg";
-import Astrology from "../../assets/astrology.svg";
-import Rocket from "../../assets/rocket.svg";
-import Astronaut from "../../assets/astronaut.svg";
-import GitHub from "../../assets/github.svg";
-import Slack from "../../assets/slack.svg";
-import Terminal from "react-animated-term";
-import "react-animated-term/dist/react-animated-term.css";
-import { Styled } from "theme-ui";
+const PressableButton = posed.div({
+  hoverable: true,
+  pressable: true,
+  init: { scale: 1 },
+  hover: { scale: 1.1 },
+  press: { scale: 1.05 },
+})
 
-const WithMargin = ({ children, ...props }) => {
+const GradientButton = ({ title, link }) => {
+  return (
+    <Link to={link}>
+      <PressableButton
+        sx={{
+          fontSize: 1,
+          mt: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: theme =>
+            `linear-gradient(90deg, ${theme.colors.purple} 0%, ${theme.colors.primary} 100%)`,
+          color: 'white',
+          p: 2,
+          px: 3,
+          height: '40px',
+          borderRadius: '40px',
+          '&:focus': {
+            textDecoration: 'underline',
+            textDecorationColor: 'white',
+          },
+          '&:hover': {
+            cursor: 'pointer',
+          },
+        }}
+      >
+        {title}
+      </PressableButton>
+    </Link>
+  )
+}
+
+const Steroids = () => {
+  return (
+    <div>
+      <Main>
+        <div
+          sx={{
+            display: 'flex',
+            flexDirection: ['column-reverse', 'row'],
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div>
+            <Framework sx={{ mr: [0, 3], mt: [3, 0] }} />
+          </div>
+          <div
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+          >
+            <div
+              sx={{
+                textAlign: 'center',
+                color: 'primary',
+                fontSize: [5, 6],
+                mb: 0,
+                fontWeight: '500',
+                lineHeight: 1.3,
+              }}
+            >
+              Xcode on steroids
+            </div>
+            <div
+              sx={{
+                textAlign: 'center',
+                color: 'primary',
+                fontSize: [5, 6],
+                mt: 0,
+                fontWeight: 'heading',
+                lineHeight: 1.3,
+              }}
+            >
+              <span sx={{ borderBottom: '5px solid' }}>Easy</span> and{' '}
+              <span sx={{ borderBottom: '5px solid' }}>fast</span>
+            </div>
+            <div
+              sx={{
+                color: 'gray2',
+                fontSize: [2, 3],
+                fontWeight: 'body',
+                mt: [4, 5],
+                textAlign: 'center',
+              }}
+            >
+              Bootstrap, maintain, and interact with
+              <br /> Xcode projects at any scale
+            </div>
+            <GradientButton
+              title="GET STARTED"
+              link="/docs/usage/getting-started/"
+            />
+            {/* <div sx={{ color: 'gray4', mt: 4 }}>
+              Trusted by the following companies and projects:
+            </div>
+            <div sx={{ mt: 3 }}>
+              <Soundcloud sx={{ height: 30 }} />
+              <Mytaxi sx={{ ml: 3, height: 30 }} />
+            </div> */}
+          </div>
+          <div sx={{ display: 'block' }}>
+            <Swift sx={{ alignSelf: 'flex-start', ml: [0, 6] }} />
+          </div>
+        </div>
+      </Main>
+    </div>
+  )
+}
+
+const SectionTitle = ({ title, subtitle, description }) => {
   return (
     <div
       sx={{
-        flexDirection: "column",
-        display: "flex",
-        alignItems: "center",
-        flex: 1,
-        mx: [20, 60]
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        zIndex: 1,
       }}
-      {...props}
+    >
+      <div sx={{ fontSize: 0, color: 'primary', textAlign: 'center' }}>
+        {subtitle}
+      </div>
+      <div sx={{ fontSize: 3, fontWeight: 'heading', textAlign: 'center' }}>
+        {title}
+      </div>
+      <div sx={{ color: 'gray3', mt: 2, textAlign: 'center' }}>
+        {description}
+      </div>
+    </div>
+  )
+}
+
+const ManifestWindow = () => {
+  const exampleCode = `
+import ProjectDescription
+import ProjectDescriptionHelpers
+
+let project = Project.featureFramework(
+  name: "Home",
+  dependencies: [
+    .project(target: "Features", path: "../Features"),
+    .framework(path: "Carthage/Build/iOS/SnapKit.framework")
+    .package(product: "KeychainSwift")
+  ]
+)
+  `
+  const buttonStyle = { width: 12, height: 12, borderRadius: 6 }
+  const radius = 1
+  return (
+    <div
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: ['95%', '70%'],
+        mt: 5,
+      }}
     >
       <div
         sx={{
-          width: theme => ["90%", "90%", "80%", "80%", theme.breakpoints.md]
+          bg: 'gray5',
+          height: 20,
+          borderTopLeftRadius: radius,
+          borderTopRightRadius: radius,
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          flex: 1,
+          py: 1,
+          px: 2,
+        }}
+      >
+        <div sx={{ ...buttonStyle, bg: 'red' }} />
+        <div sx={{ ...buttonStyle, ml: 1, bg: 'yellow' }} />
+        <div sx={{ ...buttonStyle, ml: 1, bg: 'green' }} />
+        <div sx={{ fontSize: 1, color: 'gray3', ml: 3 }}>Project.swift</div>
+      </div>
+      <div
+        sx={{
+          bg: 'black',
+          borderBottomLeftRadius: radius,
+          borderBottomRightRadius: radius,
+        }}
+      >
+        <Code className="language-swift" my="0" showCopy={false} bg="black">
+          {exampleCode}
+        </Code>
+      </div>
+    </div>
+  )
+}
+
+const PBXProj = () => {
+  const part1 = `PBXBuildFile section */ B90F3BFE238DB50A00102CB7 /* Manifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90F3BFD238DB50A00102CB7 /* Manifest.swift */; }; OBJ_1007 /* Signals.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_544 /* Signals.swift */; }; OBJ_1014 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_545 /* Package.swift */; }; OBJ_1020 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_636 /* Package.swift */; }; OBJ_1026 /* CocoaPodsNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_43 /* CocoaPodsNode.swift */; }; OBJ_1027 /* FrameworkNode.swift in Sources */ OBJ_16 /* Headers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Headers.swift; sourceTree = "<group>"; }; OBJ_1631 /* Frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 0; files = ( OBJ_1632 /* TuistSupportTesting.framework in Frameworks */, OBJ_1633 /* TuistKit.framework in Frameworks */, OBJ_1634 /* Signals.framework in Frameworks */, OBJ_1635 /* ProjectDescription.framework in Frameworks */, OBJ_1636 /* TuistGenerator.framework in Frameworks */, OBJ_1637 /* TuistCore.framework in Frameworks */, OBJ_1638 /* XcodeProj.framework in Frameworks */`
+  const part2 = ` = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileElement.swift; sourceTree = "<group>"; }; OBJ_140 /* GraphToDotGraphMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphToDotGraphMapper.swift; sourceTree = "<group>"; }; OBJ_142 /* AbsolutePath+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AbsolutePath+Extras.swift"; sourceTree = "<group>"; }; OBJ_143 /* Array+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Array+Extras.swift"; sourceTree = "<group>"; }; OBJ_144 /* Xcodeproj+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Xcodeproj+Extras.swift"; sourceTree = "<group>"; }; OBJ_146 /* BuildPhaseGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildPhaseGenerator.swift; sourceTree = "<group>"; } ; OBJ_147 /* ConfigGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigGenerator.swift; sourceTree = "<group>"; }; OBJ_148 /* DerivedFileGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DerivedFileGenerator.swift; sourceTree = "<group>"; }; OBJ_149 /* FileGenerator.swift *`
+  const part3 = ` {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileGenerator.swift; sourceTree = "<group>"; }; OBJ_15 /* FileList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileList.swift; sourceTree = "<group>"; }; OBJ_150 /* GeneratedProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift;`
+  const part4 = `path = InfoPlistContentProvider.swift; sourceTree = "<group>"; }; OBJ_153 /* LinkGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkGenerator.swift; sourceTree = "<group>"; }; OBJ_154 /* ProjectFileElements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFileElements.swift; sourceTree = "<group>"; }; OBJ_155 /* ProjectGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGenerator.swift; sourceTree = "<group>"; }; OBJ_156 /* ProjectGroups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGroups.swift; sourceTree = "<group>"; }; OBJ_157 /* SchemesGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemesGenerator.swift; sourceTree = "<group>"; }; OBJ_158 /* TargetGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetGenerator.swift; sourceTree = "<group>"; }; OBJ_159 /* WorkspaceGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceGenerator.swift; sourceTree = "<group>"; }; , OBJ_1639 /* AEXML.framework in Frameworks */, OBJ_1640 /* PathKit.framework in Frameworks */, OBJ_1641 /* TuistSupport.framework in Frameworks */, OBJ_1642 /* SPMUtility.framework in Frameworks */, OBJ_1643 /* Basic.framework in Frameworks */, OBJ_1644 /* SPMLibc.framework in Frameworks */, OBJ_1645 /* clibc.framework in Frameworks */, ); runOnlyForDeploymentPostprocessing = 0; };/* Begin PBXBuildFile section */ B90F3BFE238DB50A00102CB7 /* Manifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90F3BFD238DB50A00102CB7 /* Manifest.swift */; }; OBJ_1007 /* Signals.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_544 /* Signals.swift */; }; OBJ_1014 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_545 /* Package.swift */; }; OBJ_1020 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_636 /* Package.swift */; }; OBJ_1026 /* CocoaPodsNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_43 /* CocoaPodsNode.swift */; }; OBJ_1027 /* FrameworkNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_44 /* FrameworkNode.swift */; }; B90F3B5C238DB48E00102CB7 /* PBXContainerItemProxy */ = { isa = PBXContainerItemProxy; containerPortal = OBJ_1 /* Project object */; proxyType = 1; remoteGlobalIDString = "SwiftPM::Basic"; remoteInfo = Basic; }; B90F3B5D238DB48E00102CB7 /* PBXContainerItemProxy */ = { isa = PBXContainerItemProxy; containerPortal = OBJ_1 /* Project object */; proxyType = 1; remoteGlobalIDString = "SwiftPM::SPMLibc"; remoteInfo = SPMLibc; }; B90F3B5E238DB48E00102CB7 /* PBXContainerItemProxy */ = { isa = PBXContainerItemProxy; containerPortal = OBJ_1 /* Project object */; proxyType = 1; remoteGlobalIDString = "SwiftPM::clibc"; remoteInfo = clibc; }; OBJ_138 /* DotGraphNodeAttribute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DotGraphNodeAttribute.swift; sourceTree = "<group>"; }; OBJ_139 /* DotGraphType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DotGraphType.swift; sourceTree = "<group>"; }; OBJ_14 /* FileElement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileElement.swift; sourceTree = "<group>"; }; OBJ_140 /* GraphToDotGraphMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphToDotGraphMapper.swift; sourceTree = "<group>"; }; OBJ_142 /* AbsolutePath+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AbsolutePath+Extras.swift"; sourceTree = "<group>"; }; OBJ_143 /* Array+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Array+Extras.swift"; sourceTree = "<group>"; }; OBJ_144 /* Xcodeproj+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Xcodeproj+Extras.swift"; sourceTree = "<group>"; }; OBJ_146 /* BuildPhaseGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildPhaseGenerator.swift; sourceTree = "<group>"; }; OBJ_147 /* ConfigGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigGenerator.swift; sourceTree = "<group>"; }; OBJ_148 /* DerivedFileGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DerivedFileGenerator.swift; sourceTree = "<group>"; }; OBJ_149 /* FileGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileGenerator.swift; sourceTree = "<group>"; }; OBJ_15 /* FileList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path =`
+  return (
+    <div sx={{ opacity: '0.5', fontSize: 0, color: 'gray5' }}>
+      <span>{part4}</span>
+      <span sx={{ fontWeight: '500' }}>{`<<<<<<< HEAD:project.pbxproj`}</span>
+      <span sx={{ fontWeight: '500' }}>{part2}</span>
+      <span sx={{ fontWeight: '500' }}>{`===========`}</span>
+      <span sx={{ fontWeight: '500' }}>{part3}</span>
+      <span
+        sx={{ fontWeight: '500' }}
+      >{`>>>>>>> 77976da35a11db4580b80ae27e8d65caf5208086:project.pbxproj`}</span>
+      <span>{part1}</span>
+      <span>{part4}</span>
+    </div>
+  )
+}
+
+const Workspaces = () => {
+  return (
+    <div sx={{ position: 'relative', overflow: 'hidden' }}>
+      <div sx={{ color: 'gray6', position: 'absolute', zIndex: '-1' }}>
+        <PBXProj />
+      </div>
+      <Main>
+        <div
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          <SectionTitle
+            title="Describe & generate"
+            subtitle="WORKSPACES"
+            description="Describe your apps and the frameworks they depend on. If they have unit or ui test targets you can define them too; even Swift package dependencies."
+          />
+          <ManifestWindow />
+        </div>
+      </Main>
+    </div>
+  )
+}
+
+const PosedFeature = posed.div({
+  hidden: { opacity: 0 },
+  shown: { opacity: 1 },
+})
+
+const Feature = ({ color, icon, name, description, children }) => {
+  return (
+    <PosedFeature
+      sx={{
+        flex: '0 0 30%',
+        display: 'flex',
+        flexDirection: 'column',
+        width: ['100%', '33%'],
+        alignItems: 'center',
+        mb: 3,
+      }}
+    >
+      <div
+        sx={{
+          width: 56,
+          height: 56,
+          borderRadius: 33,
+          bg: color,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
         }}
       >
         {children}
       </div>
-    </div>
-  );
-};
+      <div sx={{ mt: 3, fontWeight: 'heading' }}>{name}</div>
+      <div sx={{ textAlign: 'center', color: 'gray3' }}>{description}</div>
+    </PosedFeature>
+  )
+}
 
-const Feature = ({ children, title, description }) => {
+const Principles = () => {
   return (
-    <div
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        width: 170,
-        alignItems: "center",
-        mx: [2, 3, 4]
-      }}
-    >
-      <div sx={{ mb: 2 }}>{children}</div>
+    <Main>
       <div
-        sx={{
-          fontWeight: "bold",
-          color: "secondary",
-          textAlign: "center",
-          mb: 3
-        }}
+        sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
-        {title}
-      </div>
-      <p sx={{ textAlign: "center" }}>{description}</p>
-    </div>
-  );
-};
-
-const Why = () => {
-  const featureSx = { width: 80, height: 80 };
-  return (
-    <div
-      sx={{
-        flexDirection: "column",
-        alignItems: "center",
-        mb: 2,
-        mt: 5,
-        textAlign: "center"
-      }}
-    >
-      <div
-        sx={{
-          display: "flex",
-          flexDirection: [
-            "column-reverse",
-            "column-reverse",
-            "column-reverse",
-            "row"
-          ],
-          alignItems: "center"
-        }}
-      >
-        <div sx={{ flex: 1 }}>
-          <Styled.h2>Why</Styled.h2>
-          <p>
-            With the unceasing growth of apps to support new platforms and
-            products, <b>Xcode projects are growing in complexity</b>. Such
-            complexity, although necessary at scale, makes the projects hard to
-            maintain. Moreover, it’s often a source of issues and frustration
-            for developers.
-          </p>
-          <p>
-            We believe developers should be abstracted from complexities to let
-            them focus on building apps. That’s the role Tuist takes. It
-            provides a <b>simple and convenient abstraction</b>, and takes the
-            opportunity to encourage what we believe are good practices and
-            conventions.
-          </p>
-          <p>
-            Tuist is a command line tool written in Swift, designed and
-            developed in the open.
-          </p>
-        </div>
-        <div sx={{ flex: 1 }}>
-          <Desk
-            sx={{ height: [200, 200, 300, 400], width: [200, 200, 300, 400] }}
-          />
-        </div>
-      </div>
-      <Styled.h2>Features</Styled.h2>
-      <div
-        sx={{
-          display: "flex",
-          my: [3, 3],
-          flexDirection: ["column", "row"],
-          flexWrap: "wrap",
-          alignItems: [
-            "center",
-            "center",
-            "center",
-            "center",
-            "center",
-            "flex-start"
-          ],
-          justifyContent: [
-            "center",
-            "center",
-            "center",
-            "center",
-            "space-between"
-          ]
-        }}
-      >
-        <Feature
-          title="Xcode projects generation"
-          description="You describe the projects in Swift, we configure them for you"
-        >
-          <Asteroid sx={featureSx} />
-        </Feature>
-        <Feature
-          title="Easy static & dynamic linking"
-          description="We translate dependencies into build settings and phases"
-        >
-          <Astrology sx={featureSx} />
-        </Feature>
-        <Feature
-          title="Fewer Git conflicts"
-          description="Spend less time solving git conflicts and more building great apps"
-        >
-          <Rocket sx={featureSx} />
-        </Feature>
-        <Feature
-          title="Best practices"
-          description="Easily enforce best practices & conventions in the project structure"
-        >
-          <Astronaut sx={featureSx} />
-        </Feature>
-      </div>
-    </div>
-  );
-};
-
-const OpenSource = ({ githubUrl, slackUrl }) => {
-  const buttonIconSx = { width: "25px", height: "25px", mr: 3 };
-  const buttonASx = {
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    p: 3,
-    borderRadius: 2,
-    boxShadow: theme =>
-      `0px 0px 0px 1px ${theme.colors.primaryComplementary} inset`,
-    color: "primaryComplementary",
-    bg: "primary",
-    whiteSpace: "nowrap",
-    "&:hover": {
-      boxShadow: theme => `0px 0px 0px 1px ${theme.colors.background} inset`,
-      textDecoration: "none",
-      borderColor: "background",
-      bg: "background",
-      color: "text"
-    }
-  };
-  return (
-    <div sx={{ display: "flex", bg: "primary" }}>
-      <WithMargin sx={{ color: "white" }}>
+        <SectionTitle
+          title="Principles"
+          subtitle="DESIGN"
+          description="Tuist is not a project generator, it’s a tool to empower you build apps
+        of any scale"
+        />
         <div
           sx={{
-            display: "flex",
-            marginTop: 4,
-            flexDirection: ["column", "column", "row"],
-            alignItems: ["center", "center", "flex-end"]
+            flex: 1,
+            mt: 4,
+            display: 'flex',
+            justifyContent: 'space-between',
+            flexDirection: ['column', 'row'],
+            flexWrap: 'wrap',
           }}
         >
-          <div sx={{ mb: [0, 0, -25] }}>
-            <Developer
-              sx={{ height: [130, 130, 240, 300], width: [270, 270, 330, 400] }}
-            />
-          </div>
+          <Feature
+            color="purple"
+            name="Plain and easy language"
+            description="Describe your projects as you think about them.  Build settings, phases and other intricacies become implementation details"
+          >
+            <Heart />
+          </Feature>
+          <Feature
+            color="green"
+            name="Reusability"
+            description="Instead of maintaining multiple Xcode projects, describe your project once, and reuse it everywhere."
+          >
+            <Paper />
+          </Feature>
+          <Feature
+            color="blue"
+            name="Focus"
+            description="Generated projects are optimized for your focus and productivity. They contain just what you need for the task at hand. "
+          >
+            <Eye />
+          </Feature>
+          <Feature
+            color="blue"
+            name="Early errors"
+            description="If we know your project won’t compile, we fail early. Your time is valuable as to waste it waiting for the build system to bubble up errors"
+          >
+            <Warning />
+          </Feature>
+          <Feature
+            color="green"
+            name="Conventions"
+            description="Be opinionated about the structure of the projects; define project factories that teams can use to create new projects"
+          >
+            <Message />
+          </Feature>
+          <Feature
+            color="purple"
+            name="Scale"
+            description="Tuist is optimized to support projects at scale. Whether your project is 1 target, or 1000, it should make no diffference "
+          >
+            <Arrow />
+          </Feature>
+        </div>
+      </div>
+    </Main>
+  )
+}
+
+const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
+  return (
+    <div
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        mb: [4, 0],
+        bg: 'white',
+        width: ['95%', '30%'],
+        boxShadow: theme => `-1px -1px 12px -4px ${theme.colors.gray5}`,
+      }}
+    >
+      <div sx={{ mt: 4, mb: 3, display: 'inherit' }}>
+        <img
+          src={avatarUrl}
+          sx={{ bg: 'gray6', width: 60, height: 60, borderRadius: 30, ml: 3 }}
+        />
+        <div
+          sx={{
+            position: 'relative',
+            top: 40,
+            right: 15,
+            bg: 'green',
+            width: 20,
+            height: 20,
+            borderRadius: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Quote />
+        </div>
+      </div>
+      <div sx={{ fontSize: 0, color: 'green' }}>{name}</div>
+      <div
+        sx={{
+          fontSize: 1,
+          textAlign: 'center',
+          color: 'gray3',
+          p: 3,
+          height: ['inherit', 170],
+        }}
+      >
+        <quote>"{testimony}"</quote>
+      </div>
+      <div
+        sx={{
+          height: 50,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'stretch',
+          alignSelf: 'stretch',
+          mt: 2,
+        }}
+      >
+        <div
+          sx={{
+            height: 2,
+            bg: 'green',
+            flex: '0 0 3px',
+            width: '30%',
+            alignSelf: 'center',
+          }}
+        />
+        <div sx={{ height: 1, bg: 'gray6', flex: '0 0 1px' }} />
+        <div
+          sx={{
+            fontSize: 0,
+            color: 'gray3',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            py: 3,
+          }}
+        >{`${role} AT ${company}`}</div>
+      </div>
+    </div>
+  )
+}
+
+const Ball = ({ size, color, top, left }) => {
+  return (
+    <div
+      sx={{
+        position: 'absolute',
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        bg: color,
+        top: top,
+        left: left,
+      }}
+    />
+  )
+}
+
+const FloatingBalls = ({ bg }) => {
+  const colors = ['red', 'green', 'purple', 'yellow', 'blue']
+  return (
+    <div
+      sx={{
+        display: 'block',
+        zIndex: 0,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        bg: bg,
+      }}
+    >
+      {[...Array(5).keys()].map(index => {
+        const color = colors[Math.round(Math.random() * 5)]
+        const top = `${20 + Math.round(Math.random() * 60)}%`
+        const left = `${20 + Math.round(Math.random() * 60)}%`
+        return (
+          <Ball
+            size={Math.random() * 50}
+            color={color}
+            key="index"
+            top={top}
+            left={left}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+const Reflections = () => {
+  return (
+    <div
+      sx={{
+        position: 'relative',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        bg: 'white',
+      }}
+    >
+      <div sx={{ mb: [0, 50], pb: [5, 0] }}>
+        <div sx={{ bg: 'gray5', alignSelf: 'stretch', height: '1px' }} />
+        <Main py="0">
           <div
             sx={{
-              display: "flex",
-              flex: 1,
-              // ml: [0, 0, -30],
-              flexDirection: "column",
-              alignItems: ["center", "center", "flex-end"],
-              justifyContent: "flex-end"
+              display: 'flex',
+              flexDirection: 'column',
+              pt: 4,
             }}
           >
-            <Styled.h2
-              sx={{
-                textAlign: ["center", "center", "right"],
-                color: "primaryComplementary"
-              }}
-            >
-              An{" "}
-              <span
-                sx={{
-                  borderBottom: theme => `5px solid ${theme.colors.accent}`
-                }}
-              >
-                open source
-              </span>{" "}
-              project
-            </Styled.h2>
-            <p
-              sx={{
-                textAlign: ["center", "center", "right"],
-                color: "primaryComplementary"
-              }}
-            >
-              Tuist is entirely designed and developed in the open. Moreover, it
-              embraces Unix philosophy: Make each program do one thing well. The
-              project is made of smaller libraries that focus on doing one thing
-              well, like <b>XcodeProj</b>.
-            </p>
-            <p
-              sx={{
-                color: "primaryComplementary",
-                textAlign: ["center", "center", "right"]
-              }}
-            >
-              Anyone has a place and voice in our healthy, collaborative, and
-              ego-free community.
-            </p>
+            <FloatingBalls bg="gray6" />
+
+            <SectionTitle
+              title="Reflections"
+              subtitle="USERS"
+              description="Tuist is a project trusted and supported by developers that are already having fun working with Xcode"
+            />
             <div
-              sx={{ display: "flex", flexDirection: ["column", "row"], pb: 5 }}
+              sx={{
+                position: 'relative',
+                mt: 5,
+                display: 'flex',
+                flexDirection: ['column', 'row'],
+                mb: [0, -48],
+                alignItems: ['stretch', 'center'],
+                justifyContent: ['flex-start', 'space-between'],
+              }}
             >
-              <a
-                sx={{
-                  ...buttonASx,
-                  mx: 2,
-                  my: [1, 0],
-                  p: 12
-                }}
-                href={githubUrl}
-                target="__blank"
-              >
-                <GitHub sx={buttonIconSx} /> <span>GitHub</span>
-              </a>
-              <a
-                sx={{
-                  ...buttonASx,
-                  mx: 2,
-                  my: [1, 0],
-                  p: 12
-                }}
-                href={slackUrl}
-                target="__blank"
-              >
-                <Slack sx={buttonIconSx} /> <span>Join our Slack</span>
-              </a>
+              <Reflection
+                name="OLIVER ATKINSON"
+                testimony="It has really helped out the team and project by creating an environment where defining new modules is easy, modularity allows us to focus and become experts in our individual domains."
+                role="SENIOR IOS ENGINEER"
+                company="SKY"
+                avatarUrl="https://en.gravatar.com/userimage/41347978/456ffd8f0ef3f52c6e38f9003f4c51fa.jpg?size=460"
+              />
+              <Reflection
+                name="TYLER NEVELDINE"
+                testimony="Tuist centralizes our entire workspace’s configuration and describes it in a language that we all understand. This increases the readability and approachability of our project tenfold."
+                role="IOS LEAD"
+                company="DYNAMIC SIGNAL"
+                avatarUrl="https://pbs.twimg.com/profile_images/999765687777148928/wSJxk3Ni_400x400.jpg"
+              />
+              <Reflection
+                name="ROMAIN BOULAY"
+                testimony="Tuist has delivered more than the SoundCloud iOS Collective expected! We aimed to make modularization more accessible and maintainable. We got this... and better build times!."
+                role="IOS PLATFORM LEAD"
+                company="SOUNDCLOUD"
+                avatarUrl="https://avatars2.githubusercontent.com/u/169323?s=460&v=4"
+              />
             </div>
           </div>
-        </div>
-      </WithMargin>
+        </Main>
+      </div>
     </div>
-  );
-};
+  )
+}
 
-const Mission = ({ authors }) => {
+const Contribute = () => {
   return (
-    <WithMargin sx={{ marginTop: 4 }}>
-      <Styled.h2 sx={{ textAlign: "center" }}>Our mission</Styled.h2>
-      <p style={{ textAlign: "center" }}>
-        We aim to provide a command line tool that makes the interaction with
-        Xcode projects approachable, standard, and convenient at any scale,
-        built on the principles of ease of use and reliability, and powered by
-        Swift in the open.
-      </p>
+    <Main>
       <div
         sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          flexWrap: "wrap",
-          mb: 4
+          display: 'flex',
+          flexDirection: ['column', 'row'],
+          alignItems: 'center',
+          justifyContent: 'center',
+          py: [0, 5],
+          px: [0, 6],
         }}
       >
-        {authors.map((author, index) => {
-          return (
-            <a
-              alt={author.name}
-              href={`https://twitter.com/${author.twitter}`}
-              target="__blank"
-              key={index}
-            >
-              <Avatar src={author.avatar} />
-            </a>
-          );
-        })}
-      </div>
-    </WithMargin>
-  );
-};
-
-const Avatar = ({ src }) => {
-  return (
-    <img
-      sx={{
-        height: [40, 60, 60],
-        width: [40, 60, 60],
-        borderRadius: [20, 30, 30],
-        mx: 2
-      }}
-      src={src}
-    />
-  );
-};
-
-const TestItOut = ({ gettingStartedUrl }) => {
-  const commands = [
-    { text: "tuist init", cmd: true },
-    { text: "✅ Success: Project generated at path MyProject", cmd: false },
-    { text: "", cmd: false },
-    { text: "tuist generate", cmd: true },
-    {
-      text: "✅ Success: Xcode project generated at MyProject.xcodeproj",
-      cmd: false
-    }
-  ];
-  return (
-    <div sx={{ color: "background", bg: "primary", pb: 5 }}>
-      <WithMargin sx={{ paddingTop: 4 }}>
         <div
           sx={{
-            display: "flex",
-            flex: "1",
-            flexDirection: ["column", "column", "row"],
-            alignItems: ["stretch", "stretch", "center"]
+            alignSelf: 'stretch',
+            flex: 0.5,
+            display: 'flex',
+            flexDirection: ['row', 'column'],
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
-          <div
-            sx={{
-              display: "flex",
-              flex: 1,
-              flexDirection: "column",
-              alignItems: ["center", "center", "flex-start"],
-              marginBottom: [4, 4, 0]
-            }}
+          <a
+            href="https://github.com/ollieatkinson"
+            target="__blank"
+            alt="Open Ollie's profile on GitHub"
+            sx={{ alignSelf: 'flex-start', mt: [100, 0] }}
           >
-            <Styled.h2
+            <img
               sx={{
-                color: "primaryComplementary",
-                textAlign: ["center", "left"]
+                width: 50,
+                height: 50,
+                borderRadius: 25,
               }}
-            >
-              Test it out!
-            </Styled.h2>
-            <p
-              sx={{
-                color: "primaryComplementary",
-                textAlign: ["center", "center", "left"]
-              }}
-            >
-              Stop wasting your time figuring out complicated Xcode issues in
-              your projects and let us help you with that.
-            </p>
-            <p
-              sx={{
-                color: "primaryComplementary",
-                textAlign: ["center", "center", "left"]
-              }}
-            >
-              You can adopt Tuist <b>incrementally</b> without having to change
-              the structure of your projects.
-            </p>
-            <a
-              href={gettingStartedUrl}
-              target="__blank"
-              sx={{
-                p: 3,
-                borderRadius: 2,
-                boxShadow: theme =>
-                  `0px 0px 0px 1px ${theme.colors.primaryComplementary} inset`,
-                color: "primaryComplementary",
-                bg: "primary",
-                alt: "Start using the project",
-                "&:hover": {
-                  boxShadow: theme =>
-                    `0px 0px 0px 1px ${theme.colors.background} inset`,
-                  textDecoration: "none",
-                  borderColor: "background",
-                  bg: "background",
-                  color: "text"
-                }
-              }}
-            >
-              Getting started
-            </a>
-          </div>
-          <div sx={{ flex: "1", mx: 4 }}>
-            <Terminal
-              lines={commands}
-              interval={80}
-              style={{ border: "none" }}
-              white
+              src="https://avatars2.githubusercontent.com/u/1382565?s=460&v=4"
             />
-          </div>
+          </a>
+          <a
+            href="https://github.com/kwridan"
+            target="__blank"
+            alt="Open Kas' profile on GitHub"
+          >
+            <img
+              sx={{ width: 50, height: 50, borderRadius: 25 }}
+              src="https://avatars2.githubusercontent.com/u/11914919?s=460&v=4"
+            />
+          </a>
+
+          <a
+            href="https://github.com/fortmarek"
+            target="__blank"
+            alt="Open Marek's profile on GitHub"
+            sx={{ alignSelf: 'flex-start', mt: [100, 0] }}
+          >
+            <img
+              sx={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+              }}
+              src="https://avatars1.githubusercontent.com/u/9371695?s=460&v=4"
+            />
+          </a>
         </div>
-      </WithMargin>
-    </div>
-  );
-};
+        <div
+          sx={{
+            px: 3,
+            flex: [1, 1.6],
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          <SectionTitle
+            title="You can bring more fun to Xcode projects too"
+            subtitle="CONTRIBUTE"
+            description="Tuist is a welcoming and open source project that is writen in Swift  by and for the community"
+          />
 
-const OneMoreThing = ({ contributeUrl }) => {
-  const iconProperties = { width: [60], height: [60] };
-  return (
-    <div
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        marginBottom: 4,
-        marginTop: 4
-      }}
-    >
-      <Styled.h2 style={{ textAlign: "center" }}>One more thing...</Styled.h2>
-      <p sx={{ textAlign: "center" }}>
-        There’s a lot more to come. Project generation opens the door to
-        workflow improvements that will make your experience working with Xcode
-        much more pleasant. Stay tuned to the exciting backlog we have ahead.
-      </p>
-      <div
-        sx={{
-          display: "flex",
-          alignSelf: "stretch",
-          my: [3, 3],
-          flexDirection: ["column", "row"],
-          flexWrap: "wrap",
-          alignItems: ["center", "center", "center", "center", "flex-start"],
-          justifyContent: [
-            "center",
-            "center",
-            "center",
-            "center",
-            "space-between"
-          ]
-        }}
-      >
-        <Feature
-          title="Swift Package Manager support"
-          description="Easily integrate third party packages into your projects"
+          <GradientButton
+            title="START CONTRIBUTING"
+            link="/docs/contribution/tuist/"
+          />
+        </div>
+        <div
+          sx={{
+            alignSelf: 'stretch',
+            flex: 0.5,
+            display: 'flex',
+            flexDirection: ['row', 'column'],
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
         >
-          <BoxIcon sx={iconProperties} />
-        </Feature>
-        <Feature
-          title="Selective test runs"
-          description="Selectively run tests based on the changed files"
-        >
-          <Check sx={iconProperties} />
-        </Feature>
-        <Feature
-          title="Build insights"
-          description="Auto-generated reports about your projects and builds"
-        >
-          <Report sx={iconProperties} />
-        </Feature>
-        <Feature
-          title="Distributed incremental builds"
-          description="Leveraging alternative build systems such as Buck or Bazel"
-        >
-          <Truck sx={iconProperties} />
-        </Feature>
+          <a
+            href="https://github.com/lakpa"
+            target="__blank"
+            alt="Open Lakpa profile on GitHub"
+            sx={{ alignSelf: 'flex-end', mb: [100, 0] }}
+          >
+            <img
+              sx={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+              }}
+              src="https://avatars1.githubusercontent.com/u/389328?s=400&v=4"
+            />
+          </a>
+
+          <a
+            href="https://github.com/pepibumur"
+            target="__blank"
+            alt="Open Pedro's profile on GitHub"
+          >
+            <img
+              sx={{ width: 50, height: 50, borderRadius: 25 }}
+              src="https://avatars3.githubusercontent.com/u/663605?s=460&v=4"
+            />
+          </a>
+          <a
+            href="https://github.com/marciniwanicki"
+            target="__blank"
+            alt="Open Marcin's profile on GitHub"
+            sx={{ mb: [100, 0], alignSelf: 'flex-end' }}
+          >
+            <img
+              sx={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+              }}
+              src="https://avatars1.githubusercontent.com/u/946649?s=460&v=4"
+            />
+          </a>
+        </div>
       </div>
+    </Main>
+  )
+}
 
-      <a
-        href={contributeUrl}
-        target="__blank"
-        alt="Learn how to contribute to the project"
-        sx={{
-          p: 3,
-          borderRadius: 2,
-          boxShadow: theme =>
-            `0px 0px 0px 1px ${theme.colors.primaryComplementary} inset`,
-          color: "primaryComplementary",
-          bg: "background",
-          alt: "Start using the project",
-          "&:hover": {
-            boxShadow: theme =>
-              `0px 0px 0px 1px ${theme.colors.primaryComplementary} inset`,
-            textDecoration: "none",
-            borderColor: "background",
-            bg: "primary",
-            color: "primaryComplementary"
-          }
-        }}
-      >
-        I want to contribute
-      </a>
-    </div>
-  );
-};
-const IndexPage = ({
-  data: {
-    site: {
-      siteMetadata: {
-        contributeUrl,
-        gettingStartedUrl,
-        documentationUrl,
-        githubUrl,
-        slackUrl
-      }
-    },
-    allAuthorsYaml,
-    allProjectsYaml
-  }
-}) => {
-  const authors = allAuthorsYaml.edges.map(edge => edge.node);
-
+const IndexPage = () => {
   return (
     <Layout>
       <Meta />
-      <HomeHeader
-        gettingStartedUrl={gettingStartedUrl}
-        documentationUrl={documentationUrl}
-      />
-      <main>
-        <WithMargin>
-          <Why />
-        </WithMargin>
-        <OpenSource githubUrl={githubUrl} slackUrl={slackUrl} />
-        <Mission authors={authors} />
-        {/* <TrustedBy projects={projects} /> */}
-        <TestItOut gettingStartedUrl={gettingStartedUrl} />
-        <WithMargin>
-          <OneMoreThing contributeUrl={contributeUrl} />
-        </WithMargin>
-      </main>
+      <Steroids />
+      <Workspaces />
+      <Principles />
+      <Reflections />
+      <Contribute />
       <Footer />
     </Layout>
-  );
-};
+  )
+}
 
-export default IndexPage;
-
-export const query = graphql`
-  query {
-    site {
-      siteMetadata {
-        contributeUrl
-        gettingStartedUrl
-        documentationUrl
-        githubUrl
-        slackUrl
-      }
-    }
-    allAuthorsYaml {
-      edges {
-        node {
-          name
-          avatar
-          twitter
-        }
-      }
-    }
-    allProjectsYaml {
-      edges {
-        node {
-          name
-          link
-          linkName
-        }
-      }
-    }
-  }
-`;
+export default IndexPage

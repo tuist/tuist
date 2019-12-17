@@ -1,11 +1,13 @@
-import React from "react";
-import { useStaticQuery, graphql } from "gatsby";
+/** @jsx jsx */
+import { jsx } from 'theme-ui'
+import React from 'react'
+import { useStaticQuery, graphql } from 'gatsby'
 
 export default ({ path }) => {
   const {
     site: {
-      siteMetadata: { editUrl }
-    }
+      siteMetadata: { editUrl },
+    },
   } = useStaticQuery(graphql`
     query {
       site {
@@ -14,11 +16,20 @@ export default ({ path }) => {
         }
       }
     }
-  `);
-  const url = `${editUrl}/${path}`;
+  `)
+  const url = `${editUrl}/${path}`
   return (
-    <a href={url} target="__blank">
+    <a
+      sx={{
+        color: 'secondary',
+        '&:hover': { textDecoration: 'underline' },
+        '&:focus': { textDecoration: 'underline' },
+      }}
+      href={url}
+      target="__blank"
+      alt="Open GitHub to edit the content of the current page"
+    >
       This page can be edited on GitHub
     </a>
-  );
-};
+  )
+}

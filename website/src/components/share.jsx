@@ -1,26 +1,24 @@
 /** @jsx jsx */
-import { jsx } from "theme-ui";
+import { jsx } from 'theme-ui'
+import { FacebookIcon, TwitterIcon, EmailIcon } from 'react-share'
 
-import { useStaticQuery, graphql } from "gatsby";
-import Facebook from "../../assets/facebook.svg";
-import Twitter from "../../assets/twitter.svg";
-import Mail from "../../assets/mail.svg";
+import { useStaticQuery, graphql } from 'gatsby'
 
 const shareUrl = (title, tags, url, dst) => {
-  if (dst === "facebook") {
-    return `https://www.facebook.com/sharer.php?u=${url}`;
-  } else if (dst === "twitter") {
-    return `https://twitter.com/intent/tweet?url=${url}&text=${title}&hashtags=${tags}`;
-  } else if (dst === "mail") {
-    return `mailto:?subject=${title}&body=${url}`;
+  if (dst === 'facebook') {
+    return `https://www.facebook.com/sharer.php?u=${url}`
+  } else if (dst === 'twitter') {
+    return `https://twitter.com/intent/tweet?url=${url}&text=${title}&hashtags=${tags}`
+  } else if (dst === 'mail') {
+    return `mailto:?subject=${title}&body=${url}`
   }
-};
+}
 
 export default ({ path, title, tags }) => {
   const {
     site: {
-      siteMetadata: { siteUrl }
-    }
+      siteMetadata: { siteUrl },
+    },
   } = useStaticQuery(graphql`
     query {
       site {
@@ -29,36 +27,42 @@ export default ({ path, title, tags }) => {
         }
       }
     }
-  `);
-  const url = `${siteUrl}/${path}`;
+  `)
+  const url = `${siteUrl}/${path}`
   return (
-    <div
-      sx={{
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        my: 4
-      }}
-    >
-      <a
-        href={shareUrl(title, tags, url, "twitter")}
-        alt="Share the blog post on Twitter"
+    <div>
+      <p sx={{ textAlign: 'center', mt: 4, mb: 2, color: 'gray3' }}>
+        Share ♥ the blog post with others
+      </p>
+      <div
+        sx={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
-        <Twitter sx={{ width: [40, 50], height: [40, 50], mx: 3 }} />
-      </a>
-      <a
-        href={shareUrl(title, tags, url, "facebook")}
-        alt="Share the blog post on Facebook"
-      >
-        <Facebook sx={{ width: [40, 50], height: [25, 40], mx: 3 }} />
-      </a>
-      <a
-        href={shareUrl(title, tags, url, "mail")}
-        alt="Share the blog post via email"
-      >
-        <Mail sx={{ width: [40, 50], height: [40, 50], mx: 3 }} />
-      </a>
+        <a
+          href={shareUrl(title, tags, url, 'twitter')}
+          alt="Share the blog post on Twitter"
+        >
+          <TwitterIcon size={32} round={true} sx={{ mx: 3 }} />
+        </a>
+        <a
+          sx={{ mx: 3 }}
+          href={shareUrl(title, tags, url, 'facebook')}
+          alt="Share the blog post on Facebook"
+        >
+          <FacebookIcon size={32} round={true} sx={{ mx: 3 }} />
+        </a>
+        <a
+          sx={{ mx: 3 }}
+          href={shareUrl(title, tags, url, 'mail')}
+          alt="Share the blog post via email"
+        >
+          <EmailIcon size={32} round={true} />
+        </a>
+      </div>
     </div>
-  );
-};
+  )
+}
