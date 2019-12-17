@@ -196,6 +196,8 @@ public final class System: Systeming {
         "NVM_DIR",
         // Ruby
         "GEM_PATH", "RUBY_ENGINE", "GEM_ROOT", "GEM_HOME", "RUBY_ROOT", "RUBY_VERSION",
+        // Xcode
+        "DEVELOPER_DIR"
     ]
 
     /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.

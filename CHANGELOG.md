@@ -39,6 +39,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Workflow to make sure that documentation and website build https://github.com/tuist/tuist/pull/783 by @pepibumur.
 - Support for `xcframework` https://github.com/tuist/tuist/pull/769 by @lakpa
 - Support generating info.plist for Watch Apps & Extensions https://github.com/tuist/tuist/pull/756 by @kwridan
+- Pass through `DEVELOPER_DIR` when set by the environment when determining the path to the currently selected Xcode. @ollieatkinson
 
 ### Fixed
 
