@@ -1,6 +1,8 @@
+const remarkSlug = require('remark-slug')
+
 module.exports = {
   siteMetadata: {
-    title: `Tuist - Xcode at scale`,
+    title: `Tuist - Xcode on steroids`,
     description: `Tuist is a tool that helps developers manage large Xcode projects by leveraging
     project generation. Moreover, it provides some tools to automate most common tasks, allowing
     developers to focus on building apps.`,
@@ -11,22 +13,18 @@ module.exports = {
     slackUrl: 'http://slack.tuist.io/',
     editUrl: 'https://github.com/tuist/website/edit/master',
     contributeUrl: 'https://docs.tuist.io/contribution-1-getting-started',
-    gettingStartedUrl: 'https://docs.tuist.io/',
-    spectrumUrl: 'https://spectrum.chat/tuist',
+    firstDocumentationPagePath: '/docs/usage/getting-started/',
+    documentationCategories: [
+      { folderName: 'usage', name: 'Usage' },
+      { folderName: 'contribution', name: 'Contributors' },
+    ],
   },
   plugins: [
-    `gatsby-plugin-netlify`,
     `gatsby-plugin-sitemap`,
     `gatsby-plugin-offline`,
     `gatsby-plugin-theme-ui`,
     `gatsby-transformer-yaml`,
     `gatsby-plugin-react-helmet`,
-    {
-      resolve: `gatsby-plugin-typography`,
-      options: {
-        pathToConfigModule: `src/utils/typography`,
-      },
-    },
     {
       resolve: `gatsby-source-filesystem`,
       name: 'data',
@@ -165,9 +163,9 @@ module.exports = {
       resolve: `gatsby-plugin-mdx`,
       options: {
         extensions: ['.mdx', '.md'],
+        remarkPlugins: [remarkSlug],
         gatsbyRemarkPlugins: [
           `gatsby-remark-smartypants`,
-          `gatsby-remark-autolink-headers`,
           {
             resolve: `gatsby-remark-social-cards`,
             options: {
@@ -198,5 +196,18 @@ module.exports = {
         ],
       },
     },
+    {
+      resolve: `gatsby-plugin-netlify`,
+      options: {
+        headers: {}, // option to add more headers. `Link` headers are transformed by the below criteria
+        allPageHeaders: [], // option to add headers for all pages. `Link` headers are transformed by the below criteria
+        mergeSecurityHeaders: true, // boolean to turn off the default security headers
+        mergeLinkHeaders: true, // boolean to turn off the default gatsby js headers
+        mergeCachingHeaders: true, // boolean to turn off the default caching headers
+        transformHeaders: (headers, path) => headers, // optional transform for manipulating headers under each path (e.g.sorting), etc.
+        generateMatchPathRewrites: true, // boolean to turn off automatic creation of redirect rules for client only paths
+      },
+    },
+    'gatsby-plugin-meta-redirect',
   ],
 }

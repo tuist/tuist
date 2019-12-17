@@ -1,9 +1,9 @@
 ---
 layout: post
-title: Tuist 0.18.0
+title: Welcome Swift Packages to the dependencies family in Tuist 0.18.0
 date: 2019-06-21
 categories: [tuist, release, swift]
-excerpt: This blog post announces Tuist 0.1.80 features, improvements and bug fixes!
+excerpt: Making the definition of dependencies very convenient was one of our aims when we embarked on building Tuist and today, we are extending that convenience to external dependencies that are distributed as Swift Packages. Targets can now define packages as dependencies and Tuist will take care of the rest. Moreover, this version ships with improvements in the API of dynamic Info.plist files.
 author: fortmarek
 ---
 
@@ -40,6 +40,7 @@ We have made a small change in how we handle `Settings` because Xcode could some
 To fix this, defining the `base` parameter has been changed from `[String: String]` to `[String: SettingValue]`, so we can handle the order of arguments leveraging `ExpressibleByStringLiteral` protocol.
 
 The `Settings` should now be declared like this:
+
 ```swift
 // Explicitly define the type of value for `settings`
 let settings: [String: SettingValue] = ["WARNING_CFLAGS": "VALUE"]
@@ -48,17 +49,17 @@ let targetSettings = Settings(
   configurations: [],
   defaultSettings: .recommended
 )
-``` 
+```
 
 You can find more info [here](https://github.com/tuist/tuist/pull/464#issuecomment-529673717).
 
 ## Swift Package Manager Support 📦
 
-At this year's WWDC, we finally got SPM's support in Xcode, so that's something that we needed to support, too, alongside Carthage and Cocoapods. And finally, you can easily define SPM dependencies easily in your `Project.swift` manifest! We have tried to make a declaration of a package dependency as similar as we could to how they are defined in SPM's manifest `Package.swift`. 
+At this year's WWDC, we finally got SPM's support in Xcode, so that's something that we needed to support, too, alongside Carthage and Cocoapods. And finally, you can easily define SPM dependencies easily in your `Project.swift` manifest! We have tried to make a declaration of a package dependency as similar as we could to how they are defined in SPM's manifest `Package.swift`.
 
-SPM provides remote packages (either from git remote repositories like Github or remote repository from your file system) and local which are best suited when you first want to incorporate the package in your project and build it alongside it before possibly finalizing and moving it to a project of its own. 
+SPM provides remote packages (either from git remote repositories like Github or remote repository from your file system) and local which are best suited when you first want to incorporate the package in your project and build it alongside it before possibly finalizing and moving it to a project of its own.
 
-So, below is an example of how you could add a remote and a local package to a `Target` of your choosing: 
+So, below is an example of how you could add a remote and a local package to a `Target` of your choosing:
 
 ```swift
 Target(name: "App",
@@ -107,4 +108,3 @@ I want to thank all the people working on Tuist - working on SPM support has bee
 Also do not be afraid to ask for additional guidance in our [Slack channel](https://slack.tuist.io), I am sure someone will help you out.
 
 Anyway, thanks for reading and see you at the next release!
-

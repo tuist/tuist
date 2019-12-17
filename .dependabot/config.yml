@@ -6,14 +6,6 @@ update_configs:
     default_reviewers:
       - 'tuist/core'
     default_labels:
-      - 'dependencies'
-  - package_manager: 'javascript'
-    directory: '/docs'
-    update_schedule: 'weekly'
-    default_reviewers:
-      - 'tuist/core'
-    default_labels:
-      - 'dependencies'
   - package_manager: 'javascript'
     directory: '/website'
     update_schedule: 'weekly'

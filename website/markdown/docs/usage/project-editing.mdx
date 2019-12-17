@@ -1,0 +1,24 @@
+---
+name: Editing your projects
+order: 7
+---
+
+# Editing your projects
+
+One of the advantages of defining your projects in Swift is that we can leverage Xcode and the Swift compiler to safely edit the projects with syntax auto-completion and documentation.
+
+Editing your projects is easy; position yourself in a directory where there's a project defined and run the following command:
+
+```bash
+tuist edit
+```
+
+It'll generate a temporary Xcode project with the manfiests and the project description helpers. Please note that the project doesn't get generated as the files are edited. Once you are done with editing, you can close the project and run `tuist generate`.
+
+The project is deleted automatically once you are done with editing. If you wish to generate and keep the project in the current directory, you can run the command passing the `--permanent` argument:
+
+```bash
+tuist edit --permanent
+```
+
+That will generate a `Manfiest.xcodeproj` project that you can open manually.

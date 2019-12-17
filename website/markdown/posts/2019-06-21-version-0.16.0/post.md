@@ -1,9 +1,9 @@
 ---
 layout: post
-title: Tuist 0.16.0
+title: Tuist 0.16.0 allows users to link system libraries and frameworks
 date: 2019-06-21
 categories: [tuist, release, swift]
-excerpt: This blog post announces Tuist 0.16.0 features, improvements and bug fixes!
+excerpt: From the just released 0.16.0 version of Tuist, users will be able to define dependencies with system libraries and frameworks from their targets. Moreover, we added support for customizing the list of input and output files in their target action, and generation of targets with no build settings at all. This version also ships with minor improvements and bug fixes that had been reported by users.
 author: ollieatkinson
 ---
 
@@ -15,7 +15,7 @@ I'm happy to announce the release of Tuist 0.16.0; I'm going to talk through the
 
 Liking against system libraries and frameworks explicitly is sometimes necessary. This is a common use-case when using 3rd-Party frameworks such as Firebase.
 
-We've added support for a new dependency type `sdk`. 
+We've added support for a new dependency type `sdk`.
 
 ```swift
 Target(
@@ -43,9 +43,9 @@ If you use tools which need the ability to configure a pre-build or post-build s
 
 ```swift
 .pre(
-    path: "my_custom_script.sh", 
-    name: "My Custom Script Phase", 
-    inputFileListPaths: [ "Data/Cars.raw.json", "Data/Drivers.raw.json" ], 
+    path: "my_custom_script.sh",
+    name: "My Custom Script Phase",
+    inputFileListPaths: [ "Data/Cars.raw.json", "Data/Drivers.raw.json" ],
     outputFileListPaths: [ "Data/Cars.swift", "Data/Drivers.swift" ]
 )
 ```
@@ -62,8 +62,8 @@ import ProjectDescription
 let project = Project(
     name: "MyFramework",
     settings: Settings(
-        debug: .init(xcconfig: "Configuration/Debug.xcconfig"), 
-        release: .init(xcconfig: "Configuration/Release.xcconfig"), 
+        debug: .init(xcconfig: "Configuration/Debug.xcconfig"),
+        release: .init(xcconfig: "Configuration/Release.xcconfig"),
         defaultSettings: .none
     ),
     targets: [
@@ -73,8 +73,8 @@ let project = Project(
             product: .framework,
             bundleId: "io.tuist.MyFramework",
             infoPlist: "Sources/Info.plist",
-            sources: [ 
-                "Sources/**" 
+            sources: [
+                "Sources/**"
             ],
             dependencies: [
                 .framework(path: "../Framework2/prebuilt/Framework2.framework"),
@@ -114,11 +114,11 @@ https://github.com/tuist/tuist/pull/408
 
 https://github.com/tuist/tuist/pull/402
 
-### And much much more, [checkout the changelog](https://github.com/tuist/tuist/blob/master/CHANGELOG.md) for the full list of additions, fixes and improvements 
+### And much much more, [checkout the changelog](https://github.com/tuist/tuist/blob/master/CHANGELOG.md) for the full list of additions, fixes and improvements
 
 ## Next up 🕵🏼‍♂️
 
-- We have started work on adding support for SwiftPM (https://github.com/tuist/tuist/pull/394). 
+- We have started work on adding support for SwiftPM (https://github.com/tuist/tuist/pull/394).
 - Tuist will soon be able to control the generation of the Info.plist for your project/manifest (https://github.com/tuist/tuist/pull/380).
 - You will soon be able to visualise your dependencies (https://github.com/tuist/tuist/pull/382).
 - Join the discussion about how we could support the new `.xcframework` type (https://github.com/tuist/tuist/issues/401)

@@ -12,4 +12,4 @@ rm -rf /tmp/tuistenv
 rm /tmp/tuistenv.zip
 
 echo "Tuist installed. Try running 'tuist'"
-echo "Check out the documentation at https://docs.tuist.io"
+echo "Check out the documentation at https://tuist.io/docs"

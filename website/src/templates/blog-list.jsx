@@ -1,84 +1,167 @@
 /** @jsx jsx */
-import { jsx, Styled } from "theme-ui";
+import { jsx, Styled } from 'theme-ui'
 
-import Layout from "../components/layout";
-import Meta from "../components/meta";
-import TitledHeader from "../components/titled-header";
-import Footer from "../components/footer";
-import { Link } from "gatsby";
-import { graphql } from "gatsby";
-import Main from "../components/main";
+import Layout from '../components/layout'
+import Meta from '../components/meta'
+import Footer from '../components/footer'
+import { Link } from 'gatsby'
+import { graphql } from 'gatsby'
+import Main from '../components/main'
+import { findWhere } from 'underscore'
+import { BreadcrumbStructuredData } from '../components/structured-data'
+import urljoin from 'url-join'
 
-const Post = ({ post }) => {
+const Post = ({ post, index, authors }) => {
+  const authorHandle = post.frontmatter.author
+  const author = findWhere(authors, { handle: authorHandle })
+
   return (
-    <article sx={{ mt: 5 }}>
+    <article sx={{ mt: index == 0 ? 0 : 5 }} key={index}>
       <header>
-        <Styled.h2 sx={{ mb: 2 }}>
-          <Link to={post.fields.slug}>{post.frontmatter.title}</Link>
+        <Styled.h2
+          sx={{
+            mb: 0,
+            color: 'gray1',
+            '&:hover': { textDecoration: 'underline' },
+            '&:focus': { textDecoration: 'underline' },
+          }}
+        >
+          <Link
+            to={post.fields.slug}
+            alt={`Open the blog post titled ${post.frontmatter.title}`}
+          >
+            {post.frontmatter.title}
+          </Link>
         </Styled.h2>
+        <div
+          sx={{
+            mb: 0,
+            color: 'gray3',
+            fontSize: 2,
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}
+        >
+          Published on {post.fields.date} by{' '}
+          <a
+            sx={{
+              '&:hover': { textDecoration: 'underline' },
+              '&:focus': { textDecoration: 'underline' },
+              ml: 2,
+            }}
+            href={`https://twitter.com/${author.twitter}`}
+            target="__blank"
+            alt={`Open the Twitter profile of ${author.name}`}
+          >
+            {author.name}
+          </a>
+          <img
+            src={author.avatar}
+            sx={{ width: 14, height: 14, borderRadius: 7, ml: 2 }}
+          />
+        </div>
       </header>
-      <p sx={{ mb: 0, color: "accent", fontSize: 2 }}>
-        Published on {post.fields.date} by {post.frontmatter.author}
-      </p>
+
       <p sx={{ my: 3 }}>{post.frontmatter.excerpt}</p>
-      <p>
-        <Link sx={{ color: "primaryComplementary" }} to={post.fields.slug}>
-          Read on
-        </Link>
-      </p>
     </article>
-  );
-};
+  )
+}
 
 const PostsFooter = ({ currentPage, numPages }) => {
-  const isFirst = currentPage === 1;
-  const isLast = currentPage === numPages;
+  const isFirst = currentPage === 1
+  const isLast = currentPage === numPages
   const prevPage =
-    currentPage - 1 === 1 ? "/blog/" : `/blog/${(currentPage - 1).toString()}`;
-  const nextPage = `/blog/${(currentPage + 1).toString()}`;
+    currentPage - 1 === 1 ? '/blog/' : `/blog/${(currentPage - 1).toString()}`
+  const nextPage = `/blog/${(currentPage + 1).toString()}`
 
   return (
     <div
       sx={{
-        display: "flex",
+        mt: 5,
+        display: 'flex',
         flex: 1,
-        flexDirection: "row",
-        justifyContent: "space-between"
+        flexDirection: 'row',
+        justifyContent: 'space-between',
       }}
     >
-      {!isFirst && <Link to={prevPage}>Previous page</Link>}
-      {!isLast && <Link to={nextPage}>Next page</Link>}
+      {!isFirst && (
+        <Link
+          alt={`Open the page ${currentPage - 1} of blog posts`}
+          to={prevPage}
+          sx={{
+            color: 'secondary',
+            '&:hover': { textDecoration: 'underline' },
+            '&:focus': { textDecoration: 'underline' },
+          }}
+        >
+          Previous page
+        </Link>
+      )}
+      {!isLast && (
+        <Link
+          alt={`Open the page ${currentPage + 1} of blog posts`}
+          to={nextPage}
+          sx={{
+            color: 'secondary',
+            '&:hover': { textDecoration: 'underline' },
+            '&:focus': { textDecoration: 'underline' },
+          }}
+        >
+          Next page
+        </Link>
+      )}
     </div>
-  );
-};
+  )
+}
 
 const BlogList = ({
   pageContext,
   data: {
-    allMdx: { edges }
-  }
+    site: {
+      siteMetadata: { siteUrl },
+    },
+    allMdx: { edges },
+    allAuthorsYaml: { nodes: authors },
+  },
 }) => {
+  const breadcrumb = [['Blog', urljoin(siteUrl, '/blog')]]
   const description =
-    "The blog for Tuist, your best friend to use Xcode at scale.";
+    'Read about Tuist updates: new releases, engineering challenges, and road-map updates.'
   return (
     <Layout>
+      <BreadcrumbStructuredData items={breadcrumb} />
       <Meta title="Blog" description={description} />
-      <TitledHeader title="Blog" description={description} />
       <Main>
+        <Styled.h1>Blog</Styled.h1>
         {edges.map(({ node }, index) => {
-          return <Post post={node} key={index} />;
+          return <Post post={node} index={index} authors={authors} />
         })}
         <PostsFooter {...pageContext} />
       </Main>
       <Footer />
     </Layout>
-  );
-};
+  )
+}
 
-export default BlogList;
+export default BlogList
 
 export const blogListQuery = graphql`
   query blogListQuery($skip: Int!, $limit: Int!) {
+    allAuthorsYaml {
+      nodes {
+        name
+        avatar
+        twitter
+        handle
+      }
+    }
+    site {
+      siteMetadata {
+        title
+        siteUrl
+      }
+    }
     allMdx(
       filter: { fields: { type: { eq: "blog-post" } } }
       sort: { order: DESC, fields: [fields___date] }
@@ -102,4 +185,4 @@ export const blogListQuery = graphql`
       }
     }
   }
-`;
+`
