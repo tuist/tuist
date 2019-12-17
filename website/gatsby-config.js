@@ -3,9 +3,7 @@ const remarkSlug = require('remark-slug')
 module.exports = {
   siteMetadata: {
     title: `Tuist - Xcode on steroids`,
-    description: `Tuist is a tool that helps developers manage large Xcode projects by leveraging
-    project generation. Moreover, it provides some tools to automate most common tasks, allowing
-    developers to focus on building apps.`,
+    description: `Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.`,
     siteUrl: 'https://tuist.io',
     githubUrl: 'https://github.com/tuist',
     releasesUrl: 'https://github.com/tuist/tuist/releases',
