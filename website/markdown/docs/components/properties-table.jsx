@@ -19,7 +19,7 @@ const PropertiesTable = ({ properties }) => {
         ...borderStyle,
       }}
     >
-      <tr sx={{ bg: 'gray6', ...borderStyle, display: ['none', 'inherited'] }}>
+      <tr sx={{ bg: 'gray6', ...borderStyle, display: ['none', 'table-row'] }}>
         <th sx={{ ...cellStyle }}>Property</th>
         <th sx={{ ...cellStyle }}>Description</th>
         <th sx={{ ...cellStyle }}>Type</th>
@@ -58,16 +58,16 @@ const PropertiesTable = ({ properties }) => {
                   )}
                 </div>
               </td>
-              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
+              <td sx={{ ...cellStyle, display: ['none', 'table-cell'] }}>
                 <ReactMarkdown source={prop.description} />
               </td>
-              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
+              <td sx={{ ...cellStyle, display: ['none', 'table-cell'] }}>
                 <Styled.code>{type}</Styled.code>
               </td>
-              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
+              <td sx={{ ...cellStyle, display: ['none', 'table-cell'] }}>
                 {optionalValue}
               </td>
-              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
+              <td sx={{ ...cellStyle, display: ['none', 'table-cell'] }}>
                 {prop.default != '' && (
                   <Styled.code>{prop.default}</Styled.code>
                 )}
