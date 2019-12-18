@@ -46,13 +46,15 @@ const PropertiesTable = ({ properties }) => {
                   {prop.description}
                 </div>
                 <div sx={{ display: ['block', 'none'], mt: 3 }}>
-                  <span>Type: </span> <Styled.code>{type}</Styled.code>
+                  <span sx={{ fontWeight: 'bold' }}>Type: </span>{' '}
+                  <Styled.code>{type}</Styled.code>
                 </div>
                 <div sx={{ display: ['block', 'none'] }}>
-                  <span>Optional: </span> {optionalValue}
+                  <span sx={{ fontWeight: 'bold' }}>Optional: </span>{' '}
+                  {optionalValue}
                 </div>
                 <div sx={{ display: ['block', 'none'] }}>
-                  <span>Default value: </span>{' '}
+                  <span sx={{ fontWeight: 'bold' }}>Default value: </span>{' '}
                   {prop.default != '' && (
                     <Styled.code>{prop.default}</Styled.code>
                   )}
