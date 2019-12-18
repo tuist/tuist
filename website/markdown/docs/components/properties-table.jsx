@@ -19,7 +19,7 @@ const PropertiesTable = ({ properties }) => {
         ...borderStyle,
       }}
     >
-      <tr sx={{ bg: 'gray6', ...borderStyle }}>
+      <tr sx={{ bg: 'gray6', ...borderStyle, display: ['none', 'inherited'] }}>
         <th sx={{ ...cellStyle }}>Property</th>
         <th sx={{ ...cellStyle }}>Description</th>
         <th sx={{ ...cellStyle }}>Type</th>
@@ -40,15 +40,34 @@ const PropertiesTable = ({ properties }) => {
 
           return (
             <tr key={index} sx={{ ...borderStyle }}>
-              <td sx={{ ...cellStyle }}>{prop.name}</td>
               <td sx={{ ...cellStyle }}>
+                <div sx={{ fontWeight: ['bold', 'body'] }}>{prop.name}</div>
+                <div sx={{ display: ['block', 'none'] }}>
+                  {prop.description}
+                </div>
+                <div sx={{ display: ['block', 'none'], mt: 3 }}>
+                  <span>Type: </span> <Styled.code>{type}</Styled.code>
+                </div>
+                <div sx={{ display: ['block', 'none'] }}>
+                  <span>Optional: </span> {optionalValue}
+                </div>
+                <div sx={{ display: ['block', 'none'] }}>
+                  <span>Default value: </span>{' '}
+                  {prop.default != '' && (
+                    <Styled.code>{prop.default}</Styled.code>
+                  )}
+                </div>
+              </td>
+              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
                 <ReactMarkdown source={prop.description} />
               </td>
-              <td sx={{ ...cellStyle }}>
+              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
                 <Styled.code>{type}</Styled.code>
               </td>
-              <td sx={{ ...cellStyle }}>{optionalValue}</td>
-              <td sx={{ ...cellStyle }}>
+              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
+                {optionalValue}
+              </td>
+              <td sx={{ ...cellStyle, display: ['none', 'inherited'] }}>
                 {prop.default != '' && (
                   <Styled.code>{prop.default}</Styled.code>
                 )}
