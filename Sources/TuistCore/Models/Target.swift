@@ -4,6 +4,7 @@ import TuistSupport
 
 public class Target: Equatable, Hashable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
+    public typealias SourceFileGlob = (glob: String, excluding: String?, compilerFlags: String?)
 
     // MARK: - Static
 
@@ -107,12 +108,21 @@ public class Target: Equatable, Hashable {
         }
     }
 
-    public static func sources(projectPath _: AbsolutePath, sources: [(glob: String, compilerFlags: String?)]) throws -> [Target.SourceFile] {
+    public static func sources(projectPath _: AbsolutePath, sources: [SourceFileGlob]) throws -> [Target.SourceFile] {
         var sourceFiles: [AbsolutePath: Target.SourceFile] = [:]
         sources.forEach { source in
             let sourcePath = AbsolutePath(source.glob)
             let base = AbsolutePath(sourcePath.dirname)
-            base.glob(sourcePath.basename).filter { path in
+
+            // Paths that should be excluded from sources
+            let excluded = source.excluding
+                    .map { AbsolutePath($0).basename }
+                    .map { base.glob($0) }
+                    ?? []
+
+            Set(base.glob(sourcePath.basename))
+                .subtracting(excluded)
+                .filter { path in
                 if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
                     return true
                 }
