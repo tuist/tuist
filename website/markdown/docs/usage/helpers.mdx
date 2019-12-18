@@ -5,7 +5,15 @@ excerpt: Project description helpers are a group of Swift files that can be acce
 ---
 
 import Message from '../components/message'
-import { List } from 'semantic-ui-react'
+import {
+  List,
+  ListItem,
+  ListIcon,
+  ListContent,
+  ListHeader,
+  ListDescription,
+  ListList,
+} from '../components/list'
 
 # Project description helpers
 
@@ -43,83 +51,83 @@ import ProjectDescriptionHelpers
 Tuist traverses up the directories hierarchy until it finds a `Tuist` directory. Then it builds the helpers module including all the files under the `ProjectDescriptionHelpers` directory in the `Tuist` directory. Below you find an example of a project with helpers:
 
 <List>
-  <List.Item>
-    <List.Icon name="folder" />
-    <List.Content>
-      <List.Header>Tuist</List.Header>
-      <List.Description>A global Tuist's directory</List.Description>
-      <List.List>
-        <List.Item>
-          <List.Icon name="folder" />
-          <List.Content>
-            <List.Header>ProjectDescriptionHelpers</List.Header>
-            <List.Description>
+  <ListItem>
+    <ListIcon name="folder" />
+    <ListContent>
+      <ListHeader folder>Tuist</ListHeader>
+      <ListDescription>A global Tuist's directory</ListDescription>
+      <ListList>
+        <ListItem>
+          <ListIcon name="folder" />
+          <ListContent>
+            <ListHeader folder>ProjectDescriptionHelpers</ListHeader>
+            <ListDescription>
               A directory that contains all the helpers
-            </List.Description>
-            <List.List>
-              <List.Item>
-                <List.Icon name="file" />
-                <List.Content>
-                  <List.Header>Project+Templates.swift</List.Header>
-                  <List.Description>
+            </ListDescription>
+            <ListList>
+              <ListItem>
+                <ListIcon name="swift" />
+                <ListContent>
+                  <ListHeader>Project+Templates.swift</ListHeader>
+                  <ListDescription>
                     A helper that extends the Project with some templated
                     initializers.
-                  </List.Description>
-                </List.Content>
-              </List.Item>
-            </List.List>
-          </List.Content>
-        </List.Item>
-      </List.List>
-    </List.Content>
-  </List.Item>
-  <List.Item>
-    <List.Icon name="folder" />
-    <List.Content>
-      <List.Header>Projects</List.Header>
-      <List.Description>
+                  </ListDescription>
+                </ListContent>
+              </ListItem>
+            </ListList>
+          </ListContent>
+        </ListItem>
+      </ListList>
+    </ListContent>
+  </ListItem>
+  <ListItem>
+    <ListIcon name="folder" />
+    <ListContent>
+      <ListHeader folder>Projects</ListHeader>
+      <ListDescription>
         A directory that contains all the projects
-      </List.Description>
-      <List.List>
-        <List.Item>
-          <List.Icon name="folder" />
-          <List.Content>
-            <List.Header>App</List.Header>
-            <List.Description>A contains the app project</List.Description>
-            <List.List>
-              <List.Item>
-                <List.Icon name="file" />
-                <List.Content>
-                  <List.Header>Project.swift</List.Header>
-                  <List.Description>
+      </ListDescription>
+      <ListList>
+        <ListItem>
+          <ListIcon name="folder" />
+          <ListContent>
+            <ListHeader folder>App</ListHeader>
+            <ListDescription>A contains the app project</ListDescription>
+            <ListList>
+              <ListItem>
+                <ListIcon name="swift" />
+                <ListContent>
+                  <ListHeader>Project.swift</ListHeader>
+                  <ListDescription>
                     The app's Project.swift. It can import helpers.
-                  </List.Description>
-                </List.Content>
-              </List.Item>
-            </List.List>
-          </List.Content>
-        </List.Item>
-        <List.Item>
-          <List.Icon name="folder" />
-          <List.Content>
-            <List.Header>Settings</List.Header>
-            <List.Description>A contains the settings project</List.Description>
-            <List.List>
-              <List.Item>
-                <List.Icon name="file" />
-                <List.Content>
-                  <List.Header>Project.swift</List.Header>
-                  <List.Description>
+                  </ListDescription>
+                </ListContent>
+              </ListItem>
+            </ListList>
+          </ListContent>
+        </ListItem>
+        <ListItem>
+          <ListIcon name="folder" />
+          <ListContent>
+            <ListHeader folder>Settings</ListHeader>
+            <ListDescription>A contains the settings project</ListDescription>
+            <ListList>
+              <ListItem>
+                <ListIcon name="swift" />
+                <ListContent>
+                  <ListHeader>Project.swift</ListHeader>
+                  <ListDescription>
                     The settings' Project.swift. It can import helpers.
-                  </List.Description>
-                </List.Content>
-              </List.Item>
-            </List.List>
-          </List.Content>
-        </List.Item>
-      </List.List>
-    </List.Content>
-  </List.Item>
+                  </ListDescription>
+                </ListContent>
+              </ListItem>
+            </ListList>
+          </ListContent>
+        </ListItem>
+      </ListList>
+    </ListContent>
+  </ListItem>
 </List>
 
 ## Example
