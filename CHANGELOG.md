@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- Support ignoring specific source file pattern when adding them to the target https://github.com/tuist/tuist/pull/811 by @vytis
+
 ## 1.0.1
 
 ### Fixed
