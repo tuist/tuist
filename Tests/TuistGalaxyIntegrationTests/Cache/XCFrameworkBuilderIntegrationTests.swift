@@ -5,7 +5,7 @@ import TuistCore
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
-@testable import TuistKit
+@testable import TuistGalaxy
 @testable import TuistSupportTesting
 
 final class XCFrameworkBuilderIntegrationTests: TuistTestCase {
