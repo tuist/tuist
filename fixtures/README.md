@@ -297,3 +297,7 @@ e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
 ## ios_app_with_coredate
 
 A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
+
+## stress_test
+
+This is a Swift Package that generates a large application / workspace to stress test Tuist. The generated fixture itself is not checked in as it can vary based on the test being conducted.
