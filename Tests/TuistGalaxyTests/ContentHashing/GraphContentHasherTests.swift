@@ -3,7 +3,7 @@ import Foundation
 import TuistCore
 import TuistCoreTesting
 import XCTest
-@testable import TuistKit
+@testable import TuistGalaxy
 
 final class GraphContentHasherTests: XCTestCase {
     private var sut: GraphContentHasher!
