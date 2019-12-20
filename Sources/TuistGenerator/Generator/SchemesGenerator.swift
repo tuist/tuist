@@ -96,7 +96,7 @@ final class SchemesGenerator: SchemesGenerating {
         let userDefinedSchemes = Set(project.schemes.map(\.name))
         let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
         try defaultSchemeTargets.forEach { target in
-            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration)
+            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
             try generateScheme(scheme: scheme,
                                xcPath: xcprojectPath,
                                path: project.path,
@@ -119,9 +119,24 @@ final class SchemesGenerator: SchemesGenerating {
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
     
-    private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String) -> Scheme {
+    private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graphing) -> Scheme {
         let targetReference = TargetReference.project(path: project.path, target: target.name)
-        let testTargets = target.product.testsBundle ? [TestableTarget(target: targetReference)] : []
+        
+        let testTargets: [TestableTarget]
+        
+        if target.product.testsBundle {
+            testTargets = [TestableTarget(target: targetReference)]
+        } else if let targetNode = graph.findTargetNode(path: project.path, name: target.name) {
+            // Find all test targets that depend on this target
+            testTargets = graph.targets(at: project.path)
+                .filter { $0.target.product.testsBundle }
+                .filter { $0.targetDependencies.contains(targetNode) }
+                .map { TargetReference.project(path: $0.project.path, target: $0.target.name) }
+                .map { TestableTarget(target: $0) }
+        } else {
+            testTargets = []
+        }
+        
         return Scheme(name: target.name,
                       shared: true,
                       buildAction: BuildAction(targets: [targetReference]),
