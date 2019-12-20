@@ -41,6 +41,11 @@ public protocol Graphing: AnyObject, Encodable {
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] { get }
 
+    /// Returns all target nodes at a given path (i.e. all target nodes in a project)
+    /// - Parameters:
+    ///   - path: Path to the directory where the project is located
+    func targets(at path: AbsolutePath) -> [TargetNode]
+
     /// Returns the target with the given name and at the given directory.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
@@ -213,6 +218,13 @@ public class Graph: Graphing {
 
     public var targets: [TargetNode] {
         cache.targetNodes.flatMap { $0.value.values }
+    }
+
+    public func targets(at path: AbsolutePath) -> [TargetNode] {
+        guard let nodes = cache.targetNodes[path] else {
+            return []
+        }
+        return Array(nodes.values)
     }
 
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
