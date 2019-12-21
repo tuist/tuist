@@ -119,7 +119,7 @@ final class SchemesGenerator: SchemesGenerating {
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
     
-    private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graphing) -> Scheme {
+    func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graphing) -> Scheme {
         let targetReference = TargetReference.project(path: project.path, target: target.name)
         
         let testTargets: [TestableTarget]
