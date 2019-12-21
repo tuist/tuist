@@ -2,7 +2,7 @@ import Foundation
 import TuistCore
 import TuistSupport
 import XcodeProj
-import class SPMUtility.Version
+import struct SPMUtility.Version
 
 public protocol DefaultSettingsProviding {
     func projectSettings(project: Project,
