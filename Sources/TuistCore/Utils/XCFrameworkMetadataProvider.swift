@@ -5,6 +5,7 @@ import TuistSupport
 enum XCFrameworkMetadataProviderError: FatalError, Equatable {
     case missingRequiredFile(AbsolutePath)
     case supportedArchitectureReferencesNotFound(AbsolutePath)
+    case fileTypeNotRecognised(RelativePath)
 
     // MARK: - FatalError
 
@@ -14,12 +15,14 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
             return "The .xcframework at path \(path.pathString) doesn't contain an Info.plist. It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
         case let .supportedArchitectureReferencesNotFound(path):
             return "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
+        case let .fileTypeNotRecognised(path):
+            return "File type at \(path.pathString) is not recognised."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .missingRequiredFile, .supportedArchitectureReferencesNotFound:
+        case .missingRequiredFile, .supportedArchitectureReferencesNotFound, .fileTypeNotRecognised:
             return .abort
         }
     }
@@ -54,10 +57,20 @@ public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
             throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(frameworkPath)
         }
         let binaryName = frameworkPath.basenameWithoutExt
-        let binaryPath = AbsolutePath(library.identifier, relativeTo: frameworkPath)
-            .appending(RelativePath(library.path.pathString))
-            .appending(component: binaryName)
-
+        
+        let binaryPath: AbsolutePath
+        
+        switch library.path.extension {
+        case "framework":
+            binaryPath = AbsolutePath(library.identifier, relativeTo: frameworkPath)
+                .appending(RelativePath(library.path.pathString))
+                .appending(component: binaryName)
+        case "a":
+            binaryPath = AbsolutePath(library.identifier, relativeTo: frameworkPath)
+                .appending(RelativePath(library.path.pathString))
+        default:
+            throw XCFrameworkMetadataProviderError.fileTypeNotRecognised(library.path)
+        }
         return binaryPath
     }
 }

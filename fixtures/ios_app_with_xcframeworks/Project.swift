@@ -13,7 +13,8 @@ let project = Project(name: "App",
                                        // "Resources/**"
                                ],
                                dependencies: [
-                                    .xcFramework(path: "Frameworks/MyFramework/prebuilt/MyFramework.xcframework")
+                                    .xcFramework(path: "Frameworks/MyFramework/prebuilt/MyFramework.xcframework"),
+                                    .xcFramework(path: "Frameworks/MyStaticLibrary/prebuilt/MyStaticLibrary.xcframework")
                                 ]),
                         Target(name: "AppTests",
                                platform: .iOS,
