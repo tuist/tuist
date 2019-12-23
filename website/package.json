@@ -34,7 +34,7 @@
     "gatsby-plugin-sitemap": "^2.2.22",
     "gatsby-plugin-theme-ui": "^0.2.53",
     "gatsby-redirect-from": "^0.2.1",
-    "gatsby-remark-images": "^3.1.38",
+    "gatsby-remark-images": "^3.1.39",
     "gatsby-remark-smartypants": "^2.1.17",
     "gatsby-remark-social-cards": "https://github.com/pepibumur/gatsby-remark-social-cards.git#0.5.2",
     "gatsby-source-filesystem": "^2.1.43",
