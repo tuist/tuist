@@ -6,21 +6,20 @@ import XCTest
 
 final class XCFrameworkMetadataProviderTests: XCTestCase {
     var subject: XCFrameworkMetadataProvider!
-    var frameworkPath: AbsolutePath!
 
     override func setUp() {
         super.setUp()
         subject = XCFrameworkMetadataProvider()
-        frameworkPath = fixturePath(path: RelativePath("MyFramework.xcframework"))
     }
 
     override func tearDown() {
-        frameworkPath = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_libraries() throws {
+    func test_libraries_when_frameworkIsPresent() throws {
+        // Given
+        let frameworkPath = fixturePath(path: RelativePath("MyFramework.xcframework"))
         let libraries = try subject.libraries(frameworkPath: frameworkPath)
 
         // Then
@@ -34,12 +33,45 @@ final class XCFrameworkMetadataProviderTests: XCTestCase {
         ])
     }
 
-    func test_binaryPath() throws {
+    func test_binaryPath_when_frameworkIsPresent() throws {
+        // Given
+        let frameworkPath = fixturePath(path: RelativePath("MyFramework.xcframework"))
         let libraries = try subject.libraries(frameworkPath: frameworkPath)
         let binaryPath = try subject.binaryPath(frameworkPath: frameworkPath, libraries: libraries)
+
+        // Then
         XCTAssertEqual(
             binaryPath,
             frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework"))
+        )
+    }
+    
+    func test_libraries_when_staticLibraryIsPresent() throws {
+        // Given
+        let frameworkPath = fixturePath(path: RelativePath("MyStaticLibrary.xcframework"))
+        let libraries = try subject.libraries(frameworkPath: frameworkPath)
+
+        // Then
+        XCTAssertEqual(libraries, [
+            .init(identifier: "ios-x86_64-simulator",
+                  path: RelativePath("libMyStaticLibrary.a"),
+                  architectures: [.x8664]),
+            .init(identifier: "ios-arm64",
+                  path: RelativePath("libMyStaticLibrary.a"),
+                  architectures: [.arm64]),
+        ])
+    }
+
+    func test_binaryPath_when_staticLibraryIsPresent() throws {
+        // Given
+        let frameworkPath = fixturePath(path: RelativePath("MyStaticLibrary.xcframework"))
+        let libraries = try subject.libraries(frameworkPath: frameworkPath)
+        let binaryPath = try subject.binaryPath(frameworkPath: frameworkPath, libraries: libraries)
+
+        // Then
+        XCTAssertEqual(
+            binaryPath,
+            frameworkPath.appending(RelativePath("ios-x86_64-simulator/libMyStaticLibrary.a"))
         )
     }
 }
