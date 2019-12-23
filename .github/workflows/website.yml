@@ -1,12 +1,6 @@
 name: Website
 
-on:
-  push:
-    paths:
-      - website/**/*
-  pull_request:
-    paths:
-      - website/**/*
+on: ['push', 'pull_request']
 
 jobs:
   build:
