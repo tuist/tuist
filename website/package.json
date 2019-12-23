@@ -57,7 +57,7 @@
     "remark-slug": "^5.1.2",
     "semantic-ui-react": "^0.88.1",
     "slug": "^1.1.0",
-    "theme-ui": "^0.2.49",
+    "theme-ui": "^0.2.52",
     "url-join": "^4.0.1"
   },
   "keywords": [
