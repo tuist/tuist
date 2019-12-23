@@ -5,7 +5,7 @@ import TuistSupport
 enum XCFrameworkMetadataProviderError: FatalError, Equatable {
     case missingRequiredFile(AbsolutePath)
     case supportedArchitectureReferencesNotFound(AbsolutePath)
-    case fileTypeNotRecognised(RelativePath)
+    case fileTypeNotRecognised(file: RelativePath, frameworkName: String)
 
     // MARK: - FatalError
 
@@ -15,8 +15,8 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
             return "The .xcframework at path \(path.pathString) doesn't contain an Info.plist. It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
         case let .supportedArchitectureReferencesNotFound(path):
             return "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
-        case let .fileTypeNotRecognised(path):
-            return "File type at \(path.pathString) is not recognised."
+        case let .fileTypeNotRecognised(file, frameworkName):
+            return "The extension of the file `\(file)`, which was found while parsing the xcframework `\(frameworkName)`, is not supported."
         }
     }
 
@@ -69,7 +69,7 @@ public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
             binaryPath = AbsolutePath(library.identifier, relativeTo: frameworkPath)
                 .appending(RelativePath(library.path.pathString))
         default:
-            throw XCFrameworkMetadataProviderError.fileTypeNotRecognised(library.path)
+            throw XCFrameworkMetadataProviderError.fileTypeNotRecognised(file: library.path, frameworkName: frameworkPath.basename)
         }
         return binaryPath
     }
