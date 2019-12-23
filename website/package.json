@@ -32,7 +32,7 @@
     "gatsby-plugin-react-svg": "^2.1.1",
     "gatsby-plugin-sharp": "2.3.8",
     "gatsby-plugin-sitemap": "^2.2.22",
-    "gatsby-plugin-theme-ui": "^0.2.43",
+    "gatsby-plugin-theme-ui": "^0.2.53",
     "gatsby-redirect-from": "^0.2.1",
     "gatsby-remark-images": "^3.1.38",
     "gatsby-remark-smartypants": "^2.1.17",
