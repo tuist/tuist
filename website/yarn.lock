@@ -1672,10 +1672,10 @@
   dependencies:
     defer-to-connect "^1.0.1"
 
-"@theme-ui/color@^0.2.49":
-  version "0.2.49"
-  resolved "https://registry.yarnpkg.com/@theme-ui/color/-/color-0.2.49.tgz#599276ca0dcf94c00c4f35a7b38b6833b3b35bfe"
-  integrity sha512-vUs1SnIzhDjYDyXzidtE62gKELylSw79fSYeNM//DQrNngupTZFWlyAga+MdcS9UYjWJ9Z/ueR0mfy6qlWdlpQ==
+"@theme-ui/color@^0.2.53":
+  version "0.2.53"
+  resolved "https://registry.yarnpkg.com/@theme-ui/color/-/color-0.2.53.tgz#d4ac58b99639d1370c7e541bfeebb69f0036ca0c"
+  integrity sha512-Xz9146bG+tYZ9cJslAk1oq7hmlHmpso2bKLpjAW9O9382gWGNNoie44W0xi6XkVvDXtmnNei4nM/H5Wbtu9V0w==
   dependencies:
     "@styled-system/css" "^5.0.23"
     polished "^3.4.1"
