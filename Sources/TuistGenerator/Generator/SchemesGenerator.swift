@@ -126,15 +126,10 @@ final class SchemesGenerator: SchemesGenerating {
         
         if target.product.testsBundle {
             testTargets = [TestableTarget(target: targetReference)]
-        } else if let targetNode = graph.findTargetNode(path: project.path, name: target.name) {
-            // Find all test targets that depend on this target
-            testTargets = graph.targets(at: project.path)
-                .filter { $0.target.product.testsBundle }
-                .filter { $0.targetDependencies.contains(targetNode) }
+        } else {
+            testTargets = graph.testTargetsDependingOn(path: project.path, name: target.name)
                 .map { TargetReference.project(path: $0.project.path, target: $0.target.name) }
                 .map { TestableTarget(target: $0) }
-        } else {
-            testTargets = []
         }
         
         return Scheme(name: target.name,

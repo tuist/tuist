@@ -58,6 +58,12 @@ public protocol Graphing: AnyObject, Encodable {
     ///   - name: Name of the target.
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
 
+    /// Returns all test targets directly dependent on the given target
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func testTargetsDependingOn(path: AbsolutePath, name: String) -> [TargetNode]
+
     /// Returns all non-transitive target static dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
@@ -238,6 +244,15 @@ public class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter { $0.path == path }
+    }
+
+    public func testTargetsDependingOn(path: AbsolutePath, name: String) -> [TargetNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+        return targets(at: path)
+        .filter { $0.target.product.testsBundle }
+        .filter { $0.targetDependencies.contains(targetNode) }
     }
 
     public func staticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {

@@ -47,6 +47,30 @@ final class GraphTests: TuistUnitTestCase {
         XCTAssertEqual(dependencies.first?.target.name, "Dependency")
     }
 
+    func test_testTargetsDependingOn() throws {
+        // given
+        let target = Target.test(name: "Main")
+        let dependentTarget = Target.test(name: "Dependency", product: .staticLibrary)
+        let testTarget = Target.test(name: "MainTests", product: .unitTests)
+        let project = Project.test(targets: [target, dependentTarget, testTarget])
+
+        let dependencyNode = TargetNode(project: project, target: dependentTarget, dependencies: [])
+        let targetNode = TargetNode(project: project, target: target, dependencies: [dependencyNode])
+        let testNode = TargetNode(project: project, target: testTarget, dependencies: [targetNode])
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: targetNode)
+        cache.add(targetNode: testNode)
+        let graph = Graph.test(cache: cache)
+
+        // when
+        let testDependencies = graph.testTargetsDependingOn(path: project.path, name: target.name)
+
+        // then
+        XCTAssertEqual(testDependencies.count, 1)
+        let testDependency = try XCTUnwrap(testDependencies.first)
+        XCTAssertEqual(testDependency.name, testTarget.name)
+    }
+
     func test_linkableDependencies_whenPrecompiled() throws {
         let target = Target.test(name: "Main")
         let precompiledNode = FrameworkNode(path: AbsolutePath("/test/test.framework"))
