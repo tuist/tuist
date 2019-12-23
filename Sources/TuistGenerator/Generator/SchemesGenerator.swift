@@ -96,7 +96,7 @@ final class SchemesGenerator: SchemesGenerating {
         let userDefinedSchemes = Set(project.schemes.map(\.name))
         let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
         try defaultSchemeTargets.forEach { target in
-            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration)
+            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
             try generateScheme(scheme: scheme,
                                xcPath: xcprojectPath,
                                path: project.path,
@@ -119,9 +119,19 @@ final class SchemesGenerator: SchemesGenerating {
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
     
-    private func createDefaultScheme(target: Target, project: Project, buildConfiguration: String) -> Scheme {
+    func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graphing) -> Scheme {
         let targetReference = TargetReference.project(path: project.path, target: target.name)
-        let testTargets = target.product.testsBundle ? [TestableTarget(target: targetReference)] : []
+        
+        let testTargets: [TestableTarget]
+        
+        if target.product.testsBundle {
+            testTargets = [TestableTarget(target: targetReference)]
+        } else {
+            testTargets = graph.testTargetsDependingOn(path: project.path, name: target.name)
+                .map { TargetReference.project(path: $0.project.path, target: $0.target.name) }
+                .map { TestableTarget(target: $0) }
+        }
+        
         return Scheme(name: target.name,
                       shared: true,
                       buildAction: BuildAction(targets: [targetReference]),

@@ -17,6 +17,63 @@ final class SchemesGeneratorTests: XCTestCase {
         subject = SchemesGenerator()
     }
 
+    // MARK: - Scheme Generation
+
+    func test_defaultGeneratedScheme_RegularTarget() throws {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [target, testTarget])
+
+        let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: []),
+                                                (project: project, target: testTarget, dependencies: [target])])
+
+        // When
+        let got = subject.createDefaultScheme(target: target, project: project, buildConfiguration: "Debug", graph: graph)
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.name, target.name)
+        XCTAssertTrue(result.shared)
+        
+        let buildAction = try XCTUnwrap(result.buildAction)
+        let targetReference = TargetReference(projectPath: project.path, name: target.name)
+        XCTAssertEqual(buildAction.targets, [targetReference])
+        
+        let testAction = try XCTUnwrap(result.testAction)
+        let testTargetReference = TargetReference(projectPath: project.path, name: testTarget.name)
+        let testableTarget = TestableTarget(target: testTargetReference)
+        XCTAssertEqual(testAction.targets, [testableTarget])
+    }
+    
+    func test_defaultGeneratedScheme_TestTarget() throws {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [target, testTarget])
+
+        let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: []),
+                                                (project: project, target: testTarget, dependencies: [target])])
+
+        // When
+        let got = subject.createDefaultScheme(target: testTarget, project: project, buildConfiguration: "Debug", graph: graph)
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.name, testTarget.name)
+        XCTAssertTrue(result.shared)
+        
+        let buildAction = try XCTUnwrap(result.buildAction)
+        let targetReference = TargetReference(projectPath: project.path, name: testTarget.name)
+        XCTAssertEqual(buildAction.targets, [targetReference])
+        
+        let testAction = try XCTUnwrap(result.testAction)
+        let testTargetReference = TargetReference(projectPath: project.path, name: testTarget.name)
+        let testableTarget = TestableTarget(target: testTargetReference)
+        XCTAssertEqual(testAction.targets, [testableTarget])
+    }
+
+
     // MARK: - Build Action Tests
 
     func test_schemeBuildAction_whenSingleProject() throws {

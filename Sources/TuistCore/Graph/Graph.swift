@@ -41,6 +41,11 @@ public protocol Graphing: AnyObject, Encodable {
     /// Returns all the targets that are part of the graph.
     var targets: [TargetNode] { get }
 
+    /// Returns all target nodes at a given path (i.e. all target nodes in a project)
+    /// - Parameters:
+    ///   - path: Path to the directory where the project is located
+    func targets(at path: AbsolutePath) -> [TargetNode]
+
     /// Returns the target with the given name and at the given directory.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
@@ -52,6 +57,12 @@ public protocol Graphing: AnyObject, Encodable {
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
     func targetDependencies(path: AbsolutePath, name: String) -> [TargetNode]
+
+    /// Returns all test targets directly dependent on the given target
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func testTargetsDependingOn(path: AbsolutePath, name: String) -> [TargetNode]
 
     /// Returns all non-transitive target static dependencies for the given target.
     /// - Parameters:
@@ -215,6 +226,13 @@ public class Graph: Graphing {
         cache.targetNodes.flatMap { $0.value.values }
     }
 
+    public func targets(at path: AbsolutePath) -> [TargetNode] {
+        guard let nodes = cache.targetNodes[path] else {
+            return []
+        }
+        return Array(nodes.values)
+    }
+
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
         findTargetNode(path: path, name: name)
     }
@@ -226,6 +244,15 @@ public class Graph: Graphing {
 
         return targetNode.targetDependencies
             .filter { $0.path == path }
+    }
+
+    public func testTargetsDependingOn(path: AbsolutePath, name: String) -> [TargetNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+        return targets(at: path)
+        .filter { $0.target.product.testsBundle }
+        .filter { $0.targetDependencies.contains(targetNode) }
     }
 
     public func staticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
