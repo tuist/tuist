@@ -142,7 +142,7 @@ GEM
       declarative-option (< 0.2.0)
       uber (< 0.2.0)
     retriable (3.1.2)
-    rubocop (0.77.0)
+    rubocop (0.78.0)
       jaro_winkler (~> 1.5.1)
       parallel (~> 1.10)
       parser (>= 2.6)
@@ -184,7 +184,7 @@ DEPENDENCIES
   highline (~> 2.0)
   minitest (~> 5.13)
   rake (~> 13.0)
-  rubocop (~> 0.77.0)
+  rubocop (~> 0.78.0)
   simctl (~> 1.6)
   xcodeproj (~> 1.14)
 
