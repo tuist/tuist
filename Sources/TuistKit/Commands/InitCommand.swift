@@ -4,6 +4,7 @@ import SPMUtility
 import TuistCore
 import TuistGenerator
 import TuistSupport
+import TuistLoader
 
 private typealias Platform = TuistCore.Platform
 private typealias Product = TuistCore.Product

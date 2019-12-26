@@ -5,7 +5,7 @@ import TuistSupport
 
 /// Protocol that represents an entity that knows how to get the environment status
 /// for a given project and configure it.
-protocol SetupLoading {
+public protocol SetupLoading {
     /// It runs meet on each command if it is not met.
     ///
     /// - Parameter path: Path to the project.
@@ -13,14 +13,15 @@ protocol SetupLoading {
     func meet(at path: AbsolutePath) throws
 }
 
-class SetupLoader: SetupLoading {
+public class SetupLoader: SetupLoading {
     /// Linter for up commands.
     private let upLinter: UpLinting
 
     /// Manifset loader instance to load the setup.
     private let manifestLoader: ManifestLoading
 
-    convenience init() {
+    /// Default constructor.
+    public convenience init() {
         let upLinter = UpLinter()
         let manifestLoader = ManifestLoader()
         self.init(upLinter: upLinter, manifestLoader: manifestLoader)
@@ -42,7 +43,7 @@ class SetupLoader: SetupLoading {
     /// - Parameter path: Path to the project.
     /// - Throws: An error if any of the commands exit unsuccessfully
     ///           or if there isn't a `Setup.swift` file within the project path.
-    func meet(at path: AbsolutePath) throws {
+    public func meet(at path: AbsolutePath) throws {
         let setup = try manifestLoader.loadSetup(at: path)
         try setup.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }

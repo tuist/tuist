@@ -3,16 +3,16 @@ import Foundation
 import ProjectDescription
 import TuistSupport
 
-enum ManifestLoaderError: FatalError, Equatable {
+public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
     case manifestNotFound(Manifest?, AbsolutePath)
 
-    static func manifestNotFound(_ path: AbsolutePath) -> ManifestLoaderError {
+    public static func manifestNotFound(_ path: AbsolutePath) -> ManifestLoaderError {
         .manifestNotFound(nil, path)
     }
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .projectDescriptionNotFound(path):
             return "Couldn't find ProjectDescription.framework at path \(path.pathString)"
@@ -23,7 +23,7 @@ enum ManifestLoaderError: FatalError, Equatable {
         }
     }
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .unexpectedOutput:
             return .bug
@@ -36,7 +36,7 @@ enum ManifestLoaderError: FatalError, Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: ManifestLoaderError, rhs: ManifestLoaderError) -> Bool {
+    public static func == (lhs: ManifestLoaderError, rhs: ManifestLoaderError) -> Bool {
         switch (lhs, rhs) {
         case let (.projectDescriptionNotFound(lhsPath), .projectDescriptionNotFound(rhsPath)):
             return lhsPath == rhsPath
@@ -50,7 +50,7 @@ enum ManifestLoaderError: FatalError, Equatable {
     }
 }
 
-protocol ManifestLoading {
+public protocol ManifestLoading {
     /// Loads the TuistConfig.swift in the given directory.
     ///
     /// - Parameter path: Path to the directory that contains the TuistConfig.swift file.
@@ -82,7 +82,7 @@ protocol ManifestLoading {
     func manifests(at path: AbsolutePath) -> Set<Manifest>
 }
 
-class ManifestLoader: ManifestLoading {
+public class ManifestLoader: ManifestLoading {
     // MARK: - Attributes
 
     let resourceLocator: ResourceLocating
@@ -91,37 +91,43 @@ class ManifestLoader: ManifestLoading {
     private let decoder: JSONDecoder
 
     // MARK: - Init
+    
+    public convenience init() {
+        self.init(resourceLocator: ResourceLocator(),
+                  projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilder(),
+                  manifestFilesLocator: ManifestFilesLocator())
+    }
 
-    init(resourceLocator: ResourceLocating = ResourceLocator(),
-         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder(),
-         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()) {
+    init(resourceLocator: ResourceLocating,
+         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding,
+         manifestFilesLocator: ManifestFilesLocating) {
         self.resourceLocator = resourceLocator
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         self.manifestFilesLocator = manifestFilesLocator
         decoder = JSONDecoder()
     }
 
-    func manifests(at path: AbsolutePath) -> Set<Manifest> {
+    public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         Set(manifestFilesLocator.locate(at: path).map { $0.0 })
     }
 
-    func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig {
+    public func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig {
         try loadManifest(.tuistConfig, at: path)
     }
 
-    func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy {
+    public func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy {
         try loadManifest(.galaxy, at: path)
     }
 
-    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
+    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
         try loadManifest(.project, at: path)
     }
 
-    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
         try loadManifest(.workspace, at: path)
     }
 
-    func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
         let setupPath = path.appending(component: Manifest.setup.fileName)
         guard FileHandler.shared.exists(setupPath) else {
             throw ManifestLoaderError.manifestNotFound(.setup, path)

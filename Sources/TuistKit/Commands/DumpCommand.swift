@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistSupport
+import TuistLoader
 
 class DumpCommand: NSObject, Command {
     // MARK: - Command

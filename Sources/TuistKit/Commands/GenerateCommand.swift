@@ -3,6 +3,7 @@ import Foundation
 import SPMUtility
 import TuistGenerator
 import TuistSupport
+import TuistLoader
 
 class GenerateCommand: NSObject, Command {
     // MARK: - Static
@@ -21,8 +22,7 @@ class GenerateCommand: NSObject, Command {
     // MARK: - Init
 
     required convenience init(parser: ArgumentParser) {
-        let resourceLocator = ResourceLocator()
-        let manifestLoader = ManifestLoader(resourceLocator: resourceLocator)
+        let manifestLoader = ManifestLoader()
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader, manifestLinter: manifestLinter)
         let generator = Generator(modelLoader: modelLoader)

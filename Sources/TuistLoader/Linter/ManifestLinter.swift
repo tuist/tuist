@@ -3,12 +3,14 @@ import ProjectDescription
 import TuistCore
 import TuistSupport
 
-protocol ManifestLinting {
+public protocol ManifestLinting {
     func lint(project: ProjectDescription.Project) -> [LintingIssue]
 }
 
-class ManifestLinter: ManifestLinting {
-    func lint(project: ProjectDescription.Project) -> [LintingIssue] {
+public class ManifestLinter: ManifestLinting {
+    public init() {}
+    
+    public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
         var issues = [LintingIssue]()
 
         if let settings = project.settings {

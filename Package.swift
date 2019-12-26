@@ -52,7 +52,7 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistGalaxy", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "Checksum"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistGalaxy", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "Checksum", "TuistLoader"]
         ),
         .testTarget(
             name: "TuistKitTests",
@@ -137,6 +137,14 @@ let package = Package(
         .testTarget(
             name: "TuistAutomationIntegrationTests",
             dependencies: ["TuistAutomation", "TuistSupportTesting"]
+        ),
+        .target(
+          name: "TuistLoader",
+            dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
+        ),
+        .testTarget(
+            name: "TuistLoaderTests",
+            dependencies: ["TuistLoader", "TuistSupportTesting"]
         ),
         .testTarget(
             name: "TuistIntegrationTests",

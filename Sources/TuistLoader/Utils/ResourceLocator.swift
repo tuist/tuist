@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-protocol ResourceLocating: AnyObject {
+public protocol ResourceLocating: AnyObject {
     func projectDescription() throws -> AbsolutePath
     func cliPath() throws -> AbsolutePath
 }
@@ -32,14 +32,16 @@ enum ResourceLocatingError: FatalError {
     }
 }
 
-final class ResourceLocator: ResourceLocating {
+public final class ResourceLocator: ResourceLocating {
+    public init() {}
+    
     // MARK: - ResourceLocating
 
-    func projectDescription() throws -> AbsolutePath {
+    public func projectDescription() throws -> AbsolutePath {
         try frameworkPath("ProjectDescription")
     }
 
-    func cliPath() throws -> AbsolutePath {
+    public func cliPath() throws -> AbsolutePath {
         try toolPath("tuist")
     }
 

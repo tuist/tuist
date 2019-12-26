@@ -2,25 +2,30 @@ import Basic
 import Foundation
 import TuistSupport
 
-protocol HelpersDirectoryLocating {
+public protocol HelpersDirectoryLocating {
     /// Returns the path to the helpers directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the helpers directory.
     func locate(at: AbsolutePath) -> AbsolutePath?
 }
 
-final class HelpersDirectoryLocator: HelpersDirectoryLocating {
+public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
     /// Instance to locate the root directory of the project.
     let rootDirectoryLocator: RootDirectoryLocating
+    
+    /// Default constructor.
+    public convenience init() {
+        self.init(rootDirectoryLocator: RootDirectoryLocator.shared)
+    }
 
     /// Initializes the locator with its dependencies.
     /// - Parameter rootDirectoryLocator: Instance to locate the root directory of the project.
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator.shared) {
+    init(rootDirectoryLocator: RootDirectoryLocating) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     // MARK: - HelpersDirectoryLocating
 
-    func locate(at: AbsolutePath) -> AbsolutePath? {
+    public func locate(at: AbsolutePath) -> AbsolutePath? {
         guard let rootDirectory = self.rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
             .appending(component: Constants.tuistDirectoryName)

@@ -5,16 +5,16 @@ import TuistCore
 import TuistGenerator
 import TuistSupport
 
-enum GeneratorModelLoaderError: Error, Equatable, FatalError {
+public enum GeneratorModelLoaderError: Error, Equatable, FatalError {
     case missingFile(AbsolutePath)
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .missingFile:
             return .abort
         }
     }
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .missingFile(path):
             return "Couldn't find file at path '\(path.pathString)'"
@@ -22,11 +22,11 @@ enum GeneratorModelLoaderError: Error, Equatable, FatalError {
     }
 }
 
-class GeneratorModelLoader: GeneratorModelLoading {
+public class GeneratorModelLoader: GeneratorModelLoading {
     private let manifestLoader: ManifestLoading
     private let manifestLinter: ManifestLinting
 
-    init(manifestLoader: ManifestLoading,
+    public init(manifestLoader: ManifestLoading,
          manifestLinter: ManifestLinting) {
         self.manifestLoader = manifestLoader
         self.manifestLinter = manifestLinter
@@ -38,7 +38,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
     ///   - path: The absolute path for the project model to load.
     /// - Returns: The Project loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
-    func loadProject(at path: AbsolutePath) throws -> TuistCore.Project {
+    public func loadProject(at path: AbsolutePath) throws -> TuistCore.Project {
         let manifest = try manifestLoader.loadProject(at: path)
         let tuistConfig = try loadTuistConfig(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
@@ -53,7 +53,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
         return try enriched(model: project, with: tuistConfig)
     }
 
-    func loadWorkspace(at path: AbsolutePath) throws -> TuistCore.Workspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> TuistCore.Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let workspace = try TuistCore.Workspace.from(manifest: manifest,
@@ -63,7 +63,7 @@ class GeneratorModelLoader: GeneratorModelLoading {
         return workspace
     }
 
-    func loadTuistConfig(at path: AbsolutePath) throws -> TuistCore.TuistConfig {
+    public func loadTuistConfig(at path: AbsolutePath) throws -> TuistCore.TuistConfig {
         guard let tuistConfigPath = FileHandler.shared.locateDirectoryTraversingParents(from: path, path: Manifest.tuistConfig.fileName) else {
             return TuistCore.TuistConfig.default
         }

@@ -1,13 +1,13 @@
 import Foundation
 
-enum Manifest: CaseIterable {
+public enum Manifest: CaseIterable {
     case project
     case workspace
     case tuistConfig
     case setup
     case galaxy
 
-    var fileName: String {
+    public var fileName: String {
         switch self {
         case .project:
             return "Project.swift"
