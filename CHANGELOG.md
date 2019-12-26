@@ -4,12 +4,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-- Support ignoring specific source file pattern when adding them to the target https://github.com/tuist/tuist/pull/811 by @vytis.
-- Made targets testable if there is a corresponding test target https://github.com/tuist/tuist/pull/818 by @vytis.
+### Changed
+
+- Extracted loading logic into its own framework, `TuistLoader` https://github.com/tuist/tuist/pull/838 by @pepibumur.
 
 ### Added
 
 - `TuistGalaxy` & `TuistAutomation` targets https://github.com/tuist/tuist/pull/817 by @pepibumur.
+- Support ignoring specific source file pattern when adding them to the target https://github.com/tuist/tuist/pull/811 by @vytis.
+- Made targets testable if there is a corresponding test target https://github.com/tuist/tuist/pull/818 by @vytis.
 
 ## 1.0.1
 
