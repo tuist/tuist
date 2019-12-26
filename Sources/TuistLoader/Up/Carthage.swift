@@ -1,7 +1,6 @@
 import Basic
 import Foundation
 import TuistCore
-import TuistGenerator
 import TuistSupport
 
 /// Model that represents the content of the file that Carthage

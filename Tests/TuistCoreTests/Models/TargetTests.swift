@@ -91,17 +91,17 @@ final class TargetTests: TuistUnitTestCase {
         // When
         let sources = try Target.sources(projectPath: temporaryPath,
                                          sources: [(
-                                                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                                                excluding: temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
-                                                compilerFlags: nil
-                                            )])
+                                             glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                                                   excluding: temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
+                                                   compilerFlags: nil
+                                         )])
 
         // Then
         let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
 
         XCTAssertEqual(Set(relativeSources), Set([
             "sources/a.swift",
-            "sources/b.swift"
+            "sources/b.swift",
         ]))
     }
 

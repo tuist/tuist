@@ -56,11 +56,11 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "Checksum"]
+            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "Checksum", "TuistLoaderTesting"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
-            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "Checksum"]
+            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "Checksum", "TuistLoaderTesting"]
         ),
         .target(
             name: "tuist",
@@ -115,19 +115,19 @@ let package = Package(
             dependencies: ["TuistGenerator", "TuistSupportTesting"]
         ),
         .target(
-          name: "TuistGalaxy",
+            name: "TuistGalaxy",
             dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
         ),
         .testTarget(
             name: "TuistGalaxyTests",
-            dependencies: ["TuistGalaxy", "TuistSupportTesting"]
+            dependencies: ["TuistGalaxy", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistGalaxyIntegrationTests",
-            dependencies: ["TuistGalaxy", "TuistSupportTesting"]
+            dependencies: ["TuistGalaxy", "TuistSupportTesting", "RxBlocking"]
         ),
         .target(
-          name: "TuistAutomation",
+            name: "TuistAutomation",
             dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
         ),
         .testTarget(
@@ -139,11 +139,19 @@ let package = Package(
             dependencies: ["TuistAutomation", "TuistSupportTesting"]
         ),
         .target(
-          name: "TuistLoader",
+            name: "TuistLoader",
             dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
+        ),
+        .target(
+            name: "TuistLoaderTesting",
+            dependencies: ["TuistLoader", "SPMUtility", "TuistCore", "ProjectDescription"]
         ),
         .testTarget(
             name: "TuistLoaderTests",
+            dependencies: ["TuistLoader", "TuistSupportTesting"]
+        ),
+        .testTarget(
+            name: "TuistLoaderIntegrationTests",
             dependencies: ["TuistLoader", "TuistSupportTesting"]
         ),
         .testTarget(

@@ -24,27 +24,27 @@ public class Workspace: Equatable {
 
 extension Workspace {
     public func adding(files: [AbsolutePath]) -> Workspace {
-        return Workspace(path: path,
-                         name: name,
-                         projects: projects,
-                         schemes: schemes,
-                         additionalFiles: additionalFiles + files.map { .file(path: $0) })
+        Workspace(path: path,
+                  name: name,
+                  projects: projects,
+                  schemes: schemes,
+                  additionalFiles: additionalFiles + files.map { .file(path: $0) })
     }
-    
+
     public func replacing(projects: [AbsolutePath]) -> Workspace {
-        return Workspace(path: path,
-                         name: name,
-                         projects: projects,
-                         schemes: schemes,
-                         additionalFiles: additionalFiles)
+        Workspace(path: path,
+                  name: name,
+                  projects: projects,
+                  schemes: schemes,
+                  additionalFiles: additionalFiles)
     }
-    
+
     public func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
-        return Workspace(path: path,
-                         name: name,
-                         projects: Array(Set(projects + otherProjects)),
-                         schemes: schemes,
-                         additionalFiles: additionalFiles)
+        Workspace(path: path,
+                  name: name,
+                  projects: Array(Set(projects + otherProjects)),
+                  schemes: schemes,
+                  additionalFiles: additionalFiles)
     }
 
     // MARK: - Equatable

@@ -26,7 +26,7 @@ public class Scheme: Equatable {
         self.runAction = runAction
         self.archiveAction = archiveAction
     }
-    
+
     public func targetDependencies() -> [TargetReference] {
         let targetSources: [[TargetReference]?] = [
             buildAction?.targets,
@@ -38,9 +38,9 @@ public class Scheme: Equatable {
             testAction?.postActions.compactMap(\.target),
             runAction?.executable.map { [$0] },
             archiveAction?.preActions.compactMap(\.target),
-            archiveAction?.postActions.compactMap(\.target)
+            archiveAction?.postActions.compactMap(\.target),
         ]
-        
+
         let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
         return targets.sorted { ($0.name < $1.name) }
     }

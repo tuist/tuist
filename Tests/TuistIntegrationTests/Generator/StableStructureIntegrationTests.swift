@@ -99,7 +99,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     private func createWorkspace(projects: [String]) throws -> Workspace {
-        return Workspace(path: AbsolutePath("/"), name: "Workspace", projects: try projects.map { try pathTo($0) })
+        Workspace(path: AbsolutePath("/"), name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
@@ -256,17 +256,18 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                 archiveAction: ArchiveAction(configurationName: "Debug",
                                              revealArchiveInOrganizer: boolStub,
                                              preActions: createExecutionActions(),
-                                             postActions: createExecutionActions()))
+                                             postActions: createExecutionActions())
+            )
         }
     }
 
     private func createArguments() -> Arguments {
-        let environment = ( 0..<10 ).reduce([String: String]()) { acc, value in
+        let environment = (0 ..< 10).reduce([String: String]()) { acc, value in
             var acc = acc
             acc["Environment\(value)"] = "EnvironmentValue\(value)"
             return acc
         }
-        let launch = ( 0..<10 ).reduce([String: Bool]()) { acc, value in
+        let launch = (0 ..< 10).reduce([String: Bool]()) { acc, value in
             var acc = acc
             acc["Launch\(value)"] = value % 2 == 0
             return acc
@@ -275,7 +276,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     private func createExecutionActions() -> [ExecutionAction] {
-        ( 0..<10 ).map {
+        (0 ..< 10).map {
             ExecutionAction(title: "ExecutionAction\($0)", scriptText: "ScripText\($0)", target: nil)
         }
     }
@@ -286,7 +287,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     private func targetReference(from target: Target) throws -> TargetReference {
-        return TargetReference(projectPath: try pathTo("App"), name: target.name)
+        TargetReference(projectPath: try pathTo("App"), name: target.name)
     }
 }
 

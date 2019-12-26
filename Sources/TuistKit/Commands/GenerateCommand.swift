@@ -2,8 +2,8 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistGenerator
-import TuistSupport
 import TuistLoader
+import TuistSupport
 
 class GenerateCommand: NSObject, Command {
     // MARK: - Static

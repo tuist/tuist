@@ -1,9 +1,11 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistLoader
 import XCTest
 
 @testable import TuistKit
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class UpCommandTests: TuistUnitTestCase {

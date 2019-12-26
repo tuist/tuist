@@ -1,10 +1,12 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistLoader
 import TuistSupport
 import XCTest
 
 @testable import TuistKit
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {

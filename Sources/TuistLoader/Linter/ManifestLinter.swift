@@ -9,7 +9,7 @@ public protocol ManifestLinting {
 
 public class ManifestLinter: ManifestLinting {
     public init() {}
-    
+
     public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
         var issues = [LintingIssue]()
 

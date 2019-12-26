@@ -91,7 +91,7 @@ public class ManifestLoader: ManifestLoading {
     private let decoder: JSONDecoder
 
     // MARK: - Init
-    
+
     public convenience init() {
         self.init(resourceLocator: ResourceLocator(),
                   projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilder(),

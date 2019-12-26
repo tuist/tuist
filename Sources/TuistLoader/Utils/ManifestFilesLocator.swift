@@ -10,9 +10,8 @@ public protocol ManifestFilesLocating: AnyObject {
 }
 
 public final class ManifestFilesLocator: ManifestFilesLocating {
-    
     public init() {}
-    
+
     public func locate(at: AbsolutePath) -> [(Manifest, AbsolutePath)] {
         Manifest.allCases.compactMap { manifest in
             let path = at.appending(component: manifest.fileName)

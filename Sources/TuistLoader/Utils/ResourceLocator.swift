@@ -34,7 +34,7 @@ enum ResourceLocatingError: FatalError {
 
 public final class ResourceLocator: ResourceLocating {
     public init() {}
-    
+
     // MARK: - ResourceLocating
 
     public func projectDescription() throws -> AbsolutePath {

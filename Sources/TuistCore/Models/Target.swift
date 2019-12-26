@@ -116,18 +116,18 @@ public class Target: Equatable, Hashable {
 
             // Paths that should be excluded from sources
             let excluded = source.excluding
-                    .map { AbsolutePath($0).basename }
-                    .map { base.glob($0) }
-                    ?? []
+                .map { AbsolutePath($0).basename }
+                .map { base.glob($0) }
+                ?? []
 
             Set(base.glob(sourcePath.basename))
                 .subtracting(excluded)
                 .filter { path in
-                if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
-                    return true
-                }
-                return false
-            }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
+                    if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
+                        return true
+                    }
+                    return false
+                }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
         }
         return Array(sourceFiles.values)
     }

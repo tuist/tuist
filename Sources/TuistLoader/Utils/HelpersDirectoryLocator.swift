@@ -11,7 +11,7 @@ public protocol HelpersDirectoryLocating {
 public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
     /// Instance to locate the root directory of the project.
     let rootDirectoryLocator: RootDirectoryLocating
-    
+
     /// Default constructor.
     public convenience init() {
         self.init(rootDirectoryLocator: RootDirectoryLocator.shared)

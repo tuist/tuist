@@ -1,8 +1,8 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistSupport
 import TuistLoader
+import TuistSupport
 
 /// Command that configures the environment to work on the project.
 class UpCommand: NSObject, Command {

@@ -183,17 +183,17 @@ public struct ArchiveAction: Equatable, Codable {
 public struct TargetReference: Equatable, Codable, ExpressibleByStringLiteral {
     public var projectPath: Path?
     public var targetName: String
-    
+
     public init(projectPath: Path?, target: String) {
         self.projectPath = projectPath
-        self.targetName = target
+        targetName = target
     }
-    
+
     public init(stringLiteral value: String) {
         self = .init(projectPath: nil, target: value)
     }
-    
+
     public static func project(path: Path, target: String) -> TargetReference {
-        return .init(projectPath: path, target: target)
+        .init(projectPath: path, target: target)
     }
 }

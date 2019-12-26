@@ -57,9 +57,9 @@ public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
             throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(frameworkPath)
         }
         let binaryName = frameworkPath.basenameWithoutExt
-        
+
         let binaryPath: AbsolutePath
-        
+
         switch library.path.extension {
         case "framework":
             binaryPath = AbsolutePath(library.identifier, relativeTo: frameworkPath)

@@ -35,17 +35,17 @@ final class SchemesGeneratorTests: XCTestCase {
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.name, target.name)
         XCTAssertTrue(result.shared)
-        
+
         let buildAction = try XCTUnwrap(result.buildAction)
         let targetReference = TargetReference(projectPath: project.path, name: target.name)
         XCTAssertEqual(buildAction.targets, [targetReference])
-        
+
         let testAction = try XCTUnwrap(result.testAction)
         let testTargetReference = TargetReference(projectPath: project.path, name: testTarget.name)
         let testableTarget = TestableTarget(target: testTargetReference)
         XCTAssertEqual(testAction.targets, [testableTarget])
     }
-    
+
     func test_defaultGeneratedScheme_TestTarget() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -62,17 +62,16 @@ final class SchemesGeneratorTests: XCTestCase {
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.name, testTarget.name)
         XCTAssertTrue(result.shared)
-        
+
         let buildAction = try XCTUnwrap(result.buildAction)
         let targetReference = TargetReference(projectPath: project.path, name: testTarget.name)
         XCTAssertEqual(buildAction.targets, [targetReference])
-        
+
         let testAction = try XCTUnwrap(result.testAction)
         let testTargetReference = TargetReference(projectPath: project.path, name: testTarget.name)
         let testableTarget = TestableTarget(target: testTargetReference)
         XCTAssertEqual(testAction.targets, [testableTarget])
     }
-
 
     // MARK: - Build Action Tests
 
