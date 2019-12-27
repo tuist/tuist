@@ -17,6 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Extracted loading logic into its own framework, `TuistLoader` https://github.com/tuist/tuist/pull/838 by @pepibumur.
+- Define `ModelConvertible` protocol and make models in `TuistCore` conform it https://github.com/tuist/tuist/pull/840 by @pepibumur.
 
 ### Added
 
