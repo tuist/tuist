@@ -310,7 +310,7 @@ extension TuistCore.Settings {
     typealias BuildConfigurationTuple = (TuistCore.BuildConfiguration, TuistCore.Configuration?)
 
     static func from(manifest: ProjectDescription.Settings, path: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Settings {
-        let base = manifest.base.mapValues(TuistCore.SettingValue.from)
+        let base = try manifest.base.mapValues { try TuistCore.SettingValue(manifest: $0, generatorPaths: generatorPaths) }
         let configurations = try manifest.configurations
             .reduce([TuistCore.BuildConfiguration: TuistCore.Configuration?]()) { acc, val in
                 var result = acc
@@ -335,17 +335,6 @@ extension TuistCore.Settings {
     }
 }
 
-extension TuistCore.SettingValue {
-    static func from(manifest: ProjectDescription.SettingValue) -> TuistCore.SettingValue {
-        switch manifest {
-        case let .string(value):
-            return .string(value)
-        case let .array(value):
-            return .array(value)
-        }
-    }
-}
-
 extension TuistCore.Configuration {
     static func from(manifest: ProjectDescription.Configuration?,
                      path _: AbsolutePath,
@@ -353,7 +342,7 @@ extension TuistCore.Configuration {
         guard let manifest = manifest else {
             return nil
         }
-        let settings = manifest.settings.mapValues(TuistCore.SettingValue.from)
+        let settings = try manifest.settings.mapValues { try TuistCore.SettingValue(manifest: $0, generatorPaths: generatorPaths) }
         let xcconfig = try manifest.xcconfig.flatMap { try generatorPaths.resolve(path: $0) }
         return Configuration(settings: settings, xcconfig: xcconfig)
     }
