@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - `TuistGalaxy` & `TuistAutomation` targets https://github.com/tuist/tuist/pull/817 by @pepibumur.
 - Support ignoring specific source file pattern when adding them to the target https://github.com/tuist/tuist/pull/811 by @vytis.
 - Made targets testable if there is a corresponding test target https://github.com/tuist/tuist/pull/818 by @vytis.
+- Release page to the documentation https://github.com/tuist/tuist/pull/841 by @pepibumur.
 
 ## 1.0.1
 
