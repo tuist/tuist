@@ -4,7 +4,9 @@ import SPMUtility
 import TuistSupport
 import XcodeProj
 import XCTest
+
 @testable import TuistKit
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class GraphCommandTests: TuistUnitTestCase {

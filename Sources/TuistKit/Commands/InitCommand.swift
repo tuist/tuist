@@ -3,6 +3,7 @@ import Foundation
 import SPMUtility
 import TuistCore
 import TuistGenerator
+import TuistLoader
 import TuistSupport
 
 private typealias Platform = TuistCore.Platform

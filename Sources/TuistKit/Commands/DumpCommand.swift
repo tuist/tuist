@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistLoader
 import TuistSupport
 
 class DumpCommand: NSObject, Command {

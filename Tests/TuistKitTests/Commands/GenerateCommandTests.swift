@@ -1,10 +1,13 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistLoader
 import TuistSupport
 import XcodeProj
 import XCTest
+
 @testable import TuistKit
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class GenerateCommandTests: TuistUnitTestCase {

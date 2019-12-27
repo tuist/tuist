@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistGenerator
+import TuistLoader
 import TuistSupport
 
 enum ProjectEditorError: FatalError, Equatable {

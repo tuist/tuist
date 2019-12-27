@@ -45,7 +45,7 @@ final class XCFrameworkMetadataProviderTests: XCTestCase {
             frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework"))
         )
     }
-    
+
     func test_libraries_when_staticLibraryIsPresent() throws {
         // Given
         let frameworkPath = fixturePath(path: RelativePath("MyStaticLibrary.xcframework"))

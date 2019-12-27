@@ -251,8 +251,8 @@ public class Graph: Graphing {
             return []
         }
         return targets(at: path)
-        .filter { $0.target.product.testsBundle }
-        .filter { $0.targetDependencies.contains(targetNode) }
+            .filter { $0.target.product.testsBundle }
+            .filter { $0.targetDependencies.contains(targetNode) }
     }
 
     public func staticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {

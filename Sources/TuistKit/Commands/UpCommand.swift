@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistLoader
 import TuistSupport
 
 /// Command that configures the environment to work on the project.

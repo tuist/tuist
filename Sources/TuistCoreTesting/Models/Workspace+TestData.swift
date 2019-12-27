@@ -7,9 +7,9 @@ public extension Workspace {
                      name: String = "test",
                      projects: [AbsolutePath] = [],
                      additionalFiles: [FileElement] = []) -> Workspace {
-        return Workspace(path: path,
-                         name: name,
-                         projects: projects,
-                         additionalFiles: additionalFiles)
+        Workspace(path: path,
+                  name: name,
+                  projects: projects,
+                  additionalFiles: additionalFiles)
     }
 }

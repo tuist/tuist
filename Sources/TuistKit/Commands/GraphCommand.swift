@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistGenerator
+import TuistLoader
 import TuistSupport
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
@@ -19,8 +20,7 @@ class GraphCommand: NSObject, Command {
     let manifestLoader: ManifestLoading
 
     required convenience init(parser: ArgumentParser) {
-        let resourceLocator = ResourceLocator()
-        let manifestLoader = ManifestLoader(resourceLocator: resourceLocator)
+        let manifestLoader = ManifestLoader()
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)

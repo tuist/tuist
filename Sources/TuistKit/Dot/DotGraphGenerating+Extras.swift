@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistGenerator
+import TuistLoader
 
 extension DotGraphGenerating {
     func generate(at path: AbsolutePath,

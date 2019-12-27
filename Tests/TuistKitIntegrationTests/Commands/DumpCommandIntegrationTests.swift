@@ -5,6 +5,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistKit
+@testable import TuistLoader
 @testable import TuistSupportTesting
 
 final class DumpCommandTests: TuistTestCase {

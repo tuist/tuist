@@ -62,7 +62,8 @@ The project is organized in several targets that are defined in the `Package.swi
 
 - **TuistKit:** It contains the commands and Tuist's business logic.
 - **TuistEnvKit:** It contains the commands and the logic to manage multiple Tuist versions in the environment.
-- **TuistGenerator:** It contains all the business logic to read the project definition and generate Xcode projects
+- **TuistLoader:** Contains models and utilities to load the manifest files from the disk.
+- **TuistGenerator:** It contains all the business logic to read the project definition and generate Xcode projects.
 - **TuistGalaxy:** It contains the business logic for Galaxy-specific features.
 - **TuistAutomation:** It contains the business logic for automation command such as build, test, or lint.
 - **TuistCore:** Contains the models that are specific to the Tuist domain and protocols to allow doing dependency inversion between the features in the layers above.

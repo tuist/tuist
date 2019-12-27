@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistGenerator
+import TuistLoader
 import TuistSupport
 
 /// The focus command generates the Xcode workspace and launches it on Xcode.
@@ -31,8 +32,7 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
-        let resourceLocator = ResourceLocator()
-        let manifestLoader = ManifestLoader(resourceLocator: resourceLocator)
+        let manifestLoader = ManifestLoader()
         let manifestLinter = ManifestLinter()
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
