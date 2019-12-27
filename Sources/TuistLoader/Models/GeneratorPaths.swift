@@ -24,7 +24,7 @@ enum GeneratorPathsError: FatalError, Equatable {
 /// This model includes paths the manifest path can be relative to.
 struct GeneratorPaths {
     /// Path to the directory that contains the manifest being loaded.
-    private let manifestDirectory: AbsolutePath
+    let manifestDirectory: AbsolutePath
 
     /// Creates an instance with its attributes.
     /// - Parameter manifestDirectory: Path to the directory that contains the manifest being loaded.

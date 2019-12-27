@@ -527,7 +527,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                                             order: .pre,
                                                             arguments: ["arg1", "arg2"])
         // When
-        let model = try TuistCore.TargetAction.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.TargetAction(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")

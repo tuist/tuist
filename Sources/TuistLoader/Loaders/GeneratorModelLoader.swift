@@ -63,12 +63,13 @@ public class GeneratorModelLoader: GeneratorModelLoading {
     }
 
     public func loadTuistConfig(at path: AbsolutePath) throws -> TuistCore.TuistConfig {
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
         guard let tuistConfigPath = FileHandler.shared.locateDirectoryTraversingParents(from: path, path: Manifest.tuistConfig.fileName) else {
             return TuistCore.TuistConfig.default
         }
 
         let manifest = try manifestLoader.loadTuistConfig(at: tuistConfigPath.parentDirectory)
-        return try TuistCore.TuistConfig(manifest: manifest, path: path)
+        return try TuistCore.TuistConfig(manifest: manifest, generatorPaths: generatorPaths)
     }
 
     private func enriched(model: TuistCore.Project,
@@ -282,7 +283,7 @@ extension TuistCore.Target {
             try TuistCore.CoreDataModel.from(manifest: $0, path: path, generatorPaths: generatorPaths)
         }
 
-        let actions = try manifest.actions.map { try TuistCore.TargetAction.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
+        let actions = try manifest.actions.map { try TuistCore.TargetAction(manifest: $0, generatorPaths: generatorPaths) }
         let environment = manifest.environment
 
         return TuistCore.Target(name: name,
@@ -401,42 +402,6 @@ extension TuistCore.Configuration {
         let settings = manifest.settings.mapValues(TuistCore.SettingValue.from)
         let xcconfig = try manifest.xcconfig.flatMap { try generatorPaths.resolve(path: $0) }
         return Configuration(settings: settings, xcconfig: xcconfig)
-    }
-}
-
-extension TuistCore.TargetAction {
-    static func from(manifest: ProjectDescription.TargetAction,
-                     path: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.TargetAction {
-        let name = manifest.name
-        let tool = manifest.tool
-        let order = TuistCore.TargetAction.Order.from(manifest: manifest.order)
-        let arguments = manifest.arguments
-        let inputPaths = try manifest.inputPaths.map { try generatorPaths.resolve(path: $0) }
-        let inputFileListPaths = try manifest.inputFileListPaths.map { try generatorPaths.resolve(path: $0) }
-        let outputPaths = try manifest.outputPaths.map { try generatorPaths.resolve(path: $0) }
-        let outputFileListPaths = try manifest.outputFileListPaths.map { try generatorPaths.resolve(path: $0) }
-        let path = try manifest.path.map { try generatorPaths.resolve(path: $0) }
-        return TargetAction(name: name,
-                            order: order,
-                            tool: tool,
-                            path: path,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
-    }
-}
-
-extension TuistCore.TargetAction.Order {
-    static func from(manifest: ProjectDescription.TargetAction.Order) -> TuistCore.TargetAction.Order {
-        switch manifest {
-        case .pre:
-            return .pre
-        case .post:
-            return .post
-        }
     }
 }
 

@@ -4,7 +4,7 @@ import ProjectDescription
 import TuistCore
 
 extension TuistCore.CompatibleXcodeVersions: ModelConvertible {
-    init(manifest: ProjectDescription.CompatibleXcodeVersions, path _: AbsolutePath) throws {
+    init(manifest: ProjectDescription.CompatibleXcodeVersions, generatorPaths _: GeneratorPaths) throws {
         switch manifest {
         case .all:
             self = .all
