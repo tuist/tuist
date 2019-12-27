@@ -99,17 +99,6 @@ public class GeneratorModelLoader: GeneratorModelLoading {
     }
 }
 
-extension TuistCore.CompatibleXcodeVersions {
-    static func from(manifest: ProjectDescription.CompatibleXcodeVersions) -> TuistCore.CompatibleXcodeVersions {
-        switch manifest {
-        case .all:
-            return .all
-        case let .list(versions):
-            return .list(versions)
-        }
-    }
-}
-
 extension TuistCore.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
