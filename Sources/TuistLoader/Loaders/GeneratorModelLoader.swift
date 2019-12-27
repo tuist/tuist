@@ -306,23 +306,6 @@ extension TuistCore.Target {
     }
 }
 
-extension TuistCore.InfoPlist.Value {
-    static func from(manifest: ProjectDescription.InfoPlist.Value) -> TuistCore.InfoPlist.Value {
-        switch manifest {
-        case let .string(value):
-            return .string(value)
-        case let .boolean(value):
-            return .boolean(value)
-        case let .integer(value):
-            return .integer(value)
-        case let .array(value):
-            return .array(value.map { TuistCore.InfoPlist.Value.from(manifest: $0) })
-        case let .dictionary(value):
-            return .dictionary(value.mapValues { TuistCore.InfoPlist.Value.from(manifest: $0) })
-        }
-    }
-}
-
 extension TuistCore.Settings {
     typealias BuildConfigurationTuple = (TuistCore.BuildConfiguration, TuistCore.Configuration?)
 
