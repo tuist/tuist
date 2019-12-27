@@ -257,7 +257,7 @@ extension TuistCore.Target {
 
         let dependencies = try manifest.dependencies.map { try TuistCore.Dependency.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        let infoPlist = try TuistCore.InfoPlist.from(manifest: manifest.infoPlist, path: path, generatorPaths: generatorPaths)
+        let infoPlist = try TuistCore.InfoPlist(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
         let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }
 
         let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
@@ -303,22 +303,6 @@ extension TuistCore.Target {
                                 environment: environment,
                                 filesGroup: .group(name: "Project"),
                                 dependencies: dependencies)
-    }
-}
-
-extension TuistCore.InfoPlist {
-    static func from(manifest: ProjectDescription.InfoPlist, path _: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.InfoPlist {
-        switch manifest {
-        case let .file(infoplistPath):
-            return .file(path: try generatorPaths.resolve(path: infoplistPath))
-        case let .dictionary(dictionary):
-            return .dictionary(
-                dictionary.mapValues { TuistCore.InfoPlist.Value.from(manifest: $0) }
-            )
-        case let .extendingDefault(dictionary):
-            return .extendingDefault(with:
-                dictionary.mapValues { TuistCore.InfoPlist.Value.from(manifest: $0) })
-        }
     }
 }
 
