@@ -3,6 +3,7 @@
 import { jsx, Styled } from 'theme-ui'
 import React from 'react'
 import Code from './code'
+import Message from '../../markdown/docs/components/message'
 
 const heading = Tag => props => {
   if (!props.id) return <Tag {...props} />
@@ -24,4 +25,5 @@ export default {
   h4: heading('h4'),
   h5: heading('h5'),
   h6: heading('h6'),
+  Message: Message,
 }
