@@ -68,7 +68,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         }
 
         let manifest = try manifestLoader.loadTuistConfig(at: tuistConfigPath.parentDirectory)
-        return try TuistCore.TuistConfig.from(manifest: manifest, path: path)
+        return try TuistCore.TuistConfig(manifest: manifest, path: path)
     }
 
     private func enriched(model: TuistCore.Project,
@@ -96,27 +96,6 @@ public class GeneratorModelLoader: GeneratorModelLoading {
                                                             with: model.name)
 
         return xcodeFileName
-    }
-}
-
-extension TuistCore.TuistConfig {
-    static func from(manifest: ProjectDescription.TuistConfig,
-                     path: AbsolutePath) throws -> TuistCore.TuistConfig {
-        let generationOptions = try manifest.generationOptions.map { try TuistCore.TuistConfig.GenerationOption.from(manifest: $0, path: path) }
-        let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
-
-        return TuistCore.TuistConfig(compatibleXcodeVersions: compatibleXcodeVersions,
-                                     generationOptions: generationOptions)
-    }
-}
-
-extension TuistCore.TuistConfig.GenerationOption {
-    static func from(manifest: ProjectDescription.TuistConfig.GenerationOptions,
-                     path _: AbsolutePath) throws -> TuistCore.TuistConfig.GenerationOption {
-        switch manifest {
-        case let .xcodeProjectName(templateString):
-            return .xcodeProjectName(templateString.description)
-        }
     }
 }
 

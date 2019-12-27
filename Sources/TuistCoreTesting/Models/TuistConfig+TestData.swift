@@ -4,7 +4,7 @@ import Foundation
 
 public extension TuistConfig {
     static func test(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-                     generationOptions: [GenerationOption] = []) -> TuistConfig {
+                     generationOptions: [GenerationOptions] = []) -> TuistConfig {
         TuistConfig(compatibleXcodeVersions: compatibleXcodeVersions,
                     generationOptions: generationOptions)
     }

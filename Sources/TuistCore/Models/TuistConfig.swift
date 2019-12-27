@@ -3,16 +3,16 @@ import Foundation
 import TuistSupport
 
 /// This model allows to configure Tuist.
-public class TuistConfig: Equatable, Hashable {
+public struct TuistConfig: Equatable, Hashable {
     /// Contains options related to the project generation.
     ///
     /// - xcodeProjectName: Name used for the Xcode project
-    public enum GenerationOption: Hashable, Equatable {
+    public enum GenerationOptions: Hashable, Equatable {
         case xcodeProjectName(String)
     }
 
     /// Generation options.
-    public let generationOptions: [GenerationOption]
+    public let generationOptions: [GenerationOptions]
 
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
@@ -29,7 +29,7 @@ public class TuistConfig: Equatable, Hashable {
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - generationOptions: Generation options.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
-                generationOptions: [GenerationOption]) {
+                generationOptions: [GenerationOptions]) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.generationOptions = generationOptions
     }
@@ -47,7 +47,7 @@ public class TuistConfig: Equatable, Hashable {
     }
 }
 
-public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
+public func == (lhs: TuistConfig.GenerationOptions, rhs: TuistConfig.GenerationOptions) -> Bool {
     switch (lhs, rhs) {
     case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
         return lhs == rhs
