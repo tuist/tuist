@@ -280,7 +280,7 @@ extension TuistCore.Target {
         let headers = try manifest.headers.map { try TuistCore.Headers.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
 
         let coreDataModels = try manifest.coreDataModels.map {
-            try TuistCore.CoreDataModel.from(manifest: $0, path: path, generatorPaths: generatorPaths)
+            try TuistCore.CoreDataModel(manifest: $0, generatorPaths: generatorPaths)
         }
 
         let actions = try manifest.actions.map { try TuistCore.TargetAction(manifest: $0, generatorPaths: generatorPaths) }
@@ -334,20 +334,6 @@ extension TuistCore.Settings {
             try TuistCore.Configuration(manifest: $0, generatorPaths: generatorPaths)
         }
         return (buildConfiguration, configuration)
-    }
-}
-
-extension TuistCore.CoreDataModel {
-    static func from(manifest: ProjectDescription.CoreDataModel,
-                     path _: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.CoreDataModel {
-        let modelPath = try generatorPaths.resolve(path: manifest.path)
-        if !FileHandler.shared.exists(modelPath) {
-            throw GeneratorModelLoaderError.missingFile(modelPath)
-        }
-        let versions = FileHandler.shared.glob(modelPath, glob: "*.xcdatamodel")
-        let currentVersion = manifest.currentVersion
-        return CoreDataModel(path: modelPath, versions: versions, currentVersion: currentVersion)
     }
 }
 
