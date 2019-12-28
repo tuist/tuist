@@ -407,7 +407,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: "Sources/project/**")
 
         // When
-        let model = try TuistCore.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.Headers(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -452,7 +452,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
 
         // When
-        let model = try TuistCore.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.Headers(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -489,7 +489,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                        project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
 
         // When
-        let model = try TuistCore.Headers.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.Headers(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
