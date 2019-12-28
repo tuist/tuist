@@ -253,7 +253,7 @@ extension TuistCore.Target {
 
         let bundleId = manifest.bundleId
         let productName = manifest.productName
-        let deploymentTarget = manifest.deploymentTarget.map { TuistCore.DeploymentTarget.from(manifest: $0) }
+        let deploymentTarget = try manifest.deploymentTarget.map { try TuistCore.DeploymentTarget(manifest: $0, generatorPaths: generatorPaths) }
 
         let dependencies = try manifest.dependencies.map { try TuistCore.Dependency.from(manifest: $0, generatorPaths: generatorPaths) }
 
@@ -672,17 +672,6 @@ extension TuistCore.SDKStatus {
             return .required
         case .optional:
             return .optional
-        }
-    }
-}
-
-extension TuistCore.DeploymentTarget {
-    static func from(manifest: ProjectDescription.DeploymentTarget) -> TuistCore.DeploymentTarget {
-        switch manifest {
-        case let .iOS(version, devices):
-            return .iOS(version, DeploymentDevice(rawValue: devices.rawValue))
-        case let .macOS(version):
-            return .macOS(version)
         }
     }
 }

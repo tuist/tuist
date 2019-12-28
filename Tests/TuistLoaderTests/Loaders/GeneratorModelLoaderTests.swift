@@ -511,7 +511,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistCore.CoreDataModel.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.CoreDataModel(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertTrue(try coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
@@ -661,10 +661,12 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
     func test_deploymentTarget() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
         let manifest: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "13.1", devices: .iphone)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         // When
-        let got = TuistCore.DeploymentTarget.from(manifest: manifest)
+        let got = try TuistCore.DeploymentTarget(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         guard
