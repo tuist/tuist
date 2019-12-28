@@ -656,7 +656,7 @@ const Contribute = () => {
 
           <GradientButton
             title="START CONTRIBUTING"
-            link="/docs/contribution/tuist/"
+            link="/docs/contribution/getting-started/"
           />
         </div>
         <div
