@@ -57,7 +57,7 @@ public class Scheme: Equatable {
     }
 }
 
-public class Arguments: Equatable {
+public struct Arguments: Equatable {
     // MARK: - Attributes
 
     public let environment: [String: String]

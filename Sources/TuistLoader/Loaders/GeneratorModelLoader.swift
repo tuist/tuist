@@ -470,10 +470,8 @@ extension TuistCore.TestAction {
     static func from(manifest: ProjectDescription.TestAction,
                      projectPath: AbsolutePath,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.TestAction {
-        let targets = try manifest.targets.map { try TuistCore.TestableTarget.from(manifest: $0,
-                                                                                   projectPath: projectPath,
-                                                                                   generatorPaths: generatorPaths) }
-        let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
+        let targets = try manifest.targets.map { try TuistCore.TestableTarget.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let arguments = try manifest.arguments.map { try TuistCore.Arguments(manifest: $0, generatorPaths: generatorPaths) }
         let configurationName = manifest.configurationName
         let coverage = manifest.coverage
         let codeCoverageTargets = try manifest.codeCoverageTargets.map {
@@ -518,7 +516,7 @@ extension TuistCore.RunAction {
                      projectPath: AbsolutePath,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.RunAction {
         let configurationName = manifest.configurationName
-        let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
+        let arguments = try manifest.arguments.map { try TuistCore.Arguments(manifest: $0, generatorPaths: generatorPaths) }
 
         var executableResolved: TuistCore.TargetReference?
         if let executable = manifest.executable {
@@ -567,13 +565,6 @@ extension TuistCore.ExecutionAction {
                      target: $0.targetName)
         }
         return ExecutionAction(title: manifest.title, scriptText: manifest.scriptText, target: targetReference)
-    }
-}
-
-extension TuistCore.Arguments {
-    static func from(manifest: ProjectDescription.Arguments) -> TuistCore.Arguments {
-        Arguments(environment: manifest.environment,
-                  launch: manifest.launch)
     }
 }
 
