@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Best practices page to the documentation https://github.com/tuist/tuist/pull/843 by @pepibumur.
+
 ## 1.1.0
 
 ### Changed
