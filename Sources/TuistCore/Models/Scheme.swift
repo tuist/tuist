@@ -79,7 +79,7 @@ public struct Arguments: Equatable {
     }
 }
 
-public class ExecutionAction: Equatable {
+public struct ExecutionAction: Equatable {
     // MARK: - Attributes
 
     public let title: String
