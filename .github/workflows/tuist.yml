@@ -27,19 +27,6 @@ jobs:
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
         run: swift build -c release --product tuistenv
-  install:
-    name: Install
-    runs-on: macOS-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: Select Xcode 11.2.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
-      - name: Install Tuist
-        run: ./script/install
-      - name: Run 'tuist --help'
-        run: tuist --help
-      - name: Uninstall Tuist
-        run: ./script/uninstall
   acceptance_tests:
     name: Features
     runs-on: macOS-latest
