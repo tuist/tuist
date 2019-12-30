@@ -341,18 +341,10 @@ extension TuistCore.Scheme {
     static func from(manifest: ProjectDescription.Scheme, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
-        let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction.from(manifest: $0,
-                                                                                        projectPath: projectPath,
-                                                                                        generatorPaths: generatorPaths) }
-        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0,
-                                                                                     projectPath: projectPath,
-                                                                                     generatorPaths: generatorPaths) }
-        let runAction = try manifest.runAction.map { try TuistCore.RunAction.from(manifest: $0,
-                                                                                  projectPath: projectPath,
-                                                                                  generatorPaths: generatorPaths) }
-        let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction.from(manifest: $0,
-                                                                                              projectPath: projectPath,
-                                                                                              generatorPaths: generatorPaths) }
+        let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let runAction = try manifest.runAction.map { try TuistCore.RunAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction(manifest: $0, generatorPaths: generatorPaths) }
 
         return Scheme(name: name,
                       shared: shared,
@@ -365,18 +357,10 @@ extension TuistCore.Scheme {
     static func from(manifest: ProjectDescription.Scheme, workspacePath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
-        let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction.from(manifest: $0,
-                                                                                        projectPath: workspacePath,
-                                                                                        generatorPaths: generatorPaths) }
-        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0,
-                                                                                     projectPath: workspacePath,
-                                                                                     generatorPaths: generatorPaths) }
-        let runAction = try manifest.runAction.map { try TuistCore.RunAction.from(manifest: $0,
-                                                                                  projectPath: workspacePath,
-                                                                                  generatorPaths: generatorPaths) }
-        let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction.from(manifest: $0,
-                                                                                              projectPath: workspacePath,
-                                                                                              generatorPaths: generatorPaths) }
+        let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
+        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
+        let runAction = try manifest.runAction.map { try TuistCore.RunAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
+        let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction(manifest: $0, generatorPaths: generatorPaths) }
 
         return Scheme(name: name,
                       shared: shared,
@@ -460,24 +444,6 @@ extension TuistCore.RunAction {
         return RunAction(configurationName: configurationName,
                          executable: executableResolved,
                          arguments: arguments)
-    }
-}
-
-extension TuistCore.ArchiveAction {
-    static func from(manifest: ProjectDescription.ArchiveAction,
-                     projectPath: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.ArchiveAction {
-        let configurationName = manifest.configurationName
-        let revealArchiveInOrganizer = manifest.revealArchiveInOrganizer
-        let customArchiveName = manifest.customArchiveName
-        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction(manifest: $0, generatorPaths: generatorPaths) }
-        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction(manifest: $0, generatorPaths: generatorPaths) }
-
-        return TuistCore.ArchiveAction(configurationName: configurationName,
-                                       revealArchiveInOrganizer: revealArchiveInOrganizer,
-                                       customArchiveName: customArchiveName,
-                                       preActions: preActions,
-                                       postActions: postActions)
     }
 }
 
