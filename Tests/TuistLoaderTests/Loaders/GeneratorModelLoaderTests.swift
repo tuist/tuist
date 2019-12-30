@@ -839,7 +839,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
     func assert(testAction: TuistCore.TestAction,
                 matches manifest: ProjectDescription.TestAction,
-                path: AbsolutePath,
+                path _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
                 line: UInt = #line) throws {
