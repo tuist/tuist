@@ -554,17 +554,6 @@ extension TuistCore.BuildConfiguration {
     }
 }
 
-extension TuistCore.SDKStatus {
-    static func from(manifest: ProjectDescription.SDKStatus) -> TuistCore.SDKStatus {
-        switch manifest {
-        case .required:
-            return .required
-        case .optional:
-            return .optional
-        }
-    }
-}
-
 private func resolveProjectPath(projectPath: Path?, defaultPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> AbsolutePath {
     if let projectPath = projectPath { return try generatorPaths.resolve(path: projectPath) }
     return defaultPath

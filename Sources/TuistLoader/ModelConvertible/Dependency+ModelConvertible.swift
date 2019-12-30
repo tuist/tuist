@@ -19,10 +19,8 @@ extension TuistCore.Dependency: ModelConvertible {
                             swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) })
         case let .package(product):
             self = .package(product: product)
-
         case let .sdk(name, status):
-            self = .sdk(name: name,
-                        status: .from(manifest: status))
+            self = .sdk(name: name, status: try TuistCore.SDKStatus(manifest: status, generatorPaths: generatorPaths))
         case let .cocoapods(path):
             self = .cocoapods(path: try generatorPaths.resolve(path: path))
         case let .xcFramework(path):
