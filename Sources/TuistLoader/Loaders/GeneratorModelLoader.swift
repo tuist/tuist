@@ -204,7 +204,7 @@ extension TuistCore.Project {
         }
 
         let packages = try manifest.packages.map { package in
-            try TuistCore.Package.from(manifest: package, path: path, generatorPaths: generatorPaths)
+            try TuistCore.Package(manifest: package, generatorPaths: generatorPaths)
         }
 
         return Project(path: path,
@@ -334,38 +334,6 @@ extension TuistCore.Settings {
             try TuistCore.Configuration(manifest: $0, generatorPaths: generatorPaths)
         }
         return (buildConfiguration, configuration)
-    }
-}
-
-extension TuistCore.Package {
-    static func from(manifest: ProjectDescription.Package,
-                     path _: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Package {
-        switch manifest {
-        case let .local(path: local):
-            return .local(path: try generatorPaths.resolve(path: local))
-        case let .remote(url: url, requirement: version):
-            return .remote(url: url, requirement: .from(manifest: version))
-        }
-    }
-}
-
-extension TuistCore.Package.Requirement {
-    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistCore.Package.Requirement {
-        switch manifest {
-        case let .branch(branch):
-            return .branch(branch)
-        case let .exact(version):
-            return .exact(version.description)
-        case let .range(from, to):
-            return .range(from: from.description, to: to.description)
-        case let .revision(revision):
-            return .revision(revision)
-        case let .upToNextMajor(version):
-            return .upToNextMajor(version.description)
-        case let .upToNextMinor(version):
-            return .upToNextMinor(version.description)
-        }
     }
 }
 
