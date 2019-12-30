@@ -843,7 +843,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
                 line: UInt = #line) throws {
-        let targets = try manifest.targets.map { try TestableTarget.from(manifest: $0, projectPath: path, generatorPaths: generatorPaths) }
+        let targets = try manifest.targets.map { try TestableTarget(manifest: $0, generatorPaths: generatorPaths) }
         XCTAssertEqual(testAction.targets, targets, file: file, line: line)
         XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
         XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)

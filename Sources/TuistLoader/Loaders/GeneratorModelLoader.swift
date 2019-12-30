@@ -391,7 +391,7 @@ extension TuistCore.TestAction {
     static func from(manifest: ProjectDescription.TestAction,
                      projectPath: AbsolutePath,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.TestAction {
-        let targets = try manifest.targets.map { try TuistCore.TestableTarget.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let targets = try manifest.targets.map { try TuistCore.TestableTarget(manifest: $0, generatorPaths: generatorPaths) }
         let arguments = try manifest.arguments.map { try TuistCore.Arguments(manifest: $0, generatorPaths: generatorPaths) }
         let configurationName = manifest.configurationName
         let coverage = manifest.coverage
@@ -409,20 +409,6 @@ extension TuistCore.TestAction {
                           codeCoverageTargets: codeCoverageTargets,
                           preActions: preActions,
                           postActions: postActions)
-    }
-}
-
-extension TuistCore.TestableTarget {
-    static func from(manifest: ProjectDescription.TestableTarget,
-                     projectPath: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.TestableTarget {
-        TestableTarget(target: TuistCore.TargetReference(projectPath: try resolveProjectPath(projectPath: manifest.target.projectPath,
-                                                                                             defaultPath: projectPath,
-                                                                                             generatorPaths: generatorPaths),
-                                                         name: manifest.target.targetName),
-                       skipped: manifest.isSkipped,
-                       parallelizable: manifest.isParallelizable,
-                       randomExecutionOrdering: manifest.isRandomExecutionOrdering)
     }
 }
 

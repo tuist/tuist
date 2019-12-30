@@ -10,12 +10,7 @@ extension TuistCore.RunAction: ModelConvertible {
 
         var executableResolved: TuistCore.TargetReference?
         if let executable = manifest.executable {
-            let path: AbsolutePath
-            if let projectPath = executable.projectPath {
-                path = try generatorPaths.resolve(path: projectPath)
-            } else {
-                path = generatorPaths.manifestDirectory
-            }
+            let path = try generatorPaths.resolve(projectPath: executable.projectPath)
             executableResolved = TargetReference(projectPath: path, name: executable.targetName)
         }
 

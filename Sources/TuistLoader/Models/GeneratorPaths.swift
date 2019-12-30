@@ -48,4 +48,15 @@ struct GeneratorPaths {
             return AbsolutePath(path.pathString, relativeTo: rootPath)
         }
     }
+
+    /// It resolves the relative path to a project.
+    /// When the relative path is nil, it defaults to the directory that contains the manifest.
+    /// - Parameter projectPath: Relative path to the project.
+    func resolve(projectPath: Path?) throws -> AbsolutePath {
+        if let projectPath = projectPath {
+            return try resolve(path: projectPath)
+        } else {
+            return manifestDirectory
+        }
+    }
 }
