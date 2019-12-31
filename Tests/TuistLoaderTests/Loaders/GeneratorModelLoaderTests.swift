@@ -341,7 +341,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = SettingsManifest(base: ["base": .string("base")], debug: debug, release: release)
 
         // When
-        let model = try TuistCore.Settings.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.Settings.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         assert(settings: model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths)

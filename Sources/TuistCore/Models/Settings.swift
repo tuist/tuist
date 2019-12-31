@@ -53,7 +53,7 @@ public enum DefaultSettings {
     case none
 }
 
-public class Settings: Equatable {
+public struct Settings: Equatable {
     public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
                                            defaultSettings: .recommended)
 

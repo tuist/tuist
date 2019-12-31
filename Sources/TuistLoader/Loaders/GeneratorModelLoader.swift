@@ -188,7 +188,7 @@ extension TuistCore.Project {
                      generatorPaths: GeneratorPaths) throws -> TuistCore.Project {
         let name = manifest.name
 
-        let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
+        let settings = try manifest.settings.map { try TuistCore.Settings(manifest: $0, generatorPaths: generatorPaths) }
         let targets = try manifest.targets.map {
             try TuistCore.Target.from(manifest: $0,
                                       path: path,
@@ -260,7 +260,7 @@ extension TuistCore.Target {
         let infoPlist = try TuistCore.InfoPlist(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
         let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }
 
-        let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
+        let settings = try manifest.settings.map { try TuistCore.Settings(manifest: $0, generatorPaths: generatorPaths) }
         let sources = try TuistCore.Target.sources(projectPath: path, sources: manifest.sources?.globs.map {
             let glob = try generatorPaths.resolve(path: $0.glob).pathString
             let excluding = try $0.excluding.map { try generatorPaths.resolve(path: $0).pathString }
@@ -303,37 +303,6 @@ extension TuistCore.Target {
                                 environment: environment,
                                 filesGroup: .group(name: "Project"),
                                 dependencies: dependencies)
-    }
-}
-
-extension TuistCore.Settings {
-    typealias BuildConfigurationTuple = (TuistCore.BuildConfiguration, TuistCore.Configuration?)
-
-    static func from(manifest: ProjectDescription.Settings, path _: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Settings {
-        let base = try manifest.base.mapValues { try TuistCore.SettingValue(manifest: $0, generatorPaths: generatorPaths) }
-        let configurations = try manifest.configurations
-            .reduce([TuistCore.BuildConfiguration: TuistCore.Configuration?]()) { acc, val in
-                var result = acc
-                let variant = try TuistCore.BuildConfiguration(manifest: val, generatorPaths: generatorPaths)
-                if let configuration = val.configuration {
-                    result[variant] = try TuistCore.Configuration(manifest: configuration, generatorPaths: generatorPaths)
-                }
-                return result
-            }
-        let defaultSettings = try TuistCore.DefaultSettings(manifest: manifest.defaultSettings, generatorPaths: generatorPaths)
-        return TuistCore.Settings(base: base,
-                                  configurations: configurations,
-                                  defaultSettings: defaultSettings)
-    }
-
-    private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
-                                                path _: AbsolutePath,
-                                                generatorPaths: GeneratorPaths) throws -> BuildConfigurationTuple {
-        let buildConfiguration = try TuistCore.BuildConfiguration(manifest: customConfiguration, generatorPaths: generatorPaths)
-        let configuration = try customConfiguration.configuration.flatMap {
-            try TuistCore.Configuration(manifest: $0, generatorPaths: generatorPaths)
-        }
-        return (buildConfiguration, configuration)
     }
 }
 
