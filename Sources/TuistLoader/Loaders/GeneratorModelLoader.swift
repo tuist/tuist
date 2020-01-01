@@ -45,9 +45,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         try manifestLinter.lint(project: manifest)
             .printAndThrowIfNeeded()
 
-        let project = try TuistCore.Project.from(manifest: manifest,
-                                                 path: path,
-                                                 generatorPaths: generatorPaths)
+        let project = try TuistCore.Project(manifest: manifest, generatorPaths: generatorPaths)
 
         return try enriched(model: project, with: tuistConfig)
     }
@@ -77,8 +75,9 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         var enrichedModel = model
 
         // Xcode project file name
-        let xcodeFileName = xcodeFileNameOverride(from: config, for: model)
-        enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)
+        if let xcodeFileName = xcodeFileNameOverride(from: config, for: model) {
+            enrichedModel = enrichedModel.with(fileName: xcodeFileName)
+        }
 
         return enrichedModel
     }
@@ -179,63 +178,5 @@ extension TuistCore.FileElement {
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
             return folderReferences(resolvedPath).map(FileElement.folderReference)
         }
-    }
-}
-
-extension TuistCore.Project {
-    static func from(manifest: ProjectDescription.Project,
-                     path: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Project {
-        let name = manifest.name
-
-        let settings = try manifest.settings.map { try TuistCore.Settings(manifest: $0, generatorPaths: generatorPaths) }
-        let targets = try manifest.targets.map {
-            try TuistCore.Target(manifest: $0, generatorPaths: generatorPaths)
-        }
-
-        let schemes = try manifest.schemes.map { try TuistCore.Scheme(manifest: $0, generatorPaths: generatorPaths) }
-
-        let additionalFiles = try manifest.additionalFiles.flatMap {
-            try TuistCore.FileElement.from(manifest: $0,
-                                           path: path,
-                                           generatorPaths: generatorPaths)
-        }
-
-        let packages = try manifest.packages.map { package in
-            try TuistCore.Package(manifest: package, generatorPaths: generatorPaths)
-        }
-
-        return Project(path: path,
-                       name: name,
-                       settings: settings ?? .default,
-                       filesGroup: .group(name: "Project"),
-                       targets: targets,
-                       packages: packages,
-                       schemes: schemes,
-                       additionalFiles: additionalFiles)
-    }
-
-    func adding(target: TuistCore.Target) -> TuistCore.Project {
-        Project(path: path,
-                name: name,
-                fileName: fileName,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets + [target],
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
-    }
-
-    func replacing(fileName: String?) -> TuistCore.Project {
-        Project(path: path,
-                name: name,
-                fileName: fileName,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
     }
 }
