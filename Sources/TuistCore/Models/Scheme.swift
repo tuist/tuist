@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-public class Scheme: Equatable {
+public struct Scheme: Equatable {
     // MARK: - Attributes
 
     public let name: String

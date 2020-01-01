@@ -545,7 +545,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
         // When
-        let model = try TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.Scheme(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
@@ -575,7 +575,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
                                            runAction: runActions)
 
         // When
-        let model = try TuistCore.Scheme.from(manifest: manifest, projectPath: projectPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.Scheme(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
