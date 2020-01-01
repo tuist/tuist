@@ -388,12 +388,12 @@ class InitCommand: NSObject, Command {
         import Foundation
         import \(name)Support
         
-        public final class \(name) {}
+        public final class \(name)Kit {}
         """
         let supportSourceContent = """
         import Foundation
         
-        public final class \(name) {}
+        public final class \(name)Support {}
         """
 
         func testsContent(_ name: String) -> String {
