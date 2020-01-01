@@ -307,11 +307,11 @@ extension TuistCore.Target {
 }
 
 extension TuistCore.Scheme {
-    static func from(manifest: ProjectDescription.Scheme, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
+    static func from(manifest: ProjectDescription.Scheme, projectPath _: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
         let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction(manifest: $0, generatorPaths: generatorPaths) }
-        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0, projectPath: projectPath, generatorPaths: generatorPaths) }
+        let testAction = try manifest.testAction.map { try TuistCore.TestAction(manifest: $0, generatorPaths: generatorPaths) }
         let runAction = try manifest.runAction.map { try TuistCore.RunAction(manifest: $0, generatorPaths: generatorPaths) }
         let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction(manifest: $0, generatorPaths: generatorPaths) }
 
@@ -323,11 +323,11 @@ extension TuistCore.Scheme {
                       archiveAction: archiveAction)
     }
 
-    static func from(manifest: ProjectDescription.Scheme, workspacePath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
+    static func from(manifest: ProjectDescription.Scheme, workspacePath _: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
         let buildAction = try manifest.buildAction.map { try TuistCore.BuildAction(manifest: $0, generatorPaths: generatorPaths) }
-        let testAction = try manifest.testAction.map { try TuistCore.TestAction.from(manifest: $0, projectPath: workspacePath, generatorPaths: generatorPaths) }
+        let testAction = try manifest.testAction.map { try TuistCore.TestAction(manifest: $0, generatorPaths: generatorPaths) }
         let runAction = try manifest.runAction.map { try TuistCore.RunAction(manifest: $0, generatorPaths: generatorPaths) }
         let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction(manifest: $0, generatorPaths: generatorPaths) }
 
@@ -338,34 +338,4 @@ extension TuistCore.Scheme {
                       runAction: runAction,
                       archiveAction: archiveAction)
     }
-}
-
-extension TuistCore.TestAction {
-    static func from(manifest: ProjectDescription.TestAction,
-                     projectPath: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.TestAction {
-        let targets = try manifest.targets.map { try TuistCore.TestableTarget(manifest: $0, generatorPaths: generatorPaths) }
-        let arguments = try manifest.arguments.map { try TuistCore.Arguments(manifest: $0, generatorPaths: generatorPaths) }
-        let configurationName = manifest.configurationName
-        let coverage = manifest.coverage
-        let codeCoverageTargets = try manifest.codeCoverageTargets.map { TuistCore.TargetReference(projectPath: try resolveProjectPath(projectPath: $0.projectPath,
-                                                                                                                                       defaultPath: projectPath,
-                                                                                                                                       generatorPaths: generatorPaths),
-                                                                                                   name: $0.targetName) }
-        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction(manifest: $0, generatorPaths: generatorPaths) }
-        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction(manifest: $0, generatorPaths: generatorPaths) }
-
-        return TestAction(targets: targets,
-                          arguments: arguments,
-                          configurationName: configurationName,
-                          coverage: coverage,
-                          codeCoverageTargets: codeCoverageTargets,
-                          preActions: preActions,
-                          postActions: postActions)
-    }
-}
-
-private func resolveProjectPath(projectPath: Path?, defaultPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> AbsolutePath {
-    if let projectPath = projectPath { return try generatorPaths.resolve(path: projectPath) }
-    return defaultPath
 }
