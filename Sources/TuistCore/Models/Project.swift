@@ -15,7 +15,7 @@ public class Project: Equatable, CustomStringConvertible {
     public let fileName: String
 
     /// Project targets.
-    public let targets: [Target]
+    public private(set) var targets: [Target]
 
     /// Project swift packages.
     public let packages: [Package]
@@ -113,5 +113,13 @@ public class Project: Equatable, CustomStringConvertible {
             lhs.targets == rhs.targets &&
             lhs.schemes == rhs.schemes &&
             lhs.settings == rhs.settings
+    }
+
+    /// Creates a copy of the project and sets the given list of targets.
+    /// - Parameter targets: List of targets to be set to the copy.
+    public func with(targets: [Target]) -> Project {
+        let project = self
+        project.targets = targets
+        return project
     }
 }
