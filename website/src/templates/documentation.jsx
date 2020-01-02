@@ -27,39 +27,46 @@ const DocumentationPage = ({
       >
         <aside
           sx={{
+            flex: [1, 'none'],
             px: 3,
             bg: 'gray6',
             mt: 2,
+            width: ['none', 200],
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: ['center', 'flex-start'],
           }}
         >
-          <div sx={{ width: '200px' }}>
-            {documentationCategories.map((category, categoryIndex) => {
-              return (
-                <div key={categoryIndex}>
-                  <Styled.h3>{category.name}</Styled.h3>
-                  {files
-                    .filter(file =>
-                      file.relativeDirectory.endsWith(category.folderName)
-                    )
-                    .map((file, fileIndex) => {
-                      const current =
-                        file.childMdx.fields.slug === mdx.fields.slug
-                      return (
-                        <Link
-                          key={fileIndex}
-                          to={file.childMdx.fields.slug}
-                          sx={{ color: current ? 'primary' : 'gray2' }}
+          {documentationCategories.map((category, categoryIndex) => {
+            return (
+              <div key={categoryIndex}>
+                <Styled.h3 sx={{ textAlign: ['center', 'left'], mt: 4 }}>
+                  {category.name}
+                </Styled.h3>
+                {files
+                  .filter(file =>
+                    file.relativeDirectory.endsWith(category.folderName)
+                  )
+                  .map((file, fileIndex) => {
+                    const current =
+                      file.childMdx.fields.slug === mdx.fields.slug
+                    return (
+                      <Link
+                        key={`${categoryIndex}-${fileIndex}`}
+                        to={file.childMdx.fields.slug}
+                        sx={{ color: current ? 'primary' : 'gray2' }}
+                      >
+                        <Styled.h4
+                          sx={{ textAlign: ['center', 'left'], mt: 3 }}
                         >
-                          <Styled.h4 key={fileIndex}>
-                            {file.childMdx.frontmatter.name}
-                          </Styled.h4>
-                        </Link>
-                      )
-                    })}
-                </div>
-              )
-            })}
-          </div>
+                          {file.childMdx.frontmatter.name}
+                        </Styled.h4>
+                      </Link>
+                    )
+                  })}
+              </div>
+            )
+          })}
         </aside>
         <div
           sx={{
