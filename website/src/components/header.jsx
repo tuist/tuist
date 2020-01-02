@@ -78,7 +78,11 @@ export default () => {
                 }}
               >
                 <Link
-                  sx={{ ...linkStyle, ...(isDocs ? hoverStyle : {}) }}
+                  sx={{
+                    ...linkStyle,
+                    ...(isDocs ? hoverStyle : {}),
+                    my: [2, 0, 0],
+                  }}
                   to={firstDocumentationPagePath}
                 >
                   DOCS
@@ -87,6 +91,7 @@ export default () => {
                   sx={{
                     ...linkStyle,
                     ...(isBlog ? hoverStyle : {}),
+                    my: [2, 0, 0],
                     ml: [0, 0, 4],
                   }}
                   to="/blog"
@@ -98,6 +103,7 @@ export default () => {
                   sx={{
                     ...linkStyle,
                     ...(isFaq ? hoverStyle : {}),
+                    my: [2, 0, 0],
                     ml: [0, 0, 4],
                   }}
                   to="/faq"
@@ -108,6 +114,7 @@ export default () => {
                 <a
                   sx={{
                     ...linkStyle,
+                    my: [2, 0, 0],
                     ml: [0, 0, 4],
                     display: 'flex',
                     flexDirection: 'row',
@@ -121,12 +128,13 @@ export default () => {
                   <FontAwesomeIcon
                     sx={{ ml: 2, mt: -1 }}
                     icon={faGithub}
-                    size="s"
+                    size="sm"
                   />
                 </a>
                 <a
                   sx={{
                     ...linkStyle,
+                    my: [2, 0, 0],
                     ml: [0, 0, 4],
                     display: 'flex',
                     flexDirection: 'row',
@@ -140,7 +148,7 @@ export default () => {
                   <FontAwesomeIcon
                     sx={{ ml: 2, mt: -1 }}
                     icon={faSlack}
-                    size="s"
+                    size="sm"
                   />
                 </a>
               </div>
