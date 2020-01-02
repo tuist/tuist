@@ -177,7 +177,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: resourcesBuildPhase)
         pbxTarget.buildPhases.append(resourcesBuildPhase)
 
-        try generateResourcesBuildFile(files: target.resources.map(\.path),
+        try generateResourcesBuildFile(files: target.resources.flatMap({ $0.paths }),
                                        fileElements: fileElements,
                                        pbxproj: pbxproj,
                                        resourcesBuildPhase: resourcesBuildPhase)

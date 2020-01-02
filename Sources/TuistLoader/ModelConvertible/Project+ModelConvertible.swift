@@ -14,10 +14,8 @@ extension TuistCore.Project: ModelConvertible {
 
         let schemes = try manifest.schemes.map { try TuistCore.Scheme(manifest: $0, generatorPaths: generatorPaths) }
 
-        let additionalFiles = try manifest.additionalFiles.flatMap {
-            try TuistCore.FileElement.from(manifest: $0,
-                                           path: generatorPaths.manifestDirectory,
-                                           generatorPaths: generatorPaths)
+        let additionalFiles = try manifest.additionalFiles.compactMap {
+            try TuistCore.FileElements(manifest: $0, generatorPaths: generatorPaths)
         }
 
         let packages = try manifest.packages.map { package in

@@ -48,7 +48,7 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
 private class DirectoryStructure {
     let path: AbsolutePath
     let projects: [AbsolutePath]
-    let files: [FileElement]
+    let files: [FileElements]
     let fileHandler: FileHandling
 
     private let containers: [String] = [
@@ -58,7 +58,7 @@ private class DirectoryStructure {
 
     init(path: AbsolutePath,
          projects: [AbsolutePath],
-         files: [FileElement],
+         files: [FileElements],
          fileHandler: FileHandling = FileHandler.shared) {
         self.path = path
         self.projects = projects
@@ -94,11 +94,11 @@ private class DirectoryStructure {
         return root
     }
 
-    private func fileNode(from element: FileElement) -> Node {
+    private func fileNode(from element: FileElements) -> [Node] {
         switch element {
-        case let .file(path: path):
+        case let .files(paths):
             return .file(path)
-        case let .folderReference(path: path):
+        case let .folderReferences(paths):
             return .folderReference(path)
         }
     }
@@ -107,11 +107,11 @@ private class DirectoryStructure {
         .project(path)
     }
 
-    private func isFileOrFolderReference(element: FileElement) -> Bool {
+    private func isFileOrFolderReference(element: FileElements) -> Bool {
         switch element {
-        case .folderReference:
+        case .folderReferences:
             return true
-        case let .file(path):
+        case let .files(paths):
             if fileHandler.isFolder(path) {
                 return path.suffix.map(containers.contains) ?? false
             }

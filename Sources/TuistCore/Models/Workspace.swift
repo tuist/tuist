@@ -9,11 +9,11 @@ public class Workspace: Equatable {
     public let name: String
     public let projects: [AbsolutePath]
     public let schemes: [Scheme]
-    public let additionalFiles: [FileElement]
+    public let additionalFiles: [FileElements]
 
     // MARK: - Init
 
-    public init(path: AbsolutePath, name: String, projects: [AbsolutePath], schemes: [Scheme] = [], additionalFiles: [FileElement] = []) {
+    public init(path: AbsolutePath, name: String, projects: [AbsolutePath], schemes: [Scheme] = [], additionalFiles: [FileElements] = []) {
         self.path = path
         self.name = name
         self.projects = projects
@@ -28,7 +28,7 @@ extension Workspace {
                   name: name,
                   projects: projects,
                   schemes: schemes,
-                  additionalFiles: additionalFiles + files.map { .file(path: $0) })
+                  additionalFiles: additionalFiles + files.map { .files([$0]) })
     }
 
     public func replacing(projects: [AbsolutePath]) -> Workspace {

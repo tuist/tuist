@@ -11,7 +11,7 @@ public extension Project {
                      targets: [Target] = [Target.test()],
                      packages: [Package] = [],
                      schemes: [Scheme] = [],
-                     additionalFiles: [FileElement] = []) -> Project {
+                     additionalFiles: [FileElements] = []) -> Project {
         Project(path: path,
                 name: name,
                 fileName: fileName,
@@ -30,7 +30,7 @@ public extension Project {
                       targets: [Target] = [],
                       packages: [Package] = [],
                       schemes: [Scheme] = [],
-                      additionalFiles: [FileElement] = []) -> Project {
+                      additionalFiles: [FileElements] = []) -> Project {
         Project(path: path,
                 name: name,
                 settings: settings,

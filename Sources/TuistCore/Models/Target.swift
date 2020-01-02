@@ -27,7 +27,7 @@ public struct Target: Equatable, Hashable {
     public let settings: Settings?
     public let dependencies: [Dependency]
     public let sources: [SourceFile]
-    public let resources: [FileElement]
+    public let resources: [FileElements]
     public let headers: Headers?
     public let coreDataModels: [CoreDataModel]
     public let actions: [TargetAction]
@@ -46,7 +46,7 @@ public struct Target: Equatable, Hashable {
                 entitlements: AbsolutePath? = nil,
                 settings: Settings? = nil,
                 sources: [SourceFile] = [],
-                resources: [FileElement] = [],
+                resources: [FileElements] = [],
                 headers: Headers? = nil,
                 coreDataModels: [CoreDataModel] = [],
                 actions: [TargetAction] = [],

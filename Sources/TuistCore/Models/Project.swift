@@ -30,7 +30,7 @@ public struct Project: Equatable, CustomStringConvertible {
     public let filesGroup: ProjectGroup
 
     /// Additional files to include in the project
-    public let additionalFiles: [FileElement]
+    public let additionalFiles: [FileElements]
 
     // MARK: - Init
 
@@ -52,7 +52,7 @@ public struct Project: Equatable, CustomStringConvertible {
                 targets: [Target] = [],
                 packages: [Package] = [],
                 schemes: [Scheme] = [],
-                additionalFiles: [FileElement] = []) {
+                additionalFiles: [FileElements] = []) {
         self.path = path
         self.name = name
         self.fileName = fileName ?? name
