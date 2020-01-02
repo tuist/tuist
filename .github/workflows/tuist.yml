@@ -10,12 +10,16 @@ jobs:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.2.1
         run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
-      - name: Generate Xcode project
-        run: swift package generate-xcodeproj
       - name: Run tests
-        run: xcodebuild test -scheme tuist-Package -enableCodeCoverage YES
+        run: |
+          rm -rf .coverage
+          mkdir -p .coverage
+          swift test --enable-code-coverage
+      - name: Convert code coverage to lcov format
+        run: xcrun llvm-cov export -format="lcov" .build/debug/tuist -instr-profile .build/debug/codecov/default.profdata > ./.coverage/coverage.lcov
       - name: Send test coverage report
-        run: bash <(curl -s https://codecov.io/bash)
+        run: |
+          bash <(curl -s https://codecov.io/bash) -D .coverage
   release_build:
     name: Release build
     runs-on: macOS-latest
