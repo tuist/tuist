@@ -88,8 +88,6 @@ public class GeneratorModelLoader: GeneratorModelLoading {
             switch item {
             case let .xcodeProjectName(projectName):
                 return projectName.description
-            default:
-                return nil
             }
         }.first
 
