@@ -1,4 +1,6 @@
-<img src="website/static/tuist.png" width="200" align="center"/>
+<p align="center">
+    <img src="website/static/tuist.png" width="200" />
+</p>
 
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
 [![codecov](https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg)](https://codecov.io/gh/tuist/tuist)
