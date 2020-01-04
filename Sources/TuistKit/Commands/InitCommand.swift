@@ -138,6 +138,7 @@ class InitCommand: NSObject, Command {
         try generate(for: supportFrameworkPath(path, name: name))
     }
 
+    // swiftlint:disable:next function_body_length
     private func generateProjectDescriptionHelpers(path: AbsolutePath) throws {
         let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
         try FileHandler.shared.createFolder(helpersPath)
@@ -230,8 +231,10 @@ class InitCommand: NSObject, Command {
         """
 
         try FileHandler.shared.write(appContent, path: appPath(path, name: name).appending(component: "Project.swift"), atomically: true)
-        try FileHandler.shared.write(kitFrameworkContent, path: kitFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
-        try FileHandler.shared.write(supportFrameworkContent, path: supportFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
+        try FileHandler.shared.write(kitFrameworkContent,
+                                     path: kitFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
+        try FileHandler.shared.write(supportFrameworkContent,
+                                     path: supportFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
     }
 
     // swiftlint:disable:next function_body_length

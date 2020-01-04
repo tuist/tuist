@@ -135,7 +135,9 @@ final class SchemesGenerator: SchemesGenerating {
                       shared: true,
                       buildAction: BuildAction(targets: [targetReference]),
                       testAction: TestAction(targets: testTargets, configurationName: buildConfiguration),
-                      runAction: RunAction(configurationName: buildConfiguration, executable: targetReference, arguments: Arguments(environment: target.environment)))
+                      runAction: RunAction(configurationName: buildConfiguration,
+                                           executable: targetReference,
+                                           arguments: Arguments(environment: target.environment)))
     }
 
     /// Generate schemes for a project or workspace.
@@ -245,6 +247,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - rootPath: Root path to either project or workspace.
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme test action.
+    // swiftlint:disable:next function_body_length
     func schemeTestAction(scheme: Scheme,
                           graph: Graphing,
                           rootPath: AbsolutePath,

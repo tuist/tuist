@@ -163,7 +163,7 @@ final class Installer: Installing {
                                   "-Xswiftc", "-enable-library-evolution",
                                   "-Xswiftc", "-emit-module-interface",
                                   "-Xswiftc", "-emit-module-interface-path",
-                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString)
+                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString) // swiftlint:disable:this line_length
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)
