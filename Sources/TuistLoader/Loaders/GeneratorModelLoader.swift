@@ -575,7 +575,6 @@ extension TuistCore.Dependency {
 }
 
 extension TuistCore.Scheme {
-
     static func from(manifest: ProjectDescription.Scheme, projectPath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
@@ -659,7 +658,8 @@ extension TuistCore.TestAction {
             TuistCore.TargetReference(projectPath: try resolveProjectPath(projectPath: $0.projectPath,
                                                                           defaultPath: projectPath,
                                                                           generatorPaths: generatorPaths),
-                                      name: $0.targetName) }
+                                      name: $0.targetName)
+        }
         let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
                                                                                           projectPath: projectPath,
                                                                                           generatorPaths: generatorPaths) }
@@ -742,7 +742,8 @@ extension TuistCore.ExecutionAction {
             .project(path: try resolveProjectPath(projectPath: $0.projectPath,
                                                   defaultPath: projectPath,
                                                   generatorPaths: generatorPaths),
-                     target: $0.targetName) }
+                     target: $0.targetName)
+        }
         return ExecutionAction(title: manifest.title, scriptText: manifest.scriptText, target: targetReference)
     }
 }

@@ -461,7 +461,7 @@ class InitCommand: NSObject, Command {
     }
 
     private func platform(arguments: ArgumentParser.Result) throws -> Platform {
-        if let platformString = arguments.get(self.platformArgument) {
+        if let platformString = arguments.get(platformArgument) {
             if let platform = Platform(rawValue: platformString) {
                 return platform
             } else {

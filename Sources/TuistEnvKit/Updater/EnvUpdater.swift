@@ -28,7 +28,7 @@ final class EnvUpdater: EnvUpdating {
     ///
     /// - Throws: An error if the installation fails.
     func update() throws {
-        guard let releases: [Release] = try? self.githubClient.releases(),
+        guard let releases: [Release] = try? githubClient.releases(),
             let release = releases.sorted(by: { $0.version > $1.version }).first,
             let asset = release.assets.first(where: { $0.name.contains("tuistenv") }) else {
             return

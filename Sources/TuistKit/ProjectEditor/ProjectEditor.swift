@@ -63,7 +63,7 @@ final class ProjectEditor: ProjectEditing {
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locate(at: at)
         var helpers: [AbsolutePath] = []
-        if let helpersDirectory = self.helpersDirectoryLocator.locate(at: at) {
+        if let helpersDirectory = helpersDirectoryLocator.locate(at: at) {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         }
 

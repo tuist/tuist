@@ -32,7 +32,7 @@ public final class MockSystem: Systeming {
 
     public func run(_ arguments: [String]) throws {
         let command = arguments.joined(separator: " ")
-        guard let stub = self.stubs[command] else {
+        guard let stub = stubs[command] else {
             throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
@@ -58,7 +58,7 @@ public final class MockSystem: Systeming {
 
     public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
         let command = arguments.joined(separator: " ")
-        guard let stub = self.stubs[command] else {
+        guard let stub = stubs[command] else {
             throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
@@ -90,7 +90,7 @@ public final class MockSystem: Systeming {
         redirection: Basic.Process.OutputRedirection
     ) throws {
         let command = arguments.joined(separator: " ")
-        guard let stub = self.stubs[command] else {
+        guard let stub = stubs[command] else {
             throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
@@ -134,7 +134,7 @@ public final class MockSystem: Systeming {
 
     public func async(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
         let command = arguments.joined(separator: " ")
-        guard let stub = self.stubs[command] else {
+        guard let stub = stubs[command] else {
             throw TuistSupport.SystemError.terminated(code: 1, error: "command '\(command)' not stubbed")
         }
         if stub.exitstatus != 0 {
