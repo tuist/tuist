@@ -157,6 +157,7 @@ public protocol Graphing: AnyObject, Encodable {
     func hostTargetNodeFor(path: AbsolutePath, name: String) -> TargetNode?
 }
 
+// swiftlint:disable:next type_body_length
 public class Graph: Graphing {
     // MARK: - Attributes
 

@@ -65,6 +65,5 @@ public func == (lhs: TuistConfig.GenerationOptions, rhs: TuistConfig.GenerationO
     switch (lhs, rhs) {
     case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
         return lhs.rawString == rhs.rawString
-    default: return false
     }
 }

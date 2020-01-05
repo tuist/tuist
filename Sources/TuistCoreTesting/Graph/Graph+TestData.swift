@@ -46,7 +46,7 @@ public extension Graph {
     ///       All targets need to be listed even if they don't have any dependencies.
     static func create(projects: [Project] = [],
                        entryNodes: [Target]? = nil,
-                       dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> Graph {
+                       dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> Graph { // swiftlint:disable:this large_tuple
         let targetNodes = createTargetNodes(dependencies: dependencies)
 
         let entryNodes = entryNodes.map { entryNodes in
@@ -65,6 +65,7 @@ public extension Graph {
         return graph
     }
 
+    // swiftlint:disable:next large_tuple
     private static func createTargetNodes(dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> [TargetNode] {
         let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
             ($0.target.name, TargetNode(project: $0.project,
