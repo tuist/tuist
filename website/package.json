@@ -51,7 +51,7 @@
     "react-helmet": "^5.2.0",
     "react-markdown": "^4.2.2",
     "react-pose": "^4.0.10",
-    "react-share": "^3.0.1",
+    "react-share": "^4.0.0",
     "react-spring": "^8.0.22",
     "react-use-visibility": "^0.3.0",
     "remark-slug": "^5.1.2",

@@ -11694,15 +11694,13 @@ react-reconciler@^0.24.0:
     prop-types "^15.6.2"
     scheduler "^0.18.0"
 
-react-share@^3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/react-share/-/react-share-3.0.1.tgz#be9dc3f80059c4fed33542472f4e7425bb3a76cb"
-  integrity sha512-xo4zjYP78h6zrBN5rlC06bb877js7216KFeZELAZP6sYxVoqmU27ChrfnpKUCL9H8F5PwYXh6DLNdAp+0E17GA==
+react-share@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/react-share/-/react-share-4.0.0.tgz#fa52e6525b4ac7c7d9df0c259c5a5311251e8d57"
+  integrity sha512-Z3lr3UyNt1S6mBR1iJYilO70wocd2tyBU1OSpV3ouJV6HhuIq0PzntzYXFevGW1cqKYCU/dK6azPe6z1wSAVwQ==
   dependencies:
-    babel-runtime "^6.26.0"
     classnames "^2.2.5"
     jsonp "^0.2.1"
-    prop-types "^15.5.8"
 
 react-side-effect@^1.1.0:
   version "1.2.0"
