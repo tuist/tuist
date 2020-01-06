@@ -11,7 +11,6 @@ protocol ProjectEditorMapping: AnyObject {
 }
 
 final class ProjectEditorMapper: ProjectEditorMapping {
-
     // swiftlint:disable:next function_body_length
     func map(sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],

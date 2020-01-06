@@ -26,7 +26,7 @@ public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
     // MARK: - HelpersDirectoryLocating
 
     public func locate(at: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = self.rootDirectoryLocator.locate(from: at) else { return nil }
+        guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.helpersDirectoryName)

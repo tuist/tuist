@@ -35,7 +35,7 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     }
 
     func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
-        guard let helpersDirectory = self.helpersDirectoryLocator.locate(at: at) else { return nil }
+        guard let helpersDirectory = helpersDirectoryLocator.locate(at: at) else { return nil }
         if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
 
         let hash = try self.hash(helpersDirectory: helpersDirectory)
