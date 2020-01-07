@@ -48,8 +48,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let project = Project.test(path: AbsolutePath("/project/"),
                                    settings: settings,
                                    additionalFiles: [
-                                       .file(path: "/path/to/file"),
-                                       .folderReference(path: "/path/to/folder"),
+                                       .files(["/path/to/file"]),
+                                       .folderReferences(["/path/to/folder"]),
                                    ])
 
         // When
@@ -274,8 +274,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                  settings: settings,
                                  sources: [(path: AbsolutePath("/project/file.swift"), compilerFlags: nil)],
                                  resources: [
-                                     .file(path: AbsolutePath("/project/image.png")),
-                                     .folderReference(path: AbsolutePath("/project/reference")),
+                                     .files([AbsolutePath("/project/image.png")]),
+                                     .folderReferences([AbsolutePath("/project/reference")]),
                                  ],
                                  coreDataModels: [CoreDataModel(path: AbsolutePath("/project/model.xcdatamodeld"),
                                                                 versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],

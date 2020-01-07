@@ -154,22 +154,22 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
     }
 
-    private func createResources() -> [FileElement] {
-        let files = (0 ..< 10)
-            .map { "/App/Resources/Resource\($0).png" }
-            .map { FileElement.file(path: AbsolutePath($0)) }
+    private func createResources() -> [FileElements] {
+        let files = [FileElements.files((0 ..< 10)
+                .map { "/App/Resources/Resource\($0).png" }
+                .map { AbsolutePath($0) })]
 
-        let folderReferences = (0 ..< 10)
-            .map { "/App/Resources/Folder\($0)" }
-            .map { FileElement.folderReference(path: AbsolutePath($0)) }
+        let folderReferences = [FileElements.folderReferences((0 ..< 10)
+                .map { "/App/Resources/Folder\($0)" }
+                .map { AbsolutePath($0) })]
 
         return (files + folderReferences).shuffled()
     }
 
-    private func createAdditionalFiles() -> [FileElement] {
-        let files = (0 ..< 10)
-            .map { "/App/Files/File\($0).md" }
-            .map { FileElement.file(path: AbsolutePath($0)) }
+    private func createAdditionalFiles() -> [FileElements] {
+        let files = [FileElements.files((0 ..< 10)
+                .map { "/App/Files/File\($0).md" }
+                .map { AbsolutePath($0) })]
 
         // When using ** glob patterns (e.g. `Documentation/**`)
         // the results will include the folders in addition to the files
@@ -179,13 +179,13 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         //    Documentation/a.md
         //    Documentation/Subfolder
         //    Documentation/Subfolder/a.md
-        let filesWithFolderPaths = files + [
-            .file(path: AbsolutePath("/App/Files")),
+        let filesWithFolderPaths: [FileElements] = files + [
+            .files([AbsolutePath("/App/Files")]),
         ]
 
-        let folderReferences = (0 ..< 10)
-            .map { "/App/Documentation\($0)" }
-            .map { FileElement.folderReference(path: AbsolutePath($0)) }
+        let folderReferences = [FileElements.folderReferences((0 ..< 10)
+                .map { "/App/Documentation\($0)" }
+                .map { AbsolutePath($0) })]
 
         return (filesWithFolderPaths + folderReferences).shuffled()
     }

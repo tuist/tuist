@@ -113,8 +113,8 @@ class GeneratorTests: XCTestCase {
             $0.additionalFiles
         }
         XCTAssertEqual(additionalFiles, [
-            .file(path: "/path/to/D"),
-            .file(path: "/path/to/E"),
+            .files(["/path/to/D"]),
+            .files(["/path/to/E"]),
         ])
     }
 
@@ -122,9 +122,9 @@ class GeneratorTests: XCTestCase {
         // Given
         let workpsace = Workspace.test(projects: [],
                                        additionalFiles: [
-                                           .file(path: "/path/to/a"),
-                                           .file(path: "/path/to/b"),
-                                           .file(path: "/path/to//c"),
+                                           .files(["/path/to/a"]),
+                                           .files(["/path/to/b"]),
+                                           .files(["/path/to//c"]),
                                        ])
         let graph = createGraph(with: [])
         graphLoader.loadWorkspaceStub = { _ in
@@ -142,12 +142,13 @@ class GeneratorTests: XCTestCase {
         let additionalFiles = workspaceGenerator.generateWorkspaces.flatMap {
             $0.additionalFiles
         }
+
         XCTAssertEqual(additionalFiles, [
-            .file(path: "/path/to/a"),
-            .file(path: "/path/to/b"),
-            .file(path: "/path/to/c"),
-            .file(path: "/path/to/D"),
-            .file(path: "/path/to/E"),
+            .files(["/path/to/a"]),
+            .files(["/path/to/b"]),
+            .files(["/path/to/c"]),
+            .files(["/path/to/D"]),
+            .files(["/path/to/E"]),
         ])
     }
 

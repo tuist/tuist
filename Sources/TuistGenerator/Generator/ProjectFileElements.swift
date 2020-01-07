@@ -105,12 +105,12 @@ class ProjectFileElements {
         })
 
         // Additional files
-        fileElements.formUnion(project.additionalFiles.flatMap({ fileElements in
-            fileElements.paths.map({
+        fileElements.formUnion(project.additionalFiles.flatMap { fileElements in
+            fileElements.paths.map {
                 GroupFileElement(path: $0, group: project.filesGroup, isReference: fileElements.isReference)
-            })
-            
-        }))
+            }
+
+        })
 
         return fileElements
     }
@@ -144,13 +144,12 @@ class ProjectFileElements {
         // Elements
         var elements = Set<GroupFileElement>()
         elements.formUnion(files.map { GroupFileElement(path: $0, group: target.filesGroup) })
-        elements.formUnion(target.resources.flatMap({ fileElements in
-            fileElements.paths.map({
+        elements.formUnion(target.resources.flatMap { fileElements in
+            fileElements.paths.map {
                 GroupFileElement(path: $0, group: target.filesGroup, isReference: fileElements.isReference)
-            })
-            
-        }))
+            }
 
+        })
 
         return elements
     }

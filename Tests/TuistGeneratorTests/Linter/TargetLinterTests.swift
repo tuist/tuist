@@ -69,7 +69,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_when_a_infoplist_file_is_being_copied() {
         let path = AbsolutePath("/Info.plist")
-        let target = Target.test(resources: [.file(path: path)])
+        let target = Target.test(resources: [.files([path])])
 
         let got = subject.lint(target: target)
 
@@ -78,7 +78,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_when_a_entitlements_file_is_being_copied() {
         let path = AbsolutePath("/App.entitlements")
-        let target = Target.test(resources: [.file(path: path)])
+        let target = Target.test(resources: [.files([path])])
 
         let got = subject.lint(target: target)
 
@@ -108,10 +108,10 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_when_library_has_resources() throws {
         let temporaryPath = try self.temporaryPath()
         let path = temporaryPath.appending(component: "Image.png")
-        let element = FileElement.file(path: path)
+        let elements = FileElements.files([path])
 
-        let staticLibrary = Target.test(product: .staticLibrary, resources: [element])
-        let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])
+        let staticLibrary = Target.test(product: .staticLibrary, resources: [elements])
+        let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [elements])
 
         let staticResult = subject.lint(target: staticLibrary)
         XCTAssertTrue(staticResult.contains(LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), staticResult.description)
@@ -144,7 +144,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let bundle = Target.empty(platform: .iOS,
                                   product: .bundle,
                                   resources: [
-                                      .file(path: "/path/to/some/asset.png"),
+                                      .files(["/path/to/some/asset.png"]),
                                   ])
 
         // When

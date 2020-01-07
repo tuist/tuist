@@ -28,7 +28,7 @@ extension TuistCore.Target: ModelConvertible {
 
         let resources = try (manifest.resources ?? []).compactMap {
             try TuistCore.FileElements(manifest: $0, generatorPaths: generatorPaths)
-                .filter({ TuistCore.Target.isResource(path: $0) })
+                .filter { TuistCore.Target.isResource(path: $0) }
         }
 
         let headers = try manifest.headers.map { try TuistCore.Headers(manifest: $0, generatorPaths: generatorPaths) }

@@ -156,7 +156,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
             "/path/resources/fr.lproj/App.strings",
         ]
 
-        let resources = files.map { FileElement.file(path: $0) }
+        let resources = [FileElements.files(files.map { $0 })]
         let fileElements = createLocalizedResourceFileElements(for: [
             "/path/resources/Main.storyboard",
             "/path/resources/App.strings",
@@ -216,7 +216,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
     func test_generateResourcesBuildPhase_whenNormalResource() throws {
         let path = AbsolutePath("/image.png")
-        let target = Target.test(resources: [.file(path: path)])
+        let target = Target.test(resources: [.files([path])])
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
         let fileElement = PBXFileReference()

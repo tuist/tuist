@@ -61,7 +61,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
 
         let workspace = Workspace.test(projects: projects,
-                                       additionalFiles: files.map { .file(path: $0) })
+                                       additionalFiles: [.files(files.map { $0 })])
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
@@ -98,10 +98,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/README.md",
         ])
 
-        let additionalFiles: [FileElement] = [
-            .folderReference(path: "/path/to/workspace/Documentation/Guides"),
-            .folderReference(path: "/path/to/workspace/Documentation/Proposals"),
-            .file(path: "/path/to/workspace/README.md"),
+        let additionalFiles: [FileElements] = [
+            .folderReferences(["/path/to/workspace/Documentation/Guides"]),
+            .folderReferences(["/path/to/workspace/Documentation/Proposals"]),
+            .files(["/path/to/workspace/README.md"]),
         ]
         let workspace = Workspace.test(additionalFiles: additionalFiles)
 
@@ -136,7 +136,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/Documentation/setup",
             "/path/to/workspace/Documentation/setup/usage.md",
         ]
-        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
+        let workspace = Workspace.test(additionalFiles: [.files(paths.map { AbsolutePath($0) })])
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
@@ -165,7 +165,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace",
             "/path/to/workspace/Documentation",
         ]
-        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
+        let workspace = Workspace.test(additionalFiles: [.files(paths.map { AbsolutePath($0) })])
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
@@ -188,7 +188,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/Pods.xcodeproj",
             "/path/to/workspace/Testing.playground",
         ]
-        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
+        let workspace = Workspace.test(additionalFiles: [.files(paths.map { AbsolutePath($0) })])
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
@@ -208,8 +208,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/Modules/A",
         ])
 
-        let files: [FileElement] = [
-            .folderReference(path: "/path/to/workspace/Modules/A"),
+        let files: [FileElements] = [
+            .folderReferences(["/path/to/workspace/Modules/A"]),
         ]
         let workspace = Workspace.test(projects: projects,
                                        additionalFiles: files)
@@ -239,7 +239,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
 
         let workspace = Workspace.test(projects: projects,
-                                       additionalFiles: files.map { .file(path: $0) })
+                                       additionalFiles: [.files(files.map { $0 })])
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",

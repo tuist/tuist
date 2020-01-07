@@ -36,10 +36,10 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
             "Website/about.html",
         ])
 
-        let additionalFiles: [FileElement] = [
-            .file(path: temporaryPath.appending(RelativePath("README.md"))),
-            .file(path: temporaryPath.appending(RelativePath("Documentation/README.md"))),
-            .folderReference(path: temporaryPath.appending(RelativePath("Website"))),
+        let additionalFiles: [FileElements] = [
+            .files([temporaryPath.appending(RelativePath("README.md"))]),
+            .files([temporaryPath.appending(RelativePath("Documentation/README.md"))]),
+            .folderReferences([temporaryPath.appending(RelativePath("Website"))]),
         ]
 
         let graph = Graph.test(entryPath: temporaryPath)

@@ -73,9 +73,16 @@ private class DirectoryStructure {
     private func buildGraph(path: AbsolutePath) -> Graph {
         let root = Graph()
 
-        let filesIncludingContainers = files.filter(isFileOrFolderReference)
-        let fileNodes = filesIncludingContainers.map(fileNode)
+        let fileNodes = files.flatMap { fileElements in
+            fileNode(from: fileElements, folderFilter: { folderPath in
+                if fileHandler.isFolder(folderPath) {
+                    return folderPath.suffix.map(containers.contains) ?? false
+                }
+                return true
+            })
+        }
         let projectNodes = projects.map(projectNode)
+
         let allNodes = (projectNodes + fileNodes).sorted(by: { $0.path < $1.path })
 
         let commonAncestor = allNodes.reduce(path) { $0.commonAncestor(with: $1.path) }
@@ -94,29 +101,17 @@ private class DirectoryStructure {
         return root
     }
 
-    private func fileNode(from element: FileElements) -> [Node] {
+    private func fileNode(from element: FileElements, folderFilter _: (AbsolutePath) -> Bool) -> [Node] {
         switch element {
         case let .files(paths):
-            return .file(path)
+            return paths.map { Node.file($0) }
         case let .folderReferences(paths):
-            return .folderReference(path)
+            return paths.map { Node.folderReference($0) }
         }
     }
 
     private func projectNode(from path: AbsolutePath) -> Node {
         .project(path)
-    }
-
-    private func isFileOrFolderReference(element: FileElements) -> Bool {
-        switch element {
-        case .folderReferences:
-            return true
-        case let .files(paths):
-            if fileHandler.isFolder(path) {
-                return path.suffix.map(containers.contains) ?? false
-            }
-            return true
-        }
     }
 }
 

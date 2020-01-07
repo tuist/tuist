@@ -116,7 +116,7 @@ let package = Package(
         ),
         .target(
             name: "TuistGalaxy",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport", "Checksum"]
         ),
         .testTarget(
             name: "TuistGalaxyTests",

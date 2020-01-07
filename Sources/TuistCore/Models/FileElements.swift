@@ -22,14 +22,14 @@ public enum FileElements: Equatable {
             return true
         }
     }
-    
+
     /// Returns a copy filtering the paths using the given closure.
     /// - Parameter isIncluded: Returns true for those paths that should be included.
     public func filter(_ isIncluded: (AbsolutePath) -> Bool) -> FileElements {
         switch self {
-        case .files(let paths):
+        case let .files(paths):
             return .files(paths.filter(isIncluded))
-        case .folderReferences(let paths):
+        case let .folderReferences(paths):
             return .folderReferences(paths.filter(isIncluded))
         }
     }

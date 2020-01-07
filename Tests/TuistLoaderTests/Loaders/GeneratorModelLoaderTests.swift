@@ -131,7 +131,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let model = try subject.loadProject(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
+        XCTAssertEqual(model.additionalFiles, files.map { .files([$0]) })
     }
 
     func test_loadProject_withFolderReferences() throws {
@@ -155,7 +155,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let model = try subject.loadProject(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
+        XCTAssertEqual(model.additionalFiles, files.map { .folderReferences([$0]) })
     }
 
     func test_loadProject_withCustomName() throws {
@@ -279,7 +279,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-        XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
+        XCTAssertEqual(model.additionalFiles, files.map { .files([$0]) })
     }
 
     func test_loadWorkspace_withFolderReferences() throws {
@@ -306,7 +306,7 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.additionalFiles, [
-            .folderReference(path: temporaryPath.appending(RelativePath("Documentation"))),
+            .folderReferences([temporaryPath.appending(RelativePath("Documentation"))]),
         ])
     }
 
@@ -589,29 +589,6 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").description, "Couldn't find file at path '/missing/path'")
     }
 
-    func test_fileElement_warning_withDirectoryPathsAsFiles() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
-            "Documentation/README.md",
-            "Documentation/USAGE.md",
-        ])
-
-        let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation")
-
-        // When
-        let model = try TuistCore.FileElement.from(manifest: manifest,
-                                                   path: temporaryPath,
-                                                   generatorPaths: generatorPaths,
-                                                   includeFiles: { !FileHandler.shared.isFolder($0) })
-
-        // Then
-        let documentationPath = temporaryPath.appending(component: "Documentation").pathString
-        XCTAssertPrinterOutputContains("'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files")
-        XCTAssertEqual(model, [])
-    }
-
     func test_fileElement_warning_withMisingPaths() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -619,12 +596,12 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation/**")
 
         // When
-        let model = try TuistCore.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.FileElements(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         let documentationPath = temporaryPath.appending(RelativePath("Documentation/**"))
         XCTAssertPrinterOutputContains("No files found at: \(documentationPath)")
-        XCTAssertEqual(model, [])
+        XCTAssertEqual(model.paths, [])
     }
 
     func test_fileElement_warning_withInvalidFolderReference() throws {
@@ -638,11 +615,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.folderReference(path: "README.md")
 
         // When
-        let model = try TuistCore.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.FileElements(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
-        XCTAssertEqual(model, [])
+        XCTAssertEqual(model.paths, [])
     }
 
     func test_fileElement_warning_withMissingFolderReference() throws {
@@ -652,11 +629,11 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try TuistCore.FileElement.from(manifest: manifest, path: temporaryPath, generatorPaths: generatorPaths)
+        let model = try TuistCore.FileElements(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
-        XCTAssertEqual(model, [])
+        XCTAssertEqual(model.paths, [])
     }
 
     func test_deploymentTarget() throws {

@@ -252,9 +252,9 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         ]
         let project = Project.test(path: path,
                                    targets: [
-                                       .test(resources: resources.map {
-                                           .file(path: path.appending(RelativePath($0)))
-                                       }),
+                                       .test(resources: [.files(resources.map {
+                                           path.appending(RelativePath($0))
+                                       })]),
                                    ])
 
         // When
