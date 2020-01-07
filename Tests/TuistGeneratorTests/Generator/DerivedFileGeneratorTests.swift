@@ -78,9 +78,9 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         try FileHandler.shared.touch(oldPlistPath)
 
         // When
-        let deleteOldDerivedFiles = try subject.generate(graph: Graph.test(),
-                                                         project: project,
-                                                         sourceRootPath: temporaryPath)
+        let (_, deleteOldDerivedFiles) = try subject.generate(graph: Graph.test(),
+                                                              project: project,
+                                                              sourceRootPath: temporaryPath)
         try deleteOldDerivedFiles()
 
         // Then
