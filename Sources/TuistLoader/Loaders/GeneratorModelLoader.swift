@@ -53,10 +53,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
     public func loadWorkspace(at path: AbsolutePath) throws -> TuistCore.Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let workspace = try TuistCore.Workspace.from(manifest: manifest,
-                                                     path: path,
-                                                     generatorPaths: generatorPaths,
-                                                     manifestLoader: manifestLoader)
+        let workspace = try TuistCore.Workspace(manifest: manifest, generatorPaths: generatorPaths)
         return workspace
     }
 
@@ -96,40 +93,5 @@ public class GeneratorModelLoader: GeneratorModelLoading {
                                                             with: model.name)
 
         return xcodeFileName
-    }
-}
-
-extension TuistCore.Workspace {
-    static func from(manifest: ProjectDescription.Workspace,
-                     path: AbsolutePath,
-                     generatorPaths: GeneratorPaths,
-                     manifestLoader: ManifestLoading) throws -> TuistCore.Workspace {
-        func globProjects(_ path: Path) throws -> [AbsolutePath] {
-            let resolvedPath = try generatorPaths.resolve(path: path)
-            let projects = FileHandler.shared.glob(AbsolutePath("/"), glob: String(resolvedPath.pathString.dropFirst()))
-                .lazy
-                .filter(FileHandler.shared.isFolder)
-                .filter {
-                    manifestLoader.manifests(at: $0).contains(.project)
-                }
-
-            if projects.isEmpty {
-                Printer.shared.print(warning: "No projects found at: \(path.pathString)")
-            }
-
-            return Array(projects)
-        }
-
-        let additionalFiles = try manifest.additionalFiles.compactMap {
-            try TuistCore.FileElements(manifest: $0, generatorPaths: generatorPaths)
-        }
-
-        let schemes = try manifest.schemes.map { try TuistCore.Scheme(manifest: $0, generatorPaths: generatorPaths) }
-
-        return TuistCore.Workspace(path: path,
-                                   name: manifest.name,
-                                   projects: try manifest.projects.flatMap(globProjects),
-                                   schemes: schemes,
-                                   additionalFiles: additionalFiles)
     }
 }
