@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Project: Equatable, CustomStringConvertible {
+public struct Project: Equatable, CustomStringConvertible {
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.

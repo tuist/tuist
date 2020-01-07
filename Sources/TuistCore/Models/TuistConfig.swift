@@ -3,7 +3,7 @@ import Foundation
 import TuistSupport
 
 /// This model allows to configure Tuist.
-public class TuistConfig: Equatable, Hashable {
+public struct TuistConfig: Equatable, Hashable {
     /// Contains options related to the project generation.
     ///
     /// - xcodeProjectName: Name used for the Xcode project

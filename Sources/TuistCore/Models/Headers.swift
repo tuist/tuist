@@ -4,7 +4,7 @@ import TuistSupport
 import XcodeProj
 
 /// Headers
-public class Headers: Equatable {
+public struct Headers: Equatable {
     public static let extensions = Xcode.headersExtensions
 
     // MARK: - Attributes

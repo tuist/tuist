@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Target: Equatable, Hashable {
+public struct Target: Equatable, Hashable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
     public typealias SourceFileGlob = (glob: String, excluding: String?, compilerFlags: String?)
 

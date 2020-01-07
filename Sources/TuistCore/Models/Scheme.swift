@@ -1,7 +1,7 @@
 import Basic
 import Foundation
 
-public class Scheme: Equatable {
+public struct Scheme: Equatable {
     // MARK: - Attributes
 
     public let name: String
@@ -57,7 +57,7 @@ public class Scheme: Equatable {
     }
 }
 
-public class Arguments: Equatable {
+public struct Arguments: Equatable {
     // MARK: - Attributes
 
     public let environment: [String: String]
@@ -79,7 +79,7 @@ public class Arguments: Equatable {
     }
 }
 
-public class ExecutionAction: Equatable {
+public struct ExecutionAction: Equatable {
     // MARK: - Attributes
 
     public let title: String
@@ -117,7 +117,7 @@ public struct TargetReference: Hashable {
     }
 }
 
-public class BuildAction: Equatable {
+public struct BuildAction: Equatable {
     // MARK: - Attributes
 
     public let targets: [TargetReference]
@@ -143,7 +143,7 @@ public class BuildAction: Equatable {
     }
 }
 
-public class TestAction: Equatable {
+public struct TestAction: Equatable {
     // MARK: - Attributes
 
     public let targets: [TestableTarget]
@@ -199,7 +199,7 @@ public struct TestableTarget: Equatable {
     }
 }
 
-public class RunAction: Equatable {
+public struct RunAction: Equatable {
     // MARK: - Attributes
 
     public let configurationName: String
@@ -225,7 +225,7 @@ public class RunAction: Equatable {
     }
 }
 
-public class ArchiveAction: Equatable {
+public struct ArchiveAction: Equatable {
     // MARK: - Attributes
 
     public let configurationName: String

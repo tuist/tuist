@@ -27,7 +27,7 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
     }
 }
 
-public class Configuration: Equatable {
+public struct Configuration: Equatable {
     // MARK: - Attributes
 
     public let settings: [String: SettingValue]

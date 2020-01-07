@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class CoreDataModel: Equatable {
+public struct CoreDataModel: Equatable {
     // MARK: - Attributes
 
     public let path: AbsolutePath

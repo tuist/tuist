@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Workspace: Equatable {
+public struct Workspace: Equatable {
     // MARK: - Attributes
 
     public let path: AbsolutePath
