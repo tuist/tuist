@@ -22,7 +22,7 @@ public struct Target: Equatable, Hashable {
 
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
-    public var infoPlist: InfoPlist?
+    public private(set) var infoPlist: InfoPlist?
     public let entitlements: AbsolutePath?
     public let settings: Settings?
     public let dependencies: [Dependency]
@@ -170,6 +170,14 @@ public struct Target: Equatable, Hashable {
         hasher.combine(productName)
         hasher.combine(entitlements)
         hasher.combine(environment)
+    }
+
+    /// Returns a new copy of the target with the given InfoPlist set.
+    /// - Parameter infoPlist: InfoPlist to be set to the copied instance.
+    public func with(infoPlist: InfoPlist) -> Target {
+        var copy = self
+        copy.infoPlist = infoPlist
+        return copy
     }
 }
 
