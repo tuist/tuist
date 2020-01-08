@@ -17,12 +17,4 @@ public struct BuildAction: Equatable {
         self.preActions = preActions
         self.postActions = postActions
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: BuildAction, rhs: BuildAction) -> Bool {
-        lhs.targets == rhs.targets &&
-            lhs.preActions == rhs.preActions &&
-            lhs.postActions == rhs.postActions
-    }
 }

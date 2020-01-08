@@ -17,12 +17,4 @@ public struct RunAction: Equatable {
         self.executable = executable
         self.arguments = arguments
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: RunAction, rhs: RunAction) -> Bool {
-        lhs.configurationName == rhs.configurationName &&
-            lhs.executable == rhs.executable &&
-            lhs.arguments == rhs.arguments
-    }
 }

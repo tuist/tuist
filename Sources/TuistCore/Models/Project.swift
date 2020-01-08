@@ -105,16 +105,6 @@ public struct Project: Equatable, CustomStringConvertible {
         name
     }
 
-    // MARK: - Equatable
-
-    public static func == (lhs: Project, rhs: Project) -> Bool {
-        lhs.path == rhs.path &&
-            lhs.name == rhs.name &&
-            lhs.targets == rhs.targets &&
-            lhs.schemes == rhs.schemes &&
-            lhs.settings == rhs.settings
-    }
-
     // MARK: - Public
 
     /// Returns a copy of the project with the given targets set.

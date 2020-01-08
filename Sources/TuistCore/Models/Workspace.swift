@@ -46,10 +46,4 @@ extension Workspace {
                   schemes: schemes,
                   additionalFiles: additionalFiles)
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Workspace, rhs: Workspace) -> Bool {
-        lhs.projects == rhs.projects
-    }
 }

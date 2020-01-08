@@ -44,15 +44,4 @@ public struct Scheme: Equatable {
         let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
         return targets.sorted { ($0.name < $1.name) }
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Scheme, rhs: Scheme) -> Bool {
-        lhs.name == rhs.name &&
-            lhs.shared == rhs.shared &&
-            lhs.buildAction == rhs.buildAction &&
-            lhs.testAction == rhs.testAction &&
-            lhs.runAction == rhs.runAction &&
-            lhs.archiveAction == rhs.archiveAction
-    }
 }

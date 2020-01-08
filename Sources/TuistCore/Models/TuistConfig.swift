@@ -46,10 +46,3 @@ public struct TuistConfig: Equatable, Hashable {
         lhs.generationOptions == rhs.generationOptions
     }
 }
-
-public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
-    switch (lhs, rhs) {
-    case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
-        return lhs == rhs
-    }
-}

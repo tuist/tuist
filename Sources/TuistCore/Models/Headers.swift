@@ -22,12 +22,4 @@ public struct Headers: Equatable {
         self.private = `private`
         self.project = project
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Headers, rhs: Headers) -> Bool {
-        lhs.public == rhs.public &&
-            lhs.private == rhs.private &&
-            lhs.project == rhs.project
-    }
 }

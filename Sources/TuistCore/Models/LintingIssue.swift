@@ -31,13 +31,6 @@ public struct LintingIssue: CustomStringConvertible, Equatable {
     public var description: String {
         reason
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: LintingIssue, rhs: LintingIssue) -> Bool {
-        lhs.severity == rhs.severity &&
-            lhs.reason == rhs.reason
-    }
 }
 
 // MARK: - Array Extension (Linting issues)

@@ -17,10 +17,4 @@ public struct ExecutionAction: Equatable {
         self.scriptText = scriptText
         self.target = target
     }
-
-    public static func == (lhs: ExecutionAction, rhs: ExecutionAction) -> Bool {
-        lhs.title == rhs.title &&
-            lhs.scriptText == rhs.scriptText &&
-            lhs.target == rhs.target
-    }
 }

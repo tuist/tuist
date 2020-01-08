@@ -18,12 +18,4 @@ public struct CoreDataModel: Equatable {
         self.versions = versions
         self.currentVersion = currentVersion
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: CoreDataModel, rhs: CoreDataModel) -> Bool {
-        lhs.path == rhs.path &&
-            lhs.currentVersion == rhs.currentVersion &&
-            lhs.versions == rhs.versions
-    }
 }

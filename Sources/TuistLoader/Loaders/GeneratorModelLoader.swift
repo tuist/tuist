@@ -635,10 +635,10 @@ extension TuistCore.BuildAction {
                                                                                             projectPath: projectPath,
                                                                                             generatorPaths: generatorPaths) }
         let targets: [TuistCore.TargetReference] = try manifest.targets.map {
-            .project(path: try resolveProjectPath(projectPath: $0.projectPath,
-                                                  defaultPath: projectPath,
-                                                  generatorPaths: generatorPaths),
-                     target: $0.targetName)
+            .init(projectPath: try resolveProjectPath(projectPath: $0.projectPath,
+                                                      defaultPath: projectPath,
+                                                      generatorPaths: generatorPaths),
+                  name: $0.targetName)
         }
         return TuistCore.BuildAction(targets: targets, preActions: preActions, postActions: postActions)
     }
@@ -739,10 +739,10 @@ extension TuistCore.ExecutionAction {
                      projectPath: AbsolutePath,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.ExecutionAction {
         let targetReference: TuistCore.TargetReference? = try manifest.target.map {
-            .project(path: try resolveProjectPath(projectPath: $0.projectPath,
-                                                  defaultPath: projectPath,
-                                                  generatorPaths: generatorPaths),
-                     target: $0.targetName)
+            .init(projectPath: try resolveProjectPath(projectPath: $0.projectPath,
+                                                      defaultPath: projectPath,
+                                                      generatorPaths: generatorPaths),
+                  name: $0.targetName)
         }
         return ExecutionAction(title: manifest.title, scriptText: manifest.scriptText, target: targetReference)
     }

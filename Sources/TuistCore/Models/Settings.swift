@@ -39,12 +39,6 @@ public struct Configuration: Equatable {
         self.settings = settings
         self.xcconfig = xcconfig
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Configuration, rhs: Configuration) -> Bool {
-        lhs.settings == rhs.settings && lhs.xcconfig == rhs.xcconfig
-    }
 }
 
 public enum DefaultSettings {

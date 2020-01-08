@@ -25,14 +25,4 @@ public struct ArchiveAction: Equatable {
         self.preActions = preActions
         self.postActions = postActions
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: ArchiveAction, rhs: ArchiveAction) -> Bool {
-        lhs.configurationName == rhs.configurationName
-            && lhs.revealArchiveInOrganizer == rhs.revealArchiveInOrganizer
-            && lhs.customArchiveName == rhs.customArchiveName
-            && lhs.preActions == rhs.preActions
-            && lhs.postActions == rhs.postActions
-    }
 }

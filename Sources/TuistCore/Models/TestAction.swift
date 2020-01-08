@@ -29,16 +29,4 @@ public struct TestAction: Equatable {
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: TestAction, rhs: TestAction) -> Bool {
-        lhs.targets == rhs.targets &&
-            lhs.arguments == rhs.arguments &&
-            lhs.configurationName == rhs.configurationName &&
-            lhs.coverage == rhs.coverage &&
-            lhs.codeCoverageTargets == rhs.codeCoverageTargets &&
-            lhs.preActions == rhs.preActions &&
-            lhs.postActions == rhs.postActions
-    }
 }

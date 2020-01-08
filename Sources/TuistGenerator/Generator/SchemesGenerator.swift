@@ -119,7 +119,7 @@ final class SchemesGenerator: SchemesGenerating {
     }
 
     func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graphing) -> Scheme {
-        let targetReference = TargetReference.project(path: project.path, target: target.name)
+        let targetReference = TargetReference(projectPath: project.path, name: target.name)
 
         let testTargets: [TestableTarget]
 
@@ -127,7 +127,7 @@ final class SchemesGenerator: SchemesGenerating {
             testTargets = [TestableTarget(target: targetReference)]
         } else {
             testTargets = graph.testTargetsDependingOn(path: project.path, name: target.name)
-                .map { TargetReference.project(path: $0.project.path, target: $0.target.name) }
+                .map { TargetReference(projectPath: $0.project.path, name: $0.target.name) }
                 .map { TestableTarget(target: $0) }
         }
 

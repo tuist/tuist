@@ -13,11 +13,4 @@ public struct Arguments: Equatable {
         self.environment = environment
         self.launch = launch
     }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Arguments, rhs: Arguments) -> Bool {
-        lhs.environment == rhs.environment &&
-            lhs.launch == rhs.launch
-    }
 }

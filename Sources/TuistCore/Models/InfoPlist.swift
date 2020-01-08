@@ -47,21 +47,6 @@ public enum InfoPlist: Equatable {
     case dictionary([String: Value])
     case extendingDefault(with: [String: Value])
 
-    // MARK: - Equatable
-
-    public static func == (lhs: InfoPlist, rhs: InfoPlist) -> Bool {
-        switch (lhs, rhs) {
-        case let (.file(lhsPath), .file(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.dictionary(lhsDictionary), .dictionary(rhsDictionary)):
-            return lhsDictionary == rhsDictionary
-        case let (.extendingDefault(lhsDictionary), .extendingDefault(rhsDictionary)):
-            return lhsDictionary == rhsDictionary
-        default:
-            return false
-        }
-    }
-
     // MARK: - Public
 
     public var path: AbsolutePath? {
