@@ -4,57 +4,7 @@ import TuistSupportTesting
 import XCTest
 @testable import TuistCore
 
-final class ConfigurationTests: XCTestCase {
-    func testEquals() {
-        XCTAssertEqual(Configuration(settings: [:], xcconfig: nil),
-                       Configuration(settings: [:], xcconfig: nil))
-
-        XCTAssertEqual(Configuration(settings: ["A": "A"], xcconfig: AbsolutePath("/A")),
-                       Configuration(settings: ["A": "A"], xcconfig: AbsolutePath("/A")))
-
-        XCTAssertNotEqual(Configuration(settings: ["A": "A"], xcconfig: AbsolutePath("/A")),
-                          Configuration(settings: ["A": "A_new"], xcconfig: AbsolutePath("/A")))
-
-        XCTAssertNotEqual(Configuration(settings: ["A": "A"], xcconfig: AbsolutePath("/A")),
-                          Configuration(settings: ["A": "A", "B": "B"], xcconfig: AbsolutePath("/A")))
-
-        XCTAssertNotEqual(Configuration(settings: ["A": "A"], xcconfig: AbsolutePath("/A")),
-                          Configuration(settings: ["A": "A"], xcconfig: AbsolutePath("/A_new")))
-    }
-}
-
 final class SettingsTests: XCTestCase {
-    func testEquals() {
-        XCTAssertEqual(Settings(base: [:], configurations: [:]),
-                       Settings(base: [:], configurations: [:]))
-
-        XCTAssertEqual(Settings(base: ["A": "A"],
-                                configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B"))]),
-                       Settings(base: ["A": "A"],
-                                configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B"))]))
-
-        XCTAssertNotEqual(Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B"))]),
-                          Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B_new"], xcconfig: AbsolutePath("/B"))]))
-
-        XCTAssertNotEqual(Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B"))]),
-                          Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B_new"], xcconfig: AbsolutePath("/B"))]))
-
-        XCTAssertNotEqual(Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B"))]),
-                          Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B_new"))]))
-
-        XCTAssertNotEqual(Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B"))]),
-                          Settings(base: ["A": "A"],
-                                   configurations: [.debug: Configuration(settings: ["B": "B"], xcconfig: AbsolutePath("/B")),
-                                                    .release: nil]))
-    }
-
     func testXcconfigs() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
