@@ -10,14 +10,6 @@ final class LintingIssueTests: TuistUnitTestCase {
         XCTAssertEqual(subject.description, "whatever")
     }
 
-    func test_equatable() {
-        let first = LintingIssue(reason: "whatever", severity: .error)
-        let second = LintingIssue(reason: "whatever", severity: .error)
-        let third = LintingIssue(reason: "whatever", severity: .warning)
-        XCTAssertEqual(first, second)
-        XCTAssertNotEqual(first, third)
-    }
-
     func test_printAndThrowIfNeeded() throws {
         let first = LintingIssue(reason: "error", severity: .error)
         let second = LintingIssue(reason: "warning", severity: .warning)

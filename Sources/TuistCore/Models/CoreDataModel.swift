@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class CoreDataModel: Equatable {
+public struct CoreDataModel: Equatable {
     // MARK: - Attributes
 
     public let path: AbsolutePath
@@ -17,13 +17,5 @@ public class CoreDataModel: Equatable {
         self.path = path
         self.versions = versions
         self.currentVersion = currentVersion
-    }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: CoreDataModel, rhs: CoreDataModel) -> Bool {
-        lhs.path == rhs.path &&
-            lhs.currentVersion == rhs.currentVersion &&
-            lhs.versions == rhs.versions
     }
 }

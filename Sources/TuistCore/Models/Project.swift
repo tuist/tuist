@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Project: Equatable, CustomStringConvertible {
+public struct Project: Equatable, CustomStringConvertible {
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
@@ -15,7 +15,7 @@ public class Project: Equatable, CustomStringConvertible {
     public let fileName: String
 
     /// Project targets.
-    public let targets: [Target]
+    public private(set) var targets: [Target]
 
     /// Project swift packages.
     public let packages: [Package]
@@ -105,13 +105,13 @@ public class Project: Equatable, CustomStringConvertible {
         name
     }
 
-    // MARK: - Equatable
+    // MARK: - Public
 
-    public static func == (lhs: Project, rhs: Project) -> Bool {
-        lhs.path == rhs.path &&
-            lhs.name == rhs.name &&
-            lhs.targets == rhs.targets &&
-            lhs.schemes == rhs.schemes &&
-            lhs.settings == rhs.settings
+    /// Returns a copy of the project with the given targets set.
+    /// - Parameter targets: Targets to be set to the copy.
+    public func with(targets: [Target]) -> Project {
+        var copy = self
+        copy.targets = targets
+        return copy
     }
 }

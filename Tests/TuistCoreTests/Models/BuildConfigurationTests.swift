@@ -19,15 +19,6 @@ final class BuildConfigurationTests: XCTestCase {
         XCTAssertEqual(BuildConfiguration.release.xcodeValue, "Release")
     }
 
-    func test_equals() {
-        XCTAssertEqual(BuildConfiguration(name: "Debug", variant: .debug),
-                       BuildConfiguration(name: "Debug", variant: .debug))
-        XCTAssertEqual(BuildConfiguration(name: "Debug", variant: .debug), .debug)
-        XCTAssertEqual(BuildConfiguration(name: "debug", variant: .debug), .debug)
-        XCTAssertNotEqual(BuildConfiguration(name: "Debug", variant: .debug), .release)
-        XCTAssertNotEqual(BuildConfiguration(name: "debug", variant: .debug), .release)
-    }
-
     func test_hashValue() {
         XCTAssertEqual(BuildConfiguration(name: "Debug", variant: .debug).hashValue,
                        BuildConfiguration(name: "Debug", variant: .debug).hashValue)

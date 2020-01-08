@@ -3,7 +3,7 @@ import Foundation
 import TuistSupport
 
 /// This model allows to configure Tuist.
-public class TuistConfig: Equatable, Hashable {
+public struct TuistConfig: Equatable, Hashable {
     /// Contains options related to the project generation.
     ///
     /// - xcodeProjectName: Name used for the Xcode project
@@ -44,12 +44,5 @@ public class TuistConfig: Equatable, Hashable {
 
     public static func == (lhs: TuistConfig, rhs: TuistConfig) -> Bool {
         lhs.generationOptions == rhs.generationOptions
-    }
-}
-
-public func == (lhs: TuistConfig.GenerationOption, rhs: TuistConfig.GenerationOption) -> Bool {
-    switch (lhs, rhs) {
-    case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
-        return lhs == rhs
     }
 }

@@ -12,8 +12,9 @@ protocol DerivedFileGenerating {
     ///   - project: Project whose derived files will be generated.
     ///   - sourceRootPath: Path to the directory in which the Xcode project will be generated.
     /// - Throws: An error if the generation of the derived files errors.
-    /// - Returns: A function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void
+    /// - Returns: A project that might have got mutated after the generation of derived files, and a
+    ///     function to be called after the project generation to delete the derived files that are not necessary anymore.
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, () throws -> Void)
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
@@ -31,24 +32,17 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         self.infoPlistContentProvider = infoPlistContentProvider
     }
 
-    /// Generates the derived files that are associated to the given project.
-    ///
-    /// - Parameters:
-    ///   - graph: The dependencies graph.
-    ///   - project: Project whose derived files will be generated.
-    ///   - sourceRootPath: Path to the directory in which the Xcode project will be generated.
-    /// - Throws: An error if the generation of the derived files errors.
-    /// - Returns: A function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> () throws -> Void {
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, () throws -> Void) {
         /// The files that are not necessary anymore should be deleted after we generate the project.
         /// Otherwise, Xcode will try to reload their references before the project generation.
         var toDelete: Set<AbsolutePath> = []
+        let (project, infoPlistsToDelete) = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
-        toDelete.formUnion(try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath))
+        toDelete.formUnion(infoPlistsToDelete)
 
-        return {
+        return (project, {
             try toDelete.forEach { try FileHandler.shared.delete($0) }
-        }
+        })
     }
 
     /// Genreates the Info.plist files.
@@ -59,7 +53,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     ///   - sourceRootPath: Path to the directory in which the project is getting generated.
     /// - Returns: A set with paths to the Info.plist files that are no longer necessary and therefore need to be removed.
     /// - Throws: An error if the encoding of the Info.plist content fails.
-    func generateInfoPlists(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> Set<AbsolutePath> {
+    func generateInfoPlists(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, Set<AbsolutePath>) {
         let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
         let targetsWithGeneratableInfoPlists = project.targets.filter {
             if let infoPlist = $0.infoPlist, case InfoPlist.file = infoPlist {
@@ -81,8 +75,10 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         }
 
         // Generate the Info.plist
-        try targetsWithGeneratableInfoPlists.forEach { target in
-            guard let infoPlist = target.infoPlist else { return }
+        let newTargets = try project.targets.map { (target) -> Target in
+            guard targetsWithGeneratableInfoPlists.contains(target) else { return target }
+
+            guard let infoPlist = target.infoPlist else { return target }
 
             let dictionary: [String: Any]
 
@@ -95,7 +91,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
                                                                     extendedWith: extended) {
                 dictionary = content
             } else {
-                return
+                return target
             }
 
             let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
@@ -108,10 +104,10 @@ final class DerivedFileGenerator: DerivedFileGenerating {
             try data.write(to: path.url)
 
             // Override the Info.plist value to point to te generated one
-            target.infoPlist = InfoPlist.file(path: path)
+            return target.with(infoPlist: InfoPlist.file(path: path))
         }
 
-        return toDelete
+        return (project.with(targets: newTargets), toDelete)
     }
 
     /// Returns the path to the directory that contains all the derived files.

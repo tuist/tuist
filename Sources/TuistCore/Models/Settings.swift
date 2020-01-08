@@ -27,7 +27,7 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
     }
 }
 
-public class Configuration: Equatable {
+public struct Configuration: Equatable {
     // MARK: - Attributes
 
     public let settings: [String: SettingValue]
@@ -38,12 +38,6 @@ public class Configuration: Equatable {
     public init(settings: [String: SettingValue] = [:], xcconfig: AbsolutePath? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
-    }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Configuration, rhs: Configuration) -> Bool {
-        lhs.settings == rhs.settings && lhs.xcconfig == rhs.xcconfig
     }
 }
 

@@ -4,7 +4,7 @@ import TuistSupport
 import XcodeProj
 
 /// Headers
-public class Headers: Equatable {
+public struct Headers: Equatable {
     public static let extensions = Xcode.headersExtensions
 
     // MARK: - Attributes
@@ -21,13 +21,5 @@ public class Headers: Equatable {
         self.public = `public`
         self.private = `private`
         self.project = project
-    }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Headers, rhs: Headers) -> Bool {
-        lhs.public == rhs.public &&
-            lhs.private == rhs.private &&
-            lhs.project == rhs.project
     }
 }

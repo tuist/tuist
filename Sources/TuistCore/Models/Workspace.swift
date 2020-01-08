@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Workspace: Equatable {
+public struct Workspace: Equatable {
     // MARK: - Attributes
 
     public let path: AbsolutePath
@@ -45,11 +45,5 @@ extension Workspace {
                   projects: Array(Set(projects + otherProjects)),
                   schemes: schemes,
                   additionalFiles: additionalFiles)
-    }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Workspace, rhs: Workspace) -> Bool {
-        lhs.projects == rhs.projects
     }
 }
