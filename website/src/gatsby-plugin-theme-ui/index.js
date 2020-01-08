@@ -130,7 +130,7 @@ const styles = {
   },
   h3: {
     ...heading,
-    marginTop: 3,
+    marginTop: 4,
   },
   h4: {
     ...heading,

@@ -10,13 +10,19 @@ Tuist employs a diverse suite tests that help ensure it works as intended and pr
 
 ### Acceptance Tests
 
-Acceptance tests run the built `tuist` command line against a wide range of [fixtures](/https://github.com/tuist/tuist/tree/master/fixtures) and verify its output and results. They are the slowest to run however provide the most coverage. The idea is to test a few complete scenarios for each major feature.
+Acceptance tests run the built `tuist` command line against a wide range of [fixtures](/https://github.com/tuist/tuist/tree/master/fixtures) and verify its output and results. They are the slowest to run however provide the most coverage. The idea is to **test a few complete scenarios for each major feature**.
 
-Those are written in [Cucumber](https://cucumber.io/docs) and Ruby and can be found in [features](/https://github.com/tuist/tuist/tree/master/features). Those are run when calling `bundle exec rake features`.
+Those are written in [Cucumber](https://cucumber.io/docs) and Ruby and can be found in [features](/https://github.com/tuist/tuist/tree/master/features). Those are run when calling `bundle exec rake features`. To run only a test, we can set the `FEATURE` environment variable:
 
-Example:
+```bash
+# 32 is the line where the definition of the test starts
+FEATURE=features/generate.feature:32 bundle exec rake features
+```
 
-[generate.features](https://github.com/tuist/tuist/blob/master/features/generate.feature) has several scenarios that run `tuist generate` on a fixture, verify Xcode projects and workspaces are generated and finally verify the generated project build and test successfully.
+<Message
+  title="Example"
+  description="[`generate.features`](https://github.com/tuist/tuist/blob/master/features/generate.feature) has several scenarios that run `tuist generate` on a fixture, verify Xcode projects and workspaces are generated and finally verify the generated project build and test successfully."
+/>
 
 ### Unit Tests
 
@@ -26,7 +32,10 @@ Those are written in Swift and follow the convention of `<ComponentName>Tests`. 
 
 **Example:**
 
-[TargetLinterTests](https://github.com/tuist/tuist/blob/master/Tests/TuistGeneratorTests/Linter/TargetLinterTests.swift) verifies all the different scenarios the target linter component can flag issues for.
+<Message
+  title="Example"
+  description="[TargetLinterTests](https://github.com/tuist/tuist/blob/master/Tests/TuistGeneratorTests/Linter/TargetLinterTests.swift) verifies all the different scenarios the target linter component can flag issues for."
+/>
 
 ### Integration Tests
 
@@ -36,4 +45,7 @@ Those are written in Swift and are contained within the `Tuist...IntegrationTest
 
 **Example:**
 
-[StableStructureIntegrationTests](https://github.com/tuist/tuist/blob/master/Tests/TuistIntegrationTests/Generator/StableStructureIntegrationTests.swift) dynamically generates projects with several dependencies and files in random orders and verifies the generated project is always the same even after several generation passes.
+<Message
+  title="Example"
+  description="[StableStructureIntegrationTests](https://github.com/tuist/tuist/blob/master/Tests/TuistIntegrationTests/Generator/StableStructureIntegrationTests.swift) dynamically generates projects with several dependencies and files in random orders and verifies the generated project is always the same even after several generation passes."
+/>
