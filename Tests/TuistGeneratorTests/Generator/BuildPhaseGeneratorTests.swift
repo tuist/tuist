@@ -335,6 +335,9 @@ final class BuildPhaseGeneratorTests: XCTestCase {
             "AppExtension",
             "StickerPackExtension",
         ])
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+                        ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
     }
 
     func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
@@ -382,6 +385,8 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
             "WatchApp",
         ])
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
     }
 
     // MARK: - Helpers

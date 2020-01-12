@@ -292,7 +292,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let refs = sortedAppExtensions.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
-            let pbxBuildFile = PBXBuildFile(file: $0)
+            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
             pbxproj.add(object: pbxBuildFile)
             appExtensionsBuildPhase.files?.append(pbxBuildFile)
         }
@@ -318,7 +318,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let refs = sortedWatchApps.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
-            let pbxBuildFile = PBXBuildFile(file: $0)
+            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
             pbxproj.add(object: pbxBuildFile)
             embedWatchAppBuildPhase.files?.append(pbxBuildFile)
         }
