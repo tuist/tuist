@@ -52,4 +52,17 @@ module Xcode
 
     extension_path
   end
+
+  def self.find_headers(product:, destination:, derived_data_path:)
+    product_path = product_with_name(
+      product,
+      destination: destination,
+      derived_data_path: derived_data_path
+    )
+    return if product_path.nil?
+
+    headers_glob = File.join(product_path, "**/*.h")
+    # /path/to/product/header.h
+    Dir.glob(headers_glob)
+  end
 end

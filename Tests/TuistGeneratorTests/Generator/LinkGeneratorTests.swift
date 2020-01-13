@@ -69,7 +69,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let wakaBuildFile: PBXBuildFile? = copyBuildPhase?.files?.first
         XCTAssertEqual(wakaBuildFile?.file, wakaFile)
         let settings: [String: [String]]? = wakaBuildFile?.settings as? [String: [String]]
-        XCTAssertEqual(settings, ["ATTRIBUTES": ["CodeSignOnCopy"]])
+        XCTAssertEqual(settings, ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
     }
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
@@ -116,7 +116,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
         XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
-            ["ATTRIBUTES": ["CodeSignOnCopy"]],
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
 
