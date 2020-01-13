@@ -116,7 +116,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
         XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
-            ["ATTRIBUTES": ["CodeSignOnCopy"]],
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
 
