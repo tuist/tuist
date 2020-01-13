@@ -92,6 +92,7 @@ Scenario: The project is an iOS application with a target dependency and transit
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'Framework1' with architecture 'arm64'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'Framework2' without architecture 'x86_64'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
     Then I should be able to build for iOS the scheme Framework1-iOS
     Then I should be able to build for iOS the scheme Framework1-macOS
     Then I should be able to build for iOS the scheme Framework1Tests-iOS
@@ -115,6 +116,7 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'resource_without_extension'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'StaticFrameworkResources.bundle'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
     Then the product 'StaticFrameworkResources.bundle' with destination 'Debug-iphoneos' contains resource 'tuist-bundle.png'
 
 Scenario: The project is an iOS application with frameworks and tests (ios_app_with_framework_linking_static_framework)
@@ -127,6 +129,7 @@ Scenario: The project is an iOS application with frameworks and tests (ios_app_w
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework2.framework/Framework2'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework3.framework/Framework3'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework4.framework/Framework4'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
     Then I should be able to test for iOS the scheme AppTests
     Then I should be able to build for iOS the scheme Framework1
     Then I should be able to test for iOS the scheme Framework1Tests
@@ -215,6 +218,7 @@ Scenario: The project is an iOS application with Carthage frameworks (ios_app_wi
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'RxSwift' without architecture 'armv7'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'RxSwift' with architecture 'arm64'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
 
 Scenario: The project is an iOS application with extensions (ios_app_with_extensions)
     Given that tuist is available
@@ -225,6 +229,7 @@ Scenario: The project is an iOS application with extensions (ios_app_with_extens
     Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'StickersPackExtension'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
 
 Scenario: The project is an iOS application with watch app (ios_app_with_watchapp2)
     Given that tuist is available
@@ -233,7 +238,9 @@ Scenario: The project is an iOS application with watch app (ios_app_with_watchap
     Then tuist generates the project
     Then I should be able to build for watchOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Watch/WatchApp.app'
-    Then the product 'WatchApp.app' with destination 'Debug-watchos' contains extension 'WatchAppExtension' 
+    Then the product 'WatchApp.app' with destination 'Debug-watchos' contains extension 'WatchAppExtension'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
+    Then the product 'WatchApp.app' with destination 'Debug-watchos' does not contain headers
 
 Scenario: The project is an iOS application with xcframeworks (ios_app_with_xcframeworks)
     Given that tuist is available
@@ -242,4 +249,5 @@ Scenario: The project is an iOS application with xcframeworks (ios_app_with_xcfr
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'MyFramework' with architecture 'arm64'
+    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
 

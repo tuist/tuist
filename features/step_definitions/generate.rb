@@ -79,3 +79,14 @@ Then("the product {string} with destination {string} contains extension {string}
 
   assert(extension_path)
 end
+
+Then("the product {string} with destination {string} does not contain headers") do |product, destination|
+  headers_paths = Xcode.find_headers(
+    product: product,
+    destination: destination,
+    derived_data_path: @derived_data_path
+  )
+  flunk("Product with name #{product} and destination #{destination} contains headers") if headers_paths.any?
+
+  assert_empty(headers_paths)
+end
