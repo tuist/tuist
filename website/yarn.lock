@@ -6438,10 +6438,10 @@ gatsby-plugin-meta-redirect@^1.1.1:
   dependencies:
     fs-extra "^7.0.0"
 
-gatsby-plugin-netlify@^2.1.27:
-  version "2.1.30"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.1.30.tgz#e6412b399d5182f11bccce06c8dc0aef008d2f5d"
-  integrity sha512-JOiG9zlPwGSYiDdCqLcnGvAuo3k/bW7IBEqdo3qo+ZDQk515HWdCPuYHfwXXOW4gCUB+5OCxnafOxTCYj7QXbg==
+gatsby-plugin-netlify@^2.1.31:
+  version "2.1.31"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.1.31.tgz#438dc478415087cbdcb9a334056e7b305294afe9"
+  integrity sha512-kCStQasyxVQSY0qjq2DOaCoNmPD9sl9MSRTQFJ6HA/loF6Sqd3y8xPSF7iV/3Zt7RxHvDfJ7o538ofHp3EXMSQ==
   dependencies:
     "@babel/runtime" "^7.7.6"
     fs-extra "^8.1.0"
