@@ -11,6 +11,7 @@ let project = Project(name: "App",
                                  dependencies: [
                                      /* Target dependencies can be defined here */
                                      /* .framework(path: "framework") */
+                                     .framework(path: "../ios_app_with_transitive_framework/Framework2/prebuilt/iOS/Framework2.framework")
                                  ],
                                  settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"])),
