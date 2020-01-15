@@ -108,10 +108,11 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         let projectPath = try pathTo("App")
         let dependencies = try createDependencies(relativeTo: projectPath)
         let frameworkTargets = try frameworksNames.map { try createFrameworkTarget(name: $0, depenendencies: dependencies) }
-        let appTarget = createAppTarget(settings: targetSettings, dependencies: frameworksNames)
-        let appUnitTestsTargets = unitTestsTargetNames.map { createUnitTestTarget(name: $0,
-                                                                                  settings: nil,
-                                                                                  dependencies: [appTarget.name]) }
+        let appTarget = createTarget(name: "AppTarget", settings: targetSettings, dependencies: frameworksNames)
+        let appUnitTestsTargets = unitTestsTargetNames.map { createTarget(name: $0,
+                                                                          product: .unitTests,
+                                                                          settings: nil,
+                                                                          dependencies: [appTarget.name]) }
         let schemes = try createSchemes(appTarget: appTarget, frameworkTargets: frameworkTargets)
         let project = createProject(path: projectPath,
                                     settings: projectSettings,
@@ -146,26 +147,12 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                 additionalFiles: createAdditionalFiles())
     }
 
-    private func createAppTarget(settings: Settings?, dependencies: [String]) -> Target {
-        Target(name: "AppTarget",
-               platform: .iOS,
-               product: .app,
-               productName: "AppTarget",
-               bundleId: "test.bundle",
-               settings: settings,
-               sources: createSources(),
-               resources: createResources(),
-               headers: createHeaders(),
-               filesGroup: .group(name: "ProjectGroup"),
-               dependencies: dependencies.map { Dependency.target(name: $0) })
-    }
-
-    private func createUnitTestTarget(name: String, settings: Settings?, dependencies: [String]) -> Target {
+    private func createTarget(name: String, product: Product = .app, settings: Settings?, dependencies: [String]) -> Target {
         Target(name: name,
                platform: .iOS,
-               product: .unitTests,
-               productName: "AppTargetTests",
-               bundleId: "unittests.bundle",
+               product: product,
+               productName: name,
+               bundleId: "test.bundle",
                settings: settings,
                sources: createSources(),
                resources: createResources(),
