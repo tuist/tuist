@@ -384,7 +384,7 @@ public class Graph: Graphing {
         let isDynamicAndLinkable = frameworkUsesDynamicLinking()
 
         /// Precompiled frameworks
-        let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable)
+        let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)
             .lazy
             .map(\.path)
             .map(GraphDependencyReference.absolute)
@@ -465,7 +465,7 @@ public class Graph: Graphing {
         return references
     }
 
-    public func findAll<T: GraphNode>(targetNode: TargetNode, test: (T) -> Bool = { _ in true }, skip: (T) -> Bool = { _ in false }) -> Set<T> {
+    public func findAll<T: GraphNode, S: GraphNode>(targetNode: TargetNode, test: (T) -> Bool = { _ in true }, skip: (S) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         stack.push(targetNode)
@@ -488,7 +488,7 @@ public class Graph: Graphing {
                 references.insert(matchingNode)
             }
 
-            if node != targetNode, let node = node as? T, skip(node) {
+            if node != targetNode, let node = node as? S, skip(node) {
                 continue
             } else if let targetNode = node as? TargetNode {
                 for child in targetNode.dependencies where !visited.contains(child) {

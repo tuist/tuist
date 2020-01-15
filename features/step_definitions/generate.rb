@@ -30,6 +30,16 @@ Then("the product {string} with destination {string} contains the framework {str
   refute(out.include?(architecture))
 end
 
+Then("the product {string} with destination {string} does not contain the framework {string}") do |product, destination, framework|
+  framework_path = Xcode.find_framework(
+    product: product,
+    destination: destination,
+    framework: framework,
+    derived_data_path: @derived_data_path
+  )
+  flunk("Framework #{framework} found") unless framework_path.nil?
+end
+
 Then("the product {string} with destination {string} contains resource {string}") do |product, destination, resource|
   resource_path = Xcode.find_resource(
     product: product,

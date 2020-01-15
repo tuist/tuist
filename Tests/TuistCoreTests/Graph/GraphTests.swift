@@ -733,6 +733,34 @@ final class GraphTests: TuistUnitTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    func test_embeddableDependencies_whenUITest_andAppPrecompiledDepndencies() throws {
+        // Given
+        let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
+        let app = Target.test(name: "App", product: .app)
+        let uiTests = Target.test(name: "AppUITests", product: .uiTests)
+        let project = Project.test(path: "/path/a")
+
+        let appNode = TargetNode(project: project, target: app, dependencies: [precompiledNode])
+        let uiTestsNode = TargetNode(project: project, target: uiTests, dependencies: [appNode])
+
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        cache.add(precompiledNode: precompiledNode)
+        cache.add(targetNode: appNode)
+        cache.add(targetNode: uiTestsNode)
+
+        let graph = Graph(name: "Graph",
+                          entryPath: project.path,
+                          cache: cache,
+                          entryNodes: [appNode, uiTestsNode])
+
+        // When
+        let result = try graph.embeddableFrameworks(path: project.path, name: uiTests.name)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func test_librariesSearchPaths() throws {
         // Given
         let target = Target.test(name: "Main")
@@ -975,6 +1003,15 @@ final class GraphTests: TuistUnitTestCase {
     }
 
     // MARK: - Helpers
+
+    private func mockDynamicFrameworkNode(at path: AbsolutePath) -> FrameworkNode {
+        let precompiledNode = FrameworkNode(path: path)
+        let binaryPath = path.appending(component: path.basenameWithoutExt)
+        system.succeedCommand("/usr/bin/file",
+                              binaryPath.pathString,
+                              output: "dynamically linked")
+        return precompiledNode
+    }
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
         switch dependency {

@@ -25,5 +25,16 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
+        Target(
+            name: "AppUITests",
+            platform: .iOS,
+            product: .uiTests,
+            bundleId: "io.tuist.AppUITests",
+            infoPlist: "Config/AppTests-Info.plist",
+            sources: "UITests/**",
+            dependencies: [
+                .target(name: "App"),
+            ]
+        ),
     ]
 )
