@@ -41,7 +41,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
             ("/test/file2.swift", nil),
         ]
 
-        let fileElements = createSourceFileElements(for: sources.map { $0.path })
+        let fileElements = createFileElements(for: sources.map { $0.path })
 
         // When
         try subject.generateSourcesBuildPhase(files: sources,
@@ -87,27 +87,42 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateHeadersBuildPhase() throws {
-        let path = AbsolutePath("/test.h")
-        let headers = Headers.test(public: [path], private: [], project: [])
-        let pbxproj = PBXProj()
-        let fileElements = ProjectFileElements()
-        let header = PBXFileReference()
-        pbxproj.add(object: header)
-        fileElements.elements[AbsolutePath("/test.h")] = header
+        // Given
         let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
 
+        let headers = Headers(public: ["/test/Public1.h"],
+                              private: ["/test/Private1.h"],
+                              project: ["/test/Project1.h"])
+
+        let fileElements = createFileElements(for: headers)
+
+        // When
         try subject.generateHeadersBuildPhase(headers: headers,
                                               pbxTarget: target,
                                               fileElements: fileElements,
                                               pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXBuildPhase? = target.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXHeadersBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
-        XCTAssertNotNil(pbxBuildFile)
-        XCTAssertEqual(pbxBuildFile?.settings?["ATTRIBUTES"] as? [String], ["Public"])
-        XCTAssertEqual(pbxBuildFile?.file, header)
+        // Then
+        let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXHeadersBuildPhase)
+        let buildFiles = buildPhase.files ?? []
+
+        struct FileWithSettings: Equatable {
+            var name: String?
+            var attributes: [String]?
+        }
+
+        let buildFilesWithSettings = buildFiles.map {
+            FileWithSettings(name: $0.file?.name,
+                             attributes: $0.settings?["ATTRIBUTES"] as? [String])
+        }
+
+        XCTAssertEqual(buildFilesWithSettings, [
+            FileWithSettings(name: "Private1.h", attributes: ["Private"]),
+            FileWithSettings(name: "Public1.h", attributes: ["Public"]),
+            FileWithSettings(name: "Project1.h", attributes: nil),
+        ])
     }
 
     func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
@@ -407,11 +422,15 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         return fileElements
     }
 
-    private func createSourceFileElements(for files: [AbsolutePath]) -> ProjectFileElements {
+    private func createFileElements(for files: [AbsolutePath]) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
         fileElements.elements = Dictionary(uniqueKeysWithValues: files.map {
             ($0, PBXFileReference(sourceTree: .group, name: $0.basename))
         })
         return fileElements
+    }
+
+    private func createFileElements(for headers: Headers) -> ProjectFileElements {
+        return createFileElements(for: headers.public + headers.private + headers.project)
     }
 }
