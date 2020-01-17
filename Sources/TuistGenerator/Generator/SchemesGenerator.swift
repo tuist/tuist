@@ -127,7 +127,6 @@ final class SchemesGenerator: SchemesGenerating {
             testTargets = [TestableTarget(target: targetReference)]
         } else {
             testTargets = graph.testTargetsDependingOn(path: project.path, name: target.name)
-                .sorted { $0.target.name < $1.target.name }
                 .map { TargetReference(projectPath: $0.project.path, name: $0.target.name) }
                 .map { TestableTarget(target: $0) }
         }
