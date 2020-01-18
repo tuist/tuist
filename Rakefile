@@ -21,6 +21,11 @@ task :style_correct do
   system("swiftlint", "autocorrect")
 end
 
+desc("Swift format check")
+task :swift_format do
+  systemWithErrorMessage("swiftformat", "--lint", ".", "Swift formatting errors encountered, please run following terminal command `rake style_correct` locally from your tuist root folder to correct it and commit the change")
+end
+
 desc("Lints the Ruby code style")
 task :style_ruby do
   system("bundle", "exec", "rubocop")
@@ -130,6 +135,13 @@ def system(*args)
   Kernel.system(*args) || abort
 end
 
+def systemWithErrorMessage(*args, error_message)
+  if !Kernel.system(*args)
+    print_error_message(error_message)
+    abort
+  end
+end
+
 def cli
   @cli ||= HighLine.new
 end
@@ -154,4 +166,8 @@ end
 
 def print_section(text)
   puts text.bold.green
+end
+
+def print_error_message(text)
+  puts text.bold.red
 end
