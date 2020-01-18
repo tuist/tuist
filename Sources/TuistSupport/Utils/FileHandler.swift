@@ -30,6 +30,10 @@ enum FileHandlerError: FatalError {
 /// Protocol that defines the interface of an object that provides convenient
 /// methods to interact with the system files and folders.
 public protocol FileHandling: AnyObject {
+    
+    /// true if verbose logging is enabled
+    var verbose: Bool { get set }
+    
     /// Returns the current path.
     var currentPath: AbsolutePath { get }
 
@@ -123,6 +127,8 @@ public protocol FileHandling: AnyObject {
 
 public class FileHandler: FileHandling {
     // MARK: - Attributes
+    
+    public var verbose: Bool = false
 
     public static var shared: FileHandling = FileHandler()
     private let fileManager: FileManager
@@ -140,6 +146,7 @@ public class FileHandler: FileHandling {
     }
 
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
+        log(to, with)
         // To support cases where the destination is on a different volume
         // we need to create a temporary directory that is suitable
         // for performing a `replaceItemAt`
@@ -168,18 +175,22 @@ public class FileHandler: FileHandling {
     }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
+        log(from, to)
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     public func move(from: AbsolutePath, to: AbsolutePath) throws {
+        log(from, to)
         try fileManager.moveItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     public func readFile(_ at: AbsolutePath) throws -> Data {
-        try Data(contentsOf: at.url)
+        log(at)
+        return try Data(contentsOf: at.url)
     }
 
     public func readTextFile(_ at: AbsolutePath) throws -> String {
+        log(at)
         let data = try Data(contentsOf: at.url)
         if let content = String(data: data, encoding: .utf8) {
             return content
@@ -189,6 +200,7 @@ public class FileHandler: FileHandling {
     }
 
     public func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T {
+        log(at)
         guard let data = fileManager.contents(atPath: at.pathString) else {
             throw FileHandlerError.fileNotFound(at)
         }
@@ -196,10 +208,12 @@ public class FileHandler: FileHandling {
     }
 
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
+        log(atPath, toPath)
         try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }
 
     public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        log(content, path)
         do {
             try content.write(to: path.url, atomically: atomically, encoding: .utf8)
         } catch {}
@@ -221,16 +235,19 @@ public class FileHandler: FileHandling {
     }
 
     public func createFolder(_ path: AbsolutePath) throws {
+        log(path)
         try fileManager.createDirectory(at: path.url,
                                         withIntermediateDirectories: true,
                                         attributes: nil)
     }
 
     public func delete(_ path: AbsolutePath) throws {
+        log(path)
         try fileManager.removeItem(atPath: path.pathString)
     }
 
     public func touch(_ path: AbsolutePath) throws {
+        log(path)
         try fileManager.createDirectory(at: path.removingLastComponent().url,
                                         withIntermediateDirectories: true,
                                         attributes: nil)
@@ -244,6 +261,7 @@ public class FileHandler: FileHandling {
     }
 
     public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
+        log(from, path)
         let tuistConfigPath = from.appending(component: path)
 
         if FileHandler.shared.exists(tuistConfigPath) {
@@ -252,6 +270,12 @@ public class FileHandler: FileHandling {
             return nil
         } else {
             return locateDirectoryTraversingParents(from: from.parentDirectory, path: path)
+        }
+    }
+    
+    private func log(function: StaticString = #function, _ arguments: CustomStringConvertible...) {
+        if verbose {
+            Printer.shared.print("📂 \(function)\n\t\(arguments.map(\.description).joined(separator: " "))")
         }
     }
 }

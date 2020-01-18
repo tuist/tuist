@@ -3,6 +3,10 @@ import Foundation
 import RxSwift
 
 public protocol Systeming {
+    
+    /// true if verbose logging is enabled
+    var verbose: Bool { get set }
+    
     /// System environment.
     var env: [String: String] { get }
 
@@ -179,6 +183,9 @@ public enum SystemError: FatalError {
 }
 
 public final class System: Systeming {
+    
+    public var verbose: Bool = false
+    
     /// Shared system instance.
     public static var shared: Systeming = System()
 
@@ -197,7 +204,7 @@ public final class System: Systeming {
         // Ruby
         "GEM_PATH", "RUBY_ENGINE", "GEM_ROOT", "GEM_HOME", "RUBY_ROOT", "RUBY_VERSION",
         // Xcode
-        "DEVELOPER_DIR",
+        "DEVELOPER_DIR"
     ]
 
     /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.
@@ -218,7 +225,7 @@ public final class System: Systeming {
                               environment: env,
                               outputRedirection: .stream(stdout: { _ in },
                                                          stderr: { _ in }),
-                              verbose: false,
+                              verbose: verbose,
                               startNewProcessGroup: false)
 
         try process.launch()
@@ -254,7 +261,7 @@ public final class System: Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String]) throws -> String {
-        try capture(arguments, verbose: false, environment: env)
+        try capture(arguments, verbose: verbose, environment: env)
     }
 
     /// Runs a command in the shell and returns the standard output string.
@@ -311,7 +318,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: env)
+        try runAndPrint(arguments, verbose: verbose, environment: env)
     }
 
     /// Runs a command in the shell printing its output.
@@ -375,7 +382,7 @@ public final class System: Systeming {
     }
 
     public func rxRun(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
-        rxRun(arguments, verbose: false)
+        rxRun(arguments, verbose: verbose)
     }
 
     public func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
@@ -415,7 +422,7 @@ public final class System: Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     public func async(_ arguments: [String]) throws {
-        try async(arguments, verbose: false, environment: env)
+        try async(arguments, verbose: verbose, environment: env)
     }
 
     /// Runs a command in the shell asynchronously.

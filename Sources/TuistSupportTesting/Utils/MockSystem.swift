@@ -5,6 +5,8 @@ import TuistSupport
 import XCTest
 
 public final class MockSystem: Systeming {
+    public var verbose: Bool = true
+    
     public var env: [String: String] = ProcessInfo.processInfo.environment
     // swiftlint:disable:next large_tuple
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
@@ -45,11 +47,11 @@ public final class MockSystem: Systeming {
     }
 
     public func capture(_ arguments: [String]) throws -> String {
-        try capture(arguments, verbose: false, environment: [:])
+        try capture(arguments, verbose: verbose, environment: [:])
     }
 
     public func capture(_ arguments: String...) throws -> String {
-        try capture(arguments, verbose: false, environment: [:])
+        try capture(arguments, verbose: verbose, environment: [:])
     }
 
     public func capture(_ arguments: String..., verbose: Bool, environment: [String: String]) throws -> String {
@@ -72,7 +74,7 @@ public final class MockSystem: Systeming {
     }
 
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: [:])
+        try runAndPrint(arguments, verbose: verbose, environment: [:])
     }
 
     public func runAndPrint(_ arguments: String..., verbose: Bool, environment: [String: String]) throws {
@@ -102,7 +104,7 @@ public final class MockSystem: Systeming {
     }
 
     public func rxRun(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
-        rxRun(arguments, verbose: false)
+        rxRun(arguments, verbose: verbose)
     }
 
     public func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {

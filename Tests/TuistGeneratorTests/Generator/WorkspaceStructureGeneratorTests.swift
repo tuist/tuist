@@ -278,6 +278,9 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
     }
 
     fileprivate class InMemoryFileHandler: FileHandling {
+        
+        var verbose: Bool = true
+        
         private enum Node {
             case file
             case folder
