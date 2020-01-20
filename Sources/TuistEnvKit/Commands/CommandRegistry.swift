@@ -11,6 +11,7 @@ public final class CommandRegistry {
     private let errorHandler: ErrorHandling
     private let processArguments: () -> [String]
     private let commandRunner: CommandRunning
+    private let verboseArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
@@ -33,6 +34,12 @@ public final class CommandRegistry {
         parser = ArgumentParser(commandName: "tuist",
                                 usage: "<command> <options>",
                                 overview: "Manage the environment tuist versions.")
+        
+        verboseArgument = parser.add(option: "--verbose",
+                                        shortName: "-v",
+                                        kind: Bool.self,
+                                        usage: "Enable verbose logging of System operations.")
+        
         self.processArguments = processArguments
         self.errorHandler = errorHandler
         self.commandRunner = commandRunner
@@ -46,6 +53,12 @@ public final class CommandRegistry {
             if processArguments().dropFirst().first == "--help-env" {
                 parser.printUsage(on: stdoutStream)
             } else if let parsedArguments = try parse() {
+                
+                let verbose = parsedArguments.get(verboseArgument) ?? false
+                
+                System.shared.verbose = verbose
+                FileHandler.shared.verbose = verbose
+            
                 try process(arguments: parsedArguments)
             } else {
                 try commandRunner.run()

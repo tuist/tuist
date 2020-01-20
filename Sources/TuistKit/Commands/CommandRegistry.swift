@@ -10,6 +10,8 @@ public final class CommandRegistry {
     var commands: [Command] = []
     var rawCommands: [RawCommand] = []
     var hiddenCommands: [String: HiddenCommand] = [:]
+    let verboseArgument: OptionArgument<Bool>
+
     private let errorHandler: ErrorHandling
     private let processArguments: () -> [String]
 
@@ -38,6 +40,11 @@ public final class CommandRegistry {
                                 usage: "<command> <options>",
                                 overview: "Generate, build and test your Xcode projects.")
         self.processArguments = processArguments
+        
+        verboseArgument = parser.add(option: "--verbose",
+                                     shortName: "-v",
+                                     kind: Bool.self,
+                                     usage: "Enable verbose logging of System operations.")
     }
 
     public static func processArguments() -> [String] {
@@ -75,6 +82,13 @@ public final class CommandRegistry {
                 // Normal command
             } else {
                 let parsedArguments = try parse()
+                
+                let verbose = parsedArguments.get(verboseArgument) ?? false
+                
+                System.shared.verbose = verbose
+                FileHandler.shared.verbose = verbose
+                
+                
                 try process(arguments: parsedArguments)
             }
         } catch let error as FatalError {
