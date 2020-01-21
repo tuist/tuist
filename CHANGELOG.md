@@ -16,7 +16,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Ensure precompiled frameworks of target applications aren't included in UI test targets https://github.com/tuist/tuist/pull/888 by @kwridan
 - Make the scheme generation with testable targets stable https://github.com/tuist/tuist/pull/892 by @marciniwanicki
 - Fix project header attributes https://github.com/tuist/tuist/pull/895 by @kwridan
-- Support for Core Data mapping modules by @andreacipriani
+- Excluding files from target doesn't work in all cases https://github.com/tuist/tuist/pull/913 by @vytis
+- Support for Core Data mapping modules https://github.com/tuist/tuist/pull/911 by @andreacipriani
 
 ### Changed
 - Turn models from `TuistCore` that are clases into structs https://github.com/tuist/tuist/pull/870 by @pepibumur.
