@@ -293,3 +293,7 @@ An example of an application which depends on prebuilt `.xcframework`s.
 The `.xcframework` can be obtained by running the `build.sh` script within the each of the framework directories.
 
 e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
+
+## ios_app_with_coredate
+
+Showcases a simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
