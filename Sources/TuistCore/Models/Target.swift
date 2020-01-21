@@ -117,7 +117,7 @@ public struct Target: Equatable, Hashable {
             // Paths that should be excluded from sources
             let excluded = source.excluding
                 .map { AbsolutePath($0) }
-                .map { (excludePath) in AbsolutePath(excludePath.dirname).glob(excludePath.basename) }
+                .map { excludePath in AbsolutePath(excludePath.dirname).glob(excludePath.basename) }
                 ?? []
 
             Set(base.glob(sourcePath.basename))
