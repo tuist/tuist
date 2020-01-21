@@ -296,4 +296,4 @@ e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
 
 ## ios_app_with_coredate
 
-Showcases a simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
+A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
