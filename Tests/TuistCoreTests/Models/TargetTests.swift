@@ -6,7 +6,7 @@ import XCTest
 
 final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition"])
+        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel"])
     }
 
     func test_productName_when_staticLibrary() {
