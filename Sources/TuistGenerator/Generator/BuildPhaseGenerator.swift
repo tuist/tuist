@@ -151,20 +151,21 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: headersBuildPhase)
         pbxTarget.buildPhases.append(headersBuildPhase)
 
-        let addHeader: (AbsolutePath, String) throws -> Void = { path, accessLevel in
+        let addHeader: (AbsolutePath, String?) throws -> Void = { path, accessLevel in
             guard let fileReference = fileElements.file(path: path) else {
                 throw BuildPhaseGenerationError.missingFileReference(path)
             }
-            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: [
-                "ATTRIBUTES": [accessLevel.capitalized],
-            ])
+            let settings: [String: [String]]? = accessLevel.map {
+                ["ATTRIBUTES": [$0.capitalized]]
+            }
+            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
             pbxproj.add(object: pbxBuildFile)
             headersBuildPhase.files?.append(pbxBuildFile)
         }
 
         try headers.private.sorted().forEach { try addHeader($0, "private") }
         try headers.public.sorted().forEach { try addHeader($0, "public") }
-        try headers.project.sorted().forEach { try addHeader($0, "project") }
+        try headers.project.sorted().forEach { try addHeader($0, nil) }
     }
 
     func generateResourcesBuildPhase(path: AbsolutePath,
