@@ -1,5 +1,6 @@
 import Basic
 import TuistCore
+import TuistSupport
 import XcodeProj
 import XCTest
 
@@ -23,6 +24,8 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         var capturedProjects = [[XcodeProj]]()
         var capturesWorkspaces = [XCWorkspace]()
+        var capturedSharedSchemes = [[XCScheme]]()
+        var capturedUserSchemes = [[XCScheme]]()
 
         // When
         try (0 ..< 10).forEach { _ in
@@ -32,16 +35,24 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
 
             let workspace = try XCWorkspace(path: workspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: workspace)
+            let sharedSchemes = try findSharedSchemes(in: workspace)
+            let userSchemes = try findUserSchemes(in: workspace)
             capturedProjects.append(xcodeProjs)
             capturesWorkspaces.append(workspace)
+            capturedSharedSchemes.append(sharedSchemes)
+            capturedUserSchemes.append(userSchemes)
         }
 
         // Then
         let unstableProjects = capturedProjects.dropFirst().filter { $0 != capturedProjects.first }
         let unstableWorkspaces = capturesWorkspaces.dropFirst().filter { $0 != capturesWorkspaces.first }
+        let unstableSharedSchemes = capturedSharedSchemes.dropFirst().filter { $0 != capturedSharedSchemes.first }
+        let unstableUserSchemes = capturedUserSchemes.dropFirst().filter { $0 != capturedUserSchemes.first }
 
         XCTAssertEqual(unstableProjects.count, 0)
         XCTAssertEqual(unstableWorkspaces.count, 0)
+        XCTAssertEqual(unstableSharedSchemes.count, 0)
+        XCTAssertEqual(unstableUserSchemes.count, 0)
     }
 
     // MARK: - Helpers
@@ -53,6 +64,24 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         return xcodeProjs
     }
 
+    private func findSharedSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
+        return try findSchemes(in: workspace, relativePath: RelativePath("xcshareddata"))
+    }
+
+    private func findUserSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
+        return try findSchemes(in: workspace, relativePath: RelativePath("xcuserdata"))
+    }
+
+    private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) throws -> [XCScheme] {
+        let temporaryPath = try self.temporaryPath()
+        let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
+        let parentDir = projectsPaths.map { $0.appending(relativePath) }
+        let schemes = try parentDir.map { FileHandler.shared.glob($0, glob: "**/*.xcscheme") }
+            .flatMap { $0 }
+            .map { try XCScheme(path: $0.path) }
+        return schemes
+    }
+
     private func setupTestProject() throws {
         try createFolders(["App/Sources"])
     }
@@ -61,6 +90,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let modelLoader = MockGeneratorModelLoader(basePath: temporaryPath)
         let frameworksNames = (0 ..< 10).map { "Framework\($0)" }
+        let unitTestsTargetNames = (0 ..< 10).map { "TestAppTests\($0)" }
         let targetSettings = Settings(base: ["A1": "A_VALUE",
                                              "B1": "B_VALUE",
                                              "C1": "C_VALUE"],
@@ -78,11 +108,15 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         let projectPath = try pathTo("App")
         let dependencies = try createDependencies(relativeTo: projectPath)
         let frameworkTargets = try frameworksNames.map { try createFrameworkTarget(name: $0, depenendencies: dependencies) }
-        let appTarget = createAppTarget(settings: targetSettings, dependencies: frameworksNames)
+        let appTarget = createTarget(name: "AppTarget", settings: targetSettings, dependencies: frameworksNames)
+        let appUnitTestsTargets = unitTestsTargetNames.map { createTarget(name: $0,
+                                                                          product: .unitTests,
+                                                                          settings: nil,
+                                                                          dependencies: [appTarget.name]) }
         let schemes = try createSchemes(appTarget: appTarget, frameworkTargets: frameworkTargets)
         let project = createProject(path: projectPath,
                                     settings: projectSettings,
-                                    targets: [appTarget] + frameworkTargets,
+                                    targets: [appTarget] + frameworkTargets + appUnitTestsTargets,
                                     schemes: schemes)
         let workspace = try createWorkspace(projects: ["App"])
         let tuistConfig = createTuistConfig()
@@ -113,11 +147,11 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                 additionalFiles: createAdditionalFiles())
     }
 
-    private func createAppTarget(settings: Settings?, dependencies: [String]) -> Target {
-        Target(name: "AppTarget",
+    private func createTarget(name: String, product: Product = .app, settings: Settings?, dependencies: [String]) -> Target {
+        Target(name: name,
                platform: .iOS,
-               product: .app,
-               productName: "AppTarget",
+               product: product,
+               productName: name,
                bundleId: "test.bundle",
                settings: settings,
                sources: createSources(),

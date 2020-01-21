@@ -51,24 +51,29 @@ final class GraphTests: TuistUnitTestCase {
         // given
         let target = Target.test(name: "Main")
         let dependentTarget = Target.test(name: "Dependency", product: .staticLibrary)
-        let testTarget = Target.test(name: "MainTests", product: .unitTests)
-        let project = Project.test(targets: [target, dependentTarget, testTarget])
+        let testTarget1 = Target.test(name: "MainTests1", product: .unitTests)
+        let testTarget2 = Target.test(name: "MainTests2", product: .unitTests)
+        let testTarget3 = Target.test(name: "MainTests3", product: .unitTests)
+        let testTargets = [testTarget1, testTarget2, testTarget3]
+        let project = Project.test(targets: [target, dependentTarget] + testTargets)
 
         let dependencyNode = TargetNode(project: project, target: dependentTarget, dependencies: [])
         let targetNode = TargetNode(project: project, target: target, dependencies: [dependencyNode])
-        let testNode = TargetNode(project: project, target: testTarget, dependencies: [targetNode])
+        let testsNodes = testTargets.map { TargetNode(project: project, target: $0, dependencies: [targetNode]) }
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
-        cache.add(targetNode: testNode)
+        testsNodes.forEach {
+            cache.add(targetNode: $0)
+        }
         let graph = Graph.test(cache: cache)
 
         // when
         let testDependencies = graph.testTargetsDependingOn(path: project.path, name: target.name)
 
         // then
-        XCTAssertEqual(testDependencies.count, 1)
-        let testDependency = try XCTUnwrap(testDependencies.first)
-        XCTAssertEqual(testDependency.name, testTarget.name)
+        let testDependenciesNames = try XCTUnwrap(testDependencies).map { $0.name }
+        XCTAssertEqual(testDependenciesNames.count, 3)
+        XCTAssertEqual(testDependenciesNames, ["MainTests1", "MainTests2", "MainTests3"])
     }
 
     func test_linkableDependencies_whenPrecompiled() throws {
