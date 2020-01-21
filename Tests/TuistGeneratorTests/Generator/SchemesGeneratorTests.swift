@@ -22,11 +22,16 @@ final class SchemesGeneratorTests: XCTestCase {
     func test_defaultGeneratedScheme_RegularTarget() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
-        let testTarget = Target.test(name: "AppTests", product: .unitTests)
-        let project = Project.test(targets: [target, testTarget])
+        let testTarget1 = Target.test(name: "AppTests1", product: .unitTests)
+        let testTarget2 = Target.test(name: "AppTests2", product: .unitTests)
+        let testTarget3 = Target.test(name: "AppTests3", product: .unitTests)
+        let testTargets = [testTarget1, testTarget2, testTarget3]
+        let project = Project.test(targets: [target] + testTargets)
 
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: []),
-                                                (project: project, target: testTarget, dependencies: [target])])
+                                                (project: project, target: testTarget1, dependencies: [target]),
+                                                (project: project, target: testTarget2, dependencies: [target]),
+                                                (project: project, target: testTarget3, dependencies: [target])])
 
         // When
         let got = subject.createDefaultScheme(target: target, project: project, buildConfiguration: "Debug", graph: graph)
@@ -41,9 +46,10 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(buildAction.targets, [targetReference])
 
         let testAction = try XCTUnwrap(result.testAction)
-        let testTargetReference = TargetReference(projectPath: project.path, name: testTarget.name)
-        let testableTarget = TestableTarget(target: testTargetReference)
-        XCTAssertEqual(testAction.targets, [testableTarget])
+        let testableTargests = testTargets
+            .map { TargetReference(projectPath: project.path, name: $0.name) }
+            .map { TestableTarget(target: $0) }
+        XCTAssertEqual(testAction.targets, testableTargests)
     }
 
     func test_defaultGeneratedScheme_TestTarget() throws {

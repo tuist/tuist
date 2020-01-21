@@ -254,6 +254,7 @@ public class Graph: Graphing {
         return targets(at: path)
             .filter { $0.target.product.testsBundle }
             .filter { $0.targetDependencies.contains(targetNode) }
+            .sorted { $0.target.name < $1.target.name }
     }
 
     public func staticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
