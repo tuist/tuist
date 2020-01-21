@@ -36,9 +36,9 @@ public final class CommandRegistry {
                                 overview: "Manage the environment tuist versions.")
         
         verboseArgument = parser.add(option: "--verbose",
-                                        shortName: "-v",
-                                        kind: Bool.self,
-                                        usage: "Enable verbose logging of System operations.")
+                                     shortName: "-v",
+                                     kind: Bool.self,
+                                     usage: "Enable verbose logging of System operations.")
         
         self.processArguments = processArguments
         self.errorHandler = errorHandler
