@@ -3,10 +3,9 @@ import Foundation
 import RxSwift
 
 public protocol Systeming {
-    
     /// true if verbose logging is enabled
     var verbose: Bool { get set }
-    
+
     /// System environment.
     var env: [String: String] { get }
 
@@ -183,9 +182,8 @@ public enum SystemError: FatalError {
 }
 
 public final class System: Systeming {
-    
     public var verbose: Bool = false
-    
+
     /// Shared system instance.
     public static var shared: Systeming = System()
 
@@ -204,7 +202,7 @@ public final class System: Systeming {
         // Ruby
         "GEM_PATH", "RUBY_ENGINE", "GEM_ROOT", "GEM_HOME", "RUBY_ROOT", "RUBY_VERSION",
         // Xcode
-        "DEVELOPER_DIR"
+        "DEVELOPER_DIR",
     ]
 
     /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.

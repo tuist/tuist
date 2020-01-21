@@ -61,11 +61,10 @@ final class FileHandlerTests: TuistUnitTestCase {
         // // Then
         // XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
     }
-    
+
     func test_verbose() throws {
-        
         subject.verbose = true
-        
+
         // Given
         let tempFile = try TemporaryFile()
         let destFile = try TemporaryFile()
@@ -73,9 +72,8 @@ final class FileHandlerTests: TuistUnitTestCase {
 
         // When
         try subject.replace(destFile.path, with: tempFile.path)
-        
+
         XCTAssertPrinterOutputContains("replace")
-        
     }
 
     // MARK: - Private

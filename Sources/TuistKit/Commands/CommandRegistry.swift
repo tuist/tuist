@@ -40,7 +40,7 @@ public final class CommandRegistry {
                                 usage: "<command> <options>",
                                 overview: "Generate, build and test your Xcode projects.")
         self.processArguments = processArguments
-        
+
         verboseArgument = parser.add(option: "--verbose",
                                      shortName: "-v",
                                      kind: Bool.self,
@@ -82,13 +82,12 @@ public final class CommandRegistry {
                 // Normal command
             } else {
                 let parsedArguments = try parse()
-                
+
                 let verbose = parsedArguments.get(verboseArgument) ?? false
-                
+
                 System.shared.verbose = verbose
                 FileHandler.shared.verbose = verbose
-                
-                
+
                 try process(arguments: parsedArguments)
             }
         } catch let error as FatalError {

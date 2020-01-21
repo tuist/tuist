@@ -98,7 +98,6 @@ public protocol Printing: AnyObject {
 }
 
 public class Printer: Printing {
-
     /// Shared instance
     public static var shared: Printing = Printer()
 

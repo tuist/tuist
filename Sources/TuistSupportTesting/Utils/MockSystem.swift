@@ -6,7 +6,7 @@ import XCTest
 
 public final class MockSystem: Systeming {
     public var verbose: Bool = true
-    
+
     public var env: [String: String] = ProcessInfo.processInfo.environment
     // swiftlint:disable:next large_tuple
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]

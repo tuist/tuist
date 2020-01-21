@@ -30,10 +30,9 @@ enum FileHandlerError: FatalError {
 /// Protocol that defines the interface of an object that provides convenient
 /// methods to interact with the system files and folders.
 public protocol FileHandling: AnyObject {
-    
     /// true if verbose logging is enabled
     var verbose: Bool { get set }
-    
+
     /// Returns the current path.
     var currentPath: AbsolutePath { get }
 
@@ -127,7 +126,7 @@ public protocol FileHandling: AnyObject {
 
 public class FileHandler: FileHandling {
     // MARK: - Attributes
-    
+
     public var verbose: Bool = false
 
     public static var shared: FileHandling = FileHandler()
@@ -272,7 +271,7 @@ public class FileHandler: FileHandling {
             return locateDirectoryTraversingParents(from: from.parentDirectory, path: path)
         }
     }
-    
+
     private func log(function: StaticString = #function, _ arguments: CustomStringConvertible...) {
         if verbose {
             Printer.shared.print("📂 \(function)\n\t\(arguments.map(\.description).joined(separator: " "))")
