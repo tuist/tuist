@@ -197,6 +197,7 @@ module.exports = {
               yMargin: 24,
             },
           },
+          'gatsby-remark-check-links',
         ],
       },
     },
