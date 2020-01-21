@@ -74,7 +74,7 @@ public final class CommandRegistry {
 
     private func parse() throws -> ArgumentParser.Result? {
         let arguments = Array(processArguments().dropFirst())
-        guard let firstArgument = arguments.first else { return nil }
+        guard let firstArgument = arguments.first(where: { $0.hasPrefix("-") == false }) else { return nil }
         if commands.map({ type(of: $0).command }).contains(firstArgument) {
             return try parser.parse(arguments)
         }
