@@ -23,35 +23,24 @@ final class GitHubClientTests: XCTestCase {
     }
 
     func test_execute_when_returns_an_error() throws {
-        let error = NSError(domain: "test", code: 1, userInfo: nil)
         let request = URLRequest(url: URL(string: "http://test")!)
-        sessionScheduler.scheduleStub = { _request in
-            if _request == request {
-                return (error, nil)
-            } else {
-                return (nil, nil)
-            }
-        }
+        sessionScheduler.stub(request: request, error: URLError(.badServerResponse))
+
         XCTAssertThrowsError(try subject.execute(request: request))
     }
 
     func test_execute_when_returns_no_data() {
         let request = URLRequest(url: URL(string: "http://test")!)
-        sessionScheduler.scheduleStub = { _ in (nil, nil) }
+
         XCTAssertThrowsError(try subject.execute(request: request))
     }
 
     func test_execute_when_returns_data_without_errors() throws {
         let request = URLRequest(url: URL(string: "http://test")!)
-        sessionScheduler.scheduleStub = { _request in
-            if _request == request {
-                let json: [String: Any] = ["test": "test"]
-                let data = try! JSONSerialization.data(withJSONObject: json, options: [])
-                return (nil, data)
-            } else {
-                return (nil, nil)
-            }
-        }
+        let json: [String: Any] = ["test": "test"]
+        let data = try! JSONSerialization.data(withJSONObject: json, options: [])
+        sessionScheduler.stub(request: request, data: data)
+
         let gotData = try subject.execute(request: request)
         let got = try JSONSerialization.jsonObject(with: gotData, options: []) as? [String: String]
         XCTAssertEqual(got?["test"], "test")

@@ -431,6 +431,6 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     private func createFileElements(for headers: Headers) -> ProjectFileElements {
-        return createFileElements(for: headers.public + headers.private + headers.project)
+        createFileElements(for: headers.public + headers.private + headers.project)
     }
 }

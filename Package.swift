@@ -32,6 +32,7 @@ let package = Package(
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
+        .package(url: "https://github.com/broadwaylamb/OpenCombine.git", .upToNextMajor(from: "0.8.0")),
     ],
     targets: [
         .target(
@@ -68,7 +69,7 @@ let package = Package(
         ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["SPMUtility", "TuistSupport"]
+            dependencies: ["SPMUtility", "TuistSupport", "OpenCombine", "OpenCombineFoundation"]
         ),
         .testTarget(
             name: "TuistEnvKitTests",
@@ -88,7 +89,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SPMUtility", "RxSwift", "RxRelay"]
+            dependencies: ["SPMUtility", "RxSwift", "RxRelay", "OpenCombine", "OpenCombineDispatch"]
         ),
         .target(
             name: "TuistSupportTesting",

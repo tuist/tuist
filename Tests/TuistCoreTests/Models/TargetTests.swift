@@ -87,7 +87,7 @@ final class TargetTests: TuistUnitTestCase {
             "sources/bTests.swift",
             "sources/kTests.kt",
             "sources/c/c.swift",
-            "sources/c/cTests.swift"
+            "sources/c/cTests.swift",
         ])
 
         // When
@@ -104,7 +104,7 @@ final class TargetTests: TuistUnitTestCase {
         XCTAssertEqual(Set(relativeSources), Set([
             "sources/a.swift",
             "sources/b.swift",
-            "sources/c/c.swift"
+            "sources/c/c.swift",
         ]))
     }
 
