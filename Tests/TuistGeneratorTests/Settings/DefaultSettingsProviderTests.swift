@@ -1,10 +1,11 @@
 import TuistCore
 import TuistCoreTesting
-import TuistSupportTesting
+@testable import TuistSupportTesting
 import XCTest
+import struct SPMUtility.Version
 @testable import TuistGenerator
 
-final class DefaultSettingsProvider_iOSTests: XCTestCase {
+final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     private var subject: DefaultSettingsProvider!
 
     private let projectEssentialDebugSettings: [String: SettingValue] = [
@@ -274,6 +275,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
         let target = Target.test(settings: settings)
+        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(target: target,
@@ -283,6 +285,40 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
         XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
         XCTAssertEqual(got.count, 9)
     }
+    
+    func testTargetSettings_whenXcode10() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .recommended)
+        let target = Target.test(settings: settings)
+        xcodeController.selectedVersionStub = .success(Version(10, 0, 0))
+        
+        // When
+        let got = try subject.targetSettings(target: target,
+                                             buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertFalse(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
+    }
+    
+    func testTargetSettings_whenXcode11() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .recommended)
+        let target = Target.test(settings: settings)
+        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+        
+        // When
+        let got = try subject.targetSettings(target: target,
+                                             buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertTrue(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
+    }
 
     func testTargetSettings_whenRecommendedRelease_App() throws {
         // Given
@@ -291,6 +327,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
         let target = Target.test(product: .app, settings: settings)
+        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(target: target,
