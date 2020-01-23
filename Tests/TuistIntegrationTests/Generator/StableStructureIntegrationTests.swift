@@ -65,11 +65,11 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     private func findSharedSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
-        return try findSchemes(in: workspace, relativePath: RelativePath("xcshareddata"))
+        try findSchemes(in: workspace, relativePath: RelativePath("xcshareddata"))
     }
 
     private func findUserSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
-        return try findSchemes(in: workspace, relativePath: RelativePath("xcuserdata"))
+        try findSchemes(in: workspace, relativePath: RelativePath("xcuserdata"))
     }
 
     private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) throws -> [XCScheme] {

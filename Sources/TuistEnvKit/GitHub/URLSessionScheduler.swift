@@ -52,6 +52,6 @@ final class URLSessionScheduler: URLSessionScheduling {
     }
 
     func publisher(request: URLRequest) -> OpenCombine.AnyPublisher<(data: Data, response: URLResponse), URLError> {
-        return URLSession.OCombine.DataTaskPublisher(request: request, session: session).eraseToAnyPublisher()
+        URLSession.OCombine.DataTaskPublisher(request: request, session: session).eraseToAnyPublisher()
     }
 }
