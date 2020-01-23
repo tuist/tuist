@@ -281,7 +281,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
-        XCTAssertEqual(got.count, 8)
+        XCTAssertEqual(got.count, 9)
     }
 
     func testTargetSettings_whenRecommendedRelease_App() throws {
@@ -298,7 +298,7 @@ final class DefaultSettingsProvider_iOSTests: XCTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 7)
+        XCTAssertEqual(got.count, 8)
     }
 
     func testTargetSettings_whenRecommendedDebug_Framework() throws {
