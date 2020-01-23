@@ -9,11 +9,11 @@ public extension OpenCombine.Publisher {
         var error: Self.Failure?
 
         let semaphore = DispatchSemaphore(value: 0)
-        _ = handleEvents(receiveOutput: { _output in
-            output.append(_output)
+        _ = handleEvents(receiveOutput: { receivedOutput in
+            output.append(receivedOutput)
         }, receiveCompletion: { completion in
-            if case let .failure(_error) = completion {
-                error = _error
+            if case let .failure(receivedError) = completion {
+                error = receivedError
             }
             semaphore.signal()
         }, receiveCancel: {
