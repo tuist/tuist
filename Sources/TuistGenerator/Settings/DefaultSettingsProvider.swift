@@ -62,7 +62,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     ]
     
     /// Key is `Version` which describes from which version of Xcode are values available for
-    private static let newXcodeTargetSettings: [Version: Set<String>] = [
+    private static let xcodeVersionSpecificSettings: [Version: Set<String>] = [
         Version(11, 0, 0): [
             "ENABLE_PREVIEWS"
         ]
@@ -105,7 +105,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                                                                            swift: true).toSettings()
         let filter = try createFilter(defaultSettings: defaultSettings,
                                       essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
-                                      newXcodeKeys: DefaultSettingsProvider.newXcodeTargetSettings)
+                                      newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings)
 
         var settings: [String: SettingValue] = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
@@ -126,7 +126,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             return { key, _ in
                 // Filter keys that are from higher Xcode version than current
                 newXcodeKeys
-                    .filter { $0.key > xcodeVersion }
+                    .filter { $0.key < xcodeVersion }
                     .values.flatMap { $0 }.contains(key)
             }
         case .none:
