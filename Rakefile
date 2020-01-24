@@ -21,6 +21,11 @@ task :style_correct do
   system("swiftlint", "autocorrect")
 end
 
+desc("Swift format check")
+task :swift_format do
+  Kernel.system("swiftformat", "--lint", ".") || abort 
+end
+
 desc("Lints the Ruby code style")
 task :style_ruby do
   system("bundle", "exec", "rubocop")
