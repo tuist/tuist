@@ -59,7 +59,7 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath {
+    func edit(at: AbsolutePath, in _: AbsolutePath) throws -> AbsolutePath {
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locate(at: at)
         var helpers: [AbsolutePath] = []
@@ -72,10 +72,13 @@ final class ProjectEditor: ProjectEditing {
             throw ProjectEditorError.noEditableFiles(at)
         }
 
-        let (project, graph) = projectEditorMapper.map(sourceRootPath: destinationDirectory,
+        let (project, graph) = projectEditorMapper.map(sourceRootPath: at,
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        projectDescriptionPath: projectDesciptionPath)
-        return try generator.generateProject(project, graph: graph)
+        return try generator.generateProject(project,
+                                             graph: graph,
+                                             sourceRootPath: project.path,
+                                             xcodeprojPath: nil)
     }
 }

@@ -23,9 +23,16 @@ extension ProjectConstants {
 }
 
 protocol ProjectGenerating: AnyObject {
+    /// Generates the given project.
+    /// - Parameters:
+    ///   - project: Project to be generated.
+    ///   - graph: Dependencies graph.
+    ///   - sourceRootPath: Directory where the files are relative to.
+    ///   - xcodeprojPath: Path to the Xcode project. When not given, the xcodeproj is generated at sourceRootPath.
     func generate(project: Project,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath?) throws -> GeneratedProject
+                  sourceRootPath: AbsolutePath?,
+                  xcodeprojPath: AbsolutePath?) throws -> GeneratedProject
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -66,13 +73,15 @@ final class ProjectGenerator: ProjectGenerating {
 
     func generate(project: Project,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath? = nil) throws -> GeneratedProject {
+                  sourceRootPath: AbsolutePath? = nil,
+                  xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProject {
         Printer.shared.print("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path
 
-        let xcodeprojPath = sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
+        // If the xcodeproj path is not given, we generate it under the source root path.
+        let xcodeprojPath = xcodeprojPath ?? sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
 
         // Project and workspace.
         return try generateProjectAndWorkspace(project: project,

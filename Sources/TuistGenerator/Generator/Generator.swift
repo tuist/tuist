@@ -18,7 +18,9 @@ public protocol Generating {
     /// - Parameters:
     ///     - project: The project to be generated.
     ///     - graph: The dependencies graph.
-    func generateProject(_ project: Project, graph: Graphing) throws -> AbsolutePath
+    ///     - sourceRootPath: The path all the files in the Xcode project will be realtived to. When it's nil, it's assumed that all the paths are relative to the directory that contains the manifest.
+    ///     - xcodeprojPath: Path where the .xcodeproj directory will be generated. When the attribute is nil, the project is generated at
+    func generateProject(_ project: Project, graph: Graphing, sourceRootPath: AbsolutePath?, xcodeprojPath: AbsolutePath?) throws -> AbsolutePath
 
     /// Generate an Xcode workspace for the project at a given path. All the project's dependencies will also be generated and included.
     ///
@@ -97,10 +99,18 @@ public class Generator: Generating {
         self.environmentLinter = environmentLinter
     }
 
-    public func generateProject(_ project: Project, graph: Graphing) throws -> AbsolutePath {
+    public func generateProject(_ project: Project,
+                                graph: Graphing,
+                                sourceRootPath: AbsolutePath? = nil,
+                                xcodeprojPath: AbsolutePath? = nil) throws -> AbsolutePath {
+        /// When the source root path is not given, we assume paths
+        /// are relative to the directory that contains the manifest.
+        let sourceRootPath = sourceRootPath ?? project.path
+
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
-                                                             sourceRootPath: project.path)
+                                                             sourceRootPath: sourceRootPath,
+                                                             xcodeprojPath: xcodeprojPath)
         return generatedProject.path
     }
 
@@ -113,7 +123,8 @@ public class Generator: Generating {
 
         let generatedProject = try projectGenerator.generate(project: project,
                                                              graph: graph,
-                                                             sourceRootPath: path)
+                                                             sourceRootPath: path,
+                                                             xcodeprojPath: nil)
         return generatedProject.path
     }
 
