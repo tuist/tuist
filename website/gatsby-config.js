@@ -214,5 +214,6 @@ module.exports = {
       },
     },
     'gatsby-plugin-meta-redirect',
+    `gatsby-plugin-robots-txt`,
   ],
 }
