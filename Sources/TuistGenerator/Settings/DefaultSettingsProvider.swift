@@ -1,8 +1,8 @@
 import Foundation
+import struct SPMUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeProj
-import struct SPMUtility.Version
 
 public protocol DefaultSettingsProviding {
     func projectSettings(project: Project,
@@ -60,12 +60,12 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
         "WRAPPER_EXTENSION",
     ]
-    
+
     /// Key is `Version` which describes from which version of Xcode are values available for
     private static let xcodeVersionSpecificSettings: [Version: Set<String>] = [
         Version(11, 0, 0): [
-            "ENABLE_PREVIEWS"
-        ]
+            "ENABLE_PREVIEWS",
+        ],
     ]
 
     public init() {}
