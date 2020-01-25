@@ -19,7 +19,7 @@
     "@theme-ui/prism": "^0.2.50",
     "@theme-ui/typography": "^0.2.46",
     "focus-visible": "^5.0.2",
-    "gatsby": "^2.18.21",
+    "gatsby": "^2.19.5",
     "gatsby-image": "^2.2.39",
     "gatsby-plugin-favicon": "3.1.6",
     "gatsby-plugin-feed": "^2.3.26",
