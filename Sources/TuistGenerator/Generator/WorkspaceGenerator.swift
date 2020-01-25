@@ -120,9 +120,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   generatedProjects: generatedProjects,
                   graph: graph,
                   to: workspacePath)
-
+        
+        
         // Schemes
-
+        
         try writeSchemes(workspace: workspace,
                          xcworkspace: xcWorkspace,
                          generatedProjects: generatedProjects,
@@ -187,10 +188,10 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
     }
 
-    private func write(workspace _: Workspace,
+    private func write(workspace: Workspace,
                        xcworkspace: XCWorkspace,
-                       generatedProjects _: [AbsolutePath: GeneratedProject],
-                       graph _: Graphing,
+                       generatedProjects: [AbsolutePath: GeneratedProject],
+                       graph: Graphing,
                        to: AbsolutePath) throws {
         // If the workspace doesn't exist we can write it because there isn't any
         // Xcode instance that might depend on it.
@@ -209,7 +210,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                 let dataPath = $0.appending(component: "contents.xcworkspacedata")
                 return try Data(contentsOf: dataPath.url)
             }
-
+            
             let currentData = try workspaceData(to)
             let currentWorkspaceData = try workspaceData(temporaryPath)
 
@@ -218,9 +219,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             }
         }
     }
-
+    
     private func writeSchemes(workspace: Workspace,
-                              xcworkspace _: XCWorkspace,
+                              xcworkspace: XCWorkspace,
                               generatedProjects: [AbsolutePath: GeneratedProject],
                               graph: Graphing,
                               to path: AbsolutePath) throws {

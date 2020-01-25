@@ -20,7 +20,7 @@ public protocol XcodeControlling {
 public class XcodeController: XcodeControlling {
     /// Shared instance.
     public static var shared: XcodeControlling = XcodeController()
-
+    
     /// Cached response of `xcode-select` command
     private var selectedXcode: Xcode?
 
@@ -32,7 +32,7 @@ public class XcodeController: XcodeControlling {
     public func selected() throws -> Xcode? {
         // Return cached value if available
         guard selectedXcode == nil else { return selectedXcode }
-
+        
         // e.g. /Applications/Xcode.app/Contents/Developer
         guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
             return nil

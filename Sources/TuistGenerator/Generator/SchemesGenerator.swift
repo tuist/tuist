@@ -18,7 +18,7 @@ protocol SchemesGenerating {
                                   xcworkspacePath: AbsolutePath,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
                                   graph: Graphing) throws
-
+    
     /// Generates the schemes for the project targets.
     ///
     /// - Parameters:
@@ -31,7 +31,7 @@ protocol SchemesGenerating {
                                 xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
                                 graph: Graphing) throws
-
+    
     /// Wipes shared and user schemes at a workspace or project path. This is needed
     /// currently to support the workspace scheme generation case where a workspace that
     /// already exists on disk is being regenerated. Wiping the schemes directory prevents
@@ -43,12 +43,13 @@ protocol SchemesGenerating {
 
 // swiftlint:disable:next type_body_length
 final class SchemesGenerator: SchemesGenerating {
+    
     /// Default last upgrade version for generated schemes.
     private static let defaultLastUpgradeVersion = "1010"
 
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
-
+    
     /// Generates the schemes for the workspace targets.
     ///
     /// - Parameters:
@@ -69,7 +70,7 @@ final class SchemesGenerator: SchemesGenerating {
                                generatedProjects: generatedProjects)
         }
     }
-
+    
     /// Generate schemes for a project.
     ///
     /// - Parameters:
@@ -103,7 +104,7 @@ final class SchemesGenerator: SchemesGenerating {
                                generatedProjects: [project.path: generatedProject])
         }
     }
-
+    
     /// Wipes shared and user schemes at a workspace or project path. This is needed
     /// currently to support the workspace scheme generation case where a workspace that
     /// already exists on disk is being regenerated. Wiping the schemes directory prevents
@@ -566,7 +567,7 @@ final class SchemesGenerator: SchemesGenerating {
         }
         return schemePath
     }
-
+    
     private func schemeDirectory(path: AbsolutePath, shared: Bool = true) -> AbsolutePath {
         if shared {
             return path.appending(RelativePath("xcshareddata/xcschemes"))
@@ -575,7 +576,7 @@ final class SchemesGenerator: SchemesGenerating {
             return path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
     }
-
+    
     /// Returns the scheme commandline argument passed on launch
     ///
     /// - Parameters:

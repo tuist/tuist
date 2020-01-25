@@ -1,9 +1,9 @@
-import struct SPMUtility.Version
 import TuistCore
 import TuistCoreTesting
-import XCTest
-@testable import TuistGenerator
 @testable import TuistSupportTesting
+import XCTest
+import struct SPMUtility.Version
+@testable import TuistGenerator
 
 final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     private var subject: DefaultSettingsProvider!
@@ -285,7 +285,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
         XCTAssertEqual(got.count, 9)
     }
-
+    
     func testTargetSettings_whenXcode10() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
@@ -294,7 +294,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
                                 defaultSettings: .recommended)
         let target = Target.test(settings: settings)
         xcodeController.selectedVersionStub = .success(Version(10, 0, 0))
-
+        
         // When
         let got = try subject.targetSettings(target: target,
                                              buildConfiguration: buildConfiguration)
@@ -302,7 +302,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
     }
-
+    
     func testTargetSettings_whenXcode11() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
@@ -311,7 +311,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
                                 defaultSettings: .recommended)
         let target = Target.test(settings: settings)
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
-
+        
         // When
         let got = try subject.targetSettings(target: target,
                                              buildConfiguration: buildConfiguration)

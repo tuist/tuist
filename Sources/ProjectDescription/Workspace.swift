@@ -8,7 +8,7 @@ public struct Workspace: Codable, Equatable {
 
     /// List of project relative paths (or glob patterns) to generate and include
     public let projects: [Path]
-
+    
     /// List of custom schemes
     public let schemes: [Scheme]
 
