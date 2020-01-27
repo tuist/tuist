@@ -466,7 +466,9 @@ public class Graph: Graphing {
         return references
     }
 
-    public func findAll<T: GraphNode, S: GraphNode>(targetNode: TargetNode, test: (T) -> Bool = { _ in true }, skip: (S) -> Bool = { _ in false }) -> Set<T> {
+    public func findAll<T: GraphNode, S: GraphNode>(targetNode: TargetNode,
+                                                    test: (T) -> Bool = { _ in true },
+                                                    skip: (S) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         stack.push(targetNode)
