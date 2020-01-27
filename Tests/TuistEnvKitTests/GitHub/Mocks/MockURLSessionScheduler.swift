@@ -14,14 +14,14 @@ final class MockURLSessionScheduler: URLSessionScheduling {
     }
 
     func schedule(request: URLRequest) -> (error: Error?, data: Data?) {
-        guard let stub = self.stubs[request] else {
+        guard let stub = stubs[request] else {
             return (error: nil, data: nil)
         }
         return stub
     }
 
     func publisher(request: URLRequest) -> OpenCombine.AnyPublisher<(data: Data, response: URLResponse), URLError> {
-        guard let stub = self.stubs[request] else {
+        guard let stub = stubs[request] else {
             return OpenCombine.Fail<(data: Data, response: URLResponse), URLError>(error: URLError(.badServerResponse))
                 .eraseToAnyPublisher()
         }
