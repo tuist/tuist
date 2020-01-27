@@ -94,8 +94,8 @@ final class TargetTests: TuistUnitTestCase {
         let sources = try Target.sources(projectPath: temporaryPath,
                                          sources: [(
                                              glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                                                   excluding: temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
-                                                   compilerFlags: nil
+                                             excluding: temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
+                                             compilerFlags: nil
                                          )])
 
         // Then
