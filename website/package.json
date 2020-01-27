@@ -58,7 +58,7 @@
     "react-use-visibility": "^0.3.0",
     "remark-slug": "^5.1.2",
     "semantic-ui-react": "^0.88.1",
-    "slug": "^2.1.0",
+    "slug": "^2.1.1",
     "theme-ui": "^0.2.52",
     "url-join": "^4.0.1"
   },
