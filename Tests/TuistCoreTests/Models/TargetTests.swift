@@ -61,8 +61,8 @@ final class TargetTests: TuistUnitTestCase {
         // When
         let sources = try Target.sources(projectPath: temporaryPath,
                                          sources: [
-                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: nil, compilerFlags: nil),
-                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: nil, compilerFlags: nil),
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
                                          ])
 
         // Then
