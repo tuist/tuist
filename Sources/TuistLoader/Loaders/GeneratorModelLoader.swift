@@ -292,10 +292,13 @@ extension TuistCore.Target {
         let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }
 
         let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
-        let sources = try TuistCore.Target.sources(projectPath: path, sources: manifest.sources?.globs.map {
-            let glob = try generatorPaths.resolve(path: $0.glob).pathString
-            let excluding = try $0.excluding.map { try generatorPaths.resolve(path: $0).pathString }
-            return (glob: glob, excluding: excluding, compilerFlags: $0.compilerFlags)
+        let sources = try TuistCore.Target.sources(projectPath: path,
+                                                   sources: manifest.sources?.globs.map { (glob: ProjectDescription.SourceFileGlob) in
+            let globPath = try generatorPaths.resolve(path: glob.glob).pathString
+            let excluding: [String] = try glob.excluding?.compactMap({ (path) -> String? in
+                                                        try generatorPaths.resolve(path: path).pathString
+                                                    }) ?? []
+            return (glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
         } ?? [])
 
         let resourceFilter = { (path: AbsolutePath) -> Bool in

@@ -211,7 +211,7 @@ final class ProjectGenerator: ProjectGenerating {
                 continue
             }
 
-            var attributes = pbxProject.targetAttributes[testTarget] ?? [:]
+            var attributes: [String : Any] = pbxProject.targetAttributes?[testTarget] ?? [:]
 
             attributes["TestTargetID"] = target
 

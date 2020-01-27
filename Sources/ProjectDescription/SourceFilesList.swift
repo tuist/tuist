@@ -6,7 +6,7 @@ public struct SourceFileGlob: ExpressibleByStringLiteral, Codable, Equatable {
     public let glob: Path
 
     /// Relative glob pattern for excluded files
-    public let excluding: Path?
+    public let excluding: [Path]?
 
     /// Compiler flags.
     public let compilerFlags: String?
@@ -16,7 +16,7 @@ public struct SourceFileGlob: ExpressibleByStringLiteral, Codable, Equatable {
     /// - Parameters:
     ///   - glob: Relative glob pattern.
     ///   - compilerFlags: Compiler flags.
-    public init(_ glob: Path, excluding: Path? = nil, compilerFlags: String? = nil) {
+    public init(_ glob: Path, excluding: [Path]? = nil, compilerFlags: String? = nil) {
         self.glob = glob
         self.excluding = excluding
         self.compilerFlags = compilerFlags

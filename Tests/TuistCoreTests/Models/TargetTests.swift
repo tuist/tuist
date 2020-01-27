@@ -94,9 +94,44 @@ final class TargetTests: TuistUnitTestCase {
         let sources = try Target.sources(projectPath: temporaryPath,
                                          sources: [(
                                              glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                                                   excluding: temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
+                                                   excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString],
                                                    compilerFlags: nil
                                          )])
+
+        // Then
+        let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
+
+        XCTAssertEqual(Set(relativeSources), Set([
+            "sources/a.swift",
+            "sources/b.swift",
+            "sources/c/c.swift",
+        ]))
+    }
+
+    func test_sources_excluding2() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
+            "sources/a.swift",
+            "sources/b.swift",
+            "sources/aTests.swift",
+            "sources/c/cType+Fake.swift",
+            "sources/aType+Fake.swift",
+            "sources/bTests.swift",
+            "sources/kTests.kt",
+            "sources/c/c.swift",
+            "sources/c/cTests.swift",
+        ])
+
+        // When
+        let sources = try Target.sources(projectPath: temporaryPath,
+                                         sources: [
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                                                   excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
+                                                               temporaryPath.appending(RelativePath("sources/**/*Fake.swift")).pathString
+                                                ],
+                                                   compilerFlags: nil),
+                                         ])
 
         // Then
         let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
