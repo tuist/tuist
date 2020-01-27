@@ -1,0 +1,22 @@
+name: Fixture Generator
+
+on:
+  push:
+    paths:
+      - fixtures/fixture_generator/**/*
+      - .github/workflows/fixture-generator.yml
+  pull_request:
+    paths:
+      - fixtures/fixture_generator/**/*
+      - .github/workflows/fixture-generator.yml
+
+jobs:
+  build:
+    name: Build Fixture Generator
+    runs-on: macOS-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode 11.2.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
+      - name: Build package
+        run: swift build --package-path fixtures/fixture_generator

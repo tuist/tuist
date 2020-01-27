@@ -3,6 +3,10 @@
 This folder contains sample projects we use in the integration and acceptance tests.
 Please keep this keep in alphabetical order.
 
+## fixture_generator
+
+This is a Swift Package that generates a large application / workspace to stress test Tuist. The generated fixture itself is not checked in as it can vary based on the test being conducted.
+
 ## invalid_workspace_manifest_name
 
 Contains a single file `Workspac.swift`, incorrectly named workspace manifest file.
@@ -298,6 +302,3 @@ e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
 
 A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
 
-## stress_test
-
-This is a Swift Package that generates a large application / workspace to stress test Tuist. The generated fixture itself is not checked in as it can vary based on the test being conducted.
