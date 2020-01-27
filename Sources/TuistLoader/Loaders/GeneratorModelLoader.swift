@@ -295,7 +295,7 @@ extension TuistCore.Target {
         let sources = try TuistCore.Target.sources(projectPath: path,
                                                    sources: manifest.sources?.globs.map { (glob: ProjectDescription.SourceFileGlob) in
             let globPath = try generatorPaths.resolve(path: glob.glob).pathString
-            let excluding: [String] = try glob.excluding?.compactMap { try generatorPaths.resolve(path: $0).pathString } ?? []
+            let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
             return (glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
         } ?? [])
 

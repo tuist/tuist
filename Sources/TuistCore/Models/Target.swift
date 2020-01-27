@@ -4,7 +4,7 @@ import TuistSupport
 
 public struct Target: Equatable, Hashable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
-    public typealias SourceFileGlob = (glob: String, excluding: [String]?, compilerFlags: String?)
+    public typealias SourceFileGlob = (glob: String, excluding: [String], compilerFlags: String?)
 
     // MARK: - Static
 
@@ -116,7 +116,7 @@ public struct Target: Equatable, Hashable {
 
             // Paths that should be excluded from sources
             var excluded: [AbsolutePath] = []
-            source.excluding?.forEach { path in
+            source.excluding.forEach { path in
                 let absolute = AbsolutePath(path)
                 let globs = AbsolutePath(absolute.dirname).glob(absolute.basename)
                 excluded.append(contentsOf: globs)
