@@ -116,10 +116,10 @@ public struct Target: Equatable, Hashable {
 
             // Paths that should be excluded from sources
             var excluded: [AbsolutePath] = []
-            source.excluding?.forEach { element in
-                let excludePath = AbsolutePath(element)
-                let e = AbsolutePath(excludePath.dirname).glob(excludePath.basename)
-                excluded += e
+            source.excluding?.forEach { path in
+                let absolute = AbsolutePath(path)
+                let globs = AbsolutePath(absolute.dirname).glob(absolute.basename)
+                excluded.append(contentsOf: globs)
             }
 
             Set(base.glob(sourcePath.basename))
