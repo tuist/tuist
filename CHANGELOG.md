@@ -37,6 +37,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 - Turn models from `TuistCore` that are clases into structs https://github.com/tuist/tuist/pull/870 by @pepibumur.
+- Update XcodeProj to 7.6.0 https://github.com/tuist/tuist/pull/create?base=tuist%3Amaster&head=tuist%3Atarget-attributes by @pepibumur.
 
 ## 1.1.0
 
