@@ -26,6 +26,8 @@ jobs:
       - name: Generate Fixture
         working-directory: ./fixtures/fixture_generator
         run: swift run FixtureGenerator --projects 1 --targets 1 --sources 1
+      - name: Build Tuist
+        run: swift build
       - name: Generate Fixture Project
         run: swift run tuist generate --path ./fixtures/fixture_generator/Fixture
   
