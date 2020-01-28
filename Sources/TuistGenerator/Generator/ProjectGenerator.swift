@@ -162,7 +162,6 @@ final class ProjectGenerator: ProjectGenerating {
                                     projects: [],
                                     projectRoots: [],
                                     targets: [])
-
         pbxproj.add(object: pbxProject)
         pbxproj.rootObject = pbxProject
         return pbxProject
