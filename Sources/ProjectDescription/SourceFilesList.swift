@@ -27,7 +27,7 @@ public struct SourceFileGlob: ExpressibleByStringLiteral, Codable, Equatable {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
         self.init(glob, excluding: paths, compilerFlags: compilerFlags)
     }
-    
+
     public init(stringLiteral value: String) {
         self.init(Path(value))
     }
