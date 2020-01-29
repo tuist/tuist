@@ -1,10 +1,12 @@
 const remarkSlug = require('remark-slug')
+const title = `Tuist - Xcode on steroids`
+const siteUrl = 'https://tuist.io'
 
 module.exports = {
   siteMetadata: {
-    title: `Tuist - Xcode on steroids`,
+    title: title,
     description: `Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.`,
-    siteUrl: 'https://tuist.io',
+    siteUrl: siteUrl,
     githubUrl: 'https://github.com/tuist',
     releasesUrl: 'https://github.com/tuist/tuist/releases',
     documentationUrl: 'https://docs.tuist.io/',
@@ -211,6 +213,41 @@ module.exports = {
         mergeCachingHeaders: true, // boolean to turn off the default caching headers
         transformHeaders: (headers, path) => headers, // optional transform for manipulating headers under each path (e.g.sorting), etc.
         generateMatchPathRewrites: true, // boolean to turn off automatic creation of redirect rules for client only paths
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-next-seo',
+      options: {
+        titleTemplate: '%s | Tuist',
+        openGraph: {
+          type: 'website',
+          locale: 'en_IE',
+          url: siteUrl,
+          site_name: title,
+          keywords: [
+            `tuist`,
+            `engineering`,
+            `xcode`,
+            `swift`,
+            `project generation`,
+            `xcode project generation`,
+            `xcodeproj`,
+            `xcodegen`,
+            'ios',
+            'uikit',
+            'foundation',
+            'tvos',
+            'ios',
+            'watchos',
+            'objective-c',
+            'swift package manager',
+            'swift packages',
+          ],
+        },
+        twitter: {
+          site: siteUrl,
+          cardType: 'summary_large_image',
+        },
       },
     },
     'gatsby-plugin-meta-redirect',

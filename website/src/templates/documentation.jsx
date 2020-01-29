@@ -4,23 +4,47 @@ import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { graphql, Link } from 'gatsby'
 import Layout from '../components/layout'
 import Footer from '../components/footer'
-import Meta from '../components/meta'
+import {
+  GatsbySeo,
+  ArticleJsonLd,
+  BreadcrumbJsonLd,
+} from 'gatsby-plugin-next-seo'
+import urljoin from 'url-join'
 
 const DocumentationPage = ({
   data: {
     mdx,
     allFile: { nodes: files },
     site: {
-      siteMetadata: { documentationCategories },
+      siteMetadata: { documentationCategories, siteUrl },
     },
   },
 }) => {
-  const post = mdx
+  const page = mdx
   return (
     <Layout>
-      <Meta
-        title={post.frontmatter.name}
-        description={post.frontmatter.excerpt}
+      <GatsbySeo
+        title={page.frontmatter.name}
+        description={page.frontmatter.excerpt}
+      />
+      <ArticleJsonLd
+        url={urljoin(siteUrl, page.fields.slug)}
+        headline={page.frontmatter.title}
+        description={page.frontmatter.excerpt}
+      />
+      <BreadcrumbJsonLd
+        itemListElements={[
+          {
+            position: 1,
+            name: 'Documentation',
+            item: urljoin(siteUrl, 'docs'),
+          },
+          {
+            position: 2,
+            name: page.frontmatter.name,
+            item: urljoin(siteUrl, page.fields.slug),
+          },
+        ]}
       />
       <div
         sx={{ display: 'flex', flexDirection: ['column', 'row'], flex: '1' }}
@@ -77,7 +101,7 @@ const DocumentationPage = ({
             boxShadow: theme => `-1px -1px 12px -4px ${theme.colors.gray5}`,
           }}
         >
-          <MDXRenderer>{post.body}</MDXRenderer>
+          <MDXRenderer>{page.body}</MDXRenderer>
         </div>
       </div>
       <Footer />
