@@ -2,13 +2,12 @@
 import { jsx, Styled } from 'theme-ui'
 
 import Layout from '../components/layout'
-import Meta from '../components/meta'
 import Footer from '../components/footer'
 import { Link } from 'gatsby'
 import { graphql } from 'gatsby'
 import Main from '../components/main'
 import { findWhere } from 'underscore'
-import { BreadcrumbStructuredData } from '../components/structured-data'
+import { BreadcrumbJsonLd, BlogJsonLd, GatsbySeo } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
 
 const Post = ({ post, index, authors }) => {
@@ -125,17 +124,31 @@ const BlogList = ({
     allAuthorsYaml: { nodes: authors },
   },
 }) => {
-  const breadcrumb = [['Blog', urljoin(siteUrl, '/blog')]]
+  const breadcrumb = [
+    { position: 1, name: 'Blog', item: urljoin(siteUrl, '/blog') },
+  ]
   const description =
     'Read about Tuist updates: new releases, engineering challenges, and road-map updates.'
+
   return (
     <Layout>
-      <BreadcrumbStructuredData items={breadcrumb} />
-      <Meta title="Blog" description={description} />
+      <BreadcrumbJsonLd itemListElements={breadcrumb} />
+      <GatsbySeo title="Blog" description={description} />
+      <BlogJsonLd
+        url={urljoin(siteUrl, '/blog')}
+        headline="Tuist Blog"
+        posts={edges.map(edge => {
+          return {
+            headline: edge.node.frontmatter.title,
+          }
+        })}
+        authorName="Tuist"
+        description={description}
+      />
       <Main>
         <Styled.h1>Blog</Styled.h1>
         {edges.map(({ node }, index) => {
-          return <Post post={node} index={index} authors={authors} />
+          return <Post post={node} key={index} authors={authors} />
         })}
         <PostsFooter {...pageContext} />
       </Main>

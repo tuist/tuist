@@ -2,7 +2,6 @@
 import { jsx, Styled } from 'theme-ui'
 
 import Layout from '../components/layout'
-import Meta from '../components/meta'
 import Footer from '../components/footer'
 import Main from '../components/main'
 import { graphql, Link } from 'gatsby'
@@ -19,6 +18,7 @@ import Mytaxi from '../../assets/mytaxi.svg'
 import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import Quote from '../../assets/quote.svg'
+import { GatsbySeo } from 'gatsby-plugin-next-seo'
 
 const PressableButton = posed.div({
   hoverable: true,
@@ -719,7 +719,8 @@ const Contribute = () => {
 const IndexPage = () => {
   return (
     <Layout>
-      <Meta />
+      <GatsbySeo titleTemplate="%s" title="Tuist" />
+
       <Steroids />
       <Workspaces />
       <Principles />
