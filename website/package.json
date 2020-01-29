@@ -16,7 +16,7 @@
     "@mdx-js/tag": "^0.20.3",
     "@theme-ui/color": "^0.2.53",
     "@theme-ui/presets": "^0.3.0",
-    "@theme-ui/prism": "^0.2.50",
+    "@theme-ui/prism": "^0.3.0",
     "@theme-ui/typography": "^0.3.0",
     "focus-visible": "^5.0.2",
     "gatsby": "^2.18.21",
