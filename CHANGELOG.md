@@ -6,6 +6,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+### Fixed
+
+### Changed
+
+## 1.2.0
+
+### Added
+
 - Best practices page to the documentation https://github.com/tuist/tuist/pull/843 by @pepibumur.
 - Fail CI if there are broken links on the website https://github.com/tuist/tuist/pull/917 by @pepibumur.
 - Excluding multiple files from a target https://github.com/tuist/tuist/pull/937 by @paciej00
