@@ -30,7 +30,7 @@ extension Workspace {
                   schemes: schemes,
                   additionalFiles: additionalFiles + files.map { .file(path: $0) })
     }
-    
+
     public func replacing(projects: [AbsolutePath]) -> Workspace {
         Workspace(path: path,
                   name: name,
@@ -38,7 +38,7 @@ extension Workspace {
                   schemes: schemes,
                   additionalFiles: additionalFiles)
     }
-    
+
     public func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
         Workspace(path: path,
                   name: name,

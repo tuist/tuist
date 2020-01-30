@@ -60,7 +60,7 @@ public enum TargetDependency: Codable, Equatable {
     /// - Parameters:
     ///     - path: Path to the directory that contains the Podfile.
     case cocoapods(path: Path)
-	
+
     /// Dependency on a xcframework
     ///
     /// - Parameters:
@@ -143,10 +143,10 @@ extension TargetDependency {
 
         case "framework":
             self = .framework(path: try container.decode(Path.self, forKey: .path))
-			
+
         case "xcframework":
             self = .xcFramework(path: try container.decode(Path.self, forKey: .path))
-			
+
         case "library":
             self = .library(
                 path: try container.decode(Path.self, forKey: .path),

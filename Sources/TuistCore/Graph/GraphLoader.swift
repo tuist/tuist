@@ -195,7 +195,7 @@ public class GraphLoader: GraphLoading {
         // XCFramework
         case let .xcFramework(frameworkPath):
             return try loadXCFrameworkNode(path: frameworkPath, graphLoaderCache: graphLoaderCache)
-            
+
         // System SDK
         case let .sdk(name, status):
             return try SDKNode(name: name, platform: platform, status: status)
@@ -269,7 +269,7 @@ public class GraphLoader: GraphLoading {
         graphLoaderCache.add(cocoapods: node)
         return node
     }
-    
+
     /// Loads the XCFramework node. If it it exists in the cache, it returns it from the cache.
     /// Otherwise, it initializes it, stores it in the cache, and then returns it.
     ///

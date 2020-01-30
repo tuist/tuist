@@ -599,7 +599,7 @@ extension TuistCore.Scheme {
                       runAction: runAction,
                       archiveAction: archiveAction)
     }
-    
+
     static func from(manifest: ProjectDescription.Scheme, workspacePath: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared
