@@ -1,0 +1,25 @@
+---
+name: Manifesto
+order: 10
+excerpt: This page describes principles that are pillars to the design and development of Tuist. They evolve over time with the project and are meant to ensure a sustainable growth that is well-aligned with the project foundation.
+---
+
+This page describes principles that are pillars to the design and development of Tuist. They evolve over time with the project and are meant to ensure a sustainable growth that is well-aligned with the project foundation.
+
+Here follows a list of the most important principles:
+
+## 1. Default to conventions
+
+One of the reasons why Tuist exists is because Xcode is weak in conventions and that leads to complex projects that are hard to scale up and maintain. For that reason, Tuist takes a different approach by defaulting to simple and thoroughly designed conventions. Developers can opt out from the conventions, but that’s a conscious decision that doesn’t feel natural.
+
+For example, there’s a convention for defining dependencies between targets by using the provided public interface. By doing that, Tuist ensures that the projects are generated with the right configurations for the linking to work. Developers have the option to define the dependencies through build settings, but they’d be doing it implicitly and therefore breaking Tuist features such as graph that rely on some conventions being followed.
+
+The reason why we default to conventions is because the more decision we can make on behalf of the developers, the more focus they’ll have crafting features for their apps. When we are left with no conventions, like it’s the case in many projects, we have to make decisions that will end up not being consistent with other decisions and as a consequence there’ll be accidental complexity that will be hard to manage.
+
+## 2. Manifests are the source of truth
+
+Having many layers of configurations and contracts between them results in a project setup that is hard to reason about and maintain. Think for a second on an average project. The definition of the project lives in the .xcodeproj directories, the CLI in scripts (e.g Fastfiles), and the CI logic in pipelines. Those are three layers with contracts between them that we need to maintain. How often have you been in a situation where you changed something in your projects, and then a week later you realized that the release scripts broke?
+
+We can simplify this by having a single source of truth, the manifest files. Those files provide Tuist with the information that it needs to generate Xcode projects that developers can use to edit their files. Moreover, it allows having standard commands for building the projects from a local or CI environment.
+
+Tuist should own the complexity and expose a simple, safe, and enjoyable interface to describe their projects as explicitly as possible.
