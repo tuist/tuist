@@ -19,7 +19,7 @@ public protocol Generating {
     ///     - project: The project to be generated.
     ///     - graph: The dependencies graph.
     ///     - sourceRootPath: The path all the files in the Xcode project will be realtived to. When it's nil, it's assumed that all the paths are relative to the directory that contains the manifest.
-    ///     - xcodeprojPath: Path where the .xcodeproj directory will be generated. When the attribute is nil, the project is generated at
+    ///     - xcodeprojPath: Path where the .xcodeproj directory will be generated. When the attribute is nil, the project is generated in the manifest's directory.
     func generateProject(_ project: Project, graph: Graphing, sourceRootPath: AbsolutePath?, xcodeprojPath: AbsolutePath?) throws -> AbsolutePath
 
     /// Generate an Xcode workspace for the project at a given path. All the project's dependencies will also be generated and included.
