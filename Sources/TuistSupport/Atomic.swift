@@ -4,7 +4,6 @@ import Foundation
 /// Taken from https://www.onswiftwings.com/posts/atomic-property-wrapper/
 @propertyWrapper
 struct Atomic<Value> {
-
     private var value: Value
     private let lock = NSLock()
 
@@ -13,8 +12,8 @@ struct Atomic<Value> {
     }
 
     var wrappedValue: Value {
-      get { return load() }
-      set { store(newValue: newValue) }
+        get { load() }
+        set { store(newValue: newValue) }
     }
 
     func load() -> Value {

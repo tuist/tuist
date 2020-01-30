@@ -14,7 +14,7 @@ class XcodeControllerIntegrationTests: TuistTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_selected_version_succeeds() throws {
         XCTAssertNoThrow(try subject.selectedVersion())
     }
