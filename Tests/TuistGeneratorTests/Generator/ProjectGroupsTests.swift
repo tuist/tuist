@@ -44,6 +44,7 @@ final class ProjectGroupsTests: XCTestCase {
         }
         subject = ProjectGroups.generate(project: project,
                                          pbxproj: pbxproj,
+                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
                                          sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
@@ -81,7 +82,11 @@ final class ProjectGroupsTests: XCTestCase {
         playgrounds.pathsStub = { _ in
             []
         }
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+        subject = ProjectGroups.generate(project: project,
+                                         pbxproj: pbxproj,
+                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                         sourceRootPath: sourceRootPath,
+                                         playgrounds: playgrounds)
 
         XCTAssertNil(subject.playgrounds)
     }
@@ -99,7 +104,11 @@ final class ProjectGroupsTests: XCTestCase {
                                    targets: [target1, target2, target3, target4])
 
         // When
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+        subject = ProjectGroups.generate(project: project,
+                                         pbxproj: pbxproj,
+                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                         sourceRootPath: sourceRootPath,
+                                         playgrounds: playgrounds)
 
         // Then
         let paths = subject.main.children.compactMap { $0.nameOrPath }
@@ -115,7 +124,11 @@ final class ProjectGroupsTests: XCTestCase {
     }
 
     func test_targetFrameworks() throws {
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+        subject = ProjectGroups.generate(project: project,
+                                         pbxproj: pbxproj,
+                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                         sourceRootPath: sourceRootPath,
+                                         playgrounds: playgrounds)
 
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
@@ -125,7 +138,11 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_projectGroup_unknownProjectGroups() throws {
         // Given
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+        subject = ProjectGroups.generate(project: project,
+                                         pbxproj: pbxproj,
+                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                         sourceRootPath: sourceRootPath,
+                                         playgrounds: playgrounds)
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.projectGroup(named: "abc"),
@@ -140,7 +157,11 @@ final class ProjectGroupsTests: XCTestCase {
         let project = Project.test(filesGroup: .group(name: "P"),
                                    targets: [target1, target2, target3])
 
-        subject = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath, playgrounds: playgrounds)
+        subject = ProjectGroups.generate(project: project,
+                                         pbxproj: pbxproj,
+                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                         sourceRootPath: sourceRootPath,
+                                         playgrounds: playgrounds)
 
         // When / Then
         XCTAssertNotNil(try? subject.projectGroup(named: "A"))
