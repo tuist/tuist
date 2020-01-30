@@ -18,7 +18,7 @@ The reason why we default to conventions is because the more decision we can mak
 
 ## 2. Manifests are the source of truth
 
-Having many layers of configurations and contracts between them results in a project setup that is hard to reason about and maintain. Think for a second on an average project. The definition of the project lives in the .xcodeproj directories, the CLI in scripts (e.g Fastfiles), and the CI logic in pipelines. Those are three layers with contracts between them that we need to maintain. How often have you been in a situation where you changed something in your projects, and then a week later you realized that the release scripts broke?
+Having many layers of configurations and contracts between them results in a project setup that is hard to reason about and maintain. Think for a second on an average project. The definition of the project lives in the _.xcodeproj_ directories, the CLI in scripts _(e.g Fastfiles)_, and the CI logic in pipelines. Those are three layers with contracts between them that we need to maintain. How often have you been in a situation where you changed something in your projects, and then a week later you realized that the release scripts broke?
 
 We can simplify this by having a single source of truth, the manifest files. Those files provide Tuist with the information that it needs to generate Xcode projects that developers can use to edit their files. Moreover, it allows having standard commands for building the projects from a local or CI environment.
 
