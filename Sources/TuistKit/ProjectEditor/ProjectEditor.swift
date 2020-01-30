@@ -61,7 +61,7 @@ final class ProjectEditor: ProjectEditing {
 
     func edit(at: AbsolutePath, in dstDirectory: AbsolutePath) throws -> AbsolutePath {
         let xcodeprojPath = dstDirectory.appending(component: "Manifests.xcodeproj")
-        
+
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locate(at: at)
         var helpers: [AbsolutePath] = []
