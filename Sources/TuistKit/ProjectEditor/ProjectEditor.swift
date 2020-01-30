@@ -59,7 +59,9 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func edit(at: AbsolutePath, in _: AbsolutePath) throws -> AbsolutePath {
+    func edit(at: AbsolutePath, in dstDirectory: AbsolutePath) throws -> AbsolutePath {
+        let xcodeprojPath = dstDirectory.appending(component: "Manifests.xcodeproj")
+        
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locate(at: at)
         var helpers: [AbsolutePath] = []
@@ -79,6 +81,6 @@ final class ProjectEditor: ProjectEditing {
         return try generator.generateProject(project,
                                              graph: graph,
                                              sourceRootPath: project.path,
-                                             xcodeprojPath: nil)
+                                             xcodeprojPath: xcodeprojPath)
     }
 }

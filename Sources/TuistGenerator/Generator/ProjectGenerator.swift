@@ -105,7 +105,7 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,

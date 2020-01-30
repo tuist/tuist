@@ -66,10 +66,11 @@ class ProjectGroups {
 
     static func generate(project: Project,
                          pbxproj: PBXProj,
+                         xcodeprojPath: AbsolutePath,
                          sourceRootPath: AbsolutePath,
                          playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
         /// Main
-        let projectRelativePath = project.path.relative(to: sourceRootPath).pathString
+        let projectRelativePath = sourceRootPath.relative(to: xcodeprojPath.parentDirectory).pathString
         let mainGroup = PBXGroup(children: [],
                                  sourceTree: .group,
                                  path: (projectRelativePath != ".") ? projectRelativePath : nil)
