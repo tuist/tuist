@@ -22,6 +22,7 @@ public class XcodeController: XcodeControlling {
     public static var shared: XcodeControlling = XcodeController()
 
     /// Cached response of `xcode-select` command
+    @Atomic
     private var selectedXcode: Xcode?
 
     /// Returns the selected Xcode. It uses xcode-select to determine
