@@ -24,7 +24,7 @@ final class GenerateCommand {
                                   usage: "The path where the fixture will be generated.",
                                   completion: .filename)
         projectsArgument = parser.add(option: "--projects",
-                                      shortName: "-s",
+                                      shortName: "-p",
                                       kind: Int.self,
                                       usage: "Number of projects to generate.")
         targetsArgument = parser.add(option: "--targets",
