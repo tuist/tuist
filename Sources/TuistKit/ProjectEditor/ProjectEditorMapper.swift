@@ -54,12 +54,19 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         targets.append(manifestsTarget)
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
 
+        // Run Scheme
+        let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
+        let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
+        let runAction = RunAction(configurationName: "Debug", filePath: "/usr/local/bin/tuist", arguments: arguments)
+        let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
+        
         // Project
         let project = Project(path: sourceRootPath,
                               name: "Manifests",
                               settings: projectSettings,
                               filesGroup: .group(name: "Manifests"),
-                              targets: targets)
+                              targets: targets,
+                              schemes: [scheme])
 
         // Graph
         let cache = GraphLoaderCache()
