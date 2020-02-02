@@ -329,20 +329,27 @@ final class SchemesGenerator: SchemesGenerating {
         if let executable = scheme.runAction?.executable {
             target = executable
         }
-
-        guard let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
-        guard let buildableReference = try createBuildableReference(targetReference: target,
-                                                                    graph: graph,
-                                                                    rootPath: rootPath,
-                                                                    generatedProjects: generatedProjects) else { return nil }
-
+        
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
-
-        if targetNode.target.product.runnable {
-            buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
+        var pathRunnable: XCScheme.PathRunnable?
+        var defaultBuildConfiguration = BuildConfiguration.debug.name
+        
+        if let filePath = scheme.runAction?.filePath {
+            pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
         } else {
-            macroExpansion = buildableReference
+            guard let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
+            defaultBuildConfiguration = defaultDebugBuildConfigurationName(in: targetNode.project)
+            guard let buildableReference = try createBuildableReference(targetReference: target,
+                                                                        graph: graph,
+                                                                        rootPath: rootPath,
+                                                                        generatedProjects: generatedProjects) else { return nil }
+
+            if targetNode.target.product.runnable {
+                buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
+            } else {
+                macroExpansion = buildableReference
+            }
         }
 
         var commandlineArguments: XCScheme.CommandLineArguments?
@@ -353,10 +360,11 @@ final class SchemesGenerator: SchemesGenerating {
             environments = environmentVariables(arguments.environment)
         }
 
-        let buildConfiguration = scheme.runAction?.configurationName ?? defaultDebugBuildConfigurationName(in: targetNode.project)
+        let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
         return XCScheme.LaunchAction(runnable: buildableProductRunnable,
                                      buildConfiguration: buildConfiguration,
                                      macroExpansion: macroExpansion,
+                                     pathRunnable: pathRunnable,
                                      commandlineArguments: commandlineArguments,
                                      environmentVariables: environments)
     }
