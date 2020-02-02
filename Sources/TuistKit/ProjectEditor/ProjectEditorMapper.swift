@@ -59,7 +59,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
         let runAction = RunAction(configurationName: "Debug", filePath: "/usr/local/bin/tuist", arguments: arguments)
         let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
-        
+
         // Project
         let project = Project(path: sourceRootPath,
                               name: "Manifests",

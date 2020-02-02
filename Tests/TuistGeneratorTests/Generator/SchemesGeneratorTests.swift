@@ -461,7 +461,7 @@ final class SchemesGeneratorTests: XCTestCase {
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
         let launchAction = RunAction.test(configurationName: "Debug", filePath: "/usr/bin/foo")
-        
+
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, runAction: launchAction)
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
@@ -478,7 +478,7 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
     }
-    
+
     func test_schemeLaunchAction_with_path() throws {
         let projectPath = AbsolutePath("/somepath/Project")
 
@@ -506,9 +506,7 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(result.macroExpansion?.buildableName, "libLibrary.dylib")
         XCTAssertEqual(result.macroExpansion?.blueprintName, "Library")
         XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
-
     }
-
 
     // MARK: - Profile Action Tests
 

@@ -329,12 +329,12 @@ final class SchemesGenerator: SchemesGenerating {
         if let executable = scheme.runAction?.executable {
             target = executable
         }
-        
+
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         var pathRunnable: XCScheme.PathRunnable?
         var defaultBuildConfiguration = BuildConfiguration.debug.name
-        
+
         if let filePath = scheme.runAction?.filePath {
             pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
         } else {
