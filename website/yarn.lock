@@ -6453,10 +6453,10 @@ gatsby-cli@^2.8.26:
     ink "^2.6.0"
     ink-spinner "^3.0.1"
 
-gatsby-core-utils@^1.0.26:
-  version "1.0.26"
-  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.0.26.tgz#e1cbdfad498d58d677d9d74f21a1ede661b49d6f"
-  integrity sha512-NPflmXmyTcg3x2mp6cqp/51QeAHRKepfbf0X4erDsnVlewFJuGTe+25ZJvWkkwU2g1cPAxuwzlPe0jOL92iU4A==
+gatsby-core-utils@^1.0.26, gatsby-core-utils@^1.0.28:
+  version "1.0.28"
+  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.0.28.tgz#aa66e49cdcc1892e7817a32fdd806cf5e16ea309"
+  integrity sha512-XWKR9Rk2v6iQkmBsTLCdI3adyC9PCh1s5BQ85nlGitlgcVVQq98jZlQdcy0v9mJOrTuce0uf5RqkeGDWFLekoA==
   dependencies:
     ci-info "2.0.0"
     node-object-hash "^2.0.0"
@@ -6520,13 +6520,13 @@ gatsby-plugin-feed@^2.3.26:
     lodash.merge "^4.6.2"
     rss "^1.2.2"
 
-gatsby-plugin-manifest@2.2.38:
-  version "2.2.38"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-2.2.38.tgz#365d679dc815b301b38eff7893f35c62036f5e2b"
-  integrity sha512-3DXS7FTK4qJnKLAZ/8x2/UfSOVCwTykg/kp0erYbdJ2roxPvUd3paCqGm3WfzbfwKVGVBpZgMaYO/whNw/bdbQ==
+gatsby-plugin-manifest@2.2.41:
+  version "2.2.41"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-2.2.41.tgz#c6952e466b163145b74aa071822a97a797a68e01"
+  integrity sha512-eKbnpDSLbGUzmnfE65uLit/J8XS4LYslyRHtqMhTja6JcdzjXVWFsO9043tqUXfL8+JBw5PccCxZM8BIN23+Vw==
   dependencies:
     "@babel/runtime" "^7.7.6"
-    gatsby-core-utils "^1.0.26"
+    gatsby-core-utils "^1.0.28"
     semver "^5.7.1"
     sharp "^0.23.4"
 
