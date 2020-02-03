@@ -86,9 +86,9 @@
         "package": "XcodeProj",
         "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
-          "branch": "add-path-runnable",
-          "revision": "01465a42297f09efa39429f1c3ca613ca1b2a665",
-          "version": null
+          "branch": null,
+          "revision": "f32704e01d2752bdc17cde3963bee4256c1f4df4",
+          "version": "7.8.0"
         }
       }
     ]
