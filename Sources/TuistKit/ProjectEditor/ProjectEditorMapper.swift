@@ -4,7 +4,8 @@ import TuistCore
 import TuistSupport
 
 protocol ProjectEditorMapping: AnyObject {
-    func map(sourceRootPath: AbsolutePath,
+    func map(tuistPath: AbsolutePath,
+             sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph)
@@ -12,7 +13,8 @@ protocol ProjectEditorMapping: AnyObject {
 
 final class ProjectEditorMapper: ProjectEditorMapping {
     // swiftlint:disable:next function_body_length
-    func map(sourceRootPath: AbsolutePath,
+    func map(tuistPath: AbsolutePath,
+             sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
@@ -57,7 +59,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
         let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
-        let runAction = RunAction(configurationName: "Debug", filePath: "/usr/local/bin/tuist", arguments: arguments)
+
+        let runAction = RunAction(configurationName: "Debug", filePath: tuistPath, arguments: arguments)
         let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
 
         // Project

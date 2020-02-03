@@ -26,9 +26,11 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
 
         // When
-        let (project, graph) = subject.map(sourceRootPath: sourceRootPath,
+        let (project, graph) = subject.map(tuistPath: tuistPath,
+                                           sourceRootPath: sourceRootPath,
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
                                            projectDescriptionPath: projectDescriptionPath)
@@ -80,7 +82,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(buildAction.targets.map { $0.name }, targetNodes.map { $0.name })
 
         let runAction = try XCTUnwrap(scheme.runAction)
-        XCTAssertEqual(runAction.filePath, "/usr/local/bin/tuist")
+        XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
         XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
     }
@@ -91,9 +93,11 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
 
         // When
-        let (project, graph) = subject.map(sourceRootPath: sourceRootPath,
+        let (project, graph) = subject.map(tuistPath: tuistPath,
+                                           sourceRootPath: sourceRootPath,
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
                                            projectDescriptionPath: projectDescriptionPath)
@@ -133,7 +137,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(buildAction.targets.map { $0.name }, targetNodes.map { $0.name })
 
         let runAction = try XCTUnwrap(scheme.runAction)
-        XCTAssertEqual(runAction.filePath, "/usr/local/bin/tuist")
+        XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
         XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
     }
