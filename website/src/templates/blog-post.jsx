@@ -66,7 +66,7 @@ const IndexPage = ({
         url={urljoin(siteUrl, post.fields.slug)}
         title={post.frontmatter.title}
         keywords={post.frontmatter.categories}
-        datePublished={moment(post.fields.date)}
+        datePublished={moment(post.fields.date).format()}
         author={author.name}
         description={post.frontmatter.excerpt}
       />
@@ -80,7 +80,7 @@ const IndexPage = ({
           url: urljoin(siteUrl, post.fields.slug),
           type: 'article',
           article: {
-            publishedTime: moment(post.fields.date),
+            publishedTime: moment(post.fields.date).format(),
             authors: [`https://www.twitter.com/${author.twitter}`],
             tags: post.frontmatter.categories,
           },

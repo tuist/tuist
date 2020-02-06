@@ -9,6 +9,7 @@ import Main from '../components/main'
 import { findWhere } from 'underscore'
 import { BreadcrumbJsonLd, BlogJsonLd, GatsbySeo } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
+import moment from 'moment'
 
 const Post = ({ post, index, authors }) => {
   const authorHandle = post.frontmatter.author
@@ -138,8 +139,15 @@ const BlogList = ({
         url={urljoin(siteUrl, '/blog')}
         headline="Tuist Blog"
         posts={edges.map(edge => {
+          const authorHandle = edge.node.frontmatter.author
+          const author = findWhere(authors, { handle: authorHandle })
+
           return {
             headline: edge.node.frontmatter.title,
+            author: author.name,
+            datePublished: moment(edge.node.fields.date).format(),
+            image: author.avatar,
+            publisher: author.name,
           }
         })}
         authorName="Tuist"
