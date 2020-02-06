@@ -382,9 +382,23 @@ final class SchemesGenerator: SchemesGenerating {
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction? {
         guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
-        if let executable = scheme.runAction?.executable {
+        var commandlineArguments: XCScheme.CommandLineArguments?
+        var environments: [XCScheme.EnvironmentVariable]?
+
+        if let action = scheme.profileAction, let executable = action.executable {
             target = executable
+            if let arguments = action.arguments {
+                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+                environments = environmentVariables(arguments.environment)
+            }
+        } else if let action = scheme.runAction, let executable = action.executable {
+            target = executable
+            if let arguments = action.arguments {
+                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+                environments = environmentVariables(arguments.environment)
+            }
         }
+
         guard let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
         guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                     graph: graph,
@@ -400,10 +414,12 @@ final class SchemesGenerator: SchemesGenerating {
             macroExpansion = buildableReference
         }
 
-        let buildConfiguration = defaultReleaseBuildConfigurationName(in: targetNode.project)
+        let buildConfiguration = scheme.profileAction?.configurationName ?? defaultReleaseBuildConfigurationName(in: targetNode.project)
         return XCScheme.ProfileAction(buildableProductRunnable: buildableProductRunnable,
                                       buildConfiguration: buildConfiguration,
-                                      macroExpansion: macroExpansion)
+                                      macroExpansion: macroExpansion,
+                                      commandlineArguments: commandlineArguments,
+                                      environmentVariables: environments)
     }
 
     /// Returns the scheme analyze action.
@@ -421,7 +437,7 @@ final class SchemesGenerator: SchemesGenerating {
         guard let target = try defaultTargetReference(scheme: scheme),
             let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
 
-        let buildConfiguration = defaultDebugBuildConfigurationName(in: targetNode.project)
+        let buildConfiguration = scheme.analyzeAction?.configurationName ?? defaultDebugBuildConfigurationName(in: targetNode.project)
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
     }
 
