@@ -38,7 +38,7 @@
     "gatsby-redirect-from": "^0.2.1",
     "gatsby-remark-check-links": "^2.1.0",
     "gatsby-remark-images": "^3.1.42",
-    "gatsby-remark-smartypants": "^2.1.20",
+    "gatsby-remark-smartypants": "^2.1.21",
     "gatsby-remark-social-cards": "https://github.com/pepibumur/gatsby-remark-social-cards.git#0.5.2",
     "gatsby-source-filesystem": "^2.1.48",
     "gatsby-transformer-yaml": "^2.2.24",
