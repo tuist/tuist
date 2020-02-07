@@ -59,8 +59,12 @@ class ProjectFileElements {
         let projectFileElements = projectFiles(project: project)
         files.formUnion(projectFileElements)
 
+        let sortedFiles = files.sorted { (one, two) -> Bool in
+            one.path < two.path
+        }
+
         /// Files
-        try generate(files: Array(files),
+        try generate(files: sortedFiles,
                      groups: groups,
                      pbxproj: pbxproj,
                      sourceRootPath: sourceRootPath)

@@ -63,26 +63,26 @@ class ProjectGroups {
         }
         return group
     }
-    
+
     static func sortGroups(group: PBXGroup) {
         let children = group.children
             .sorted { (child1, child2) -> Bool in
-            let sortOrder1 = child1.getSortOrder()
-            let sortOrder2 = child2.getSortOrder()
-            
-            if sortOrder1 != sortOrder2 {
-                return sortOrder1 < sortOrder2
-            } else {
-                if (child1.name, child1.path) != (child2.name, child2.path) {
-                    return PBXFileElement.sortByNamePath(child1, child2)
+                let sortOrder1 = child1.getSortOrder()
+                let sortOrder2 = child2.getSortOrder()
+
+                if sortOrder1 != sortOrder2 {
+                    return sortOrder1 < sortOrder2
                 } else {
-                    return child1.context ?? "" < child2.context ?? ""
+                    if (child1.name, child1.path) != (child2.name, child2.path) {
+                        return PBXFileElement.sortByNamePath(child1, child2)
+                    } else {
+                        return child1.context ?? "" < child2.context ?? ""
+                    }
                 }
             }
-        }
-        
+
         group.children = children.filter { $0 != group }
-        
+
         let childGroups = group.children.compactMap { $0 as? PBXGroup }
         childGroups.forEach(sortGroups)
     }
@@ -132,7 +132,7 @@ class ProjectGroups {
                              playgrounds: playgroundsGroup,
                              pbxproj: pbxproj)
     }
-    
+
     static func addFirstLevelDefaults(firstLevelGroup: ProjectGroups) {
         firstLevelGroup.main.children.append(firstLevelGroup.frameworks)
         if let playgroundsGroup = firstLevelGroup.playgrounds {
@@ -161,12 +161,12 @@ extension PBXFileElement {
             return 0
         }
     }
-    
+
     public static func sortByNamePath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool {
-        return lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
+        lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
     }
-    
+
     private var namePathSortString: String {
-        return "\(name ?? path ?? "")\t\(name ?? "")\t\(path ?? "")"
+        "\(name ?? path ?? "")\t\(name ?? "")\t\(path ?? "")"
     }
 }

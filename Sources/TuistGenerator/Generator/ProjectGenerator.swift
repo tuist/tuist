@@ -105,7 +105,7 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-        
+
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
@@ -113,10 +113,10 @@ final class ProjectGenerator: ProjectGenerating {
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
-        
+
         ProjectGroups.sortGroups(group: groups.main)
         ProjectGroups.addFirstLevelDefaults(firstLevelGroup: groups)
-        
+
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 projectFileElements: fileElements,
@@ -131,7 +131,7 @@ final class ProjectGenerator: ProjectGenerating {
                                                 fileElements: fileElements,
                                                 sourceRootPath: sourceRootPath,
                                                 graph: graph)
-        
+
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
