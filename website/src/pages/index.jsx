@@ -13,8 +13,6 @@ import Message from '../../assets/message.svg'
 import Framework from '../../assets/framework.svg'
 import Arrow from '../../assets/arrow.svg'
 import Swift from '../../assets/swift.svg'
-import Soundcloud from '../../assets/soundcloud.svg'
-import Mytaxi from '../../assets/mytaxi.svg'
 import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import Quote from '../../assets/quote.svg'
@@ -391,6 +389,7 @@ const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
       <div sx={{ mt: 4, mb: 3, display: 'inherit' }}>
         <img
           src={avatarUrl}
+          alt={`${name} avatar`}
           sx={{ bg: 'gray6', width: 60, height: 60, borderRadius: 30, ml: 3 }}
         />
         <div
@@ -419,7 +418,7 @@ const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
           p: 3,
         }}
       >
-        <quote>"{testimony}"</quote>
+        <Quote>"{testimony}"</Quote>
       </div>
       <div
         sx={{
@@ -609,6 +608,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Ollie's avatar"
               src="https://avatars2.githubusercontent.com/u/1382565?s=460&v=4"
             />
           </a>
@@ -619,6 +619,7 @@ const Contribute = () => {
           >
             <img
               sx={{ width: 50, height: 50, borderRadius: 25 }}
+              alt="Kas' avatar"
               src="https://avatars2.githubusercontent.com/u/11914919?s=460&v=4"
             />
           </a>
@@ -635,6 +636,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Marek's profile"
               src="https://avatars1.githubusercontent.com/u/9371695?s=460&v=4"
             />
           </a>
@@ -681,6 +683,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Lakpa's avatar"
               src="https://avatars1.githubusercontent.com/u/389328?s=400&v=4"
             />
           </a>
@@ -707,6 +710,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Marcin's avatar"
               src="https://avatars1.githubusercontent.com/u/946649?s=460&v=4"
             />
           </a>
