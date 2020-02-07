@@ -6,7 +6,7 @@ import TuistCore
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
-@testable import TuistGalaxy
+@testable import TuistCache
 @testable import TuistSupportTesting
 
 final class CacheLocalStorageIntegrationTests: TuistTestCase {
