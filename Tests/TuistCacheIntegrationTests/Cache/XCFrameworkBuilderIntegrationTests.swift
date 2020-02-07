@@ -4,8 +4,8 @@ import SPMUtility
 import TuistCore
 import TuistSupport
 import XCTest
-@testable import TuistCoreTesting
 @testable import TuistCache
+@testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
 final class XCFrameworkBuilderIntegrationTests: TuistTestCase {
