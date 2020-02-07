@@ -8,8 +8,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ProjectFileElementsTests: TuistUnitTestCase {
-    typealias GroupFileElement = ProjectFileElements.GroupFileElement
-
     var subject: ProjectFileElements!
     var playgrounds: MockPlaygrounds!
     var groups: ProjectGroups!
@@ -680,16 +678,6 @@ private extension PBXGroup {
     ///    -- D
     /// Would return:
     ///         ["A/B", "A/C/D"]
-    var flattenedChildren: [String] {
-        children.flatMap { (element: PBXFileElement) -> [String] in
-            switch element {
-            case let group as PBXGroup:
-                return group.flattenedChildren.map { group.nameOrPath + "/" + $0 }
-            default:
-                return [element.nameOrPath]
-            }
-        }
-    }
 
     /// Retuns all the child variant groups (recursively)
     var debugVariantGroupPaths: [String] {

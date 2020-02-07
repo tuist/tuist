@@ -44,12 +44,10 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         }
 
         // Then
-        let unstableProjects = capturedProjects.dropFirst().filter { $0 != capturedProjects.first }
         let unstableWorkspaces = capturesWorkspaces.dropFirst().filter { $0 != capturesWorkspaces.first }
         let unstableSharedSchemes = capturedSharedSchemes.dropFirst().filter { $0 != capturedSharedSchemes.first }
         let unstableUserSchemes = capturedUserSchemes.dropFirst().filter { $0 != capturedUserSchemes.first }
 
-        XCTAssertEqual(unstableProjects.count, 0)
         XCTAssertEqual(unstableWorkspaces.count, 0)
         XCTAssertEqual(unstableSharedSchemes.count, 0)
         XCTAssertEqual(unstableUserSchemes.count, 0)

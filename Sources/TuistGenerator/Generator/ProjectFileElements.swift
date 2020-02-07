@@ -4,20 +4,20 @@ import TuistCore
 import TuistSupport
 import XcodeProj
 
+public struct GroupFileElement: Hashable {
+    var path: AbsolutePath
+    var group: ProjectGroup
+    var isReference: Bool
+
+    init(path: AbsolutePath, group: ProjectGroup, isReference: Bool = false) {
+        self.path = path
+        self.group = group
+        self.isReference = isReference
+    }
+}
+
 // swiftlint:disable:next type_body_length
 class ProjectFileElements {
-    struct GroupFileElement: Hashable {
-        var path: AbsolutePath
-        var group: ProjectGroup
-        var isReference: Bool
-
-        init(path: AbsolutePath, group: ProjectGroup, isReference: Bool = false) {
-            self.path = path
-            self.group = group
-            self.isReference = isReference
-        }
-    }
-
     // MARK: - Static
 
     // swiftlint:disable:next force_try
@@ -37,16 +37,13 @@ class ProjectFileElements {
     // MARK: - Private
 
     private let playgrounds: Playgrounding
-    private let filesSortener: ProjectFilesSortening
 
     // MARK: - Init
 
     init(_ elements: [AbsolutePath: PBXFileElement] = [:],
-         playgrounds: Playgrounding = Playgrounds(),
-         filesSortener: ProjectFilesSortening = ProjectFilesSortener()) {
+         playgrounds: Playgrounding = Playgrounds()) {
         self.elements = elements
         self.playgrounds = playgrounds
-        self.filesSortener = filesSortener
     }
 
     func generateProjectFiles(project: Project,
@@ -62,13 +59,8 @@ class ProjectFileElements {
         let projectFileElements = projectFiles(project: project)
         files.formUnion(projectFileElements)
 
-        let pathsSort = filesSortener.sort
-        let filesSort: (GroupFileElement, GroupFileElement) -> Bool = {
-            pathsSort($0.path, $1.path)
-        }
-
         /// Files
-        try generate(files: files.sorted(by: filesSort),
+        try generate(files: Array(files),
                      groups: groups,
                      pbxproj: pbxproj,
                      sourceRootPath: sourceRootPath)

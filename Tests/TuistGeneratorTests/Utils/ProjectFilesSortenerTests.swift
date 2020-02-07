@@ -1,116 +1,285 @@
-import Basic
-import Foundation
-import TuistSupport
-import XCTest
-
-@testable import TuistGenerator
-@testable import TuistSupportTesting
-
-final class ProjectFilesSortenerTests: TuistUnitTestCase {
-    var subject: ProjectFilesSortener!
-
-    override func setUp() {
-        super.setUp()
-        subject = ProjectFilesSortener()
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_sort() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let basePath = temporaryPath
-        let file1 = basePath.appending(RelativePath("path/to/sources/file.swift"))
-        let file2 = basePath.appending(RelativePath("path/to/tests/test.swift"))
-        let file3 = basePath.appending(RelativePath("path/to/tuist.swift"))
-        let file4 = basePath.appending(RelativePath("path/to/waka.swift"))
-        let files = [file1, file2, file3, file4]
-        try files.forEach { try FileHandler.shared.touch($0) }
-
-        // When
-        let got = files.sorted(by: subject.sort)
-
-        // Then
-        XCTAssertEqual(got[0], file3)
-        XCTAssertEqual(got[1], file4)
-        XCTAssertEqual(got[2], file1)
-        XCTAssertEqual(got[3], file2)
-    }
-
-    func test_sort_isStable() throws {
-        // Given
-        let folders = try createFolders([
-            "Root/A",
-            "Root/A/A1",
-            "Root/B",
-            "Root/B/B1",
-        ])
-
-        let files = try createFiles([
-            "Root/A/a.md",
-            "Root/A/z.md",
-            "Root/A/A1/a.md",
-            "Root/A/A1/z.md",
-            "Root/B/b.md",
-            "Root/B/z.md",
-            "Root/B/B1/b.md",
-            "Root/B/B1/z.md",
-        ])
-
-        let paths = (files + folders)
-
-        // When
-        let got = (0 ..< 10).map { _ in paths.shuffled().sorted(by: subject.sort) }
-
-        // Then
-        let unstable = got.dropFirst().filter { $0 != got.first }
-        XCTAssertTrue(unstable.isEmpty)
-    }
-
-    func test_sort_filesBeforeDirectories() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let folders = try createFolders([
-            "Root/A",
-            "Root/A/A1",
-            "Root/B",
-            "Root/B/B1",
-        ])
-
-        let files = try createFiles([
-            "Root/A/a.md",
-            "Root/A/z.md",
-            "Root/A/A1/a.md",
-            "Root/A/A1/z.md",
-            "Root/B/b.md",
-            "Root/B/z.md",
-            "Root/B/B1/b.md",
-            "Root/B/B1/z.md",
-        ])
-
-        let paths = (files + folders).shuffled()
-
-        // When
-        let got = paths.sorted(by: subject.sort)
-
-        // Then
-        let raltivePaths = got.map { $0.relative(to: temporaryPath).pathString }
-        XCTAssertEqual(raltivePaths, [
-            "Root/A/a.md",
-            "Root/A/z.md",
-            "Root/A/A1/a.md",
-            "Root/A/A1/z.md",
-            "Root/A/A1",
-            "Root/A",
-            "Root/B/b.md",
-            "Root/B/z.md",
-            "Root/B/B1/b.md",
-            "Root/B/B1/z.md",
-            "Root/B/B1",
-            "Root/B",
-        ])
-    }
-}
+//import Basic
+//import Foundation
+//import TuistSupport
+//import XCTest
+//
+//@testable import TuistGenerator
+//@testable import TuistSupportTesting
+//
+//final class ProjectFilesSortenerTests: TuistUnitTestCase {
+//    var subject: ProjectFilesSortener!
+//
+//    override func setUp() {
+//        super.setUp()
+//        subject = ProjectFilesSortener()
+//    }
+//
+//    override func tearDown() {
+//        subject = nil
+//        super.tearDown()
+//    }
+//
+//    func test_sort_nestedGroups() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("path/to/A/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("path/to/A/B.swift")), group: .group(name: "Project"), isReference: false)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("path/to/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file4 = GroupFileElement(path: basePath.appending(RelativePath("path/to/B.swift")), group: .group(name: "Project"), isReference: false)
+//
+//        let files = [file1, file2, file3, file4].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2, file3, file4])
+//    }
+//    
+//    func test_sort_nestedGroupsCaseTwo() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("path/A/A/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("path/A/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("path/A/B.swift")), group: .group(name: "Project"), isReference: false)
+//        let file4 = GroupFileElement(path: basePath.appending(RelativePath("path/Z/A/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file5 = GroupFileElement(path: basePath.appending(RelativePath("path/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file6 = GroupFileElement(path: basePath.appending(RelativePath("path/B.swift")), group: .group(name: "Project"), isReference: false)
+//
+//        let files = [file6, file2, file3, file4, file5, file1].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2, file3, file4, file5, file6])
+//    }
+//    
+//    // TODO: change test names
+//    func test_sort_nestedGroupsAndFolderReference() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("path/A/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("path/A/B.swift")), group: .group(name: "Project"), isReference: false)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("path/B/README.md")), group: .group(name: "Project"), isReference: true)
+//        let file4 = GroupFileElement(path: basePath.appending(RelativePath("path/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file5 = GroupFileElement(path: basePath.appending(RelativePath("path/B.swift")), group: .group(name: "Project"), isReference: false)
+//        
+//        let files = [file1, file2, file3, file4, file5].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2, file3, file4, file5])
+//    }
+//    
+//    func test_sort_nestedGroupsAndRootPaths() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/README.md")), group: .group(name: "Project"), isReference: true)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("B/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("C.swift")), group: .group(name: "Project"), isReference: false)
+//        let file4 = GroupFileElement(path: basePath.appending(RelativePath("D.swift")), group: .group(name: "Project"), isReference: false)
+//        let file5 = GroupFileElement(path: basePath.appending(RelativePath("E.swift")), group: .group(name: "Project"), isReference: false)
+//        let file6 = GroupFileElement(path: basePath.appending(RelativePath("F.swift")), group: .group(name: "Project"), isReference: false)
+//        
+//        let files = [file1, file2, file3, file4, file5, file6].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        XCTAssertEqual(got, [file1, file2, file3, file4, file5, file6])
+//    }
+//    
+//    func test_sort_twoSeperateFoldersWithAllCases() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/ZZZZZZ.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("Z/AAAAAA.swift")), group: .group(name: "Project"), isReference: false)
+//
+//        let files = [file1, file2].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2])
+//    }
+//    
+//    func test_sort_twoSeperateFoldersWithAllCases1() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/AAAAAA.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("A/ZZZZZZ.swift")), group: .group(name: "Project"), isReference: false)
+//        
+//
+//        let files = [file1, file2].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2])
+//    }
+//    
+//    func test_sort_twoSeperateFoldersWithAllCases2() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/A/AAAAAA.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("A/AAAAAA.swift")), group: .group(name: "Project"), isReference: false)
+//        
+//
+//        let files = [file1, file2].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2])
+//    }
+//    
+//    
+//    func test_sort_twoSeperateFoldersWithAllCases3() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/A/AAAAAA.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("A/A/AAAAAA.swift")), group: .group(name: "Project"), isReference: false)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("A/AAAAAA.swift")), group: .group(name: "Project"), isReference: false)
+//        
+//
+//        let files = [file1, file2].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2])
+//    }
+//    
+//    func test_sort_() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/A/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("A/B")), group: .group(name: "Project"), isReference: true)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("A/C/A.swift")), group: .group(name: "Project"), isReference: false)
+//
+//        let files = [file1, file2, file3].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2, file3])
+//    }
+//    
+//    func test_sort_lengthOfComponents() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/A/A")), group: .group(name: "Project"), isReference: true)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("A/B/A/A/A")), group: .group(name: "Project"), isReference: true)
+//
+//        let files = [file1, file2].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2])
+//    }
+//    
+//    func test_sort_two() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/A")), group: .group(name: "Project"), isReference: true)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("A/A.swift")), group: .group(name: "Project"), isReference: false)
+//
+//        let files = [file1, file2].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2])
+//    }
+//    
+//    func test_sort_three() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("A/A")), group: .group(name: "Project"), isReference: true)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("A/B")), group: .group(name: "Project"), isReference: true)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("A/A.swift")), group: .group(name: "Project"), isReference: false)
+//
+//        let files = [file1, file2, file3].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2, file3])
+//    }
+//    
+//    func test_sort_lotsOfFoldersBeforeFiles() throws {
+//        // Given
+//        let temporaryPath = try self.temporaryPath()
+//        let basePath = temporaryPath
+//        let file1 = GroupFileElement(path: basePath.appending(RelativePath("path/A/A")), group: .group(name: "Project"), isReference: true)
+//        let file2 = GroupFileElement(path: basePath.appending(RelativePath("path/A/B")), group: .group(name: "Project"), isReference: true)
+//        let file3 = GroupFileElement(path: basePath.appending(RelativePath("path/A/C")), group: .group(name: "Project"), isReference: true)
+//        let file4 = GroupFileElement(path: basePath.appending(RelativePath("path/A/A.swift")), group: .group(name: "Project"), isReference: false)
+//        let file5 = GroupFileElement(path: basePath.appending(RelativePath("path/A/B.swift")), group: .group(name: "Project"), isReference: false)
+//        
+//        let files = [file1, file2, file3, file4, file5].shuffled()
+//        try files.forEach { try FileHandler.shared.touch($0.path) }
+//
+//        // When
+//        let got = files.sorted(by: subject.sort)
+//
+//        // Then
+//        printResults(files: got)
+//        XCTAssertEqual(got, [file1, file2, file3, file4, file5])
+//    }
+//    
+//    private func printResults(files: [GroupFileElement]) {
+//        print("Final Order:")
+//        for file in files {
+//            print(file.path, file.isReference)
+//        }
+//    }
+//}
