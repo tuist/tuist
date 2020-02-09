@@ -16,7 +16,7 @@ import Swift from '../../assets/swift.svg'
 import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import Quote from '../../assets/quote.svg'
-import { GatsbySeo } from 'gatsby-plugin-next-seo'
+import SEO from '../components/SEO'
 
 const PressableButton = posed.div({
   hoverable: true,
@@ -723,8 +723,7 @@ const Contribute = () => {
 const IndexPage = () => {
   return (
     <Layout>
-      <GatsbySeo titleTemplate="%s" title="Tuist" />
-
+      <SEO />
       <Steroids />
       <Workspaces />
       <Principles />

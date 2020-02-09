@@ -10,11 +10,8 @@ import Main from '../components/main'
 import EditPage from '../components/edit-page'
 import Share from '../components/share'
 import urljoin from 'url-join'
-import {
-  GatsbySeo,
-  NewsArticleJsonLd,
-  BreadcrumbJsonLd,
-} from 'gatsby-plugin-next-seo'
+import SEO from '../components/SEO'
+import { NewsArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 
 const Avatar = ({ author: { avatar, twitter } }) => {
   return (
@@ -70,9 +67,9 @@ const IndexPage = ({
         author={author.name}
         description={post.frontmatter.excerpt}
       />
-      <GatsbySeo
+
+      <SEO
         title={post.frontmatter.title}
-        titleTemplate={`%s | Tuist`}
         description={post.frontmatter.excerpt}
         openGraph={{
           title: post.frontmatter.title,

@@ -6,6 +6,7 @@ import Main from '../components/main'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { FAQJsonLd, GatsbySeo } from 'gatsby-plugin-next-seo'
 import Footer from '../components/footer'
+import SEO from '../components/SEO'
 
 const Question = ({ question, body, index }) => {
   return (
@@ -41,6 +42,7 @@ export default () => {
   })
   return (
     <Layout>
+      <SEO />
       <FAQJsonLd questions={structuredQuestions} />
       <GatsbySeo
         title="FAQ"
