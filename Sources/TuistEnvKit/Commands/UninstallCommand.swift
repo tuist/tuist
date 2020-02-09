@@ -33,6 +33,7 @@ final class UninstallCommand: Command {
                                         kind: String.self,
                                         optional: false,
                                         usage: "The version of tuist to be uninstalled")
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     func run(with result: ArgumentParser.Result) throws {
@@ -40,9 +41,9 @@ final class UninstallCommand: Command {
         let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {
             try versionsController.uninstall(version: version)
-            Printer.shared.print(success: "Version \(version) uninstalled")
+            logger.info("Version \(version) uninstalled", metadata: .init(.success))
         } else {
-            Printer.shared.print(warning: "Version \(version) cannot be uninstalled because it's not installed")
+            logger.warning("Version \(version) cannot be uninstalled because it's not installed")
         }
     }
 }

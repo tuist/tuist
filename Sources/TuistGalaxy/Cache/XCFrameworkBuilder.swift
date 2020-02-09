@@ -77,7 +77,7 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
         let outputDirectory = try TemporaryDirectory(removeTreeOnDeinit: false)
         let derivedDataPath = try TemporaryDirectory(removeTreeOnDeinit: true)
 
-        Printer.shared.print(section: "Building .xcframework for \(target.productName)")
+        logger.info("Building .xcframework for \(target.productName)", metadata: Logger.Metadata(.section))
 
         // Build for the device
         let deviceArchivePath = derivedDataPath.path.appending(component: "device.xcarchive")
@@ -87,7 +87,9 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                 derivedDataPath: derivedDataPath.path)
         deviceArguments.append(contentsOf: ["-archivePath", deviceArchivePath.pathString])
         deviceArguments.append(contentsOf: arguments)
-        Printer.shared.print(subsection: "Building \(target.productName) for device")
+        
+        logger.info("Building \(target.productName) for device", metadata: Logger.Metadata(.subsection))
+
         try runCommand(deviceArguments)
 
         // Build for the simulator
@@ -100,12 +102,15 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                        derivedDataPath: derivedDataPath.path)
             simulatorArguments.append(contentsOf: ["-archivePath", simulatorArchivePath!.pathString])
             simulatorArguments.append(contentsOf: arguments)
-            Printer.shared.print(subsection: "Building \(target.productName) for simulator")
+            
+            logger.info("Building \(target.productName) for simulator", metadata: Logger.Metadata(.subsection))
+            
             try runCommand(simulatorArguments)
         }
 
         // Build the xcframework
-        Printer.shared.print(subsection: "Exporting xcframework for \(target.productName)")
+        logger.info("Exporting xcframework for \(target.productName)", metadata: Logger.Metadata(.subsection))
+
         let xcframeworkPath = outputDirectory.path.appending(component: "\(target.productName).xcframework")
         let xcframeworkArguments = xcodebuildXcframeworkCommand(deviceArchivePath: deviceArchivePath,
                                                                 simulatorArchivePath: simulatorArchivePath,

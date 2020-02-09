@@ -12,12 +12,13 @@ class VersionCommand: NSObject, Command {
     // MARK: - Init
 
     required init(parser: ArgumentParser) {
-        parser.add(subparser: VersionCommand.command, overview: VersionCommand.overview)
+        let subParser = parser.add(subparser: VersionCommand.command, overview: VersionCommand.overview)
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     // MARK: - Command
 
     func run(with _: ArgumentParser.Result) {
-        Printer.shared.print("\(Constants.version)")
+        logger.info("\(Constants.version)")
     }
 }

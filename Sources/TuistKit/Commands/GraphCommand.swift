@@ -34,7 +34,8 @@ class GraphCommand: NSObject, Command {
     init(parser: ArgumentParser,
          dotGraphGenerator: DotGraphGenerating,
          manifestLoader: ManifestLoading) {
-        parser.add(subparser: GraphCommand.command, overview: GraphCommand.overview)
+        let subParser = parser.add(subparser: GraphCommand.command, overview: GraphCommand.overview)
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
         self.dotGraphGenerator = dotGraphGenerator
         self.manifestLoader = manifestLoader
     }
@@ -45,11 +46,11 @@ class GraphCommand: NSObject, Command {
 
         let path = FileHandler.shared.currentPath.appending(component: "graph.dot")
         if FileHandler.shared.exists(path) {
-            Printer.shared.print("Deleting existing graph at \(path.pathString)")
+            logger.info("Deleting existing graph at \(path.pathString)")
             try FileHandler.shared.delete(path)
         }
 
         try FileHandler.shared.write(graph, path: path, atomically: true)
-        Printer.shared.print(success: "Graph exported to \(path.pathString)")
+        logger.info("Graph exported to \(path.pathString)", metadata: Logger.Metadata(.success))
     }
 }

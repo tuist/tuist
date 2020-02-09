@@ -43,6 +43,7 @@ final class UpdateCommand: Command {
                                       shortName: "-f",
                                       kind: Bool.self,
                                       usage: "Re-installs the latest version compiling it from the source", completion: nil)
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     /// Runs the update command.
@@ -51,7 +52,7 @@ final class UpdateCommand: Command {
     /// - Throws: An error if the update process fails.
     func run(with result: ArgumentParser.Result) throws {
         let force = result.get(forceArgument) ?? false
-        Printer.shared.print(section: "Checking for updates...")
+        logger.info("Checking for updates...", metadata: .init(.section))
         try updater.update(force: force)
     }
 }

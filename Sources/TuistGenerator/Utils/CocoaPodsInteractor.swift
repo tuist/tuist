@@ -46,7 +46,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
             try install(graph: graph, updatingRepo: false)
         } catch let error as CocoaPodsInteractorError {
             if case CocoaPodsInteractorError.outdatedRepository = error {
-                Printer.shared.print(warning: "The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
+                logger.warning("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
                 try self.install(graph: graph, updatingRepo: true)
             } else {
                 throw error
@@ -81,7 +81,8 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
 
             // The installation of Pods might fail if the local repository that contains the specs
             // is outdated.
-            Printer.shared.print(section: "Installing CocoaPods dependencies defined in \(node.podfilePath)")
+            logger.info("Installing CocoaPods dependencies defined in \(node.podfilePath)", metadata: Logger.Metadata(.section))
+            
             var mightNeedRepoUpdate: Bool = false
             let outputClosure: ([UInt8]) -> Void = { bytes in
                 let content = String(data: Data(bytes), encoding: .utf8)

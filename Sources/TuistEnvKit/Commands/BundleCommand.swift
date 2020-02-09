@@ -50,7 +50,8 @@ final class BundleCommand: Command {
     init(parser: ArgumentParser,
          versionsController: VersionsControlling,
          installer: Installing) {
-        _ = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
+        let subParser = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
         self.versionsController = versionsController
         self.installer = installer
     }
@@ -66,13 +67,13 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        Printer.shared.print(section: "Bundling the version \(version) in the directory \(binFolderPath.pathString)")
+        logger.info("Bundling the version \(version) in the directory \(binFolderPath.pathString)", metadata: .init(.section))
 
         let versionPath = versionsController.path(version: version)
 
         // Installing
         if !FileHandler.shared.exists(versionPath) {
-            Printer.shared.print("Version \(version) not available locally. Installing...")
+            logger.info("Version \(version) not available locally. Installing...")
             try installer.install(version: version, force: false)
         }
 
@@ -82,6 +83,6 @@ final class BundleCommand: Command {
         }
         try FileHandler.shared.copy(from: versionPath, to: binFolderPath)
 
-        Printer.shared.print(success: "tuist bundled successfully at \(binFolderPath.pathString)")
+        logger.info("tuist bundled successfully at \(binFolderPath.pathString)", metadata: .init(.success))
     }
 }

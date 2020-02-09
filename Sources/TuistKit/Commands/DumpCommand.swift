@@ -31,6 +31,8 @@ class DumpCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the folder where the project manifest is",
                                      completion: .filename)
+        
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     // MARK: - Command
@@ -44,6 +46,6 @@ class DumpCommand: NSObject, Command {
         }
         let project = try manifestLoader.loadProject(at: path)
         let json: JSON = try project.toJSON()
-        Printer.shared.print("\(json.toString(prettyPrint: true))")
+        logger.info("\(json.toString(prettyPrint: true))")
     }
 }

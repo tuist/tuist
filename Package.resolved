@@ -65,6 +65,15 @@
         }
       },
       {
+        "package": "swift-log",
+        "repositoryURL": "https://github.com/apple/swift-log.git",
+        "state": {
+          "branch": null,
+          "revision": "74d7b91ceebc85daf387ebb206003f78813f71aa",
+          "version": "1.2.0"
+        }
+      },
+      {
         "package": "SwiftPM",
         "repositoryURL": "https://github.com/apple/swift-package-manager",
         "state": {
@@ -78,8 +87,8 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
           "branch": null,
-          "revision": "23f7e12a7e0db29b4f16052692d99f9fbe41fa15",
-          "version": "7.5.0"
+          "revision": "f32704e01d2752bdc17cde3963bee4256c1f4df4",
+          "version": "7.8.0"
         }
       }
     ]

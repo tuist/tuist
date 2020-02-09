@@ -75,7 +75,8 @@ final class ProjectGenerator: ProjectGenerating {
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil,
                   xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProject {
-        Printer.shared.print("Generating project \(project.name)")
+
+        logger.info("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path

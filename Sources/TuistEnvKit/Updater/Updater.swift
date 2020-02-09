@@ -35,22 +35,22 @@ final class Updater: Updating {
         }
 
         guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
-            Printer.shared.print("No remote versions found")
+            logger.info("No remote versions found")
             return
         }
 
         if force {
-            Printer.shared.print("Forcing the update of version \(highestRemoteVersion)")
+            logger.info("Forcing the update of version \(highestRemoteVersion)")
             try installer.install(version: highestRemoteVersion.description, force: true)
         } else if let highestLocalVersion = versionsController.semverVersions().sorted().last {
             if highestRemoteVersion <= highestLocalVersion {
-                Printer.shared.print("There are no updates available")
+                logger.info("There are no updates available")
             } else {
-                Printer.shared.print("Installing new version available \(highestRemoteVersion)")
+                logger.info("Installing new version available \(highestRemoteVersion)")
                 try installer.install(version: highestRemoteVersion.description, force: false)
             }
         } else {
-            Printer.shared.print("No local versions available. Installing the latest version \(highestRemoteVersion)")
+            logger.info("No local versions available. Installing the latest version \(highestRemoteVersion)")
             try installer.install(version: highestRemoteVersion.description, force: false)
         }
     }

@@ -28,6 +28,8 @@ class CacheCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the directory that contains the project whose frameworks will be cached.",
                                      completion: .filename)
+        
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     /// Runs the command using the result from parsing the command line arguments.
@@ -35,7 +37,7 @@ class CacheCommand: NSObject, Command {
     /// - Throws: An error if the the configuration of the environment fails.
     func run(with _: ArgumentParser.Result) throws {
         let twitterHandle = "@\(Constants.twitterHandle)"
-        Printer.shared.print("This feature is being worked on. Follow us on Twitter \(.bold(.raw(twitterHandle))) or join our Slack channel to stay up to date: \(.bold(.raw(Constants.joinSlackURL)))")
+        logger.notice("This feature is being worked on. Follow us on Twitter \(twitterHandle.bold()) or join our Slack channel to stay up to date: \(Constants.joinSlackURL.bold())")
     }
 
     /// Parses the arguments and returns the path to the directory where

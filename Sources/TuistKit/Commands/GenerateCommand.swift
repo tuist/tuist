@@ -50,6 +50,8 @@ class GenerateCommand: NSObject, Command {
         projectOnlyArgument = subParser.add(option: "--project-only",
                                             kind: Bool.self,
                                             usage: "Only generate the local project (without generating its dependencies).")
+        
+        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
@@ -62,8 +64,9 @@ class GenerateCommand: NSObject, Command {
                                    projectOnly: projectOnly)
 
         let time = String(format: "%.3f", timer.stop())
-        Printer.shared.print(success: "Project generated.")
-        Printer.shared.print("Total time taken: \(time)s")
+        
+        logger.info("Project generated.", metadata: Logger.Metadata(.success))
+        logger.info("Total time taken: \(time)s")
     }
 
     // MARK: - Fileprivate

@@ -44,5 +44,5 @@ When printing output for the user, this is the utility that should be used over 
 The methods from the public interface take a `PrintableString` as an input. Printable strings support interpolating formatted strings. For instance, if we want to tell users they need to run a command, we can do the following:
 
 ```swift
-Printer.shared.print("Please run the folling command to setup the environment: \(.command("tuist up"))")
+logger.info("Please run the folling command to setup the environment: \(.command("tuist up"))")
 ```
