@@ -13,7 +13,8 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = GraphLinter(projectLinter: MockProjectLinter())
+        subject = GraphLinter(projectLinter: MockProjectLinter(),
+                              staticProductsLinter: MockStaticProductsGraphLinter())
     }
 
     override func tearDown() {
@@ -138,60 +139,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = subject.lint(graph: graph)
 
         XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)))
-    }
-
-    func test_lint_when_package_dependency_linked_twice() throws {
-        let cache = GraphLoaderCache()
-
-        let appTarget = Target.test(name: "AppTarget", dependencies: [.package(product: "PackageLibrary"), .target(name: "frameworkA")])
-        let frameworkTarget = Target.test(name: "frameworkA", dependencies: [.target(name: "staticFramework")])
-
-        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget], packages: [.local(path: AbsolutePath("/packageLibrary"))])
-        let projectFramework = Project.test(path: "/tmp/framework", name: "projectFramework", targets: [frameworkTarget])
-
-        let package = PackageProductNode(product: "PackageLibrary", path: "/tmp/packageLibrary")
-        let framework = TargetNode(project: projectFramework, target: frameworkTarget, dependencies: [package])
-        let appTargetNode = TargetNode(project: app, target: appTarget, dependencies: [package, framework])
-
-        cache.add(project: app)
-        cache.add(targetNode: appTargetNode)
-        cache.add(targetNode: framework)
-
-        let graph = Graph.test(cache: cache, entryNodes: [appTargetNode, framework, package])
-
-        let versionStub = Version(11, 0, 0)
-        xcodeController.selectedVersionStub = .success(versionStub)
-
-        let result = subject.lint(graph: graph)
-
-        XCTAssertTrue(result.contains(LintingIssue(reason: "Package PackageLibrary has been linked against AppTarget and frameworkA, it is a static product so may introduce unwanted side effects.", severity: .warning)))
-    }
-
-    func test_lint_when_static_product_linked_twice() throws {
-        let cache = GraphLoaderCache()
-
-        let appTarget = Target.test(name: "AppTarget", dependencies: [.target(name: "staticFramework"), .target(name: "frameworkA")])
-        let frameworkTarget = Target.test(name: "frameworkA", dependencies: [.target(name: "staticFramework")])
-        let staticFrameworkTarget = Target.test(name: "staticFramework", product: .staticFramework)
-
-        let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
-        let projectFramework = Project.test(path: "/tmp/framework", name: "projectFramework", targets: [frameworkTarget])
-        let projectStaticFramework = Project.test(path: "/tmp/staticframework", name: "projectStaticFramework", targets: [staticFrameworkTarget])
-
-        let staticFramework = TargetNode(project: projectStaticFramework, target: staticFrameworkTarget, dependencies: [])
-        let framework = TargetNode(project: projectFramework, target: frameworkTarget, dependencies: [staticFramework])
-        let appTargetNode = TargetNode(project: app, target: appTarget, dependencies: [staticFramework, framework])
-
-        cache.add(project: app)
-        cache.add(targetNode: appTargetNode)
-        cache.add(targetNode: framework)
-        cache.add(targetNode: staticFramework)
-
-        let graph = Graph.test(cache: cache, entryNodes: [appTargetNode, framework, staticFramework])
-
-        let result = subject.lint(graph: graph)
-
-        XCTAssertTrue(result.contains(LintingIssue(reason: "Target staticFramework has been linked against AppTarget and frameworkA, it is a static product so may introduce unwanted side effects.", severity: .warning)))
     }
 
     func test_lint_when_staticFramework_depends_on_static_products() throws {
