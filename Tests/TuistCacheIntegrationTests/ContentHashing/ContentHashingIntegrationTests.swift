@@ -5,7 +5,7 @@ import TuistCoreTesting
 import TuistSupport
 import XCTest
 
-@testable import TuistGalaxy
+@testable import TuistCache
 @testable import TuistSupportTesting
 
 final class ContentHashingIntegrationTests: TuistTestCase {

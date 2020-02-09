@@ -58,13 +58,6 @@ public protocol ManifestLoading {
     /// - Throws: An error if the file has a syntax error.
     func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig
 
-    /// Loads the Galaxy.swift in the given directory.
-    ///
-    /// - Parameter path: Path to the directory that contains the Galaxy.swift file.
-    /// - Returns: Loaded Galaxy.swift file.
-    /// - Throws: An error if the file has a syntax error.
-    func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy
-
     /// Loads the Project.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Project.swift.
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
@@ -113,10 +106,6 @@ public class ManifestLoader: ManifestLoading {
 
     public func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig {
         try loadManifest(.tuistConfig, at: path)
-    }
-
-    public func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy {
-        try loadManifest(.galaxy, at: path)
     }
 
     public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
