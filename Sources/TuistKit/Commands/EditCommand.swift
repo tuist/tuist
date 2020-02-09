@@ -35,9 +35,7 @@ class EditCommand: NSObject, Command {
                                           shortName: "-P",
                                           kind: Bool.self,
                                           usage: "It creates the project in the current directory or the one indicated by -p and doesn't block the process.") // swiftlint:disable:this line_length
-        
-        _ = subparser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
-        
+                
         self.projectEditor = projectEditor
         self.opener = opener
     }
@@ -57,7 +55,7 @@ class EditCommand: NSObject, Command {
             logger.info("Opening Xcode to edit the project. Press \("CTRL + C".green().bold()) once you are done editing")
             try opener.open(path: xcodeprojPath, wait: true)
         } else {
-            logger.info("Xcode project generated at \(xcodeprojPath.pathString)", metadata: Logger.Metadata(.success))
+            logger.info("Xcode project generated at \(xcodeprojPath.pathString)".success())
         }
     }
 

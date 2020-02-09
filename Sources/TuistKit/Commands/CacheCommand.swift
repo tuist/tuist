@@ -28,8 +28,6 @@ class CacheCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the directory that contains the project whose frameworks will be cached.",
                                      completion: .filename)
-        
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     /// Runs the command using the result from parsing the command line arguments.

@@ -30,7 +30,6 @@ class LocalCommand: Command {
                                         kind: String.self,
                                         optional: true,
                                         usage: "The version that you would like to pin your current directory to")
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
         self.versionController = versionController
     }
 
@@ -47,7 +46,7 @@ class LocalCommand: Command {
     // MARK: - Fileprivate
 
     private func printLocalVersions() throws {
-        logger.info("The following versions are available in the local environment:", metadata: .init(.section))
+        logger.info("The following versions are available in the local environment:".section())
         let versions = versionController.semverVersions()
         let output = versions.sorted().reversed().map { "- \($0)" }.joined(separator: "\n")
         logger.info("\(output)")
@@ -55,11 +54,11 @@ class LocalCommand: Command {
 
     private func createVersionFile(version: String) throws {
         let currentPath = FileHandler.shared.currentPath
-        logger.info("Generating \(Constants.versionFileName) file with version \(version)", metadata: Logger.Metadata(.section))
+        logger.info("Generating \(Constants.versionFileName) file with version \(version)".section())
         let tuistVersionPath = currentPath.appending(component: Constants.versionFileName)
         try "\(version)".write(to: URL(fileURLWithPath: tuistVersionPath.pathString),
                                atomically: true,
                                encoding: .utf8)
-        logger.info("File generated at path \(tuistVersionPath.pathString)", metadata: .init(.success))
+        logger.info("File generated at path \(tuistVersionPath.pathString)".success())
     }
 }

@@ -88,7 +88,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   tuistConfig _: TuistConfig) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
 
-        logger.info("Generating workspace \(workspaceName)", metadata: Logger.Metadata(.section))
+        logger.info("Generating workspace \(workspaceName)".section())
     
         /// Projects
 

@@ -77,8 +77,6 @@ class InitCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
-        
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
 
         self.playgroundGenerator = playgroundGenerator
     }
@@ -98,7 +96,7 @@ class InitCommand: NSObject, Command {
         try generateTuistConfig(path: path)
         try generateGitIgnore(path: path)
 
-        logger.info("Project generated at path \(path.pathString).", metadata: Logger.Metadata(.success))
+        logger.info("Project generated at path \(path.pathString).".success())
         
     }
 

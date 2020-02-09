@@ -34,8 +34,7 @@ class GraphCommand: NSObject, Command {
     init(parser: ArgumentParser,
          dotGraphGenerator: DotGraphGenerating,
          manifestLoader: ManifestLoading) {
-        let subParser = parser.add(subparser: GraphCommand.command, overview: GraphCommand.overview)
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
+        parser.add(subparser: GraphCommand.command, overview: GraphCommand.overview)
         self.dotGraphGenerator = dotGraphGenerator
         self.manifestLoader = manifestLoader
     }
@@ -51,6 +50,6 @@ class GraphCommand: NSObject, Command {
         }
 
         try FileHandler.shared.write(graph, path: path, atomically: true)
-        logger.info("Graph exported to \(path.pathString)", metadata: Logger.Metadata(.success))
+        logger.info("Graph exported to \(path.pathString)".success())
     }
 }

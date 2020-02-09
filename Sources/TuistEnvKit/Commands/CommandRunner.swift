@@ -109,7 +109,14 @@ class CommandRunner: CommandRunning {
     }
 
     func runAtPath(_ path: AbsolutePath) throws {
-        var args = [path.appending(component: Constants.binName).pathString]
+        
+        var args: [String] = [ ]
+        
+        if CommandLine.arguments.contains("--verbose") {
+            args.append("TUIST_VERBOSE=true")
+        }
+        
+        args.append(path.appending(component: Constants.binName).pathString)
         args.append(contentsOf: Array(arguments().dropFirst()))
 
         var environment = ProcessInfo.processInfo.environment
@@ -125,6 +132,6 @@ class CommandRunner: CommandRunning {
     // MARK: - Static
 
     static func arguments() -> [String] {
-        Array(ProcessInfo.processInfo.arguments)
+        Array(ProcessInfo.processInfo.arguments).filter{ $0 != "--verbose" }
     }
 }

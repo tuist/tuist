@@ -12,8 +12,7 @@ class VersionCommand: NSObject, Command {
     // MARK: - Init
 
     required init(parser: ArgumentParser) {
-        let subParser = parser.add(subparser: VersionCommand.command, overview: VersionCommand.overview)
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
+        parser.add(subparser: VersionCommand.command, overview: VersionCommand.overview)
     }
 
     // MARK: - Command

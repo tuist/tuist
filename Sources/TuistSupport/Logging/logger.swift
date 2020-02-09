@@ -1,17 +1,15 @@
 @_exported import Logging
 let logger = Logger(label: "io.tuist.support")
 
+import class Foundation.ProcessInfo
+
 public enum LogOutput {
     public static func bootstrap() {
-        if CommandLine.arguments.contains("--output=os_log") {
-            LoggingSystem.bootstrap(OSLogHandler.init)
+        let verbose = ProcessInfo.processInfo.environment["TUIST_VERBOSE"] != nil
+        if verbose {
+            LoggingSystem.bootstrap(ConsoleLogHandler.verbose)
         } else {
-            let verbose = CommandLine.arguments.contains("--verbose") || CommandLine.arguments.contains("-v")
-            if verbose {
-                LoggingSystem.bootstrap(ConsoleLogHandler.verbose)
-            } else {
-                LoggingSystem.bootstrap(ConsoleLogHandler.init)
-            }
+            LoggingSystem.bootstrap(ConsoleLogHandler.init)
         }
     }
 }

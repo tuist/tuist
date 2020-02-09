@@ -49,7 +49,6 @@ final class InstallCommand: Command {
                                       shortName: "-f",
                                       kind: Bool.self,
                                       usage: "Re-installs the version compiling it from the source", completion: nil)
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     /// Runs the install command.

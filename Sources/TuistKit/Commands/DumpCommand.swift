@@ -31,8 +31,6 @@ class DumpCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the folder where the project manifest is",
                                      completion: .filename)
-        
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
     }
 
     // MARK: - Command

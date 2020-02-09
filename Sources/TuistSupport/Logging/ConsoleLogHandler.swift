@@ -9,13 +9,19 @@ public struct ConsoleLogHandler: LogHandler {
         ConsoleLogHandler(label: label, level: .debug)
     }
     
+    private var stdout: LogHandler
+    private var stderr: LogHandler
+    
     public init(label: String) {
-        self.label = label
+        self.init(label: label, level: .info)
     }
     
     public init(label: String, level: Logger.Level) {
         self.label = label
-        self.logLevel = level
+        stdout = StreamLogHandler.standardOutput(label: label)
+        stdout.logLevel = level
+        stderr = StreamLogHandler.standardOutput(label: label)
+        stderr.logLevel = level
     }
     
     public func log(
@@ -24,54 +30,42 @@ public struct ConsoleLogHandler: LogHandler {
         metadata: Logger.Metadata?,
         file: String, function: String, line: UInt
     ) {
+
+        let attributes: ConsoleToken
         
-        var attributes = ConsoleToken()
-        
-        if case let .stringConvertible(value as ConsoleToken)? = metadata?[ConsoleToken.key] {
-            attributes.formUnion(value)
-        } else {
-            
-            let additional: ConsoleToken
-            
-            switch level {
-            case .critical:
-                additional = [ .red, .bold ]
-            case .error:
-                additional = [ .red ]
-            case .warning:
-                additional = [ .yellow ]
-            case .notice:
-                additional = [ .white, .bold ]
-            case .debug:
-                additional = [ .white ]
-            case .trace:
-                additional = [ .white ]
-            case .info:
-                additional = [ .white ]
-            }
-            
-            attributes.formUnion(additional)
-            
-        }
-        
-        let log: String
-            
-        if Environment.shared.shouldOutputBeColoured {
-            log = attributes.elements().reduce(message.description) { $1.apply(to: $0) }
-        } else {
-            log = message.description
-        }
-        
-        if logLevel <= .debug {
-            output(for: level).print("\(timestamp()) \(level.rawValue, .bold)", terminator: " ")
+        switch level {
+        case .critical:
+            attributes = [ .red, .bold ]
+        case .error:
+            attributes = [ .red ]
+        case .warning:
+            attributes = [ .yellow ]
+        case .notice:
+            attributes = [ .bold ]
+        case .debug, .trace, .info:
+            attributes = [ ]
         }
 
-        output(for: level).print(log)
+        var log: String = ""
+        
+        if logLevel <= .debug {
+            log.append("\(timestamp())")
+            log.append(" \(level.rawValue, .bold)")
+            log.append(" \(label)")
+        }
+        
+        if Environment.shared.shouldOutputBeColoured {
+            log.append(attributes.elements().reduce(message.description) { $1.apply(to: $0) })
+        } else {
+            log.append(message.description)
+        }
+
+        output(for: level).log(level: level, message: message, metadata: metadata, file: file, function: function, line: line)
         
     }
     
-    func output(for level: Logger.Level) -> FileHandle {
-        level < .error ? .standardOutput : .standardError
+    func output(for level: Logger.Level) -> LogHandler {
+        level < .error ? stdout : stderr
     }
     
     public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
@@ -80,7 +74,14 @@ public struct ConsoleLogHandler: LogHandler {
     }
     
     public var metadata: Logger.Metadata = .init()
-    public var logLevel: Logger.Level = .info
+    
+    public var logLevel: Logger.Level {
+        get { stdout.logLevel }
+        set {
+            stdout.logLevel = newValue
+            stderr.logLevel = newValue
+        }
+    }
 
 }
 
@@ -96,26 +97,6 @@ func timestamp() -> String {
     }
 }
 
-extension Optional where Wrapped == Logger.Metadata {
-    public static func + (lhs: Logger.Metadata?, rhs: ConsoleToken) -> Logger.Metadata {
-        (lhs ?? [:]) + rhs
-    }
-}
-
-extension Logger.Metadata {
-    
-    public static func + (lhs: Logger.Metadata, rhs: ConsoleToken) -> Logger.Metadata {
-        lhs.merging([
-            ConsoleToken.key: .stringConvertible(rhs)
-        ], uniquingKeysWith: { $1 })
-    }
-    
-    public init(_ attributes: ConsoleToken) {
-        self = [ConsoleToken.key: .stringConvertible(attributes)]
-    }
-    
-}
-
 public func zurry<A>(_ ƒ: @escaping () throws -> A) rethrows -> A {
   return try ƒ()
 }
@@ -124,12 +105,12 @@ public func flip<A, B>(_ ƒ: @escaping (A) -> () -> B) -> () -> (A) -> B {
     return { { ƒ($0)() } }
 }
 
-public struct ConsoleToken: OptionSet, CustomStringConvertible {
+public struct ConsoleToken: OptionSet {
     
     public static let key: String = "attributes"
     
     public let rawValue: Int
-    public let ƒ: (String) -> String
+    internal let ƒ: (String) -> String
     
     public init(rawValue: Int, _ attribute: @escaping (String) -> () -> String) {
         self.rawValue = rawValue
@@ -149,46 +130,56 @@ public struct ConsoleToken: OptionSet, CustomStringConvertible {
 
     public static let bold = ConsoleToken(rawValue: 1 << 5, String.bold)
     
-    public var description: String {
-        var description: [String] = [ ]
-        
-        if contains(.white) {
-            description.append("white")
-        }
-        
-        if contains(.green) {
-            description.append("green")
-        }
-        
-        if contains(.red) {
-            description.append("red")
-        }
-        
-        if contains(.cyan) {
-            description.append("cyan")
-        }
-        
-        if contains(.yellow) {
-            description.append("yellow")
-        }
-
-        if contains(.bold) {
-            description.append("bold")
-        }
-        
-        return description.joined(separator: ",")
-    }
-    
     func apply(to string: String) -> String {
         ƒ(string)
     }
 
 }
 
-extension ConsoleToken {
-    public static let section: ConsoleToken = [ .cyan, .bold ]
-    public static let subsection: ConsoleToken = [ .cyan ]
-    public static let success: ConsoleToken = [ .green, .bold ]
+typealias Colorize = CustomStringConvertible
+
+extension Colorize {
+    
+    public func cyan() -> Logger.Message {
+        "\(description.cyan())"
+    }
+    
+    public func red() -> Logger.Message {
+        "\(description.red())"
+    }
+    
+    public func blue() -> Logger.Message {
+        "\(description.blue())"
+    }
+    
+    public func green() -> Logger.Message {
+        "\(description.green())"
+    }
+    
+    public func yellow() -> Logger.Message {
+        "\(description.yellow())"
+    }
+    
+    public func bold() -> Logger.Message {
+        "\(description.bold())"
+    }
+    
+}
+
+extension Colorize {
+    
+    public func section() -> Logger.Message {
+        cyan().bold()
+    }
+    
+    public func subsection() -> Logger.Message {
+        cyan()
+    }
+    
+    public func success() -> Logger.Message {
+        green().bold()
+    }
+    
 }
 
 extension FileHandle {
