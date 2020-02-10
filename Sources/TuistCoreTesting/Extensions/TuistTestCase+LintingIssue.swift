@@ -1,9 +1,10 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistSupportTesting
 import XCTest
 
-public extension XCTestCase {
+public extension TuistTestCase {
     // MARK: - XCTAssertions
 
     /// Fails the test if the list of linting issues doesn't contain the given linting issue.
