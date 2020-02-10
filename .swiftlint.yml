@@ -5,6 +5,8 @@ excluded:
   - fixtures
   - Tests
   - .build
+  - tools/fixture_generator/.build
+  - tools/fixture_benchmark/.build
 disabled_rules:
   - trailing_whitespace
   - trailing_comma

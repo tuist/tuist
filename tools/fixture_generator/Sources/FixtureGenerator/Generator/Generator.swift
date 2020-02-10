@@ -1,4 +1,3 @@
-
 import Foundation
 import TSCBasic
 
@@ -35,7 +34,7 @@ class Generator {
                                        name: String,
                                        projects: [String]) throws {
         let manifestPath = path.appending(component: "Workspace.swift")
-        
+
         let manifest = manifestTemplate.generate(workspaceName: name,
                                                  projects: projects)
         try fileSystem.writeFileContents(manifestPath,

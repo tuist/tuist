@@ -5,7 +5,7 @@ final class FileHandler {
     private let fileManager: FileManager = .default
 
     var currentPath: AbsolutePath {
-        return AbsolutePath(fileManager.currentDirectoryPath)
+        AbsolutePath(fileManager.currentDirectoryPath)
     }
 
     func copy(path: AbsolutePath, to: AbsolutePath) throws {
@@ -17,6 +17,6 @@ final class FileHandler {
     }
 
     func contents(of path: AbsolutePath) throws -> Data {
-        return try Data(contentsOf: path.asURL)
+        try Data(contentsOf: path.asURL)
     }
 }

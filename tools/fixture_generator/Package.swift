@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "FixtureGenerator",
     platforms: [
-       .macOS(.v10_13),
+        .macOS(.v10_13),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.

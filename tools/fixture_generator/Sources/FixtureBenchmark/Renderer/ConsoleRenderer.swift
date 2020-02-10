@@ -1,4 +1,3 @@
-
 import Foundation
 
 final class ConsoleRenderer: Renderer {
@@ -62,7 +61,7 @@ final class ConsoleRenderer: Renderer {
 
     private func delta(first: TimeInterval, second: TimeInterval) -> String {
         let delta = first - second
-        let percentageString = format((abs(delta)/second) * 100)
+        let percentageString = format((abs(delta) / second) * 100)
         let deltaString = format(abs(delta))
 
         if delta > deltaThreshold {
@@ -75,6 +74,6 @@ final class ConsoleRenderer: Renderer {
     }
 
     private func format(_ double: Double) -> String {
-        return formatter.string(for: double) ?? ""
+        formatter.string(for: double) ?? ""
     }
 }

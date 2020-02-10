@@ -1,4 +1,3 @@
-
 import Foundation
 
 final class MarkdownRenderer: Renderer {
@@ -45,7 +44,7 @@ final class MarkdownRenderer: Renderer {
         let average = format(result.times.average())
 
         return [
-            "| \(result.fixture)  | \(first)s  | \(average)s |"
+            "| \(result.fixture)  | \(first)s  | \(average)s |",
         ]
     }
 
@@ -62,13 +61,13 @@ final class MarkdownRenderer: Renderer {
         let runs = "\(result.times.count)x"
         return [
             "| \(result.fixture) _(initial)_           | \(first)s     | \(referenceFirst)s   | \(deltaFirst)   |",
-            "| \(result.fixture) _(average - \(runs))_ | \(average)s   | \(referenceAverage)s | \(deltaAverage) |"
+            "| \(result.fixture) _(average - \(runs))_ | \(average)s   | \(referenceAverage)s | \(deltaAverage) |",
         ]
     }
 
     private func delta(first: TimeInterval, second: TimeInterval) -> String {
         let delta = first - second
-        let percentageString = format((abs(delta)/second) * 100)
+        let percentageString = format((abs(delta) / second) * 100)
 
         if delta > deltaThreshold {
             return "⬆︎ \(percentageString)%"
@@ -80,6 +79,6 @@ final class MarkdownRenderer: Renderer {
     }
 
     private func format(_ double: Double) -> String {
-        return formatter.string(for: double) ?? ""
+        formatter.string(for: double) ?? ""
     }
 }

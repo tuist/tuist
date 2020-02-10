@@ -1,4 +1,3 @@
-
 import Foundation
 
 class ManifestTemplate {
@@ -24,7 +23,7 @@ class ManifestTemplate {
         targets: [
     {Targets}
         ])
-    
+
     """
 
     private let targetTemplate = """
@@ -45,25 +44,25 @@ class ManifestTemplate {
     """
 
     func generate(workspaceName: String, projects: [String]) -> String {
-        return workspaceTemplate
+        workspaceTemplate
             .replacingOccurrences(of: "{WorkspaceName}", with: workspaceName)
             .replacingOccurrences(of: "{Projects}", with: generate(projects: projects))
     }
 
     func generate(projectName: String, targets: [String]) -> String {
-        return projectTemplate
+        projectTemplate
             .replacingOccurrences(of: "{ProjectName}", with: projectName)
             .replacingOccurrences(of: "{Targets}", with: generate(targets: targets))
     }
 
     private func generate(projects: [String]) -> String {
-        return projects.map {
+        projects.map {
             workspaceProjectTemplate.replacingOccurrences(of: "{Project}", with: $0)
         }.joined(separator: ",\n")
     }
 
     private func generate(targets: [String]) -> String {
-        return targets.map {
+        targets.map {
             targetTemplate.replacingOccurrences(of: "{TargetName}", with: $0)
         }.joined(separator: ",\n")
     }

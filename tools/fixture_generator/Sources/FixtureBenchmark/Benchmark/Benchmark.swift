@@ -1,4 +1,3 @@
-
 import Foundation
 import TSCBasic
 
@@ -8,7 +7,7 @@ struct BenchmarkResult {
     var referenceTimes: [TimeInterval]
 
     var delta: TimeInterval {
-        return times.average() - referenceTimes.average()
+        times.average() - referenceTimes.average()
     }
 }
 
@@ -16,7 +15,7 @@ final class Benchmark {
     private let fileHandler: FileHandler
     private let binaryPath: AbsolutePath
     private let referenceBinaryPath: AbsolutePath
-    
+
     init(fileHandler: FileHandler,
          binaryPath: AbsolutePath,
          referenceBinaryPath: AbsolutePath) {
@@ -37,6 +36,5 @@ final class Benchmark {
         return BenchmarkResult(fixture: fixturePath.basename,
                                times: resultsA.times,
                                referenceTimes: resultsB.times)
-
     }
 }

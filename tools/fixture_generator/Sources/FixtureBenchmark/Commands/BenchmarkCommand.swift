@@ -1,4 +1,3 @@
-
 import Foundation
 import TSCBasic
 import TSCUtility
@@ -19,7 +18,7 @@ enum BenchmarkResultFormat: String, CaseIterable, StringEnumArgument {
     case markdown
 
     static var completion: ShellCompletion {
-        return .values(
+        .values(
             BenchmarkResultFormat.allCases.map {
                 (value: $0.rawValue, description: $0.rawValue)
             }

@@ -1,4 +1,3 @@
-
 import Foundation
 import TSCBasic
 
@@ -30,7 +29,7 @@ final class Measure {
     func measure(runs: Int,
                  arguments: [String],
                  fixturePath: AbsolutePath) throws -> MeasureResult {
-        return try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
+        try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
             let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
             try fileHandler.copy(path: fixturePath, to: temporaryPath)
 
@@ -40,7 +39,7 @@ final class Measure {
             }
 
             return MeasureResult(fixture: fixturePath.basename,
-                                   times: times)
+                                 times: times)
         }
     }
 
@@ -59,10 +58,11 @@ final class Measure {
     }
 
     private func measure(times: Int, code: () throws -> Void) throws -> [TimeInterval] {
-        return try (0..<times).map { _ in
+        try (0 ..< times).map { _ in
             try measure(code: code)
         }
     }
+
     private func measure(code: () throws -> Void) throws -> TimeInterval {
         let start = Date()
         try code()

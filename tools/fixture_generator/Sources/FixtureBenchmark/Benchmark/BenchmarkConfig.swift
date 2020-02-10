@@ -1,4 +1,3 @@
-
 import Foundation
 
 struct BenchmarkConfig: Decodable {
@@ -14,8 +13,8 @@ struct BenchmarkConfig: Decodable {
 
     /// Default benchmarking configuration
     static var `default`: BenchmarkConfig {
-        return BenchmarkConfig(arguments: ["generate"],
-                               averageRuns: 5,
-                               deltaThreshold: 0.02)
+        BenchmarkConfig(arguments: ["generate"],
+                        averageRuns: 5,
+                        deltaThreshold: 0.02)
     }
 }
