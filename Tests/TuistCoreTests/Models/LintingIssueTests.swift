@@ -7,7 +7,7 @@ import XCTest
 final class LintingIssueTests: TuistUnitTestCase {
     func test_description() {
         let subject = LintingIssue(reason: "whatever", severity: .error)
-        XCTAssertEqual(subject.description, "whatever")
+        XCTAssertEqual(subject.description, "error - whatever")
     }
 
     func test_printAndThrowIfNeeded() throws {
