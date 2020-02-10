@@ -1,0 +1,90 @@
+import Foundation
+import Logging
+
+public struct DetailedLogHandler: LogHandler {
+    
+    public let label: String
+    
+    private var stdout: LogHandler
+    private var stderr: LogHandler
+    
+    public init(label: String) {
+        self.init(label: label, logLevel: .info)
+    }
+    
+    public init(label: String, logLevel: Logger.Level) {
+        self.label = label
+        stdout = StreamLogHandler.standardOutput(label: label)
+        stdout.logLevel = logLevel
+        stderr = StreamLogHandler.standardOutput(label: label)
+        stderr.logLevel = logLevel
+    }
+    
+    public func log(
+        level: Logger.Level,
+        message: Logger.Message,
+        metadata: Logger.Metadata?,
+        file: String, function: String, line: UInt
+    ) {
+        
+        var log: String = "\(timestamp()) \(level.rawValue, .bold) \(label)"
+        
+        let mergedMetadata = metadata.map{ self.metadata.merging($0, uniquingKeysWith: { $1 }) } ?? self.metadata
+        
+        if mergedMetadata.isEmpty == false {
+            log.append(mergedMetadata.pretty)
+        }
+        
+        if Environment.shared.shouldOutputBeColoured {
+            log.append(message.colorize(for: level).description)
+        } else {
+            log.append(message.description)
+        }
+
+        output(for: level).log(level: level, message: message, metadata: metadata, file: file, function: function, line: line)
+        
+    }
+    
+    func output(for level: Logger.Level) -> LogHandler {
+        level < .error ? stdout : stderr
+    }
+    
+    public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+        get { metadata[key] }
+        set { metadata[key] = newValue }
+    }
+    
+    public var metadata: Logger.Metadata = .init()
+    
+    public var logLevel: Logger.Level {
+        get { stdout.logLevel }
+        set {
+            stdout.logLevel = newValue
+            stderr.logLevel = newValue
+        }
+    }
+
+}
+
+func timestamp() -> String {
+    var buffer = [Int8](repeating: 0, count: 255)
+    var timestamp = time(nil)
+    let localTime = localtime(&timestamp)
+    strftime(&buffer, buffer.count, "%Y-%m-%dT%H:%M:%S%z", localTime)
+    return buffer.withUnsafeBufferPointer {
+        $0.withMemoryRebound(to: CChar.self) {
+            String(cString: $0.baseAddress!)
+        }
+    }
+}
+
+extension FileHandle {
+    
+    func print(_ string: String, terminator: String = "\n") {
+        string.data(using: .utf8)
+            .map(write)
+        terminator.data(using: .utf8)
+            .map(write)
+    }
+    
+}
