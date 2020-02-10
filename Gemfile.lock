@@ -166,7 +166,7 @@ GEM
       thread_safe (~> 0.1)
     uber (0.1.0)
     unicode-display_width (1.6.0)
-    xcodeproj (1.14.0)
+    xcodeproj (1.15.0)
       CFPropertyList (>= 2.3.3, < 4.0)
       atomos (~> 0.1.3)
       claide (>= 1.0.2, < 2.0)
@@ -188,7 +188,7 @@ DEPENDENCIES
   rake (~> 13.0)
   rubocop (~> 0.79.0)
   simctl (~> 1.6)
-  xcodeproj (~> 1.14)
+  xcodeproj (~> 1.15)
 
 BUNDLED WITH
    2.0.2
