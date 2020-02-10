@@ -2,15 +2,6 @@ import Foundation
 
 final class MarkdownRenderer: Renderer {
     private let deltaThreshold: TimeInterval
-    private let formatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.roundingMode = .halfUp
-        formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 2
-        formatter.minimumIntegerDigits = 1
-        return formatter
-    }()
-
     init(deltaThreshold: TimeInterval) {
         self.deltaThreshold = deltaThreshold
     }
@@ -20,8 +11,8 @@ final class MarkdownRenderer: Renderer {
 
         print("""
 
-        | Fixture            | Initial     | Average |
-        | ------------------ | ----------- | ------- |
+        | Fixture            | Cold | Warm |
+        | ------------------ | ---- | ---- |
         \(rows.joined(separator: "\n"))
 
         """)
@@ -40,45 +31,31 @@ final class MarkdownRenderer: Renderer {
     }
 
     private func render(result: MeasureResult) -> [String] {
-        let first = result.times.first.map { format($0) } ?? ""
-        let average = format(result.times.average())
+        let cold = format(result.coldRuns.average())
+        let warm = format(result.warmRuns.average())
 
         return [
-            "| \(result.fixture)  | \(first)s  | \(average)s |",
+            "| \(result.fixture)  | \(cold)s  | \(warm)s |",
         ]
     }
 
     private func render(result: BenchmarkResult) -> [String] {
-        let first = result.times.first.map { format($0) } ?? ""
-        let average = format(result.times.average())
+        let cold = format(result.results.coldRuns.average())
+        let warm = format(result.results.warmRuns.average())
 
-        let referenceFirst = result.referenceTimes.first.map { format($0) } ?? ""
-        let referenceAverage = format(result.referenceTimes.average())
+        let coldReference = format(result.reference.coldRuns.average())
+        let warmReference = format(result.reference.warmRuns.average())
 
-        let deltaFirst = Array(zip(result.times, result.referenceTimes)).first.map(delta) ?? ""
-        let deltaAverage = delta(first: result.times.average(), second: result.referenceTimes.average())
+        let coldDelta = delta(first: result.results.coldRuns.average(),
+                              second: result.reference.coldRuns.average(),
+                              threshold: deltaThreshold)
+        let warmDelta = delta(first: result.results.warmRuns.average(),
+                              second: result.reference.warmRuns.average(),
+                              threshold: deltaThreshold)
 
-        let runs = "\(result.times.count)x"
         return [
-            "| \(result.fixture) _(initial)_           | \(first)s     | \(referenceFirst)s   | \(deltaFirst)   |",
-            "| \(result.fixture) _(average - \(runs))_ | \(average)s   | \(referenceAverage)s | \(deltaAverage) |",
+            "| \(result.fixture) _(cold)_ | \(cold)s | \(coldReference)s | \(coldDelta) |",
+            "| \(result.fixture) _(warm)_ | \(warm)s | \(warmReference)s | \(warmDelta) |",
         ]
-    }
-
-    private func delta(first: TimeInterval, second: TimeInterval) -> String {
-        let delta = first - second
-        let percentageString = format((abs(delta) / second) * 100)
-
-        if delta > deltaThreshold {
-            return "⬆︎ \(percentageString)%"
-        } else if delta < -deltaThreshold {
-            return "⬇︎ \(percentageString)%"
-        } else {
-            return "≈"
-        }
-    }
-
-    private func format(_ double: Double) -> String {
-        formatter.string(for: double) ?? ""
     }
 }

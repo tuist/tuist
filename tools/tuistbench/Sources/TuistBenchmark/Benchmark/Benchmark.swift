@@ -3,11 +3,15 @@ import TSCBasic
 
 struct BenchmarkResult {
     var fixture: String
-    var times: [TimeInterval]
-    var referenceTimes: [TimeInterval]
+    var results: MeasureResult
+    var reference: MeasureResult
 
-    var delta: TimeInterval {
-        times.average() - referenceTimes.average()
+    var coldRunsDelta: TimeInterval {
+        results.coldRuns.average() - reference.coldRuns.average()
+    }
+
+    var warmRunsDelta: TimeInterval {
+        results.warmRuns.average() - reference.warmRuns.average()
     }
 }
 
@@ -30,11 +34,11 @@ final class Benchmark {
         let a = Measure(fileHandler: fileHandler, binaryPath: binaryPath)
         let b = Measure(fileHandler: fileHandler, binaryPath: referenceBinaryPath)
 
-        let resultsA = try a.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
-        let resultsB = try b.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
+        let results = try a.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
+        let reference = try b.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
 
         return BenchmarkResult(fixture: fixturePath.basename,
-                               times: resultsA.times,
-                               referenceTimes: resultsB.times)
+                               results: results,
+                               reference: reference)
     }
 }

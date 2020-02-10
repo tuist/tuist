@@ -107,7 +107,7 @@ final class BenchmarkCommand {
         let measure = Measure(fileHandler: fileHandler,
                               binaryPath: binaryPath)
         let results = try fixtures.map {
-            try measure.measure(runs: config.averageRuns,
+            try measure.measure(runs: config.runs,
                                 arguments: config.arguments,
                                 fixturePath: $0)
         }
@@ -122,7 +122,7 @@ final class BenchmarkCommand {
                                   binaryPath: binaryPath,
                                   referenceBinaryPath: referenceBinaryPath)
         let results = try fixtures.map {
-            try benchmark.benchmark(runs: config.averageRuns,
+            try benchmark.benchmark(runs: config.runs,
                                     arguments: config.arguments,
                                     fixturePath: $0)
         }

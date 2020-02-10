@@ -3,7 +3,8 @@ import TSCBasic
 
 struct MeasureResult {
     var fixture: String
-    var times: [TimeInterval]
+    var coldRuns: [TimeInterval]
+    var warmRuns: [TimeInterval]
 }
 
 enum MeasureError: LocalizedError {
@@ -29,17 +30,43 @@ final class Measure {
     func measure(runs: Int,
                  arguments: [String],
                  fixturePath: AbsolutePath) throws -> MeasureResult {
+        let cold = try measureColdRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
+        let warm = try measureWarmRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
+        return MeasureResult(fixture: fixturePath.basename,
+                             coldRuns: cold,
+                             warmRuns: warm)
+    }
+
+    private func measureColdRuns(runs: Int,
+                                 arguments: [String],
+                                 fixturePath: AbsolutePath) throws -> [TimeInterval] {
+        try (0 ..< runs).map { _ in
+            try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
+                let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
+                try fileHandler.copy(path: fixturePath, to: temporaryPath)
+                return try measure {
+                    try run(arguments: arguments,
+                            in: temporaryPath)
+                }
+            }
+        }
+    }
+
+    private func measureWarmRuns(runs: Int,
+                                 arguments: [String],
+                                 fixturePath: AbsolutePath) throws -> [TimeInterval] {
         try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
             let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
             try fileHandler.copy(path: fixturePath, to: temporaryPath)
 
-            let times = try measure(times: runs) {
+            // first warm up isn't included in the results
+            try run(arguments: arguments,
+                    in: temporaryPath)
+
+            return try measure(runs: runs) {
                 try run(arguments: arguments,
                         in: temporaryPath)
             }
-
-            return MeasureResult(fixture: fixturePath.basename,
-                                 times: times)
         }
     }
 
@@ -57,8 +84,8 @@ final class Measure {
         }
     }
 
-    private func measure(times: Int, code: () throws -> Void) throws -> [TimeInterval] {
-        try (0 ..< times).map { _ in
+    private func measure(runs: Int, code: () throws -> Void) throws -> [TimeInterval] {
+        try (0 ..< runs).map { _ in
             try measure(code: code)
         }
     }

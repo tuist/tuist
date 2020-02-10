@@ -41,7 +41,7 @@ swift run tuistbench --binary /path/to/local/tuist --reference-binary /path/to/m
 - `--format`: The output format (`console` or `markdown`)
 - `--config`, `-c`: Path the configuration override json file.
     - `arguments`: The arguments to use when invoking the binary (eg. `[generate]`)
-    - `averageRuns`: The number of times to perform a measurement to obtain an average result
+    - `runs`: The number of times to perform a measurement (final results are the average of those runs)
     - `deltaThreshold`: The time interval threshold that measurements must exceed to be considered different (unit is `TimeInterval` /  `Double` seconds)
 
 `deltaThreshold` example:
@@ -59,7 +59,7 @@ When `deltaThreshold` is `0.02`
 ```
 {
     "arguments": ["generate"],
-    "averageRuns": 5,
+    "runs": 5,
     "deltaThreshold": 0.02
 }
 ```
@@ -76,8 +76,8 @@ $ swift run tuistbench -b $(which tuist) -l ../fixtures/ios_app_with_tests
 Fixture       : ios_app_with_tests
 Runs          : 5
 Result
-    - initial : 0.72s
-    - average : 0.74s
+    - cold : 0.72s
+    - warm : 0.74s
     
 ```
 
@@ -87,9 +87,9 @@ Markdown:
 $ swift run tuistbench -b $(which tuist) -f ../ios_app_with_tests --format markdown
 ```
 
-| Fixture            | Initial     | Average |
-| ------------------ | ----------- | ------- |
-| ios_app_with_tests  | 0.72s  | 0.72s |
+| Fixture            | Cold  | Warm  |
+| ------------------ | ------| ----- |
+| ios_app_with_tests | 0.72s | 0.72s |
 
 
 **Benchmark (multiple fixtures):**
@@ -114,22 +114,22 @@ $ swift run tuistbench -b /path/to/tuist/.build/release/tuist -r $(which tuist) 
 Fixture       : ios_app_with_tests
 Runs          : 5
 Result
-    - initial : 0.79s  vs  0.80s (≈)
-    - average : 0.75s  vs  0.79s (⬇︎ 0.04s 5.63%)
+    - cold : 0.79s  vs  0.80s (≈)
+    - warm : 0.75s  vs  0.79s (⬇︎ 0.04s 5.63%)
 
 
 Fixture       : ios_app_with_carthage_frameworks
 Runs          : 5
 Result
-    - initial : 0.78s  vs  0.86s (⬇︎ 0.08s 8.90%)
-    - average : 0.76s  vs  0.80s (⬇︎ 0.04s 5.05%)
+    - cold : 0.78s  vs  0.86s (⬇︎ 0.08s 8.90%)
+    - warm : 0.76s  vs  0.80s (⬇︎ 0.04s 5.05%)
 
 
 Fixture       : ios_app_with_helpers
 Runs          : 5
 Result
-    - initial : 2.24s  vs  2.37s (⬇︎ 0.12s 5.18%)
-    - average : 2.03s  vs  2.11s (⬇︎ 0.07s 3.55%)
+    - cold : 2.24s  vs  2.37s (⬇︎ 0.12s 5.18%)
+    - warm : 2.03s  vs  2.11s (⬇︎ 0.07s 3.55%)
 
 ```
 
@@ -142,20 +142,20 @@ $ swift run tuistbench -b /path/to/tuist/.build/release/tuist -r $(which tuist) 
 
 | Fixture         | New    | Old  | Delta    |
 | --------------- | ------ | ---- | -------- |
-| ios_app_with_tests _(initial)_           | 0.73s     | 0.79s   | ⬇︎ 7.92%   |
-| ios_app_with_tests _(average - 5x)_ | 0.79s   | 0.79s | ≈ |
-| ios_app_with_carthage_frameworks _(initial)_           | 0.79s     | 0.85s   | ⬇︎ 7.36%   |
-| ios_app_with_carthage_frameworks _(average - 5x)_ | 0.77s   | 0.81s | ⬇︎ 5.26% |
-| ios_app_with_helpers _(initial)_           | 2.29s     | 2.43s   | ⬇︎ 5.80%   |
-| ios_app_with_helpers _(average - 5x)_ | 1.97s   | 2.15s | ⬇︎ 8.05% |
+| ios_app_with_tests _(cold)_ | 0.73s     | 0.79s   | ⬇︎ 7.92%   |
+| ios_app_with_tests _(warm)_ | 0.79s   | 0.79s | ≈ |
+| ios_app_with_carthage_frameworks _(cold)_ | 0.79s     | 0.85s   | ⬇︎ 7.36%   |
+| ios_app_with_carthage_frameworks _(warm)_ | 0.77s   | 0.81s | ⬇︎ 5.26% |
+| ios_app_with_helpers _(cold)_ | 2.29s     | 2.43s   | ⬇︎ 5.80%   |
+| ios_app_with_helpers _(warm)_ | 1.97s   | 2.15s | ⬇︎ 8.05% |
 
 
 ## Features
 
-- [x] Time initial and average runs for `tuist generate` 
+- [x] Measure cold and warm runs for `tuist generate` 
 - [x] Specify individual fixture paths
 - [x] Specify multiple fixture paths (via `.json` file)
 - [x] Basic console results output
 - [x] Markdown results output (for use on GitHub)
 - [x] Custom configuration to tweak tuist command, number of runs and delta threshold
-- [ ] Average initial runs (i.e. clean fixture with no existing xcodeproj files)
+- [x] Average cold and warm runs
