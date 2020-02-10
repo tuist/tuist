@@ -4,13 +4,18 @@ import os
 
 public struct OSLogHandler: LogHandler {
     
-    public var logLevel: Logger.Level = .debug
+    public var logLevel: Logger.Level
     
     public let label: String
     private let os: OSLog
-    
+
     public init(label: String) {
+        self.init(label: label, logLevel: .info)
+    }
+    
+    public init(label: String, logLevel: Logger.Level) {
         self.label = label
+        self.logLevel = logLevel
         self.os = OSLog(subsystem: label, category: "")
     }
     
