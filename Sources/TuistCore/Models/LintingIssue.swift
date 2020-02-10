@@ -29,7 +29,7 @@ public struct LintingIssue: CustomStringConvertible, Equatable {
     // MARK: - CustomStringConvertible
 
     public var description: String {
-        reason
+        "\(severity.rawValue) - \(reason)"
     }
 }
 

@@ -478,9 +478,6 @@ extension TuistCore.CoreDataModel {
                      path _: AbsolutePath,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.CoreDataModel {
         let modelPath = try generatorPaths.resolve(path: manifest.path)
-        if !FileHandler.shared.exists(modelPath) {
-            throw GeneratorModelLoaderError.missingFile(modelPath)
-        }
         let versions = FileHandler.shared.glob(modelPath, glob: "*.xcdatamodel")
         let currentVersion = manifest.currentVersion
         return CoreDataModel(path: modelPath, versions: versions, currentVersion: currentVersion)
