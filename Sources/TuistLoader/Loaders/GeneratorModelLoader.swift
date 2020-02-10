@@ -4,23 +4,6 @@ import ProjectDescription
 import TuistCore
 import TuistSupport
 
-public enum GeneratorModelLoaderError: Error, Equatable, FatalError {
-    case missingFile(AbsolutePath)
-    public var type: ErrorType {
-        switch self {
-        case .missingFile:
-            return .abort
-        }
-    }
-
-    public var description: String {
-        switch self {
-        case let .missingFile(path):
-            return "Couldn't find file at path '\(path.pathString)'"
-        }
-    }
-}
-
 public class GeneratorModelLoader: GeneratorModelLoading {
     private let manifestLoader: ManifestLoading
     private let manifestLinter: ManifestLinting

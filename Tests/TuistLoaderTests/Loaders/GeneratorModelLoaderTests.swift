@@ -581,14 +581,6 @@ class GeneratorModelLoaderTest: TuistUnitTestCase {
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
 
-    func test_generatorModelLoaderError_type() {
-        XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").type, .abort)
-    }
-
-    func test_generatorModelLoaderError_description() {
-        XCTAssertEqual(GeneratorModelLoaderError.missingFile("/missing/path").description, "Couldn't find file at path '/missing/path'")
-    }
-
     func test_fileElement_warning_withDirectoryPathsAsFiles() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
