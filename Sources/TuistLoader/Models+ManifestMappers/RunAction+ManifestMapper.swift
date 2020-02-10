@@ -4,6 +4,10 @@ import ProjectDescription
 import TuistCore
 
 extension TuistCore.RunAction {
+    /// Maps a ProjectDescription.RunAction instance into a TuistCore.RunAction instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of  the settings.
+    ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.RunAction,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.RunAction {
         let configurationName = manifest.configurationName

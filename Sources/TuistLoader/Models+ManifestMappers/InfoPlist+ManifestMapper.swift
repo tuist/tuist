@@ -4,7 +4,11 @@ import ProjectDescription
 import TuistCore
 
 extension TuistCore.InfoPlist {
-    static func from(manifest: ProjectDescription.InfoPlist, path _: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistCore.InfoPlist {
+    /// Maps a ProjectDescription.InfoPlist instance into a TuistCore.InfoPlist instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of the Info plist model.
+    ///   - generatorPaths: Generator paths.
+    static func from(manifest: ProjectDescription.InfoPlist, generatorPaths: GeneratorPaths) throws -> TuistCore.InfoPlist {
         switch manifest {
         case let .file(infoplistPath):
             return .file(path: try generatorPaths.resolve(path: infoplistPath))
@@ -20,6 +24,10 @@ extension TuistCore.InfoPlist {
 }
 
 extension TuistCore.InfoPlist.Value {
+    /// Maps a ProjectDescription.InfoPlist.Value instance into a TuistCore.InfoPlist.Value instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of the Info plist value model.
+    ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.InfoPlist.Value) -> TuistCore.InfoPlist.Value {
         switch manifest {
         case let .string(value):

@@ -4,8 +4,11 @@ import ProjectDescription
 import TuistCore
 
 extension TuistCore.BuildAction {
+    /// Maps a ProjectDescription.BuildAction instance into a TuistCore.BuildAction instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of build action model.
+    ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.BuildAction,
-                     projectPath _: AbsolutePath,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.BuildAction {
         let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
                                                                                           generatorPaths: generatorPaths) }

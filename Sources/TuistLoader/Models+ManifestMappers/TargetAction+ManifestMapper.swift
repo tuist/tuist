@@ -5,9 +5,11 @@ import TuistCore
 import TuistSupport
 
 extension TuistCore.TargetAction {
-    static func from(manifest: ProjectDescription.TargetAction,
-                     path: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.TargetAction {
+    /// Maps a ProjectDescription.TargetAction instance into a TuistCore.TargetAction model.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of target action.
+    ///   - generatorPaths: Generator paths.
+    static func from(manifest: ProjectDescription.TargetAction, generatorPaths: GeneratorPaths) throws -> TuistCore.TargetAction {
         let name = manifest.name
         let tool = manifest.tool
         let order = TuistCore.TargetAction.Order.from(manifest: manifest.order)
@@ -30,6 +32,10 @@ extension TuistCore.TargetAction {
 }
 
 extension TuistCore.TargetAction.Order {
+    /// Maps a ProjectDescription.TargetAction.Order instance into a TuistCore.TargetAction.Order model.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of target action order.
+    ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.TargetAction.Order) -> TuistCore.TargetAction.Order {
         switch manifest {
         case .pre:

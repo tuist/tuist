@@ -24,14 +24,8 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         let manifest = try manifestLoader.loadProject(at: path)
         let tuistConfig = try loadTuistConfig(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-
-        try manifestLinter.lint(project: manifest)
-            .printAndThrowIfNeeded()
-
-        let project = try TuistCore.Project.from(manifest: manifest,
-                                                 path: path,
-                                                 generatorPaths: generatorPaths)
-
+        try manifestLinter.lint(project: manifest).printAndThrowIfNeeded()
+        let project = try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
         return try enriched(model: project, with: tuistConfig)
     }
 
@@ -51,7 +45,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         }
 
         let manifest = try manifestLoader.loadTuistConfig(at: tuistConfigPath.parentDirectory)
-        return try TuistCore.TuistConfig.from(manifest: manifest, path: path)
+        return try TuistCore.TuistConfig.from(manifest: manifest)
     }
 
     private func enriched(model: TuistCore.Project,

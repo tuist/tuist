@@ -4,31 +4,20 @@ import ProjectDescription
 import TuistCore
 
 extension TuistCore.Project {
+    /// Maps a ProjectDescription.FileElement instance into a [TuistCore.FileElement] instance.
+    /// Glob patterns in file elements are unfolded as part of the mapping.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of  the file element.
+    ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Project,
-                     path: AbsolutePath,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.Project {
         let name = manifest.name
-
-        let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, path: path, generatorPaths: generatorPaths) }
-        let targets = try manifest.targets.map {
-            try TuistCore.Target.from(manifest: $0,
-                                      path: path,
-                                      generatorPaths: generatorPaths)
-        }
-
-        let schemes = try manifest.schemes.map { try TuistCore.Scheme.from(manifest: $0, projectPath: path, generatorPaths: generatorPaths) }
-
-        let additionalFiles = try manifest.additionalFiles.flatMap {
-            try TuistCore.FileElement.from(manifest: $0,
-                                           path: path,
-                                           generatorPaths: generatorPaths)
-        }
-
-        let packages = try manifest.packages.map { package in
-            try TuistCore.Package.from(manifest: package, path: path, generatorPaths: generatorPaths)
-        }
-
-        return Project(path: path,
+        let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+        let targets = try manifest.targets.map { try TuistCore.Target.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try manifest.schemes.map { try TuistCore.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let additionalFiles = try manifest.additionalFiles.flatMap { try TuistCore.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+        let packages = try manifest.packages.map { try TuistCore.Package.from(manifest: $0, generatorPaths: generatorPaths) }
+        return Project(path: generatorPaths.manifestDirectory,
                        name: name,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),

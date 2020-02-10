@@ -5,9 +5,11 @@ import TuistCore
 import TuistSupport
 
 extension TuistCore.Package {
-    static func from(manifest: ProjectDescription.Package,
-                     path _: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Package {
+    /// Maps a ProjectDescription.Package instance into a TuistCore.Package model.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of Package.
+    ///   - generatorPaths: Generator paths.
+    static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> TuistCore.Package {
         switch manifest {
         case let .local(path: local):
             return .local(path: try generatorPaths.resolve(path: local))
@@ -18,6 +20,10 @@ extension TuistCore.Package {
 }
 
 extension TuistCore.Package.Requirement {
+    /// Maps a ProjectDescription.Package.Requirement instance into a TuistCore.Package.Requirement model.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of Package.
+    ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Package.Requirement) -> TuistCore.Package.Requirement {
         switch manifest {
         case let .branch(branch):

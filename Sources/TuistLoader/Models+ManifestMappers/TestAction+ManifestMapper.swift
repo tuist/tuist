@@ -4,11 +4,12 @@ import ProjectDescription
 import TuistCore
 
 extension TuistCore.TestAction {
-    static func from(manifest: ProjectDescription.TestAction,
-                     projectPath _: AbsolutePath,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.TestAction {
-        let targets = try manifest.targets.map { try TuistCore.TestableTarget.from(manifest: $0,
-                                                                                   generatorPaths: generatorPaths) }
+    /// Maps a ProjectDescription.TestAction instance into a TuistCore.TestAction instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of test action model.
+    ///   - generatorPaths: Generator paths.
+    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> TuistCore.TestAction {
+        let targets = try manifest.targets.map { try TuistCore.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
         let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
         let configurationName = manifest.configurationName
         let coverage = manifest.coverage
