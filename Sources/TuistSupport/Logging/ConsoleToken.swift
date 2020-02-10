@@ -6,34 +6,140 @@ public enum ConsoleToken: String {
     
     public static let key: String = "console-attributes"
 
-    case white
-    case green
-    case red
+    case black
+    case blue
     case cyan
+    case darkGray
+    case green
+    case lightBlue
+    case lightCyan
+    case lightGray
+    case lightGreen
+    case lightMagenta
+    case lightRed
+    case lightYellow
+    case magenta
+    case onBlack
+    case onBlue
+    case onCyan
+    case onDarkGray
+    case onGreen
+    case onLightBlue
+    case onLightCyan
+    case onLightGray
+    case onLightGreen
+    case onLightMagenta
+    case onLightRed
+    case onLightYellow
+    case onMagenta
+    case onRed
+    case onWhite
+    case onYellow
+    case red
+    case white
     case yellow
 
+    case blink
     case bold
+    case dim
+    case hidden
+    case italic
+    case reset
+    case reverse
+    case strikethrough
+    case underline
     
-    var ƒ: (String) -> String {
+    var apply: (String) -> String {
         
-        let function: (String) -> () -> String
+        let ƒ: (String) -> () -> String
         
         switch self {
-        case .white:
-            function = String.white
-        case .green:
-            function = String.green
-        case .red:
-            function = String.red
+        case .black:
+            ƒ = String.black
+        case .blue:
+            ƒ = String.blue
         case .cyan:
-            function = String.cyan
+            ƒ = String.cyan
+        case .darkGray:
+            ƒ = String.darkGray
+        case .green:
+            ƒ = String.green
+        case .lightBlue:
+            ƒ = String.lightBlue
+        case .lightCyan:
+            ƒ = String.lightCyan
+        case .lightGray:
+            ƒ = String.lightGray
+        case .lightGreen:
+            ƒ = String.lightGreen
+        case .lightMagenta:
+            ƒ = String.lightMagenta
+        case .lightRed:
+            ƒ = String.lightRed
+        case .lightYellow:
+            ƒ = String.lightYellow
+        case .magenta:
+            ƒ = String.magenta
+        case .onBlack:
+            ƒ = String.onBlack
+        case .onBlue:
+            ƒ = String.onBlue
+        case .onCyan:
+            ƒ = String.onCyan
+        case .onDarkGray:
+            ƒ = String.onDarkGray
+        case .onGreen:
+            ƒ = String.onGreen
+        case .onLightBlue:
+            ƒ = String.onLightBlue
+        case .onLightCyan:
+            ƒ = String.onLightCyan
+        case .onLightGray:
+            ƒ = String.onLightGray
+        case .onLightGreen:
+            ƒ = String.onLightGreen
+        case .onLightMagenta:
+            ƒ = String.onLightMagenta
+        case .onLightRed:
+            ƒ = String.onLightRed
+        case .onLightYellow:
+            ƒ = String.onLightYellow
+        case .onMagenta:
+            ƒ = String.onMagenta
+        case .onRed:
+            ƒ = String.onRed
+        case .onWhite:
+            ƒ = String.onWhite
+        case .onYellow:
+            ƒ = String.onYellow
+        case .red:
+            ƒ = String.red
+        case .white:
+            ƒ = String.white
         case .yellow:
-            function = String.yellow
+            ƒ = String.yellow
+            
         case .bold:
-            function = String.bold
+            ƒ = String.bold
+        case .dim:
+            ƒ = String.dim
+        case .italic:
+            ƒ = String.italic
+        case .underline:
+            ƒ = String.underline
+        case .blink:
+            ƒ = String.blink
+        case .reverse:
+            ƒ = String.reverse
+        case .hidden:
+            ƒ = String.hidden
+        case .strikethrough:
+            ƒ = String.strikethrough
+        case .reset:
+            ƒ = String.reset
         }
         
-        return flip(function)()
+        return flip(ƒ)()
         
     }
 
@@ -41,7 +147,7 @@ public enum ConsoleToken: String {
 
 extension Set where Element == ConsoleToken {
     func apply(to string: String) -> String {
-        reduce(string) { $1.ƒ($0) }
+        reduce(string) { $1.apply($0) }
     }
 }
 
@@ -57,27 +163,23 @@ typealias Colorize = CustomStringConvertible
 extension Colorize {
     
     public func cyan() -> Logger.Message {
-        "\(description.cyan())"
+        "\(description, .cyan)"
     }
     
     public func red() -> Logger.Message {
-        "\(description.red())"
+        "\(description, .red)"
     }
-    
-    public func blue() -> Logger.Message {
-        "\(description.blue())"
-    }
-    
+
     public func green() -> Logger.Message {
-        "\(description.green())"
+        "\(description, .green)"
     }
     
     public func yellow() -> Logger.Message {
-        "\(description.yellow())"
+        "\(description, .yellow)"
     }
     
     public func bold() -> Logger.Message {
-        "\(description.bold())"
+        "\(description, .bold)"
     }
     
 }
@@ -85,32 +187,32 @@ extension Colorize {
 extension Colorize {
     
     public func section() -> Logger.Message {
-        cyan().bold()
+        "\(description, .cyan, .bold)"
     }
     
     public func subsection() -> Logger.Message {
-        cyan()
+        "\(description, .cyan)"
     }
     
     public func success() -> Logger.Message {
-        green().bold()
+        "\(description, .green, .bold)"
     }
     
 }
 
 extension String.StringInterpolation {
 
-    public mutating func appendInterpolation(_ value: String, _ token: ConsoleToken) {
-        appendInterpolation(value, [ token ])
+    public mutating func appendInterpolation(_ value: String, _ token: ConsoleToken...) {
+        appendInterpolation(value, Set(token))
     }
     
     public mutating func appendInterpolation(_ value: String, _ token: Set<ConsoleToken>) {
         
-        guard Environment.shared.shouldOutputBeColoured else {
-            return appendLiteral(value)
+        if Environment.shared.shouldOutputBeColoured {
+            appendLiteral(value.apply(token))
+        } else {
+            appendLiteral(value)
         }
-        
-        appendLiteral(value.apply(token))
 
     }
     

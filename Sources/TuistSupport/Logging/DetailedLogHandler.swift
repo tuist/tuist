@@ -77,14 +77,3 @@ func timestamp() -> String {
         }
     }
 }
-
-extension FileHandle {
-    
-    func print(_ string: String, terminator: String = "\n") {
-        string.data(using: .utf8)
-            .map(write)
-        terminator.data(using: .utf8)
-            .map(write)
-    }
-    
-}

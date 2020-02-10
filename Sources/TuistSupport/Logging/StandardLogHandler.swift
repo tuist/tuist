@@ -48,25 +48,13 @@ public struct StandardLogHandler: LogHandler {
 
 }
 
-extension Logger.Message {
+extension FileHandle {
     
-    func colorize(for logLevel: Logger.Level) -> Logger.Message {
-        Logger.Message(stringLiteral: token(for: logLevel).apply(to: description))
-    }
-    
-    func token(for logLevel: Logger.Level) -> Set<ConsoleToken> {
-        switch logLevel {
-        case .critical:
-            return [ .red, .bold ]
-        case .error:
-            return [ .red ]
-        case .warning:
-            return [ .yellow ]
-        case .notice:
-            return [ .bold ]
-        case .debug, .trace, .info:
-            return .init()
-        }
+    func print(_ string: String, terminator: String = "\n") {
+        string.data(using: .utf8)
+            .map(write)
+        terminator.data(using: .utf8)
+            .map(write)
     }
     
 }
