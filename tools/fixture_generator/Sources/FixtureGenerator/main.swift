@@ -1,6 +1,6 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
+import TSCUtility
 
 func main() throws {
     let parser = ArgumentParser(commandName: "FixtureGenerator",

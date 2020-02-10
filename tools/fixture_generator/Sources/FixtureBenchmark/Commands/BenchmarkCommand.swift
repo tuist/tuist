@@ -1,7 +1,7 @@
 
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
+import TSCUtility
 
 enum BenchmarkCommandError: LocalizedError {
     case missing(description: String)

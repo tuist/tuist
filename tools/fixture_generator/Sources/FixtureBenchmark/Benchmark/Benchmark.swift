@@ -1,6 +1,6 @@
 
 import Foundation
-import Basic
+import TSCBasic
 
 struct BenchmarkResult {
     var fixture: String

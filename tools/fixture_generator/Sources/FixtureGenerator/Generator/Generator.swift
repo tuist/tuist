@@ -1,6 +1,7 @@
 
-import Basic
 import Foundation
+import TSCBasic
+
 class Generator {
     private let fileSystem: FileSystem
     private let config: GeneratorConfig
