@@ -3,14 +3,14 @@ name: Fixture Generator
 on:
   push:
     paths:
-      - tools/fixture_generator/**/*
+      - tools/fixturegen/**/*
       - Sources/ProjectDescription/**/*
-      - .github/workflows/fixture-generator.yml
+      - .github/workflows/fixturegen.yml
   pull_request:
     paths:
-      - tools/fixture_generator/**/*
+      - tools/fixturegen/**/*
       - Sources/ProjectDescription/**/*
-      - .github/workflows/fixture-generator.yml
+      - .github/workflows/fixturegen.yml
 
 jobs:
   test:
@@ -21,13 +21,13 @@ jobs:
       - name: Select Xcode 11.2.1
         run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
       - name: Build Package
-        working-directory: ./tools/fixture_generator
+        working-directory: ./tools/fixturegen
         run: swift build 
       - name: Generate Fixture
-        working-directory: ./tools/fixture_generator
+        working-directory: ./tools/fixturegen
         run: swift run FixtureGenerator --projects 1 --targets 1 --sources 1
       - name: Build Tuist
         run: swift build
       - name: Generate Fixture Project
-        run: swift run tuist generate --path ./tools/fixture_generator/Fixture
+        run: swift run tuist generate --path ./tools/fixturegen/Fixture
   

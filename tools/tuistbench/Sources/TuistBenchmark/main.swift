@@ -3,9 +3,9 @@ import TSCBasic
 import TSCUtility
 
 func main() throws {
-    let parser = ArgumentParser(commandName: "FixtureBenchmark",
+    let parser = ArgumentParser(commandName: "tuistbench",
                                 usage: "<options>",
-                                overview: "A utility to benchmark a fixture")
+                                overview: "A utility to benchmark running tuist against a set of fixtures.")
 
     let fileHandler = FileHandler()
     let generateCommand = BenchmarkCommand(fileHandler: fileHandler,

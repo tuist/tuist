@@ -1,31 +1,4 @@
-# Fixture Generator
-
-A tool to generate large fixtures for the purposes of stress testing Tuist,
-
-## Usage
-
-```sh
-swift run FixtureGenerator --projects 10 --targets 10 --sources 500
-```
-
-Options:
-
-- `--path`: The path to generate the fixture in
-- `--projects`, `-p`: Number of projects to generate
-- `--targets`, `-t`: Number of targets to generate
-- `--sources`, `-s`: Number of sources to generate
-
-## Features
-
-- [x] Control number of projects
-- [x] Control number of targets
-- [x] Control number of sources
-- [ ] Add pre-compiled libraries
-- [ ] Add pre-compiled frameworks
-- [ ] Add pre-compiled xcframeworks
-
-
-# Fixture Benchmark
+# Tuist Benchmark
 
 A tool to time & benchmark tuist's commands against a set of fixtures
 
@@ -34,19 +7,19 @@ A tool to time & benchmark tuist's commands against a set of fixtures
 **Measurement (single fixture):**
 
 ```sh
-swift run FixtureBenchmark --binary /path/to/local/tuist --fixture /path/to/fixture
+swift run tuistbench --binary /path/to/local/tuist --fixture /path/to/fixture
 ```
 
 **Benchmark (single fixture):**
 
 ```sh
-swift run FixtureBenchmark --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture /path/to/fixture
+swift run tuistbench --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture /path/to/fixture
 ```
 
 **Benchmark (multiple fixtures):**
 
 ```sh
-swift run FixtureBenchmark --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture-list /path/to/fixtures.json
+swift run tuistbench --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture-list /path/to/fixtures.json
 ```
 
 `fixtures.json` example:
@@ -98,7 +71,7 @@ When `deltaThreshold` is `0.02`
 Console:
 
 ```sh
-$ swift run FixtureBenchmark -b $(which tuist) -l ../fixtures/ios_app_with_tests
+$ swift run tuistbench -b $(which tuist) -l ../fixtures/ios_app_with_tests
 
 Fixture       : ios_app_with_tests
 Runs          : 5
@@ -111,7 +84,7 @@ Result
 Markdown:
 
 ```sh
-$ swift run FixtureBenchmark -b $(which tuist) -f ../ios_app_with_tests --format markdown
+$ swift run tuistbench -b $(which tuist) -f ../ios_app_with_tests --format markdown
 ```
 
 | Fixture            | Initial     | Average |
@@ -136,7 +109,7 @@ $ swift run FixtureBenchmark -b $(which tuist) -f ../ios_app_with_tests --format
 Console:
 
 ```sh
-$ swift run FixtureBenchmark -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json
+$ swift run tuistbench -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json
 
 Fixture       : ios_app_with_tests
 Runs          : 5
@@ -164,7 +137,7 @@ Result
 Markdown:
 
 ```sh
-$ swift run FixtureBenchmark -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json --format markdown
+$ swift run tuistbench -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json --format markdown
 ```
 
 | Fixture         | New    | Old  | Delta    |
