@@ -3,7 +3,8 @@ import TuistCore
 @testable import TuistGenerator
 
 class MockStaticProductsGraphLinter: StaticProductsGraphLinting {
-    func lint(graph _: Graphing) -> [LintingIssue] {
-        []
+    var lintStub: ((Graphing) -> [LintingIssue])?
+    func lint(graph: Graphing) -> [LintingIssue] {
+        lintStub?(graph) ?? []
     }
 }
