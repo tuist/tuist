@@ -11,5 +11,6 @@ let project = Project(name: "App",
                                actions: [
                                 .pre(path: "/bin/echo", arguments: ["tuist"], name: "Tuist"),
                                 .post(path: "/bin/echo", arguments: ["rocks"], name: "Rocks"),
+                                .pre(path: "script.sh", name: "Run script")
                               ]),
                       ])
