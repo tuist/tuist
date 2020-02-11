@@ -8,6 +8,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- TargetAction path without ./ prefix https://github.com/tuist/tuist/pull/997 by @fortmarek
+
 ### Changed
 
 ## 1.2.0
