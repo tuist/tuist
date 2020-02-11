@@ -2,6 +2,11 @@ import Basic
 import Foundation
 import TuistCore
 
+/// Static Products Graph Linter
+///
+/// A linter that identifies potential issues in a graph where
+/// static products are linked multiple times.
+///
 protocol StaticProductsGraphLinting {
     func lint(graph: Graphing) -> [LintingIssue]
 }
@@ -27,29 +32,6 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             warnings.formUnion(results.linked.flatMap(staticDependencyWarning))
         }
         return warnings
-    }
-
-    private func staticDependencyWarning(staticProduct: GraphNode, linkedBy: Set<TargetNode>) -> [StaticDependencyWarning] {
-        // Common dependencies between test bundles and their host apps are automatically omitted
-        // during generation - as such those shouldn't be flagged
-        //
-        // reference: https://github.com/tuist/tuist/pull/664
-        let apps: Set<GraphNode> = linkedBy.filter { $0.target.product == .app }
-        let hostedTestBundles = linkedBy
-            .filter { $0.target.product.testsBundle }
-            .filter { $0.dependencies.contains(where: { apps.contains($0) }) }
-
-        let links = linkedBy.subtracting(hostedTestBundles)
-
-        guard links.count > 1 else {
-            return []
-        }
-
-        let sortedLinks = links.sorted(by: { $0.name < $1.name })
-        return [
-            .init(staticProduct: staticProduct,
-                  linkingNodes: sortedLinks),
-        ]
     }
 
     ///
@@ -104,6 +86,30 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         return results
     }
 
+    private func staticDependencyWarning(staticProduct: GraphNode,
+                                         linkedBy: Set<TargetNode>) -> [StaticDependencyWarning] {
+        // Common dependencies between test bundles and their host apps are automatically omitted
+        // during generation - as such those shouldn't be flagged
+        //
+        // reference: https://github.com/tuist/tuist/pull/664
+        let apps: Set<GraphNode> = linkedBy.filter { $0.target.product == .app }
+        let hostedTestBundles = linkedBy
+            .filter { $0.target.product.testsBundle }
+            .filter { $0.dependencies.contains(where: { apps.contains($0) }) }
+
+        let links = linkedBy.subtracting(hostedTestBundles)
+
+        guard links.count > 1 else {
+            return []
+        }
+
+        let sortedLinks = links.sorted(by: { $0.name < $1.name })
+        return [
+            .init(staticProduct: staticProduct,
+                  linkingNodes: sortedLinks),
+        ]
+    }
+
     private func dependencies(for node: GraphNode) -> [GraphNode] {
         (node as? TargetNode)?.dependencies ?? []
     }
@@ -146,16 +152,21 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 // MARK: - Helper Types
 
 extension StaticProductsGraphLinter {
-    private struct StaticDependencyWarning: Hashable, Comparable, CustomStringConvertible {
+    private struct StaticDependencyWarning: Hashable, Comparable {
         var staticProduct: GraphNode
         var linkingNodes: [TargetNode]
 
-        var description: String {
+        var debugDescription: String {
+            stringDescription
+        }
+
+        private var stringDescription: String {
             "\(staticProduct.name) > \(linkingNodes.map(\.name))"
         }
 
-        static func < (lhs: StaticProductsGraphLinter.StaticDependencyWarning, rhs: StaticProductsGraphLinter.StaticDependencyWarning) -> Bool {
-            lhs.description < rhs.description
+        static func < (lhs: StaticDependencyWarning,
+                       rhs: StaticDependencyWarning) -> Bool {
+            lhs.stringDescription < rhs.stringDescription
         }
     }
 
