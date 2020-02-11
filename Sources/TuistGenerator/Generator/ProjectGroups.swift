@@ -25,13 +25,14 @@ enum ProjectGroupsError: FatalError, Equatable {
 class ProjectGroups {
     // MARK: - Attributes
 
-    let main: PBXGroup
+    let main: PBXGroup // main should be accessed from sortMainAndAddDefaultGroups
     let products: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup?
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
+    private let pbxGroupSorter: PBXGroupSorter
 
     // MARK: - Init
 
@@ -47,6 +48,7 @@ class ProjectGroups {
         self.frameworks = frameworks
         self.playgrounds = playgrounds
         self.pbxproj = pbxproj
+        pbxGroupSorter = PBXGroupSorter()
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
@@ -64,36 +66,11 @@ class ProjectGroups {
         return group
     }
 
-    // The sorting implementation was taken from https://github.com/yonaskolb/XcodeGen/blob/d64cfff8a1ca01fd8f18cbb41f72230983c4a192/Sources/XcodeGenKit/PBXProjGenerator.swift
-    // We require exactly the same sort which places groups over files while using the PBXGroup from Xcodeproj.
-    static func sortGroups(group: PBXGroup) {
-        let children = group.children
-            .sorted { (child1, child2) -> Bool in
-                let sortOrder1 = child1.getSortOrder()
-                let sortOrder2 = child2.getSortOrder()
-
-                if sortOrder1 != sortOrder2 {
-                    return sortOrder1 < sortOrder2
-                } else {
-                    if (child1.name, child1.path) != (child2.name, child2.path) {
-                        return PBXFileElement.sortByNamePath(child1, child2)
-                    } else {
-                        return child1.context ?? "" < child2.context ?? ""
-                    }
-                }
-            }
-
-        group.children = children.filter { $0 != group }
-
-        let childGroups = group.children.compactMap { $0 as? PBXGroup }
-        childGroups.forEach(sortGroups)
-    }
-
-    static func generate(project: Project,
-                         pbxproj: PBXProj,
-                         xcodeprojPath: AbsolutePath,
-                         sourceRootPath: AbsolutePath,
-                         playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
+    static func generateInitialGroups(project: Project,
+                                      pbxproj: PBXProj,
+                                      xcodeprojPath: AbsolutePath,
+                                      sourceRootPath: AbsolutePath,
+                                      playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
         /// Main
         let projectRelativePath = sourceRootPath.relative(to: xcodeprojPath.parentDirectory).pathString
         let mainGroup = PBXGroup(children: [],
@@ -135,12 +112,18 @@ class ProjectGroups {
                              pbxproj: pbxproj)
     }
 
-    static func addFirstLevelDefaults(firstLevelGroup: ProjectGroups) {
-        firstLevelGroup.main.children.append(firstLevelGroup.frameworks)
-        if let playgroundsGroup = firstLevelGroup.playgrounds {
-            firstLevelGroup.main.children.append(playgroundsGroup)
+    func sortMainAndAddDefaultGroups() -> PBXGroup {
+        pbxGroupSorter.sort(with: main)
+        addFirstLevelDefaults(projectGroup: self)
+        return main
+    }
+
+    private func addFirstLevelDefaults(projectGroup _: ProjectGroups) {
+        main.children.append(frameworks)
+        if let playgroundsGroup = playgrounds {
+            main.children.append(playgroundsGroup)
         }
-        firstLevelGroup.main.children.append(firstLevelGroup.products)
+        main.children.append(products)
     }
 
     private static func extractProjectGroupNames(from project: Project) -> [String] {

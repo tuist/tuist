@@ -17,11 +17,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         super.setUp()
         playgrounds = MockPlaygrounds()
         pbxproj = PBXProj()
-        groups = ProjectGroups.generate(project: .test(),
-                                        pbxproj: pbxproj,
-                                        xcodeprojPath: "/path/Project.xcodeproj",
-                                        sourceRootPath: "/path",
-                                        playgrounds: MockPlaygrounds())
+        groups = ProjectGroups.generateInitialGroups(project: .test(),
+                                                     pbxproj: pbxproj,
+                                                     xcodeprojPath: "/path/Project.xcodeproj",
+                                                     sourceRootPath: "/path",
+                                                     playgrounds: MockPlaygrounds())
 
         subject = ProjectFileElements(playgrounds: playgrounds)
     }
@@ -311,10 +311,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             .test(name: "Library", product: .staticLibrary),
         ])
         let graph = Graph.test()
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: project.path)
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: project.path)
 
         // When
         try subject.generateProjectFiles(project: project,
@@ -346,10 +346,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
             let project = Project.test(targets: targets)
             let graph = Graph.test()
-            let groups = ProjectGroups.generate(project: project,
-                                                pbxproj: pbxproj,
-                                                xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                                sourceRootPath: project.path)
+            let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                             pbxproj: pbxproj,
+                                                             xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                             sourceRootPath: project.path)
 
             // When
             try subject.generateProjectFiles(project: project,
@@ -377,10 +377,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             .test(name: "App", product: .app),
         ])
         let graph = Graph.test()
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: project.path)
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: project.path)
 
         // When
         try subject.generateProjectFiles(project: project,
@@ -401,10 +401,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let projectGroupName = "Project"
         let projectGroup: ProjectGroup = .group(name: projectGroupName)
         let project = Project.test(path: AbsolutePath("/"), filesGroup: projectGroup, targets: [target])
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: sourceRootPath)
         var dependencies: Set<GraphDependencyReference> = Set()
         let precompiledNode = GraphDependencyReference.absolute(project.path.appending(component: "waka.framework"))
         dependencies.insert(precompiledNode)
@@ -428,10 +428,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let fileElement = GroupFileElement(path: path, group: .group(name: "SomeGroup"))
         let project = Project.test(filesGroup: .group(name: "SomeGroup"))
         let sourceRootPath = AbsolutePath("/a/project/")
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: sourceRootPath)
 
         // When
         try subject.generate(fileElement: fileElement,
@@ -536,11 +536,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         let project = Project.test(path: temporaryPath)
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: temporaryPath,
-                                            playgrounds: playgrounds)
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: temporaryPath,
+                                                         playgrounds: playgrounds)
 
         subject.generatePlaygrounds(path: temporaryPath,
                                     groups: groups,
@@ -602,10 +602,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let pbxproj = PBXProj()
         let project = Project.test()
         let sourceRootPath = AbsolutePath("/a/project/")
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: sourceRootPath)
 
         let sdk = try SDKNode(name: "ARKit.framework",
                               platform: .iOS,
@@ -637,10 +637,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let project = Project.empty(path: "/a/project",
                                     targets: [target],
                                     packages: [.remote(url: "url", requirement: .branch("master"))])
-        let groups = ProjectGroups.generate(project: .test(),
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: project.path)
+        let groups = ProjectGroups.generateInitialGroups(project: .test(),
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: project.path)
 
         let package = PackageProductNode(product: "A", path: "/packages/url")
 

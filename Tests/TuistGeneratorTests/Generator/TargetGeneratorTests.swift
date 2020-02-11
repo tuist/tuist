@@ -43,11 +43,11 @@ final class TargetGeneratorTests: XCTestCase {
                                  ])
         let project = Project.test(path: path, targets: [target])
         let graph = Graph.test()
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: path,
-                                            playgrounds: MockPlaygrounds())
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: path,
+                                                         playgrounds: MockPlaygrounds())
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
@@ -120,11 +120,11 @@ final class TargetGeneratorTests: XCTestCase {
                                      TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                  ])
         let project = Project.test(path: path, targets: [target])
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: path,
-                                            playgrounds: MockPlaygrounds())
+        let groups = ProjectGroups.generateInitialGroups(project: project,
+                                                         pbxproj: pbxproj,
+                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                                         sourceRootPath: path,
+                                                         playgrounds: MockPlaygrounds())
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
