@@ -342,11 +342,10 @@ class StaticProductsGraphLinterTests: XCTestCase {
         XCTAssertTrue(results.isEmpty)
     }
 
-    func test_lint_whenStaticProductLinkedTwice_hostedTestTargets_1() throws {
+    func test_lint_whenStaticProductLinkedTwice_hostedTestTargets() throws {
         // Given
         let app = Target.test(name: "App")
         let appTests = Target.test(name: "AppTests", product: .unitTests)
-        let appUITests = Target.test(name: "AppUITests", product: .uiTests)
 
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
@@ -361,7 +360,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
                                  dependencies: [
                                      (target: app, dependencies: [frameworkA]),
                                      (target: appTests, dependencies: [app, staticFrameworkA]),
-                                     (target: appUITests, dependencies: [app]),
 
                                      (target: frameworkA, dependencies: [frameworkB, staticFrameworkA]),
                                      (target: frameworkB, dependencies: [frameworkC]),
@@ -380,6 +378,61 @@ class StaticProductsGraphLinterTests: XCTestCase {
         XCTAssertEqual(results, [
             warning(product: "StaticFrameworkA", linkedBy: ["AppTests", "FrameworkA"]),
             warning(product: "StaticFrameworkB", linkedBy: ["AppTests", "FrameworkA"]),
+        ])
+    }
+
+    func test_lint_whenNoStaticProductLinkedTwice_uiTestTargets() throws {
+        // Given
+        let app = Target.test(name: "App")
+        let appUITests = Target.test(name: "AppUITests", product: .uiTests)
+        let frameworkA = Target.test(name: "FrameworkA", product: .framework)
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA", product: .staticFramework)
+
+        let graph = Graph.create(project: Project.test(),
+                                 dependencies: [
+                                     (target: app, dependencies: [frameworkA]),
+                                     (target: appUITests, dependencies: [app, staticFrameworkA]),
+
+                                     (target: frameworkA, dependencies: [staticFrameworkA]),
+
+                                     (target: staticFrameworkA, dependencies: []),
+                                 ])
+
+        // When
+        let results = subject.lint(graph: graph)
+
+        // Then
+
+        // UITest bundles are hosted in a separate app (App-TestRunner) as such
+        // it should be treated as a separate graph that isn't connected to the main
+        // app's graph. It's an unfortunate side effect of declaring a target application
+        // of a UI test bundle as a dependency.
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func test_lint_whenStaticProductLinkedTwice_uiTestTargets() throws {
+        // Given
+        let app = Target.test(name: "App")
+        let appUITests = Target.test(name: "AppUITests", product: .uiTests)
+        let frameworkA = Target.test(name: "FrameworkA", product: .framework)
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA", product: .staticFramework)
+
+        let graph = Graph.create(project: Project.test(),
+                                 dependencies: [
+                                     (target: app, dependencies: [frameworkA]),
+                                     (target: appUITests, dependencies: [app, staticFrameworkA, frameworkA]),
+
+                                     (target: frameworkA, dependencies: [staticFrameworkA]),
+
+                                     (target: staticFrameworkA, dependencies: []),
+                                 ])
+
+        // When
+        let results = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(results, [
+            warning(product: "StaticFrameworkA", linkedBy: ["AppUITests", "FrameworkA"]),
         ])
     }
 

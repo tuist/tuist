@@ -111,7 +111,26 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     }
 
     private func dependencies(for node: GraphNode) -> [GraphNode] {
-        (node as? TargetNode)?.dependencies ?? []
+        guard let targetNode = node as? TargetNode else {
+            return []
+        }
+        return targetNode.dependencies.filter { canVisit(node: $0, from: targetNode) }
+    }
+
+    private func canVisit(node: GraphNode, from: TargetNode) -> Bool {
+        guard let to = node as? TargetNode else {
+            return true
+        }
+        switch (from.target.product, to.target.product) {
+        case (.uiTests, .app):
+            // UITest bundles are hosted in a separate app (App-TestRunner) as such
+            // it should be treated as a separate graph that isn't connected to the main
+            // app's graph. It's an unfortunate side effect of declaring a target application
+            // of a UI test bundle as a dependency.
+            return false
+        default:
+            return true
+        }
     }
 
     private func nodeIsStaticProduct(_ node: GraphNode) -> Bool {
