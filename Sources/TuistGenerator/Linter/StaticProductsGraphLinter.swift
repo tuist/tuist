@@ -52,6 +52,24 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         ]
     }
 
+    ///
+    /// Builds a static products map to enable performing some validation/lint checks.
+    ///
+    /// The map consists of all linked static products as follows:
+    /// `StaticProducts.linked`:
+    /// - MyStaticFrameworkA > [MyDynamicFrameworkA, MyTestsTarget]
+    /// - MyStaticFrameworkB > [MyDynamicFrameworkA, MyTestsTarget]
+    ///
+    /// The map is constructed by traversing the graph from the given node using
+    /// a depth first approach reaching to the leaf nodes. Once there, working
+    /// backwards all nodes are evaluated as follows:
+    ///
+    /// There are two "buckets", `StaticProducts.unlinked` and `StaticProducts.linked`
+    ///
+    /// - In the event a node is a static product it adds itself to the unlinked bucket
+    /// - In the event a node is a node capable of linking static products, it removes all the nodes
+    ///   from the unlinked bucket and places them in the linked bucket in format of _staticNode > [linkingNode]_.
+    ///
     private func buildStaticProductsMap(visiting node: GraphNode,
                                         cache: Cache) -> StaticProducts {
         if let cachedResult = cache.results(for: node) {
@@ -142,7 +160,13 @@ extension StaticProductsGraphLinter {
     }
 
     private struct StaticProducts {
+        // Unlinked static products
         var unlinked: Set<GraphNode> = Set()
+
+        // Map of Static product to nodes that link it
+        // e.g.
+        //    - MyStaticFrameworkA > [MyDynamicFrameworkA, MyTestsTarget]
+        //    - MyStaticFrameworkB > [MyDynamicFrameworkA, MyTestsTarget]
         var linked: [GraphNode: Set<TargetNode>] = [:]
 
         func merged(with other: StaticProducts) -> StaticProducts {
