@@ -1,1 +1,1 @@
-
+// TuistAutomation placeholder

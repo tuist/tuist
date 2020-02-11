@@ -2,14 +2,15 @@
 import { jsx, Styled } from 'theme-ui'
 
 import Layout from '../components/layout'
-import Meta from '../components/meta'
 import Footer from '../components/footer'
 import { Link } from 'gatsby'
 import { graphql } from 'gatsby'
 import Main from '../components/main'
 import { findWhere } from 'underscore'
-import { BreadcrumbStructuredData } from '../components/structured-data'
+import { BreadcrumbJsonLd, BlogJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
+import moment from 'moment'
+import SEO from '../components/SEO'
 
 const Post = ({ post, index, authors }) => {
   const authorHandle = post.frontmatter.author
@@ -125,17 +126,39 @@ const BlogList = ({
     allAuthorsYaml: { nodes: authors },
   },
 }) => {
-  const breadcrumb = [['Blog', urljoin(siteUrl, '/blog')]]
+  const breadcrumb = [
+    { position: 1, name: 'Blog', item: urljoin(siteUrl, '/blog') },
+  ]
   const description =
     'Read about Tuist updates: new releases, engineering challenges, and road-map updates.'
+
   return (
     <Layout>
-      <BreadcrumbStructuredData items={breadcrumb} />
-      <Meta title="Blog" description={description} />
+      <BreadcrumbJsonLd itemListElements={breadcrumb} />
+      <SEO title="Blog" description={description} />
+      <BlogJsonLd
+        url={urljoin(siteUrl, '/blog')}
+        headline="Tuist Blog"
+        posts={edges.map(edge => {
+          const authorHandle = edge.node.frontmatter.author
+          const author = findWhere(authors, { handle: authorHandle })
+
+          return {
+            headline: edge.node.frontmatter.title,
+            author: author.name,
+            datePublished: moment(edge.node.fields.date).format(),
+            image: author.avatar,
+            publisherName: author.name,
+            publisherLogo: author.avatar,
+          }
+        })}
+        authorName="Tuist"
+        description={description}
+      />
       <Main>
         <Styled.h1>Blog</Styled.h1>
         {edges.map(({ node }, index) => {
-          return <Post post={node} index={index} authors={authors} />
+          return <Post post={node} key={index} authors={authors} />
         })}
         <PostsFooter {...pageContext} />
       </Main>

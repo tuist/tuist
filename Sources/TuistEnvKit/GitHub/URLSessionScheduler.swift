@@ -1,6 +1,4 @@
 import Foundation
-import OpenCombine
-import OpenCombineFoundation
 
 protocol URLSessionScheduling: AnyObject {
     /// Schedules an URLSession request and returns the result synchronously.
@@ -8,10 +6,6 @@ protocol URLSessionScheduling: AnyObject {
     /// - Parameter request: request to be executed.
     /// - Returns: request's response.
     func schedule(request: URLRequest) -> (error: Error?, data: Data?)
-
-    /// Returns a publisher that sends the given request. The publisher forwards the response data and error to the subscribers.
-    /// - Parameter request: The request to be sent.
-    func publisher(request: URLRequest) -> OpenCombine.AnyPublisher<(data: Data, response: URLResponse), URLError>
 }
 
 final class URLSessionScheduler: URLSessionScheduling {
@@ -49,9 +43,5 @@ final class URLSessionScheduler: URLSessionScheduling {
         }.resume()
         _ = semaphore.wait(timeout: .now() + 3)
         return (error: error, data: data)
-    }
-
-    func publisher(request: URLRequest) -> OpenCombine.AnyPublisher<(data: Data, response: URLResponse), URLError> {
-        URLSession.OCombine.DataTaskPublisher(request: request, session: session).eraseToAnyPublisher()
     }
 }

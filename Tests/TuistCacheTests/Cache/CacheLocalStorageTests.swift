@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-@testable import TuistGalaxy
+@testable import TuistCache
 @testable import TuistSupportTesting
 
 final class CacheLocalStorageErrorTests: TuistUnitTestCase {

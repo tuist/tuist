@@ -333,11 +333,11 @@ It represents a glob pattern that refers to source files and the compiler flags 
     },
     {
       name: 'Excluding',
-      description: 'Glob pattern for source files that will be excluded.',
-      type: 'Path',
+      description: 'Glob patterns for source files that will be excluded.',
+      type: '[Path]',
       typeLink: '#path',
       optional: true,
-      default: 'nil',
+      default: '[]',
     },
     {
       name: 'Compiler flags',

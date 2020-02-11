@@ -17,12 +17,6 @@ extension Workspace {
     }
 }
 
-extension Galaxy {
-    public static func test(token: String = "xyz") -> Galaxy {
-        Galaxy(token: token)
-    }
-}
-
 extension Project {
     public static func test(name: String = "Project",
                             settings: Settings? = nil,

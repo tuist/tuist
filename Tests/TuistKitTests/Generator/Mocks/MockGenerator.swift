@@ -9,9 +9,9 @@ class MockGenerator: Generating {
         try generateProjectAtStub?(path) ?? AbsolutePath("/test")
     }
 
-    var generateProjectStub: ((Project) throws -> AbsolutePath)?
-    func generateProject(_ project: Project, graph _: Graphing) throws -> AbsolutePath {
-        try generateProjectStub?(project) ?? AbsolutePath("/test")
+    var generateProjectStub: ((Project, AbsolutePath?, AbsolutePath?) throws -> AbsolutePath)?
+    func generateProject(_ project: Project, graph _: Graphing, sourceRootPath: AbsolutePath?, xcodeprojPath: AbsolutePath?) throws -> AbsolutePath {
+        try generateProjectStub?(project, sourceRootPath, xcodeprojPath) ?? AbsolutePath("/test")
     }
 
     var generateProjectWorkspaceStub: ((AbsolutePath, [AbsolutePath]) throws -> AbsolutePath)?

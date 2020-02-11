@@ -2,11 +2,11 @@
 import { jsx, Styled } from 'theme-ui'
 import { useStaticQuery, graphql } from 'gatsby'
 import Layout from '../components/layout'
-import Meta from '../components/meta'
 import Main from '../components/main'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
-import { FAQStructuredData } from '../components/structured-data'
+import { FAQJsonLd, GatsbySeo } from 'gatsby-plugin-next-seo'
 import Footer from '../components/footer'
+import SEO from '../components/SEO'
 
 const Question = ({ question, body, index }) => {
   return (
@@ -38,22 +38,15 @@ export default () => {
     }
   `)
   const structuredQuestions = questions.map(question => {
-    return [question.frontmatter.question, question.excerpt]
+    return { question: question.frontmatter.question, answer: question.excerpt }
   })
   return (
     <Layout>
-      <FAQStructuredData items={structuredQuestions} />
-      <Meta
+      <SEO />
+      <FAQJsonLd questions={structuredQuestions} />
+      <GatsbySeo
         title="FAQ"
         description={`This page contains answers for questions that are frequently asked by users. Questions such as "Should I gitignore my project?" or "How does Tuist compare to the Swift Package Manager?"`}
-        keywords={[
-          'tuist',
-          'project generation',
-          'frequently asked questions',
-          'xcode',
-          'swift',
-          'faq',
-        ]}
       />
       <Main>
         <Styled.h1>Frequently asked questions</Styled.h1>
@@ -62,7 +55,7 @@ export default () => {
             <Question
               question={question.frontmatter.question}
               body={question.body}
-              index={index}
+              key={index}
             />
           )
         })}

@@ -3,18 +3,15 @@ import { jsx, Styled } from 'theme-ui'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 
 import Layout from '../components/layout'
-import Meta from '../components/meta'
 import Footer from '../components/footer'
 import { graphql } from 'gatsby'
 import moment from 'moment'
 import Main from '../components/main'
 import EditPage from '../components/edit-page'
 import Share from '../components/share'
-import {
-  BreadcrumbStructuredData,
-  ArticleStructuredData,
-} from '../components/structured-data'
 import urljoin from 'url-join'
+import SEO from '../components/SEO'
+import { NewsArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 
 const Avatar = ({ author: { avatar, twitter } }) => {
   return (
@@ -52,26 +49,39 @@ const IndexPage = ({
   ).format('MMMM Do YYYY')}`
 
   const breadcrumb = [
-    ['Blog', urljoin(siteUrl, '/blog')],
-    [post.frontmatter.title, urljoin(siteUrl, post.fields.slug)],
+    { position: 1, name: 'Blog', item: urljoin(siteUrl, '/blog') },
+    {
+      position: 2,
+      name: post.frontmatter.title,
+      item: urljoin(siteUrl, post.fields.slug),
+    },
   ]
   return (
     <Layout>
-      <BreadcrumbStructuredData items={breadcrumb} />
-      <ArticleStructuredData
-        title={post.frontmatter.title}
-        excerpt={post.frontmatter.excerpt}
-        author={author.name}
+      <BreadcrumbJsonLd itemListElements={breadcrumb} />
+      <NewsArticleJsonLd
         url={urljoin(siteUrl, post.fields.slug)}
-        siteUrl={siteUrl}
-        date={moment(post.fields.date)}
+        title={post.frontmatter.title}
+        keywords={post.frontmatter.categories}
+        datePublished={moment(post.fields.date).format()}
+        author={author.name}
+        description={post.frontmatter.excerpt}
       />
-      <Meta
+
+      <SEO
         title={post.frontmatter.title}
         description={post.frontmatter.excerpt}
-        keywords={post.frontmatter.categories}
-        author={author.twitter}
-        slug={post.fields.slug}
+        openGraph={{
+          title: post.frontmatter.title,
+          description: post.frontmatter.excerpt,
+          url: urljoin(siteUrl, post.fields.slug),
+          type: 'article',
+          article: {
+            publishedTime: moment(post.fields.date).format(),
+            authors: [`https://www.twitter.com/${author.twitter}`],
+            tags: post.frontmatter.categories,
+          },
+        }}
       />
       <Main>
         <div

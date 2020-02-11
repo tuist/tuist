@@ -61,8 +61,8 @@ final class TargetTests: TuistUnitTestCase {
         // When
         let sources = try Target.sources(projectPath: temporaryPath,
                                          sources: [
-                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: nil, compilerFlags: nil),
-                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: nil, compilerFlags: nil),
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
                                          ])
 
         // Then
@@ -92,11 +92,52 @@ final class TargetTests: TuistUnitTestCase {
 
         // When
         let sources = try Target.sources(projectPath: temporaryPath,
-                                         sources: [(
-                                             glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                                                   excluding: temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
-                                                   compilerFlags: nil
-                                         )])
+                                         sources: [
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                                              excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString],
+                                              compilerFlags: nil),
+                                         ])
+
+        // Then
+        let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
+
+        XCTAssertEqual(Set(relativeSources), Set([
+            "sources/a.swift",
+            "sources/b.swift",
+            "sources/c/c.swift",
+        ]))
+    }
+
+    func test_sources_excluding_multiple_paths() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
+            "sources/a.swift",
+            "sources/b.swift",
+            "sources/aTests.swift",
+            "sources/c/cType+Fake.swift",
+            "sources/aType+Fake.swift",
+            "sources/bTests.swift",
+            "sources/kTests.kt",
+            "sources/c/c.swift",
+            "sources/c/cTests.swift",
+            "sources/d.h",
+            "sources/d.m",
+            "sources/d/d.m",
+        ])
+        let excluding: [String] = [
+            temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
+            temporaryPath.appending(RelativePath("sources/**/*Fake.swift")).pathString,
+            temporaryPath.appending(RelativePath("sources/**/*.m")).pathString,
+        ]
+
+        // When
+        let sources = try Target.sources(projectPath: temporaryPath,
+                                         sources: [
+                                             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                                              excluding: excluding,
+                                              compilerFlags: nil),
+                                         ])
 
         // Then
         let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }

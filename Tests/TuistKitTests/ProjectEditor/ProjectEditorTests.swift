@@ -68,7 +68,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = (project, graph)
         var generatedProject: Project?
-        generator.generateProjectStub = { project in
+        generator.generateProjectStub = { project, _, _ in
             generatedProject = project
             return directory.appending(component: "Edit.xcodeproj")
         }
