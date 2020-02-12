@@ -6,7 +6,7 @@
   "author": "Pedro Piñera <pedro@ppinera.es>",
   "dependencies": {
     "@emotion/core": "^10.0.27",
-    "@fortawesome/fontawesome-svg-core": "^1.2.26",
+    "@fortawesome/fontawesome-svg-core": "^1.2.27",
     "@fortawesome/free-brands-svg-icons": "^5.12.1",
     "@fortawesome/free-regular-svg-icons": "^5.11.2",
     "@fortawesome/free-solid-svg-icons": "^5.12.0",
