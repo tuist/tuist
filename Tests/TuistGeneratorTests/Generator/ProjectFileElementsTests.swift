@@ -669,16 +669,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 }
 
 private extension PBXGroup {
-    /// Returns all the child paths (recursively)
-    ///
-    /// e.g.
-    ///    A
-    ///    - B
-    ///    - C
-    ///    -- D
-    /// Would return:
-    ///         ["A/B", "A/C/D"]
-
     /// Retuns all the child variant groups (recursively)
     var debugVariantGroupPaths: [String] {
         children.flatMap { (element: PBXFileElement) -> [String] in
