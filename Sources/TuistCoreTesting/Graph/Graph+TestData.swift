@@ -20,6 +20,14 @@ public extension Graph {
     ///       All targets need to be listed even if they don't have any dependencies.
     static func create(project: Project,
                        dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
+        create(project: project,
+               entryNodes: dependencies.map(\.target),
+               dependencies: dependencies)
+    }
+
+    static func create(project: Project,
+                       entryNodes: [Target],
+                       dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
         let dependenciesWithProject = dependencies.map { (
             project: project,
             target: $0.target,
@@ -27,11 +35,15 @@ public extension Graph {
         ) }
         let targetNodes = createTargetNodes(dependencies: dependenciesWithProject)
 
+        let entryNodes = entryNodes.compactMap { entryNode in
+            targetNodes.first { $0.name == entryNode.name }
+        }
+
         let cache = GraphLoaderCache()
         let graph = Graph.test(name: project.name,
                                entryPath: project.path,
                                cache: cache,
-                               entryNodes: targetNodes)
+                               entryNodes: entryNodes)
 
         targetNodes.forEach { cache.add(targetNode: $0) }
         cache.add(project: project)
@@ -50,7 +62,9 @@ public extension Graph {
         let targetNodes = createTargetNodes(dependencies: dependencies)
 
         let entryNodes = entryNodes.map { entryNodes in
-            targetNodes.filter { entryNodes.contains($0.target) }
+            entryNodes.compactMap { entryNode in
+                targetNodes.first { $0.name == entryNode.name }
+            }
         }
 
         let cache = GraphLoaderCache()
