@@ -106,10 +106,10 @@ final class ProjectGenerator: ProjectGenerating {
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
 
-        let groups = ProjectGroups.generateInitialGroups(project: project,
-                                                         pbxproj: pbxproj,
-                                                         xcodeprojPath: xcodeprojPath,
-                                                         sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            xcodeprojPath: xcodeprojPath,
+                                            sourceRootPath: sourceRootPath)
 
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
@@ -117,6 +117,9 @@ final class ProjectGenerator: ProjectGenerating {
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
+
+        // add default groups
+        // sort
 
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
@@ -159,7 +162,7 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
-                                    mainGroup: groups.sortMainAndAddDefaultGroups(),
+                                    mainGroup: groups.buildMain(),
                                     developmentRegion: Xcode.Default.developmentRegion,
                                     hasScannedForEncodings: 0,
                                     knownRegions: knownRegions,

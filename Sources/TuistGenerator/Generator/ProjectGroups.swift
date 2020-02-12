@@ -25,7 +25,7 @@ enum ProjectGroupsError: FatalError, Equatable {
 class ProjectGroups {
     // MARK: - Attributes
 
-    let main: PBXGroup // main should be accessed from sortMainAndAddDefaultGroups
+    private let main: PBXGroup // main should be accessed from buildMain
     let products: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup?
@@ -66,11 +66,11 @@ class ProjectGroups {
         return group
     }
 
-    static func generateInitialGroups(project: Project,
-                                      pbxproj: PBXProj,
-                                      xcodeprojPath: AbsolutePath,
-                                      sourceRootPath: AbsolutePath,
-                                      playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
+    static func generate(project: Project,
+                         pbxproj: PBXProj,
+                         xcodeprojPath: AbsolutePath,
+                         sourceRootPath: AbsolutePath,
+                         playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
         /// Main
         let projectRelativePath = sourceRootPath.relative(to: xcodeprojPath.parentDirectory).pathString
         let mainGroup = PBXGroup(children: [],
@@ -92,17 +92,20 @@ class ProjectGroups {
         /// Frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
         pbxproj.add(object: frameworksGroup)
+        mainGroup.children.append(frameworksGroup)
 
         /// Playgrounds
         var playgroundsGroup: PBXGroup!
         if !playgrounds.paths(path: project.path).isEmpty {
             playgroundsGroup = PBXGroup(children: [], sourceTree: .group, path: "Playgrounds")
             pbxproj.add(object: playgroundsGroup)
+            mainGroup.children.append(playgroundsGroup)
         }
 
         /// Products
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
         pbxproj.add(object: productsGroup)
+        mainGroup.children.append(productsGroup)
 
         return ProjectGroups(main: mainGroup,
                              projectGroups: projectGroups,
@@ -112,18 +115,10 @@ class ProjectGroups {
                              pbxproj: pbxproj)
     }
 
-    func sortMainAndAddDefaultGroups() -> PBXGroup {
-        pbxGroupSorter.sort(with: main)
-        addFirstLevelDefaults(projectGroup: self)
+    func buildMain() -> PBXGroup {
+        let childGroups = main.children.compactMap { $0 as? PBXGroup }
+        childGroups.forEach(pbxGroupSorter.sort)
         return main
-    }
-
-    private func addFirstLevelDefaults(projectGroup _: ProjectGroups) {
-        main.children.append(frameworks)
-        if let playgroundsGroup = playgrounds {
-            main.children.append(playgroundsGroup)
-        }
-        main.children.append(products)
     }
 
     private static func extractProjectGroupNames(from project: Project) -> [String] {
@@ -135,23 +130,5 @@ class ProjectGroups {
             }
         }
         return groupNames
-    }
-}
-
-extension PBXFileElement {
-    public func getSortOrder() -> Int {
-        if type(of: self).isa == "PBXGroup" {
-            return -1
-        } else {
-            return 0
-        }
-    }
-
-    public static func sortByNamePath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool {
-        lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
-    }
-
-    private var namePathSortString: String {
-        "\(name ?? path ?? "")\t\(name ?? "")\t\(path ?? "")"
     }
 }

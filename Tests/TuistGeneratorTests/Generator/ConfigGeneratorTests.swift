@@ -345,10 +345,10 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                    settings: .default,
                                    targets: [target])
         let fileElements = ProjectFileElements()
-        let groups = ProjectGroups.generateInitialGroups(project: project,
-                                                         pbxproj: pbxproj,
-                                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                                         sourceRootPath: dir.path)
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
+                                            sourceRootPath: dir.path)
         let graph = Graph.test()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,

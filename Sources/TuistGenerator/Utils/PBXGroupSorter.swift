@@ -27,3 +27,21 @@ class PBXGroupSorter {
         childGroups.forEach(sort)
     }
 }
+
+extension PBXFileElement {
+    public func getSortOrder() -> Int {
+        if type(of: self).isa == "PBXGroup" {
+            return -1
+        } else {
+            return 0
+        }
+    }
+
+    public static func sortByNamePath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool {
+        lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
+    }
+
+    private var namePathSortString: String {
+        "\(name ?? path ?? "")\t\(name ?? "")\t\(path ?? "")"
+    }
+}
