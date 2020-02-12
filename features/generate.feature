@@ -203,6 +203,7 @@ Scenario: The project is an iOS application with target actions
     Then tuist generates the project
     Then the target App should have the build phase Tuist in the first position
     Then the target App should have the build phase Rocks in the last position
+    Then I should be able to build for iOS the scheme App
 
 Scenario: The project is an iOS application with remote Swift package (ios_app_with_remote_swift_package)
     Given that tuist is available
