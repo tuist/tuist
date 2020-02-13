@@ -118,9 +118,6 @@ final class ProjectGenerator: ProjectGenerating {
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
 
-        // add default groups
-        // sort
-
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 projectFileElements: fileElements,
