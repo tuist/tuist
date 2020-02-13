@@ -148,6 +148,8 @@ const BlogList = ({
             author: author.name,
             datePublished: moment(edge.node.fields.date).format(),
             image: author.avatar,
+            publisherName: author.name,
+            publisherLogo: author.avatar,
           }
         })}
         authorName="Tuist"

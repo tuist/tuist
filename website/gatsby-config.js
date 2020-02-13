@@ -226,6 +226,14 @@ module.exports = {
           locale: 'en_IE',
           url: siteUrl,
           site_name: title,
+          images: [
+            {
+              url: `${siteUrl}/squared-logo.png`,
+              width: 400,
+              height: 400,
+              alt: "Tuist's logo",
+            },
+          ],
           keywords: [
             `tuist`,
             `engineering`,
