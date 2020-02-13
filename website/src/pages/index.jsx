@@ -726,7 +726,7 @@ const Contribute = () => {
 const IndexPage = () => {
   return (
     <Layout>
-      <SEO />
+      <SEO title="Xcode on steroids" />
       <Steroids />
       <Workspaces />
       <Principles />
