@@ -64,7 +64,10 @@ const IndexPage = ({
         title={post.frontmatter.title}
         keywords={post.frontmatter.categories}
         datePublished={moment(post.fields.date).format()}
-        author={author.name}
+        authorName={author.name}
+        publisherName={author.name}
+        publisherLogo={author.avatar}
+        images={[author.avatar]}
         description={post.frontmatter.excerpt}
       />
 
