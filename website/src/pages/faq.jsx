@@ -42,7 +42,7 @@ export default () => {
   })
   return (
     <Layout>
-      <SEO />
+      <SEO title="Frequently asked questions" />
       <FAQJsonLd questions={structuredQuestions} />
       <GatsbySeo
         title="FAQ"

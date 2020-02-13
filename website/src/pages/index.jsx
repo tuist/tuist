@@ -418,7 +418,7 @@ const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
           p: 3,
         }}
       >
-        <Quote>"{testimony}"</Quote>
+        {testimony}
       </div>
       <div
         sx={{
@@ -496,7 +496,7 @@ const FloatingBalls = ({ bg }) => {
           <Ball
             size={Math.random() * 50}
             color={color}
-            key="index"
+            key={index}
             top={top}
             left={left}
           />
@@ -545,6 +545,7 @@ const Reflections = () => {
               }}
             >
               <Reflection
+                key="0"
                 name="OLIVER ATKINSON"
                 testimony="It has really helped out the team and project by creating an environment where defining new modules is easy, modularity allows us to focus and become experts in our individual domains."
                 role="SENIOR IOS ENGINEER"
@@ -552,6 +553,7 @@ const Reflections = () => {
                 avatarUrl="https://en.gravatar.com/userimage/41347978/456ffd8f0ef3f52c6e38f9003f4c51fa.jpg?size=460"
               />
               <Reflection
+                key="1"
                 name="TYLER NEVELDINE"
                 testimony="Tuist centralizes our entire workspace’s configuration and describes it in a language that we all understand. This increases the readability and approachability of our project tenfold."
                 role="IOS LEAD"
@@ -559,6 +561,7 @@ const Reflections = () => {
                 avatarUrl="https://pbs.twimg.com/profile_images/999765687777148928/wSJxk3Ni_400x400.jpg"
               />
               <Reflection
+                key="2"
                 name="ROMAIN BOULAY"
                 testimony="Tuist has delivered more than the SoundCloud iOS Collective expected! We aimed to make modularization more accessible and maintainable. We got this... and better build times!."
                 role="IOS LEAD"

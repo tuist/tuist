@@ -222,6 +222,7 @@ module.exports = {
         titleTemplate: '%s | Tuist',
         openGraph: {
           type: 'website',
+          title: title,
           locale: 'en_IE',
           url: siteUrl,
           site_name: title,
@@ -246,8 +247,9 @@ module.exports = {
           ],
         },
         twitter: {
-          site: siteUrl,
-          cardType: 'summary_large_image',
+          site: '@tuistio',
+          handle: '@tuistio',
+          cardType: 'summary',
         },
       },
     },
