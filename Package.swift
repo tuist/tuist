@@ -40,7 +40,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCoreTesting",
-            dependencies: ["TuistCore"]
+            dependencies: ["TuistCore", "TuistSupportTesting"]
         ),
         .testTarget(
             name: "TuistCoreTests",
