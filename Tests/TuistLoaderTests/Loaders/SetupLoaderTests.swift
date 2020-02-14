@@ -115,8 +115,8 @@ final class SetupLoaderTests: TuistUnitTestCase {
         - mockup2 warning
         """
         let expectedError = """
-        - error - mockup1 error
-        - error - mockup3 error
+        - mockup1 error
+        - mockup3 error
         """
         XCTAssertPrinterOutputContains(expectedOutput)
         XCTAssertPrinterErrorContains(expectedError)

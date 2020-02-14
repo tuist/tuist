@@ -16,7 +16,7 @@ extension TuistCore.Settings {
             .reduce([TuistCore.BuildConfiguration: TuistCore.Configuration?]()) { acc, val in
                 var result = acc
                 let variant = TuistCore.BuildConfiguration.from(manifest: val)
-                result[variant] = try val.configuration.map { try TuistCore.Configuration.from(manifest: $0, generatorPaths: generatorPaths) }
+                result[variant] = try TuistCore.Configuration.from(manifest: val.configuration, generatorPaths: generatorPaths)
                 return result
             }
         let defaultSettings = TuistCore.DefaultSettings.from(manifest: manifest.defaultSettings)
