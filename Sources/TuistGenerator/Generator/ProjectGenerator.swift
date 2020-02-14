@@ -263,25 +263,46 @@ final class ProjectGenerator: ProjectGenerating {
                        pbxproj: PBXProj,
                        project: Project,
                        graph: Graphing) throws -> GeneratedProject {
-        var generatedProject: GeneratedProject!
-
-        try FileHandler.shared.inTemporaryDirectory { temporaryPath in
-
+        let fileHandler = FileHandler.shared
+        func write(xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
+            let generatedProject = GeneratedProject(pbxproj: pbxproj,
+                                                    path: xcodeprojPath,
+                                                    targets: nativeTargets,
+                                                    name: xcodeprojPath.basename)
             try writeXcodeproj(workspace: workspace,
                                pbxproj: pbxproj,
-                               xcodeprojPath: temporaryPath)
-            generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                path: temporaryPath,
-                                                targets: nativeTargets,
-                                                name: xcodeprojPath.basename)
+                               xcodeprojPath: xcodeprojPath)
+
             try writeSchemes(project: project,
                              generatedProject: generatedProject,
-                             xcprojectPath: temporaryPath,
+                             xcprojectPath: xcodeprojPath,
                              graph: graph)
-            try FileHandler.shared.replace(xcodeprojPath, with: temporaryPath)
+
+            return generatedProject
         }
 
-        return try generatedProject.at(path: xcodeprojPath)
+        guard fileHandler.exists(xcodeprojPath) else {
+            return try write(xcodeprojPath: xcodeprojPath)
+        }
+
+        var generatedProject: GeneratedProject!
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            let temporaryPath = temporaryPath.appending(component: xcodeprojPath.basename)
+            generatedProject = try write(xcodeprojPath: temporaryPath)
+
+            let files = fileHandler.glob(temporaryPath, glob: "**/*")
+            try files.forEach {
+                let relativeFile = $0.relative(to: temporaryPath)
+                let writeToPath = xcodeprojPath.appending(relativeFile)
+                if fileHandler.isFolder($0) {
+                    try fileHandler.createFolder(writeToPath)
+                } else {
+                    try FileHandler.shared.replace(writeToPath, with: $0)
+                }
+            }
+        }
+
+        return generatedProject.at(path: xcodeprojPath)
     }
 
     private func writeXcodeproj(workspace: XCWorkspace,

@@ -48,6 +48,29 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(FileHandler.shared.exists(got.path.appending(RelativePath("../Derived/InfoPlists/Target.plist"))))
     }
 
+    func test_generate_doesNotWipeUserData() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let paths = try createFiles([
+            "Foo.xcodeproj/xcuserdata/a",
+            "Foo.xcodeproj/xcuserdata/b/c",
+        ])
+
+        let target = Target.test(name: "Target", platform: .iOS, product: .framework, infoPlist: .dictionary(["a": "b"]))
+        let project = Project.test(path: temporaryPath, name: "Foo", targets: [target])
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: target, dependencies: []),
+                                 ])
+
+        // When
+        _ = try subject.generate(project: project, graph: graph)
+
+        // Then
+        XCTAssertTrue(paths.allSatisfy { FileHandler.shared.exists($0) })
+    }
+
     func test_generate_scheme() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
