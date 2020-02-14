@@ -33,7 +33,8 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintDeploymentTarget(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
-
+        issues.append(contentsOf: validateCoreDataModelsExist(target: target))
+        issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         target.actions.forEach { action in
             issues.append(contentsOf: targetActionLinter.lint(action))
         }
@@ -108,6 +109,31 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintInfoplistExists(target: target))
         issues.append(contentsOf: lintEntitlementsExist(target: target))
         return issues
+    }
+
+    private func validateCoreDataModelsExist(target: Target) -> [LintingIssue] {
+        target.coreDataModels.map(\.path)
+            .compactMap { path in
+                if !FileHandler.shared.exists(path) {
+                    let reason = "The Core Data model at path \(path.pathString) does not exist"
+                    return LintingIssue(reason: reason, severity: .error)
+                } else {
+                    return nil
+                }
+            }
+    }
+
+    private func validateCoreDataModelVersionsExist(target: Target) -> [LintingIssue] {
+        target.coreDataModels.compactMap { (coreDataModel) -> LintingIssue? in
+            let versionFileName = "\(coreDataModel.currentVersion).xcdatamodel"
+            let versionPath = coreDataModel.path.appending(component: versionFileName)
+
+            if !FileHandler.shared.exists(versionPath) {
+                let reason = "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
+                return LintingIssue(reason: reason, severity: .error)
+            }
+            return nil
+        }
     }
 
     private func lintInfoplistExists(target: Target) -> [LintingIssue] {

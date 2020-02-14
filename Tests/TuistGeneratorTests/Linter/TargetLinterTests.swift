@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistCoreTesting
 import TuistSupport
 import XCTest
 @testable import TuistGenerator
@@ -24,7 +25,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let target = Target.test(productName: productName)
             let got = self.subject.lint(target: target)
             let reason = "Invalid product name '\(productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
-            XCTAssertTrue(got.contains(LintingIssue(reason: reason, severity: .error)))
+            self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .error))
         }
 
         let XCTAssertValidProductName: (String) -> Void = { bundleId in
@@ -46,7 +47,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let target = Target.test(bundleId: bundleId)
             let got = self.subject.lint(target: target)
             let reason = "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
-            XCTAssertTrue(got.contains(LintingIssue(reason: reason, severity: .error)))
+            self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .error))
         }
         let XCTAssertValidBundleId: (String) -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
@@ -64,7 +65,8 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_when_target_no_source_files() {
         let target = Target.test(sources: [])
         let got = subject.lint(target: target)
-        XCTAssertTrue(got.contains(LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)))
+
+        XCTContainsLintingIssue(got, LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning))
     }
 
     func test_lint_when_a_infoplist_file_is_being_copied() {
@@ -73,7 +75,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning)))
+        XCTContainsLintingIssue(got, LintingIssue(reason: "Info.plist at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning))
     }
 
     func test_lint_when_a_entitlements_file_is_being_copied() {
@@ -82,7 +84,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning)))
+        XCTContainsLintingIssue(got, LintingIssue(reason: "Entitlements file at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning))
     }
 
     func test_lint_when_entitlements_not_missing() throws {
@@ -92,7 +94,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Info.plist file not found at path \(path.pathString)", severity: .error)))
+        XCTContainsLintingIssue(got, LintingIssue(reason: "Info.plist file not found at path \(path.pathString)", severity: .error))
     }
 
     func test_lint_when_infoplist_not_found() throws {
@@ -102,7 +104,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error)))
+        XCTContainsLintingIssue(got, LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
     }
 
     func test_lint_when_library_has_resources() throws {
@@ -114,10 +116,10 @@ final class TargetLinterTests: TuistUnitTestCase {
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])
 
         let staticResult = subject.lint(target: staticLibrary)
-        XCTAssertTrue(staticResult.contains(LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), staticResult.description)
+        XCTContainsLintingIssue(staticResult, LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error))
 
         let dynamicResult = subject.lint(target: dynamicLibrary)
-        XCTAssertTrue(dynamicResult.contains(LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error)), dynamicResult.description)
+        XCTContainsLintingIssue(dynamicResult, LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error))
     }
 
     func test_lint_when_ios_bundle_has_sources() {
@@ -133,10 +135,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let result = subject.lint(target: bundle)
 
         // Then
-        let sortedResults = result.sorted(by: { $0.reason < $1.reason })
-        XCTAssertEqual(sortedResults, [
-            LintingIssue(reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files", severity: .error),
-        ])
+        XCTContainsLintingIssue(result, LintingIssue(reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files", severity: .error))
     }
 
     func test_lint_valid_ios_bundle() {
@@ -164,7 +163,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = subject.lint(target: target)
 
             // Then
-            XCTAssertFalse(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+            XCTDoesNotContainLintingIssue(got, LintingIssue(reason: "The version of deployment target is incorrect", severity: .error))
         }
     }
 
@@ -178,7 +177,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = subject.lint(target: target)
 
             // Then
-            XCTAssertTrue(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+            XCTContainsLintingIssue(got, LintingIssue(reason: "The version of deployment target is incorrect", severity: .error))
         }
     }
 
@@ -211,13 +210,47 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = subject.lint(target: target)
 
         // Then
-        XCTAssertTrue(
-            got.contains(
-                .init(
-                    reason: "Target has duplicate '\(testDependency)' dependency specified",
-                    severity: .warning
-                )
-            )
-        )
+        XCTContainsLintingIssue(got, .init(
+            reason: "Target has duplicate '\(testDependency)' dependency specified",
+            severity: .warning
+        ))
+    }
+
+    func test_lint_when_target_has_non_existing_core_data_models() throws {
+        // Given
+        let path = try temporaryPath()
+        let dataModelPath = path.appending(component: "Model.xcdatamodeld")
+        let target = Target.test(coreDataModels: [
+            CoreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),
+        ])
+
+        // When
+        let got = subject.lint(target: target)
+
+        // Then
+        XCTContainsLintingIssue(got, .init(
+            reason: "The Core Data model at path \(dataModelPath.pathString) does not exist",
+            severity: .error
+        ))
+    }
+
+    func test_lint_when_target_has_core_data_models_with_default_versions_that_dont_exist() throws {
+        // Given
+        let path = try temporaryPath()
+        let dataModelPath = path.appending(component: "Model.xcdatamodeld")
+        try FileHandler.shared.createFolder(dataModelPath)
+
+        let target = Target.test(coreDataModels: [
+            CoreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),
+        ])
+
+        // When
+        let got = subject.lint(target: target)
+
+        // Then
+        XCTContainsLintingIssue(got, .init(
+            reason: "The default version of the Core Data model at path \(dataModelPath.pathString), 1.0.0, does not exist. There should be a file at \(dataModelPath.appending(component: "1.0.0.xcdatamodel").pathString)",
+            severity: .error
+        ))
     }
 }
