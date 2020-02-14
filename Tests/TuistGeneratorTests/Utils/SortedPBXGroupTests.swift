@@ -1,13 +1,10 @@
 import XcodeProj
-import XCTest
+
+@testable import TuistSupportTesting
 @testable import TuistGenerator
 
-class PBXGroupSorterTests: XCTestCase {
-    var subject: PBXGroupSorter!
-
-    override func setUp() {
-        subject = PBXGroupSorter()
-    }
+class SortedPBXGroupTests: TuistTestCase {
+    var subject: SortedPBXGroup!
 
     func test_projectGroupsSort_simpleGroupsCase() throws {
         // Given
@@ -24,19 +21,19 @@ class PBXGroupSorterTests: XCTestCase {
         ])
 
         // When
-        subject.sort(with: mainGroup)
+        subject = SortedPBXGroup(wrappedValue: mainGroup)
 
         // Then
-        assertGroupsEqual(mainGroup, group("project", [
-            group("somegroup1", [
-                file("somefile3.swift"),
-                file("somefile4.swift"),
-            ]),
+        assertGroupsEqual(subject.wrappedValue, group("project", [
+            file("somefile1.swift"),
             group("somegroup2", [
                 file("somefile1.swift"),
                 file("somefile2.swift"),
             ]),
-            file("somefile1.swift"),
+            group("somegroup1", [
+                file("somefile3.swift"),
+                file("somefile4.swift"),
+            ]),
         ]))
     }
 
@@ -61,17 +58,11 @@ class PBXGroupSorterTests: XCTestCase {
         ])
 
         // When
-        subject.sort(with: mainGroup)
+        subject = SortedPBXGroup(wrappedValue: mainGroup)
 
         // Then
-        assertGroupsEqual(mainGroup, group("project", [
-            group("somegroup1", [
-                group("somegroup3", [
-                    file("somefile6.swift"),
-                ]),
-                file("somefile3.swift"),
-                file("somefile4.swift"),
-            ]),
+        assertGroupsEqual(subject.wrappedValue, group("project", [
+            file("somefile1.swift"),
             group("somegroup2", [
                 group("somegroup4", [
                     file("somefile7.swift"),
@@ -79,7 +70,13 @@ class PBXGroupSorterTests: XCTestCase {
                 file("somefile1.swift"),
                 file("somefile2.swift"),
             ]),
-            file("somefile1.swift"),
+            group("somegroup1", [
+                group("somegroup3", [
+                    file("somefile6.swift"),
+                ]),
+                file("somefile3.swift"),
+                file("somefile4.swift"),
+            ]),
         ]))
     }
 
@@ -93,14 +90,14 @@ class PBXGroupSorterTests: XCTestCase {
         ])
 
         // When
-        subject.sort(with: mainGroup)
+        subject = SortedPBXGroup(wrappedValue: mainGroup)
 
         // Then
-        assertGroupsEqual(mainGroup, group("project", [
-            file("file1"), // folder references
-            file("file2"),
+        assertGroupsEqual(subject.wrappedValue, group("project", [
             file("file3"),
+            file("file1"),
             file("file4.swift"),
+            file("file2"),
         ]))
     }
 
@@ -117,17 +114,17 @@ class PBXGroupSorterTests: XCTestCase {
         ])
 
         // When
-        subject.sort(with: mainGroup)
+        subject = SortedPBXGroup(wrappedValue: mainGroup)
 
         // Then
-        assertGroupsEqual(mainGroup, group("project", [
-            group("zzzgroup", [ // groups before files
+        assertGroupsEqual(subject.wrappedValue, group("project", [
+            file("file3"), // first level stays unsorted
+            file("file1"),
+            file("file4.swift"),
+            group("zzzgroup", [
                 file("zz.swift"),
             ]),
-            file("file1"), // folder references
             file("file2"),
-            file("file3"),
-            file("file4.swift"),
         ]))
     }
 
@@ -148,12 +145,13 @@ class PBXGroupSorterTests: XCTestCase {
         ])
 
         // When
-        subject.sort(with: mainGroup)
+        subject = SortedPBXGroup(wrappedValue: mainGroup)
 
         // Then
-        assertGroupsEqual(mainGroup, group("project", [
+        assertGroupsEqual(subject.wrappedValue, group("project", [
+            file("somerootfile.md"),
             group("rootfolder", [
-                group("zzzgroup", [ // groups before files
+                group("zzzgroup", [ // groups before files at second level
                     file("aa.swift"),
                     file("zz.swift"),
                 ]),
@@ -161,15 +159,14 @@ class PBXGroupSorterTests: XCTestCase {
                 file("file2"),
                 file("file3"),
                 file("file4.swift"),
-            ]),
-            file("somerootfile.md"),
+            ])
         ]))
     }
 
     // MARK: - Helpers
 
     func assertGroupsEqual(_ first: PBXGroup, _ second: PBXGroup, file: StaticString = #file, line: UInt = #line) {
-        XCTAssertEqual(first.flattenedChildren, second.flattenedChildren, file: file, line: line)
+        XCTAssertEqualPairs([(first.flattenedChildren, second.flattenedChildren, true)], file: file, line: line)
     }
 
     var references: [PBXFileElement] = []

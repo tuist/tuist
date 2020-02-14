@@ -48,7 +48,7 @@ final class ProjectGroupsTests: XCTestCase {
                                          sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
-        let main = subject.buildMain()
+        let main = subject.sortedMain
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
         XCTAssertEqual(main.children.count, 5)
@@ -112,7 +112,7 @@ final class ProjectGroupsTests: XCTestCase {
                                          playgrounds: playgrounds)
 
         // Then
-        let paths = subject.buildMain().children.compactMap { $0.nameOrPath }
+        let paths = subject.sortedMain.children.compactMap { $0.nameOrPath }
         XCTAssertEqual(paths, [
             "P",
             "B",

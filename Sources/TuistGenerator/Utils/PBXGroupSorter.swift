@@ -1,10 +1,27 @@
 import Foundation
 import XcodeProj
 
-class PBXGroupSorter {
+@propertyWrapper
+struct SortedPBXGroup {
+    var value: PBXGroup
+    
+    var wrappedValue: PBXGroup {
+        get {
+            value.childGroups.forEach(sort)
+            return value
+        }
+        set {
+            value = newValue
+        }
+    }
+    
+    init(wrappedValue: PBXGroup) {
+        self.value = wrappedValue
+    }
+    
     // The sorting implementation was taken from https://github.com/yonaskolb/XcodeGen/blob/d64cfff8a1ca01fd8f18cbb41f72230983c4a192/Sources/XcodeGenKit/PBXProjGenerator.swift
     // We require exactly the same sort which places groups over files while using the PBXGroup from Xcodeproj.
-    func sort(with group: PBXGroup) {
+    private func sort(with group: PBXGroup) {
         group.children.sort { (child1, child2) -> Bool in
             let sortOrder1 = child1.getSortOrder()
             let sortOrder2 = child2.getSortOrder()
@@ -14,7 +31,13 @@ class PBXGroupSorter {
                 return PBXFileElement.sortByNameThenPath(child1, child2)
             }
         }
-        group.children.compactMap { $0 as? PBXGroup }.forEach(sort)
+        group.childGroups.forEach(sort)
+    }
+}
+
+private extension PBXGroup {
+    var childGroups: [PBXGroup] {
+        children.compactMap { $0 as? PBXGroup }
     }
 }
 

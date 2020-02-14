@@ -25,14 +25,13 @@ enum ProjectGroupsError: FatalError, Equatable {
 class ProjectGroups {
     // MARK: - Attributes
 
-    private let main: PBXGroup // main should be accessed from buildMain
-    let products: PBXGroup
-    let frameworks: PBXGroup
-    let playgrounds: PBXGroup?
+    @SortedPBXGroup var sortedMain: PBXGroup
+    var products: PBXGroup
+    var frameworks: PBXGroup
+    var playgrounds: PBXGroup?
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
-    private let pbxGroupSorter: PBXGroupSorter
 
     // MARK: - Init
 
@@ -42,13 +41,12 @@ class ProjectGroups {
                  frameworks: PBXGroup,
                  playgrounds: PBXGroup?,
                  pbxproj: PBXProj) {
-        self.main = main
+        self.sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.frameworks = frameworks
         self.playgrounds = playgrounds
         self.pbxproj = pbxproj
-        pbxGroupSorter = PBXGroupSorter()
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
@@ -113,12 +111,6 @@ class ProjectGroups {
                              frameworks: frameworksGroup,
                              playgrounds: playgroundsGroup,
                              pbxproj: pbxproj)
-    }
-
-    func buildMain() -> PBXGroup {
-        let childGroups = main.children.compactMap { $0 as? PBXGroup }
-        childGroups.forEach(pbxGroupSorter.sort)
-        return main
     }
 
     private static func extractProjectGroupNames(from project: Project) -> [String] {

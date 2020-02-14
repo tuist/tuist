@@ -159,7 +159,7 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
-                                    mainGroup: groups.buildMain(),
+                                    mainGroup: groups.sortedMain,
                                     developmentRegion: Xcode.Default.developmentRegion,
                                     hasScannedForEncodings: 0,
                                     knownRegions: knownRegions,
