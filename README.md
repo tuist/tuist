@@ -83,7 +83,7 @@ tuist generate # Generates Xcode project & workspace
 
 ## Documentation 📝
 
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs).
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs). To learn even more, take a look at [FAQ](FAQ.md) section.
 
 ## Setup for development 👩‍💻
 
