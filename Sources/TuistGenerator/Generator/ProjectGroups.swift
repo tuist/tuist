@@ -26,9 +26,9 @@ class ProjectGroups {
     // MARK: - Attributes
 
     @SortedPBXGroup var sortedMain: PBXGroup
-    var products: PBXGroup
-    var frameworks: PBXGroup
-    var playgrounds: PBXGroup?
+    let products: PBXGroup
+    let frameworks: PBXGroup
+    let playgrounds: PBXGroup?
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]

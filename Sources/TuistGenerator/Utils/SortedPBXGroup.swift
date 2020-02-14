@@ -2,12 +2,12 @@ import Foundation
 import XcodeProj
 
 @propertyWrapper
-struct SortedPBXGroup {
+class SortedPBXGroup {
     var value: PBXGroup
     
     var wrappedValue: PBXGroup {
         get {
-            value.childGroups.forEach(sort)
+            value.childGroups.forEach(sort) // We preserve the order of the root level groups and files
             return value
         }
         set {
