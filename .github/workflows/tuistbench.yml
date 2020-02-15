@@ -1,0 +1,24 @@
+name: Tuist Benchmark
+
+on:
+  push:
+    paths:
+      - tools/tuistbench/**/*
+      - .github/workflows/tuistbench.yml
+  pull_request:
+    paths:
+      - tools/tuistbench/**/*
+      - .github/workflows/tuistbench.yml
+
+jobs:
+  test:
+    name: Build
+    runs-on: macOS-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode 11.2.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
+      - name: Build Package
+        working-directory: ./tools/tuistbench
+        run: swift build
+  
