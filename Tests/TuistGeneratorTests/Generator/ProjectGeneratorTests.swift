@@ -78,6 +78,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let schemeA = Scheme(name: "SchemeA", shared: true)
         let schemeB = Scheme(name: "SchemeB", shared: true)
+        let userScheme = Scheme(name: "UserScheme", shared: false)
 
         func makeModels(with schemes: [Scheme]) -> (graph: Graph, project: Project) {
             let target = Target.test(name: "Target", platform: .iOS, product: .framework)
@@ -91,7 +92,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
 
         let generations = [
             [schemeA, schemeB],
-            [schemeA],
+            [schemeA, userScheme],
         ]
 
         // When
@@ -102,11 +103,12 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
 
         // Then
         let fileHandler = FileHandler.shared
-        let schemesPath = temporaryPath.appending(RelativePath("Foo.xcodeproj/xcshareddata/xcschemes"))
-        let schemes = fileHandler.glob(schemesPath, glob: "*.xcscheme").map { $0.relative(to: schemesPath).pathString }
+        let schemesPath = temporaryPath.appending(RelativePath("Foo.xcodeproj"))
+        let schemes = fileHandler.glob(schemesPath, glob: "**/*.xcscheme").map { $0.relative(to: schemesPath).basename }
         XCTAssertEqual(schemes, [
             "SchemeA.xcscheme",
             "Target.xcscheme",
+            "UserScheme.xcscheme",
         ])
     }
 

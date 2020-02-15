@@ -294,6 +294,7 @@ final class ProjectGenerator: ProjectGenerating {
                 "project.pbxproj",
                 "project.xcworkspace",
                 "xcshareddata/xcschemes",
+                "xcuserdata/**/*.xcscheme",
             ]
             let files = paths.flatMap {
                 fileHandler.glob(temporaryPath, glob: $0)
