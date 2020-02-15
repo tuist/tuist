@@ -71,7 +71,7 @@ When `deltaThreshold` is `0.02`
 Console:
 
 ```sh
-$ swift run tuistbench -b $(which tuist) -l ../fixtures/ios_app_with_tests
+$ swift run tuistbench -b $(which tuist) -f /path/to/fixtures/ios_app_with_tests
 
 Fixture       : ios_app_with_tests
 Runs          : 5
@@ -84,7 +84,7 @@ Result
 Markdown:
 
 ```sh
-$ swift run tuistbench -b $(which tuist) -f ../ios_app_with_tests --format markdown
+$ swift run tuistbench -b $(which tuist) -f /path/to/ios_app_with_tests --format markdown
 ```
 
 | Fixture            | Cold  | Warm  |
@@ -99,9 +99,9 @@ $ swift run tuistbench -b $(which tuist) -f ../ios_app_with_tests --format markd
 ```json
 {
     "paths": [
-        "../ios_app_with_tests",
-        "../ios_app_with_carthage_frameworks",
-        "../ios_app_with_helpers"
+        "/path/to/fixtures/ios_app_with_tests",
+        "/path/to/fixtures/ios_app_with_carthage_frameworks",
+        "/path/to/fixtures/ios_app_with_helpers"
     ]
 }
 ```
