@@ -1,0 +1,19 @@
+---
+name: FAQ
+order: 11
+exceprt: Frequently Asked Questions
+---
+
+# Frequently Asked Questions
+
+## What happens when I switch a branch?
+
+When you switch a branch where files have been added or removed, the Xcode project should be re-generated. Unfortunately, it is a manual action. It is recommended to set up a git [post-checkout](https://www.git-scm.com/docs/githooks#_post_checkout) hook. To do so, create a `post-checkout` script in `.git/hooks` folder in your repository:
+
+```bash
+#!/bin/sh
+
+tuist generate
+```
+
+> Remember to set a `post-checkout` script as executable
