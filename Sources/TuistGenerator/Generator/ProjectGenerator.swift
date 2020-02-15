@@ -290,15 +290,19 @@ final class ProjectGenerator: ProjectGenerating {
             let temporaryPath = temporaryPath.appending(component: xcodeprojPath.basename)
             generatedProject = try write(xcodeprojPath: temporaryPath)
 
-            let files = fileHandler.glob(temporaryPath, glob: "**/*")
+            let paths = [
+                "project.pbxproj",
+                "project.xcworkspace",
+                "xcshareddata/xcschemes",
+            ]
+            let files = paths.flatMap {
+                fileHandler.glob(temporaryPath, glob: $0)
+            }
             try files.forEach {
                 let relativeFile = $0.relative(to: temporaryPath)
                 let writeToPath = xcodeprojPath.appending(relativeFile)
-                if fileHandler.isFolder($0) {
-                    try fileHandler.createFolder(writeToPath)
-                } else {
-                    try FileHandler.shared.replace(writeToPath, with: $0)
-                }
+                try fileHandler.createFolder(writeToPath.parentDirectory)
+                try fileHandler.replace(writeToPath, with: $0)
             }
         }
 

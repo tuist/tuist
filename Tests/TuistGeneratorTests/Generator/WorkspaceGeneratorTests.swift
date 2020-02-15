@@ -92,10 +92,12 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         let workspace = Workspace.test(name: "Foo")
 
         // When
-        try subject.generate(workspace: workspace,
-                             path: temporaryPath,
-                             graph: graph,
-                             tuistConfig: .test())
+        try (0 ..< 2).forEach { _ in
+            try subject.generate(workspace: workspace,
+                                 path: temporaryPath,
+                                 graph: graph,
+                                 tuistConfig: .test())
+        }
 
         // Then
         XCTAssertTrue(paths.allSatisfy { FileHandler.shared.exists($0) })
