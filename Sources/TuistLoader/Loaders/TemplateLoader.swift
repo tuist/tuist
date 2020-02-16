@@ -32,6 +32,9 @@ public class TemplateLoader: TemplateLoading {
                          to destinationPath: AbsolutePath) throws {
         let template = try load(at: sourcePath)
         try template.directories.map(destinationPath.appending).forEach(FileHandler.shared.createFolder)
+        try template.files.forEach { try FileHandler.shared.write($0.contents,
+                                                                  path: destinationPath.appending($0.path),
+                                                                  atomically: true) }
     }
 }
 
