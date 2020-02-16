@@ -33,11 +33,16 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        let templatesDirectory = Environment.shared.versionsDirectory.appending(components: Constants.version, "Templates")
+        let templatesDirectory = Environment.shared.versionsDirectory.appending(components: Constants.version, Constants.templatesDirectoryName)
         let directories = try FileHandler.shared.contentsOfDirectory(templatesDirectory)
-        try directories.forEach {
-            Printer.shared.print(PrintableString(stringLiteral: $0.basename))
-            try templateLoader.generate(at: $0)
+        
+        let shouldList = arguments.get(listArgument) ?? false
+        if shouldList {
+            try directories.forEach {
+                let template = try templateLoader.load(at: $0)
+                Printer.shared.print("\($0.basename): \(template.description)")
+            }
+            return
         }
     }
 }

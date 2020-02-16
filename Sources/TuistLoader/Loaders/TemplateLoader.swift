@@ -2,9 +2,10 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistSupport
+import ProjectDescription
 
 public protocol TemplateLoading {
-    func generate(at path: AbsolutePath) throws
+    func load(at path: AbsolutePath) throws -> Template
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -21,8 +22,14 @@ public class TemplateLoader: TemplateLoading {
         self.manifestLoader = manifestLoader
     }
     
-    public func generate(at path: AbsolutePath) throws {
-        let template = try manifestLoader.loadTemplate(at: path)
-        
+    public func load(at path: AbsolutePath) throws -> Template {
+        let manifest = try manifestLoader.loadTemplate(at: path)
+        return try TuistLoader.Template.from(manifest: manifest)
+    }
+}
+
+extension TuistLoader.Template {
+    static func from(manifest: ProjectDescription.Template) throws -> TuistLoader.Template {
+        return TuistLoader.Template(description: manifest.description)
     }
 }
