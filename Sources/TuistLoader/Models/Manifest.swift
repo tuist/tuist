@@ -6,6 +6,7 @@ public enum Manifest: CaseIterable {
     case tuistConfig
     case setup
     case galaxy
+    case template
 
     public var fileName: String {
         switch self {
@@ -19,6 +20,8 @@ public enum Manifest: CaseIterable {
             return "Setup.swift"
         case .galaxy:
             return "Galaxy.swift"
+        case .template:
+            return "Template.swift"
         }
     }
 }
