@@ -10,7 +10,8 @@ class ScaffoldCommand: NSObject, Command {
 
     static let command = "scaffold"
     static let overview = "Generates new project based on template."
-    let listArgument: OptionArgument<Bool>
+    private let listArgument: OptionArgument<Bool>
+    private let templateArgument: PositionalArgument<String>
     
     private let templateLoader: TemplateLoading
 
@@ -29,6 +30,11 @@ class ScaffoldCommand: NSObject, Command {
                                      kind: Bool.self,
                                      usage: "Lists available scaffold templates",
                                      completion: nil)
+        templateArgument = subParser.add(positional: "template",
+                                         kind: String.self,
+                                         optional: true,
+                                         usage: "Name of template you want to use",
+                                         completion: nil)
         self.templateLoader = templateLoader
     }
 
@@ -44,5 +50,8 @@ class ScaffoldCommand: NSObject, Command {
             }
             return
         }
+        
+        guard let templateDirectory = directories.first(where: { $0.basename == arguments.get(templateArgument) }) else { fatalError() }
+        try templateLoader.generate(at: templateDirectory, to: FileHandler.shared.currentPath)
     }
 }
