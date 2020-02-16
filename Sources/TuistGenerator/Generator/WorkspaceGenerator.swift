@@ -34,6 +34,10 @@ protocol WorkspaceGenerating: AnyObject {
     func generate(workspace: Workspace,
                   path: AbsolutePath,
                   graph: Graphing) throws -> AbsolutePath
+
+    func generateDescriptor(workspace: Workspace,
+                            path: AbsolutePath,
+                            graph: Graphing) throws -> GeneratedWorkspaceDescriptor
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -42,6 +46,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let projectGenerator: ProjectGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let cocoapodsInteractor: CocoaPodsInteracting
+    private let swiftPackageManaherInteractor: SwiftPackageManagerInteracting
     private let schemesGenerator: SchemesGenerating
 
     // MARK: - Init
@@ -55,16 +60,19 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         self.init(projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
                   cocoapodsInteractor: cocoapodsInteractor,
+                  swiftPackageManaherInteractor: SwiftPackageManagerInteractor(),
                   schemesGenerator: SchemesGenerator())
     }
 
     init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          cocoapodsInteractor: CocoaPodsInteracting,
+         swiftPackageManaherInteractor: SwiftPackageManagerInteracting,
          schemesGenerator: SchemesGenerating) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.cocoapodsInteractor = cocoapodsInteractor
+        self.swiftPackageManaherInteractor = swiftPackageManaherInteractor
         self.schemesGenerator = schemesGenerator
     }
 
@@ -127,10 +135,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         // SPM
 
-        try generatePackageDependencyManager(at: path,
-                                             workspace: workspace,
-                                             workspaceName: workspaceName,
-                                             graph: graph)
+        try swiftPackageManaherInteractor.install(graph: graph, workspaceName: workspaceName)
 
         // CocoaPods
 
@@ -139,48 +144,57 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         return workspacePath
     }
 
-    private func generatePackageDependencyManager(
-        at path: AbsolutePath,
-        workspace _: Workspace,
-        workspaceName: String,
-        graph: Graphing
-    ) throws {
-        let packages = graph.packages
+    func generateDescriptor(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> GeneratedWorkspaceDescriptor {
+        let workspaceName = "\(graph.name).xcworkspace"
 
-        if packages.isEmpty {
-            return
+        Printer.shared.print(section: "Generating workspace \(workspaceName)")
+
+        /// Projects
+        let projects = try graph.projects.map { project in
+            try projectGenerator.generateDescriptor(project: project,
+                                                    graph: graph,
+                                                    sourceRootPath: project.path,
+                                                    xcodeprojPath: nil)
         }
 
-        let hasRemotePackage = packages.first(where: { node in
-            switch node.package {
-            case .remote: return true
-            case .local: return false
+        let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
+            let pbxproj = project.xcodeProj.pbxproj
+            let targets = pbxproj.nativeTargets.map {
+                ($0.name, $0)
             }
-        }) != nil
+            return (project.path.parentDirectory, // TODO: distinguish between XcodeProj path and Project path
+                    GeneratedProject(pbxproj: pbxproj,
+                                     path: project.path,
+                                     targets: Dictionary(targets, uniquingKeysWith: { $1 }),
+                                     name: project.path.basename))
+        })
 
-        let rootPackageResolvedPath = path.appending(component: ".package.resolved")
-        let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
-        let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
-
-        if hasRemotePackage, FileHandler.shared.exists(rootPackageResolvedPath) {
-            try FileHandler.shared.createFolder(workspacePackageResolvedFolderPath)
-            if FileHandler.shared.exists(workspacePackageResolvedPath) {
-                try FileHandler.shared.delete(workspacePackageResolvedPath)
-            }
-            try FileHandler.shared.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
-        }
+        // Workspace structure
+        let structure = workspaceStructureGenerator.generateStructure(path: path,
+                                                                      workspace: workspace,
+                                                                      fileHandler: FileHandler.shared)
 
         let workspacePath = path.appending(component: workspaceName)
-        // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
-        try System.shared.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-
-        if hasRemotePackage {
-            if FileHandler.shared.exists(rootPackageResolvedPath) {
-                try FileHandler.shared.delete(rootPackageResolvedPath)
-            }
-
-            try FileHandler.shared.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
+        let workspaceData = XCWorkspaceData(children: [])
+        let xcWorkspace = XCWorkspace(data: workspaceData)
+        try workspaceData.children = structure.contents.map {
+            try recursiveChildElement(generatedProjects: generatedProjects,
+                                      element: $0,
+                                      path: path)
         }
+
+        // Schemes
+
+        let schemes = try schemesGenerator.generateWorkspaceSchemesDescriptors(workspace: workspace,
+                                                                               xcworkspacePath: workspacePath,
+                                                                               generatedProjects: generatedProjects,
+                                                                               graph: graph)
+
+        return GeneratedWorkspaceDescriptor(path: workspacePath,
+                                            xcworkspace: xcWorkspace,
+                                            projects: projects,
+                                            schemes: schemes,
+                                            sideEffects: [])
     }
 
     private func write(workspace _: Workspace,

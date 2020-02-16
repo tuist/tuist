@@ -15,11 +15,17 @@ protocol DerivedFileGenerating {
     /// - Returns: A project that might have got mutated after the generation of derived files, and a
     ///     function to be called after the project generation to delete the derived files that are not necessary anymore.
     func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, () throws -> Void)
+    func generateSideEffects(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect])
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
     fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
+
+    struct Transformation {
+        var project: Project
+        var sideEffects: [GeneratedSideEffect]
+    }
 
     /// Info.plist content provider.
     let infoPlistContentProvider: InfoPlistContentProviding
@@ -33,16 +39,21 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     }
 
     func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, () throws -> Void) {
-        /// The files that are not necessary anymore should be deleted after we generate the project.
-        /// Otherwise, Xcode will try to reload their references before the project generation.
-        var toDelete: Set<AbsolutePath> = []
-        let (project, infoPlistsToDelete) = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
+        let transformation = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
+        let createFiles = transformation.sideEffects.filter(\.isCreateFile)
+        let process = DerivedFileGenerator.process
+        try createFiles.forEach(process)
 
-        toDelete.formUnion(infoPlistsToDelete)
-
-        return (project, {
-            try toDelete.forEach { try FileHandler.shared.delete($0) }
+        let deletions = transformation.sideEffects.filter(\.isDeleteFile)
+        return (transformation.project, {
+            try deletions.forEach(process)
         })
+    }
+
+    func generateSideEffects(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect]) {
+        let transformation = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
+
+        return (transformation.project, transformation.sideEffects)
     }
 
     /// Genreates the Info.plist files.
@@ -53,8 +64,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     ///   - sourceRootPath: Path to the directory in which the project is getting generated.
     /// - Returns: A set with paths to the Info.plist files that are no longer necessary and therefore need to be removed.
     /// - Throws: An error if the encoding of the Info.plist content fails.
-    func generateInfoPlists(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, Set<AbsolutePath>) {
-        let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: sourceRootPath)
+    func generateInfoPlists(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> Transformation {
         let targetsWithGeneratableInfoPlists = project.targets.filter {
             if let infoPlist = $0.infoPlist, case InfoPlist.file = infoPlist {
                 return false
@@ -70,44 +80,70 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         }
         let toDelete = Set(existing).subtracting(new)
 
-        if !FileHandler.shared.exists(infoPlistsPath), !targetsWithGeneratableInfoPlists.isEmpty {
-            try FileHandler.shared.createFolder(infoPlistsPath)
+        let deletions = toDelete.map {
+            GeneratedSideEffect.delete($0)
         }
 
         // Generate the Info.plist
-        let newTargets = try project.targets.map { (target) -> Target in
-            guard targetsWithGeneratableInfoPlists.contains(target) else { return target }
+        let transformation = try project.targets.map { (target) -> (Target, [GeneratedSideEffect]) in
+            guard targetsWithGeneratableInfoPlists.contains(target),
+                let infoPlist = target.infoPlist else {
+                return (target, [])
+            }
 
-            guard let infoPlist = target.infoPlist else { return target }
-
-            let dictionary: [String: Any]
-
-            if case let InfoPlist.dictionary(content) = infoPlist {
-                dictionary = content.mapValues { $0.value }
-            } else if case let InfoPlist.extendingDefault(extended) = infoPlist,
-                let content = self.infoPlistContentProvider.content(graph: graph,
-                                                                    project: project,
-                                                                    target: target,
-                                                                    extendedWith: extended) {
-                dictionary = content
-            } else {
-                return target
+            guard let dictionary = infoPlistDictionary(infoPlist: infoPlist,
+                                                       project: project,
+                                                       target: target,
+                                                       graph: graph) else {
+                return (target, [])
             }
 
             let path = DerivedFileGenerator.infoPlistPath(target: target, sourceRootPath: sourceRootPath)
-            if FileHandler.shared.exists(path) { try FileHandler.shared.delete(path) }
 
             let data = try PropertyListSerialization.data(fromPropertyList: dictionary,
                                                           format: .xml,
                                                           options: 0)
 
-            try data.write(to: path.url)
+            let sideEffet = GeneratedSideEffect.file(GeneratedFile(path: path, contents: data))
 
             // Override the Info.plist value to point to te generated one
-            return target.with(infoPlist: InfoPlist.file(path: path))
+            return (target.with(infoPlist: InfoPlist.file(path: path)), [sideEffet])
         }
 
-        return (project.with(targets: newTargets), toDelete)
+        return Transformation(project: project.with(targets: transformation.map { $0.0 }),
+                              sideEffects: deletions + transformation.flatMap { $0.1 })
+    }
+
+    private func infoPlistDictionary(infoPlist: InfoPlist,
+                                     project: Project,
+                                     target: Target,
+                                     graph: Graphing) -> [String: Any]? {
+        switch infoPlist {
+        case let .dictionary(content):
+            return content.mapValues { $0.value }
+        case let .extendingDefault(extended):
+            if let content = infoPlistContentProvider.content(graph: graph,
+                                                              project: project,
+                                                              target: target,
+                                                              extendedWith: extended) {
+                return content
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private static func process(sideEffect: GeneratedSideEffect) throws {
+        switch sideEffect {
+        case let .file(file):
+            try FileHandler.shared.createFolder(file.path.parentDirectory)
+            try file.contents.write(to: file.path.url)
+        case let .delete(path):
+            try FileHandler.shared.delete(path)
+        default:
+            break
+        }
     }
 
     /// Returns the path to the directory that contains all the derived files.
@@ -137,5 +173,21 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     static func infoPlistPath(target: Target, sourceRootPath: AbsolutePath) -> AbsolutePath {
         infoPlistsPath(sourceRootPath: sourceRootPath)
             .appending(component: "\(target.name).plist")
+    }
+}
+
+private extension GeneratedSideEffect {
+    var isCreateFile: Bool {
+        switch self {
+        case .file: return true
+        default: return false
+        }
+    }
+
+    var isDeleteFile: Bool {
+        switch self {
+        case .delete: return true
+        default: return false
+        }
     }
 }

@@ -28,7 +28,7 @@ enum CocoaPodsInteractorError: FatalError, Equatable {
     }
 }
 
-protocol CocoaPodsInteracting {
+public protocol CocoaPodsInteracting {
     /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
     ///
     /// - Parameter graph: Project graph.
@@ -36,12 +36,14 @@ protocol CocoaPodsInteracting {
     func install(graph: Graphing) throws
 }
 
-final class CocoaPodsInteractor: CocoaPodsInteracting {
+public final class CocoaPodsInteractor: CocoaPodsInteracting {
+    public init() {}
+
     /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
     ///
     /// - Parameter graph: Project graph.
     /// - Throws: An error if the installation of the pods fails.
-    func install(graph: Graphing) throws {
+    public func install(graph: Graphing) throws {
         do {
             try install(graph: graph, updatingRepo: false)
         } catch let error as CocoaPodsInteractorError {

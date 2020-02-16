@@ -13,28 +13,24 @@ import XCTest
 
 final class GenerateCommandTests: TuistUnitTestCase {
     var subject: GenerateCommand!
-    var generator: MockGenerator!
+    var generator: MockProjectGenerator!
     var parser: ArgumentParser!
-    var manifestLoader: MockManifestLoader!
     var clock: StubClock!
 
     override func setUp() {
         super.setUp()
-        generator = MockGenerator()
+        generator = MockProjectGenerator()
         parser = ArgumentParser.test()
-        manifestLoader = MockManifestLoader()
         clock = StubClock()
 
         subject = GenerateCommand(parser: parser,
                                   generator: generator,
-                                  manifestLoader: manifestLoader,
                                   clock: clock)
     }
 
     override func tearDown() {
         generator = nil
         parser = nil
-        manifestLoader = nil
         clock = nil
         subject = nil
         super.tearDown()
@@ -48,26 +44,9 @@ final class GenerateCommandTests: TuistUnitTestCase {
         XCTAssertEqual(GenerateCommand.overview, "Generates an Xcode workspace to start working on the project.")
     }
 
-    func test_run_withProjectManifestPrints() throws {
+    func test_run() throws {
         // Given
         let result = try parser.parse([GenerateCommand.command])
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-
-        // When
-        try subject.run(with: result)
-
-        // Then
-        XCTAssertPrinterOutputContains("Project generated.")
-    }
-
-    func test_run_withWorkspacetManifestPrints() throws {
-        // Given
-        let result = try parser.parse([GenerateCommand.command])
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.workspace])
-        }
 
         // When
         try subject.run(with: result)
@@ -79,9 +58,6 @@ final class GenerateCommandTests: TuistUnitTestCase {
     func test_run_timeIsPrinted() throws {
         // Given
         let result = try parser.parse([GenerateCommand.command])
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
             0.234,
@@ -97,15 +73,10 @@ final class GenerateCommandTests: TuistUnitTestCase {
     func test_run_withRelativePathParameter() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let graph = Graph.test()
         let result = try parser.parse([GenerateCommand.command, "--path", "subpath"])
         var generationPath: AbsolutePath?
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-        generator.generateProjectWorkspaceStub = { path, _ in
+        generator.generateStub = { path, _ in
             generationPath = path
-            return (path.appending(component: "project.xcworkspace"), graph)
         }
 
         // When
@@ -118,14 +89,9 @@ final class GenerateCommandTests: TuistUnitTestCase {
     func test_run_withAbsoultePathParameter() throws {
         // Given
         let result = try parser.parse([GenerateCommand.command, "--path", "/some/path"])
-        let graph = Graph.test()
         var generationPath: AbsolutePath?
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-        generator.generateProjectWorkspaceStub = { path, _ in
+        generator.generateStub = { path, _ in
             generationPath = path
-            return (path.appending(component: "project.xcworkspace"), graph)
         }
 
         // When
@@ -138,15 +104,10 @@ final class GenerateCommandTests: TuistUnitTestCase {
     func test_run_withoutPathParameter() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let graph = Graph.test()
         let result = try parser.parse([GenerateCommand.command])
         var generationPath: AbsolutePath?
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-        generator.generateProjectWorkspaceStub = { path, _ in
+        generator.generateStub = { path, _ in
             generationPath = path
-            return (path.appending(component: "project.xcworkspace"), graph)
         }
 
         // When
@@ -158,46 +119,29 @@ final class GenerateCommandTests: TuistUnitTestCase {
 
     func test_run_withProjectOnlyParameter() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
-        let graph = Graph.test()
-        let result = try parser.parse([GenerateCommand.command, "--project-only"])
-        var generationPath: AbsolutePath?
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-        generator.generateProjectAtStub = { path in
-            generationPath = path
-            return (path.appending(component: "project.xcodeproj"), graph)
-        }
+        let arguments = [
+            [GenerateCommand.command, "--project-only"],
+            [GenerateCommand.command],
+        ]
 
         // When
-        try subject.run(with: result)
-
-        // Then
-        XCTAssertEqual(generationPath, temporaryPath)
-    }
-
-    func test_run_withMissingManifest_throws() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let result = try parser.parse([GenerateCommand.command])
-        manifestLoader.manifestsAtStub = { _ in
-            Set()
+        try arguments.forEach {
+            let result = try parser.parse($0)
+            try subject.run(with: result)
         }
 
-        // When / Then
-        XCTAssertThrowsSpecific(try subject.run(with: result),
-                                ManifestLoaderError.manifestNotFound(temporaryPath))
+        // Then
+        XCTAssertEqual(generator.generateCalls.map(\.projectOnly), [
+            true,
+            false,
+        ])
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
         // Given
         let result = try parser.parse([GenerateCommand.command])
         let error = NSError.test()
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-        generator.generateProjectWorkspaceStub = { _, _ in
+        generator.generateStub = { _, _ in
             throw error
         }
 

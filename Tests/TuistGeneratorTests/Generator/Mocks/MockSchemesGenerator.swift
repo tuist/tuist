@@ -22,6 +22,14 @@ final class MockSchemesGenerator: SchemesGenerating {
         generateProjectSchemeArgs.append((project: project, xcprojectPath: xcprojectPath, generatedProject: generatedProject, graph: graph))
     }
 
+    func generateProjectSchemeDescriptors(project _: Project, xcprojectPath _: AbsolutePath, generatedProject _: GeneratedProject, graph _: Graphing) throws -> [GeneratedSchemeDescriptor] {
+        []
+    }
+
+    func generateWorkspaceSchemesDescriptors(workspace _: Workspace, xcworkspacePath _: AbsolutePath, generatedProjects _: [AbsolutePath: GeneratedProject], graph _: Graphing) throws -> [GeneratedSchemeDescriptor] {
+        []
+    }
+
     func wipeSchemes(at: AbsolutePath) throws {
         wipeSchemeArgs.append(at)
     }

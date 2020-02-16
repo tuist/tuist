@@ -15,4 +15,8 @@ final class MockWorkspaceGenerator: WorkspaceGenerating {
         generateWorkspaces.append(workspace)
         return (try generateStub?(workspace, path, graph)) ?? AbsolutePath("/test")
     }
+
+    func generateDescriptor(workspace _: Workspace, path _: AbsolutePath, graph _: Graphing) throws -> GeneratedWorkspaceDescriptor {
+        fatalError("Not yet implemented")
+    }
 }

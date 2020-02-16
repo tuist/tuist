@@ -29,10 +29,11 @@ protocol ProjectGenerating: AnyObject {
     ///   - graph: Dependencies graph.
     ///   - sourceRootPath: Directory where the files are relative to.
     ///   - xcodeprojPath: Path to the Xcode project. When not given, the xcodeproj is generated at sourceRootPath.
+    /// - Returns: Generated project descriptor
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath?,
-                  xcodeprojPath: AbsolutePath?) throws -> GeneratedProject
+                  xcodeprojPath: AbsolutePath?) throws -> GeneratedProjectDescriptor
 }
 
 // swiftlint:disable type_body_length
@@ -74,8 +75,8 @@ final class ProjectGenerator: ProjectGenerating {
 
     func generate(project: Project,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath? = nil,
-                  xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProject {
+                  sourceRootPath: AbsolutePath?,
+                  xcodeprojPath: AbsolutePath?) throws -> GeneratedProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         // Getting the path.
@@ -84,22 +85,9 @@ final class ProjectGenerator: ProjectGenerating {
         // If the xcodeproj path is not given, we generate it under the source root path.
         let xcodeprojPath = xcodeprojPath ?? sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
 
-        // Project and workspace.
-        return try generateProjectAndWorkspace(project: project,
-                                               graph: graph,
-                                               sourceRootPath: sourceRootPath,
-                                               xcodeprojPath: xcodeprojPath)
-    }
-
-    // MARK: - Fileprivate
-
-    // swiftlint:disable:next function_body_length
-    private func generateProjectAndWorkspace(project: Project,
-                                             graph: Graphing,
-                                             sourceRootPath: AbsolutePath,
-                                             xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
         // Derived files
-        let (project, deleteOldDerivedFiles) = try derivedFileGenerator.generate(graph: graph, project: project, sourceRootPath: sourceRootPath)
+        // TODO: experiment with moving this outside the project generator to avoid needing to mutate the project
+        let (project, sideEffects) = try derivedFileGenerator.generateSideEffects(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
@@ -107,19 +95,13 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: xcodeprojPath,
-                                            sourceRootPath: sourceRootPath)
-
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
-
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 projectFileElements: fileElements,
@@ -141,15 +123,25 @@ final class ProjectGenerator: ProjectGenerating {
         try generateSwiftPackageReferences(project: project,
                                            pbxproj: pbxproj,
                                            pbxProject: pbxProject)
-        try deleteOldDerivedFiles()
 
-        return try write(xcodeprojPath: xcodeprojPath,
-                         nativeTargets: nativeTargets,
-                         workspace: workspace,
-                         pbxproj: pbxproj,
-                         project: project,
-                         graph: graph)
+        let generatedProject = GeneratedProject(pbxproj: pbxproj,
+                                                path: xcodeprojPath,
+                                                targets: nativeTargets,
+                                                name: xcodeprojPath.basename)
+
+        let schemes = try schemesGenerator.generateProjectSchemeDescriptors(project: project,
+                                                                            xcprojectPath: xcodeprojPath,
+                                                                            generatedProject: generatedProject,
+                                                                            graph: graph)
+
+        let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
+        return GeneratedProjectDescriptor(path: xcodeprojPath,
+                                          xcodeProj: xcodeProj,
+                                          schemes: schemes,
+                                          sideEffects: sideEffects)
     }
+
+    // MARK: - Fileprivate
 
     private func generatePbxproject(project: Project,
                                     projectFileElements: ProjectFileElements,
