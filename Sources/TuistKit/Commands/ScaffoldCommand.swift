@@ -39,8 +39,7 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        let templatesDirectory = Environment.shared.versionsDirectory.appending(components: Constants.version, Constants.templatesDirectoryName)
-        let directories = try FileHandler.shared.contentsOfDirectory(templatesDirectory)
+        let directories = try templateLoader.templateDirectories()
         
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {

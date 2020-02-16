@@ -5,6 +5,7 @@ import TuistSupport
 import ProjectDescription
 
 public protocol TemplateLoading {
+    func templateDirectories() throws -> [AbsolutePath]
     func load(at path: AbsolutePath) throws -> Template
     func generate(at path: AbsolutePath, to path: AbsolutePath) throws
 }
@@ -21,6 +22,16 @@ public class TemplateLoader: TemplateLoading {
     
     init(manifestLoader: ManifestLoading) {
         self.manifestLoader = manifestLoader
+    }
+    
+    public func templateDirectories() throws -> [AbsolutePath] {
+        let templatesDirectory = Environment.shared.versionsDirectory.appending(components: Constants.version, Constants.templatesDirectoryName)
+        if let rootPath = RootDirectoryLocator.shared.locate(from: AbsolutePath(FileHandler.shared.currentPath.pathString)) {
+            let customTemplatesDirectory = rootPath.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
+            return try FileHandler.shared.contentsOfDirectory(templatesDirectory) + FileHandler.shared.contentsOfDirectory(customTemplatesDirectory)
+        } else {
+            return try FileHandler.shared.contentsOfDirectory(templatesDirectory)
+        }
     }
     
     public func load(at path: AbsolutePath) throws -> Template {
