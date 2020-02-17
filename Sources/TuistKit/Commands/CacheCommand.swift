@@ -16,13 +16,22 @@ class CacheCommand: NSObject, Command {
     /// Path to the project directory.
     let pathArgument: OptionArgument<String>
 
+    /// Cache controller.
+    let cacheController: CacheControlling
+
     // MARK: - Init
 
     /// Initializes the command with the CLI parser.
     ///
     /// - Parameter parser: CLI parser where the command should register itself.
-    public required init(parser: ArgumentParser) {
+    public required convenience init(parser: ArgumentParser) {
+        self.init(parser: parser, cacheController: CacheController())
+    }
+
+    public init(parser: ArgumentParser,
+                cacheController: CacheControlling) {
         let subParser = parser.add(subparser: CacheCommand.command, overview: CacheCommand.overview)
+        self.cacheController = cacheController
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -33,9 +42,9 @@ class CacheCommand: NSObject, Command {
     /// Runs the command using the result from parsing the command line arguments.
     ///
     /// - Throws: An error if the the configuration of the environment fails.
-    func run(with _: ArgumentParser.Result) throws {
-        let twitterHandle = "@\(Constants.twitterHandle)"
-        Printer.shared.print("This feature is being worked on. Follow us on Twitter \(.bold(.raw(twitterHandle))) or join our Slack channel to stay up to date: \(.bold(.raw(Constants.joinSlackURL)))")
+    func run(with result: ArgumentParser.Result) throws {
+        let path = self.path(arguments: result)
+        try cacheController.cache(path: path)
     }
 
     /// Parses the arguments and returns the path to the directory where

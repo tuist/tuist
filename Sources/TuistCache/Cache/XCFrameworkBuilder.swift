@@ -22,7 +22,7 @@ enum XCFrameworkBuilderError: FatalError {
     }
 }
 
-protocol XCFrameworkBuilding {
+public protocol XCFrameworkBuilding {
     /// It builds an xcframework for the given target.
     /// The target must have framework as product.
     ///
@@ -42,7 +42,7 @@ protocol XCFrameworkBuilding {
     func build(projectPath: AbsolutePath, target: Target) throws -> AbsolutePath
 }
 
-final class XCFrameworkBuilder: XCFrameworkBuilding {
+public final class XCFrameworkBuilder: XCFrameworkBuilding {
     // MARK: - Attributes
 
     /// When true the builder outputs the output from xcodebuild.
@@ -52,17 +52,17 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
 
     /// Initializes the builder.
     /// - Parameter printOutput: When true the builder outputs the output from xcodebuild.
-    init(printOutput: Bool = true) {
+    public init(printOutput: Bool = true) {
         self.printOutput = printOutput
     }
 
     // MARK: - XCFrameworkBuilding
 
-    func build(workspacePath: AbsolutePath, target: Target) throws -> AbsolutePath {
+    public func build(workspacePath: AbsolutePath, target: Target) throws -> AbsolutePath {
         try build(arguments: ["-workspace", workspacePath.pathString], target: target)
     }
 
-    func build(projectPath: AbsolutePath, target: Target) throws -> AbsolutePath {
+    public func build(projectPath: AbsolutePath, target: Target) throws -> AbsolutePath {
         try build(arguments: ["-project", projectPath.pathString], target: target)
     }
 
@@ -77,7 +77,7 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
         let outputDirectory = try TemporaryDirectory(removeTreeOnDeinit: false)
         let derivedDataPath = try TemporaryDirectory(removeTreeOnDeinit: true)
 
-        Printer.shared.print(section: "Building .xcframework for \(target.productName)")
+        Printer.shared.print(section: "Building .xcframework for \(target.name)")
 
         // Build for the device
         let deviceArchivePath = derivedDataPath.path.appending(component: "device.xcarchive")
@@ -87,7 +87,7 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                 derivedDataPath: derivedDataPath.path)
         deviceArguments.append(contentsOf: ["-archivePath", deviceArchivePath.pathString])
         deviceArguments.append(contentsOf: arguments)
-        Printer.shared.print(subsection: "Building \(target.productName) for device")
+        Printer.shared.print(subsection: "Building \(target.name) for device")
         try runCommand(deviceArguments)
 
         // Build for the simulator
@@ -100,12 +100,12 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                        derivedDataPath: derivedDataPath.path)
             simulatorArguments.append(contentsOf: ["-archivePath", simulatorArchivePath!.pathString])
             simulatorArguments.append(contentsOf: arguments)
-            Printer.shared.print(subsection: "Building \(target.productName) for simulator")
+            Printer.shared.print(subsection: "Building \(target.name) for simulator")
             try runCommand(simulatorArguments)
         }
 
         // Build the xcframework
-        Printer.shared.print(subsection: "Exporting xcframework for \(target.productName)")
+        Printer.shared.print(subsection: "Exporting xcframework for \(target.name)")
         let xcframeworkPath = outputDirectory.path.appending(component: "\(target.productName).xcframework")
         let xcframeworkArguments = xcodebuildXcframeworkCommand(deviceArchivePath: deviceArchivePath,
                                                                 simulatorArchivePath: simulatorArchivePath,
@@ -163,7 +163,7 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
     ///   - sdk: Compilation SDK.
     ///   - derivedDataPath: Derived data directory.
     fileprivate func xcodebuildCommand(scheme: String, destination: String, sdk: String, derivedDataPath: AbsolutePath) -> [String] {
-        var command = ["xcrun", "xcodebuild", "clean", "archive"]
+        var command = ["xcrun", "xcodebuild", "archive"]
         command.append(contentsOf: ["-scheme", scheme.spm_shellEscaped()])
         command.append(contentsOf: ["-sdk", sdk])
         command.append(contentsOf: ["-destination='\(destination)'"])
