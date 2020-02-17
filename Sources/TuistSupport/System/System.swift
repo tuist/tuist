@@ -199,7 +199,7 @@ public final class System: Systeming {
         // Xcode
         "DEVELOPER_DIR",
         // Proxy
-        "HTTP_PROXY", "HTTPS_PROXY", "FTP_PROXY", "ALL_PROXY",
+        "HTTP_PROXY", "HTTPS_PROXY", "FTP_PROXY", "ALL_PROXY", "NO_PROXY",
     ]
 
     /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.
