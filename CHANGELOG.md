@@ -6,6 +6,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add FAQ section by @mollyIV
+
 ### Fixed
 
 - Fix static products false positive lint warning by https://github.com/tuist/tuist/pull/981 @kwridan.
