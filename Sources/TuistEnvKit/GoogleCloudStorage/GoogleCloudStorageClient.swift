@@ -58,7 +58,7 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
     }
 
     static func releasesRequest(path: String) -> URLRequest {
-        var components = URLComponents(string: "https://storage.cloud.google.com")!
+        var components = URLComponents(string: "https://storage.googleapis.com")!
         components.path = "/tuist-releases/\(path)"
         var request = URLRequest(url: components.url!)
         request.httpMethod = "GET"
