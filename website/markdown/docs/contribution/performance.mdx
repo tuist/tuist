@@ -67,6 +67,7 @@ swift run tuistbench --binary /path/to/tuist/.build/release/tuist --fixture /pat
 | ios_app_with_tests | 0.72s | 0.72s |
 
 
+
 **Benchmark (single fixture):**
 
 Console format:
@@ -141,6 +142,7 @@ Markdown:
 swift run tuistbench --binary /path/to/tuist/.build/release/tuist -reference-binary $(which tuist) --fixture-list fixtures.json --format markdown
 ```
 
+
 | Fixture         | New    | Old  | Delta    |
 | --------------- | ------ | ---- | -------- |
 | ios_app_with_tests _(cold)_ | 0.73s | 0.79s   | ⬇︎ 7.92% |
@@ -149,3 +151,4 @@ swift run tuistbench --binary /path/to/tuist/.build/release/tuist -reference-bin
 | ios_app_with_carthage_frameworks _(warm)_ | 0.77s | 0.81s | ⬇︎ 5.26% |
 | ios_app_with_helpers _(cold)_ | 2.29s | 2.43s | ⬇︎ 5.80% |
 | ios_app_with_helpers _(warm)_ | 1.97s | 2.15s | ⬇︎ 8.05% |
+
