@@ -1,7 +1,7 @@
 import XcodeProj
 
-@testable import TuistSupportTesting
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
 class SortedPBXGroupTests: TuistTestCase {
     var subject: SortedPBXGroup!
@@ -159,7 +159,7 @@ class SortedPBXGroupTests: TuistTestCase {
                 file("file2"),
                 file("file3"),
                 file("file4.swift"),
-            ])
+            ]),
         ]))
     }
 

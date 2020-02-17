@@ -23,6 +23,6 @@ let package = Package(
             dependencies: [
                 "SwiftToolsSupport",
             ]
-        )
+        ),
     ]
 )
