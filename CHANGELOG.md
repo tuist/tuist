@@ -10,6 +10,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Path sorting speed gains https://github.com/tuist/tuist/pull/980 by @adamkhazi
+
 ## 1.2.0
 
 ### Added
