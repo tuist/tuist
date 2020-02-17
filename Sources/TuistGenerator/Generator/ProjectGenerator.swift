@@ -105,13 +105,19 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: sourceRootPath)
+
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            xcodeprojPath: xcodeprojPath,
+                                            sourceRootPath: sourceRootPath)
+
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
+
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 projectFileElements: fileElements,
@@ -122,10 +128,10 @@ final class ProjectGenerator: ProjectGenerating {
         let nativeTargets = try generateTargets(project: project,
                                                 pbxproj: pbxproj,
                                                 pbxProject: pbxProject,
-                                                groups: groups,
                                                 fileElements: fileElements,
                                                 sourceRootPath: sourceRootPath,
                                                 graph: graph)
+
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
@@ -153,7 +159,7 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
-                                    mainGroup: groups.main,
+                                    mainGroup: groups.sortedMain,
                                     developmentRegion: Xcode.Default.developmentRegion,
                                     hasScannedForEncodings: 0,
                                     knownRegions: knownRegions,
@@ -170,7 +176,6 @@ final class ProjectGenerator: ProjectGenerating {
     private func generateTargets(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
-                                 groups _: ProjectGroups,
                                  fileElements: ProjectFileElements,
                                  sourceRootPath: AbsolutePath,
                                  graph: Graphing) throws -> [String: PBXNativeTarget] {
