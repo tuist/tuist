@@ -1,4 +1,3 @@
-
 import Foundation
 
 struct GeneratorConfig {
@@ -9,6 +8,6 @@ struct GeneratorConfig {
 
 extension GeneratorConfig {
     static var `default`: GeneratorConfig {
-        return GeneratorConfig(projects: 5, targets: 10, sources: 50)
+        GeneratorConfig(projects: 5, targets: 10, sources: 50)
     }
 }
