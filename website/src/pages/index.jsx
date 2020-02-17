@@ -13,12 +13,10 @@ import Message from '../../assets/message.svg'
 import Framework from '../../assets/framework.svg'
 import Arrow from '../../assets/arrow.svg'
 import Swift from '../../assets/swift.svg'
-import Soundcloud from '../../assets/soundcloud.svg'
-import Mytaxi from '../../assets/mytaxi.svg'
 import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import Quote from '../../assets/quote.svg'
-import { GatsbySeo } from 'gatsby-plugin-next-seo'
+import SEO from '../components/SEO'
 
 const PressableButton = posed.div({
   hoverable: true,
@@ -391,6 +389,7 @@ const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
       <div sx={{ mt: 4, mb: 3, display: 'inherit' }}>
         <img
           src={avatarUrl}
+          alt={`${name} avatar`}
           sx={{ bg: 'gray6', width: 60, height: 60, borderRadius: 30, ml: 3 }}
         />
         <div
@@ -419,7 +418,7 @@ const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
           p: 3,
         }}
       >
-        <quote>"{testimony}"</quote>
+        {testimony}
       </div>
       <div
         sx={{
@@ -497,7 +496,7 @@ const FloatingBalls = ({ bg }) => {
           <Ball
             size={Math.random() * 50}
             color={color}
-            key="index"
+            key={index}
             top={top}
             left={left}
           />
@@ -546,6 +545,7 @@ const Reflections = () => {
               }}
             >
               <Reflection
+                key="0"
                 name="OLIVER ATKINSON"
                 testimony="It has really helped out the team and project by creating an environment where defining new modules is easy, modularity allows us to focus and become experts in our individual domains."
                 role="SENIOR IOS ENGINEER"
@@ -553,6 +553,7 @@ const Reflections = () => {
                 avatarUrl="https://en.gravatar.com/userimage/41347978/456ffd8f0ef3f52c6e38f9003f4c51fa.jpg?size=460"
               />
               <Reflection
+                key="1"
                 name="TYLER NEVELDINE"
                 testimony="Tuist centralizes our entire workspace’s configuration and describes it in a language that we all understand. This increases the readability and approachability of our project tenfold."
                 role="IOS LEAD"
@@ -560,6 +561,7 @@ const Reflections = () => {
                 avatarUrl="https://pbs.twimg.com/profile_images/999765687777148928/wSJxk3Ni_400x400.jpg"
               />
               <Reflection
+                key="2"
                 name="ROMAIN BOULAY"
                 testimony="Tuist has delivered more than the SoundCloud iOS Collective expected! We aimed to make modularization more accessible and maintainable. We got this... and better build times!."
                 role="IOS LEAD"
@@ -609,6 +611,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Ollie's avatar"
               src="https://avatars2.githubusercontent.com/u/1382565?s=460&v=4"
             />
           </a>
@@ -619,6 +622,7 @@ const Contribute = () => {
           >
             <img
               sx={{ width: 50, height: 50, borderRadius: 25 }}
+              alt="Kas' avatar"
               src="https://avatars2.githubusercontent.com/u/11914919?s=460&v=4"
             />
           </a>
@@ -635,6 +639,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Marek's profile"
               src="https://avatars1.githubusercontent.com/u/9371695?s=460&v=4"
             />
           </a>
@@ -681,6 +686,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Lakpa's avatar"
               src="https://avatars1.githubusercontent.com/u/389328?s=400&v=4"
             />
           </a>
@@ -707,6 +713,7 @@ const Contribute = () => {
                 height: 50,
                 borderRadius: 25,
               }}
+              alt="Marcin's avatar"
               src="https://avatars1.githubusercontent.com/u/946649?s=460&v=4"
             />
           </a>
@@ -719,8 +726,7 @@ const Contribute = () => {
 const IndexPage = () => {
   return (
     <Layout>
-      <GatsbySeo titleTemplate="%s" title="Tuist" />
-
+      <SEO title="Xcode on steroids" />
       <Steroids />
       <Workspaces />
       <Principles />

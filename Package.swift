@@ -32,7 +32,6 @@ let package = Package(
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
-        .package(url: "https://github.com/broadwaylamb/OpenCombine.git", .upToNextMajor(from: "0.8.0")),
     ],
     targets: [
         .target(
@@ -41,7 +40,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCoreTesting",
-            dependencies: ["TuistCore"]
+            dependencies: ["TuistCore", "TuistSupportTesting"]
         ),
         .testTarget(
             name: "TuistCoreTests",
@@ -53,11 +52,11 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistGalaxy", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "Checksum", "TuistLoader"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "Checksum", "TuistLoader"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "Checksum", "TuistLoaderTesting"]
+            dependencies: ["TuistKit", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "Checksum", "TuistLoaderTesting"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
@@ -69,7 +68,7 @@ let package = Package(
         ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["SPMUtility", "TuistSupport", "OpenCombine", "OpenCombineFoundation"]
+            dependencies: ["SPMUtility", "TuistSupport"]
         ),
         .testTarget(
             name: "TuistEnvKitTests",
@@ -89,7 +88,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SPMUtility", "RxSwift", "RxRelay", "OpenCombine", "OpenCombineDispatch"]
+            dependencies: ["SPMUtility", "RxSwift", "RxRelay"]
         ),
         .target(
             name: "TuistSupportTesting",
@@ -109,23 +108,23 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistGeneratorTests",
-            dependencies: ["TuistGenerator", "TuistSupportTesting"]
+            dependencies: ["TuistGenerator", "TuistSupportTesting", "TuistCoreTesting"]
         ),
         .testTarget(
             name: "TuistGeneratorIntegrationTests",
             dependencies: ["TuistGenerator", "TuistSupportTesting"]
         ),
         .target(
-            name: "TuistGalaxy",
+            name: "TuistCache",
             dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
         ),
         .testTarget(
-            name: "TuistGalaxyTests",
-            dependencies: ["TuistGalaxy", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking"]
+            name: "TuistCacheTests",
+            dependencies: ["TuistCache", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking"]
         ),
         .testTarget(
-            name: "TuistGalaxyIntegrationTests",
-            dependencies: ["TuistGalaxy", "TuistSupportTesting", "RxBlocking"]
+            name: "TuistCacheIntegrationTests",
+            dependencies: ["TuistCache", "TuistSupportTesting", "RxBlocking", "TuistCoreTesting"]
         ),
         .target(
             name: "TuistAutomation",

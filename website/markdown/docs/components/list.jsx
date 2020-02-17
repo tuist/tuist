@@ -27,7 +27,7 @@ const ListIcon = ({ children, name }) => {
   }
   return (
     <div>
-      <FontAwesomeIcon sx={{ pr: 3 }} icon={icon} size="s" />
+      <FontAwesomeIcon sx={{ pr: 3 }} icon={icon} size="sm" />
     </div>
   )
 }

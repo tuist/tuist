@@ -1,11 +1,12 @@
 /** @jsx jsx */
 import { jsx } from 'theme-ui'
-import { withPrefix, Link, useStaticQuery, graphql } from 'gatsby'
+import { Link, useStaticQuery, graphql } from 'gatsby'
 import { Styled } from 'theme-ui'
 import { Location } from '@reach/router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGithub } from '@fortawesome/free-brands-svg-icons'
 import { faSlack } from '@fortawesome/free-brands-svg-icons'
+import logo from '../../static/logo.svg'
 
 export default () => {
   const hoverStyle = {
@@ -56,7 +57,7 @@ export default () => {
           }}
         >
           <img
-            src={withPrefix('logo.svg')}
+            src={logo}
             sx={{ height: 30, width: 30 }}
             alt="Tuist's logotype"
           />

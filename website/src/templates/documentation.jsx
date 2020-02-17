@@ -1,15 +1,13 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
-import { graphql, Link } from 'gatsby'
+import { graphql, Link, withPrefix } from 'gatsby'
 import Layout from '../components/layout'
 import Footer from '../components/footer'
-import {
-  GatsbySeo,
-  ArticleJsonLd,
-  BreadcrumbJsonLd,
-} from 'gatsby-plugin-next-seo'
+import { ArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
+import moment from 'moment'
+import SEO from '../components/SEO'
 
 const DocumentationPage = ({
   data: {
@@ -23,14 +21,20 @@ const DocumentationPage = ({
   const page = mdx
   return (
     <Layout>
-      <GatsbySeo
+      <SEO
         title={page.frontmatter.name}
         description={page.frontmatter.excerpt}
       />
       <ArticleJsonLd
         url={urljoin(siteUrl, page.fields.slug)}
-        headline={page.frontmatter.title}
+        headline={page.frontmatter.name}
         description={page.frontmatter.excerpt}
+        images={[urljoin(siteUrl, withPrefix('squared-logo.png'))]}
+        authorName="Tuist"
+        publisherName="Tuist"
+        publisherLogo={urljoin(siteUrl, withPrefix('squared-logo.png'))}
+        datePublished={moment().format()}
+        dateModified={moment().format()}
       />
       <BreadcrumbJsonLd
         itemListElements={[

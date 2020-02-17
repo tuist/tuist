@@ -25,7 +25,7 @@ enum ProjectGroupsError: FatalError, Equatable {
 class ProjectGroups {
     // MARK: - Attributes
 
-    let main: PBXGroup
+    @SortedPBXGroup var sortedMain: PBXGroup
     let products: PBXGroup
     let frameworks: PBXGroup
     let playgrounds: PBXGroup?
@@ -41,7 +41,7 @@ class ProjectGroups {
                  frameworks: PBXGroup,
                  playgrounds: PBXGroup?,
                  pbxproj: PBXProj) {
-        self.main = main
+        self.sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.frameworks = frameworks

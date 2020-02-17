@@ -7,8 +7,10 @@ import { Link } from 'gatsby'
 import { graphql } from 'gatsby'
 import Main from '../components/main'
 import { findWhere } from 'underscore'
-import { BreadcrumbJsonLd, BlogJsonLd, GatsbySeo } from 'gatsby-plugin-next-seo'
+import { BreadcrumbJsonLd, BlogJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
+import moment from 'moment'
+import SEO from '../components/SEO'
 
 const Post = ({ post, index, authors }) => {
   const authorHandle = post.frontmatter.author
@@ -133,13 +135,28 @@ const BlogList = ({
   return (
     <Layout>
       <BreadcrumbJsonLd itemListElements={breadcrumb} />
-      <GatsbySeo title="Blog" description={description} />
+      <SEO title="Blog" description={description} />
       <BlogJsonLd
         url={urljoin(siteUrl, '/blog')}
         headline="Tuist Blog"
         posts={edges.map(edge => {
+          const authorHandle = edge.node.frontmatter.author
+          const author = findWhere(authors, { handle: authorHandle })
+
           return {
             headline: edge.node.frontmatter.title,
+            author: {
+              '@type': 'Person',
+              name: author.name,
+              image: author.avatar,
+            },
+            datePublished: moment(edge.node.fields.date).format(),
+            image: author.avatar,
+            publisher: {
+              '@type': 'Person',
+              name: author.name,
+              image: author.avatar,
+            },
           }
         })}
         authorName="Tuist"

@@ -22,14 +22,6 @@ final class MockManifestLoader: ManifestLoading {
     var loadTuistConfigCount: UInt = 0
     var loadTuistConfigStub: ((AbsolutePath) throws -> ProjectDescription.TuistConfig)?
 
-    var loadGalaxyCount: UInt = 0
-    var loadGalaxyStub: ((AbsolutePath) throws -> ProjectDescription.Galaxy)?
-
-    func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy {
-        loadGalaxyCount += 1
-        return try loadGalaxyStub?(path) ?? ProjectDescription.Galaxy.test()
-    }
-
     func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
         try loadProjectStub?(path) ?? ProjectDescription.Project.test()
     }

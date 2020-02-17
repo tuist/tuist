@@ -20,6 +20,7 @@ module.exports = {
     ],
   },
   plugins: [
+    `gatsby-plugin-sharp`,
     `gatsby-plugin-sitemap`,
     `gatsby-plugin-offline`,
     `gatsby-plugin-theme-ui`,
@@ -221,9 +222,18 @@ module.exports = {
         titleTemplate: '%s | Tuist',
         openGraph: {
           type: 'website',
+          title: title,
           locale: 'en_IE',
           url: siteUrl,
           site_name: title,
+          images: [
+            {
+              url: `${siteUrl}/squared-logo.png`,
+              width: 400,
+              height: 400,
+              alt: "Tuist's logo",
+            },
+          ],
           keywords: [
             `tuist`,
             `engineering`,
@@ -245,8 +255,9 @@ module.exports = {
           ],
         },
         twitter: {
-          site: siteUrl,
-          cardType: 'summary_large_image',
+          site: '@tuistio',
+          handle: '@tuistio',
+          cardType: 'summary',
         },
       },
     },

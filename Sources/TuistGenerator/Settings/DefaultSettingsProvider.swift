@@ -1,4 +1,5 @@
 import Foundation
+import struct SPMUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeProj
@@ -60,6 +61,13 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "WRAPPER_EXTENSION",
     ]
 
+    /// Key is `Version` which describes from which version of Xcode are values available for
+    private static let xcodeVersionSpecificSettings: [Version: Set<String>] = [
+        Version(11, 0, 0): [
+            "ENABLE_PREVIEWS",
+        ],
+    ]
+
     public init() {}
 
     // MARK: - DefaultSettingsProviding
@@ -71,8 +79,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let variant = settingsHelper.variant(buildConfiguration)
         let projectDefaultAll = try BuildSettingsProvider.projectDefault(variant: .all).toSettings()
         let projectDefaultVariant = try BuildSettingsProvider.projectDefault(variant: variant).toSettings()
-        let filter = createFilter(defaultSettings: defaultSettings,
-                                  essentialKeys: DefaultSettingsProvider.essentialProjectSettings)
+        let filter = try createFilter(defaultSettings: defaultSettings,
+                                      essentialKeys: DefaultSettingsProvider.essentialProjectSettings)
 
         var settings: [String: SettingValue] = [:]
         settingsHelper.extend(buildSettings: &settings, with: projectDefaultAll)
@@ -95,8 +103,9 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                                                                            platform: platform,
                                                                            product: product,
                                                                            swift: true).toSettings()
-        let filter = createFilter(defaultSettings: defaultSettings,
-                                  essentialKeys: DefaultSettingsProvider.essentialTargetSettings)
+        let filter = try createFilter(defaultSettings: defaultSettings,
+                                      essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
+                                      newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings)
 
         var settings: [String: SettingValue] = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
@@ -106,12 +115,20 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
 
     // MARK: - Private
 
-    private func createFilter(defaultSettings: DefaultSettings, essentialKeys: Set<String>) -> (String, SettingValue) -> Bool {
+    private func createFilter(defaultSettings: DefaultSettings,
+                              essentialKeys: Set<String>,
+                              newXcodeKeys: [Version: Set<String>] = [:]) throws -> (String, SettingValue) -> Bool {
         switch defaultSettings {
         case .essential:
             return { key, _ in essentialKeys.contains(key) }
         case .recommended:
-            return { _, _ in true }
+            let xcodeVersion = try XcodeController.shared.selectedVersion()
+            return { key, _ in
+                // Filter keys that are from higher Xcode version than current (otherwise return true)
+                !newXcodeKeys
+                    .filter { $0.key > xcodeVersion }
+                    .values.flatMap { $0 }.contains(key)
+            }
         case .none:
             return { _, _ in false }
         }

@@ -21,17 +21,25 @@ public class XcodeController: XcodeControlling {
     /// Shared instance.
     public static var shared: XcodeControlling = XcodeController()
 
+    /// Cached response of `xcode-select` command
+    @Atomic
+    private var selectedXcode: Xcode?
+
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
     public func selected() throws -> Xcode? {
+        // Return cached value if available
+        guard selectedXcode == nil else { return selectedXcode }
+
         // e.g. /Applications/Xcode.app/Contents/Developer
         guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
             return nil
         }
-        return try Xcode.read(path: AbsolutePath(path).parentDirectory.parentDirectory)
+        selectedXcode = try Xcode.read(path: AbsolutePath(path).parentDirectory.parentDirectory)
+        return selectedXcode
     }
 
     enum XcodeVersionError: FatalError {
