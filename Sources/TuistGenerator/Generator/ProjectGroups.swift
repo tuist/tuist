@@ -41,7 +41,7 @@ class ProjectGroups {
                  frameworks: PBXGroup,
                  playgrounds: PBXGroup?,
                  pbxproj: PBXProj) {
-        self.sortedMain = main
+        sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.frameworks = frameworks
