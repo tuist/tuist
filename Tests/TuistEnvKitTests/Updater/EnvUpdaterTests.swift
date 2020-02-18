@@ -25,6 +25,7 @@ final class EnvUpdaterTests: TuistUnitTestCase {
     func test_update() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        fileHandler.stubInTemporaryDirectory = temporaryPath
         let downloadURL = URL(string: "https://file.download.com/tuistenv.zip")!
         let release = Release.test(assets: [Release.Asset(downloadURL: downloadURL, name: "tuistenv.zip")])
         githubClient.releasesStub = { [release] }
