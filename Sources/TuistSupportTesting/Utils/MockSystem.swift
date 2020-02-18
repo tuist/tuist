@@ -123,6 +123,9 @@ public final class MockSystem: Systeming {
                 observer.onError(TuistSupport.SystemError.terminated(code: 1, error: stub.stderror ?? ""))
                 return Disposables.create()
             }
+            if let stdout = stub.stdout {
+                observer.onNext(.standardOutput(stdout.data(using: .utf8)!))
+            }
             observer.onCompleted()
             return Disposables.create()
         }

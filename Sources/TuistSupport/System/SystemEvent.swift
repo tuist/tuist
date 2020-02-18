@@ -11,7 +11,7 @@ public enum SystemEvent<T> {
     case standardError(T)
 
     /// Returns the wrapped value.
-    var value: T {
+    public var value: T {
         switch self {
         case let .standardError(value): return value
         case let .standardOutput(value): return value
