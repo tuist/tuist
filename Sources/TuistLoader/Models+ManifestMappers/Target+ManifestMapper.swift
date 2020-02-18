@@ -3,12 +3,12 @@ import Foundation
 import ProjectDescription
 import TuistCore
 
+// swiftlint:disable function_body_length
 extension TuistCore.Target {
     /// Maps a ProjectDescription.Target instance into a TuistCore.Target instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the target.
     ///   - generatorPaths: Generator paths.
-    // swiftlint:disable:next function_body_length
     static func from(manifest: ProjectDescription.Target, generatorPaths: GeneratorPaths) throws -> TuistCore.Target {
         let name = manifest.name
         let platform = try TuistCore.Platform.from(manifest: manifest.platform)

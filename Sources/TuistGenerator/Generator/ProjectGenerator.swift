@@ -92,6 +92,7 @@ final class ProjectGenerator: ProjectGenerating {
 
     // MARK: - Fileprivate
 
+    // swiftlint:disable:next function_body_length
     private func generateProjectAndWorkspace(project: Project,
                                              graph: Graphing,
                                              sourceRootPath: AbsolutePath,
