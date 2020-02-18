@@ -5,9 +5,19 @@ public struct Template {
     public let attributes: [Attribute]
     public let files: [(path: RelativePath, contents: String)]
     public let directories: [RelativePath]
-}
-
-public enum Attribute {
-    case required(String)
-    case optional(String, default: String)
+    
+    public init(description: String,
+                attributes: [Attribute],
+                files: [(path: RelativePath, contents: String)],
+                directories: [RelativePath]) {
+        self.description = description
+        self.attributes = attributes
+        self.files = files
+        self.directories = directories
+    }
+    
+    public enum Attribute {
+        case required(String)
+        case optional(String, default: String)
+    }
 }

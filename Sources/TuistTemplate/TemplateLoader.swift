@@ -2,41 +2,43 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistSupport
+import TuistLoader
 import ProjectDescription
 
 public protocol TemplateLoading {
     func templateDirectories() throws -> [AbsolutePath]
-    func load(at path: AbsolutePath) throws -> Template
+    func load(at path: AbsolutePath) throws -> TuistLoader.Template
     func generate(at path: AbsolutePath,
                   to path: AbsolutePath,
                   attributes: [String]) throws
 }
 
 public class TemplateLoader: TemplateLoading {
-    /// Manifset loader instance to load the setup.
+    /// Manifest loader instance to load the setup.
     private let manifestLoader: ManifestLoading
+    
+    private let templatesDirectoryLocator: TemplatesDirectoryLocating
 
     /// Default constructor.
     public convenience init() {
-        let manifestLoader = ManifestLoader()
-        self.init(manifestLoader: manifestLoader)
+        self.init(manifestLoader: ManifestLoader(),
+                  templatesDirectoryLocator: TemplatesDirectoryLocator())
     }
     
-    init(manifestLoader: ManifestLoading) {
+    init(manifestLoader: ManifestLoading, templatesDirectoryLocator: TemplatesDirectoryLocating) {
         self.manifestLoader = manifestLoader
+        self.templatesDirectoryLocator = templatesDirectoryLocator
     }
     
     public func templateDirectories() throws -> [AbsolutePath] {
-        let templatesDirectory = Environment.shared.versionsDirectory.appending(components: Constants.version, Constants.templatesDirectoryName)
-        if let rootPath = RootDirectoryLocator.shared.locate(from: AbsolutePath(FileHandler.shared.currentPath.pathString)) {
-            let customTemplatesDirectory = rootPath.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
-            return try FileHandler.shared.contentsOfDirectory(templatesDirectory) + FileHandler.shared.contentsOfDirectory(customTemplatesDirectory)
-        } else {
-            return try FileHandler.shared.contentsOfDirectory(templatesDirectory)
-        }
+        let templatesDirectory = templatesDirectoryLocator.locate()
+        let templates = try templatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
+        let customTemplatesDirectory = templatesDirectoryLocator.locateCustom(at: FileHandler.shared.currentPath)
+        let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
+        return templates + customTemplates
     }
     
-    public func load(at path: AbsolutePath) throws -> Template {
+    public func load(at path: AbsolutePath) throws -> TuistLoader.Template {
         let manifest = try manifestLoader.loadTemplate(at: path)
         return try TuistLoader.Template.from(manifest: manifest)
     }
@@ -93,7 +95,7 @@ public class TemplateLoader: TemplateLoading {
 
 extension TuistLoader.Template {
     static func from(manifest: ProjectDescription.Template) throws -> TuistLoader.Template {
-        let attributes = try manifest.attributes.map(TuistLoader.Attribute.from)
+        let attributes = try manifest.attributes.map(TuistLoader.Template.Attribute.from)
         let files = manifest.files.map { (path: RelativePath($0.path), contents: $0.contents) }
         let directories = manifest.directories.map { RelativePath($0) }
         return TuistLoader.Template(description: manifest.description,
@@ -103,8 +105,8 @@ extension TuistLoader.Template {
     }
 }
 
-extension TuistLoader.Attribute {
-    static func from(manifest: ProjectDescription.Attribute) throws -> TuistLoader.Attribute {
+extension TuistLoader.Template.Attribute {
+    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistLoader.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)

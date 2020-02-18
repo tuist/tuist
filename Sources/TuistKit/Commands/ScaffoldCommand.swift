@@ -1,6 +1,7 @@
 import Foundation
 import TuistSupport
 import TuistLoader
+import TuistTemplate
 import SPMUtility
 import Basic
 
