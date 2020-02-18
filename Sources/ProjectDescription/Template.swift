@@ -1,15 +1,15 @@
 public struct Template: Codable {
     public let description: String
-    public let arguments: [Argument]
+    public let attributes: [Attribute]
     public let files: [File]
     public let directories: [String]
     
     public init(description: String,
-                arguments: [Argument] = [],
+                arguments: [Attribute] = [],
                 files: [File] = [],
                 directories: [String] = []) {
         self.description = description
-        self.arguments = arguments
+        self.attributes = arguments
         self.files = files
         self.directories = directories
         dumpIfNeeded(self)
@@ -17,7 +17,7 @@ public struct Template: Codable {
 }
 
 public extension String.StringInterpolation {
-    mutating func appendInterpolation(_ value: Argument) {
+    mutating func appendInterpolation(_ value: Attribute) {
         switch value {
         case let .required(name):
             appendInterpolation("{{ \(name) }}")
@@ -37,7 +37,7 @@ public struct File: Codable {
     }
 }
 
-public enum Argument: Codable {
+public enum Attribute: Codable {
     case required(String)
     case optional(String, default: String)
     

@@ -12,6 +12,7 @@ class ScaffoldCommand: NSObject, Command {
     static let overview = "Generates new project based on template."
     private let listArgument: OptionArgument<Bool>
     private let templateArgument: PositionalArgument<String>
+    private let attributesArgument: OptionArgument<[String]>
     
     private let templateLoader: TemplateLoading
 
@@ -35,6 +36,12 @@ class ScaffoldCommand: NSObject, Command {
                                          optional: true,
                                          usage: "Name of template you want to use",
                                          completion: nil)
+        attributesArgument = subParser.add(option: "--attributes",
+                                           shortName: "-a",
+                                           kind: [String].self,
+                                           strategy: .upToNextOption,
+                                           usage: "Attributes for a given template",
+                                           completion: nil)
         self.templateLoader = templateLoader
     }
 
@@ -51,6 +58,8 @@ class ScaffoldCommand: NSObject, Command {
         }
         
         guard let templateDirectory = directories.first(where: { $0.basename == arguments.get(templateArgument) }) else { fatalError() }
-        try templateLoader.generate(at: templateDirectory, to: FileHandler.shared.currentPath)
+        try templateLoader.generate(at: templateDirectory,
+                                    to: FileHandler.shared.currentPath,
+                                    attributes: arguments.get(attributesArgument) ?? [])
     }
 }
