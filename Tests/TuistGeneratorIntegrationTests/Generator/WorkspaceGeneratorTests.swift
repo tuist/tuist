@@ -80,6 +80,29 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generate_doesNotWipeUserData() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let paths = try createFiles([
+            "Foo.xcworkspace/xcuserdata/a",
+            "Foo.xcworkspace/xcuserdata/b/c",
+        ])
+
+        let graph = Graph.test(entryPath: temporaryPath)
+        let workspace = Workspace.test(name: "Foo")
+
+        // When
+        try (0 ..< 2).forEach { _ in
+            try subject.generate(workspace: workspace,
+                                 path: temporaryPath,
+                                 graph: graph,
+                                 tuistConfig: .test())
+        }
+
+        // Then
+        XCTAssertTrue(paths.allSatisfy { FileHandler.shared.exists($0) })
+    }
+
     func test_generate_workspaceStructureWithProjects() throws {
         // Given
         let temporaryPath = try self.temporaryPath()

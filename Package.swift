@@ -112,7 +112,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistGeneratorIntegrationTests",
-            dependencies: ["TuistGenerator", "TuistSupportTesting"]
+            dependencies: ["TuistGenerator", "TuistSupportTesting", "TuistCoreTesting"]
         ),
         .target(
             name: "TuistCache",

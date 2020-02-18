@@ -48,6 +48,70 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(FileHandler.shared.exists(got.path.appending(RelativePath("../Derived/InfoPlists/Target.plist"))))
     }
 
+    func test_generate_doesNotWipeUserData() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let paths = try createFiles([
+            "Foo.xcodeproj/xcuserdata/a",
+            "Foo.xcodeproj/xcuserdata/b/c",
+        ])
+
+        let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+        let project = Project.test(path: temporaryPath, name: "Foo", targets: [target])
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: target, dependencies: []),
+                                 ])
+
+        // When
+        try (0 ..< 2).forEach { _ in
+            _ = try subject.generate(project: project, graph: graph)
+        }
+
+        // Then
+        XCTAssertTrue(paths.allSatisfy { FileHandler.shared.exists($0) })
+    }
+
+    func test_generate_replacesSchemes() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let schemeA = Scheme(name: "SchemeA", shared: true)
+        let schemeB = Scheme(name: "SchemeB", shared: true)
+        let userScheme = Scheme(name: "UserScheme", shared: false)
+
+        func makeModels(with schemes: [Scheme]) -> (graph: Graph, project: Project) {
+            let target = Target.test(name: "Target", platform: .iOS, product: .framework)
+            let project = Project.test(path: temporaryPath, name: "Foo", targets: [target], schemes: schemes)
+            let graph = Graph.create(project: project,
+                                     dependencies: [
+                                         (target: target, dependencies: []),
+                                     ])
+            return (graph, project)
+        }
+
+        let generations = [
+            [schemeA, schemeB],
+            [schemeA, userScheme],
+        ]
+
+        // When
+        try generations.forEach {
+            let (graph, project) = makeModels(with: $0)
+            _ = try subject.generate(project: project, graph: graph)
+        }
+
+        // Then
+        let fileHandler = FileHandler.shared
+        let schemesPath = temporaryPath.appending(RelativePath("Foo.xcodeproj"))
+        let schemes = fileHandler.glob(schemesPath, glob: "**/*.xcscheme").map { $0.relative(to: schemesPath).basename }
+        XCTAssertEqual(schemes, [
+            "SchemeA.xcscheme",
+            "Target.xcscheme",
+            "UserScheme.xcscheme",
+        ])
+    }
+
     func test_generate_scheme() throws {
         // Given
         let temporaryPath = try self.temporaryPath()

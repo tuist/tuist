@@ -192,9 +192,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                        generatedProjects _: [AbsolutePath: GeneratedProject],
                        graph _: Graphing,
                        to: AbsolutePath) throws {
+        let workspaceDataFile = "contents.xcworkspacedata"
+        let fileHandler = FileHandler.shared
+
         // If the workspace doesn't exist we can write it because there isn't any
         // Xcode instance that might depend on it.
-        if !FileHandler.shared.exists(to.appending(component: "contents.xcworkspacedata")) {
+        if !fileHandler.exists(to.appending(component: workspaceDataFile)) {
             try xcworkspace.write(path: to.path)
             return
         }
@@ -202,20 +205,25 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         // If the workspace exists, we want to reduce the likeliness of causing
         // Xcode not to be able to reload the workspace.
         // We only replace the current one if something has changed.
-        try FileHandler.shared.inTemporaryDirectory { temporaryPath in
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            let temporaryPath = temporaryPath.appending(component: to.basename)
             try xcworkspace.write(path: temporaryPath.path)
 
             let workspaceData: (AbsolutePath) throws -> Data = {
-                let dataPath = $0.appending(component: "contents.xcworkspacedata")
+                let dataPath = $0.appending(component: workspaceDataFile)
                 return try Data(contentsOf: dataPath.url)
             }
 
             let currentData = try workspaceData(to)
             let currentWorkspaceData = try workspaceData(temporaryPath)
 
-            if currentData != currentWorkspaceData {
-                try FileHandler.shared.replace(to, with: temporaryPath)
+            guard currentData != currentWorkspaceData else {
+                return
             }
+
+            try fileHandler.createFolder(to)
+            try fileHandler.replace(to.appending(component: workspaceDataFile),
+                                    with: temporaryPath.appending(component: workspaceDataFile))
         }
     }
 

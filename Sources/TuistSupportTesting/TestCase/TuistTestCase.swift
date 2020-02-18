@@ -4,9 +4,8 @@ import XCTest
 
 @testable import TuistSupport
 
-// This mock file handler is used to override both, the current path and the temporary directory
-// returned by the inTemporaryDirectory method. The temporary directory is lazily created if either
-// the test case or subject consume the API.
+// This mock file handler is used to override the current path to a temporary directory.
+// The temporary directory is lazily created if either the test case or subject consume the API.
 private class MockFileHandler: FileHandler {
     let temporaryDirectory: () throws -> (AbsolutePath)
 
@@ -16,11 +15,7 @@ private class MockFileHandler: FileHandler {
     }
 
     // swiftlint:disable:next force_try
-    override var currentPath: AbsolutePath { try! self.temporaryDirectory() }
-
-    override func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
-        try closure(temporaryDirectory())
-    }
+    override var currentPath: AbsolutePath { try! temporaryDirectory() }
 }
 
 public class TuistTestCase: XCTestCase {
