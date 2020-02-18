@@ -19,10 +19,8 @@ public struct Template: Codable {
 public extension String.StringInterpolation {
     mutating func appendInterpolation(_ value: Attribute) {
         switch value {
-        case let .required(name):
+        case let .required(name), let .optional(name, default: _):
             appendInterpolation("{{ \(name) }}")
-        case let .optional(name, default: defaultValue):
-            appendInterpolation("{{ \(name) ?? \(defaultValue) }}")
         }
     }
 }
