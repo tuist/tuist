@@ -46,17 +46,22 @@ final class ProjectEditor: ProjectEditing {
 
     /// Utility to locate the helpers directory.
     let helpersDirectoryLocator: HelpersDirectoryLocating
+    
+    /// Utiltity to locate the custom templates directory
+    let templatesDirectoryLocator: TemplatesDirectoryLocating
 
     init(generator: Generating = Generator(),
          projectEditorMapper: ProjectEditorMapping = ProjectEditorMapper(),
          resourceLocator: ResourceLocating = ResourceLocator(),
          manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
-         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
+         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
+         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator()) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
         self.resourceLocator = resourceLocator
         self.manifestFilesLocator = manifestFilesLocator
         self.helpersDirectoryLocator = helpersDirectoryLocator
+        self.templatesDirectoryLocator = templatesDirectoryLocator
     }
 
     func edit(at: AbsolutePath, in dstDirectory: AbsolutePath) throws -> AbsolutePath {
@@ -68,15 +73,21 @@ final class ProjectEditor: ProjectEditing {
         if let helpersDirectory = helpersDirectoryLocator.locate(at: at) {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         }
+        var templates: [AbsolutePath] = []
+        if let templatesDirectory = templatesDirectoryLocator.locateCustom(at: at) {
+            // Add only Template manifests
+            templates = FileHandler.shared.glob(templatesDirectory, glob: "**/Template.swift")
+        }
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
-        if manifests.isEmpty, helpers.isEmpty {
+        if manifests.isEmpty, helpers.isEmpty, templates.isEmpty {
             throw ProjectEditorError.noEditableFiles(at)
         }
 
         let (project, graph) = projectEditorMapper.map(sourceRootPath: at,
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
+                                                       templates: templates,
                                                        projectDescriptionPath: projectDesciptionPath)
         return try generator.generateProject(project,
                                              graph: graph,
