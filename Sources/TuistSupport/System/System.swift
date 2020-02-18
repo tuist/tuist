@@ -99,20 +99,20 @@ public protocol Systeming {
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
-    func rxRun(_ arguments: [String]) -> Observable<SystemEvent<Data>>
+    func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>>
 
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
-    func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>>
+    func observable(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>>
 
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
     ///   - environment: Environment that should be used when running the command.
-    func rxRun(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>>
+    func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>>
 
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
@@ -376,15 +376,15 @@ public final class System: Systeming {
         try result.throwIfErrored()
     }
 
-    public func rxRun(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
-        rxRun(arguments, verbose: false)
+    public func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
+        observable(arguments, verbose: false)
     }
 
-    public func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
-        rxRun(arguments, verbose: verbose, environment: env)
+    public func observable(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
+        observable(arguments, verbose: verbose, environment: env)
     }
 
-    public func rxRun(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>> {
+    public func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let process = Process(arguments: arguments,
                                   environment: environment,

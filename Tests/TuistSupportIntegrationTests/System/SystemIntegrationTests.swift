@@ -30,9 +30,9 @@ final class SystemIntegrationTests: TuistTestCase {
         XCTAssertThrowsError(try subject.run(["ls", "abcdefghi"]))
     }
 
-    func test_rxRun() throws {
+    func test_observable() throws {
         // Given
-        let observable = subject.rxRun(["echo", "hola"]).mapToString()
+        let observable = subject.observable(["echo", "hola"]).mapToString()
 
         // When
         let result = observable.toBlocking().materialize()
