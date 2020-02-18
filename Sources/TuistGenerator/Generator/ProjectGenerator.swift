@@ -290,16 +290,8 @@ final class ProjectGenerator: ProjectGenerating {
             let temporaryPath = temporaryPath.appending(component: xcodeprojPath.basename)
             generatedProject = try write(xcodeprojPath: temporaryPath)
 
-            let paths = [
-                "project.pbxproj",
-                "project.xcworkspace",
-                "xcshareddata/xcschemes",
-                "xcuserdata/**/*.xcscheme",
-            ]
-            let files = paths.flatMap {
-                fileHandler.glob(temporaryPath, glob: $0)
-            }
-            try files.forEach {
+            let pathsToReplace = self.pathsToReplace(xcodeProjPath: temporaryPath)
+            try pathsToReplace.forEach {
                 let relativeFile = $0.relative(to: temporaryPath)
                 let writeToPath = xcodeprojPath.appending(relativeFile)
                 try fileHandler.createFolder(writeToPath.parentDirectory)
@@ -308,6 +300,22 @@ final class ProjectGenerator: ProjectGenerating {
         }
 
         return generatedProject.at(path: xcodeprojPath)
+    }
+
+    private func pathsToReplace(xcodeProjPath: AbsolutePath) -> [AbsolutePath] {
+        var paths = [
+            "project.pbxproj",
+            "project.xcworkspace",
+            "xcshareddata/xcschemes",
+        ]
+
+        if FileHandler.shared.exists(xcodeProjPath.appending(component: "xcuserdata")) {
+            paths.append("xcuserdata/**/*.xcscheme")
+        }
+
+        return paths.flatMap {
+            FileHandler.shared.glob(xcodeProjPath, glob: $0)
+        }
     }
 
     private func writeXcodeproj(workspace: XCWorkspace,
