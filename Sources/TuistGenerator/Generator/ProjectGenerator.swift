@@ -35,6 +35,7 @@ protocol ProjectGenerating: AnyObject {
                   xcodeprojPath: AbsolutePath?) throws -> GeneratedProject
 }
 
+// swiftlint:disable type_body_length
 final class ProjectGenerator: ProjectGenerating {
     // MARK: - Attributes
 
