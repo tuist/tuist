@@ -154,7 +154,7 @@ final class ProjectGenerator: ProjectGenerating {
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
                                     pbxproj: PBXProj) throws -> PBXProject {
-        let defaultRegions = ["en"]
+        let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
