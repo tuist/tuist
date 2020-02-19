@@ -1,7 +1,21 @@
 # https://help.github.com/en/github/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions#jobsjob_idname
 name: Checks
 
-on: [push]
+on:
+  push:
+    branches:    
+      - master
+    paths:
+      - Sources/**/*
+      - Tests/**/*
+      - fixtures/**/*
+      - .github/workflows/checks.yml
+  pull_request:
+    paths:
+      - Sources/**/*
+      - Tests/**/*
+      - fixtures/**/*
+      - .github/workflows/checks.yml
 
 jobs:
   swiftformat:

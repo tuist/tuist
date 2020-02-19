@@ -4,7 +4,7 @@ import XcodeProj
 @propertyWrapper
 class SortedPBXGroup {
     var value: PBXGroup
-    
+
     var wrappedValue: PBXGroup {
         get {
             value.childGroups.forEach(sort) // We preserve the order of the root level groups and files
@@ -14,11 +14,11 @@ class SortedPBXGroup {
             value = newValue
         }
     }
-    
+
     init(wrappedValue: PBXGroup) {
-        self.value = wrappedValue
+        value = wrappedValue
     }
-    
+
     // The sorting implementation was taken from https://github.com/yonaskolb/XcodeGen/blob/d64cfff8a1ca01fd8f18cbb41f72230983c4a192/Sources/XcodeGenKit/PBXProjGenerator.swift
     // We require exactly the same sort which places groups over files while using the PBXGroup from Xcodeproj.
     private func sort(with group: PBXGroup) {
@@ -52,7 +52,7 @@ private extension PBXFileElement {
     }
 
     static func sortByNameThenPath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool {
-        return lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
+        lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
     }
 
     var namePathSortString: String {

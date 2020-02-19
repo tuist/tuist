@@ -5,21 +5,22 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Added
+- When using `tuist edit` it's possible to run `tuist generate`  from Xcode by simply running the target https://github.com/tuist/tuist/pull/958 by @vytis
 
 - Add FAQ section by @mollyIV
+- Add benchmarking helper tool https://github.com/tuist/tuist/pull/957 by @kwridan.
 
 ### Fixed
 
 - Fix static products false positive lint warning by https://github.com/tuist/tuist/pull/981 @kwridan.
 - TargetAction path without ./ prefix https://github.com/tuist/tuist/pull/997 by @fortmarek
+- Preserve xcuserdata when re-generating projects https://github.com/tuist/tuist/pull/1006 by @kwridan
 
 ### Changed
 
 - Update XcodeProj to 7.8.0 https://github.com/tuist/tuist/pull/create?base=tuist%3Amaster&head=tuist%3Atarget-attributes by @pepibumur.
-
-### Changed
-
 - Path sorting speed gains https://github.com/tuist/tuist/pull/980 by @adamkhazi
+- Added support for HTTP_PROXY settings from shell environment. https://github.com/tuist/tuist/pull/1015 by @aegzorz
 
 ## 1.2.0
 

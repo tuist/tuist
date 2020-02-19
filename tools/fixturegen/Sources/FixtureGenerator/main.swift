@@ -1,11 +1,11 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
+import TSCUtility
 
 func main() throws {
-    let parser = ArgumentParser(commandName: "FixtureGenerator",
-                                usage: "FixtureGenerator <options>",
-                                overview: "Generates large fixtures for the purposes of stress testing Tuist")
+    let parser = ArgumentParser(commandName: "fixturegen",
+                                usage: "<options>",
+                                overview: "Generates large fixtures for the purposes of stress testing Tuist.")
 
     let fileSystem = localFileSystem
     let generateCommand = GenerateCommand(fileSystem: fileSystem,

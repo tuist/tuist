@@ -1,4 +1,3 @@
-
 import Foundation
 
 class SourceTemplate {
@@ -7,18 +6,18 @@ class SourceTemplate {
 
     public class {FrameworkName}SomeClass{Number} {
        public init() {
-        
+
        }
 
        public func hello() {
-          
+
        }
     }
-    
+
     """
 
     func generate(frameworkName: String, number: Int) -> String {
-        return template
+        template
             .replacingOccurrences(of: "{FrameworkName}", with: frameworkName)
             .replacingOccurrences(of: "{Number}", with: "\(number)")
     }

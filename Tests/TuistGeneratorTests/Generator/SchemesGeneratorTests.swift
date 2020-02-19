@@ -460,6 +460,31 @@ final class SchemesGeneratorTests: XCTestCase {
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
+        let launchAction = RunAction.test(configurationName: "Debug", filePath: "/usr/bin/foo")
+
+        let scheme = Scheme.test(name: "Library", buildAction: buildAction, runAction: launchAction)
+        let project = Project.test(path: projectPath, targets: [target])
+        let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
+
+        // When
+        let got = try subject.schemeLaunchAction(scheme: scheme,
+                                                 graph: graph,
+                                                 rootPath: projectPath,
+                                                 generatedProjects: createGeneratedProjects(projects: [project]))
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertNil(result.runnable?.buildableReference)
+        XCTAssertEqual(result.buildConfiguration, "Debug")
+        XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
+    }
+
+    func test_schemeLaunchAction_with_path() throws {
+        let projectPath = AbsolutePath("/somepath/Project")
+
+        let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
+
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
         let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))])
 
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
