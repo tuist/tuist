@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Update XcodeProj to 7.8.0 https://github.com/tuist/tuist/pull/create?base=tuist%3Amaster&head=tuist%3Atarget-attributes by @pepibumur.
 - Path sorting speed gains https://github.com/tuist/tuist/pull/980 by @adamkhazi
 - Added support for HTTP_PROXY settings from shell environment. https://github.com/tuist/tuist/pull/1015 by @aegzorz
+- Added "Base" to known regions. https://github.com/tuist/tuist/pull/1021 by @aegzorz
 
 ## 1.2.0
 
