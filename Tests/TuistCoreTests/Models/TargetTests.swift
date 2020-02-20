@@ -6,7 +6,7 @@ import XCTest
 
 final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel"])
+        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"])
     }
 
     func test_productName_when_staticLibrary() {
@@ -56,6 +56,7 @@ final class TargetTests: TuistUnitTestCase {
             "sources/d.c",
             "sources/e.cpp",
             "sources/k.kt",
+            "sources/n.metal",
         ])
 
         // When
@@ -73,6 +74,7 @@ final class TargetTests: TuistUnitTestCase {
             "sources/c.mm",
             "sources/d.c",
             "sources/e.cpp",
+            "sources/n.metal",
         ]))
     }
 

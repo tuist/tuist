@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add FAQ section by @mollyIV
 - Add benchmarking helper tool https://github.com/tuist/tuist/pull/957 by @kwridan.
+- Add metal as a valid source extension https://github.com/tuist/tuist/pull/1023 by @natanrolnik 
 
 ### Fixed
 
