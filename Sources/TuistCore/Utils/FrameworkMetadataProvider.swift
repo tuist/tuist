@@ -49,6 +49,7 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         return uuids
             .map { frameworkPath.parentDirectory.appending(component: "\($0).bcsymbolmap") }
             .filter { FileHandler.shared.exists($0) }
+            .sorted()
     }
 
     public func bcsymbolmapPaths(framework: FrameworkNode) throws -> [AbsolutePath] {
