@@ -332,4 +332,22 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
             "fr",
         ])
     }
+
+    func test_generate_setsDefaultKnownRegions() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(entryPath: path)
+        let project = Project.test(path: path,
+                                   targets: [])
+
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.pbxproj.rootProject())
+        XCTAssertEqual(pbxProject.knownRegions, [
+            "Base",
+            "en",
+        ])
+    }
 }
