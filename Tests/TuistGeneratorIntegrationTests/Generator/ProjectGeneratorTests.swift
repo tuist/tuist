@@ -332,7 +332,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
             "fr",
         ])
     }
-    
+
     func test_generate_setsDefaultKnownRegions() throws {
         // Given
         let path = try temporaryPath()
