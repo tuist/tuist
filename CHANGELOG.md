@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix static products false positive lint warning by https://github.com/tuist/tuist/pull/981 @kwridan.
 - TargetAction path without ./ prefix https://github.com/tuist/tuist/pull/997 by @fortmarek
 - Preserve xcuserdata when re-generating projects https://github.com/tuist/tuist/pull/1006 by @kwridan
+- Stable sort order for bcsymbolmap paths by @paulsamuels
 
 ### Changed
 
