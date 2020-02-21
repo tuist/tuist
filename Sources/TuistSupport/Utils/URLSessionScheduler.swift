@@ -46,17 +46,14 @@ public final class URLSessionScheduler: URLSessionScheduling {
     /// Session.
     private let session: URLSession
 
-    /// Request timeout.
-    private let requestTimeout: Double
-
     /// Initializes the client with the session.
     ///
     /// - Parameter session: url session.
     /// - Parameter requestTimeout: request timeout.
-    public init(session: URLSession = URLSession.shared,
-                requestTimeout: Double = URLSessionScheduler.defaultRequestTimeout) {
-        self.session = session
-        self.requestTimeout = requestTimeout
+    public init(requestTimeout: Double = URLSessionScheduler.defaultRequestTimeout) {
+        let configuration = URLSessionConfiguration()
+        configuration.timeoutIntervalForRequest = requestTimeout
+        session = URLSession(configuration: configuration)
     }
 
     public func schedule(request: URLRequest) -> (error: Error?, data: Data?) {
@@ -68,7 +65,7 @@ public final class URLSessionScheduler: URLSessionScheduling {
             error = sessionError
             semaphore.signal()
         }.resume()
-        _ = semaphore.wait(timeout: .now() + 3)
+        _ = semaphore.wait()
         return (error: error, data: data)
     }
 
