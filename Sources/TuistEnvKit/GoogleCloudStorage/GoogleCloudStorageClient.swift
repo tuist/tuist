@@ -62,7 +62,7 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
         let buildURL = GoogleCloudStorageClient.url(buildsPath: "\(version)/tuist.zip")
         var buildRequest = URLRequest(url: buildURL)
         buildRequest.httpMethod = "HEAD"
-        let buildSingle = urlSessionScheduler.single(request: releaseRequest)
+        let buildSingle = urlSessionScheduler.single(request: buildRequest)
 
         return releaseSingle
             /// Try to get the release from the releases bucket

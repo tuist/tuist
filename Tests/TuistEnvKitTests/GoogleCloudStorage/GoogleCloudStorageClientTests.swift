@@ -93,4 +93,71 @@ final class GoogleCloudStorageClientTests: TuistUnitTestCase {
         XCTAssertNotNil(got)
         XCTAssertEqual(got, version)
     }
+
+    func test_tuistBundleURL_when_a_release_exist() throws {
+        // Given
+        let version = "3.2.1"
+        let releaseURL = GoogleCloudStorageClient.url(releasesPath: "\(version)/tuist.zip")
+        var releaseRequest = URLRequest(url: releaseURL)
+        releaseRequest.httpMethod = "HEAD"
+        scheduler.stub(request: releaseRequest, data: Data())
+
+        // When
+        let got = try subject.tuistBundleURL(version: version).toBlocking().first()
+
+        // Then
+        XCTAssertEqual(got, releaseURL)
+    }
+
+    func test_tuistBundleURL_when_a_release_doesnt_exist_but_build_exists() throws {
+        // Given
+        let version = "3.2.1"
+
+        let releaseURL = GoogleCloudStorageClient.url(releasesPath: "\(version)/tuist.zip")
+        var releaseRequest = URLRequest(url: releaseURL)
+        releaseRequest.httpMethod = "HEAD"
+
+        let buildURL = GoogleCloudStorageClient.url(buildsPath: "\(version)/tuist.zip")
+        var buildRequest = URLRequest(url: buildURL)
+        buildRequest.httpMethod = "HEAD"
+
+        scheduler.stub(request: releaseRequest, error: URLError(.fileDoesNotExist))
+        scheduler.stub(request: buildRequest, data: Data())
+
+        // When
+        let got = try subject.tuistBundleURL(version: version).toBlocking().first()
+
+        // Then
+        XCTAssertEqual(got, buildURL)
+    }
+
+    func test_tuistBundleURL_when_neither_the_release_nor_the_build_exist() throws {
+        // Given
+        let version = "3.2.1"
+
+        let releaseURL = GoogleCloudStorageClient.url(releasesPath: "\(version)/tuist.zip")
+        var releaseRequest = URLRequest(url: releaseURL)
+        releaseRequest.httpMethod = "HEAD"
+
+        let buildURL = GoogleCloudStorageClient.url(buildsPath: "\(version)/tuist.zip")
+        var buildRequest = URLRequest(url: buildURL)
+        buildRequest.httpMethod = "HEAD"
+
+        scheduler.stub(request: releaseRequest, error: URLError(.fileDoesNotExist))
+        scheduler.stub(request: buildRequest, error: URLError(.fileDoesNotExist))
+
+        // When
+        let got = try subject.tuistBundleURL(version: version).toBlocking().first()
+
+        // Then
+        XCTAssertNil(got ?? nil)
+    }
+
+    func test_latestTuistEnvBundleURL_returns_the_right_value() {
+        // When
+        let got = subject.latestTuistEnvBundleURL()
+
+        // Then
+        XCTAssertEqual(got, GoogleCloudStorageClient.url(releasesPath: "latest/tuistenv.zip"))
+    }
 }
