@@ -1,4 +1,5 @@
 import Foundation
+import TuistSupportTesting
 import XCTest
 @testable import TuistEnvKit
 
