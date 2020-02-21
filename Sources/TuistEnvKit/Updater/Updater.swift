@@ -9,7 +9,6 @@ protocol Updating: AnyObject {
 final class Updater: Updating {
     // MARK: - Attributes
 
-    let githubClient: GitHubClienting
     let versionsController: VersionsControlling
     let googleCloudStorageClient: GoogleCloudStorageClienting
     let installer: Installing
@@ -17,12 +16,10 @@ final class Updater: Updating {
 
     // MARK: - Init
 
-    init(githubClient: GitHubClienting = GitHubClient(),
-         versionsController: VersionsControlling = VersionsController(),
+    init(versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
          envUpdater: EnvUpdating = EnvUpdater(),
          googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
-        self.githubClient = githubClient
         self.versionsController = versionsController
         self.installer = installer
         self.envUpdater = envUpdater

@@ -6,7 +6,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class UpdaterTests: TuistUnitTestCase {
-    var githubClient: MockGitHubClient!
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
     var envUpdater: MockEnvUpdater!
@@ -16,13 +15,11 @@ final class UpdaterTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        githubClient = MockGitHubClient()
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         envUpdater = MockEnvUpdater()
         googleCloudStorageClient = MockGoogleCloudStorageClient()
-        subject = Updater(githubClient: githubClient,
-                          versionsController: versionsController,
+        subject = Updater(versionsController: versionsController,
                           installer: installer,
                           envUpdater: envUpdater,
                           googleCloudStorageClient: googleCloudStorageClient)
@@ -31,7 +28,6 @@ final class UpdaterTests: TuistUnitTestCase {
     override func tearDown() {
         super.tearDown()
 
-        githubClient = nil
         versionsController = nil
         installer = nil
         envUpdater = nil
