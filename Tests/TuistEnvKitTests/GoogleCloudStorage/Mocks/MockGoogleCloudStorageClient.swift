@@ -15,11 +15,11 @@ final class MockGoogleCloudStorageClient: GoogleCloudStorageClienting {
         }
     }
 
-    var latestTuistEnvURLStub: Foundation.URL?
-    func latestTuistEnvURL() -> Foundation.URL {
+    var latestTuistEnvBundleURLStub: Foundation.URL?
+    func latestTuistEnvBundleURL() -> Foundation.URL {
         var components = URLComponents(url: URL.test(), resolvingAgainstBaseURL: true)!
         components.path = "tuistenv.zip"
-        return latestTuistEnvURLStub ?? components.url!
+        return latestTuistEnvBundleURLStub ?? components.url!
     }
 
     var latestTuistURLStub: Foundation.URL?
@@ -27,5 +27,10 @@ final class MockGoogleCloudStorageClient: GoogleCloudStorageClienting {
         var components = URLComponents(url: URL.test(), resolvingAgainstBaseURL: true)!
         components.path = "tuist.zip"
         return latestTuistURLStub ?? components.url!
+    }
+
+    var tuistBundleURLStub: ((String) -> Foundation.URL?)?
+    func tuistBundleURL(version: String) -> Observable<Foundation.URL?> {
+        Observable.just(tuistBundleURLStub?(version) ?? nil)
     }
 }

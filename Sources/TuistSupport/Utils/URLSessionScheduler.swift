@@ -51,7 +51,7 @@ public final class URLSessionScheduler: URLSessionScheduling {
     /// - Parameter session: url session.
     /// - Parameter requestTimeout: request timeout.
     public init(requestTimeout: Double = URLSessionScheduler.defaultRequestTimeout) {
-        let configuration = URLSessionConfiguration()
+        var configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = requestTimeout
         session = URLSession(configuration: configuration)
     }

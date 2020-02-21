@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import RxBlocking
 import TuistSupport
 
 /// Protocol that defines the interface of an instance that can install versions of Tuist.
@@ -55,16 +56,16 @@ final class Installer: Installing {
 
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
-    let githubClient: GitHubClienting
+    let googleCloudStorageClient: GoogleCloudStorageClienting
 
     // MARK: - Init
 
     init(buildCopier: BuildCopying = BuildCopier(),
          versionsController: VersionsControlling = VersionsController(),
-         githubClient: GitHubClienting = GitHubClient()) {
+         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
         self.buildCopier = buildCopier
         self.versionsController = versionsController
-        self.githubClient = githubClient
+        self.googleCloudStorageClient = googleCloudStorageClient
     }
 
     // MARK: - Installing
@@ -83,10 +84,7 @@ final class Installer: Installing {
             return
         }
 
-        var bundleURL: URL?
-        do {
-            bundleURL = try self.bundleURL(version: version)
-        } catch {}
+        let bundleURL: URL? = try googleCloudStorageClient.tuistBundleURL(version: version).toBlocking().first() ?? nil
 
         if let bundleURL = bundleURL {
             try installFromBundle(bundleURL: bundleURL,
@@ -98,25 +96,13 @@ final class Installer: Installing {
         }
     }
 
-    func bundleURL(version: String) throws -> URL? {
-        guard let release = try? githubClient.release(tag: version) else {
-            Printer.shared.print(warning: "The release \(version) couldn't be obtained from GitHub")
-            return nil
-        }
-        guard let bundleAsset = release.assets.first(where: { $0.name == Constants.bundleName }) else {
-            Printer.shared.print(warning: "The release \(version) is not bundled")
-            return nil
-        }
-        return bundleAsset.downloadURL
-    }
-
     func installFromBundle(bundleURL: URL,
                            version: String,
                            temporaryDirectory: TemporaryDirectory) throws {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
-            Printer.shared.print("Downloading version from \(bundleURL.absoluteString)")
+            Printer.shared.print("Downloading version \(version)")
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
             try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 

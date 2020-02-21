@@ -30,7 +30,7 @@ final class EnvUpdater: EnvUpdating {
         try FileHandler.shared.inTemporaryDirectory { directory in
             // Download
             let downloadPath = directory.appending(component: "tuistenv.zip")
-            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, googleCloudStorageClient.latestTuistEnvURL().absoluteString)
+            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, googleCloudStorageClient.latestTuistEnvBundleURL().absoluteString)
             try System.shared.run("/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/")
             let binaryPath = "/tmp/tuistenv"
             try System.shared.run(["/bin/chmod", "+x", binaryPath])

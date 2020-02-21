@@ -8,10 +8,12 @@ protocol GoogleCloudStorageClienting {
     func latestVersion() -> Single<SPMUtility.Version>
 
     /// Returns the URL to return the latest tuistenv.zip
-    func latestTuistEnvURL() -> Foundation.URL
+    func latestTuistEnvBundleURL() -> Foundation.URL
 
-    /// Returns the URL to return the latest tuist.zip
-    func latestTuistURL() -> Foundation.URL
+    /// Returns an observable that returns the URL to download the given version.
+    /// If the version does not exist, it returns nil.
+    /// - Parameter version: Version whose URL will be returned.
+    func tuistBundleURL(version: String) -> Observable<Foundation.URL?>
 }
 
 enum GoogleCloudStorageClientError: FatalError, Equatable {
@@ -47,12 +49,28 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
         self.urlSessionScheduler = urlSessionScheduler
     }
 
-    func latestTuistEnvURL() -> Foundation.URL {
+    func latestTuistEnvBundleURL() -> Foundation.URL {
         GoogleCloudStorageClient.url(releasesPath: "latest/tuistenv.zip")
     }
 
-    func latestTuistURL() -> Foundation.URL {
-        GoogleCloudStorageClient.url(releasesPath: "latest/tuist.zip")
+    func tuistBundleURL(version: String) -> Observable<Foundation.URL?> {
+        let releaseURL = GoogleCloudStorageClient.url(releasesPath: "\(version)/tuist.zip")
+        var releaseRequest = URLRequest(url: releaseURL)
+        releaseRequest.httpMethod = "HEAD"
+        let releaseSingle = urlSessionScheduler.single(request: releaseRequest)
+
+        let buildURL = GoogleCloudStorageClient.url(buildsPath: "\(version)/tuist.zip")
+        var buildRequest = URLRequest(url: buildURL)
+        buildRequest.httpMethod = "HEAD"
+        let buildSingle = urlSessionScheduler.single(request: releaseRequest)
+
+        return releaseSingle
+            /// Try to get the release from the releases bucket
+            .map { _ in releaseURL }
+            /// Otherwise we try to get it from the builds bucket (where builds from commits live)
+            .catchError { _ in buildSingle.map { _ in buildURL } }
+            .catchErrorJustReturn(nil)
+            .asObservable()
     }
 
     func latestVersion() -> Single<SPMUtility.Version> {
@@ -77,9 +95,15 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
         return request
     }
 
-    static func url(releasesPath: String) -> Foundation.URL {
+    static func url(buildsPath path: String) -> Foundation.URL {
         var components = URLComponents(string: "https://storage.googleapis.com")!
-        components.path = "/tuist-releases/\(releasesPath)"
+        components.path = "/tuist-builds/\(path)"
+        return components.url!
+    }
+
+    static func url(releasesPath path: String) -> Foundation.URL {
+        var components = URLComponents(string: "https://storage.googleapis.com")!
+        components.path = "/tuist-releases/\(path)"
         return components.url!
     }
 }

@@ -27,7 +27,7 @@ final class EnvUpdaterTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         fileHandler.stubInTemporaryDirectory = temporaryPath
         let downloadURL = URL(string: "https://file.download.com/tuistenv.zip")!
-        googleCloudStorageClient.latestTuistEnvURLStub = downloadURL
+        googleCloudStorageClient.latestTuistEnvBundleURLStub = downloadURL
         let downloadPath = temporaryPath.appending(component: "tuistenv.zip")
         system.succeedCommand(["/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, downloadURL.absoluteString])
         system.succeedCommand(["/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/"])
