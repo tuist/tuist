@@ -117,7 +117,7 @@ final class GoogleCloudStorageClientTests: TuistUnitTestCase {
         var releaseRequest = URLRequest(url: releaseURL)
         releaseRequest.httpMethod = "HEAD"
 
-        let buildURL = GoogleCloudStorageClient.url(buildsPath: "\(version)/tuist.zip")
+        let buildURL = GoogleCloudStorageClient.url(buildsPath: "tuist-\(version).zip")
         var buildRequest = URLRequest(url: buildURL)
         buildRequest.httpMethod = "HEAD"
 

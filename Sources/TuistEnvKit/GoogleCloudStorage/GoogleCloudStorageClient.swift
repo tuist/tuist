@@ -59,7 +59,7 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
         releaseRequest.httpMethod = "HEAD"
         let releaseSingle = urlSessionScheduler.single(request: releaseRequest)
 
-        let buildURL = GoogleCloudStorageClient.url(buildsPath: "\(version)/tuist.zip")
+        let buildURL = GoogleCloudStorageClient.url(buildsPath: "tuist-\(version).zip")
         var buildRequest = URLRequest(url: buildURL)
         buildRequest.httpMethod = "HEAD"
         let buildSingle = urlSessionScheduler.single(request: buildRequest)

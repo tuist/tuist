@@ -2,22 +2,18 @@ import Foundation
 import RxSwift
 
 public enum URLSessionSchedulerError: FatalError {
-    case noData(URLRequest)
+    case httpError(status: HTTPStatusCode, response: URLResponse, request: URLRequest)
 
     public var type: ErrorType {
         switch self {
-        case .noData: return .abort
+        case .httpError: return .abort
         }
     }
 
     public var description: String {
         switch self {
-        case let .noData(request):
-            if let url = request.url?.absoluteString {
-                return "An HTTP request to \(url) returned no data"
-            } else {
-                return "An HTTP request unexpectedly returned no data"
-            }
+        case let .httpError(status, response, request):
+            return "We got an error \(status) from the request \(response.url!) \(request.httpMethod!)"
         }
     }
 }
@@ -51,7 +47,7 @@ public final class URLSessionScheduler: URLSessionScheduling {
     /// - Parameter session: url session.
     /// - Parameter requestTimeout: request timeout.
     public init(requestTimeout: Double = URLSessionScheduler.defaultRequestTimeout) {
-        var configuration = URLSessionConfiguration.default
+        let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = requestTimeout
         session = URLSession(configuration: configuration)
     }
@@ -71,13 +67,19 @@ public final class URLSessionScheduler: URLSessionScheduling {
 
     public func single(request: URLRequest) -> Single<Data> {
         Single.create { (subscriber) -> Disposable in
-            let task = self.session.dataTask(with: request) { data, _, error in
-                if let data = data {
-                    subscriber(.success(data))
-                } else if let error = error {
+            let task = self.session.dataTask(with: request) { data, response, error in
+                let statusCode = (response as? HTTPURLResponse)?.statusCodeValue
+
+                if let error = error {
                     subscriber(.error(error))
-                } else {
-                    subscriber(.error(URLSessionSchedulerError.noData(request)))
+                } else if let statusCode = statusCode {
+                    if !statusCode.isClientError, !statusCode.isServerError {
+                        subscriber(.success(data ?? Data()))
+                    } else {
+                        subscriber(.error(URLSessionSchedulerError.httpError(status: statusCode,
+                                                                             response: response!,
+                                                                             request: request)))
+                    }
                 }
             }
             task.resume()
