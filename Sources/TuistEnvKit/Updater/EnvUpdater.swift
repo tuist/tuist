@@ -12,33 +12,25 @@ protocol EnvUpdating {
 }
 
 final class EnvUpdater: EnvUpdating {
-    /// GitHub API client.
-    let githubClient: GitHubClienting
+    /// Google Cloud Storage instance.
+    let googleCloudStorageClient: GoogleCloudStorageClienting
 
     /// Initializes the env update with its attributes.
     ///
     /// - Parameters:
-    ///   - system: System instance to run commands.
-    ///   - githubClient: GitHub API client.
-    init(githubClient: GitHubClienting = GitHubClient()) {
-        self.githubClient = githubClient
+    ///   - googleCloudStorageClient: Google Cloud Storage instance.
+    init(googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
+        self.googleCloudStorageClient = googleCloudStorageClient
     }
 
     /// Updates the local tuistenv installation.
     ///
     /// - Throws: An error if the installation fails.
     func update() throws {
-        guard let releases: [Release] = try? githubClient.releases(),
-            let release = releases.sorted(by: { $0.version > $1.version }).first,
-            let asset = release.assets.first(where: { $0.name.contains("tuistenv") }) else {
-            return
-        }
-
         try FileHandler.shared.inTemporaryDirectory { directory in
             // Download
-            let fileName = asset.downloadURL.lastPathComponent
-            let downloadPath = directory.appending(component: fileName)
-            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, asset.downloadURL.absoluteString)
+            let downloadPath = directory.appending(component: "tuistenv.zip")
+            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, googleCloudStorageClient.latestTuistEnvURL().absoluteString)
             try System.shared.run("/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/")
             let binaryPath = "/tmp/tuistenv"
             try System.shared.run(["/bin/chmod", "+x", binaryPath])

@@ -32,8 +32,6 @@ final class Updater: Updating {
     // MARK: - Internal
 
     func update(force: Bool) throws {
-        let releases = try githubClient.releases()
-
         defer {
             try? self.envUpdater.update()
         }

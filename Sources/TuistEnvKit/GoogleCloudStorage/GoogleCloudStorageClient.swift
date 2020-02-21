@@ -6,6 +6,12 @@ import TuistSupport
 protocol GoogleCloudStorageClienting {
     /// Returns a single that returns the latest version of Tuist that is available.
     func latestVersion() -> Single<SPMUtility.Version>
+
+    /// Returns the URL to return the latest tuistenv.zip
+    func latestTuistEnvURL() -> Foundation.URL
+
+    /// Returns the URL to return the latest tuist.zip
+    func latestTuistURL() -> Foundation.URL
 }
 
 enum GoogleCloudStorageClientError: FatalError, Equatable {
@@ -41,6 +47,14 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
         self.urlSessionScheduler = urlSessionScheduler
     }
 
+    func latestTuistEnvURL() -> Foundation.URL {
+        GoogleCloudStorageClient.url(releasesPath: "latest/tuistenv.zip")
+    }
+
+    func latestTuistURL() -> Foundation.URL {
+        GoogleCloudStorageClient.url(releasesPath: "latest/tuist.zip")
+    }
+
     func latestVersion() -> Single<SPMUtility.Version> {
         let request = GoogleCloudStorageClient.releasesRequest(path: "latest/version")
         return urlSessionScheduler.single(request: request)
@@ -58,10 +72,14 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
     }
 
     static func releasesRequest(path: String) -> URLRequest {
-        var components = URLComponents(string: "https://storage.googleapis.com")!
-        components.path = "/tuist-releases/\(path)"
-        var request = URLRequest(url: components.url!)
+        var request = URLRequest(url: url(releasesPath: path))
         request.httpMethod = "GET"
         return request
+    }
+
+    static func url(releasesPath: String) -> Foundation.URL {
+        var components = URLComponents(string: "https://storage.googleapis.com")!
+        components.path = "/tuist-releases/\(releasesPath)"
+        return components.url!
     }
 }

@@ -14,4 +14,18 @@ final class MockGoogleCloudStorageClient: GoogleCloudStorageClienting {
             return Single.error(TestError("Call to latestVersion not stubbed"))
         }
     }
+
+    var latestTuistEnvURLStub: Foundation.URL?
+    func latestTuistEnvURL() -> Foundation.URL {
+        var components = URLComponents(url: URL.test(), resolvingAgainstBaseURL: true)!
+        components.path = "tuistenv.zip"
+        return latestTuistEnvURLStub ?? components.url!
+    }
+
+    var latestTuistURLStub: Foundation.URL?
+    func latestTuistURL() -> Foundation.URL {
+        var components = URLComponents(url: URL.test(), resolvingAgainstBaseURL: true)!
+        components.path = "tuist.zip"
+        return latestTuistURLStub ?? components.url!
+    }
 }
