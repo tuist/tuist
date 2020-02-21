@@ -53,16 +53,17 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append("clean")
         }
 
+        let colored = Environment.shared.shouldOutputBeColoured
         return System.shared.observable(command, verbose: true)
             .compactMap { event -> SystemEvent<String>? in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return nil }
-                    guard let formatedOutput = self.parser.parse(line: line, colored: Environment.shared.shouldOutputBeColoured) else { return nil }
+                    guard let formatedOutput = self.parser.parse(line: line, colored: colored) else { return nil }
                     return .standardError(formatedOutput)
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return nil }
-                    guard let formatedOutput = self.parser.parse(line: line, colored: Environment.shared.shouldOutputBeColoured) else { return nil }
+                    guard let formatedOutput = self.parser.parse(line: line, colored: colored) else { return nil }
                     return .standardOutput(formatedOutput)
                 }
             }
