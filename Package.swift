@@ -11,6 +11,9 @@ let package = Package(
         .library(name: "ProjectDescription",
                  type: .dynamic,
                  targets: ["ProjectDescription"]),
+        .library(name: "TemplateDescription",
+                 type: .dynamic,
+                 targets: ["TemplateDescription"]),
 
         /// TuistGenerator
         ///
@@ -128,10 +131,17 @@ let package = Package(
         ),
         .target(
             name: "TuistTemplate",
-            dependencies: ["SPMUtility", "TuistCore", "TuistSupport", "TuistLoader"]),
+            dependencies: ["SPMUtility", "TuistCore", "TuistSupport", "TuistLoader", "TemplateDescription"]),
         .testTarget(
             name: "TuistTemplateTests",
             dependencies: ["TuistTemplate", "TuistSupportTesting"]),
+        .target(
+            name: "TemplateDescription",
+            dependencies: []),
+        .testTarget(
+            name: "TemplateDescriptionTests",
+            dependencies: ["TemplateDescription", "TuistSupportTesting"]
+        ),
         .target(
             name: "TuistAutomation",
             dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]

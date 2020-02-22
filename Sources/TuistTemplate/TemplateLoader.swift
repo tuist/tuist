@@ -2,32 +2,33 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistSupport
+import TemplateDescription
 import TuistLoader
-import ProjectDescription
 
 public protocol TemplateLoading {
     func templateDirectories() throws -> [AbsolutePath]
-    func load(at path: AbsolutePath) throws -> TuistLoader.Template
+    func load(at path: AbsolutePath) throws -> TuistTemplate.Template
     func generate(at path: AbsolutePath,
                   to path: AbsolutePath,
                   attributes: [String]) throws
 }
 
 public class TemplateLoader: TemplateLoading {
-    /// Manifest loader instance to load the setup.
-    private let manifestLoader: ManifestLoading
-    
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
+    private let resourceLocator: ResourceLocating
+    private let decoder: JSONDecoder
 
     /// Default constructor.
     public convenience init() {
-        self.init(manifestLoader: ManifestLoader(),
-                  templatesDirectoryLocator: TemplatesDirectoryLocator())
+        self.init(templatesDirectoryLocator: TemplatesDirectoryLocator(),
+                  resourceLocator: ResourceLocator())
     }
     
-    init(manifestLoader: ManifestLoading, templatesDirectoryLocator: TemplatesDirectoryLocating) {
-        self.manifestLoader = manifestLoader
+    init(templatesDirectoryLocator: TemplatesDirectoryLocating,
+         resourceLocator: ResourceLocating) {
         self.templatesDirectoryLocator = templatesDirectoryLocator
+        self.resourceLocator = resourceLocator
+        decoder = JSONDecoder()
     }
     
     public func templateDirectories() throws -> [AbsolutePath] {
@@ -38,9 +39,15 @@ public class TemplateLoader: TemplateLoading {
         return templates + customTemplates
     }
     
-    public func load(at path: AbsolutePath) throws -> TuistLoader.Template {
-        let manifest = try manifestLoader.loadTemplate(at: path)
-        return try TuistLoader.Template.from(manifest: manifest, at: path)
+    public func load(at path: AbsolutePath) throws -> TuistTemplate.Template {
+        let manifestPath = path.appending(component: "Template.swift")
+        guard FileHandler.shared.exists(manifestPath) else {
+            fatalError()
+        }
+        let data = try loadManifestData(at: manifestPath)
+        let manifest = try decoder.decode(TemplateDescription.Template.self, from: data)
+        return try TuistTemplate.Template.from(manifest: manifest,
+                                               at: path)
     }
     
     typealias ParsedAttribute = (name: String, value: String)
@@ -62,6 +69,8 @@ public class TemplateLoader: TemplateLoading {
             }
         }
         
+        let templateDescriptionPath = try resourceLocator.templateDescription()
+        
         try template.directories.map(destinationPath.appending).forEach(FileHandler.shared.createFolder)
         try template.files.forEach {
             let destinationPath = destinationPath.appending($0.path)
@@ -76,6 +85,10 @@ public class TemplateLoader: TemplateLoading {
                     "swiftc",
                     "--driver-mode=swift",
                     "-suppress-warnings",
+                    "-I", templateDescriptionPath.parentDirectory.pathString,
+                    "-L", templateDescriptionPath.parentDirectory.pathString,
+                    "-F", templateDescriptionPath.parentDirectory.pathString,
+                    "-lTemplateDescription",
                 ]
                 arguments.append(generatePath.pathString)
 
@@ -88,6 +101,31 @@ public class TemplateLoader: TemplateLoading {
     }
     
     // MARK: - Helpers
+    
+    private func loadManifestData(at path: AbsolutePath) throws -> Data {
+        let templateDescriptionPath = try resourceLocator.templateDescription()
+
+        var arguments: [String] = [
+            "/usr/bin/xcrun",
+            "swiftc",
+            "--driver-mode=swift",
+            "-suppress-warnings",
+            "-I", templateDescriptionPath.parentDirectory.pathString,
+            "-L", templateDescriptionPath.parentDirectory.pathString,
+            "-F", templateDescriptionPath.parentDirectory.pathString,
+            "-lTemplateDescription",
+        ]
+
+        arguments.append(path.pathString)
+        arguments.append("--tuist-dump")
+
+        let result = try System.shared.capture(arguments).spm_chuzzle()
+        guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
+            throw ManifestLoaderError.unexpectedOutput(path)
+        }
+
+        return data
+    }
 
     private func generateFile(contents: String, destinationPath: AbsolutePath, attributes: [ParsedAttribute]) throws {
         let contentsWithFilledAttributes = attributes.reduce(contents) {
@@ -110,22 +148,22 @@ public class TemplateLoader: TemplateLoading {
     }
 }
 
-extension TuistLoader.Template {
-    static func from(manifest: ProjectDescription.Template, at path: AbsolutePath) throws -> TuistLoader.Template {
-        let attributes = try manifest.attributes.map(TuistLoader.Template.Attribute.from)
+extension TuistTemplate.Template {
+    static func from(manifest: TemplateDescription.Template, at path: AbsolutePath) throws -> TuistTemplate.Template {
+        let attributes = try manifest.attributes.map(TuistTemplate.Template.Attribute.from)
         let files = try manifest.files.map { (path: RelativePath($0.path),
-                                              contents: try TuistLoader.Template.Contents.from(manifest: $0.contents,
+                                              contents: try TuistTemplate.Template.Contents.from(manifest: $0.contents,
                                                                                                at: path)) }
         let directories = manifest.directories.map { RelativePath($0) }
-        return TuistLoader.Template(description: manifest.description,
+        return TuistTemplate.Template(description: manifest.description,
                                     attributes: attributes,
                                     files: files,
                                     directories: directories)
     }
 }
 
-extension TuistLoader.Template.Attribute {
-    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistLoader.Template.Attribute {
+extension TuistTemplate.Template.Attribute {
+    static func from(manifest: TemplateDescription.Template.Attribute) throws -> TuistTemplate.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)
@@ -135,9 +173,9 @@ extension TuistLoader.Template.Attribute {
     }
 }
 
-extension TuistLoader.Template.Contents {
-    static func from(manifest: ProjectDescription.Template.Contents,
-                     at path: AbsolutePath) throws -> TuistLoader.Template.Contents {
+extension TuistTemplate.Template.Contents {
+    static func from(manifest: TemplateDescription.Template.Contents,
+                     at path: AbsolutePath) throws -> TuistTemplate.Template.Contents {
         switch manifest {
         case let .static(contents):
             return .static(contents)

@@ -4,6 +4,7 @@ import TuistSupport
 
 public protocol ResourceLocating: AnyObject {
     func projectDescription() throws -> AbsolutePath
+    func templateDescription() throws -> AbsolutePath
     func cliPath() throws -> AbsolutePath
 }
 
@@ -39,6 +40,10 @@ public final class ResourceLocator: ResourceLocating {
 
     public func projectDescription() throws -> AbsolutePath {
         try frameworkPath("ProjectDescription")
+    }
+    
+    public func templateDescription() throws -> AbsolutePath {
+        try frameworkPath("TemplateDescription")
     }
 
     public func cliPath() throws -> AbsolutePath {

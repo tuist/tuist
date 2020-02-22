@@ -12,11 +12,8 @@ class BuildCopier: BuildCopying {
     /// Files that should be copied (if they exist).
     static let files: [String] = [
         "tuist",
-        // Project description
-        "ProjectDescription.swiftmodule",
-        "ProjectDescription.swiftdoc",
-        "ProjectDescription.swiftinterface",
-        "libProjectDescription.dylib",
+        libraryFiles(for: "ProjectDescription"),
+        libraryFiles(for: "TemplateDescription"),
     ]
 
     func copy(from: AbsolutePath, to: AbsolutePath) throws {
@@ -29,5 +26,16 @@ class BuildCopier: BuildCopying {
                 try System.shared.run("/bin/chmod", "+x", toPath.pathString)
             }
         }
+    }
+    
+    // MARK: - Helpers
+    
+    private static func libraryFiles(for name: String) -> [String] {
+        [
+            "\(name).swiftmodule",
+            "\(name).swiftdoc",
+            "\(name).swiftinterface",
+            "lib\(name).dylib",
+        ]
     }
 }

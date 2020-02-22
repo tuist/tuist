@@ -164,6 +164,15 @@ final class Installer: Installing {
                                   "-Xswiftc", "-emit-module-interface",
                                   "-Xswiftc", "-emit-module-interface-path",
                                   "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString) // swiftlint:disable:this line_length
+            
+            try System.shared.run(swiftPath, "build",
+                                  "--product", "TemplateDescription",
+                                  "--package-path", temporaryDirectory.path.pathString,
+                                  "--configuration", "release",
+                                  "-Xswiftc", "-enable-library-evolution",
+                                  "-Xswiftc", "-emit-module-interface",
+                                  "-Xswiftc", "-emit-module-interface-path",
+                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/TemplatesDescription.swiftinterface")).pathString) // swiftlint:disable:this line_length
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)
