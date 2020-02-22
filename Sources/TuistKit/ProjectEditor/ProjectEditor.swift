@@ -76,7 +76,7 @@ final class ProjectEditor: ProjectEditing {
         var templates: [AbsolutePath] = []
         if let templatesDirectory = templatesDirectoryLocator.locateCustom(at: at) {
             // Add only Template manifests
-            templates = FileHandler.shared.glob(templatesDirectory, glob: "**/Template.swift")
+            templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift")
         }
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.

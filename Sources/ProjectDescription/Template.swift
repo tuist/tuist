@@ -14,7 +14,8 @@ public struct Template: Codable {
     public init(description: String,
                 arguments: [Attribute] = [],
                 files: [File] = [],
-                directories: [String] = []) {
+                directories: [String] = [],
+                script: String? = nil) {
         self.description = description
         self.attributes = arguments
         self.files = files
@@ -22,12 +23,49 @@ public struct Template: Codable {
         dumpIfNeeded(self)
     }
     
+    public enum Contents: Codable {
+        case `static`(String)
+        case generated(String)
+        
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case value
+        }
+        
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let value = try container.decode(String.self, forKey: .value)
+            let type = try container.decode(String.self, forKey: .type)
+            if type == "static" {
+                self = .static(value)
+            } else if type == "generated" {
+                self = .generated(value)
+            } else {
+                fatalError("Argument '\(type)' not supported")
+            }
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+
+            switch self {
+            case let .static(contents):
+                try container.encode("static", forKey: .type)
+                try container.encode(contents, forKey: .value)
+            case let .generated(path):
+                try container.encode("generated", forKey: .type)
+                try container.encode(path, forKey: .value)
+            }
+        }
+
+    }
+    
     /// File description for generating
     public struct File: Codable {
         public let path: String
-        public let contents: String
+        public let contents: Contents
         
-        public init(path: String, contents: String) {
+        public init(path: String, contents: Contents) {
             self.path = path
             self.contents = contents
         }
