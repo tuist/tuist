@@ -83,6 +83,7 @@ const styles = {
     fontFamily: 'body',
     lineHeight: 'body',
     fontWeight: 'body',
+    fontSize: [3, 2],
   },
   a: {
     color: 'secondary',
@@ -106,7 +107,8 @@ const styles = {
     borderRadius: 2,
   },
   code: {
-    fontSize: 0,
+    fontSize: [3, 2],
+    wordWrap: 'break-word',
   },
   blockquote: {
     bg: 'muted',

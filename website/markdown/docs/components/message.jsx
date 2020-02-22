@@ -22,7 +22,7 @@ const Message = ({ title, description, success, warning, info, error }) => {
     <quote sx={{ bg: 'gray6', display: 'flex', flexDirection: 'row', my: 2 }}>
       <div sx={{ width: '10px', bg: color }} />
       <div sx={{ flex: 1, p: 3 }}>
-        <div sx={{ fontWeight: 'heading', fontSize: 2 }}>
+        <div sx={{ fontWeight: 'heading', fontSize: 3 }}>
           {prefix != '' && (
             <span sx={{ mr: 1, color: color }}>{`${prefix} - `}</span>
           )}

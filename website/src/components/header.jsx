@@ -18,6 +18,7 @@ export default () => {
     borderBottomColor: theme => theme.colors.primary,
   }
   const linkStyle = {
+    fontSize: [3, 2],
     '&:hover': hoverStyle,
     '&:focus-visible': focusStyle,
   }

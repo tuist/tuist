@@ -1,9 +1,6 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
-
-import React from 'react'
-import { Label, Table } from 'semantic-ui-react'
-import StyledCode from './styled-code'
+import ReactMarkdown from 'react-markdown'
 
 const EnumTable = ({ cases }) => {
   const borderStyle = {
@@ -15,8 +12,8 @@ const EnumTable = ({ cases }) => {
     p: 2,
   }
   return (
-    <table sx={{ ...borderStyle }}>
-      <thead>
+    <table sx={{ ...borderStyle, tableLayout: 'fixed', my: 3 }}>
+      <thead sx={{ display: ['none', 'table-header-group'] }}>
         <tr sx={{ bg: 'gray6' }}>
           <th sx={{ ...cellStyle }}>Case</th>
           <th sx={{ ...cellStyle }}>Description</th>
@@ -29,8 +26,18 @@ const EnumTable = ({ cases }) => {
             <tr key={index}>
               <td sx={{ ...cellStyle }}>
                 <Styled.code>{prop.case}</Styled.code>
+                <p sx={{ display: ['block', 'none'] }}>
+                  <ReactMarkdown source={prop.description} />
+                </p>
               </td>
-              <td sx={{ ...cellStyle }}>{prop.description}</td>
+              <td
+                sx={{
+                  ...cellStyle,
+                  display: ['none', 'table-cell'],
+                }}
+              >
+                <ReactMarkdown source={prop.description} />
+              </td>
             </tr>
           )
         })}
