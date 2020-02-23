@@ -50,8 +50,6 @@ public class TemplateLoader: TemplateLoading {
                                                at: path)
     }
     
-    typealias ParsedAttribute = (name: String, value: String)
-    
     public func generate(at sourcePath: AbsolutePath,
                          to destinationPath: AbsolutePath,
                          attributes: [String]) throws {
@@ -62,14 +60,15 @@ public class TemplateLoader: TemplateLoading {
             switch $0 {
             case let .optional(name, default: defaultValue):
                 let value = parsedAttributes.first(where: { $0.name == name })?.value ?? defaultValue
-                return (name: name, value: value)
+                return ParsedAttribute(name: name, value: value)
             case let .required(name):
                 guard let value = parsedAttributes.first(where: { $0.name == name })?.value else { fatalError() }
-                return (name: name, value: value)
+                return ParsedAttribute(name: name, value: value)
             }
         }
         
         let templateDescriptionPath = try resourceLocator.templateDescription()
+        let jsonEncoder = JSONEncoder()
         
         try template.directories.map(destinationPath.appending).forEach(FileHandler.shared.createFolder)
         try template.files.forEach {
@@ -91,6 +90,10 @@ public class TemplateLoader: TemplateLoading {
                     "-lTemplateDescription",
                 ]
                 arguments.append(generatePath.pathString)
+                if let attributes = try String(data: jsonEncoder.encode(parsedAttributes), encoding: .utf8) {
+                    arguments.append("--attributes")
+                    arguments.append("\(attributes)")
+                }
 
                 guard let result = try System.shared.capture(arguments).spm_chuzzle() else { fatalError() }
                 try FileHandler.shared.write(result,
@@ -136,14 +139,14 @@ public class TemplateLoader: TemplateLoading {
                                      atomically: true)
     }
     
-    private func parseAttributes(_ attributes: [String]) -> [(name: String, value: String)] {
+    private func parseAttributes(_ attributes: [String]) -> [ParsedAttribute] {
         attributes.map {
             let splitAttributes = $0.components(separatedBy: "=")
             // TODO: Error with proper format
             guard splitAttributes.count == 2 else { fatalError() }
             let name = splitAttributes[0]
             let value = splitAttributes[1]
-            return (name: name, value: value)
+            return ParsedAttribute(name: name, value: value)
         }
     }
 }
