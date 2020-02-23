@@ -107,6 +107,31 @@ let workspace = Workspace(name: "\(nameArgument)", projects: [
 ])
 """
 
+func testsContent(_ name: String) -> String {
+    """
+    import Foundation
+    import XCTest
+    
+    @testable import \(name)
+
+    final class \(name)Tests: XCTestCase {
+    
+    }
+    """
+}
+
+let kitSourceContent = """
+import Foundation
+import \(nameArgument)Support
+
+public final class \(nameArgument)Kit {}
+"""
+let supportSourceContent = """
+import Foundation
+
+public final class \(nameArgument)Support {}
+"""
+
 let template = Template(
     description: "Custom \(nameArgument)",
     arguments: [
@@ -126,6 +151,18 @@ let template = Template(
                       contents: .static(kitFrameworkContent)),
         Template.File(path: supportFrameworkPath + "/Project.swift",
                       contents: .static(supportFrameworkContent)),
+        Template.File(path: appPath + "/Sources/AppDelegate.swift",
+                      contents: .generated("AppDelegate.swift")),
+        Template.File(path: appPath + "/Tests/\(nameArgument)Tests.swift",
+                      contents: .static(testsContent("\(nameArgument)"))),
+        Template.File(path: kitFrameworkPath + "/Sources/\(nameArgument)Kit.swift",
+                      contents: .static(kitSourceContent)),
+        Template.File(path: kitFrameworkPath + "/Tests/\(nameArgument)KitTests.swift",
+                      contents: .static(testsContent("\(nameArgument)Kit"))),
+        Template.File(path: supportFrameworkPath + "/Sources/\(nameArgument)Support.swift",
+                      contents: .static(supportSourceContent)),
+        Template.File(path: supportFrameworkPath + "/Tests/\(nameArgument)SupportTests.swift",
+                      contents: .static(testsContent("\(nameArgument)Support"))),
     ],
     directories: [
         "Tuist/ProjectDescriptionHelpers",

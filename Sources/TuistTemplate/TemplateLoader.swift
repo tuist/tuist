@@ -98,7 +98,7 @@ public class TemplateLoader: TemplateLoading {
                 arguments.append(generatePath.pathString)
                 if let attributes = try String(data: jsonEncoder.encode(parsedAttributes), encoding: .utf8) {
                     arguments.append("--attributes")
-                    arguments.append("\(attributes)")
+                    arguments.append(attributes)
                 }
 
                 guard let result = try System.shared.capture(arguments).spm_chuzzle() else { fatalError() }
