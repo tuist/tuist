@@ -140,14 +140,12 @@ public class TemplateLoader: TemplateLoading {
     }
     
     private func parseAttributes(_ attributes: [String]) -> [ParsedAttribute] {
-        attributes.map {
-            let splitAttributes = $0.components(separatedBy: "=")
-            // TODO: Error with proper format
-            guard splitAttributes.count == 2 else { fatalError() }
-            let name = splitAttributes[0]
-            let value = splitAttributes[1]
-            return ParsedAttribute(name: name, value: value)
-        }
+        let (options, values): ([String], [String]) = attributes
+            .reduce(([], [])) {
+                $1.starts(with: "--") ? ($0.0 + [String($1.dropFirst(2))], $0.1) : ($0.0, $0.1 + [$1])
+            }
+        
+        return zip(options, values).map(ParsedAttribute.init)
     }
 }
 

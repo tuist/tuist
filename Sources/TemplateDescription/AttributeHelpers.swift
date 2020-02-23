@@ -13,6 +13,10 @@ public func getAttribute(for name: String) throws -> String {
     return value
 }
 
+public func generate(_ content: String) {
+    print(content)
+}
+
 public struct ParsedAttribute: Codable {
     public init(name: String, value: String) {
         self.name = name

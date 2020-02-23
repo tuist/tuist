@@ -5,6 +5,8 @@ import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistSupport
+import TuistTemplate
+import struct TemplateDescription.ParsedAttribute
 
 private typealias Platform = TuistCore.Platform
 private typealias Product = TuistCore.Product
@@ -48,15 +50,19 @@ class InitCommand: NSObject, Command {
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
     let playgroundGenerator: PlaygroundGenerating
+    private let templateLoader: TemplateLoading
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
-        self.init(parser: parser, playgroundGenerator: PlaygroundGenerator())
+        self.init(parser: parser,
+                  playgroundGenerator: PlaygroundGenerator(),
+                  templateLoader: TemplateLoader())
     }
 
     init(parser: ArgumentParser,
-         playgroundGenerator: PlaygroundGenerating) {
+         playgroundGenerator: PlaygroundGenerating,
+         templateLoader: TemplateLoading) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
@@ -78,6 +84,7 @@ class InitCommand: NSObject, Command {
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
         self.playgroundGenerator = playgroundGenerator
+        self.templateLoader = templateLoader
     }
 
     func run(with arguments: ArgumentParser.Result) throws {

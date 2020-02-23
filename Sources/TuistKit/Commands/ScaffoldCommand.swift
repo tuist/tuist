@@ -2,6 +2,7 @@ import Foundation
 import TuistSupport
 import TuistLoader
 import TuistTemplate
+import struct TemplateDescription.ParsedAttribute
 import SPMUtility
 import Basic
 
@@ -40,7 +41,7 @@ class ScaffoldCommand: NSObject, Command {
         attributesArgument = subParser.add(option: "--attributes",
                                            shortName: "-a",
                                            kind: [String].self,
-                                           strategy: .upToNextOption,
+                                           strategy: .remaining,
                                            usage: "Attributes for a given template",
                                            completion: nil)
         self.templateLoader = templateLoader
