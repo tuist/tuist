@@ -101,15 +101,15 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func rxRun(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
-        rxRun(arguments, verbose: false)
+    public func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
+        observable(arguments, verbose: false)
     }
 
-    public func rxRun(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
-        rxRun(arguments, verbose: verbose, environment: [:])
+    public func observable(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
+        observable(arguments, verbose: verbose, environment: [:])
     }
 
-    public func rxRun(_ arguments: [String], verbose _: Bool, environment _: [String: String]) -> Observable<SystemEvent<Data>> {
+    public func observable(_ arguments: [String], verbose _: Bool, environment _: [String: String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
@@ -122,6 +122,9 @@ public final class MockSystem: Systeming {
                 }
                 observer.onError(TuistSupport.SystemError.terminated(code: 1, error: stub.stderror ?? ""))
                 return Disposables.create()
+            }
+            if let stdout = stub.stdout {
+                observer.onNext(.standardOutput(stdout.data(using: .utf8)!))
             }
             observer.onCompleted()
             return Disposables.create()

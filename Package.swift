@@ -32,6 +32,7 @@ let package = Package(
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
+        .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.7.3")),
     ],
     targets: [
         .target(
@@ -128,7 +129,7 @@ let package = Package(
         ),
         .target(
             name: "TuistAutomation",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport", "XcbeautifyLib"]
         ),
         .testTarget(
             name: "TuistAutomationTests",

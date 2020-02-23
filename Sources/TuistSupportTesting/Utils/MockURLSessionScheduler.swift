@@ -3,7 +3,7 @@ import RxSwift
 import TuistSupport
 @testable import TuistEnvKit
 
-public final class MockURLSessionScheduler: URLSessionScheduling {
+public final class MockURLSessionScheduler: TuistSupport.URLSessionScheduling {
     private var stubs: [URLRequest: (error: URLError?, data: Data?)] = [:]
 
     public init() {}
