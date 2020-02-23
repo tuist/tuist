@@ -19,7 +19,7 @@ const GlobalStyle = () => {
           paddingRight: 3,
           color: theme.colors.primary,
           background: theme.colors.primaryAlpha,
-          fontSize: theme.styles.root.fontSize,
+          fontSize: theme.fontSizes[2],
         },
         a: {
           color: 'inherit',
@@ -29,7 +29,7 @@ const GlobalStyle = () => {
         },
         "pre[class*='language-']": {
           overflow: 'auto',
-          fontSize: theme.styles.root.fontSize,
+          fontSize: theme.fontSizes[1],
         },
         "div[class*='token-line']": {
           overflowWrap: 'normal',

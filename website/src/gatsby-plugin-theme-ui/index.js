@@ -107,7 +107,6 @@ const styles = {
     borderRadius: 2,
   },
   code: {
-    fontSize: [3, 2],
     wordWrap: 'break-word',
   },
   blockquote: {
