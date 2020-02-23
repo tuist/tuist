@@ -136,6 +136,9 @@ let package = Package(
             name: "TuistTemplateTests",
             dependencies: ["TuistTemplate", "TuistSupportTesting"]),
         .target(
+            name: "Templates",
+            dependencies: ["TemplateDescription"]),
+        .target(
             name: "TemplateDescription",
             dependencies: []),
         .testTarget(

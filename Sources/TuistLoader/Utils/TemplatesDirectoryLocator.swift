@@ -5,7 +5,7 @@ import TuistSupport
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the tuist built-in templates directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the templates directory.
-    func locate() -> AbsolutePath?
+    func locate() -> AbsolutePath
     /// Returns the path to the custom templates directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the templates directory.
     func locateCustom(at: AbsolutePath) -> AbsolutePath?
@@ -28,10 +28,19 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     // MARK: - TemplatesDirectoryLocating
 
-    public func locate() -> AbsolutePath? {
-        let templatesDirectory = Environment.shared.versionsDirectory.appending(components: Constants.version, Constants.templatesDirectoryName)
-        if !FileHandler.shared.exists(templatesDirectory) { return nil }
-        return templatesDirectory
+    public func locate() -> AbsolutePath {
+        let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
+        let paths = [
+            bundlePath,
+            bundlePath.parentDirectory,
+        ]
+        let candidates = paths.map { path in
+            path.appending(component: "Templates")
+        }
+        guard let templatesPath = candidates.first(where: { FileHandler.shared.exists($0) }) else {
+            fatalError()
+        }
+        return templatesPath
     }
     
     public func locateCustom(at: AbsolutePath) -> AbsolutePath? {

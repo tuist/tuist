@@ -49,6 +49,7 @@ class InitCommand: NSObject, Command {
     let platformArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
+//    private let attributesArgument: OptionArgument<[String]>
     let playgroundGenerator: PlaygroundGenerating
     private let templateLoader: TemplateLoading
 

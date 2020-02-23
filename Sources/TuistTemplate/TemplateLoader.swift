@@ -33,7 +33,7 @@ public class TemplateLoader: TemplateLoading {
     
     public func templateDirectories() throws -> [AbsolutePath] {
         let templatesDirectory = templatesDirectoryLocator.locate()
-        let templates = try templatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
+        let templates = try FileHandler.shared.contentsOfDirectory(templatesDirectory)
         let customTemplatesDirectory = templatesDirectoryLocator.locateCustom(at: FileHandler.shared.currentPath)
         let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return templates + customTemplates
@@ -70,7 +70,13 @@ public class TemplateLoader: TemplateLoading {
         let templateDescriptionPath = try resourceLocator.templateDescription()
         let jsonEncoder = JSONEncoder()
         
-        try template.directories.map(destinationPath.appending).forEach(FileHandler.shared.createFolder)
+        let destinationDirectories = template.directories.map(destinationPath.appending)
+        try parsedAttributes.reduce(destinationDirectories) { directories, attribute in
+            directories.map {
+                AbsolutePath($0.pathString.replacingOccurrences(of: "{{ \(attribute.name) }}", with: attribute.value))
+            }
+        }
+        .forEach(FileHandler.shared.createFolder)
         try template.files.forEach {
             let destinationPath = destinationPath.appending($0.path)
             switch $0.contents {
@@ -134,8 +140,11 @@ public class TemplateLoader: TemplateLoading {
         let contentsWithFilledAttributes = attributes.reduce(contents) {
             $0.replacingOccurrences(of: "{{ \($1.name) }}", with: $1.value)
         }
+        let finalDestinationPath = attributes.reduce(destinationPath) {
+            AbsolutePath($0.pathString.replacingOccurrences(of: "{{ \($1.name) }}", with: $1.value))
+        }
         try FileHandler.shared.write(contentsWithFilledAttributes,
-                                     path: destinationPath,
+                                     path: finalDestinationPath,
                                      atomically: true)
     }
     
@@ -154,7 +163,7 @@ extension TuistTemplate.Template {
         let attributes = try manifest.attributes.map(TuistTemplate.Template.Attribute.from)
         let files = try manifest.files.map { (path: RelativePath($0.path),
                                               contents: try TuistTemplate.Template.Contents.from(manifest: $0.contents,
-                                                                                               at: path)) }
+                                                                                                 at: path)) }
         let directories = manifest.directories.map { RelativePath($0) }
         return TuistTemplate.Template(description: manifest.description,
                                     attributes: attributes,
