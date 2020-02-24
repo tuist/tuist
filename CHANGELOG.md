@@ -9,7 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - When using `tuist edit` it's possible to run `tuist generate` from Xcode by simply running the target https://github.com/tuist/tuist/pull/958 by @vytis
 - Add FAQ section by @mollyIV
 - Add benchmarking helper tool https://github.com/tuist/tuist/pull/957 by @kwridan.
-- Add metal as a valid source extension https://github.com/tuist/tuist/pull/1023 by @natanrolnik 
+- Add metal as a valid source extension https://github.com/tuist/tuist/pull/1023 by @natanrolnik
 - `XcodeBuildController` utility to `TuistAutomation` https://github.com/tuist/tuist/pull/1019 by @pepibumur.
 - Add metal as a valid source extension https://github.com/tuist/tuist/pull/1023 by @natanrolnik
 

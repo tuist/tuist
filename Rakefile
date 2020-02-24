@@ -55,11 +55,11 @@ task :package_commit do
 
   bucket = storage.bucket("tuist-builds")
 
-  sha = %x(git rev-parse --short HEAD).strip.chomp
+  sha = %x(git rev-parse HEAD).strip.chomp
   print_section("Uploading tuist-#{sha}")
   file = bucket.create_file(
     "build/tuist.zip",
-    "tuist-#{sha}.zip"
+    "#{sha}.zip"
   )
 
   file.acl.public!
