@@ -54,3 +54,36 @@ That means we sometimes have to say no to bringing ideas from Xcode that complic
 
 We might feel tempted to follow what everyone is doing, even if that means keeping on with the inconveniences that everyone continues to complain about. Let's not do that. Let's imagine how day-to-day tasks would be handled by Tuist. _How do I imagine archiving my app?_ _How would I love code signing to be?_ _What processes can I help streamline with Tuist?_ If we constrain our solutions to what we have seen in other tools, we might end up replicating the same inconveniences and issues that make scaling up Xcode projects a challenge.
 We'll often see users opening tickets with solutions rather than problems. Whenever that happens, use "why" questions to understand what are the user's motivations or needs. For example, a request from a user could be: Add support for linking libraries build phases. That's a solution to the need the user has to define dependencies between targets. Once we have identified that, we can think if Xcode's approach to defining dependencies is good at scale, and if it's not, we can discuss with the user better approaches.
+
+## 6. Errors can and will happen
+
+We,
+developers,
+have an inherent temptation to disregard that errors can happen.
+As a result,
+we design and test software only considering the ideal scenario.
+
+Swift, its type system, and a well-architected code might help prevent some errors,
+but not all of them because some are out of our control.
+We can’t assume the user will always have an internet connection,
+or that the system commands will return successfully.
+The environments in which Tuist runs are not sandboxes that we control,
+and hence we need to make an effort to understand how they might change and impact Tuist.
+
+Poorly handled errors result in bad user experience,
+and users might lose trust in the project.
+We want users to enjoy every single piece of Tuist,
+even the way we present errors to them.
+
+We should put ourselves in the shoes of users and imagine what we’d expect the error to tell us.
+If the programming language is the communication channel through which errors propagate,
+and the users are the destination of the errors,
+they should be written in the same language that the target (users) speak.
+They should include enough information to know what happened and hide the information that is not relevant.
+Also,
+they should be actionable by telling users what steps they can take to recover from them.
+
+And last but not least,
+our test cases should contemplate failing scenarios.
+Not only they ensure that we are handling errors as we are supposed to,
+but prevent future developers from breaking that logic.
