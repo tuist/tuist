@@ -178,6 +178,7 @@ public extension HTTPURLResponse {
 // MARK: - Remove cases
 
 /// Declared here for a cleaner API with no `!` types.
+// swiftlint:disable:next identifier_name
 private let __Unavailable: HTTPStatusCode! = nil
 
 public extension HTTPStatusCode {
