@@ -1,5 +1,5 @@
-import ProjectDescription
 import TemplateDescription
+import TemplateDescriptionHelpers
 
 let nameArgument: Template.Attribute = .required("name")
 let platformArgument: Template.Attribute = .optional("platform", default: "iOS")
@@ -126,11 +126,28 @@ import \(nameArgument)Support
 
 public final class \(nameArgument)Kit {}
 """
+
 let supportSourceContent = """
 import Foundation
 
 public final class \(nameArgument)Support {}
 """
+
+//let playgroundContent = """
+////: Playground - noun: a place where people can play
+//
+//import Foundation
+//
+//"""
+//
+//try playgroundGenerator.generate(path: kitFrameworkPath(path, name: name).appending(component: "Playgrounds"),
+//                                 name: "\(name)Kit",
+//                                 platform: platform,
+//                                 content: PlaygroundGenerator.defaultContent())
+//try playgroundGenerator.generate(path: supportFrameworkPath(path, name: name).appending(component: "Playgrounds"),
+//                                 name: "\(name)Support",
+//                                 platform: platform,
+//                                 content: PlaygroundGenerator.defaultContent())
 
 let template = Template(
     description: "Custom \(nameArgument)",

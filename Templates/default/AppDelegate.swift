@@ -1,13 +1,6 @@
 import Foundation
 import TemplateDescription
 
-enum Platform: String, CaseIterable {
-    case iOS = "iOS"
-    case macOS = "macOS"
-    case tvOS = "tvOS"
-    case watchOS = "watchOS"
-}
-
 let name = try getAttribute(for: "name")
 // TODO: Handle error
 let platform = Platform(rawValue: try getAttribute(for: "platform"))!

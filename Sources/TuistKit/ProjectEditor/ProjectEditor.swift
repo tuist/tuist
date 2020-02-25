@@ -3,6 +3,7 @@ import Foundation
 import TuistGenerator
 import TuistLoader
 import TuistSupport
+import TuistTemplate
 
 enum ProjectEditorError: FatalError, Equatable {
     /// This error is thrown when we try to edit in a project in a directory that has no editable files.
@@ -74,9 +75,10 @@ final class ProjectEditor: ProjectEditing {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         }
         var templates: [AbsolutePath] = []
+        var templateHelpers: [AbsolutePath] = []
         if let templatesDirectory = templatesDirectoryLocator.locateCustom(at: at) {
-            // Add only Template manifests
-            templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift")
+            templateHelpers = FileHandler.shared.glob(templatesDirectory, glob: "\(Constants.templateHelpersDirectoryName)/**/*.swift")
+            templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift").filter { !templateHelpers.contains($0) }
         }
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
@@ -88,6 +90,7 @@ final class ProjectEditor: ProjectEditing {
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        templates: templates,
+                                                       templateHelpers: templateHelpers,
                                                        projectDescriptionPath: projectDesciptionPath)
         return try generator.generateProject(project,
                                              graph: graph,

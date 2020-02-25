@@ -11,6 +11,7 @@ public struct Constants {
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
+    public static let templateHelpersDirectoryName: String = "TemplateDescriptionHelpers"
     public static let templatesDirectoryName: String = "Templates"
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"

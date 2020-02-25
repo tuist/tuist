@@ -16,18 +16,22 @@ public protocol TemplateLoading {
 public class TemplateLoader: TemplateLoading {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let resourceLocator: ResourceLocating
+    private let templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding
     private let decoder: JSONDecoder
 
     /// Default constructor.
     public convenience init() {
         self.init(templatesDirectoryLocator: TemplatesDirectoryLocator(),
-                  resourceLocator: ResourceLocator())
+                  resourceLocator: ResourceLocator(),
+                  templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilder())
     }
     
     init(templatesDirectoryLocator: TemplatesDirectoryLocating,
-         resourceLocator: ResourceLocating) {
+         resourceLocator: ResourceLocating,
+         templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding) {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.resourceLocator = resourceLocator
+        self.templateDescriptionHelpersBuilder = templateDescriptionHelpersBuilder
         decoder = JSONDecoder()
     }
     
@@ -124,6 +128,17 @@ public class TemplateLoader: TemplateLoading {
             "-F", templateDescriptionPath.parentDirectory.pathString,
             "-lTemplateDescription",
         ]
+        
+        // Helpers
+        let templateDesciptionHelpersModulePath = try templateDescriptionHelpersBuilder.build(at: path, templateDescriptionPath: templateDescriptionPath)
+        if let templateDesciptionHelpersModulePath = templateDesciptionHelpersModulePath {
+            arguments.append(contentsOf: [
+                "-I", templateDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-L", templateDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-F", templateDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-lProjectDescriptionHelpers",
+            ])
+        }
 
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
