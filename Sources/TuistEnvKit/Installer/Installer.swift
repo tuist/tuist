@@ -123,33 +123,56 @@ final class Installer: Installing {
 
             // Cloning and building
             Printer.shared.print("Pulling source code")
-            try System.shared.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString)
+            _ = try System.shared.observable(["/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString])
+                .mapToString()
+                .printStandardError()
+                .toBlocking()
+                .last()
 
-            do {
-                try System.shared.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version)
-            } catch let error as TuistSupport.SystemError {
-                if error.description.contains("did not match any file(s) known to git") {
+            let gitCheckoutResult = System.shared.observable(["/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version])
+                .mapToString()
+                .toBlocking()
+                .materialize()
+
+            if case let .failed(elements, error) = gitCheckoutResult {
+                if elements.map({ $0.value }).first(where: { $0.contains("did not match any file(s) known to git") }) != nil {
                     throw InstallerError.versionNotFound(version)
+                } else {
+                    throw error
                 }
-                throw error
             }
 
             Printer.shared.print("Building using Swift (it might take a while)")
-            let swiftPath = try System.shared.capture("/usr/bin/xcrun", "-f", "swift").spm_chuzzle()!
+            let swiftPath = try System.shared
+                .observable(["/usr/bin/xcrun", "-f", "swift"])
+                .mapToString()
+                .collectOutput()
+                .toBlocking()
+                .last()!
+                .standardOutput
+                .spm_chuzzle()!
 
-            try System.shared.run(swiftPath, "build",
-                                  "--product", "tuist",
-                                  "--package-path", temporaryDirectory.path.pathString,
-                                  "--configuration", "release")
+            _ = try System.shared.observable([swiftPath, "build",
+                                              "--product", "tuist",
+                                              "--package-path", temporaryDirectory.path.pathString,
+                                              "--configuration", "release"])
+                .mapToString()
+                .printStandardError()
+                .toBlocking()
+                .last()
 
-            try System.shared.run(swiftPath, "build",
-                                  "--product", "ProjectDescription",
-                                  "--package-path", temporaryDirectory.path.pathString,
-                                  "--configuration", "release",
-                                  "-Xswiftc", "-enable-library-evolution",
-                                  "-Xswiftc", "-emit-module-interface",
-                                  "-Xswiftc", "-emit-module-interface-path",
-                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString) // swiftlint:disable:this line_length
+            _ = try System.shared.observable([swiftPath, "build",
+                                              "--product", "ProjectDescription",
+                                              "--package-path", temporaryDirectory.path.pathString,
+                                              "--configuration", "release",
+                                              "-Xswiftc", "-enable-library-evolution",
+                                              "-Xswiftc", "-emit-module-interface",
+                                              "-Xswiftc", "-emit-module-interface-path",
+                                              "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString]) // swiftlint:disable:this line_length
+                .mapToString()
+                .printStandardError()
+                .toBlocking()
+                .last()
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)
