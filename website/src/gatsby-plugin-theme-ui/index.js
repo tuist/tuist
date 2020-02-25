@@ -83,7 +83,7 @@ const styles = {
     fontFamily: 'body',
     lineHeight: 'body',
     fontWeight: 'body',
-    fontSize: [3, 2],
+    fontSize: 2,
   },
   a: {
     color: 'secondary',
@@ -121,7 +121,7 @@ const styles = {
   h1: {
     ...heading,
     fontWeight: 'heading',
-    marginTop: 2,
+    marginTop: 4,
     color: 'primary',
   },
   h2: {
@@ -146,7 +146,7 @@ const styles = {
   h6: {
     ...heading,
     fontWeight: 'body',
-    marginTop: 3,
+    marginTop: 2,
   },
   ul: {
     pl: 4,

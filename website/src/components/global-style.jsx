@@ -19,7 +19,7 @@ const GlobalStyle = () => {
           paddingRight: 3,
           color: theme.colors.primary,
           background: theme.colors.primaryAlpha,
-          fontSize: theme.fontSizes[2],
+          fontSize: theme.fontSizes[1],
         },
         a: {
           color: 'inherit',
