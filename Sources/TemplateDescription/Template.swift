@@ -114,6 +114,16 @@ public struct Template: Codable {
     }
 }
 
+public extension Template.File {
+    static func `static`(path: String, contents: String) -> Template.File {
+        Template.File(path: path, contents: .static(contents))
+    }
+    
+    static func generated(path: String, generateFilePath: String) -> Template.File {
+        Template.File(path: path, contents: .generated(generateFilePath))
+    }
+}
+
 public extension String.StringInterpolation {
     mutating func appendInterpolation(_ value: Template.Attribute) {
         switch value {
