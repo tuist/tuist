@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.3.0
+
 ### Added
 
 - When using `tuist edit` it's possible to run `tuist generate` from Xcode by simply running the target https://github.com/tuist/tuist/pull/958 by @vytis
