@@ -153,25 +153,25 @@ extension ProcessResult {
     func throwIfErrored() throws {
         switch exitStatus {
         case let .signalled(code):
-            throw TuistSupport.SystemError.signalled(code: code)
+            throw TuistSupport.SystemError.signalled(command: arguments.first!, code: code)
         case let .terminated(code):
             if code != 0 {
-                throw TuistSupport.SystemError.terminated(code: code, error: try utf8stderrOutput())
+                throw TuistSupport.SystemError.terminated(command: arguments.first!, code: code)
             }
         }
     }
 }
 
-public enum SystemError: FatalError {
-    case terminated(code: Int32, error: String)
-    case signalled(code: Int32)
+public enum SystemError: FatalError, Equatable {
+    case terminated(command: String, code: Int32)
+    case signalled(command: String, code: Int32)
 
     public var description: String {
         switch self {
-        case let .signalled(code):
-            return "Command interrupted with a signal \(code)"
-        case let .terminated(code, error):
-            return "Command exited with error code \(code) and error: \(error)"
+        case let .signalled(command, code):
+            return "The '\(command)' was interrupted with a signal \(code)"
+        case let .terminated(command, code):
+            return "The '\(command)' command exited with error code \(code)"
         }
     }
 
@@ -386,18 +386,25 @@ public final class System: Systeming {
 
     public func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
+            var errorData: [UInt8] = []
             let process = Process(arguments: arguments,
                                   environment: environment,
                                   outputRedirection: .stream(stdout: { bytes in
                                       observer.onNext(.standardOutput(Data(bytes)))
                                   }, stderr: { bytes in
+                                      errorData.append(contentsOf: bytes)
                                       observer.onNext(.standardError(Data(bytes)))
                                   }),
                                   verbose: verbose,
                                   startNewProcessGroup: false)
             do {
                 try process.launch()
-                try process.waitUntilExit().throwIfErrored()
+                var result = try process.waitUntilExit()
+                result = ProcessResult(arguments: result.arguments,
+                                       exitStatus: result.exitStatus,
+                                       output: result.output,
+                                       stderrOutput: result.stderrOutput.map { _ in errorData })
+                try result.throwIfErrored()
                 observer.onCompleted()
             } catch {
                 observer.onError(error)

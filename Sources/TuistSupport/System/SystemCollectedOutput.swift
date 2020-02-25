@@ -1,9 +1,9 @@
 import Foundation
 
-struct SystemCollectedOutput {
+public struct SystemCollectedOutput {
     /// Standard output.
-    var standardOutput: String = ""
+    public var standardOutput: String = ""
 
     /// Standard error.
-    var standardError: String = ""
+    public var standardError: String = ""
 }

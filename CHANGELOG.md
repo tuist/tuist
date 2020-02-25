@@ -9,8 +9,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - When using `tuist edit` it's possible to run `tuist generate` from Xcode by simply running the target https://github.com/tuist/tuist/pull/958 by @vytis
 - Add FAQ section by @mollyIV
 - Add benchmarking helper tool https://github.com/tuist/tuist/pull/957 by @kwridan.
-- Add metal as a valid source extension https://github.com/tuist/tuist/pull/1023 by @natanrolnik 
+- Add metal as a valid source extension https://github.com/tuist/tuist/pull/1023 by @natanrolnik
 - `XcodeBuildController` utility to `TuistAutomation` https://github.com/tuist/tuist/pull/1019 by @pepibumur.
+- Add metal as a valid source extension https://github.com/tuist/tuist/pull/1023 by @natanrolnik
 
 ### Fixed
 
@@ -25,6 +26,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Path sorting speed gains https://github.com/tuist/tuist/pull/980 by @adamkhazi
 - Added support for HTTP_PROXY settings from shell environment. https://github.com/tuist/tuist/pull/1015 by @aegzorz
 - Added "Base" to known regions. https://github.com/tuist/tuist/pull/1021 by @aegzorz
+- Pull bundles from Google Cloud Storage https://github.com/tuist/tuist/pull/1028 by @pepibumur.
 
 ## 1.2.0
 

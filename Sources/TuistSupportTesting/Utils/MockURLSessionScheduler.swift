@@ -25,14 +25,14 @@ public final class MockURLSessionScheduler: TuistSupport.URLSessionScheduling {
 
     public func single(request: URLRequest) -> Single<Data> {
         guard let stub = stubs[request] else {
-            return Single.error(URLSessionSchedulerError.noData(request))
+            return Single.error(TestError("the sent request was not stubbed: \(request)"))
         }
         if let error = stub.error {
             return Single.error(error)
         } else if let data = stub.data {
             return Single.just(data)
         } else {
-            return Single.error(URLSessionSchedulerError.noData(request))
+            return Single.error(TestError("the s"))
         }
     }
 }
