@@ -11,7 +11,7 @@ module.exports = {
     releasesUrl: 'https://github.com/tuist/tuist/releases',
     documentationUrl: 'https://docs.tuist.io/',
     slackUrl: 'http://slack.tuist.io/',
-    editUrl: 'https://github.com/tuist/website/edit/master',
+    editUrl: 'https://github.com/tuist/tuist/edit/master/website/markdown',
     contributeUrl: 'https://docs.tuist.io/contribution-1-getting-started',
     firstDocumentationPagePath: '/docs/usage/getting-started/',
     documentationCategories: [
