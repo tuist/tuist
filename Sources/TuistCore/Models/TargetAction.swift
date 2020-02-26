@@ -80,7 +80,7 @@ public struct TargetAction {
     /// - Throws: An error if the tool absolute path cannot be obtained.
     public func shellScript(sourceRootPath: AbsolutePath) throws -> String {
         if let path = path {
-            return "${PROJECT_DIR}/\(path.relative(to: sourceRootPath).pathString) \(arguments.joined(separator: " "))"
+            return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(arguments.joined(separator: " "))"
         } else {
             return try "\(System.shared.which(tool!).spm_chomp().spm_chuzzle()!) \(arguments.joined(separator: " "))"
         }
