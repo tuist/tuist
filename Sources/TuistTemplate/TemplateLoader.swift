@@ -104,6 +104,8 @@ public class TemplateLoader: TemplateLoading {
                     arguments.append("--attributes")
                     arguments.append(attributes)
                 }
+                
+                arguments.append("--tuist-dump")
 
                 guard let result = try System.shared.capture(arguments).spm_chuzzle() else { fatalError() }
                 try FileHandler.shared.write(result,
