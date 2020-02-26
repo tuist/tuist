@@ -169,7 +169,7 @@ let template = Template(
         .static(path: supportFrameworkPath + "/Project.swift",
                 contents: supportFrameworkContent),
         .generated(path: appPath + "/Sources/AppDelegate.swift",
-                   contents: .generated("AppDelegate.swift")),
+                   generateFilePath: "AppDelegate.swift"),
         .static(path: appPath + "/Tests/\(nameArgument)Tests.swift",
                 contents: testsContent("\(nameArgument)")),
         .static(path: kitFrameworkPath + "/Sources/\(nameArgument)Kit.swift",
