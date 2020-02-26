@@ -68,9 +68,9 @@ const DocumentationPage = ({
           {documentationCategories.map((category, categoryIndex) => {
             return (
               <div key={categoryIndex}>
-                <Styled.h2 sx={{ textAlign: ['center', 'left'], mt: 4 }}>
+                <Styled.h3 sx={{ textAlign: ['center', 'left'], mt: 4 }}>
                   {category.name}
-                </Styled.h2>
+                </Styled.h3>
                 {files
                   .filter(file =>
                     file.relativeDirectory.endsWith(category.folderName)
@@ -87,8 +87,8 @@ const DocumentationPage = ({
                         <div
                           sx={{
                             textAlign: ['center', 'left'],
-                            my: [4, 3],
-                            fontSize: [3, 2],
+                            my: 3,
+                            fontSize: 2,
                           }}
                         >
                           {file.childMdx.frontmatter.name}
