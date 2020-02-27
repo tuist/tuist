@@ -10,7 +10,10 @@ public protocol TemplatesDirectoryLocating {
     /// Returns the path to the custom templates directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the templates directory.
     func locateCustom(at: AbsolutePath) -> AbsolutePath?
+    /// - Returns: Path of templates directory up the three `from`
     func locate(from path: AbsolutePath) -> AbsolutePath?
+    /// - Returns: All available directories with defined templates (custom and built-in)
+    func templateDirectories() throws -> [AbsolutePath]
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
@@ -59,6 +62,14 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     
     public func locate(from path: AbsolutePath) -> AbsolutePath? {
         locate(from: path, source: path)
+    }
+    
+    public func templateDirectories() throws -> [AbsolutePath] {
+        let templatesDirectory = locate()
+        let templates = try FileHandler.shared.contentsOfDirectory(templatesDirectory)
+        let customTemplatesDirectory = locateCustom(at: FileHandler.shared.currentPath)
+        let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
+        return (templates + customTemplates).filter { $0.basename != Constants.templateHelpersDirectoryName }
     }
     
     // MARK: - Helpers

@@ -23,8 +23,13 @@ public struct Template: Codable {
         dumpIfNeeded(self)
     }
     
+    /// Enum containing information about how to generate file
     public enum Contents: Codable {
+        /// Static Contents is defined in `Template.swift` and contains a simple `String`
+        /// Can not contain any additional logic apart from plain `String` from `arguments`
         case `static`(String)
+        /// Generated content is defined in a different file from `Template.swift`
+        /// Can contain additional logic and anything that is defined in `TemplateDescriptionHelpers`
         case generated(String)
         
         private enum CodingKeys: String, CodingKey {
@@ -115,10 +120,18 @@ public struct Template: Codable {
 }
 
 public extension Template.File {
+    /// - Parameters:
+    ///     - path: Path where to generate file
+    ///     - contents: Contents for generated file
+    /// - Returns: `Template.File` that is `.static`
     static func `static`(path: String, contents: String) -> Template.File {
         Template.File(path: path, contents: .static(contents))
     }
-    
+
+    /// - Parameters:
+    ///     - path: Path where to generate file
+    ///     - generateFilePath: Path of file where the generated content is defined
+    /// - Returns: `Template.File` that is `.generated`
     static func generated(path: String, generateFilePath: String) -> Template.File {
         Template.File(path: path, contents: .generated(generateFilePath))
     }

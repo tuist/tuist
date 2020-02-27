@@ -3,9 +3,9 @@ import Foundation
 import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the
-/// helper files under /Tuist/TemplateDescriptionHelpers that can be imported
+/// helper files under /Tuist/Templates/TemplateDescriptionHelpers that can be imported
 /// from any manifest being loaded.
-protocol TemplateDescriptionHelpersBuilding: AnyObject {
+public protocol TemplateDescriptionHelpersBuilding: AnyObject {
     /// Builds the helpers module and returns it.
     /// - Parameters:
     ///   - at: Path to the directory that contains the template manifest being loaded.
@@ -13,7 +13,7 @@ protocol TemplateDescriptionHelpersBuilding: AnyObject {
     func build(at: AbsolutePath, templateDescriptionPath: AbsolutePath) throws -> AbsolutePath?
 }
 
-final class TemplateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding {
+public final class TemplateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding {
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
     fileprivate var builtHelpers: [AbsolutePath: AbsolutePath] = [:]
@@ -28,13 +28,13 @@ final class TemplateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuildin
     /// - Parameters:
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
-    init(cacheDirectory: AbsolutePath = Environment.shared.templateDescriptionHelpersCacheDirectory,
-         templateHelpersDirectoryLocator: TemplateHelpersDirectoryLocating = TemplateHelpersDirectoryLocator()) {
+    public init(cacheDirectory: AbsolutePath = Environment.shared.templateDescriptionHelpersCacheDirectory,
+                templateHelpersDirectoryLocator: TemplateHelpersDirectoryLocating = TemplateHelpersDirectoryLocator()) {
         self.cacheDirectory = cacheDirectory
         self.templateHelpersDirectoryLocator = templateHelpersDirectoryLocator
     }
 
-    func build(at: AbsolutePath, templateDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
+    public func build(at: AbsolutePath, templateDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
         guard let helpersDirectory = templateHelpersDirectoryLocator.locate(at: at) else { return nil }
         if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
 

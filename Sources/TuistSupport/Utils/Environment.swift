@@ -20,6 +20,7 @@ public protocol Environmenting: AnyObject {
     /// Returns the directory where the project description helper modules are cached.
     var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
     
+    /// - Returns: Directory where the template description helper modules are cached
     var templateDescriptionHelpersCacheDirectory: AbsolutePath { get }
 
     /// Returns the directory where the xcframeworks are cached.
@@ -103,6 +104,7 @@ public class Environment: Environmenting {
         cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
     
+    /// - Returns: Directory where the template description helper modules are cached
     public var templateDescriptionHelpersCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "TemplateDescriptionHelpers")
     }

@@ -17,16 +17,22 @@ class ScaffoldCommand: NSObject, Command {
     private let attributesArgument: OptionArgument<[String]>
     
     private let templateLoader: TemplateLoading
+    private let templatesDirectoryLocator: TemplatesDirectoryLocating
+    private let templateGenerator: TemplateGenerating
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  templateLoader: TemplateLoader())
+                  templateLoader: TemplateLoader(),
+                  templatesDirectoryLocator: TemplatesDirectoryLocator(),
+                  templateGenerator: TemplateGenerator())
     }
     
     init(parser: ArgumentParser,
-         templateLoader: TemplateLoading) {
+         templateLoader: TemplateLoading,
+         templatesDirectoryLocator: TemplatesDirectoryLocating,
+         templateGenerator: TemplateGenerating) {
         let subParser = parser.add(subparser: ScaffoldCommand.command, overview: ScaffoldCommand.overview)
         listArgument = subParser.add(option: "--list",
                                      shortName: "-l",
@@ -45,23 +51,25 @@ class ScaffoldCommand: NSObject, Command {
                                            usage: "Attributes for a given template",
                                            completion: nil)
         self.templateLoader = templateLoader
+        self.templatesDirectoryLocator = templatesDirectoryLocator
+        self.templateGenerator = templateGenerator
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        let directories = try templateLoader.templateDirectories()
+        let directories = try templatesDirectoryLocator.templateDirectories()
         
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {
             try directories.forEach {
-                let template = try templateLoader.load(at: $0)
+                let template = try templateLoader.loadTemplate(at: $0)
                 Printer.shared.print("\($0.basename): \(template.description)")
             }
             return
         }
         
         guard let templateDirectory = directories.first(where: { $0.basename == arguments.get(templateArgument) }) else { fatalError() }
-        try templateLoader.generate(at: templateDirectory,
-                                    to: FileHandler.shared.currentPath,
-                                    attributes: arguments.get(attributesArgument) ?? [])
+        try templateGenerator.generate(at: templateDirectory,
+                                       to: FileHandler.shared.currentPath,
+                                       attributes: arguments.get(attributesArgument) ?? [])
     }
 }

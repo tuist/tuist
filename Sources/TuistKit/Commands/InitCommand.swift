@@ -49,21 +49,17 @@ class InitCommand: NSObject, Command {
     let platformArgument: OptionArgument<String>
     let pathArgument: OptionArgument<String>
     let nameArgument: OptionArgument<String>
-//    private let attributesArgument: OptionArgument<[String]>
     let playgroundGenerator: PlaygroundGenerating
-    private let templateLoader: TemplateLoading
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  playgroundGenerator: PlaygroundGenerator(),
-                  templateLoader: TemplateLoader())
+                  playgroundGenerator: PlaygroundGenerator())
     }
 
     init(parser: ArgumentParser,
-         playgroundGenerator: PlaygroundGenerating,
-         templateLoader: TemplateLoading) {
+         playgroundGenerator: PlaygroundGenerating) {
         let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
@@ -85,7 +81,6 @@ class InitCommand: NSObject, Command {
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
         self.playgroundGenerator = playgroundGenerator
-        self.templateLoader = templateLoader
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
