@@ -5,8 +5,7 @@ import TuistLoader
 
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the tuist built-in templates directory if it exists.
-    /// - Parameter at: Path from which we traverse the hierarchy to obtain the templates directory.
-    func locate() -> AbsolutePath
+    func locate() -> AbsolutePath?
     /// Returns the path to the custom templates directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the templates directory.
     func locateCustom(at: AbsolutePath) -> AbsolutePath?
@@ -37,7 +36,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     // MARK: - TemplatesDirectoryLocating
 
-    public func locate() -> AbsolutePath {
+    public func locate() -> AbsolutePath? {
         let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
         let paths = [
             bundlePath,
@@ -46,10 +45,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         let candidates = paths.map { path in
             path.appending(component: "Templates")
         }
-        guard let templatesPath = candidates.first(where: { FileHandler.shared.exists($0) }) else {
-            fatalError()
-        }
-        return templatesPath
+        return candidates.first(where: { FileHandler.shared.exists($0) })
     }
     
     public func locateCustom(at: AbsolutePath) -> AbsolutePath? {
@@ -66,7 +62,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     
     public func templateDirectories() throws -> [AbsolutePath] {
         let templatesDirectory = locate()
-        let templates = try FileHandler.shared.contentsOfDirectory(templatesDirectory)
+        let templates = try templatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         let customTemplatesDirectory = locateCustom(at: FileHandler.shared.currentPath)
         let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return (templates + customTemplates).filter { $0.basename != Constants.templateHelpersDirectoryName }
