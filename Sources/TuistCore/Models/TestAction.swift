@@ -12,7 +12,9 @@ public struct TestAction: Equatable {
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
     public let diagnosticsOptions: Set<SchemeDiagnosticsOption>
-
+    public let language: String?
+    public let region: String?
+    
     // MARK: - Init
 
     public init(targets: [TestableTarget],
@@ -22,7 +24,9 @@ public struct TestAction: Equatable {
                 codeCoverageTargets: [TargetReference],
                 preActions: [ExecutionAction],
                 postActions: [ExecutionAction],
-                diagnosticsOptions: Set<SchemeDiagnosticsOption>) {
+                diagnosticsOptions: Set<SchemeDiagnosticsOption>,
+                language: String? = nil,
+                region: String? = nil) {
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
@@ -31,5 +35,7 @@ public struct TestAction: Equatable {
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
         self.diagnosticsOptions = diagnosticsOptions
+        self.language = language
+        self.region = region
     }
 }

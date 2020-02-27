@@ -10,7 +10,9 @@ public extension TestAction {
                      codeCoverageTargets: [TargetReference] = [],
                      preActions: [ExecutionAction] = [],
                      postActions: [ExecutionAction] = [],
-                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set()) -> TestAction {
+                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set(),
+                     language: String? = nil,
+                     region: String? = nil) -> TestAction {
         TestAction(targets: targets,
                    arguments: arguments,
                    configurationName: configurationName,
@@ -18,6 +20,8 @@ public extension TestAction {
                    codeCoverageTargets: codeCoverageTargets,
                    preActions: preActions,
                    postActions: postActions,
-                   diagnosticsOptions: diagnosticsOptions)
+                   diagnosticsOptions: diagnosticsOptions,
+                   language: language,
+                   region: region)
     }
 }
