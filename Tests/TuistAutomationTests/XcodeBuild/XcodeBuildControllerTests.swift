@@ -41,9 +41,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         let shouldOutputBeColoured = true
         environment.shouldOutputBeColoured = shouldOutputBeColoured
 
-        var command = ["/usr/bin/xcrun", "xcodebuild", "-scheme", scheme]
+        var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
-        command.append(contentsOf: ["clean", "build"])
 
         system.succeedCommand(command, output: "output")
         var parseCalls: [(String, Bool)] = []
