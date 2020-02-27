@@ -2,8 +2,9 @@ import Basic
 import Foundation
 import RxBlocking
 import RxSwift
+import TuistAutomation
+import TuistCache
 import TuistCore
-import TuistGalaxy
 import TuistGenerator
 import TuistLoader
 import TuistSupport
@@ -32,7 +33,7 @@ final class CacheController: CacheControlling {
 
     init(generator: Generating = Generator(),
          manifestLoader: ManifestLoading = ManifestLoader(),
-         xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(printOutput: false),
+         xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController()),
          cache: CacheStoraging = Cache(),
          graphContentHasher: GraphContentHashing = GraphContentHasher()) {
         self.generator = generator
@@ -50,21 +51,21 @@ final class CacheController: CacheControlling {
         Printer.shared.print(section: "Hashing cacheable frameworks")
         let targets: [TargetNode: String] = try graphContentHasher.contentHashes(for: graph)
             .filter { target, hash in
-            if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
-                Printer.shared.print("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
-                return false
+                if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
+                    Printer.shared.print("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
+                    return false
+                }
+                return true
             }
-            return true
-        }
 
         var completables: [Completable] = []
         try targets.forEach { target, hash in
             // Build targets sequentially
             let xcframeworkPath: AbsolutePath!
             if path.extension == "xcworkspace" {
-                xcframeworkPath = try self.xcframeworkBuilder.build(workspacePath: path, target: target.target)
+                xcframeworkPath = try self.xcframeworkBuilder.build(workspacePath: path, target: target.target).toBlocking().single()
             } else {
-                xcframeworkPath = try self.xcframeworkBuilder.build(projectPath: path, target: target.target)
+                xcframeworkPath = try self.xcframeworkBuilder.build(projectPath: path, target: target.target).toBlocking().single()
             }
 
             // Create tasks to cache and delete the xcframeworks asynchronously

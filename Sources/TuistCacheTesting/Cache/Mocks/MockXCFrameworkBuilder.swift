@@ -1,7 +1,8 @@
 import Basic
 import Foundation
+import RxSwift
+import TuistCache
 import TuistCore
-import TuistGalaxy
 
 public final class MockXCFrameworkBuilder: XCFrameworkBuilding {
     var buildProjectArgs: [(projectPath: AbsolutePath, target: Target)] = []
@@ -9,21 +10,21 @@ public final class MockXCFrameworkBuilder: XCFrameworkBuilding {
     var buildProjectStub: AbsolutePath?
     var buildWorkspaceStub: AbsolutePath?
 
-    public func build(projectPath: AbsolutePath, target: Target) throws -> AbsolutePath {
+    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
         buildProjectArgs.append((projectPath: projectPath, target: target))
         if let buildProjectStub = buildProjectStub {
-            return buildProjectStub
+            return Observable.just(buildProjectStub)
         } else {
-            return AbsolutePath.root
+            return Observable.just(AbsolutePath.root)
         }
     }
 
-    public func build(workspacePath: AbsolutePath, target: Target) throws -> AbsolutePath {
+    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
         buildWorkspaceArgs.append((workspacePath: workspacePath, target: target))
         if let buildWorkspaceStub = buildWorkspaceStub {
-            return buildWorkspaceStub
+            return Observable.just(buildWorkspaceStub)
         } else {
-            return AbsolutePath.root
+            return Observable.just(AbsolutePath.root)
         }
     }
 }

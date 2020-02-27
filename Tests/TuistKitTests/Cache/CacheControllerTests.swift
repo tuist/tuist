@@ -1,15 +1,14 @@
 import Foundation
-import XCTest
-import TuistSupport
+import TuistCacheTesting
 import TuistCore
-import TuistSupportTesting
 import TuistCoreTesting
-import TuistGalaxyTesting
+import TuistSupport
+import TuistSupportTesting
+import XCTest
 
 @testable import TuistKit
 
 final class CacheControllerTests: XCTestCase {
-    
     var generator: MockGenerator!
     var xcframeworkBuilder: MockXCFrameworkBuilder!
     var cache: MockCacheStorage!
