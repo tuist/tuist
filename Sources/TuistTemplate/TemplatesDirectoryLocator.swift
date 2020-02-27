@@ -70,7 +70,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
             cache(rootDirectory: path, for: source)
             return path.appending(component: Constants.templatesDirectoryName)
         } else if fileHandler.exists(path.appending(component: Constants.templatesDirectoryName)) {
-            cache(rootDirectory: path, for: source)
+            cache(rootDirectory: path.appending(component: Constants.templatesDirectoryName), for: source)
             return path
         } else if fileHandler.exists(path.appending(RelativePath(".git"))) {
             cache(rootDirectory: path, for: source)

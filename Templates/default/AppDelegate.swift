@@ -2,10 +2,10 @@ import Foundation
 import TemplateDescription
 import TemplateDescriptionHelpers
 
-func generateAppContent() -> String {
-    let name = try! getAttribute(for: "name")
+let appDelegateContent = Content {
+    let name = try getAttribute(for: "name")
     // TODO: Handle error
-    let platform = Platform(rawValue: try! getAttribute(for: "platform"))!
+    let platform = Platform(rawValue: try getAttribute(for: "platform"))!
 
     var appContent: String
     if platform == .macOS {
@@ -56,5 +56,3 @@ func generateAppContent() -> String {
     
     return appContent
 }
-
-let content = Content(generateAppContent())

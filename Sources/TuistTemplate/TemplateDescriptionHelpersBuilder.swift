@@ -28,7 +28,7 @@ final class TemplateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuildin
     /// - Parameters:
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
-    init(cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
+    init(cacheDirectory: AbsolutePath = Environment.shared.templateDescriptionHelpersCacheDirectory,
          templateHelpersDirectoryLocator: TemplateHelpersDirectoryLocating = TemplateHelpersDirectoryLocator()) {
         self.cacheDirectory = cacheDirectory
         self.templateHelpersDirectoryLocator = templateHelpersDirectoryLocator

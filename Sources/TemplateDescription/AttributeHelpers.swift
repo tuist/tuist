@@ -14,11 +14,12 @@ public func getAttribute(for name: String) throws -> String {
 }
 
 public struct Content {
-    let content: String
-    
-    public init(_ content: String) {
-        self.content = content
-        dumpIfNeeded(content)
+    public init(_ generateContent: () throws -> String) {
+        do {
+            dumpIfNeeded(try generateContent())
+        } catch let error {
+            dumpIfNeeded(error.localizedDescription)
+        }
     }
 }
 

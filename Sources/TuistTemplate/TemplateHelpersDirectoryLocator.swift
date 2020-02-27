@@ -21,7 +21,7 @@ public final class TemplateHelpersDirectoryLocator: TemplateHelpersDirectoryLoca
     public func locate(at: AbsolutePath) -> AbsolutePath? {
         guard let rootDirectory = templatesDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
-            .appending(component: Constants.helpersDirectoryName)
+            .appending(component: Constants.templateHelpersDirectoryName)
         if !FileHandler.shared.exists(helpersDirectory) { return nil }
         return helpersDirectory
     }

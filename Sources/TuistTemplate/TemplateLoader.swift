@@ -40,7 +40,7 @@ public class TemplateLoader: TemplateLoading {
         let templates = try FileHandler.shared.contentsOfDirectory(templatesDirectory)
         let customTemplatesDirectory = templatesDirectoryLocator.locateCustom(at: FileHandler.shared.currentPath)
         let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
-        return templates + customTemplates
+        return (templates + customTemplates).filter { $0.basename != Constants.templateHelpersDirectoryName }
     }
     
     public func load(at path: AbsolutePath) throws -> TuistTemplate.Template {
@@ -99,6 +99,18 @@ public class TemplateLoader: TemplateLoading {
                     "-F", templateDescriptionPath.parentDirectory.pathString,
                     "-lTemplateDescription",
                 ]
+                
+                // Helpers
+                let templateDesciptionHelpersModulePath = try templateDescriptionHelpersBuilder.build(at: generatePath, templateDescriptionPath: templateDescriptionPath)
+                if let templateDesciptionHelpersModulePath = templateDesciptionHelpersModulePath {
+                    arguments.append(contentsOf: [
+                        "-I", templateDesciptionHelpersModulePath.parentDirectory.pathString,
+                        "-L", templateDesciptionHelpersModulePath.parentDirectory.pathString,
+                        "-F", templateDesciptionHelpersModulePath.parentDirectory.pathString,
+                        "-lTemplateDescriptionHelpers",
+                    ])
+                }
+                
                 arguments.append(generatePath.pathString)
                 if let attributes = try String(data: jsonEncoder.encode(parsedAttributes), encoding: .utf8) {
                     arguments.append("--attributes")
@@ -138,7 +150,7 @@ public class TemplateLoader: TemplateLoading {
                 "-I", templateDesciptionHelpersModulePath.parentDirectory.pathString,
                 "-L", templateDesciptionHelpersModulePath.parentDirectory.pathString,
                 "-F", templateDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-lProjectDescriptionHelpers",
+                "-lTemplateDescriptionHelpers",
             ])
         }
 
