@@ -2,7 +2,6 @@ import Basic
 import Foundation
 import TuistSupport
 import TuistLoader
-import struct TemplateDescription.ParsedAttribute
 
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`

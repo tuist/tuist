@@ -39,7 +39,7 @@ public protocol TemplateLoading {
     ///     - path: Path of generate file
     ///     - parsedAttributes: Array of `ParsedAttribute` from user input
     /// - Returns: Rendered generate file
-    func loadGenerateFile(at path: AbsolutePath, parsedAttributes: [ParsedAttribute]) throws -> String
+    func loadGenerateFile(at path: AbsolutePath, parsedAttributes: [TuistTemplate.ParsedAttribute]) throws -> String
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -86,7 +86,7 @@ public class TemplateLoader: TemplateLoading {
                                                at: path)
     }
     
-    public func loadGenerateFile(at path: AbsolutePath, parsedAttributes: [ParsedAttribute]) throws -> String {
+    public func loadGenerateFile(at path: AbsolutePath, parsedAttributes: [TuistTemplate.ParsedAttribute]) throws -> String {
         var additionalArguments: [String] = []
         if let attributes = try String(data: encoder.encode(parsedAttributes), encoding: .utf8) {
             additionalArguments.append("--attributes")
@@ -142,9 +142,9 @@ extension TuistTemplate.Template {
                                                                                                  at: path)) }
         let directories = manifest.directories.map { RelativePath($0) }
         return TuistTemplate.Template(description: manifest.description,
-                                    attributes: attributes,
-                                    files: files,
-                                    directories: directories)
+                                      attributes: attributes,
+                                      files: files,
+                                      directories: directories)
     }
 }
 
@@ -168,5 +168,12 @@ extension TuistTemplate.Template.Contents {
         case let .generated(generatePath):
             return .generated(path.appending(component: generatePath))
         }
+    }
+}
+
+extension TuistTemplate.ParsedAttribute {
+    static func from(manifest: TemplateDescription.ParsedAttribute) throws -> TuistTemplate.ParsedAttribute {
+        TuistTemplate.ParsedAttribute(name: manifest.name,
+                                      value: manifest.value)
     }
 }
