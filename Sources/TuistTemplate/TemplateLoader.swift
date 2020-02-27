@@ -5,26 +5,6 @@ import TuistSupport
 import TemplateDescription
 import TuistLoader
 
-//enum TemplateFile: CaseIterable {
-//    case manifest
-//    case generateFile(String)
-//
-//    public var fileName: String {
-//        switch self {
-//        case .manifest:
-//            return "Template.swift"
-//        case let .generateFile:
-//            return "Workspace.swift"
-//        case .tuistConfig:
-//            return "TuistConfig.swift"
-//        case .setup:
-//            return "Setup.swift"
-//        case .galaxy:
-//            return "Galaxy.swift"
-//        }
-//    }
-//}
-
 
 public protocol TemplateLoading {
     /// - Returns: All available directories with defined templates (custom and built-in)

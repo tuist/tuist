@@ -3,6 +3,7 @@ import Foundation
 import TuistSupport
 import TuistLoader
 
+/// Interface for generating content defined in template manifest
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`
     /// - Parameters:
@@ -25,29 +26,38 @@ public final class TemplateGenerator: TemplateGenerating {
     }
     
     public func generate(at sourcePath: AbsolutePath,
-                  to destinationPath: AbsolutePath,
-                  attributes: [String]) throws {
+                         to destinationPath: AbsolutePath,
+                         attributes: [String]) throws {
         let template = try templateLoader.loadTemplate(at: sourcePath)
+        let templateAttributes = getTemplateAttributes(with: attributes, template: template)
         
-        let parsedAttributes = parseAttributes(attributes)
-        let templateAttributes: [ParsedAttribute] = template.attributes.map {
-            switch $0 {
-            case let .optional(name, default: defaultValue):
-                let value = parsedAttributes.first(where: { $0.name == name })?.value ?? defaultValue
-                return ParsedAttribute(name: name, value: value)
-            case let .required(name):
-                guard let value = parsedAttributes.first(where: { $0.name == name })?.value else { fatalError() }
-                return ParsedAttribute(name: name, value: value)
-            }
-        }
+        try generateDirectories(template: template,
+                                templateAttributes: templateAttributes,
+                                destinationPath: destinationPath)
         
+        try generateFiles(template: template,
+                          templateAttributes: templateAttributes,
+                          destinationPath: destinationPath)
+    
+    }
+    
+    // MARK: - Helpers
+    
+    private func generateDirectories(template: Template,
+                                     templateAttributes: [ParsedAttribute],
+                                     destinationPath: AbsolutePath) throws {
         let destinationDirectories = template.directories.map(destinationPath.appending)
-        try parsedAttributes.reduce(destinationDirectories) { directories, attribute in
+        try templateAttributes.reduce(destinationDirectories) { directories, attribute in
             directories.map {
                 AbsolutePath($0.pathString.replacingOccurrences(of: "{{ \(attribute.name) }}", with: attribute.value))
             }
         }
         .forEach(FileHandler.shared.createFolder)
+    }
+    
+    private func generateFiles(template: Template,
+                               templateAttributes: [ParsedAttribute],
+                               destinationPath: AbsolutePath) throws {
         try template.files.forEach {
             let destinationPath = destinationPath.appending($0.path)
             switch $0.contents {
@@ -60,6 +70,20 @@ public final class TemplateGenerator: TemplateGenerating {
                 try FileHandler.shared.write(content,
                                              path: destinationPath,
                                              atomically: true)
+            }
+        }
+    }
+    
+    private func getTemplateAttributes(with attributes: [String], template: Template) -> [ParsedAttribute] {
+        let parsedAttributes = parseAttributes(attributes)
+        return template.attributes.map {
+            switch $0 {
+            case let .optional(name, default: defaultValue):
+                let value = parsedAttributes.first(where: { $0.name == name })?.value ?? defaultValue
+                return ParsedAttribute(name: name, value: value)
+            case let .required(name):
+                guard let value = parsedAttributes.first(where: { $0.name == name })?.value else { fatalError() }
+                return ParsedAttribute(name: name, value: value)
             }
         }
     }
