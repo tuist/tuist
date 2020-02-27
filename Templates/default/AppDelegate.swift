@@ -4,8 +4,8 @@ import TemplateDescriptionHelpers
 
 let appDelegateContent = Content {
     let name = try getAttribute(for: "name")
-    // TODO: Handle error
-    let platform = Platform(rawValue: try getAttribute(for: "platform"))!
+    let platformValue = try getAttribute(for: "platform")
+    let platform = try Platform.getFromAttributes()
 
     var appContent: String
     if platform == .macOS {

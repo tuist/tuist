@@ -40,7 +40,10 @@ public struct Content {
         do {
             dumpIfNeeded(try generateContent())
         } catch let error {
-            dumpIfNeeded(error.localizedDescription)
+            if let localizedDescriptionData = "\(error)".data(using: .utf8) {
+                FileHandle.standardError.write(localizedDescriptionData)
+            }
+            exit(1)
         }
     }
 }

@@ -4,8 +4,7 @@ import TemplateDescriptionHelpers
 
 let kitFrameworkProjectContent = Content {
     let name = try getAttribute(for: "name")
-    // TODO: Handle error
-    guard let platform = Platform(rawValue: try getAttribute(for: "platform")) else { fatalError() }
+    let platform = try Platform.getFromAttributes()
     return """
     import ProjectDescription
     import ProjectDescriptionHelpers
