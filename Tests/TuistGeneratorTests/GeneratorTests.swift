@@ -12,6 +12,7 @@ class GeneratorTests: XCTestCase {
     var projectGenerator: MockProjectGenerator!
     var graphLoader: MockGraphLoader!
     var environmentLinter: MockEnvironmentLinter!
+    var writer: MockXcodeProjWriter!
     var subject: Generator!
 
     override func setUp() {
@@ -19,12 +20,14 @@ class GeneratorTests: XCTestCase {
         workspaceGenerator = MockWorkspaceGenerator()
         projectGenerator = MockProjectGenerator()
         environmentLinter = MockEnvironmentLinter()
+        writer = MockXcodeProjWriter()
 
         subject = Generator(graphLoader: graphLoader,
                             graphLinter: MockGraphLinter(),
                             workspaceGenerator: workspaceGenerator,
                             projectGenerator: projectGenerator,
-                            environmentLinter: environmentLinter)
+                            environmentLinter: environmentLinter,
+                            writer: writer)
     }
 
     override func tearDown() {

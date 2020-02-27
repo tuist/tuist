@@ -21,6 +21,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 
     public func write(project: GeneratedProjectDescriptor) throws {
+        let project = enrichingXcodeProjWithSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.path.path)
         try project.schemes.forEach { try write(scheme: $0, xccontainerPath: project.path) }
         try project.sideEffects.forEach(perform)
@@ -35,7 +36,24 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
     // MARK: -
 
-    private func write(scheme: GeneratedSchemeDescriptor, xccontainerPath: AbsolutePath) throws {
+    private func enrichingXcodeProjWithSchemes(descriptor: GeneratedProjectDescriptor) -> GeneratedProjectDescriptor {
+        let sharedSchemes = descriptor.schemes.filter { $0.shared }
+        let userSchemes = descriptor.schemes.filter { !$0.shared }
+
+        let xcodeProj = descriptor.xcodeProj
+        let sharedData = xcodeProj.sharedData ?? XCSharedData(schemes: [])
+
+        sharedData.schemes.append(contentsOf: sharedSchemes.map { $0.scheme })
+        xcodeProj.sharedData = sharedData
+
+        return GeneratedProjectDescriptor(path: descriptor.path,
+                                          xcodeProj: descriptor.xcodeProj,
+                                          schemes: userSchemes,
+                                          sideEffects: descriptor.sideEffects)
+    }
+
+    private func write(scheme: GeneratedSchemeDescriptor,
+                       xccontainerPath: AbsolutePath) throws {
         let schemeDirectory = self.schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.scheme.name).xcscheme")
         try fileHandler.createFolder(schemeDirectory)

@@ -3,20 +3,23 @@ import Foundation
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
+import XcodeProj
 @testable import TuistGenerator
 
 final class MockWorkspaceGenerator: WorkspaceGenerating {
     var generateWorkspaces: [Workspace] = []
-    var generateStub: ((Workspace, AbsolutePath, Graphing) throws -> AbsolutePath)?
+    var generateStub: ((Workspace, AbsolutePath, Graphing) throws -> GeneratedWorkspaceDescriptor)?
 
-    func generate(workspace: Workspace,
-                  path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath {
+    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> GeneratedWorkspaceDescriptor {
         generateWorkspaces.append(workspace)
-        return (try generateStub?(workspace, path, graph)) ?? AbsolutePath("/test")
+        return try generateStub?(workspace, path, graph) ?? stub
     }
 
-    func generateDescriptor(workspace _: Workspace, path _: AbsolutePath, graph _: Graphing) throws -> GeneratedWorkspaceDescriptor {
-        fatalError("Not yet implemented")
+    private var stub: GeneratedWorkspaceDescriptor {
+        GeneratedWorkspaceDescriptor(path: "/test",
+                                     xcworkspace: XCWorkspace(),
+                                     projects: [],
+                                     schemes: [],
+                                     sideEffects: [])
     }
 }

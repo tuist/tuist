@@ -60,6 +60,7 @@ public class Generator: Generating {
     private let graphLinter: GraphLinting
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating
+    private let writer: XcodeProjWriting
 
     /// Instance to lint the Tuist configuration against the system.
     private let environmentLinter: EnvironmentLinting
@@ -82,23 +83,27 @@ public class Generator: Generating {
                                                     cocoapodsInteractor: cocoapodsInteractor,
                                                     swiftPackageManaherInteractor: swiftPackageManagerInteractor,
                                                     schemesGenerator: schemesGenerator)
+        let writer = XcodeProjWriter()
         self.init(graphLoader: graphLoader,
                   graphLinter: graphLinter,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,
-                  environmentLinter: environmentLinter)
+                  environmentLinter: environmentLinter,
+                  writer: writer)
     }
 
     init(graphLoader: GraphLoading,
          graphLinter: GraphLinting,
          workspaceGenerator: WorkspaceGenerating,
          projectGenerator: ProjectGenerating,
-         environmentLinter: EnvironmentLinting) {
+         environmentLinter: EnvironmentLinting,
+         writer: XcodeProjWriting) {
         self.graphLoader = graphLoader
         self.graphLinter = graphLinter
         self.workspaceGenerator = workspaceGenerator
         self.projectGenerator = projectGenerator
         self.environmentLinter = environmentLinter
+        self.writer = writer
     }
 
     public func generateProject(_ project: Project,
@@ -109,11 +114,13 @@ public class Generator: Generating {
         /// are relative to the directory that contains the manifest.
         let sourceRootPath = sourceRootPath ?? project.path
 
-        let generatedProject = try projectGenerator.generate(project: project,
-                                                             graph: graph,
-                                                             sourceRootPath: sourceRootPath,
-                                                             xcodeprojPath: xcodeprojPath)
-        return generatedProject.path
+        let descriptor = try projectGenerator.generate(project: project,
+                                                       graph: graph,
+                                                       sourceRootPath: sourceRootPath,
+                                                       xcodeprojPath: xcodeprojPath)
+
+        try writer.write(project: descriptor)
+        return descriptor.path
     }
 
     public func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graphing) {
@@ -123,11 +130,13 @@ public class Generator: Generating {
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
-        let generatedProject = try projectGenerator.generate(project: project,
-                                                             graph: graph,
-                                                             sourceRootPath: path,
-                                                             xcodeprojPath: nil)
-        return (generatedProject.path, graph)
+        let descriptor = try projectGenerator.generate(project: project,
+                                                       graph: graph,
+                                                       sourceRootPath: path,
+                                                       xcodeprojPath: nil)
+
+        try writer.write(project: descriptor)
+        return (descriptor.path, graph)
     }
 
     public func generateProjectWorkspace(at path: AbsolutePath,
@@ -143,10 +152,11 @@ public class Generator: Generating {
                                   projects: graph.projectPaths,
                                   additionalFiles: workspaceFiles.map(FileElement.file))
 
-        let workspacePath = try workspaceGenerator.generate(workspace: workspace,
-                                                            path: path,
-                                                            graph: graph)
-        return (workspacePath, graph)
+        let descriptor = try workspaceGenerator.generate(workspace: workspace,
+                                                         path: path,
+                                                         graph: graph)
+        try writer.write(workspace: descriptor)
+        return (descriptor.path, graph)
     }
 
     public func generateWorkspace(at path: AbsolutePath,
@@ -160,9 +170,10 @@ public class Generator: Generating {
             .merging(projects: graph.projectPaths)
             .adding(files: workspaceFiles)
 
-        let workspacePath = try workspaceGenerator.generate(workspace: updatedWorkspace,
-                                                            path: path,
-                                                            graph: graph)
-        return (workspacePath, graph)
+        let descriptor = try workspaceGenerator.generate(workspace: updatedWorkspace,
+                                                         path: path,
+                                                         graph: graph)
+        try writer.write(workspace: descriptor)
+        return (descriptor.path, graph)
     }
 }

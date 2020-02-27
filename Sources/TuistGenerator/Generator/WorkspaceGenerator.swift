@@ -28,16 +28,11 @@ protocol WorkspaceGenerating: AnyObject {
     ///   - workspace: Workspace model.
     ///   - path: Path to the directory where the generation command is executed from.
     ///   - graph: In-memory representation of the graph.
-    /// - Returns: Path to the generated workspace.
+    /// - Returns: Generated workspace descriptor
     /// - Throws: An error if the generation fails.
-    @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath
-
-    func generateDescriptor(workspace: Workspace,
-                            path: AbsolutePath,
-                            graph: Graphing) throws -> GeneratedWorkspaceDescriptor
+                  graph: Graphing) throws -> GeneratedWorkspaceDescriptor
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -78,83 +73,17 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - WorkspaceGenerating
 
-    /// Generates the given workspace.
-    ///
-    /// - Parameters:
-    ///   - workspace: Workspace model.
-    ///   - path: Path to the directory where the generation command is executed from.
-    ///   - graph: In-memory representation of the graph.
-    /// - Returns: Path to the generated workspace.
-    /// - Throws: An error if the generation fails.
-    @discardableResult
-    func generate(workspace: Workspace,
-                  path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath {
-        let workspaceName = "\(graph.name).xcworkspace"
-
-        logger.notice("Generating workspace \(workspaceName)", metadata: .section)
-
-        /// Projects
-
-        var generatedProjects = [AbsolutePath: GeneratedProject]()
-        try graph.projects.forEach { project in
-            let generatedProject = try projectGenerator.generate(project: project,
-                                                                 graph: graph,
-                                                                 sourceRootPath: project.path,
-                                                                 xcodeprojPath: nil)
-            generatedProjects[project.path] = generatedProject
-        }
-
-        // Workspace structure
-        let structure = workspaceStructureGenerator.generateStructure(path: path,
-                                                                      workspace: workspace,
-                                                                      fileHandler: FileHandler.shared)
-
-        let workspacePath = path.appending(component: workspaceName)
-        let workspaceData = XCWorkspaceData(children: [])
-        let xcWorkspace = XCWorkspace(data: workspaceData)
-        try workspaceData.children = structure.contents.map {
-            try recursiveChildElement(generatedProjects: generatedProjects,
-                                      element: $0,
-                                      path: path)
-        }
-
-        try write(workspace: workspace,
-                  xcworkspace: xcWorkspace,
-                  generatedProjects: generatedProjects,
-                  graph: graph,
-                  to: workspacePath)
-
-        // Schemes
-
-        try writeSchemes(workspace: workspace,
-                         xcworkspace: xcWorkspace,
-                         generatedProjects: generatedProjects,
-                         graph: graph,
-                         to: workspacePath)
-
-        // SPM
-
-        try swiftPackageManaherInteractor.install(graph: graph, workspaceName: workspaceName)
-
-        // CocoaPods
-
-        try cocoapodsInteractor.install(graph: graph)
-
-        return workspacePath
-    }
-
-    func generateDescriptor(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> GeneratedWorkspaceDescriptor {
+    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> GeneratedWorkspaceDescriptor {
         let workspaceName = "\(graph.name).xcworkspace"
 
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
 
         /// Projects
         let projects = try graph.projects.map { project in
-            try projectGenerator.generateDescriptor(project: project,
-                                                    graph: graph,
-                                                    sourceRootPath: project.path,
-                                                    xcodeprojPath: nil)
+            try projectGenerator.generate(project: project,
+                                          graph: graph,
+                                          sourceRootPath: project.path,
+                                          xcodeprojPath: nil)
         }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in

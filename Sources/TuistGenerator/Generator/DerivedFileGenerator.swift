@@ -14,8 +14,7 @@ protocol DerivedFileGenerating {
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A project that might have got mutated after the generation of derived files, and a
     ///     function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, () throws -> Void)
-    func generateSideEffects(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect])
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect])
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
@@ -38,19 +37,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         self.infoPlistContentProvider = infoPlistContentProvider
     }
 
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, () throws -> Void) {
-        let transformation = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
-        let createFiles = transformation.sideEffects.filter(\.isCreateFile)
-        let process = DerivedFileGenerator.process
-        try createFiles.forEach(process)
-
-        let deletions = transformation.sideEffects.filter(\.isDeleteFile)
-        return (transformation.project, {
-            try deletions.forEach(process)
-        })
-    }
-
-    func generateSideEffects(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect]) {
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect]) {
         let transformation = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         return (transformation.project, transformation.sideEffects)
@@ -134,18 +121,6 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         }
     }
 
-    private static func process(sideEffect: GeneratedSideEffect) throws {
-        switch sideEffect {
-        case let .file(file):
-            try FileHandler.shared.createFolder(file.path.parentDirectory)
-            try file.contents.write(to: file.path.url)
-        case let .delete(path):
-            try FileHandler.shared.delete(path)
-        default:
-            break
-        }
-    }
-
     /// Returns the path to the directory that contains all the derived files.
     ///
     /// - Parameter sourceRootPath: Directory where the project will be generated.
@@ -173,21 +148,5 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     static func infoPlistPath(target: Target, sourceRootPath: AbsolutePath) -> AbsolutePath {
         infoPlistsPath(sourceRootPath: sourceRootPath)
             .appending(component: "\(target.name).plist")
-    }
-}
-
-private extension GeneratedSideEffect {
-    var isCreateFile: Bool {
-        switch self {
-        case .file: return true
-        default: return false
-        }
-    }
-
-    var isDeleteFile: Bool {
-        switch self {
-        case .delete: return true
-        default: return false
-        }
     }
 }

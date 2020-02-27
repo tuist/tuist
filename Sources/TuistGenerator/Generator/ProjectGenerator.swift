@@ -75,8 +75,8 @@ final class ProjectGenerator: ProjectGenerating {
 
     func generate(project: Project,
                   graph: Graphing,
-                  sourceRootPath: AbsolutePath?,
-                  xcodeprojPath: AbsolutePath?) throws -> GeneratedProjectDescriptor {
+                  sourceRootPath: AbsolutePath? = nil,
+                  xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         // Getting the path.
@@ -87,7 +87,7 @@ final class ProjectGenerator: ProjectGenerating {
 
         // Derived files
         // TODO: experiment with moving this outside the project generator to avoid needing to mutate the project
-        let (project, sideEffects) = try derivedFileGenerator.generateSideEffects(graph: graph, project: project, sourceRootPath: sourceRootPath)
+        let (project, sideEffects) = try derivedFileGenerator.generate(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
