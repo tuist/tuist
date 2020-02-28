@@ -15,7 +15,9 @@ public extension Observable where Element == SystemEvent<String> {
         self.do(onNext: { event in
             switch event {
             case let .standardError(error):
-                Printer.shared.print(errorMessage: "\(error)")
+                if let data = error.data(using: .utf8) {
+                    FileHandle.standardError.write(data)
+                }
             default:
                 return
             }
