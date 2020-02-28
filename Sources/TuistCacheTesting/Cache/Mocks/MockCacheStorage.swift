@@ -6,6 +6,9 @@ import TuistCore
 
 public final class MockCacheStorage: CacheStoraging {
     var existsStub: ((String) -> Bool)?
+
+    public init() {}
+
     public func exists(hash: String) -> Single<Bool> {
         if let existsStub = existsStub {
             return Single.just(existsStub(hash))

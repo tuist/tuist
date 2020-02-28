@@ -44,12 +44,21 @@ final class CacheController: CacheControlling {
     }
 
     func cache(path: AbsolutePath) throws {
-        // Generate the project.
-        let (path, graph) = try generator.generate(at: path, manifestLoader: manifestLoader, projectOnly: false)
+        let (path, graph) = try generator.generateWorkspace(at: path, manifestLoader: manifestLoader)
 
-        // Getting the hash
         Printer.shared.print(section: "Hashing cacheable frameworks")
-        let targets: [TargetNode: String] = try graphContentHasher.contentHashes(for: graph)
+        let cacheableTargets = try self.cacheableTargets(graph: graph)
+
+        let completables = try cacheableTargets.map { try buildAndCacheXCFramework(path: path, target: $0.key, hash: $0.value) }
+        _ = try Completable.zip(completables).toBlocking().last()
+
+        Printer.shared.print(success: "All cacheable frameworks have been cached successfully")
+    }
+
+    /// Returns all the targets that are cacheable and their hashes.
+    /// - Parameter graph: Graph that contains all the dependency graph nodes.
+    fileprivate func cacheableTargets(graph: Graphing) throws -> [TargetNode: String] {
+        try graphContentHasher.contentHashes(for: graph)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
                     Printer.shared.print("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
@@ -57,28 +66,36 @@ final class CacheController: CacheControlling {
                 }
                 return true
             }
+    }
 
-        var completables: [Completable] = []
-        try targets.forEach { target, hash in
-            // Build targets sequentially
-            let xcframeworkPath: AbsolutePath!
-            if path.extension == "xcworkspace" {
-                xcframeworkPath = try self.xcframeworkBuilder.build(workspacePath: path, target: target.target).toBlocking().single()
-            } else {
-                xcframeworkPath = try self.xcframeworkBuilder.build(projectPath: path, target: target.target).toBlocking().single()
-            }
+    /// Builds the .xcframework for the given target and returns an obervable to store them in the cache.
+    /// - Parameters:
+    ///   - path: Path to either the .xcodeproj or .xcworkspace that contains the framework to be cached.
+    ///   - target: Target whose .xcframework will be built and cached.
+    ///   - hash: Hash of the target.
+    fileprivate func buildAndCacheXCFramework(path: AbsolutePath, target: TargetNode, hash: String) throws -> Completable {
+        // Build targets sequentially
+        let xcframeworkPath: AbsolutePath!
 
-            // Create tasks to cache and delete the xcframeworks asynchronously
-            let deleteXCFrameworkCompletable = Completable.create(subscribe: { completed in
-                try? FileHandler.shared.delete(xcframeworkPath)
-                completed(.completed)
-                return Disposables.create()
-            })
-            completables.append(cache.store(hash: hash, xcframeworkPath: xcframeworkPath).concat(deleteXCFrameworkCompletable))
+        // Note: Since building XCFrameworks involves calling xcodebuild, we run the building process sequentially.
+        if path.extension == "xcworkspace" {
+            xcframeworkPath = try xcframeworkBuilder.build(workspacePath: path, target: target.target).toBlocking().single()
+        } else {
+            xcframeworkPath = try xcframeworkBuilder.build(projectPath: path, target: target.target).toBlocking().single()
         }
 
-        _ = try Completable.zip(completables).toBlocking().last()
-
-        Printer.shared.print(success: "All cacheable frameworks have been cached successfully")
+        // Create tasks to cache and delete the xcframeworks asynchronously
+        let deleteXCFrameworkCompletable = Completable.create(subscribe: { completed in
+            try? FileHandler.shared.delete(xcframeworkPath)
+            completed(.completed)
+            return Disposables.create()
+        })
+        return cache
+            .store(hash: hash, xcframeworkPath: xcframeworkPath)
+            .concat(deleteXCFrameworkCompletable)
+            .catchError { error in
+                // We propagate the error downstream
+                deleteXCFrameworkCompletable.concat(Completable.error(error))
+            }
     }
 }
