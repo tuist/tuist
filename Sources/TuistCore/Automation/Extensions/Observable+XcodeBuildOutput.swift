@@ -7,9 +7,15 @@ public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
         self.do(onNext: { event in
             switch event {
             case let .standardError(error):
-                Printer.shared.print(errorMessage: "\(error.formatted ?? error.raw)")
+                let string = error.formatted ?? error.raw
+                if let data = string.data(using: .utf8) {
+                    FileHandle.standardError.write(data)
+                }
             case let .standardOutput(output):
-                Printer.shared.print("\(output.formatted ?? output.raw)")
+                let string = output.formatted ?? output.raw
+                if let data = string.data(using: .utf8) {
+                    FileHandle.standardOutput.write(data)
+                }
             }
         })
     }
