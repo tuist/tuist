@@ -404,6 +404,7 @@ public final class System: Systeming {
                                        exitStatus: result.exitStatus,
                                        output: result.output,
                                        stderrOutput: result.stderrOutput.map { _ in errorData })
+
                 try result.throwIfErrored()
                 observer.onCompleted()
             } catch {

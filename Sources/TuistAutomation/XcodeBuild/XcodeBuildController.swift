@@ -1,35 +1,9 @@
 import Basic
 import Foundation
 import RxSwift
+import TuistCore
 import TuistSupport
 import XcbeautifyLib
-
-protocol XcodeBuildControlling {
-    /// Returns an observable to build the given project using xcodebuild.
-    /// - Parameters:
-    ///   - target: The project or workspace to be built.
-    ///   - scheme: The scheme of the project that should be built.
-    ///   - clean: True if xcodebuild should clean the project before building.
-    func build(_ target: XcodeBuildTarget, scheme: String, clean: Bool) -> Observable<SystemEvent<String>>
-}
-
-public enum XcodeBuildTarget {
-    /// The target is an Xcode project.
-    case project(AbsolutePath)
-
-    /// The target is an Xcode workspace.
-    case workspace(AbsolutePath)
-
-    /// Returns the arguments that need to be passed to xcodebuild to build this target.
-    var xcodebuildArguments: [String] {
-        switch self {
-        case let .project(path):
-            return ["-project", path.pathString]
-        case let .workspace(path):
-            return ["-workspace", path.pathString]
-        }
-    }
-}
 
 public final class XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
@@ -37,38 +11,87 @@ public final class XcodeBuildController: XcodeBuildControlling {
     /// Instance to format xcodebuild output.
     private let parser: Parsing
 
+    public convenience init() {
+        self.init(parser: Parser())
+    }
+
     init(parser: Parsing) {
         self.parser = parser
     }
 
-    func build(_ target: XcodeBuildTarget, scheme: String, clean: Bool = false) -> Observable<SystemEvent<String>> {
-        var command = ["/usr/bin/xcrun", "xcodebuild", "-scheme", scheme]
+    public func build(_ target: XcodeBuildTarget,
+                      scheme: String,
+                      clean: Bool = false,
+                      arguments: XcodeBuildArgument...) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        var command = ["/usr/bin/xcrun", "xcodebuild"]
+
+        // Action
+        if clean {
+            command.append("clean")
+        }
+        command.append("build")
+
+        // Scheme
+        command.append(contentsOf: ["-scheme", scheme])
 
         // Target
         command.append(contentsOf: target.xcodebuildArguments)
 
+        // Arguments
+        command.append(contentsOf: arguments.flatMap { $0.arguments })
+
+        return run(command: command)
+    }
+
+    public func archive(_ target: XcodeBuildTarget,
+                        scheme: String,
+                        clean: Bool,
+                        archivePath: AbsolutePath,
+                        arguments: XcodeBuildArgument...) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        var command = ["/usr/bin/xcrun", "xcodebuild"]
+
         // Action
-        command.append("build")
         if clean {
             command.append("clean")
         }
+        command.append("archive")
 
+        // Scheme
+        command.append(contentsOf: ["-scheme", scheme])
+
+        // Target
+        command.append(contentsOf: target.xcodebuildArguments)
+
+        // Archive path
+        command.append(contentsOf: ["-archivePath", archivePath.pathString])
+
+        // Arguments
+        command.append(contentsOf: arguments.flatMap { $0.arguments })
+
+        return run(command: command)
+    }
+
+    public func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
+        command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
+        command.append(contentsOf: ["-output", output.pathString])
+        return run(command: command)
+    }
+
+    fileprivate func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
         let colored = Environment.shared.shouldOutputBeColoured
-        return System.shared.observable(command, verbose: true)
-            .compactMap { event -> SystemEvent<String>? in
+        return System.shared.observable(command, verbose: false)
+            .compactMap { event -> SystemEvent<XcodeBuildOutput>? in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return nil }
-                    guard let formatedOutput = self.parser.parse(line: line, colored: colored) else { return nil }
-                    return .standardError(formatedOutput)
+                    let formatedOutput = self.parser.parse(line: line, colored: colored)
+                    return .standardError(XcodeBuildOutput(raw: line, formatted: formatedOutput))
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return nil }
-                    guard let formatedOutput = self.parser.parse(line: line, colored: colored) else { return nil }
-                    return .standardOutput(formatedOutput)
+                    let formatedOutput = self.parser.parse(line: line, colored: colored)
+                    return .standardOutput(XcodeBuildOutput(raw: line, formatted: formatedOutput))
                 }
             }
-            .do(onNext: { event in
-                Printer.shared.print("\(event.value)")
-            })
     }
 }

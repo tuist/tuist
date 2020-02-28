@@ -115,6 +115,7 @@ final class Installer: Installing {
         })
     }
 
+    // swiftlint:disable:next function_body_length
     func installFromSource(version: String,
                            temporaryDirectory: TemporaryDirectory) throws {
         try versionsController.install(version: version) { installationDirectory in

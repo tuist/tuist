@@ -1,10 +1,11 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistCore
 import TuistLoader
 import XcodeProj
 import XCTest
-
+@testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
@@ -62,12 +63,13 @@ final class FocusCommandTests: TuistUnitTestCase {
 
     func test_run() throws {
         let result = try parser.parse([FocusCommand.command])
+        let graph = Graph.test()
         let workspacePath = AbsolutePath("/test.xcworkspace")
         manifestLoader.manifestsAtStub = { _ in
             Set([.project])
         }
         generator.generateProjectWorkspaceStub = { _, _ in
-            workspacePath
+            (workspacePath, graph)
         }
         try subject.run(with: result)
 
