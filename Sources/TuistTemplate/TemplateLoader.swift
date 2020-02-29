@@ -7,8 +7,6 @@ import TuistLoader
 
 
 public protocol TemplateLoading {
-    /// - Returns: All available directories with defined templates (custom and built-in)
-    func templateDirectories() throws -> [AbsolutePath]
     /// Load `TuistTemplate.Template` at given `path`
     /// - Parameters:
     ///     - path: Path of template manifest file `Template.swift`
@@ -44,14 +42,6 @@ public class TemplateLoader: TemplateLoading {
         self.templateDescriptionHelpersBuilder = templateDescriptionHelpersBuilder
         decoder = JSONDecoder()
         encoder = JSONEncoder()
-    }
-    
-    public func templateDirectories() throws -> [AbsolutePath] {
-        let templatesDirectory = templatesDirectoryLocator.locate()
-        let templates = try templatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
-        let customTemplatesDirectory = templatesDirectoryLocator.locateCustom(at: FileHandler.shared.currentPath)
-        let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
-        return (templates + customTemplates).filter { $0.basename != Constants.templateHelpersDirectoryName }
     }
     
     public func loadTemplate(at path: AbsolutePath) throws -> TuistTemplate.Template {

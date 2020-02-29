@@ -8,6 +8,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
+@testable import TuistTemplateTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {
@@ -25,6 +26,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
     var resourceLocator: MockResourceLocator!
     var manifestFilesLocator: MockManifestFilesLocator!
     var helpersDirectoryLocator: MockHelpersDirectoryLocator!
+    var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var subject: ProjectEditor!
 
     override func setUp() {
@@ -34,11 +36,13 @@ final class ProjectEditorTests: TuistUnitTestCase {
         resourceLocator = MockResourceLocator()
         manifestFilesLocator = MockManifestFilesLocator()
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         subject = ProjectEditor(generator: generator,
                                 projectEditorMapper: projectEditorMapper,
                                 resourceLocator: resourceLocator,
                                 manifestFilesLocator: manifestFilesLocator,
-                                helpersDirectoryLocator: helpersDirectoryLocator)
+                                helpersDirectoryLocator: helpersDirectoryLocator,
+                                templatesDirectoryLocator: templatesDirectoryLocator)
     }
 
     override func tearDown() {
@@ -48,6 +52,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         resourceLocator = nil
         manifestFilesLocator = nil
         helpersDirectoryLocator = nil
+        templatesDirectoryLocator = nil
         subject = nil
     }
 
@@ -61,11 +66,18 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
         let helpers = ["A.swift", "B.swift"].map { helpersDirectory.appending(component: $0) }
         try helpers.forEach { try FileHandler.shared.touch($0) }
+        let templateHelpersDirectory = directory.appending(component: "TemplateDescriptionHelpers")
+        try FileHandler.shared.createFolder(templateHelpersDirectory)
+        let templateHelpers = ["A.swift", "B.swift"].map { templateHelpersDirectory.appending(component: $0) }
+        try templateHelpers.forEach { try FileHandler.shared.touch($0) }
         let manifests: [(Manifest, AbsolutePath)] = [(.project, directory.appending(component: "Project.swift"))]
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         manifestFilesLocator.locateStub = manifests
         helpersDirectoryLocator.locateStub = helpersDirectory
+        templatesDirectoryLocator.locateCustomStub = { _ in
+            templateHelpersDirectory
+        }
         projectEditorMapper.mapStub = (project, graph)
         var generatedProject: Project?
         generator.generateProjectStub = { project, _, _ in

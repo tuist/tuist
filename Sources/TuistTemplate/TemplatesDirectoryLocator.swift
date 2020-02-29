@@ -80,15 +80,21 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
         if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-        } else if fileHandler.exists(path.appending(RelativePath(Constants.tuistDirectoryName))) {
+                .appending(component: Constants.tuistDirectoryName)
+                .appending(component: Constants.templatesDirectoryName)
+        } else if fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)) {
+            cache(rootDirectory: path, for: source)
+            return path
+                .appending(component: Constants.tuistDirectoryName)
+                .appending(component: Constants.templatesDirectoryName)
+        } else if fileHandler.exists(path.appending(component: Constants.templatesDirectoryName)) {
             cache(rootDirectory: path, for: source)
             return path.appending(component: Constants.templatesDirectoryName)
-        } else if fileHandler.exists(path.appending(component: Constants.templatesDirectoryName)) {
-            cache(rootDirectory: path.appending(component: Constants.templatesDirectoryName), for: source)
-            return path
         } else if fileHandler.exists(path.appending(RelativePath(".git"))) {
             cache(rootDirectory: path, for: source)
             return path
+                .appending(component: Constants.tuistDirectoryName)
+                .appending(component: Constants.templatesDirectoryName)
         } else if !path.isRoot {
             return locate(from: path.parentDirectory, source: source)
         }

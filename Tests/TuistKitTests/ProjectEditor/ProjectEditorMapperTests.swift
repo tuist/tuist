@@ -25,19 +25,23 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let sourceRootPath = try temporaryPath()
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
+        let templates = [sourceRootPath].map { $0.appending(component: "template") }
+        let templateHelpers = [sourceRootPath].map { $0.appending(component: "Template+Helper.swift") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
 
         // When
         let (project, graph) = subject.map(sourceRootPath: sourceRootPath,
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
-                                           templates: [],
-                                           templateHelpers: [],
+                                           templates: templates,
+                                           templateHelpers: templateHelpers,
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
         let manifestsTarget = project.targets.first
-        let helpersTarget = project.targets.last
+        let helpersTarget = project.targets.first { $0.name == "ProjectDescriptionHelpers" }
+        let templatesTarget = project.targets.first { $0.name == "Templates" }
+        let templateHelpersTarget = project.targets.first { $0.name == "TemplateDescriptionHelpers" }
         let expectedManifestsTarget = Target(name: "Manifests",
                                              platform: .macOS,
                                              product: .staticFramework,
@@ -46,7 +50,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                              settings: expectedSettings(sourceRootPath: sourceRootPath),
                                              sources: manifestPaths.map { (path: $0, compilerFlags: nil) },
                                              filesGroup: .group(name: "Manifests"),
-                                             dependencies: [.target(name: "ProjectDescriptionHelpers")])
+                                             dependencies: [
+                                                .target(name: "ProjectDescriptionHelpers"),
+                                                .target(name: "TemplateDescriptionHelpers")])
         let expectedHelpersTarget = Target(name: "ProjectDescriptionHelpers",
                                            platform: .macOS,
                                            product: .staticFramework,
@@ -56,20 +62,41 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            sources: helperPaths.map { (path: $0, compilerFlags: nil) },
                                            filesGroup: .group(name: "Manifests"),
                                            dependencies: [])
+        let expectedTemplateHelpersTarget = Target(name: "TemplateDescriptionHelpers",
+                                           platform: .macOS,
+                                           product: .staticFramework,
+                                           productName: "TemplateDescriptionHelpers",
+                                           bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+                                           settings: expectedSettings(sourceRootPath: sourceRootPath),
+                                           sources: templateHelpers.map { (path: $0, compilerFlags: nil) },
+                                           filesGroup: .group(name: "Manifests"),
+                                           dependencies: [])
+        let expectedTemplatesTarget = Target(name: "Templates",
+                                           platform: .macOS,
+                                           product: .staticFramework,
+                                           productName: "Templates",
+                                           bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+                                           settings: expectedSettings(sourceRootPath: sourceRootPath),
+                                           sources: templates.map { (path: $0, compilerFlags: nil) },
+                                           filesGroup: .group(name: "Manifests"),
+                                           dependencies: [])
         let expectedProject = Project(path: sourceRootPath,
                                       name: "Manifests",
                                       settings: Settings(base: [:],
                                                          configurations: Settings.default.configurations,
                                                          defaultSettings: .recommended),
                                       filesGroup: .group(name: "Manifests"),
-                                      targets: [expectedManifestsTarget, expectedHelpersTarget])
+                                      targets: [expectedManifestsTarget, expectedHelpersTarget, expectedTemplatesTarget, expectedTemplateHelpersTarget])
         XCTAssertEqual(project, expectedProject)
 
         let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
-        XCTAssertEqual(targetNodes.count, 2)
-        XCTAssertEqual(targetNodes.first?.target, manifestsTarget)
-        XCTAssertEqual(targetNodes.last?.target, helpersTarget)
-        XCTAssertEqual(targetNodes.first?.dependencies, [targetNodes.last!])
+        XCTAssertEqual(targetNodes.count, 4)
+        XCTAssertTrue(targetNodes.contains { $0.target == manifestsTarget })
+        XCTAssertTrue(targetNodes.contains { $0.target == helpersTarget })
+        XCTAssertTrue(targetNodes.contains { $0.target == templatesTarget })
+        XCTAssertTrue(targetNodes.contains { $0.target == templateHelpersTarget })
+        XCTAssertEqual(targetNodes.first?.dependencies, targetNodes.filter { $0.name == "ProjectDescriptionHelpers" || $0.name == "Templates" })
+        XCTAssertEqual(targetNodes.last?.dependencies, targetNodes.filter { $0.name == "TemplateDescriptionHelpers" })
     }
 
     func test_edit_when_there_are_no_helpers() throws {

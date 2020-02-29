@@ -7,11 +7,11 @@ import TuistLoader
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`
     /// - Parameters:
-    ///     - at: Path of directory where `Template.swift` is located
-    ///     - to: Path of directory where files should be generated to
+    ///     - sourcePath: Path of directory where `Template.swift` is located
+    ///     - destinationPath: Path of directory where files should be generated to
     ///     - attributes: Attributes from user input
-    func generate(at path: AbsolutePath,
-                  to path: AbsolutePath,
+    func generate(at sourcePath: AbsolutePath,
+                  to destinationPath: AbsolutePath,
                   attributes: [String]) throws
 }
 

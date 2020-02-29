@@ -6,7 +6,6 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 import TuistTemplate
-import struct TemplateDescription.ParsedAttribute
 
 private typealias Platform = TuistCore.Platform
 private typealias Product = TuistCore.Product
@@ -120,7 +119,9 @@ class InitCommand: NSObject, Command {
                                            to: path,
                                            attributes: arguments.get(attributesArgument) ?? [])
         } else {
-            guard let templateDirectory = directories.first(where: { $0.basename == "default" }) else { throw InitCommandError.templateNotFound("default") }
+            guard
+                let templateDirectory = directories.first(where: { $0.basename == "default" })
+            else { throw InitCommandError.templateNotFound("default") }
             try templateGenerator.generate(at: templateDirectory,
                                            to: path,
                                            attributes: ["--name", name, "--platform", platform.rawValue])

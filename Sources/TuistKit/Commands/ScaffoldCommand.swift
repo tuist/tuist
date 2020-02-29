@@ -2,7 +2,6 @@ import Foundation
 import TuistSupport
 import TuistLoader
 import TuistTemplate
-import struct TemplateDescription.ParsedAttribute
 import SPMUtility
 import Basic
 
@@ -11,6 +10,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
     
     case templateNotFound(String)
     case templateNotProvided
+    case nonEmptyDirectory(AbsolutePath)
     
     var description: String {
         switch self {
@@ -18,6 +18,8 @@ enum ScaffoldCommandError: FatalError, Equatable {
             return "Could not find template \(template)"
         case .templateNotProvided:
             return "You must provide template name"
+        case let .nonEmptyDirectory(path):
+            return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
         }
     }
 }
@@ -58,7 +60,7 @@ class ScaffoldCommand: NSObject, Command {
                                      completion: nil)
         templateArgument = subParser.add(positional: "template",
                                          kind: String.self,
-                                         optional: true,
+                                         optional: false,
                                          usage: "Name of template you want to use",
                                          completion: nil)
         pathArgument = subParser.add(option: "--path",
@@ -79,6 +81,8 @@ class ScaffoldCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
+        try verifyDirectoryIsEmpty(path: path)
+        
         let directories = try templatesDirectoryLocator.templateDirectories()
         
         let shouldList = arguments.get(listArgument) ?? false
@@ -107,6 +111,16 @@ class ScaffoldCommand: NSObject, Command {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
+        }
+    }
+    
+    /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
+    ///
+    /// - Parameter path: Directory to be checked.
+    /// - Throws: An ScaffoldCommandError.nonEmptyDirectory error when the directory is not empty.
+    private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
+        if !path.glob("*").isEmpty {
+            throw ScaffoldCommandError.nonEmptyDirectory(path)
         }
     }
 }
