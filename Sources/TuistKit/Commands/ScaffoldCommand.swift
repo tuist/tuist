@@ -48,7 +48,7 @@ class ScaffoldCommand: NSObject, Command {
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
-                                     usage: "The path to the folder where the project will be generated (Default: Current directory).",
+                                     usage: "The path to the folder where the template will be generated (Default: Current directory).",
                                      completion: .filename)
         attributesArgument = subParser.add(option: "--attributes",
                                            shortName: "-a",
@@ -62,7 +62,7 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        let path = try self.path(arguments: arguments)
+        let path = self.path(arguments: arguments)
         let directories = try templatesDirectoryLocator.templateDirectories()
         
         let shouldList = arguments.get(listArgument) ?? false
