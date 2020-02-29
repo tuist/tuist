@@ -37,7 +37,14 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     // MARK: - TemplatesDirectoryLocating
 
     public func locate() -> AbsolutePath? {
+        #if DEBUG
+        let bundlePath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+        #else
         let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
+        #endif
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,
