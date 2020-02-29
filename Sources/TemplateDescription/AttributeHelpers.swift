@@ -33,32 +33,3 @@ public func getAttribute(for name: String) throws -> String {
     guard let value = parsedAttributes.first(where: { $0.name == name })?.value else { throw ParsingError.attributeNotFound(name) }
     return value
 }
-
-/// Content to generate in `.generated` `Template.File`
-public struct Content {
-    /// - Parameters:
-    ///     - generateContent: Closure to generate content with (can throw errors that will be displayed to the user if occurs)
-    public init(_ generateContent: () throws -> String) {
-        do {
-            dumpIfNeeded(try generateContent())
-        } catch let error {
-            if let localizedDescriptionData = "\(error)".data(using: .utf8) {
-                FileHandle.standardError.write(localizedDescriptionData)
-            }
-            exit(1)
-        }
-    }
-}
-
-/// Parsed attribute from user input
-public struct ParsedAttribute: Codable {
-    public init(name: String, value: String) {
-        self.name = name
-        self.value = value
-    }
-    
-    /// Name (identifier) of attribute
-    public let name: String
-    /// Value of attribute
-    public let value: String
-}

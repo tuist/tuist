@@ -12,10 +12,8 @@ class BuildCopier: BuildCopying {
     /// Files that should be copied (if they exist).
     static let files: [String] = [
         "tuist",
-        libraryFiles(for: "ProjectDescription"),
-        libraryFiles(for: "TemplateDescription"),
-        "../../Templates"
-    ]
+        "Templates"
+    ] + libraryFiles(for: "ProjectDescription") + libraryFiles(for: "TemplateDescription")
 
     func copy(from: AbsolutePath, to: AbsolutePath) throws {
         try BuildCopier.files.forEach { file in

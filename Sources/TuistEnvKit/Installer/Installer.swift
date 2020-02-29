@@ -172,12 +172,15 @@ final class Installer: Installing {
                                   "-Xswiftc", "-enable-library-evolution",
                                   "-Xswiftc", "-emit-module-interface",
                                   "-Xswiftc", "-emit-module-interface-path",
-                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/TemplatesDescription.swiftinterface")).pathString) // swiftlint:disable:this line_length
+                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/TemplateDescription.swiftinterface")).pathString) // swiftlint:disable:this line_length
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)
             }
             try FileHandler.shared.createFolder(installationDirectory)
+            
+            try FileHandler.shared.copy(from: temporaryDirectory.path.appending(component: Constants.templatesDirectoryName),
+                                        to: buildDirectory.appending(component: Constants.templatesDirectoryName))
 
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
