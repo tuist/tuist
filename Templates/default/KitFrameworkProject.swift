@@ -10,7 +10,7 @@ let kitFrameworkProjectContent = Content {
     import ProjectDescriptionHelpers
 
     let project = Project.framework(name: "\(name)Kit", platform: .\(platform.caseValue), dependencies: [
-        .project(target: "\(name)Support", path: .relativeToManifest("../\(platform.caseValue)Support"))
+        .project(target: "\(name)Support", path: .relativeToManifest("../\(name)Support"))
     ])
     """
 }

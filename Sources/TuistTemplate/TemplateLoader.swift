@@ -59,8 +59,7 @@ public class TemplateLoader: TemplateLoading {
         guard FileHandler.shared.exists(manifestPath) else {
             fatalError()
         }
-        let manifestString = try loadManifestString(at: manifestPath)
-        guard let data = manifestString.data(using: .utf8) else { throw ManifestLoaderError.unexpectedOutput(path) }
+        let data = try loadManifestData(at: manifestPath)
         let manifest = try decoder.decode(TemplateDescription.Template.self, from: data)
         return try TuistTemplate.Template.from(manifest: manifest,
                                                at: path)
@@ -72,12 +71,13 @@ public class TemplateLoader: TemplateLoading {
             additionalArguments.append("--attributes")
             additionalArguments.append(attributes)
         }
-        return try loadManifestString(at: path, additionalArguments: additionalArguments)
+        let data = try loadManifestData(at: path, additionalArguments: additionalArguments)
+        return try decoder.decode(String.self, from: data)
     }
     
     // MARK: - Helpers
     
-    private func loadManifestString(at path: AbsolutePath, additionalArguments: [String] = []) throws -> String {
+    private func loadManifestData(at path: AbsolutePath, additionalArguments: [String] = []) throws -> Data {
         let templateDescriptionPath = try resourceLocator.templateDescription()
 
         var arguments: [String] = [
@@ -106,11 +106,12 @@ public class TemplateLoader: TemplateLoading {
         arguments.append(contentsOf: additionalArguments)
         arguments.append("--tuist-dump")
 
-        guard let result = try System.shared.capture(arguments).spm_chuzzle() else {
+        let result = try System.shared.capture(arguments).spm_chuzzle()
+        guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
             throw ManifestLoaderError.unexpectedOutput(path)
         }
 
-        return result
+        return data
     }
 }
 

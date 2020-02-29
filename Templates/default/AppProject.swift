@@ -10,7 +10,7 @@ let appProjectContent = Content {
     import ProjectDescriptionHelpers
 
     let project = Project.app(name: "\(name)", platform: .\(platform.caseValue), dependencies: [
-    .project(target: "\(name)Kit", path: .relativeToManifest("../\(platform.caseValue)Kit"))
+        .project(target: "\(name)Kit", path: .relativeToManifest("../\(name)Kit"))
     ])
     """
 }

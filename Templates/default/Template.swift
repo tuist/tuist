@@ -223,13 +223,13 @@ let template = Template(
                 contents: supportSourceContent),
         .static(path: supportFrameworkPath + "/Tests/\(nameArgument)SupportTests.swift",
                 contents: testsContent("\(nameArgument)Support")),
-        .static(path: kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit/Playgrounds/Contents.swift",
+        .static(path: kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit.playground" + "/Contents.swift",
                 contents: playgroundContent),
-        .generated(path: kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit/Playgrounds/contents.xcplayground",
+        .generated(path: kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit.playground" + "/contents.xcplayground",
                    generateFilePath: "Playground.swift"),
-        .static(path: supportFrameworkPath + "/Playgrounds/\(nameArgument)Support/Playgrounds/Contents.swift",
+        .static(path: supportFrameworkPath + "/Playgrounds/\(nameArgument)Support.playground" + "/Contents.swift",
                 contents: playgroundContent),
-        .generated(path: kitFrameworkPath + "/Playgrounds/\(nameArgument)Support/Playgrounds/contents.xcplayground",
+        .generated(path: supportFrameworkPath + "/Playgrounds/\(nameArgument)Support.playground" + "/contents.xcplayground",
                    generateFilePath: "Playground.swift"),
         .static(path: "TuistConfig.swift",
                 contents: tuistConfigContent),
@@ -238,6 +238,8 @@ let template = Template(
     ],
     directories: [
         "Tuist/ProjectDescriptionHelpers",
+        supportFrameworkPath + "/Playgrounds/\(nameArgument)Support.playground",
+        kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit.playground",
     ]
         + directories(for: appPath)
         + directories(for: kitFrameworkPath)

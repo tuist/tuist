@@ -59,7 +59,9 @@ public final class TemplateGenerator: TemplateGenerating {
                                templateAttributes: [ParsedAttribute],
                                destinationPath: AbsolutePath) throws {
         try template.files.forEach {
-            let destinationPath = destinationPath.appending($0.path)
+            let destinationPath = templateAttributes.reduce(destinationPath.appending($0.path)) {
+                AbsolutePath($0.pathString.replacingOccurrences(of: "{{ \($1.name) }}", with: $1.value))
+            }
             switch $0.contents {
             case let .static(contents):
                 try generateFile(contents: contents,
@@ -88,15 +90,14 @@ public final class TemplateGenerator: TemplateGenerating {
         }
     }
     
-    private func generateFile(contents: String, destinationPath: AbsolutePath, attributes: [ParsedAttribute]) throws {
+    private func generateFile(contents: String,
+                              destinationPath: AbsolutePath,
+                              attributes: [ParsedAttribute]) throws {
         let contentsWithFilledAttributes = attributes.reduce(contents) {
             $0.replacingOccurrences(of: "{{ \($1.name) }}", with: $1.value)
         }
-        let finalDestinationPath = attributes.reduce(destinationPath) {
-            AbsolutePath($0.pathString.replacingOccurrences(of: "{{ \($1.name) }}", with: $1.value))
-        }
         try FileHandler.shared.write(contentsWithFilledAttributes,
-                                     path: finalDestinationPath,
+                                     path: destinationPath,
                                      atomically: true)
     }
     
