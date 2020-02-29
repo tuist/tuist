@@ -33,6 +33,10 @@ public class MockEnvironment: Environmenting {
     public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
+    
+    public var templateDescriptionHelpersCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "TemplateDescriptionHelpers")
+    }
 
     public var xcframeworksCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "xcframeworks")

@@ -31,6 +31,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let (project, graph) = subject.map(sourceRootPath: sourceRootPath,
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
+                                           templates: [],
+                                           templateHelpers: [],
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
@@ -75,12 +77,16 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let sourceRootPath = try temporaryPath()
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
+        let templates: [AbsolutePath] = []
+        let templateHelpers: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
 
         // When
         let (project, graph) = subject.map(sourceRootPath: sourceRootPath,
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
+                                           templates: templates,
+                                           templateHelpers: templateHelpers,
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
