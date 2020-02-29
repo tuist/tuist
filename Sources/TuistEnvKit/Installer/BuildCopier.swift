@@ -14,6 +14,7 @@ class BuildCopier: BuildCopying {
         "tuist",
         libraryFiles(for: "ProjectDescription"),
         libraryFiles(for: "TemplateDescription"),
+        "../../Templates"
     ]
 
     func copy(from: AbsolutePath, to: AbsolutePath) throws {
