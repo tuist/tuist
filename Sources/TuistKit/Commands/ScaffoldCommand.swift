@@ -6,6 +6,22 @@ import struct TemplateDescription.ParsedAttribute
 import SPMUtility
 import Basic
 
+enum ScaffoldCommandError: FatalError, Equatable {
+    var type: ErrorType { .abort }
+    
+    case templateNotFound(String)
+    case templateNotProvided
+    
+    var description: String {
+        switch self {
+        case let .templateNotFound(template):
+            return "Could not find template \(template)"
+        case .templateNotProvided:
+            return "You must provide template name"
+        }
+    }
+}
+
 // swiftlint:disable:next type_body_length
 class ScaffoldCommand: NSObject, Command {
     // MARK: - Attributes
@@ -74,7 +90,11 @@ class ScaffoldCommand: NSObject, Command {
             return
         }
         
-        guard let templateDirectory = directories.first(where: { $0.basename == arguments.get(templateArgument) }) else { fatalError() }
+        guard let template = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
+        
+        guard
+            let templateDirectory = directories.first(where: { $0.basename == template })
+        else { throw ScaffoldCommandError.templateNotFound(template) }
         try templateGenerator.generate(at: templateDirectory,
                                        to: path,
                                        attributes: arguments.get(attributesArgument) ?? [])
