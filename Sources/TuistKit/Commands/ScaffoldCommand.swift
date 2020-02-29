@@ -13,6 +13,7 @@ class ScaffoldCommand: NSObject, Command {
     static let command = "scaffold"
     static let overview = "Generates new project based on template."
     private let listArgument: OptionArgument<Bool>
+    private let pathArgument: OptionArgument<String>
     private let templateArgument: PositionalArgument<String>
     private let attributesArgument: OptionArgument<[String]>
     
@@ -44,6 +45,11 @@ class ScaffoldCommand: NSObject, Command {
                                          optional: true,
                                          usage: "Name of template you want to use",
                                          completion: nil)
+        pathArgument = subParser.add(option: "--path",
+                                     shortName: "-p",
+                                     kind: String.self,
+                                     usage: "The path to the folder where the project will be generated (Default: Current directory).",
+                                     completion: .filename)
         attributesArgument = subParser.add(option: "--attributes",
                                            shortName: "-a",
                                            kind: [String].self,
@@ -56,6 +62,7 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
+        let path = try self.path(arguments: arguments)
         let directories = try templatesDirectoryLocator.templateDirectories()
         
         let shouldList = arguments.get(listArgument) ?? false
@@ -69,7 +76,17 @@ class ScaffoldCommand: NSObject, Command {
         
         guard let templateDirectory = directories.first(where: { $0.basename == arguments.get(templateArgument) }) else { fatalError() }
         try templateGenerator.generate(at: templateDirectory,
-                                       to: FileHandler.shared.currentPath,
+                                       to: path,
                                        attributes: arguments.get(attributesArgument) ?? [])
+    }
+    
+    // MARK: - Helpers
+    
+    private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
+        if let path = arguments.get(pathArgument) {
+            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            return FileHandler.shared.currentPath
+        }
     }
 }
