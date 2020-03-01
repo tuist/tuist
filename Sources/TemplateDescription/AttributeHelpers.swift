@@ -28,7 +28,7 @@ public func getAttribute(for name: String, arguments: [String] = CommandLine.arg
         let attributesIndex = arguments.firstIndex(of: "--attributes") ?? arguments.firstIndex(of: "-a"),
         arguments.endIndex > attributesIndex + 1,
         let data = arguments[attributesIndex + 1].data(using: .utf8)
-        else { throw ParsingError.attributesNotProvided }
+    else { throw ParsingError.attributesNotProvided }
     
     let parsedAttributes = try jsonDecoder.decode([ParsedAttribute].self, from: data)
     guard let value = parsedAttributes.first(where: { $0.name == name })?.value else { throw ParsingError.attributeNotFound(name) }

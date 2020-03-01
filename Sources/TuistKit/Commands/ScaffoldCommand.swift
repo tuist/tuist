@@ -19,7 +19,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
         case .templateNotProvided:
             return "You must provide template name"
         case let .nonEmptyDirectory(path):
-            return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
+            return "Can't generate a template in the non-empty directory at path \(path.pathString)."
         }
     }
 }

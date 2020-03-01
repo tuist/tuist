@@ -50,7 +50,12 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     }
     
     public func locate(from path: AbsolutePath) -> AbsolutePath? {
-        locate(from: path, source: path)
+        guard let rootDirectory = locate(from: path, source: path) else { return nil }
+        if fileHandler.exists(rootDirectory.appending(component: Constants.templatesDirectoryName)) {
+            return rootDirectory.appending(component: Constants.templatesDirectoryName)
+        } else {
+            return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
+        }
     }
     
     public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
@@ -66,21 +71,16 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
         if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-                .appending(component: Constants.tuistDirectoryName)
-                .appending(component: Constants.templatesDirectoryName)
-        } else if fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)) {
-            cache(rootDirectory: path, for: source)
-            return path
-                .appending(component: Constants.tuistDirectoryName)
-                .appending(component: Constants.templatesDirectoryName)
         } else if fileHandler.exists(path.appending(component: Constants.templatesDirectoryName)) {
             cache(rootDirectory: path, for: source)
-            return path.appending(component: Constants.templatesDirectoryName)
+            return path
+        } else if fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)),
+            fileHandler.isFolder(path.appending(component: Constants.tuistDirectoryName)) {
+            cache(rootDirectory: path, for: source)
+            return path
         } else if fileHandler.exists(path.appending(RelativePath(".git"))) {
             cache(rootDirectory: path, for: source)
             return path
-                .appending(component: Constants.tuistDirectoryName)
-                .appending(component: Constants.templatesDirectoryName)
         } else if !path.isRoot {
             return locate(from: path.parentDirectory, source: source)
         }

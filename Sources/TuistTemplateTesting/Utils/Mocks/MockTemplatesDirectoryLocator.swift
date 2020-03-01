@@ -1,7 +1,6 @@
 import Basic
 import Foundation
-import TuistTemplate
-@testable import TuistKit
+@testable import TuistTemplate
 
 public final class MockTemplatesDirectoryLocator: TemplatesDirectoryLocating {
     public var locateStub: (() -> AbsolutePath?)?
