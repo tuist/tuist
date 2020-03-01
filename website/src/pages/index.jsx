@@ -128,9 +128,15 @@ const Steroids = () => {
               Trusted by the following companies and projects:
             </div>
             <div sx={{ mt: 3 }}>
-              <Soundcloud sx={{ height: 30 }} />
-              <Mytaxi sx={{ ml: 3, height: 30 }} />
-              <Houzz sx={{ ml: 3, height: 30 }} />
+              <a href="https://soundcloud.com" target="__blank">
+                <Soundcloud sx={{ height: 30 }} />
+              </a>
+              <a href="https://free-now.com/de/" target="__blank">
+                <Mytaxi sx={{ ml: 3, height: 30 }} />
+              </a>
+              <a href="https://www.houzz.de" target="__blank">
+                <Houzz sx={{ ml: 3, height: 30 }} />
+              </a>
             </div>
           </div>
           <div sx={{ display: 'block' }}>
