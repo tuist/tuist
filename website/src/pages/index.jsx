@@ -17,6 +17,9 @@ import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import Quote from '../../assets/quote.svg'
 import SEO from '../components/SEO'
+import Soundcloud from '../../assets/soundcloud.svg'
+import Mytaxi from '../../assets/mytaxi.svg'
+import Houzz from '../../assets/houzz.svg'
 
 const PressableButton = posed.div({
   hoverable: true,
@@ -121,13 +124,14 @@ const Steroids = () => {
               title="GET STARTED"
               link="/docs/usage/getting-started/"
             />
-            {/* <div sx={{ color: 'gray4', mt: 4 }}>
+            <div sx={{ color: 'gray4', mt: 4 }}>
               Trusted by the following companies and projects:
             </div>
             <div sx={{ mt: 3 }}>
               <Soundcloud sx={{ height: 30 }} />
               <Mytaxi sx={{ ml: 3, height: 30 }} />
-            </div> */}
+              <Houzz sx={{ ml: 3, height: 30 }} />
+            </div>
           </div>
           <div sx={{ display: 'block' }}>
             <Swift sx={{ alignSelf: 'flex-start', ml: [0, 6] }} />
