@@ -1,6 +1,6 @@
 import prismTheme from '@theme-ui/prism/presets/night-owl.json'
 import { system } from '@theme-ui/presets'
-import { darken } from '@theme-ui/color'
+import prism from '@theme-ui/prism/presets/theme-ui'
 
 // Breakpoints
 const breakpoints = ['40em', '52em', '64em', '80em']
@@ -101,13 +101,17 @@ const styles = {
     mb: 3,
   },
   pre: {
-    ...prismTheme,
-    margin: 3,
-    padding: 3,
-    borderRadius: 2,
+    fontFamily: 'monospace',
+    fontSize: 1,
+    bg: 'muted',
+    p: 3,
+    borderRadius: 8,
+    overflowX: 'auto',
+    variant: 'prism',
   },
   code: {
-    wordWrap: 'break-word',
+    fontFamily: 'monospace',
+    color: 'secondary',
   },
   blockquote: {
     bg: 'muted',
@@ -163,6 +167,7 @@ export default {
   fontSizes,
   fontWeights,
   lineHeights,
+  prism,
   styles,
   colors,
 }
