@@ -1,19 +1,18 @@
-import ProjectDescription
 import TemplateDescription
 
-let nameArgument: Template.Attribute = .required("name")
-let platformArgument: Template.Attribute = .optional("platform", default: "ios")
+let nameAttribute: Template.Attribute = .required("name")
+let platformAttribute: Template.Attribute = .optional("platform", default: "ios")
 
 let testContents = """
-// this is test \(nameArgument) content
+// this is test \(nameAttribute) content
 
 """
 
 let template = Template(
-    description: "Custom \(nameArgument)",
-    arguments: [
+    description: "Custom \(nameAttribute)",
+    attributes: [
         nameArgument,
-        platformArgument
+        platformAttribute
     ],
     files: [
         .static(path: "custom_dir/custom.swift",

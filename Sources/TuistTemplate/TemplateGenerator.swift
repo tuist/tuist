@@ -3,6 +3,19 @@ import Foundation
 import TuistSupport
 import TuistLoader
 
+enum TemplateGeneratorError: FatalError, Equatable {
+    var type: ErrorType { .abort }
+    
+    case attributeNotFound(String)
+    
+    var description: String {
+        switch self {
+        case let .attributeNotFound(attribute):
+            return "You must provide \(attribute) attribute"
+        }
+    }
+}
+
 /// Interface for generating content defined in template manifest
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`
@@ -17,19 +30,16 @@ public protocol TemplateGenerating {
 
 public final class TemplateGenerator: TemplateGenerating {
     private let templateLoader: TemplateLoading
-    private let templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding
     
-    public init(templateLoader: TemplateLoading = TemplateLoader(),
-                templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding = TemplateDescriptionHelpersBuilder()) {
+    public init(templateLoader: TemplateLoading = TemplateLoader()) {
         self.templateLoader = templateLoader
-        self.templateDescriptionHelpersBuilder = templateDescriptionHelpersBuilder
     }
     
     public func generate(at sourcePath: AbsolutePath,
                          to destinationPath: AbsolutePath,
                          attributes: [String]) throws {
         let template = try templateLoader.loadTemplate(at: sourcePath)
-        let templateAttributes = getTemplateAttributes(with: attributes, template: template)
+        let templateAttributes = try getTemplateAttributes(with: attributes, template: template)
         
         try generateDirectories(template: template,
                                 templateAttributes: templateAttributes,
@@ -76,15 +86,17 @@ public final class TemplateGenerator: TemplateGenerating {
         }
     }
     
-    private func getTemplateAttributes(with attributes: [String], template: Template) -> [ParsedAttribute] {
+    private func getTemplateAttributes(with attributes: [String], template: Template) throws -> [ParsedAttribute] {
         let parsedAttributes = parseAttributes(attributes)
-        return template.attributes.map {
+        return try template.attributes.map {
             switch $0 {
             case let .optional(name, default: defaultValue):
                 let value = parsedAttributes.first(where: { $0.name == name })?.value ?? defaultValue
                 return ParsedAttribute(name: name, value: value)
             case let .required(name):
-                guard let value = parsedAttributes.first(where: { $0.name == name })?.value else { fatalError() }
+                guard
+                    let value = parsedAttributes.first(where: { $0.name == name })?.value
+                else { throw TemplateGeneratorError.attributeNotFound(name) }
                 return ParsedAttribute(name: name, value: value)
             }
         }

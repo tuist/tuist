@@ -60,7 +60,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         // Given
         let templateName = "template"
         let templatePath = try temporaryPath().appending(component: templateName)
-        templatesDirectoryLocator.templateDirectoriesStub = {
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [templatePath]
         }
         var generateSourcePath: AbsolutePath?

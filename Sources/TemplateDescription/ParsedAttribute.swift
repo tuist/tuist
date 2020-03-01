@@ -1,7 +1,7 @@
 import Foundation
 
 /// Parsed attribute from user input
-public struct ParsedAttribute: Codable {
+public struct ParsedAttribute: Codable, Equatable {
     public init(name: String, value: String) {
         self.name = name
         self.value = value

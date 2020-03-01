@@ -1,7 +1,7 @@
 import Foundation
 
 /// Error that occurs when parsing attributes from input
-enum ParsingError: Error, CustomStringConvertible {
+enum ParsingError: Error, CustomStringConvertible, Equatable {
     /// Thrown when could not find attribute in input
     case attributeNotFound(String)
     /// Thrown when attributes not provided
@@ -20,13 +20,14 @@ enum ParsingError: Error, CustomStringConvertible {
 /// Returns value for `ParsedAttribute` of `name` from user input
 /// - Parameters:
 ///     - name: Name of `ParsedAttribute`
+///     - arguments: Arguments to get attribute from (usually you should lead this at default)
 /// - Returns: Value of `ParsedAttribute`
-public func getAttribute(for name: String) throws -> String {
+public func getAttribute(for name: String, arguments: [String] = CommandLine.arguments) throws -> String {
     let jsonDecoder = JSONDecoder()
     guard
-        let attributesIndex = CommandLine.arguments.firstIndex(of: "--attributes"),
-        CommandLine.arguments.endIndex > attributesIndex + 1,
-        let data = CommandLine.arguments[attributesIndex + 1].data(using: .utf8)
+        let attributesIndex = arguments.firstIndex(of: "--attributes") ?? arguments.firstIndex(of: "-a"),
+        arguments.endIndex > attributesIndex + 1,
+        let data = arguments[attributesIndex + 1].data(using: .utf8)
         else { throw ParsingError.attributesNotProvided }
     
     let parsedAttributes = try jsonDecoder.decode([ParsedAttribute].self, from: data)

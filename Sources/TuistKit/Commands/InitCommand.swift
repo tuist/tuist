@@ -110,7 +110,7 @@ class InitCommand: NSObject, Command {
         let name = try self.name(arguments: arguments, path: path)
         try verifyDirectoryIsEmpty(path: path)
         
-        let directories = try templatesDirectoryLocator.templateDirectories()
+        let directories = try templatesDirectoryLocator.templateDirectories(at: FileHandler.shared.currentPath)
         if let template = arguments.get(templateArgument) {
             guard
                 let templateDirectory = directories.first(where: { $0.basename == template })

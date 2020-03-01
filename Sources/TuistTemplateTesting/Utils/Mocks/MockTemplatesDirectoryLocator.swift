@@ -7,7 +7,7 @@ public final class MockTemplatesDirectoryLocator: TemplatesDirectoryLocating {
     public var locateStub: (() -> AbsolutePath?)?
     public var locateCustomStub: ((AbsolutePath) -> AbsolutePath?)?
     public var locateFromStub: ((AbsolutePath) -> AbsolutePath?)?
-    public var templateDirectoriesStub: (() throws -> [AbsolutePath])?
+    public var templateDirectoriesStub: ((AbsolutePath) throws -> [AbsolutePath])?
     
     public func locate() -> AbsolutePath? {
         locateStub?()
@@ -21,8 +21,8 @@ public final class MockTemplatesDirectoryLocator: TemplatesDirectoryLocating {
         locateFromStub?(path)
     }
     
-    public func templateDirectories() throws -> [AbsolutePath] {
-        try templateDirectoriesStub?() ?? []
+    public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try templateDirectoriesStub?(path) ?? []
     }
     
 }

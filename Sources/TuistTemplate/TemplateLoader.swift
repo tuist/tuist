@@ -5,6 +5,21 @@ import TuistSupport
 import TemplateDescription
 import TuistLoader
 
+public enum TemplateLoaderError: FatalError, Equatable {
+    public var type: ErrorType { .abort }
+    
+    case manifestNotFound(AbsolutePath)
+    case generateFileNotFound(AbsolutePath)
+    
+    public var description: String {
+        switch self {
+        case let .manifestNotFound(manifestPath):
+            return "Could not find template manifest at \(manifestPath.pathString)"
+        case let .generateFileNotFound(generateFilePath):
+            return "Could not find generate file at \(generateFilePath.pathString)"
+        }
+    }
+}
 
 public protocol TemplateLoading {
     /// Load `TuistTemplate.Template` at given `path`
@@ -47,7 +62,7 @@ public class TemplateLoader: TemplateLoading {
     public func loadTemplate(at path: AbsolutePath) throws -> TuistTemplate.Template {
         let manifestPath = path.appending(component: "Template.swift")
         guard FileHandler.shared.exists(manifestPath) else {
-            fatalError()
+            throw TemplateLoaderError.manifestNotFound(manifestPath)
         }
         let data = try loadManifestData(at: manifestPath)
         let manifest = try decoder.decode(TemplateDescription.Template.self, from: data)
@@ -56,6 +71,9 @@ public class TemplateLoader: TemplateLoading {
     }
     
     public func loadGenerateFile(at path: AbsolutePath, parsedAttributes: [TuistTemplate.ParsedAttribute]) throws -> String {
+        guard FileHandler.shared.exists(path) else {
+            throw TemplateLoaderError.generateFileNotFound(path)
+        }
         var additionalArguments: [String] = []
         if let attributes = try String(data: encoder.encode(parsedAttributes), encoding: .utf8) {
             additionalArguments.append("--attributes")

@@ -1,7 +1,7 @@
 import TemplateDescription
 
-let nameArgument: Template.Attribute = .required("name")
-let platformArgument: Template.Attribute = .optional("platform", default: "iOS")
+let nameAttribute: Template.Attribute = .required("name")
+let platformAttribute: Template.Attribute = .optional("platform", default: "iOS")
 
 let setupContent = """
 import ProjectDescription
@@ -59,9 +59,9 @@ extension Project {
 """
 
 let projectsPath = "Projects"
-let appPath = projectsPath + "/\(nameArgument)"
-let kitFrameworkPath = projectsPath + "/\(nameArgument)Kit"
-let supportFrameworkPath = projectsPath + "/\(nameArgument)Support"
+let appPath = projectsPath + "/\(nameAttribute)"
+let kitFrameworkPath = projectsPath + "/\(nameAttribute)Kit"
+let supportFrameworkPath = projectsPath + "/\(nameAttribute)Support"
 
 func directories(for projectPath: String) -> [String] {
     [
@@ -76,10 +76,10 @@ let workspaceContent = """
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let workspace = Workspace(name: "\(nameArgument)", projects: [
-    "Projects/\(nameArgument)",
-    "Projects/\(nameArgument)Kit",
-    "Projects/\(nameArgument)Support"
+let workspace = Workspace(name: "\(nameAttribute)", projects: [
+    "Projects/\(nameAttribute)",
+    "Projects/\(nameAttribute)Kit",
+    "Projects/\(nameAttribute)Support"
 ])
 """
 
@@ -98,15 +98,15 @@ func testsContent(_ name: String) -> String {
 
 let kitSourceContent = """
 import Foundation
-import \(nameArgument)Support
+import \(nameAttribute)Support
 
-public final class \(nameArgument)Kit {}
+public final class \(nameAttribute)Kit {}
 """
 
 let supportSourceContent = """
 import Foundation
 
-public final class \(nameArgument)Support {}
+public final class \(nameAttribute)Support {}
 """
 
 let playgroundContent = """
@@ -193,10 +193,10 @@ graph.dot
 """
 
 let template = Template(
-    description: "Custom \(nameArgument)",
-    arguments: [
-        nameArgument,
-        platformArgument,
+    description: "Custom \(nameAttribute)",
+    attributes: [
+        nameAttribute,
+        platformAttribute,
     ],
     files: [
         .static(path: "Setup.swift",
@@ -213,23 +213,23 @@ let template = Template(
                    generateFilePath: "SupportFrameworkProject.swift"),
         .generated(path: appPath + "/Sources/AppDelegate.swift",
                    generateFilePath: "AppDelegate.swift"),
-        .static(path: appPath + "/Tests/\(nameArgument)Tests.swift",
-                contents: testsContent("\(nameArgument)")),
-        .static(path: kitFrameworkPath + "/Sources/\(nameArgument)Kit.swift",
+        .static(path: appPath + "/Tests/\(nameAttribute)Tests.swift",
+                contents: testsContent("\(nameAttribute)")),
+        .static(path: kitFrameworkPath + "/Sources/\(nameAttribute)Kit.swift",
                 contents: kitSourceContent),
-        .static(path: kitFrameworkPath + "/Tests/\(nameArgument)KitTests.swift",
-                contents: testsContent("\(nameArgument)Kit")),
-        .static(path: supportFrameworkPath + "/Sources/\(nameArgument)Support.swift",
+        .static(path: kitFrameworkPath + "/Tests/\(nameAttribute)KitTests.swift",
+                contents: testsContent("\(nameAttribute)Kit")),
+        .static(path: supportFrameworkPath + "/Sources/\(nameAttribute)Support.swift",
                 contents: supportSourceContent),
-        .static(path: supportFrameworkPath + "/Tests/\(nameArgument)SupportTests.swift",
-                contents: testsContent("\(nameArgument)Support")),
-        .static(path: kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit.playground" + "/Contents.swift",
+        .static(path: supportFrameworkPath + "/Tests/\(nameAttribute)SupportTests.swift",
+                contents: testsContent("\(nameAttribute)Support")),
+        .static(path: kitFrameworkPath + "/Playgrounds/\(nameAttribute)Kit.playground" + "/Contents.swift",
                 contents: playgroundContent),
-        .generated(path: kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit.playground" + "/contents.xcplayground",
+        .generated(path: kitFrameworkPath + "/Playgrounds/\(nameAttribute)Kit.playground" + "/contents.xcplayground",
                    generateFilePath: "Playground.swift"),
-        .static(path: supportFrameworkPath + "/Playgrounds/\(nameArgument)Support.playground" + "/Contents.swift",
+        .static(path: supportFrameworkPath + "/Playgrounds/\(nameAttribute)Support.playground" + "/Contents.swift",
                 contents: playgroundContent),
-        .generated(path: supportFrameworkPath + "/Playgrounds/\(nameArgument)Support.playground" + "/contents.xcplayground",
+        .generated(path: supportFrameworkPath + "/Playgrounds/\(nameAttribute)Support.playground" + "/contents.xcplayground",
                    generateFilePath: "Playground.swift"),
         .static(path: "TuistConfig.swift",
                 contents: tuistConfigContent),
@@ -238,8 +238,8 @@ let template = Template(
     ],
     directories: [
         "Tuist/ProjectDescriptionHelpers",
-        supportFrameworkPath + "/Playgrounds/\(nameArgument)Support.playground",
-        kitFrameworkPath + "/Playgrounds/\(nameArgument)Kit.playground",
+        supportFrameworkPath + "/Playgrounds/\(nameAttribute)Support.playground",
+        kitFrameworkPath + "/Playgrounds/\(nameAttribute)Kit.playground",
     ]
         + directories(for: appPath)
         + directories(for: kitFrameworkPath)

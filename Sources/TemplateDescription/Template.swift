@@ -1,7 +1,7 @@
 import Foundation
 
 /// Template manifest - used with `tuist scaffold`
-public struct Template: Codable {
+public struct Template: Codable, Equatable {
     /// Description of template
     public let description: String
     /// Attributes to be passed to template
@@ -12,19 +12,19 @@ public struct Template: Codable {
     public let directories: [String]
     
     public init(description: String,
-                arguments: [Attribute] = [],
+                attributes: [Attribute] = [],
                 files: [File] = [],
                 directories: [String] = [],
                 script: String? = nil) {
         self.description = description
-        self.attributes = arguments
+        self.attributes = attributes
         self.files = files
         self.directories = directories
         dumpIfNeeded(self)
     }
     
     /// Enum containing information about how to generate file
-    public enum Contents: Codable {
+    public enum Contents: Codable, Equatable {
         /// Static Contents is defined in `Template.swift` and contains a simple `String`
         /// Can not contain any additional logic apart from plain `String` from `arguments`
         case `static`(String)
@@ -66,7 +66,7 @@ public struct Template: Codable {
     }
     
     /// File description for generating
-    public struct File: Codable {
+    public struct File: Codable, Equatable {
         public let path: String
         public let contents: Contents
         
@@ -77,7 +77,7 @@ public struct Template: Codable {
     }
     
     /// Attribute to be passed to `tuist scaffold` for generating with `Template`
-    public enum Attribute: Codable {
+    public enum Attribute: Codable, Equatable {
         /// Required attribute with a given name
         case required(String)
         /// Optional attribute with a given name and a default value used when attribute not provided by user

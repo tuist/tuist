@@ -1,7 +1,6 @@
 import Basic
 import Foundation
 import TuistSupport
-import TuistLoader
 
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the tuist built-in templates directory if it exists.
@@ -12,27 +11,16 @@ public protocol TemplatesDirectoryLocating {
     /// - Returns: Path of templates directory up the three `from`
     func locate(from path: AbsolutePath) -> AbsolutePath?
     /// - Returns: All available directories with defined templates (custom and built-in)
-    func templateDirectories() throws -> [AbsolutePath]
+    func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath]
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private let fileHandler: FileHandling = FileHandler.shared
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     private var cache: [AbsolutePath: AbsolutePath] = [:]
-    
-    /// Instance to locate the root directory of the project.
-    let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
-    public convenience init() {
-        self.init(rootDirectoryLocator: RootDirectoryLocator.shared)
-    }
-
-    /// Initializes the locator with its dependencies.
-    /// - Parameter rootDirectoryLocator: Instance to locate the root directory of the project.
-    init(rootDirectoryLocator: RootDirectoryLocating) {
-        self.rootDirectoryLocator = rootDirectoryLocator
-    }
+    public init() { }
 
     // MARK: - TemplatesDirectoryLocating
 
@@ -56,9 +44,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     }
     
     public func locateCustom(at: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
-        let customTemplatesDirectory = rootDirectory
-            .appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
+        guard let customTemplatesDirectory = locate(from: at) else { return nil }
         if !FileHandler.shared.exists(customTemplatesDirectory) { return nil }
         return customTemplatesDirectory
     }
@@ -67,10 +53,10 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         locate(from: path, source: path)
     }
     
-    public func templateDirectories() throws -> [AbsolutePath] {
+    public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
         let templatesDirectory = locate()
         let templates = try templatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
-        let customTemplatesDirectory = locateCustom(at: FileHandler.shared.currentPath)
+        let customTemplatesDirectory = locateCustom(at: path)
         let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return (templates + customTemplates).filter { $0.basename != Constants.templateHelpersDirectoryName }
     }

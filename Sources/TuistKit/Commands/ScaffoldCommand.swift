@@ -83,7 +83,7 @@ class ScaffoldCommand: NSObject, Command {
         let path = self.path(arguments: arguments)
         try verifyDirectoryIsEmpty(path: path)
         
-        let directories = try templatesDirectoryLocator.templateDirectories()
+        let directories = try templatesDirectoryLocator.templateDirectories(at: FileHandler.shared.currentPath)
         
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {

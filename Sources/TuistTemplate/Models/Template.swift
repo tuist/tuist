@@ -7,9 +7,9 @@ public struct Template {
     public let directories: [RelativePath]
     
     public init(description: String,
-                attributes: [Attribute],
-                files: [(path: RelativePath, contents: Contents)],
-                directories: [RelativePath]) {
+                attributes: [Attribute] = [],
+                files: [(path: RelativePath, contents: Contents)] = [],
+                directories: [RelativePath] = []) {
         self.description = description
         self.attributes = attributes
         self.files = files

@@ -56,7 +56,7 @@ final class InitCommandTests: TuistUnitTestCase {
         // Given
         let templateName = "template"
         let templatePath = try temporaryPath().appending(component: templateName)
-        templatesDirectoryLocator.templateDirectoriesStub = {
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [templatePath]
         }
         var generateSourcePath: AbsolutePath?
@@ -81,7 +81,7 @@ final class InitCommandTests: TuistUnitTestCase {
     func test_init_default_when_no_template() throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
-        templatesDirectoryLocator.templateDirectoriesStub = {
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
         let attributes = ["--name", "name", "--platform", "macos"]
@@ -100,7 +100,7 @@ final class InitCommandTests: TuistUnitTestCase {
     
     func test_init_default_platform() throws {
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
-        templatesDirectoryLocator.templateDirectoriesStub = {
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
         let attributes = ["--name", "name"]

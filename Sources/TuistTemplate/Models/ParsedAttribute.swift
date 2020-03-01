@@ -1,5 +1,5 @@
 /// Parsed attribute from user input
-public struct ParsedAttribute: Encodable {
+public struct ParsedAttribute: Encodable, Equatable {
     public init(name: String, value: String) {
         self.name = name
         self.value = value
