@@ -18,6 +18,7 @@
     "@theme-ui/presets": "^0.3.0",
     "@theme-ui/prism": "^0.3.0",
     "@theme-ui/typography": "^0.3.0",
+    "copy-text-to-clipboard": "^2.1.1",
     "focus-visible": "^5.0.2",
     "gatsby": "^2.19.24",
     "gatsby-image": "^2.2.42",
