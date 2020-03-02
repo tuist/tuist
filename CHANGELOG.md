@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix `TargetAction` when `PROJECT_DIR` includes a space https://github.com/tuist/tuist/pull/1037 by @fortmarek
 
+### Added
+
+- `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
+
 ## 1.3.0
 
 ### Added
