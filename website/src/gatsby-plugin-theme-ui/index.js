@@ -59,7 +59,7 @@ const colors = {
   primaryAlpha: 'rgba(49,149,230, 0.1)',
   primaryComplementary: 'white',
   secondary: '#6F52DA',
-  accent: '#64c4ed',
+  accent: '#097a32',
   muted: '#F2F2F2',
   // New colors
   gray1: '#333333',

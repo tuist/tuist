@@ -117,8 +117,8 @@ final class LintCommandTests: TuistUnitTestCase {
         Linting the loaded dependency graph
         """)
         XCTAssertPrinterErrorContains("""
-        - environment
-        - graph
+        environment
+        graph
         """)
     }
 }
