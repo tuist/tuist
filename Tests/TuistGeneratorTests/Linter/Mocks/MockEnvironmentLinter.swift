@@ -3,13 +3,11 @@ import TuistCore
 @testable import TuistGenerator
 
 final class MockEnvironmentLinter: EnvironmentLinting {
-    var lintStub: Error?
+    var lintStub: [LintingIssue]?
     var lintArgs: [TuistConfig] = []
 
-    func lint(config: TuistConfig) throws {
+    func lint(config: TuistConfig) throws -> [LintingIssue] {
         lintArgs.append(config)
-        if let error = lintStub {
-            throw error
-        }
+        return lintStub ?? []
     }
 }
