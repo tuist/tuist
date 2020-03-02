@@ -271,7 +271,7 @@ An example of an iOS app that contains Carthage frameworks \*(fat frameworks wit
 
 ## ios_app_with_helpers
 
-A basic iOS app that has some manifest bits extracted into helpers. 
+A basic iOS app that has some manifest bits extracted into helpers.
 
 ## ios_app_with_xcframeworks
 
@@ -298,3 +298,6 @@ e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
 
 A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
 
+## ios_app_with_incompatible_dependencies
+
+An iOS app that has a dependency with a dependency with a framework for macOS.
