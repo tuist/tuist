@@ -44,11 +44,11 @@ private extension SchemeLinter {
             }
         }
 
-        if let testAction = scheme.testAction {
-            if !buildConfigurationNames.contains(testAction.configurationName) {
+        if let buildAction = scheme.buildAction {
+            if !buildConfigurationNames.contains(buildAction.configurationName) {
                 issues.append(
-                    missingBuildConfigurationIssue(buildConfigurationName: testAction.configurationName,
-                                                   actionDescription: "the scheme's test action")
+                    missingBuildConfigurationIssue(buildConfigurationName: buildAction.configurationName,
+                                                   actionDescription: "the scheme's build action")
                 )
             }
         }
