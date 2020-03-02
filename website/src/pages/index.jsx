@@ -131,12 +131,12 @@ const Steroids = () => {
               <a href="https://soundcloud.com" target="__blank">
                 <Soundcloud sx={{ height: 30 }} />
               </a>
-              <a href="https://free-now.com/de/" target="__blank">
+              {/* <a href="https://free-now.com/de/" target="__blank">
                 <Mytaxi sx={{ ml: 3, height: 30 }} />
               </a>
               <a href="https://www.houzz.de" target="__blank">
                 <Houzz sx={{ ml: 3, height: 30 }} />
-              </a>
+              </a> */}
             </div>
           </div>
           <div sx={{ display: 'block' }}>
