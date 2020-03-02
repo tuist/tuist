@@ -18,8 +18,6 @@ import Code from '../gatsby-plugin-theme-ui/code'
 import Quote from '../../assets/quote.svg'
 import SEO from '../components/SEO'
 import Soundcloud from '../../assets/soundcloud.svg'
-import Mytaxi from '../../assets/mytaxi.svg'
-import Houzz from '../../assets/houzz.svg'
 
 const PressableButton = posed.div({
   hoverable: true,
@@ -131,12 +129,6 @@ const Steroids = () => {
               <a href="https://soundcloud.com" target="__blank">
                 <Soundcloud sx={{ height: 30 }} />
               </a>
-              {/* <a href="https://free-now.com/de/" target="__blank">
-                <Mytaxi sx={{ ml: 3, height: 30 }} />
-              </a>
-              <a href="https://www.houzz.de" target="__blank">
-                <Houzz sx={{ ml: 3, height: 30 }} />
-              </a> */}
             </div>
           </div>
           <div sx={{ display: 'block' }}>
