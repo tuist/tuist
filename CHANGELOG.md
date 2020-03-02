@@ -3,6 +3,7 @@
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
+- Adds a possibility to set Options > Application Language and Application Region for a `TestAction` on a scheme by @paciej00
 
 ### Changed
 
