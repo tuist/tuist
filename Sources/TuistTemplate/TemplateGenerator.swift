@@ -77,7 +77,6 @@ public final class TemplateGenerator: TemplateGenerating {
                                  destinationPath: destinationPath,
                                  attributes: templateAttributes)
             case let .generated(generatePath):
-                print(generatePath)
                 let content = try templateLoader.loadGenerateFile(at: generatePath, parsedAttributes: templateAttributes)
                 try FileHandler.shared.write(content,
                                              path: destinationPath,
