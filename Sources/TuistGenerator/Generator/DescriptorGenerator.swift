@@ -8,7 +8,7 @@ public struct ProjectGenerationConfig {
     public var xcodeprojPath: AbsolutePath?
 
     public init(sourceRootPath: AbsolutePath? = nil,
-                xcodeprojPath: AbsolutePath?) {
+                xcodeprojPath: AbsolutePath? = nil) {
         self.sourceRootPath = sourceRootPath
         self.xcodeprojPath = xcodeprojPath
     }
