@@ -24,6 +24,23 @@ tuist edit --permanent
 
 That will generate a `Manfiest.xcodeproj` project that you can open manually.
 
+# Lint
+
+One of the benefits of making the definition of projects explicit,
+is that we can run checks on them and uncover configuration issues that otherwise would be bubbled up by the build system later on.
+Tuist follows the principle of the sooner we detect the errors,
+the less time developers will have to spend.
+For that reason,
+we provide a command that developers can run either locally or on CI to ensure their projects have a valid configuration:
+
+```bash
+tuist lint
+```
+
+Please note that there are checks that only the compiler and the build system can do.
+In other words,
+those will only be uncover by compiling the app with Xcode or `xcodebuild`.
+
 # Graph
 
 When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it in a representable format.
