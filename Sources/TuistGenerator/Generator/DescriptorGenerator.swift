@@ -33,10 +33,16 @@ public final class DescriptorGenerator: DescriptorGenerating {
     public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
+        let schemesGenerator = SchemesGenerator()
+        let workspaceStructureGenerator = WorkspaceStructureGenerator()
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
-                                                configGenerator: configGenerator)
-        let workspaceGenerator = WorkspaceGenerator(defaultSettingsProvider: defaultSettingsProvider)
-        self.init(workspaceGenerator: workspaceGenerator, projectGenerator: projectGenerator)
+                                                configGenerator: configGenerator,
+                                                schemesGenerator: schemesGenerator)
+        let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
+                                                    workspaceStructureGenerator: workspaceStructureGenerator,
+                                                    schemesGenerator: schemesGenerator)
+        self.init(workspaceGenerator: workspaceGenerator,
+                  projectGenerator: projectGenerator)
     }
 
     init(workspaceGenerator: WorkspaceGenerating,

@@ -40,34 +40,25 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     private let projectGenerator: ProjectGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
-    private let cocoapodsInteractor: CocoaPodsInteracting
-    private let swiftPackageManaherInteractor: SwiftPackageManagerInteracting
     private let schemesGenerator: SchemesGenerating
 
     // MARK: - Init
 
-    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
+    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator)
         self.init(projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  cocoapodsInteractor: cocoapodsInteractor,
-                  swiftPackageManaherInteractor: SwiftPackageManagerInteractor(),
                   schemesGenerator: SchemesGenerator())
     }
 
     init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         cocoapodsInteractor: CocoaPodsInteracting,
-         swiftPackageManaherInteractor: SwiftPackageManagerInteracting,
          schemesGenerator: SchemesGenerating) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
-        self.cocoapodsInteractor = cocoapodsInteractor
-        self.swiftPackageManaherInteractor = swiftPackageManaherInteractor
         self.schemesGenerator = schemesGenerator
     }
 

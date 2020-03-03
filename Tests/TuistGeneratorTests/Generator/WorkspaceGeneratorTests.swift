@@ -10,17 +10,14 @@ import XCTest
 
 final class WorkspaceGeneratorTests: TuistUnitTestCase {
     var subject: WorkspaceGenerator!
-    var cocoapodsInteractor: MockCocoaPodsInteractor!
 
     override func setUp() {
         super.setUp()
-        cocoapodsInteractor = MockCocoaPodsInteractor()
-        subject = WorkspaceGenerator(cocoapodsInteractor: cocoapodsInteractor)
+        subject = WorkspaceGenerator()
     }
 
     override func tearDown() {
         subject = nil
-        cocoapodsInteractor = nil
         super.tearDown()
     }
 
