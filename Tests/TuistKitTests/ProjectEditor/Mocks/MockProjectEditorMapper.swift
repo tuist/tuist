@@ -13,7 +13,6 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         manifests: [AbsolutePath],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
-        templateHelpers: [AbsolutePath],
         projectDescriptionPath: AbsolutePath)] = []
 
     func map(tuistPath: AbsolutePath,
@@ -21,14 +20,12 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             templateHelpers: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
         mapArgs.append((tuistPath: tuistPath,
                         sourceRootPath: sourceRootPath,
                         manifests: manifests,
                         helpers: helpers,
                         templates: templates,
-                        templateHelpers: templateHelpers,
                         projectDescriptionPath: projectDescriptionPath))
         if let mapStub = mapStub { return mapStub }
         return (Project.test(), Graph.test())
