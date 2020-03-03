@@ -36,7 +36,6 @@ protocol ProjectGenerating: AnyObject {
                   xcodeprojPath: AbsolutePath?) throws -> GeneratedProjectDescriptor
 }
 
-// swiftlint:disable type_body_length
 final class ProjectGenerator: ProjectGenerating {
     // MARK: - Attributes
 
@@ -73,6 +72,7 @@ final class ProjectGenerator: ProjectGenerating {
 
     // MARK: - ProjectGenerating
 
+    // swiftlint:disable:next function_body_length
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil,
