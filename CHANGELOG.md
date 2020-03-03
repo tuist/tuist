@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- `tuist scaffold` command https://github.com/tuist/tuist/pull/1017 by @fortmarek
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
 
 ## 1.3.0
