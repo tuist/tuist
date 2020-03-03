@@ -129,10 +129,9 @@ final class ProjectGenerator: ProjectGenerating {
                                                 targets: nativeTargets,
                                                 name: xcodeprojPath.basename)
 
-        let schemes = try schemesGenerator.generateProjectSchemeDescriptors(project: project,
-                                                                            xcprojectPath: xcodeprojPath,
-                                                                            generatedProject: generatedProject,
-                                                                            graph: graph)
+        let schemes = try schemesGenerator.generateProjectSchemes(project: project,
+                                                                  generatedProject: generatedProject,
+                                                                  graph: graph)
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         return GeneratedProjectDescriptor(path: xcodeprojPath,
@@ -254,84 +253,6 @@ final class ProjectGenerator: ProjectGenerating {
         }
 
         pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
-    }
-
-    private func write(xcodeprojPath: AbsolutePath,
-                       nativeTargets: [String: PBXNativeTarget],
-                       workspace: XCWorkspace,
-                       pbxproj: PBXProj,
-                       project: Project,
-                       graph: Graphing) throws -> GeneratedProject {
-        let fileHandler = FileHandler.shared
-        func write(xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
-            let generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                    path: xcodeprojPath,
-                                                    targets: nativeTargets,
-                                                    name: xcodeprojPath.basename)
-            try writeXcodeproj(workspace: workspace,
-                               pbxproj: pbxproj,
-                               xcodeprojPath: xcodeprojPath)
-
-            try writeSchemes(project: project,
-                             generatedProject: generatedProject,
-                             xcprojectPath: xcodeprojPath,
-                             graph: graph)
-
-            return generatedProject
-        }
-
-        guard fileHandler.exists(xcodeprojPath) else {
-            return try write(xcodeprojPath: xcodeprojPath)
-        }
-
-        var generatedProject: GeneratedProject!
-        try fileHandler.inTemporaryDirectory { temporaryPath in
-            let temporaryPath = temporaryPath.appending(component: xcodeprojPath.basename)
-            generatedProject = try write(xcodeprojPath: temporaryPath)
-
-            let pathsToReplace = self.pathsToReplace(xcodeProjPath: temporaryPath)
-            try pathsToReplace.forEach {
-                let relativeFile = $0.relative(to: temporaryPath)
-                let writeToPath = xcodeprojPath.appending(relativeFile)
-                try fileHandler.createFolder(writeToPath.parentDirectory)
-                try fileHandler.replace(writeToPath, with: $0)
-            }
-        }
-
-        return generatedProject.at(path: xcodeprojPath)
-    }
-
-    private func pathsToReplace(xcodeProjPath: AbsolutePath) -> [AbsolutePath] {
-        var paths = [
-            "project.pbxproj",
-            "project.xcworkspace",
-            "xcshareddata/xcschemes",
-        ]
-
-        if FileHandler.shared.exists(xcodeProjPath.appending(component: "xcuserdata")) {
-            paths.append("xcuserdata/**/*.xcscheme")
-        }
-
-        return paths.flatMap {
-            FileHandler.shared.glob(xcodeProjPath, glob: $0)
-        }
-    }
-
-    private func writeXcodeproj(workspace: XCWorkspace,
-                                pbxproj: PBXProj,
-                                xcodeprojPath: AbsolutePath) throws {
-        let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        try xcodeproj.write(path: xcodeprojPath.path)
-    }
-
-    private func writeSchemes(project: Project,
-                              generatedProject: GeneratedProject,
-                              xcprojectPath: AbsolutePath,
-                              graph: Graphing) throws {
-        try schemesGenerator.generateProjectSchemes(project: project,
-                                                    xcprojectPath: xcprojectPath,
-                                                    generatedProject: generatedProject,
-                                                    graph: graph)
     }
 
     private func determineProjectConstants(graph: Graphing) throws -> ProjectConstants {

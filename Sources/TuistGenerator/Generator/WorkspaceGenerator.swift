@@ -105,68 +105,15 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         // Schemes
 
-        let schemes = try schemesGenerator.generateWorkspaceSchemesDescriptors(workspace: workspace,
-                                                                               xcworkspacePath: workspacePath,
-                                                                               generatedProjects: generatedProjects,
-                                                                               graph: graph)
+        let schemes = try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
+                                                                    generatedProjects: generatedProjects,
+                                                                    graph: graph)
 
         return GeneratedWorkspaceDescriptor(path: workspacePath,
                                             xcworkspace: xcWorkspace,
                                             projects: projects,
                                             schemes: schemes,
                                             sideEffects: [])
-    }
-
-    private func write(workspace _: Workspace,
-                       xcworkspace: XCWorkspace,
-                       generatedProjects _: [AbsolutePath: GeneratedProject],
-                       graph _: Graphing,
-                       to: AbsolutePath) throws {
-        let workspaceDataFile = "contents.xcworkspacedata"
-        let fileHandler = FileHandler.shared
-
-        // If the workspace doesn't exist we can write it because there isn't any
-        // Xcode instance that might depend on it.
-        if !fileHandler.exists(to.appending(component: workspaceDataFile)) {
-            try xcworkspace.write(path: to.path)
-            return
-        }
-
-        // If the workspace exists, we want to reduce the likeliness of causing
-        // Xcode not to be able to reload the workspace.
-        // We only replace the current one if something has changed.
-        try fileHandler.inTemporaryDirectory { temporaryPath in
-            let temporaryPath = temporaryPath.appending(component: to.basename)
-            try xcworkspace.write(path: temporaryPath.path)
-
-            let workspaceData: (AbsolutePath) throws -> Data = {
-                let dataPath = $0.appending(component: workspaceDataFile)
-                return try Data(contentsOf: dataPath.url)
-            }
-
-            let currentData = try workspaceData(to)
-            let currentWorkspaceData = try workspaceData(temporaryPath)
-
-            guard currentData != currentWorkspaceData else {
-                return
-            }
-
-            try fileHandler.createFolder(to)
-            try fileHandler.replace(to.appending(component: workspaceDataFile),
-                                    with: temporaryPath.appending(component: workspaceDataFile))
-        }
-    }
-
-    private func writeSchemes(workspace: Workspace,
-                              xcworkspace _: XCWorkspace,
-                              generatedProjects: [AbsolutePath: GeneratedProject],
-                              graph: Graphing,
-                              to path: AbsolutePath) throws {
-        try schemesGenerator.wipeSchemes(at: path)
-        try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
-                                                      xcworkspacePath: path,
-                                                      generatedProjects: generatedProjects,
-                                                      graph: graph)
     }
 
     /// Create a XCWorkspaceDataElement.file from a path string.

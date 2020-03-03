@@ -15,14 +15,8 @@ protocol SchemesGenerating {
     ///   - graph: Tuist graph.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(workspace: Workspace,
-                                  xcworkspacePath: AbsolutePath,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws
-
-    func generateWorkspaceSchemesDescriptors(workspace: Workspace,
-                                             xcworkspacePath: AbsolutePath,
-                                             generatedProjects: [AbsolutePath: GeneratedProject],
-                                             graph: Graphing) throws -> [GeneratedSchemeDescriptor]
+                                  graph: Graphing) throws -> [GeneratedSchemeDescriptor]
 
     /// Generates the schemes for the project targets.
     ///
@@ -33,22 +27,8 @@ protocol SchemesGenerating {
     ///   - graph: Tuist graph.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(project: Project,
-                                xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws
-
-    func generateProjectSchemeDescriptors(project: Project,
-                                          xcprojectPath: AbsolutePath,
-                                          generatedProject: GeneratedProject,
-                                          graph: Graphing) throws -> [GeneratedSchemeDescriptor]
-
-    /// Wipes shared and user schemes at a workspace or project path. This is needed
-    /// currently to support the workspace scheme generation case where a workspace that
-    /// already exists on disk is being regenerated. Wiping the schemes directory prevents
-    /// older custom schemes from persisting after regeneration.
-    ///
-    /// - Parameter at: Path to the workspace or project.
-    func wipeSchemes(at: AbsolutePath) throws
+                                graph: Graphing) throws -> [GeneratedSchemeDescriptor]
 }
 
 // swiftlint:disable:next type_body_length
@@ -59,40 +39,11 @@ final class SchemesGenerator: SchemesGenerating {
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
 
-    /// Generates the schemes for the workspace targets.
-    ///
-    /// - Parameters:
-    ///   - workspace: Workspace model.
-    ///   - xcworkspacePath: Path to the workspace.
-    ///   - generatedProject: Generated Xcode project.
-    ///   - graph: Tuist graph.
-    /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(workspace: Workspace,
-                                  xcworkspacePath: AbsolutePath,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws {
+                                  graph: Graphing) throws -> [GeneratedSchemeDescriptor] {
         let schemes = try workspace.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               xcPath: xcworkspacePath,
-                               path: workspace.path,
-                               graph: graph,
-                               generatedProjects: generatedProjects)
-        }
-
-        try schemes.forEach { scheme in
-            let schemeDirectory = try createSchemesDirectory(path: xcworkspacePath, shared: scheme.shared)
-            let schemePath = schemeDirectory.appending(component: "\(scheme.scheme.name).xcscheme")
-            try scheme.scheme.write(path: schemePath.path, override: true)
-        }
-    }
-
-    func generateWorkspaceSchemesDescriptors(workspace: Workspace,
-                                             xcworkspacePath: AbsolutePath,
-                                             generatedProjects: [AbsolutePath: GeneratedProject],
-                                             graph: Graphing) throws -> [GeneratedSchemeDescriptor] {
-        let schemes = try workspace.schemes.map { scheme in
-            try generateScheme(scheme: scheme,
-                               xcPath: xcworkspacePath,
                                path: workspace.path,
                                graph: graph,
                                generatedProjects: generatedProjects)
@@ -101,21 +52,11 @@ final class SchemesGenerator: SchemesGenerating {
         return schemes
     }
 
-    /// Generate schemes for a project.
-    ///
-    /// - Parameters:
-    ///     - project: Project manifest.
-    ///     - xcprojectPath: Path to project's .xcodeproj.
-    ///     - generatedProject: Generated Project
-    ///     - graph: Tuist graph.
     func generateProjectSchemes(project: Project,
-                                xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws {
-        /// Generate custom schemes from manifest
+                                graph: Graphing) throws -> [GeneratedSchemeDescriptor] {
         let customSchemes: [GeneratedSchemeDescriptor] = try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               xcPath: xcprojectPath,
                                path: project.path,
                                graph: graph,
                                generatedProjects: [project.path: generatedProject])
@@ -128,39 +69,6 @@ final class SchemesGenerator: SchemesGenerating {
         let defaultSchemes: [GeneratedSchemeDescriptor] = try defaultSchemeTargets.map { target in
             let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
             return try generateScheme(scheme: scheme,
-                                      xcPath: xcprojectPath,
-                                      path: project.path,
-                                      graph: graph,
-                                      generatedProjects: [project.path: generatedProject])
-        }
-
-        try (customSchemes + defaultSchemes).forEach { scheme in
-            let schemeDirectory = try createSchemesDirectory(path: xcprojectPath, shared: scheme.shared)
-            let schemePath = schemeDirectory.appending(component: "\(scheme.scheme.name).xcscheme")
-            try scheme.scheme.write(path: schemePath.path, override: true)
-        }
-    }
-
-    func generateProjectSchemeDescriptors(project: Project,
-                                          xcprojectPath: AbsolutePath,
-                                          generatedProject: GeneratedProject,
-                                          graph: Graphing) throws -> [GeneratedSchemeDescriptor] {
-        let customSchemes: [GeneratedSchemeDescriptor] = try project.schemes.map { scheme in
-            try generateScheme(scheme: scheme,
-                               xcPath: xcprojectPath,
-                               path: project.path,
-                               graph: graph,
-                               generatedProjects: [project.path: generatedProject])
-        }
-
-        /// Generate default schemes for targets in Project that are not defined in Manifest
-        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
-        let userDefinedSchemes = Set(project.schemes.map(\.name))
-        let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
-        let defaultSchemes: [GeneratedSchemeDescriptor] = try defaultSchemeTargets.map { target in
-            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
-            return try generateScheme(scheme: scheme,
-                                      xcPath: xcprojectPath,
                                       path: project.path,
                                       graph: graph,
                                       generatedProjects: [project.path: generatedProject])
@@ -214,7 +122,6 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - graph: Tuist graph.
     ///     - generatedProjects: Project paths mapped to generated projects.
     private func generateScheme(scheme: Scheme,
-                                xcPath _: AbsolutePath,
                                 path: AbsolutePath,
                                 graph: Graphing,
                                 generatedProjects: [AbsolutePath: GeneratedProject]) throws -> GeneratedSchemeDescriptor {
