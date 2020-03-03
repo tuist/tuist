@@ -100,12 +100,12 @@ public class TemplateLoader: TemplateLoading {
         ]
         
         // Helpers
-        let templateDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
-        if let templateDesciptionHelpersModulePath = templateDesciptionHelpersModulePath {
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
-                "-I", templateDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-L", templateDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-F", templateDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-L", projectDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-F", projectDesciptionHelpersModulePath.parentDirectory.pathString,
                 "-lProjectDescriptionHelpers",
             ])
         }
