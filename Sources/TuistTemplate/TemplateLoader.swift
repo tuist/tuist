@@ -82,7 +82,8 @@ public class TemplateLoader: TemplateLoading {
             additionalArguments.append(attributes)
         }
         let data = try loadManifestData(at: path, additionalArguments: additionalArguments)
-        return try decoder.decode(String.self, from: data)
+        let manifest = try decoder.decode(ProjectDescription.Content.self, from: data)
+        return try TuistTemplate.Content.from(manifest: manifest).content
     }
 
     // MARK: - Helpers
@@ -166,5 +167,11 @@ extension TuistTemplate.ParsedAttribute {
     static func from(manifest: ProjectDescription.ParsedAttribute) throws -> TuistTemplate.ParsedAttribute {
         TuistTemplate.ParsedAttribute(name: manifest.name,
                                       value: manifest.value)
+    }
+}
+
+extension TuistTemplate.Content {
+    static func from(manifest: ProjectDescription.Content) throws -> TuistTemplate.Content {
+        TuistTemplate.Content(content: manifest.content)
     }
 }
