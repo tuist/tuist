@@ -3,12 +3,12 @@ import SPMUtility
 import TuistCore
 import TuistSupport
 
-protocol GraphLinting: AnyObject {
+public protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
-class GraphLinter: GraphLinting {
+public class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     private let projectLinter: ProjectLinting
@@ -16,15 +16,20 @@ class GraphLinter: GraphLinting {
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter(),
-         staticProductsLinter: StaticProductsGraphLinting = StaticProductsGraphLinter()) {
+    public convenience init() {
+        self.init(projectLinter: ProjectLinter(),
+                  staticProductsLinter: StaticProductsGraphLinter())
+    }
+
+    init(projectLinter: ProjectLinting,
+         staticProductsLinter: StaticProductsGraphLinting) {
         self.projectLinter = projectLinter
         self.staticProductsLinter = staticProductsLinter
     }
 
     // MARK: - GraphLinting
 
-    func lint(graph: Graphing) -> [LintingIssue] {
+    public func lint(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
         issues.append(contentsOf: lintDependencies(graph: graph))

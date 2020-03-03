@@ -7,6 +7,22 @@ public protocol ManifestLinting {
     func lint(project: ProjectDescription.Project) -> [LintingIssue]
 }
 
+public class AnyManifestLinter: ManifestLinting {
+    let lint: ((ProjectDescription.Project) -> [LintingIssue])?
+
+    public init(lint: ((ProjectDescription.Project) -> [LintingIssue])? = nil) {
+        self.lint = lint
+    }
+
+    public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
+        if let lint = self.lint {
+            return lint(project)
+        } else {
+            return []
+        }
+    }
+}
+
 public class ManifestLinter: ManifestLinting {
     public init() {}
 

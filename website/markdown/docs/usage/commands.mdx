@@ -1,10 +1,70 @@
 ---
-name: Up command
+name: Commands
 order: 7
-excerpt: This document describes the Setup manifest file, which developers can use to describe how to set up the environment to be able to work on the project. For example, we could indicate that our project requires Carthage to be installed in the system and 'tuist up' will take care of that.
+excerpt: This page describes all the commands that are available in Tuist alongside the arguments that they support.
 ---
 
-# Set up the environment
+# Edit
+
+One of the advantages of defining your projects in Swift is that we can leverage Xcode and the Swift compiler to safely edit the projects with syntax auto-completion and documentation.
+
+Editing your projects is easy; position yourself in a directory where there's a project defined and run the following command:
+
+```bash
+tuist edit
+```
+
+It will open a temporary Xcode project with the manifests and the project description helpers. After making changes you can run the target from Xcode and it will call `tuist generate` for you.
+
+The project is deleted automatically once you are done with editing. If you wish to generate and keep the project in the current directory, you can run the command passing the `--permanent` argument:
+
+```bash
+tuist edit --permanent
+```
+
+That will generate a `Manfiest.xcodeproj` project that you can open manually.
+
+# Lint
+
+One of the benefits of making the definition of projects explicit,
+is that we can run checks on them and uncover configuration issues that otherwise would be bubbled up by the build system later on.
+Tuist follows the principle of the sooner we detect the errors,
+the less time developers will have to spend.
+For that reason,
+we provide a command that developers can run either locally or on CI to ensure their projects have a valid configuration:
+
+```bash
+tuist lint
+```
+
+Please note that there are checks that only the compiler and the build system can do.
+In other words,
+those will only be uncover by compiling the app with Xcode or `xcodebuild`.
+
+# Graph
+
+When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it in a representable format.
+
+Being in a directory that contains a workspace or project manifest, run the following command:
+
+```bash
+tuist graph
+```
+
+The command will output a human-readable file, `graph.dot` that describes the dependencies graph using the [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>) description language.
+
+## A visual representation of the graph
+
+[Graphviz](https://formulae.brew.sh/formula/graphviz) is a command line tool that take the `.dot` graph and convert it into an image.
+
+```bash
+brew install graphviz
+dot -Tpng graph.dot > graph.png
+```
+
+Alternatively, you can use online services like [this one](https://dreampuf.github.io/GraphvizOnline) that renders your graph on a website.
+
+# Up
 
 Xcode projects often have dependencies with system tools like [SwiftLint](https://github.com/realm/SwiftLint), [Carthage](https://github.com/Carthage/Carthage), or [Sourcery](https://github.com/krzysztofzablocki/Sourcery). Those are dependencies that need to be installed/pulled and properly configured in the developer environment for the project to run.
 

@@ -2,25 +2,24 @@ import Foundation
 import TuistCore
 import TuistSupport
 
-protocol EnvironmentLinting {
+public protocol EnvironmentLinting {
     /// Lints a given Tuist configuration.
     ///
     /// - Parameter config: Tuist configuration to be linted against the system.
-    /// - Throws: An error if the validation fails.
-    func lint(config: TuistConfig) throws
+    /// - Returns: A list of linting issues.
+    func lint(config: TuistConfig) throws -> [LintingIssue]
 }
 
-class EnvironmentLinter: EnvironmentLinting {
-    /// Lints a given Tuist configuration.
-    ///
-    /// - Parameter config: Tuist configuration to be linted against the system.
-    /// - Throws: An error if the validation fails.
-    func lint(config: TuistConfig) throws {
+public class EnvironmentLinter: EnvironmentLinting {
+    /// Default constructor.
+    public init() {}
+
+    public func lint(config: TuistConfig) throws -> [LintingIssue] {
         var issues = [LintingIssue]()
 
         issues.append(contentsOf: try lintXcodeVersion(config: config))
 
-        try issues.printAndThrowIfNeeded()
+        return issues
     }
 
     /// Returns a linting issue if the selected version of Xcode is not compatible with the

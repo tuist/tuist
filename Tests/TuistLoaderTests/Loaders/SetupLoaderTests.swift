@@ -112,11 +112,11 @@ final class SetupLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(lintedUps.count, mockUps.count)
 
         let expectedOutput = """
-        - mockup2 warning
+        mockup2 warning
         """
         let expectedError = """
-        - mockup1 error
-        - mockup3 error
+        mockup1 error
+        mockup3 error
         """
         XCTAssertPrinterOutputContains(expectedOutput)
         XCTAssertPrinterErrorContains(expectedError)
