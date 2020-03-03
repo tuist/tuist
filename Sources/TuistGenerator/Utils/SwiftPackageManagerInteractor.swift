@@ -25,23 +25,15 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         graph: Graphing
     ) throws {
         let packages = graph.packages
-
-        if packages.isEmpty {
+        guard !packages.remotePackages.isEmpty else {
             return
         }
-
-        let hasRemotePackage = packages.first(where: { node in
-            switch node.package {
-            case .remote: return true
-            case .local: return false
-            }
-        }) != nil
 
         let rootPackageResolvedPath = path.appending(component: ".package.resolved")
         let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
-        if hasRemotePackage, fileHandler.exists(rootPackageResolvedPath) {
+        if fileHandler.exists(rootPackageResolvedPath) {
             try fileHandler.createFolder(workspacePackageResolvedFolderPath)
             if fileHandler.exists(workspacePackageResolvedPath) {
                 try fileHandler.delete(workspacePackageResolvedPath)
@@ -53,12 +45,23 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         try System.shared.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
 
-        if hasRemotePackage {
-            if fileHandler.exists(rootPackageResolvedPath) {
-                try fileHandler.delete(rootPackageResolvedPath)
-            }
+        if fileHandler.exists(rootPackageResolvedPath) {
+            try fileHandler.delete(rootPackageResolvedPath)
+        }
 
-            try fileHandler.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
+        try fileHandler.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
+    }
+}
+
+private extension Array where Element == PackageNode {
+    var remotePackages: [PackageNode] {
+        compactMap { node in
+            switch node.package {
+            case .remote:
+                return node
+            default:
+                return nil
+            }
         }
     }
 }
