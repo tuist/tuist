@@ -14,7 +14,7 @@ public final class MockResourceLocator: ResourceLocating {
         projectDescriptionCount += 1
         return try projectDescriptionStub?() ?? AbsolutePath("/")
     }
-    
+
     public func cliPath() throws -> AbsolutePath {
         cliPathCount += 1
         return try cliPathStub?() ?? AbsolutePath("/")

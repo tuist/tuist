@@ -1,13 +1,13 @@
 import Basic
 import Foundation
-import TuistSupport
 import TuistLoader
+import TuistSupport
 
 enum TemplateGeneratorError: FatalError, Equatable {
     var type: ErrorType { .abort }
-    
+
     case attributeNotFound(String)
-    
+
     var description: String {
         switch self {
         case let .attributeNotFound(attribute):
@@ -30,29 +30,28 @@ public protocol TemplateGenerating {
 
 public final class TemplateGenerator: TemplateGenerating {
     private let templateLoader: TemplateLoading
-    
+
     public init(templateLoader: TemplateLoading = TemplateLoader()) {
         self.templateLoader = templateLoader
     }
-    
+
     public func generate(at sourcePath: AbsolutePath,
                          to destinationPath: AbsolutePath,
                          attributes: [String]) throws {
         let template = try templateLoader.loadTemplate(at: sourcePath)
         let templateAttributes = try getTemplateAttributes(with: attributes, template: template)
-        
+
         try generateDirectories(template: template,
                                 templateAttributes: templateAttributes,
                                 destinationPath: destinationPath)
-        
+
         try generateFiles(template: template,
                           templateAttributes: templateAttributes,
                           destinationPath: destinationPath)
-    
     }
-    
+
     // MARK: - Helpers
-    
+
     private func generateDirectories(template: Template,
                                      templateAttributes: [ParsedAttribute],
                                      destinationPath: AbsolutePath) throws {
@@ -64,7 +63,7 @@ public final class TemplateGenerator: TemplateGenerating {
         }
         .forEach(FileHandler.shared.createFolder)
     }
-    
+
     private func generateFiles(template: Template,
                                templateAttributes: [ParsedAttribute],
                                destinationPath: AbsolutePath) throws {
@@ -86,7 +85,7 @@ public final class TemplateGenerator: TemplateGenerating {
             }
         }
     }
-    
+
     private func getTemplateAttributes(with attributes: [String], template: Template) throws -> [ParsedAttribute] {
         let parsedAttributes = parseAttributes(attributes)
         return try template.attributes.map {
@@ -102,7 +101,7 @@ public final class TemplateGenerator: TemplateGenerating {
             }
         }
     }
-    
+
     private func generateFile(contents: String,
                               destinationPath: AbsolutePath,
                               attributes: [ParsedAttribute]) throws {
@@ -113,14 +112,13 @@ public final class TemplateGenerator: TemplateGenerating {
                                      path: destinationPath,
                                      atomically: true)
     }
-    
+
     private func parseAttributes(_ attributes: [String]) -> [ParsedAttribute] {
         let (options, values): ([String], [String]) = attributes
             .reduce(([], [])) {
                 $1.starts(with: "--") ? ($0.0 + [String($1.dropFirst(2))], $0.1) : ($0.0, $0.1 + [$1])
             }
-        
+
         return zip(options, values).map(ParsedAttribute.init)
     }
-    
 }

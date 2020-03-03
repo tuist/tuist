@@ -7,7 +7,7 @@ public struct Content {
     public init(_ generateContent: () throws -> String) {
         do {
             dumpIfNeeded(try generateContent())
-        } catch let error {
+        } catch {
             if let localizedDescriptionData = "\(error)".data(using: .utf8) {
                 FileHandle.standardError.write(localizedDescriptionData)
             }

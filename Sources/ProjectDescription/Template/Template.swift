@@ -10,19 +10,19 @@ public struct Template: Codable, Equatable {
     public let files: [File]
     /// Directories to generate
     public let directories: [String]
-    
+
     public init(description: String,
                 attributes: [Attribute] = [],
                 files: [File] = [],
                 directories: [String] = [],
-                script: String? = nil) {
+                script _: String? = nil) {
         self.description = description
         self.attributes = attributes
         self.files = files
         self.directories = directories
         dumpIfNeeded(self)
     }
-    
+
     /// Enum containing information about how to generate file
     public enum Contents: Codable, Equatable {
         /// Static Contents is defined in `Template.swift` and contains a simple `String`
@@ -31,12 +31,12 @@ public struct Template: Codable, Equatable {
         /// Generated content is defined in a different file from `Template.swift`
         /// Can contain additional logic and anything that is defined in `ProjectDescriptionHelpers`
         case generated(String)
-        
+
         private enum CodingKeys: String, CodingKey {
             case type
             case value
         }
-        
+
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let value = try container.decode(String.self, forKey: .value)
@@ -62,27 +62,26 @@ public struct Template: Codable, Equatable {
                 try container.encode(path, forKey: .value)
             }
         }
-
     }
-    
+
     /// File description for generating
     public struct File: Codable, Equatable {
         public let path: String
         public let contents: Contents
-        
+
         public init(path: String, contents: Contents) {
             self.path = path
             self.contents = contents
         }
     }
-    
+
     /// Attribute to be passed to `tuist scaffold` for generating with `Template`
     public enum Attribute: Codable, Equatable {
         /// Required attribute with a given name
         case required(String)
         /// Optional attribute with a given name and a default value used when attribute not provided by user
         case optional(String, default: String)
-        
+
         enum CodingKeys: String, CodingKey {
             case type
             case name

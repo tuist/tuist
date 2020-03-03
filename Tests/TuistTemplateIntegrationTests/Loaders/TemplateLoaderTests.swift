@@ -3,8 +3,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistTemplate
 @testable import TuistSupportTesting
+@testable import TuistTemplate
 
 final class TemplateLoaderTests: TuistTestCase {
     var subject: TemplateLoader!
@@ -37,11 +37,11 @@ final class TemplateLoaderTests: TuistTestCase {
 
         // When
         let got = try subject.loadTemplate(at: temporaryPath)
-        
+
         // Then
         XCTAssertEqual(got.description, "Template description")
     }
-    
+
     func test_loadGenerateFile() throws {
         let temporaryPath = try self.temporaryPath()
         let content = """
@@ -62,7 +62,7 @@ final class TemplateLoaderTests: TuistTestCase {
         // When
         let got = try subject.loadGenerateFile(at: generateFilePath,
                                                parsedAttributes: [ParsedAttribute(name: "name", value: "test name")])
-        
+
         // Then
         XCTAssertEqual(got, expectedContent)
     }

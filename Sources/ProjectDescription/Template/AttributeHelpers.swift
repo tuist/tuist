@@ -6,7 +6,7 @@ enum ParsingError: Error, CustomStringConvertible, Equatable {
     case attributeNotFound(String)
     /// Thrown when attributes not provided
     case attributesNotProvided
-    
+
     var description: String {
         switch self {
         case let .attributeNotFound(name):
@@ -29,7 +29,7 @@ public func getAttribute(for name: String, arguments: [String] = CommandLine.arg
         arguments.endIndex > attributesIndex + 1,
         let data = arguments[attributesIndex + 1].data(using: .utf8)
     else { throw ParsingError.attributesNotProvided }
-    
+
     let parsedAttributes = try jsonDecoder.decode([ParsedAttribute].self, from: data)
     guard let value = parsedAttributes.first(where: { $0.name == name })?.value else { throw ParsingError.attributeNotFound(name) }
     return value

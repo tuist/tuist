@@ -14,13 +14,13 @@ class TemplateTests: XCTestCase {
             ],
             files: [
                 .static(path: "static.swift", contents: "content"),
-                .generated(path: "generated.swift", generateFilePath: "generate.swift")
+                .generated(path: "generated.swift", generateFilePath: "generate.swift"),
             ],
             directories: [
                 "{{ name }}",
-                "directory"
-        ])
-            
+                "directory",
+            ]
+        )
 
         // Then
         XCTAssertCodable(template)

@@ -6,7 +6,7 @@ public struct ParsedAttribute: Codable, Equatable {
         self.name = name
         self.value = value
     }
-    
+
     /// Name (identifier) of attribute
     public let name: String
     /// Value of attribute

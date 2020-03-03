@@ -1,18 +1,18 @@
 import Basic
 import Foundation
-import SPMUtility
-import TuistSupport
 import ProjectDescription
+import SPMUtility
 import TuistLoader
+import TuistSupport
 
 public enum TemplateLoaderError: FatalError, Equatable {
     public var type: ErrorType { .abort }
-    
+
     /// Template manifest was not found
     case manifestNotFound(AbsolutePath)
     /// Could not find file for generating content
     case generateFileNotFound(AbsolutePath)
-    
+
     public var description: String {
         switch self {
         case let .manifestNotFound(manifestPath):
@@ -50,7 +50,7 @@ public class TemplateLoader: TemplateLoading {
                   resourceLocator: ResourceLocator(),
                   projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilder())
     }
-    
+
     init(templatesDirectoryLocator: TemplatesDirectoryLocating,
          resourceLocator: ResourceLocating,
          projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding) {
@@ -60,7 +60,7 @@ public class TemplateLoader: TemplateLoading {
         decoder = JSONDecoder()
         encoder = JSONEncoder()
     }
-    
+
     public func loadTemplate(at path: AbsolutePath) throws -> TuistTemplate.Template {
         let manifestPath = path.appending(component: "Template.swift")
         guard FileHandler.shared.exists(manifestPath) else {
@@ -71,7 +71,7 @@ public class TemplateLoader: TemplateLoading {
         return try TuistTemplate.Template.from(manifest: manifest,
                                                at: path)
     }
-    
+
     public func loadGenerateFile(at path: AbsolutePath, parsedAttributes: [TuistTemplate.ParsedAttribute]) throws -> String {
         guard FileHandler.shared.exists(path) else {
             throw TemplateLoaderError.generateFileNotFound(path)
@@ -84,9 +84,9 @@ public class TemplateLoader: TemplateLoading {
         let data = try loadManifestData(at: path, additionalArguments: additionalArguments)
         return try decoder.decode(String.self, from: data)
     }
-    
+
     // MARK: - Helpers
-    
+
     private func loadManifestData(at path: AbsolutePath, additionalArguments: [String] = []) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
 
@@ -100,7 +100,7 @@ public class TemplateLoader: TemplateLoading {
             "-F", projectDescriptionPath.parentDirectory.pathString,
             "-lProjectDescription",
         ]
-        
+
         // Helpers
         let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
         if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {

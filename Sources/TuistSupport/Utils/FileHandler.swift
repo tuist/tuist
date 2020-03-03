@@ -255,8 +255,8 @@ public class FileHandler: FileHandling {
             return locateDirectoryTraversingParents(from: from.parentDirectory, path: path)
         }
     }
-    
+
     public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
-        try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) } 
+        try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
     }
 }

@@ -65,9 +65,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(helpersTarget.sources.map { $0.path }, helperPaths)
         XCTAssertEqual(helpersTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(helpersTarget.dependencies, [])
-        
+
         // Generated Templates target
-        
+
         let templatesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Templates" }))
         XCTAssertEqual(targetNodes.last?.target, templatesTarget)
 

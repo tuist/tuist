@@ -137,7 +137,8 @@ let package = Package(
         ),
         .target(
             name: "TuistTemplate",
-            dependencies: ["SPMUtility", "TuistCore", "TuistSupport", "TuistLoader"]),
+            dependencies: ["SPMUtility", "TuistCore", "TuistSupport", "TuistLoader"]
+        ),
         .target(
             name: "TuistTemplateTesting",
             dependencies: ["TuistTemplate"]

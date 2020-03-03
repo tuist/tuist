@@ -47,7 +47,7 @@ final class ProjectEditor: ProjectEditing {
 
     /// Utility to locate the helpers directory.
     let helpersDirectoryLocator: HelpersDirectoryLocating
-    
+
     /// Utiltity to locate the custom templates directory
     let templatesDirectoryLocator: TemplatesDirectoryLocating
 

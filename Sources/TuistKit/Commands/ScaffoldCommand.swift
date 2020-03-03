@@ -1,17 +1,17 @@
-import Foundation
-import TuistSupport
-import TuistLoader
-import TuistTemplate
-import SPMUtility
 import Basic
+import Foundation
+import SPMUtility
+import TuistLoader
+import TuistSupport
+import TuistTemplate
 
 enum ScaffoldCommandError: FatalError, Equatable {
     var type: ErrorType { .abort }
-    
+
     case templateNotFound(String)
     case templateNotProvided
     case nonEmptyDirectory(AbsolutePath)
-    
+
     var description: String {
         switch self {
         case let .templateNotFound(template):
@@ -33,7 +33,7 @@ class ScaffoldCommand: NSObject, Command {
     private let pathArgument: OptionArgument<String>
     private let templateArgument: PositionalArgument<String>
     private let attributesArgument: OptionArgument<[String]>
-    
+
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
@@ -46,7 +46,7 @@ class ScaffoldCommand: NSObject, Command {
                   templatesDirectoryLocator: TemplatesDirectoryLocator(),
                   templateGenerator: TemplateGenerator())
     }
-    
+
     init(parser: ArgumentParser,
          templateLoader: TemplateLoading,
          templatesDirectoryLocator: TemplatesDirectoryLocating,
@@ -81,7 +81,7 @@ class ScaffoldCommand: NSObject, Command {
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
-        
+
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {
             try directories.forEach {
@@ -90,11 +90,11 @@ class ScaffoldCommand: NSObject, Command {
             }
             return
         }
-        
+
         try verifyDirectoryIsEmpty(path: path)
-        
+
         guard let template = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
-        
+
         guard
             let templateDirectory = directories.first(where: { $0.basename == template })
         else { throw ScaffoldCommandError.templateNotFound(template) }
@@ -102,9 +102,9 @@ class ScaffoldCommand: NSObject, Command {
                                        to: path,
                                        attributes: arguments.get(attributesArgument) ?? [])
     }
-    
+
     // MARK: - Helpers
-    
+
     private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
@@ -112,7 +112,7 @@ class ScaffoldCommand: NSObject, Command {
             return FileHandler.shared.currentPath
         }
     }
-    
+
     /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
     ///
     /// - Parameter path: Directory to be checked.

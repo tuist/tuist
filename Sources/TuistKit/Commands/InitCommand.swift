@@ -108,7 +108,7 @@ class InitCommand: NSObject, Command {
         let path = try self.path(arguments: arguments)
         let name = try self.name(arguments: arguments, path: path)
         try verifyDirectoryIsEmpty(path: path)
-        
+
         let directories = try templatesDirectoryLocator.templateDirectories(at: FileHandler.shared.currentPath)
         if let template = arguments.get(templateArgument) {
             guard
@@ -125,7 +125,7 @@ class InitCommand: NSObject, Command {
                                            to: path,
                                            attributes: ["--name", name, "--platform", platform.rawValue])
         }
-        
+
         Printer.shared.print(success: "Project generated at path \(path.pathString).")
     }
 
@@ -140,7 +140,7 @@ class InitCommand: NSObject, Command {
             throw InitCommandError.nonEmptyDirectory(path)
         }
     }
-    
+
     private func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
         if let name = arguments.get(nameArgument) {
             return name

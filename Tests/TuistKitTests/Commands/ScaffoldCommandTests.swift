@@ -44,7 +44,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
     func test_overview() {
         XCTAssertEqual(ScaffoldCommand.overview, "Generates new project based on template.")
     }
-    
+
     func test_fails_when_directory_not_empty() throws {
         // Given
         let path = FileHandler.shared.currentPath
@@ -55,7 +55,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(try subject.run(with: result), ScaffoldCommandError.nonEmptyDirectory(path))
     }
-    
+
     func test_template_found() throws {
         // Given
         let templateName = "template"
@@ -68,20 +68,20 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
             generateSourcePath = sourcePath
         }
         let result = try parser.parse([ScaffoldCommand.command, templateName])
-        
+
         // When
         try subject.run(with: result)
-        
+
         // Then
         XCTAssertEqual(generateSourcePath, templatePath)
     }
-    
+
     func test_fails_when_template_not_found() throws {
         let templateName = "template"
         let result = try parser.parse([ScaffoldCommand.command, templateName])
         XCTAssertThrowsSpecific(try subject.run(with: result), ScaffoldCommandError.templateNotFound(templateName))
     }
-    
+
     func test_generate_not_run_when_list() throws {
         // Given
         var didGenerate = false
@@ -89,10 +89,10 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
             didGenerate = true
         }
         let result = try parser.parse([ScaffoldCommand.command, "--list", "template"])
-        
+
         // When
         try subject.run(with: result)
-        
+
         // Then
         XCTAssertFalse(didGenerate)
     }

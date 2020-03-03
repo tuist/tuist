@@ -53,6 +53,6 @@ let appDelegateContent = Content {
         }
         """
     }
-    
+
     return appContent
 }

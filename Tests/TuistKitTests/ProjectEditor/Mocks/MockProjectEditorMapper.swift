@@ -13,7 +13,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         manifests: [AbsolutePath],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath)] = []
+        projectDescriptionPath: AbsolutePath
+    )] = []
 
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,

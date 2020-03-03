@@ -3,7 +3,7 @@ import ProjectDescription
 
 enum PlatformError: Error, CustomStringConvertible {
     case parseFailed(String)
-    
+
     var description: String {
         switch self {
         case let .parseFailed(value):

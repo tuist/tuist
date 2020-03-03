@@ -116,7 +116,7 @@ import Foundation
 
 """
 
-let tuistConfigContent =  """
+let tuistConfigContent = """
 import ProjectDescription
 
 let config = TuistConfig(generationOptions: [

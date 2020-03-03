@@ -3,8 +3,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistTemplate
 @testable import TuistSupportTesting
+@testable import TuistTemplate
 
 final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     var subject: TemplatesDirectoryLocator!
@@ -75,12 +75,12 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
             "this/is/a/very/nested/Tuist/Templates",
         ].map { temporaryDirectory.appending(RelativePath($0)) })
     }
-    
+
     func test_locate_all_templates() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/directory", "this/Tuist/Templates/template_one", "this/Tuist/Templates/template_two"])
-        
+
         // When
         let got = try subject.templateDirectories(at: temporaryDirectory.appending(RelativePath("this/is/a/directory")))
         // Then

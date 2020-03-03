@@ -40,7 +40,7 @@ final class InitCommandTests: TuistUnitTestCase {
     func test_overview() {
         XCTAssertEqual(InitCommand.overview, "Bootstraps a project.")
     }
-    
+
     func test_fails_when_directory_not_empty() throws {
         // Given
         let path = FileHandler.shared.currentPath
@@ -51,7 +51,7 @@ final class InitCommandTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(try subject.run(with: result), InitCommandError.nonEmptyDirectory(path))
     }
-    
+
     func test_template_found() throws {
         // Given
         let templateName = "template"
@@ -64,20 +64,20 @@ final class InitCommandTests: TuistUnitTestCase {
             generateSourcePath = sourcePath
         }
         let result = try parser.parse([InitCommand.command, "--template", templateName])
-        
+
         // When
         try subject.run(with: result)
-        
+
         // Then
         XCTAssertEqual(generateSourcePath, templatePath)
     }
-    
+
     func test_init_fails_when_template_not_found() throws {
         let templateName = "template"
         let result = try parser.parse([InitCommand.command, "--template", templateName])
         XCTAssertThrowsSpecific(try subject.run(with: result), InitCommandError.templateNotFound(templateName))
     }
-    
+
     func test_init_default_when_no_template() throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
@@ -90,14 +90,14 @@ final class InitCommandTests: TuistUnitTestCase {
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
-        
+
         // When
         try subject.run(with: result)
-        
+
         // Then
         XCTAssertEqual(attributes, generatorAttributes)
     }
-    
+
     func test_init_default_platform() throws {
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
@@ -109,10 +109,10 @@ final class InitCommandTests: TuistUnitTestCase {
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
-        
+
         // When
         try subject.run(with: result)
-        
+
         // Then
         XCTAssertEqual(attributes + ["--platform", "ios"], generatorAttributes)
     }
