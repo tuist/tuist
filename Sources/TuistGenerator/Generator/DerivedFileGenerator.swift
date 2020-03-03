@@ -18,13 +18,9 @@ protocol DerivedFileGenerating {
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
+    typealias ProjectTransformation = (project: Project, sideEffects: [GeneratedSideEffect])
     fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
-
-    struct Transformation {
-        var project: Project
-        var sideEffects: [GeneratedSideEffect]
-    }
 
     /// Info.plist content provider.
     let infoPlistContentProvider: InfoPlistContentProviding
@@ -51,7 +47,9 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     ///   - sourceRootPath: Path to the directory in which the project is getting generated.
     /// - Returns: A set with paths to the Info.plist files that are no longer necessary and therefore need to be removed.
     /// - Throws: An error if the encoding of the Info.plist content fails.
-    func generateInfoPlists(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> Transformation {
+    func generateInfoPlists(graph: Graphing,
+                            project: Project,
+                            sourceRootPath: AbsolutePath) throws -> ProjectTransformation {
         let targetsWithGeneratableInfoPlists = project.targets.filter {
             if let infoPlist = $0.infoPlist, case InfoPlist.file = infoPlist {
                 return false
@@ -97,8 +95,8 @@ final class DerivedFileGenerator: DerivedFileGenerating {
             return (target.with(infoPlist: InfoPlist.file(path: path)), [sideEffet])
         }
 
-        return Transformation(project: project.with(targets: transformation.map { $0.0 }),
-                              sideEffects: deletions + transformation.flatMap { $0.1 })
+        return (project: project.with(targets: transformation.map { $0.0 }),
+                sideEffects: deletions + transformation.flatMap { $0.1 })
     }
 
     private func infoPlistDictionary(infoPlist: InfoPlist,
