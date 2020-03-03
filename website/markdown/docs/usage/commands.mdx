@@ -22,7 +22,84 @@ The project is deleted automatically once you are done with editing. If you wish
 tuist edit --permanent
 ```
 
-That will generate a `Manfiest.xcodeproj` project that you can open manually.
+That will generate a `Manifest.xcodeproj` project that you can open manually.
+
+# Scaffold
+
+After project description helpers, `scaffold` is a next step to make it easier to create new modules in your app.
+With `scaffold` you can define your own templates as well as use templates that Tuist provides to generate a basic structure of your module!
+
+To use a built-in template called `default` (used for `tuist init`):
+```bash
+tuist scaffold default --attributes --name MyModule --platform ios
+```
+
+If you want to define your own template, we recommend you to run `tuist edit` - after that you can create a new directory `Tuist/Templates/name_of_your_template` where `Tuist/Templates` is a directory where all your custom templates will live. Additionaly you have to create a `Template.swift` in that directory:
+
+```swift
+import ProjectDescription
+
+let nameAttribute: Template.Attribute = .required("name")
+
+let template = Template(
+    description: "Custom template",
+    attributes: [
+        nameAttribute,
+        .optional("platform", default: "ios"),
+    ],
+    files: [
+        .static(path: "Project.swift",
+                contents: "My template contents of name \(nameAttribute)"),
+        .generated(path: "generated/Up.swift",
+                   generateFilePath: "Generate.swift"),
+    ],
+    directories: ["generated"]
+)
+```
+
+This template would then be called like this:
+```bash
+tuist scaffold name_of_template --attributes --name Name --platform macos
+```
+
+If you do not need any difficult logic, feel free to use `.static` for `files` parameter.
+Otherwise, you can use a more powerful `.generated` file. You can define it in the same directory as `Template.swift`.
+
+Such generated file then could look like this:
+
+```swift
+import ProjectDescription
+import ProjectDescriptionHelpers
+
+enum Platform: String {
+    case iOS = "ios"
+    case macOS = "macos"
+}
+
+enum PlatformError: Error, CustomStringConvertible {
+    case invalidPlatform
+
+    var description: String {
+      return "Platform invalid. Platform should be either ios or macos!"
+    }
+}
+
+let customContent = Content {
+    guard let platform = Platform(rawValue: try getAttribute(for: "platform")) else { throw PlatformError.invalidPlatform }
+    switch platform {
+    case .iOS:
+        return "This is iOS content"
+    case .macOS:
+        return "This is macOS content"
+    }
+}
+```
+
+You can see it's quite easy to access an attribute from user input using `getAttribute(for: "name_of_attribute")`
+
+In this file we have created a switch statement for a given platform and generated a file with custom content for macOS and iOS and thrown an error when provided platform was not valid which is really powerful!
+
+You can also leverage anything that you define in `ProjectDescriptionHelpers`, so you can share types and methods between your templates and manifests.
 
 # Lint
 
