@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import RxSwift
 
-protocol CacheStoraging {
+public protocol CacheStoraging {
     /// Returns if the target with the given hash exists in the cache.
     /// - Parameter hash: Target's hash.
     /// - Returns: An observable that returns a boolean indicating whether the target is cached.

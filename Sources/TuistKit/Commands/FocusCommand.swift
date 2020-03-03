@@ -63,9 +63,9 @@ class FocusCommand: NSObject, Command {
     func run(with _: ArgumentParser.Result) throws {
         let path = FileHandler.shared.currentPath
 
-        let workspacePath = try generator.generate(at: path,
-                                                   manifestLoader: manifestLoader,
-                                                   projectOnly: false)
+        let (workspacePath, _) = try generator.generate(at: path,
+                                                        manifestLoader: manifestLoader,
+                                                        projectOnly: false)
 
         try opener.open(path: workspacePath)
     }

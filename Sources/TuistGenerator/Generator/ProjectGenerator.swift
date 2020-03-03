@@ -35,6 +35,7 @@ protocol ProjectGenerating: AnyObject {
                   xcodeprojPath: AbsolutePath?) throws -> GeneratedProject
 }
 
+// swiftlint:disable type_body_length
 final class ProjectGenerator: ProjectGenerating {
     // MARK: - Attributes
 
@@ -92,6 +93,7 @@ final class ProjectGenerator: ProjectGenerating {
 
     // MARK: - Fileprivate
 
+    // swiftlint:disable:next function_body_length
     private func generateProjectAndWorkspace(project: Project,
                                              graph: Graphing,
                                              sourceRootPath: AbsolutePath,
@@ -105,13 +107,19 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: sourceRootPath)
+
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            xcodeprojPath: xcodeprojPath,
+                                            sourceRootPath: sourceRootPath)
+
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
+
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 projectFileElements: fileElements,
@@ -122,10 +130,10 @@ final class ProjectGenerator: ProjectGenerating {
         let nativeTargets = try generateTargets(project: project,
                                                 pbxproj: pbxproj,
                                                 pbxProject: pbxProject,
-                                                groups: groups,
                                                 fileElements: fileElements,
                                                 sourceRootPath: sourceRootPath,
                                                 graph: graph)
+
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
                                    pbxProject: pbxProject)
@@ -148,12 +156,12 @@ final class ProjectGenerator: ProjectGenerating {
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
                                     pbxproj: PBXProj) throws -> PBXProject {
-        let defaultRegions = ["en"]
+        let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
-                                    mainGroup: groups.main,
+                                    mainGroup: groups.sortedMain,
                                     developmentRegion: Xcode.Default.developmentRegion,
                                     hasScannedForEncodings: 0,
                                     knownRegions: knownRegions,
@@ -162,7 +170,6 @@ final class ProjectGenerator: ProjectGenerating {
                                     projects: [],
                                     projectRoots: [],
                                     targets: [])
-
         pbxproj.add(object: pbxProject)
         pbxproj.rootObject = pbxProject
         return pbxProject
@@ -171,7 +178,6 @@ final class ProjectGenerator: ProjectGenerating {
     private func generateTargets(project: Project,
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
-                                 groups _: ProjectGroups,
                                  fileElements: ProjectFileElements,
                                  sourceRootPath: AbsolutePath,
                                  graph: Graphing) throws -> [String: PBXNativeTarget] {
@@ -264,25 +270,59 @@ final class ProjectGenerator: ProjectGenerating {
                        pbxproj: PBXProj,
                        project: Project,
                        graph: Graphing) throws -> GeneratedProject {
-        var generatedProject: GeneratedProject!
-
-        try FileHandler.shared.inTemporaryDirectory { temporaryPath in
-
+        let fileHandler = FileHandler.shared
+        func write(xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
+            let generatedProject = GeneratedProject(pbxproj: pbxproj,
+                                                    path: xcodeprojPath,
+                                                    targets: nativeTargets,
+                                                    name: xcodeprojPath.basename)
             try writeXcodeproj(workspace: workspace,
                                pbxproj: pbxproj,
-                               xcodeprojPath: temporaryPath)
-            generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                path: temporaryPath,
-                                                targets: nativeTargets,
-                                                name: xcodeprojPath.basename)
+                               xcodeprojPath: xcodeprojPath)
+
             try writeSchemes(project: project,
                              generatedProject: generatedProject,
-                             xcprojectPath: temporaryPath,
+                             xcprojectPath: xcodeprojPath,
                              graph: graph)
-            try FileHandler.shared.replace(xcodeprojPath, with: temporaryPath)
+
+            return generatedProject
         }
 
-        return try generatedProject.at(path: xcodeprojPath)
+        guard fileHandler.exists(xcodeprojPath) else {
+            return try write(xcodeprojPath: xcodeprojPath)
+        }
+
+        var generatedProject: GeneratedProject!
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            let temporaryPath = temporaryPath.appending(component: xcodeprojPath.basename)
+            generatedProject = try write(xcodeprojPath: temporaryPath)
+
+            let pathsToReplace = self.pathsToReplace(xcodeProjPath: temporaryPath)
+            try pathsToReplace.forEach {
+                let relativeFile = $0.relative(to: temporaryPath)
+                let writeToPath = xcodeprojPath.appending(relativeFile)
+                try fileHandler.createFolder(writeToPath.parentDirectory)
+                try fileHandler.replace(writeToPath, with: $0)
+            }
+        }
+
+        return generatedProject.at(path: xcodeprojPath)
+    }
+
+    private func pathsToReplace(xcodeProjPath: AbsolutePath) -> [AbsolutePath] {
+        var paths = [
+            "project.pbxproj",
+            "project.xcworkspace",
+            "xcshareddata/xcschemes",
+        ]
+
+        if FileHandler.shared.exists(xcodeProjPath.appending(component: "xcuserdata")) {
+            paths.append("xcuserdata/**/*.xcscheme")
+        }
+
+        return paths.flatMap {
+            FileHandler.shared.glob(xcodeProjPath, glob: $0)
+        }
     }
 
     private func writeXcodeproj(workspace: XCWorkspace,

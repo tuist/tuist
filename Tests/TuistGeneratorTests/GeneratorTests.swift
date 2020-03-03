@@ -2,7 +2,9 @@ import Basic
 import TuistCore
 import TuistCoreTesting
 import XCTest
+
 @testable import TuistGenerator
+@testable import TuistGeneratorTesting
 @testable import TuistSupportTesting
 
 class GeneratorTests: XCTestCase {

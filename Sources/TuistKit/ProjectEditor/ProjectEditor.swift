@@ -84,7 +84,11 @@ final class ProjectEditor: ProjectEditing {
             throw ProjectEditorError.noEditableFiles(at)
         }
 
-        let (project, graph) = projectEditorMapper.map(sourceRootPath: at,
+        // To be sure that we are using the same binary of Tuist that invoked `edit`
+        let tuistPath = AbsolutePath(CommandRegistry.processArguments().first!)
+
+        let (project, graph) = projectEditorMapper.map(tuistPath: tuistPath,
+                                                       sourceRootPath: at,
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        templates: templates,

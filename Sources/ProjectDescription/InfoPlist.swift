@@ -99,7 +99,7 @@ public enum InfoPlist: Codable, Equatable {
 
     // MARK: - Internal
 
-    var path: Path? {
+    public var path: Path? {
         switch self {
         case let .file(path):
             return path

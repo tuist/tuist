@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import RxSwift
 
-final class Cache: CacheStoraging {
+public final class Cache: CacheStoraging {
     // MARK: - Attributes
 
     /// Storages where the targest will be cached.
@@ -10,15 +10,19 @@ final class Cache: CacheStoraging {
 
     // MARK: - Init
 
+    public convenience init() {
+        self.init(storages: [CacheLocalStorage()])
+    }
+
     /// Initializes the cache with its attributes.
     /// - Parameter storages: Storages where the targest will be cached.
-    init(storages: [CacheStoraging] = [CacheLocalStorage()]) {
+    init(storages: [CacheStoraging]) {
         self.storages = storages
     }
 
     // MARK: - CacheStoraging
 
-    func exists(hash: String) -> Single<Bool> {
+    public func exists(hash: String) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.
         storages.map { $0.exists(hash: hash) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
             result.flatMap { exists in
@@ -33,7 +37,7 @@ final class Cache: CacheStoraging {
         }
     }
 
-    func fetch(hash: String) -> Single<AbsolutePath> {
+    public func fetch(hash: String) -> Single<AbsolutePath> {
         storages
             .map { $0.fetch(hash: hash) }
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
@@ -45,7 +49,7 @@ final class Cache: CacheStoraging {
             }!
     }
 
-    func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
+    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
         Completable.zip(storages.map { $0.store(hash: hash, xcframeworkPath: xcframeworkPath) })
     }
 }

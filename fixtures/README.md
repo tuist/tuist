@@ -3,10 +3,6 @@
 This folder contains sample projects we use in the integration and acceptance tests.
 Please keep this keep in alphabetical order.
 
-## fixture_generator
-
-This is a Swift Package that generates a large application / workspace to stress test Tuist. The generated fixture itself is not checked in as it can vary based on the test being conducted.
-
 ## invalid_workspace_manifest_name
 
 Contains a single file `Workspac.swift`, incorrectly named workspace manifest file.
@@ -275,7 +271,7 @@ An example of an iOS app that contains Carthage frameworks \*(fat frameworks wit
 
 ## ios_app_with_helpers
 
-A basic iOS app that has some manifest bits extracted into helpers. 
+A basic iOS app that has some manifest bits extracted into helpers.
 
 ## ios_app_with_xcframeworks
 
@@ -302,3 +298,6 @@ e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
 
 A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
 
+## ios_app_with_incompatible_dependencies
+
+An iOS app that has a dependency with a dependency with a framework for macOS.

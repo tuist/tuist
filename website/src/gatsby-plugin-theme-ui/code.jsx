@@ -8,6 +8,7 @@ import 'prismjs/components/prism-clike'
 import 'prismjs/components/prism-swift'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-ruby'
+import copy from 'copy-text-to-clipboard'
 
 export default ({ showCopy = true, my = 25, bg, ...props }) => {
   const defaultCopyContent = 'Copy the content'
@@ -29,7 +30,7 @@ export default ({ showCopy = true, my = 25, bg, ...props }) => {
           }}
           onClick={() => {
             setCopyContent('Copied 👍')
-            navigator.clipboard.writeText(props.children)
+            copy(props.children)
             setTimeout(() => {
               setCopyContent(defaultCopyContent)
             }, 1000)

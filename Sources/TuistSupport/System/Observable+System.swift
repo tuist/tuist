@@ -1,7 +1,7 @@
 import Foundation
 import RxSwift
 
-extension Observable where Element == SystemEvent<Data> {
+public extension Observable where Element == SystemEvent<Data> {
     /// Returns another observable where the standard output and error data are mapped
     /// to a string.
     func mapToString() -> Observable<SystemEvent<String>> {
@@ -9,7 +9,21 @@ extension Observable where Element == SystemEvent<Data> {
     }
 }
 
-extension Observable where Element == SystemEvent<String> {
+public extension Observable where Element == SystemEvent<String> {
+    /// Returns an observable that prints the standard error.
+    func printStandardError() -> Observable<SystemEvent<String>> {
+        self.do(onNext: { event in
+            switch event {
+            case let .standardError(error):
+                if let data = error.data(using: .utf8) {
+                    FileHandle.standardError.write(data)
+                }
+            default:
+                return
+            }
+        })
+    }
+
     /// Returns an observable that collects and merges the standard output and error into a single string.
     func collectAndMergeOutput() -> Observable<String> {
         reduce("") { (collected, event) -> String in

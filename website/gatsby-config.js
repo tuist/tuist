@@ -11,7 +11,7 @@ module.exports = {
     releasesUrl: 'https://github.com/tuist/tuist/releases',
     documentationUrl: 'https://docs.tuist.io/',
     slackUrl: 'http://slack.tuist.io/',
-    editUrl: 'https://github.com/tuist/website/edit/master',
+    editUrl: 'https://github.com/tuist/tuist/edit/master/website/markdown',
     contributeUrl: 'https://docs.tuist.io/contribution-1-getting-started',
     firstDocumentationPagePath: '/docs/usage/getting-started/',
     documentationCategories: [
@@ -20,6 +20,7 @@ module.exports = {
     ],
   },
   plugins: [
+    `gatsby-plugin-sharp`,
     `gatsby-plugin-sitemap`,
     `gatsby-plugin-offline`,
     `gatsby-plugin-theme-ui`,
@@ -221,9 +222,18 @@ module.exports = {
         titleTemplate: '%s | Tuist',
         openGraph: {
           type: 'website',
+          title: title,
           locale: 'en_IE',
           url: siteUrl,
           site_name: title,
+          images: [
+            {
+              url: `${siteUrl}/squared-logo.png`,
+              width: 400,
+              height: 400,
+              alt: "Tuist's logo",
+            },
+          ],
           keywords: [
             `tuist`,
             `engineering`,
@@ -245,8 +255,9 @@ module.exports = {
           ],
         },
         twitter: {
-          site: siteUrl,
-          cardType: 'summary_large_image',
+          site: '@tuistio',
+          handle: '@tuistio',
+          cardType: 'summary',
         },
       },
     },

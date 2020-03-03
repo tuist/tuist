@@ -17,6 +17,7 @@ const PropertiesTable = ({ properties }) => {
     <table
       sx={{
         ...borderStyle,
+        my: 3,
       }}
     >
       <tr sx={{ bg: 'gray6', ...borderStyle, display: ['none', 'table-row'] }}>
@@ -43,7 +44,7 @@ const PropertiesTable = ({ properties }) => {
               <td sx={{ ...cellStyle }}>
                 <div sx={{ fontWeight: ['bold', 'body'] }}>{prop.name}</div>
                 <div sx={{ display: ['block', 'none'] }}>
-                  {prop.description}
+                  <ReactMarkdown source={prop.description} />
                 </div>
                 <div sx={{ display: ['block', 'none'], mt: 3 }}>
                   <span sx={{ fontWeight: 'bold' }}>Type: </span>{' '}

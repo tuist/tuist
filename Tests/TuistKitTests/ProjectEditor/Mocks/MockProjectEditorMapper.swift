@@ -8,6 +8,7 @@ import TuistCore
 final class MockProjectEditorMapper: ProjectEditorMapping {
     var mapStub: (Project, Graph)?
     var mapArgs: [(
+        tuistPath: AbsolutePath,
         sourceRootPath: AbsolutePath,
         manifests: [AbsolutePath],
         helpers: [AbsolutePath],
@@ -15,13 +16,15 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         templateHelpers: [AbsolutePath],
         projectDescriptionPath: AbsolutePath)] = []
 
-    func map(sourceRootPath: AbsolutePath,
+    func map(tuistPath: AbsolutePath,
+             sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
              templateHelpers: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
-        mapArgs.append((sourceRootPath: sourceRootPath,
+        mapArgs.append((tuistPath: tuistPath,
+                        sourceRootPath: sourceRootPath,
                         manifests: manifests,
                         helpers: helpers,
                         templates: templates,

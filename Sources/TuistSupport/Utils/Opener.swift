@@ -37,7 +37,7 @@ public class Opener: Opening {
     // MARK: - Opening
 
     public func open(path: AbsolutePath) throws {
-        try open(path: path, wait: true)
+        try open(path: path, wait: false)
     }
 
     public func open(path: AbsolutePath, wait: Bool) throws {

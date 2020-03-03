@@ -8,8 +8,8 @@ public struct Target: Equatable, Hashable {
 
     // MARK: - Static
 
-    static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel"]
-    static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset"]
+    public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"]
+    public static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset"]
 
     // MARK: - Attributes
 
@@ -99,6 +99,7 @@ public struct Target: Equatable, Hashable {
         }
     }
 
+    /// Returns true if the target supports having sources.
     public var supportsSources: Bool {
         switch (platform, product) {
         case (.iOS, .bundle), (.iOS, .stickerPackExtension), (.watchOS, .watch2App):
@@ -108,8 +109,24 @@ public struct Target: Equatable, Hashable {
         }
     }
 
-    public static func sources(projectPath _: AbsolutePath, sources: [SourceFileGlob]) throws -> [Target.SourceFile] {
-        var sourceFiles: [AbsolutePath: Target.SourceFile] = [:]
+    /// Returns true if the file at the given path is a resource.
+    /// - Parameter path: Path to the file to be checked.
+    public static func isResource(path: AbsolutePath) -> Bool {
+        if !FileHandler.shared.isFolder(path) {
+            return true
+            // We filter out folders that are not Xcode supported bundles such as .app or .framework.
+        } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
+            return true
+        } else {
+            return false
+        }
+    }
+
+    /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
+    /// the files that don't have a supported source extension.
+    /// - Parameter sources: List of source file glob to be unfolded.
+    public static func sources(sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
+        var sourceFiles: [AbsolutePath: TuistCore.Target.SourceFile] = [:]
         sources.forEach { source in
             let sourcePath = AbsolutePath(source.glob)
             let base = AbsolutePath(sourcePath.dirname)
@@ -132,17 +149,6 @@ public struct Target: Equatable, Hashable {
                 }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
         }
         return Array(sourceFiles.values)
-    }
-
-    public static func isResource(path: AbsolutePath) -> Bool {
-        if !FileHandler.shared.isFolder(path) {
-            return true
-            // We filter out folders that are not Xcode supported bundles such as .app or .framework.
-        } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
-            return true
-        } else {
-            return false
-        }
     }
 
     // MARK: - Equatable

@@ -4,7 +4,8 @@ import TuistCore
 import TuistSupport
 
 protocol ProjectEditorMapping: AnyObject {
-    func map(sourceRootPath: AbsolutePath,
+    func map(tuistPath: AbsolutePath,
+             sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -13,7 +14,8 @@ protocol ProjectEditorMapping: AnyObject {
 
 final class ProjectEditorMapper: ProjectEditorMapping {
     // swiftlint:disable:next function_body_length
-    func map(sourceRootPath: AbsolutePath,
+    func map(tuistPath: AbsolutePath,
+             sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -62,12 +64,20 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
 
+        // Run Scheme
+        let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
+        let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
+
+        let runAction = RunAction(configurationName: "Debug", filePath: tuistPath, arguments: arguments)
+        let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
+
         // Project
         let project = Project(path: sourceRootPath,
                               name: "Manifests",
                               settings: projectSettings,
                               filesGroup: .group(name: "Manifests"),
-                              targets: targets)
+                              targets: targets,
+                              schemes: [scheme])
 
         // Graph
         let cache = GraphLoaderCache()

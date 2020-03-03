@@ -8,8 +8,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ProjectFileElementsTests: TuistUnitTestCase {
-    typealias GroupFileElement = ProjectFileElements.GroupFileElement
-
     var subject: ProjectFileElements!
     var playgrounds: MockPlaygrounds!
     var groups: ProjectGroups!
@@ -77,7 +75,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                              sourceRootPath: "/path")
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/a.png",
         ])
@@ -95,7 +93,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                              sourceRootPath: "/path")
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "my.folder/resources/a.png",
         ])
@@ -114,7 +112,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                              sourceRootPath: "/path")
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/generated_images",
         ])
@@ -132,7 +130,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                              sourceRootPath: "/path/project")
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "another/path/resources/a.png",
         ])
@@ -150,7 +148,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                              sourceRootPath: "/path")
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/assets.xcassets",
         ])
@@ -178,7 +176,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/assets.xcassets",
         ])
@@ -209,7 +207,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "resources/App.strings/en",
             "resources/App.strings/fr",
@@ -417,7 +415,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                              sourceRootPath: sourceRootPath,
                              filesGroup: project.filesGroup)
 
-        let fileReference = groups.main.group(named: projectGroupName)?.children.first as? PBXFileReference
+        let fileReference = groups.sortedMain.group(named: projectGroupName)?.children.first as? PBXFileReference
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertNil(fileReference?.name)
@@ -442,7 +440,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                              sourceRootPath: sourceRootPath)
 
         // Then
-        let group = groups.main.group(named: "SomeGroup")
+        let group = groups.sortedMain.group(named: "SomeGroup")
 
         let bGroup: PBXGroup = group?.children.first! as! PBXGroup
         XCTAssertEqual(bGroup.name, "b")
@@ -656,7 +654,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                          sourceRootPath: project.path)
 
         // Then
-        let projectGroup = groups.main.group(named: "Project")
+        let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [])
     }
 
@@ -671,26 +669,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 }
 
 private extension PBXGroup {
-    /// Returns all the child paths (recursively)
-    ///
-    /// e.g.
-    ///    A
-    ///    - B
-    ///    - C
-    ///    -- D
-    /// Would return:
-    ///         ["A/B", "A/C/D"]
-    var flattenedChildren: [String] {
-        children.flatMap { (element: PBXFileElement) -> [String] in
-            switch element {
-            case let group as PBXGroup:
-                return group.flattenedChildren.map { group.nameOrPath + "/" + $0 }
-            default:
-                return [element.nameOrPath]
-            }
-        }
-    }
-
     /// Retuns all the child variant groups (recursively)
     var debugVariantGroupPaths: [String] {
         children.flatMap { (element: PBXFileElement) -> [String] in

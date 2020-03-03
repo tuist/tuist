@@ -29,6 +29,7 @@ public final class CommandRegistry {
         register(command: GraphCommand.self)
         register(command: EditCommand.self)
         register(command: CacheCommand.self)
+        register(command: LintCommand.self)
         register(rawCommand: BuildCommand.self)
     }
 

@@ -145,11 +145,18 @@ const BlogList = ({
 
           return {
             headline: edge.node.frontmatter.title,
-            author: author.name,
+            author: {
+              '@type': 'Person',
+              name: author.name,
+              image: author.avatar,
+            },
             datePublished: moment(edge.node.fields.date).format(),
             image: author.avatar,
-            publisherName: author.name,
-            publisherLogo: author.avatar,
+            publisher: {
+              '@type': 'Person',
+              name: author.name,
+              image: author.avatar,
+            },
           }
         })}
         authorName="Tuist"

@@ -11,17 +11,17 @@ final class InstallerTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var githubClient: MockGitHubClient!
+    var googleCloudStorageClient: MockGoogleCloudStorageClient!
 
     override func setUp() {
         super.setUp()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        githubClient = MockGitHubClient()
+        googleCloudStorageClient = MockGoogleCloudStorageClient()
         subject = Installer(buildCopier: buildCopier,
                             versionsController: versionsController,
-                            githubClient: githubClient)
+                            googleCloudStorageClient: googleCloudStorageClient)
     }
 
     override func tearDown() {
@@ -29,7 +29,7 @@ final class InstallerTests: TuistUnitTestCase {
         buildCopier = nil
         versionsController = nil
         tmpDir = nil
-        githubClient = nil
+        googleCloudStorageClient = nil
         subject = nil
     }
 
@@ -39,12 +39,10 @@ final class InstallerTests: TuistUnitTestCase {
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
-        let asset = Release.Asset(downloadURL: downloadURL,
-                                  name: "tuist.zip")
-        let release = Release.test(assets: [asset])
-        githubClient.releaseWithTagStub = {
-            if $0 == version { return release }
-            else { throw NSError.test() }
+
+        googleCloudStorageClient.tuistBundleURLStub = {
+            if $0 == version { return downloadURL }
+            else { return nil }
         }
 
         versionsController.installStub = { _, closure in
@@ -66,7 +64,7 @@ final class InstallerTests: TuistUnitTestCase {
                             temporaryDirectory: temporaryDirectory)
 
         XCTAssertPrinterOutputContains("""
-        Downloading version from \(downloadURL.absoluteString)
+        Downloading version 3.2.1
         Installing...
         Version \(version) installed
         """)
@@ -81,12 +79,10 @@ final class InstallerTests: TuistUnitTestCase {
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
-        let asset = Release.Asset(downloadURL: downloadURL,
-                                  name: "tuist.zip")
-        let release = Release.test(assets: [asset])
-        githubClient.releaseWithTagStub = {
-            if $0 == version { return release }
-            else { throw NSError.test() }
+
+        googleCloudStorageClient.tuistBundleURLStub = {
+            if $0 == version { return downloadURL }
+            else { return nil }
         }
 
         versionsController.installStub = { _, closure in
@@ -110,12 +106,9 @@ final class InstallerTests: TuistUnitTestCase {
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
-        let asset = Release.Asset(downloadURL: downloadURL,
-                                  name: "tuist.zip")
-        let release = Release.test(assets: [asset])
-        githubClient.releaseWithTagStub = {
-            if $0 == version { return release }
-            else { throw NSError.test() }
+        googleCloudStorageClient.tuistBundleURLStub = {
+            if $0 == version { return downloadURL }
+            else { return nil }
         }
 
         versionsController.installStub = { _, closure in
@@ -173,7 +166,6 @@ final class InstallerTests: TuistUnitTestCase {
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
         XCTAssertPrinterOutputContains("""
-        The release \(version) is not bundled
         Pulling source code
         Building using Swift (it might take a while)
         Version 3.2.1 installed
@@ -253,8 +245,5 @@ final class InstallerTests: TuistUnitTestCase {
 
     fileprivate func stubLocalAndRemoveSwiftVersions() {
         system.swiftVersionStub = { "5.0.0" }
-        githubClient.getContentStub = { _, _ in
-            "5.2.1"
-        }
     }
 }

@@ -30,9 +30,9 @@ final class SystemIntegrationTests: TuistTestCase {
         XCTAssertThrowsError(try subject.run(["ls", "abcdefghi"]))
     }
 
-    func test_rxRun() throws {
+    func test_observable() throws {
         // Given
-        let observable = subject.rxRun(["echo", "hola"]).mapToString()
+        let observable = subject.observable(["echo", "hola"]).mapToString()
 
         // When
         let result = observable.toBlocking().materialize()
@@ -45,6 +45,23 @@ final class SystemIntegrationTests: TuistTestCase {
         case let .failed(elements, error):
             XCTAssertEqual(elements.count, 0)
             XCTFail("Expected command not to fail but failed with error: \(error)")
+        }
+    }
+
+    func test_observable_when_it_errors() throws {
+        // Given
+        let observable = subject.observable(["/usr/bin/xcrun", "invalid"]).mapToString()
+
+        // When
+        let result = observable.toBlocking().materialize()
+
+        // Then
+        switch result {
+        case .completed:
+            XCTFail("expected command to fail but it did not")
+        case let .failed(elements, error):
+            XCTAssertTrue(elements.first(where: { $0.value.contains("errno=No such file or directory") }) != nil)
+            XCTAssertEqual(error as? TuistSupport.SystemError, TuistSupport.SystemError.terminated(command: "/usr/bin/xcrun", code: 72))
         }
     }
 

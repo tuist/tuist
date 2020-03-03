@@ -1,4 +1,5 @@
 import Foundation
+import RxBlocking
 import TuistSupport
 
 protocol Updating: AnyObject {
@@ -8,33 +9,31 @@ protocol Updating: AnyObject {
 final class Updater: Updating {
     // MARK: - Attributes
 
-    let githubClient: GitHubClienting
     let versionsController: VersionsControlling
+    let googleCloudStorageClient: GoogleCloudStorageClienting
     let installer: Installing
     let envUpdater: EnvUpdating
 
     // MARK: - Init
 
-    init(githubClient: GitHubClienting = GitHubClient(),
-         versionsController: VersionsControlling = VersionsController(),
+    init(versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
-         envUpdater: EnvUpdating = EnvUpdater()) {
-        self.githubClient = githubClient
+         envUpdater: EnvUpdating = EnvUpdater(),
+         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
         self.versionsController = versionsController
         self.installer = installer
         self.envUpdater = envUpdater
+        self.googleCloudStorageClient = googleCloudStorageClient
     }
 
     // MARK: - Internal
 
     func update(force: Bool) throws {
-        let releases = try githubClient.releases()
-
         defer {
             try? self.envUpdater.update()
         }
 
-        guard let highestRemoteVersion = releases.map({ $0.version }).sorted().last else {
+        guard let highestRemoteVersion = try googleCloudStorageClient.latestVersion().toBlocking().first() else {
             Printer.shared.print("No remote versions found")
             return
         }

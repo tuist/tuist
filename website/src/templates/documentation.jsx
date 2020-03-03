@@ -84,11 +84,15 @@ const DocumentationPage = ({
                         to={file.childMdx.fields.slug}
                         sx={{ color: current ? 'primary' : 'gray2' }}
                       >
-                        <Styled.h4
-                          sx={{ textAlign: ['center', 'left'], mt: 3 }}
+                        <div
+                          sx={{
+                            textAlign: ['center', 'left'],
+                            my: 3,
+                            fontSize: 2,
+                          }}
                         >
                           {file.childMdx.frontmatter.name}
-                        </Styled.h4>
+                        </div>
                       </Link>
                     )
                   })}
