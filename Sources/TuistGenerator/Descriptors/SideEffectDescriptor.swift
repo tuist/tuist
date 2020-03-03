@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import XcodeProj
 
-public enum GeneratedSideEffect {
+public enum SideEffect {
     case file(GeneratedFile)
     case delete(AbsolutePath)
     case command(GeneratedCommand)

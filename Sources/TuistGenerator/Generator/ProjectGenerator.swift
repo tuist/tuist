@@ -33,7 +33,7 @@ protocol ProjectGenerating: AnyObject {
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath?,
-                  xcodeprojPath: AbsolutePath?) throws -> GeneratedProjectDescriptor
+                  xcodeprojPath: AbsolutePath?) throws -> ProjectDescriptor
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -76,7 +76,7 @@ final class ProjectGenerator: ProjectGenerating {
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil,
-                  xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProjectDescriptor {
+                  xcodeprojPath: AbsolutePath? = nil) throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         // Getting the path.
@@ -134,10 +134,10 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   graph: graph)
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        return GeneratedProjectDescriptor(path: xcodeprojPath,
-                                          xcodeProj: xcodeProj,
-                                          schemes: schemes,
-                                          sideEffects: sideEffects)
+        return ProjectDescriptor(path: xcodeprojPath,
+                                 xcodeProj: xcodeProj,
+                                 schemes: schemes,
+                                 sideEffects: sideEffects)
     }
 
     // MARK: - Fileprivate

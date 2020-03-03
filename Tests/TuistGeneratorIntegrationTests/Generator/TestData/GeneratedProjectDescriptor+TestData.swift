@@ -4,10 +4,10 @@ import Foundation
 import XcodeProj
 @testable import TuistGenerator
 
-extension GeneratedProjectDescriptor {
+extension ProjectDescriptor {
     static func test(path: AbsolutePath,
-                     schemes: [GeneratedSchemeDescriptor] = [],
-                     sideEffects: [GeneratedSideEffect] = []) -> GeneratedProjectDescriptor {
+                     schemes: [SchemeDescriptor] = [],
+                     sideEffects: [SideEffect] = []) -> ProjectDescriptor {
         let mainGroup = PBXGroup()
         let configurationList = XCConfigurationList()
         let pbxProject = PBXProject(name: "Test",
@@ -21,9 +21,9 @@ extension GeneratedProjectDescriptor {
         pbxproj.add(object: configurationList)
         pbxproj.rootObject = pbxProject
         let xcodeProj = XcodeProj(workspace: XCWorkspace(), pbxproj: pbxproj)
-        return GeneratedProjectDescriptor(path: path,
-                                          xcodeProj: xcodeProj,
-                                          schemes: schemes,
-                                          sideEffects: sideEffects)
+        return ProjectDescriptor(path: path,
+                                 xcodeProj: xcodeProj,
+                                 schemes: schemes,
+                                 sideEffects: sideEffects)
     }
 }

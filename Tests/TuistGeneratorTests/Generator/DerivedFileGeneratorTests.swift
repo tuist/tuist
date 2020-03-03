@@ -86,7 +86,7 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
     }
 }
 
-private extension Array where Element == GeneratedSideEffect {
+private extension Array where Element == SideEffect {
     var files: [GeneratedFile] {
         compactMap {
             switch $0 {

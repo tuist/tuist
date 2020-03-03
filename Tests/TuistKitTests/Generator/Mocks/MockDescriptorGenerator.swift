@@ -5,18 +5,18 @@ import XcodeProj
 @testable import TuistGenerator
 
 class MockDescriptorGenerator: DescriptorGenerating {
-    var generateProjectSub: ((Project, Graph) throws -> GeneratedProjectDescriptor)?
-    func generateProject(project: Project, graph: Graph) throws -> GeneratedProjectDescriptor {
-        try generateProjectSub?(project, graph) ?? GeneratedProjectDescriptor.test()
+    var generateProjectSub: ((Project, Graph) throws -> ProjectDescriptor)?
+    func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
+        try generateProjectSub?(project, graph) ?? ProjectDescriptor.test()
     }
 
-    var generateProjectWithConfigStub: ((Project, Graph, ProjectGenerationConfig) throws -> GeneratedProjectDescriptor)?
-    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> GeneratedProjectDescriptor {
-        try generateProjectWithConfigStub?(project, graph, config) ?? GeneratedProjectDescriptor.test()
+    var generateProjectWithConfigStub: ((Project, Graph, ProjectGenerationConfig) throws -> ProjectDescriptor)?
+    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor {
+        try generateProjectWithConfigStub?(project, graph, config) ?? ProjectDescriptor.test()
     }
 
-    var generateWorkspaceStub: ((Workspace, Graph) throws -> GeneratedWorkspaceDescriptor)?
-    func generateWorkspace(workspace: Workspace, graph: Graph) throws -> GeneratedWorkspaceDescriptor {
-        try generateWorkspaceStub?(workspace, graph) ?? GeneratedWorkspaceDescriptor.test()
+    var generateWorkspaceStub: ((Workspace, Graph) throws -> WorkspaceDescriptor)?
+    func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {
+        try generateWorkspaceStub?(workspace, graph) ?? WorkspaceDescriptor.test()
     }
 }

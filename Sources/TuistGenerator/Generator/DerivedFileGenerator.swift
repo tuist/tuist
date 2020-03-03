@@ -14,11 +14,11 @@ protocol DerivedFileGenerating {
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A project that might have got mutated after the generation of derived files, and a
     ///     function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect])
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffect])
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
-    typealias ProjectTransformation = (project: Project, sideEffects: [GeneratedSideEffect])
+    typealias ProjectTransformation = (project: Project, sideEffects: [SideEffect])
     fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
 
@@ -33,7 +33,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         self.infoPlistContentProvider = infoPlistContentProvider
     }
 
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [GeneratedSideEffect]) {
+    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffect]) {
         let transformation = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         return (transformation.project, transformation.sideEffects)
@@ -66,11 +66,11 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         let toDelete = Set(existing).subtracting(new)
 
         let deletions = toDelete.map {
-            GeneratedSideEffect.delete($0)
+            SideEffect.delete($0)
         }
 
         // Generate the Info.plist
-        let transformation = try project.targets.map { (target) -> (Target, [GeneratedSideEffect]) in
+        let transformation = try project.targets.map { (target) -> (Target, [SideEffect]) in
             guard targetsWithGeneratableInfoPlists.contains(target),
                 let infoPlist = target.infoPlist else {
                 return (target, [])
@@ -89,7 +89,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
                                                           format: .xml,
                                                           options: 0)
 
-            let sideEffet = GeneratedSideEffect.file(GeneratedFile(path: path, contents: data))
+            let sideEffet = SideEffect.file(GeneratedFile(path: path, contents: data))
 
             // Override the Info.plist value to point to te generated one
             return (target.with(infoPlist: InfoPlist.file(path: path)), [sideEffet])

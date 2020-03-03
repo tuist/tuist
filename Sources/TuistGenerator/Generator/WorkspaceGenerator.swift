@@ -32,7 +32,7 @@ protocol WorkspaceGenerating: AnyObject {
     /// - Throws: An error if the generation fails.
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> GeneratedWorkspaceDescriptor
+                  graph: Graphing) throws -> WorkspaceDescriptor
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -64,7 +64,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - WorkspaceGenerating
 
-    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> GeneratedWorkspaceDescriptor {
+    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> WorkspaceDescriptor {
         let workspaceName = "\(graph.name).xcworkspace"
 
         Printer.shared.print(section: "Generating workspace \(workspaceName)")
@@ -109,11 +109,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                     generatedProjects: generatedProjects,
                                                                     graph: graph)
 
-        return GeneratedWorkspaceDescriptor(path: workspacePath,
-                                            xcworkspace: xcWorkspace,
-                                            projects: projects,
-                                            schemes: schemes,
-                                            sideEffects: [])
+        return WorkspaceDescriptor(path: workspacePath,
+                                   xcworkspace: xcWorkspace,
+                                   projects: projects,
+                                   schemes: schemes,
+                                   sideEffects: [])
     }
 
     /// Create a XCWorkspaceDataElement.file from a path string.

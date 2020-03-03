@@ -3,13 +3,13 @@ import Foundation
 @testable import TuistGenerator
 
 class MockXcodeProjWriter: XcodeProjWriting {
-    var writeProjectCalls: [GeneratedProjectDescriptor] = []
-    func write(project: GeneratedProjectDescriptor) throws {
+    var writeProjectCalls: [ProjectDescriptor] = []
+    func write(project: ProjectDescriptor) throws {
         writeProjectCalls.append(project)
     }
 
-    var writeworkspaceCalls: [GeneratedWorkspaceDescriptor] = []
-    func write(workspace: GeneratedWorkspaceDescriptor) throws {
+    var writeworkspaceCalls: [WorkspaceDescriptor] = []
+    func write(workspace: WorkspaceDescriptor) throws {
         writeworkspaceCalls.append(workspace)
     }
 }

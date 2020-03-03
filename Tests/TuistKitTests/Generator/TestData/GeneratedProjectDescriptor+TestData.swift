@@ -4,14 +4,14 @@ import Foundation
 import XcodeProj
 @testable import TuistGenerator
 
-extension GeneratedProjectDescriptor {
+extension ProjectDescriptor {
     static func test(path: AbsolutePath = AbsolutePath("/Test/Project.xcodeproj"),
-                     schemes: [GeneratedSchemeDescriptor] = [],
-                     sideEffects: [GeneratedSideEffect] = []) -> GeneratedProjectDescriptor {
+                     schemes: [SchemeDescriptor] = [],
+                     sideEffects: [SideEffect] = []) -> ProjectDescriptor {
         let xcodeProj = XcodeProj(workspace: XCWorkspace(), pbxproj: PBXProj())
-        return GeneratedProjectDescriptor(path: path,
-                                          xcodeProj: xcodeProj,
-                                          schemes: schemes,
-                                          sideEffects: sideEffects)
+        return ProjectDescriptor(path: path,
+                                 xcodeProj: xcodeProj,
+                                 schemes: schemes,
+                                 sideEffects: sideEffects)
     }
 }

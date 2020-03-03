@@ -16,7 +16,7 @@ protocol SchemesGenerating {
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(workspace: Workspace,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws -> [GeneratedSchemeDescriptor]
+                                  graph: Graphing) throws -> [SchemeDescriptor]
 
     /// Generates the schemes for the project targets.
     ///
@@ -28,7 +28,7 @@ protocol SchemesGenerating {
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(project: Project,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws -> [GeneratedSchemeDescriptor]
+                                graph: Graphing) throws -> [SchemeDescriptor]
 }
 
 // swiftlint:disable:next type_body_length
@@ -41,7 +41,7 @@ final class SchemesGenerator: SchemesGenerating {
 
     func generateWorkspaceSchemes(workspace: Workspace,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws -> [GeneratedSchemeDescriptor] {
+                                  graph: Graphing) throws -> [SchemeDescriptor] {
         let schemes = try workspace.schemes.map { scheme in
             try generateScheme(scheme: scheme,
                                path: workspace.path,
@@ -54,8 +54,8 @@ final class SchemesGenerator: SchemesGenerating {
 
     func generateProjectSchemes(project: Project,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws -> [GeneratedSchemeDescriptor] {
-        let customSchemes: [GeneratedSchemeDescriptor] = try project.schemes.map { scheme in
+                                graph: Graphing) throws -> [SchemeDescriptor] {
+        let customSchemes: [SchemeDescriptor] = try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
                                path: project.path,
                                graph: graph,
@@ -66,7 +66,7 @@ final class SchemesGenerator: SchemesGenerating {
         let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
         let userDefinedSchemes = Set(project.schemes.map(\.name))
         let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
-        let defaultSchemes: [GeneratedSchemeDescriptor] = try defaultSchemeTargets.map { target in
+        let defaultSchemes: [SchemeDescriptor] = try defaultSchemeTargets.map { target in
             let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
             return try generateScheme(scheme: scheme,
                                       path: project.path,
@@ -124,7 +124,7 @@ final class SchemesGenerator: SchemesGenerating {
     private func generateScheme(scheme: Scheme,
                                 path: AbsolutePath,
                                 graph: Graphing,
-                                generatedProjects: [AbsolutePath: GeneratedProject]) throws -> GeneratedSchemeDescriptor {
+                                generatedProjects: [AbsolutePath: GeneratedProject]) throws -> SchemeDescriptor {
         let generatedBuildAction = try schemeBuildAction(scheme: scheme,
                                                          graph: graph,
                                                          rootPath: path,
@@ -160,7 +160,7 @@ final class SchemesGenerator: SchemesGenerating {
                                 analyzeAction: generatedAnalyzeAction,
                                 archiveAction: generatedArchiveAction)
 
-        return GeneratedSchemeDescriptor(scheme: xcscheme, shared: scheme.shared)
+        return SchemeDescriptor(scheme: xcscheme, shared: scheme.shared)
     }
 
     /// Generates the scheme build action.

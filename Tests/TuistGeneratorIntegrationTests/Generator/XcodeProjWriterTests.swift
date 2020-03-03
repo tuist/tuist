@@ -19,7 +19,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
-        let descriptor = GeneratedProjectDescriptor.test(path: xcodeProjPath)
+        let descriptor = ProjectDescriptor.test(path: xcodeProjPath)
 
         // When
         try subject.write(project: descriptor)
@@ -34,10 +34,10 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
         let contents = "Testing".data(using: .utf8)!
-        let sideEffect = GeneratedSideEffect.file(.init(path: filePath,
-                                                        contents: contents))
-        let descriptor = GeneratedProjectDescriptor.test(path: xcodeProjPath,
-                                                         sideEffects: [sideEffect])
+        let sideEffect = SideEffect.file(.init(path: filePath,
+                                               contents: contents))
+        let descriptor = ProjectDescriptor.test(path: xcodeProjPath,
+                                                sideEffects: [sideEffect])
 
         // When
         try subject.write(project: descriptor)
@@ -56,9 +56,9 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let fileHandler = FileHandler.shared
         try fileHandler.touch(filePath)
 
-        let sideEffect = GeneratedSideEffect.delete(filePath)
-        let descriptor = GeneratedProjectDescriptor.test(path: xcodeProjPath,
-                                                         sideEffects: [sideEffect])
+        let sideEffect = SideEffect.delete(filePath)
+        let descriptor = ProjectDescriptor.test(path: xcodeProjPath,
+                                                sideEffects: [sideEffect])
 
         // When
         try subject.write(project: descriptor)
@@ -76,7 +76,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         ])
 
         let xcodeProjPath = path.appending(component: "Foo.xcodeproj")
-        let descriptor = GeneratedProjectDescriptor.test(path: xcodeProjPath)
+        let descriptor = ProjectDescriptor.test(path: xcodeProjPath)
 
         // When
         try (0 ..< 2).forEach { _ in
@@ -91,9 +91,9 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
-        let schemeA = GeneratedSchemeDescriptor.test(name: "SchemeA", shared: true)
-        let schemeB = GeneratedSchemeDescriptor.test(name: "SchemeB", shared: true)
-        let userScheme = GeneratedSchemeDescriptor.test(name: "UserScheme", shared: false)
+        let schemeA = SchemeDescriptor.test(name: "SchemeA", shared: true)
+        let schemeB = SchemeDescriptor.test(name: "SchemeB", shared: true)
+        let userScheme = SchemeDescriptor.test(name: "UserScheme", shared: false)
 
         let schemesWriteOperations = [
             [schemeA, schemeB],
@@ -102,7 +102,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // When
         try schemesWriteOperations.forEach {
-            let descriptor = GeneratedProjectDescriptor.test(path: xcodeProjPath, schemes: $0)
+            let descriptor = ProjectDescriptor.test(path: xcodeProjPath, schemes: $0)
             try subject.write(project: descriptor)
         }
 
@@ -119,8 +119,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
-        let userScheme = GeneratedSchemeDescriptor.test(name: "UserScheme", shared: false)
-        let descriptor = GeneratedProjectDescriptor.test(path: xcodeProjPath, schemes: [userScheme])
+        let userScheme = SchemeDescriptor.test(name: "UserScheme", shared: false)
+        let descriptor = ProjectDescriptor.test(path: xcodeProjPath, schemes: [userScheme])
 
         // When
         try subject.write(project: descriptor)

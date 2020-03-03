@@ -2,10 +2,10 @@ import Basic
 import Foundation
 import XcodeProj
 
-public struct GeneratedProjectDescriptor {
+public struct ProjectDescriptor {
     /// Path to the xcodeproj file
     public var path: AbsolutePath
     public var xcodeProj: XcodeProj
-    public var schemes: [GeneratedSchemeDescriptor]
-    public var sideEffects: [GeneratedSideEffect]
+    public var schemes: [SchemeDescriptor]
+    public var sideEffects: [SideEffect]
 }

@@ -4,8 +4,8 @@ import TuistSupport
 import XcodeProj
 
 public protocol XcodeProjWriting {
-    func write(project: GeneratedProjectDescriptor) throws
-    func write(workspace: GeneratedWorkspaceDescriptor) throws
+    func write(project: ProjectDescriptor) throws
+    func write(workspace: WorkspaceDescriptor) throws
 }
 
 // MARK: -
@@ -20,14 +20,14 @@ public final class XcodeProjWriter: XcodeProjWriting {
         self.system = system
     }
 
-    public func write(project: GeneratedProjectDescriptor) throws {
+    public func write(project: ProjectDescriptor) throws {
         let project = enrichingXcodeProjWithSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.path.path)
         try project.schemes.forEach { try write(scheme: $0, xccontainerPath: project.path) }
         try project.sideEffects.forEach(perform)
     }
 
-    public func write(workspace: GeneratedWorkspaceDescriptor) throws {
+    public func write(workspace: WorkspaceDescriptor) throws {
         try workspace.projects.forEach(write)
         try workspace.xcworkspace.write(path: workspace.path.path, override: true)
         try workspace.schemes.forEach { try write(scheme: $0, xccontainerPath: workspace.path) }
@@ -36,7 +36,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
     // MARK: -
 
-    private func enrichingXcodeProjWithSchemes(descriptor: GeneratedProjectDescriptor) -> GeneratedProjectDescriptor {
+    private func enrichingXcodeProjWithSchemes(descriptor: ProjectDescriptor) -> ProjectDescriptor {
         let sharedSchemes = descriptor.schemes.filter { $0.shared }
         let userSchemes = descriptor.schemes.filter { !$0.shared }
 
@@ -46,13 +46,13 @@ public final class XcodeProjWriter: XcodeProjWriting {
         sharedData.schemes.append(contentsOf: sharedSchemes.map { $0.scheme })
         xcodeProj.sharedData = sharedData
 
-        return GeneratedProjectDescriptor(path: descriptor.path,
-                                          xcodeProj: descriptor.xcodeProj,
-                                          schemes: userSchemes,
-                                          sideEffects: descriptor.sideEffects)
+        return ProjectDescriptor(path: descriptor.path,
+                                 xcodeProj: descriptor.xcodeProj,
+                                 schemes: userSchemes,
+                                 sideEffects: descriptor.sideEffects)
     }
 
-    private func write(scheme: GeneratedSchemeDescriptor,
+    private func write(scheme: SchemeDescriptor,
                        xccontainerPath: AbsolutePath) throws {
         let schemeDirectory = self.schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.scheme.name).xcscheme")
@@ -60,7 +60,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         try scheme.scheme.write(path: schemePath.path, override: true)
     }
 
-    private func perform(sideEffect: GeneratedSideEffect) throws {
+    private func perform(sideEffect: SideEffect) throws {
         switch sideEffect {
         case let .file(file):
             try write(file: file)

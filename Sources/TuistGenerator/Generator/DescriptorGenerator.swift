@@ -19,9 +19,9 @@ public struct ProjectGenerationConfig {
 /// Produces a side effect free representation of a generated project or workspace
 ///
 public protocol DescriptorGenerating {
-    func generateProject(project: Project, graph: Graph) throws -> GeneratedProjectDescriptor
-    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> GeneratedProjectDescriptor
-    func generateWorkspace(workspace: Workspace, graph: Graph) throws -> GeneratedWorkspaceDescriptor
+    func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor
+    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor
+    func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor
 }
 
 // MARK: -
@@ -51,21 +51,21 @@ public final class DescriptorGenerator: DescriptorGenerating {
         self.projectGenerator = projectGenerator
     }
 
-    public func generateProject(project: Project, graph: Graph) throws -> GeneratedProjectDescriptor {
+    public func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
         try projectGenerator.generate(project: project,
                                       graph: graph,
                                       sourceRootPath: nil,
                                       xcodeprojPath: nil)
     }
 
-    public func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> GeneratedProjectDescriptor {
+    public func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor {
         try projectGenerator.generate(project: project,
                                       graph: graph,
                                       sourceRootPath: config.sourceRootPath,
                                       xcodeprojPath: config.xcodeprojPath)
     }
 
-    public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> GeneratedWorkspaceDescriptor {
+    public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {
         try workspaceGenerator.generate(workspace: workspace,
                                         path: workspace.path,
                                         graph: graph)
