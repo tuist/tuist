@@ -18,10 +18,7 @@ class FocusCommand: NSObject, Command {
     // MARK: - Attributes
 
     /// Generator instance to generate the project workspace.
-    private let generator: Generating
-
-    /// Manifest loader instance that can load project maifests from disk
-    private let manifestLoader: ManifestLoading
+    private let generator: ProjectGenerating
 
     /// Opener instance to run open in the system.
     private let opener: Opening
@@ -32,14 +29,8 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
-        let manifestLoader = ManifestLoader()
-        let manifestLinter = ManifestLinter()
-        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                               manifestLinter: manifestLinter)
-        let generator = Generator(modelLoader: modelLoader)
         self.init(parser: parser,
-                  generator: generator,
-                  manifestLoader: manifestLoader,
+                  generator: ProjectGenerator(),
                   opener: Opener())
     }
 
@@ -48,24 +39,20 @@ class FocusCommand: NSObject, Command {
     /// - Parameters:
     ///   - parser: Argument parser that parses the CLI arguments.
     ///   - generator: Generator instance to generate the project workspace.
-    ///   - manifestLoader: Manifest loader instance that can load project maifests from disk
     ///   - opener: Opener instance to run open in the system.
     init(parser: ArgumentParser,
-         generator: Generating,
-         manifestLoader: ManifestLoading,
+         generator: ProjectGenerating,
          opener: Opening) {
         parser.add(subparser: FocusCommand.command, overview: FocusCommand.overview)
         self.generator = generator
-        self.manifestLoader = manifestLoader
         self.opener = opener
     }
 
     func run(with _: ArgumentParser.Result) throws {
         let path = FileHandler.shared.currentPath
 
-        let (workspacePath, _) = try generator.generate(at: path,
-                                                        manifestLoader: manifestLoader,
-                                                        projectOnly: false)
+        let workspacePath = try generator.generate(path: path,
+                                                   projectOnly: false)
 
         try opener.open(path: workspacePath)
     }

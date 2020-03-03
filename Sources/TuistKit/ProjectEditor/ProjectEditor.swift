@@ -33,7 +33,7 @@ protocol ProjectEditing: AnyObject {
 
 final class ProjectEditor: ProjectEditing {
     /// Project generator.
-    let generator: Generating
+    let generator: DescriptorGenerating
 
     /// Project editor mapper.
     let projectEditorMapper: ProjectEditorMapping
@@ -47,16 +47,21 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the helpers directory.
     let helpersDirectoryLocator: HelpersDirectoryLocating
 
-    init(generator: Generating = Generator(),
+    /// Xcode Project writer
+    private let writer: XcodeProjWriting
+
+    init(generator: DescriptorGenerating = DescriptorGenerator(),
          projectEditorMapper: ProjectEditorMapping = ProjectEditorMapper(),
          resourceLocator: ResourceLocating = ResourceLocator(),
          manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
-         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
+         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
+         writer: XcodeProjWriting = XcodeProjWriter()) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
         self.resourceLocator = resourceLocator
         self.manifestFilesLocator = manifestFilesLocator
         self.helpersDirectoryLocator = helpersDirectoryLocator
+        self.writer = writer
     }
 
     func edit(at: AbsolutePath, in dstDirectory: AbsolutePath) throws -> AbsolutePath {
@@ -82,9 +87,13 @@ final class ProjectEditor: ProjectEditing {
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        projectDescriptionPath: projectDesciptionPath)
-        return try generator.generateProject(project,
-                                             graph: graph,
-                                             sourceRootPath: project.path,
+
+        let config = ProjectGenerationConfig(sourceRootPath: project.path,
                                              xcodeprojPath: xcodeprojPath)
+        let descriptor = try generator.generateProject(project: project,
+                                                       graph: graph,
+                                                       config: config)
+        try writer.write(project: descriptor)
+        return descriptor.path
     }
 }

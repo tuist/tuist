@@ -3,13 +3,24 @@ import Foundation
 import TuistCore
 import TuistSupport
 
+public struct ProjectGenerationConfig {
+    public var sourceRootPath: AbsolutePath?
+    public var xcodeprojPath: AbsolutePath?
+
+    public init(sourceRootPath: AbsolutePath? = nil,
+                xcodeprojPath: AbsolutePath?) {
+        self.sourceRootPath = sourceRootPath
+        self.xcodeprojPath = xcodeprojPath
+    }
+}
+
 /// Descriptor Generator
 ///
 /// Produces a side effect free representation of a generated project or workspace
 ///
-///
 public protocol DescriptorGenerating {
     func generateProject(project: Project, graph: Graph) throws -> GeneratedProjectDescriptor
+    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> GeneratedProjectDescriptor
     func generateWorkspace(workspace: Workspace, graph: Graph) throws -> GeneratedWorkspaceDescriptor
 }
 
@@ -39,6 +50,13 @@ public final class DescriptorGenerator: DescriptorGenerating {
                                       graph: graph,
                                       sourceRootPath: nil,
                                       xcodeprojPath: nil)
+    }
+
+    public func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> GeneratedProjectDescriptor {
+        try projectGenerator.generate(project: project,
+                                      graph: graph,
+                                      sourceRootPath: config.sourceRootPath,
+                                      xcodeprojPath: config.xcodeprojPath)
     }
 
     public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> GeneratedWorkspaceDescriptor {

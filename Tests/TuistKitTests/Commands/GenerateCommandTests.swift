@@ -77,6 +77,7 @@ final class GenerateCommandTests: TuistUnitTestCase {
         var generationPath: AbsolutePath?
         generator.generateStub = { path, _ in
             generationPath = path
+            return path.appending(component: "Project.xcworkpsace")
         }
 
         // When
@@ -92,6 +93,7 @@ final class GenerateCommandTests: TuistUnitTestCase {
         var generationPath: AbsolutePath?
         generator.generateStub = { path, _ in
             generationPath = path
+            return path.appending(component: "Project.xcworkpsace")
         }
 
         // When
@@ -108,6 +110,7 @@ final class GenerateCommandTests: TuistUnitTestCase {
         var generationPath: AbsolutePath?
         generator.generateStub = { path, _ in
             generationPath = path
+            return path.appending(component: "Project.xcworkpsace")
         }
 
         // When

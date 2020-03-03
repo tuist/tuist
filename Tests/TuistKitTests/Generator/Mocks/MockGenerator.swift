@@ -25,12 +25,3 @@ class MockGenerator: Generating {
         try generateWorkspaceStub?(path, workspaceFiles) ?? (AbsolutePath("/test.xcworkspace"), Graph.test())
     }
 }
-
-class MockProjectGenerator: ProjectGenerating {
-    var generateCalls: [(path: AbsolutePath, projectOnly: Bool)] = []
-    var generateStub: ((AbsolutePath, Bool) throws -> Void)?
-    func generate(path: AbsolutePath, projectOnly: Bool) throws {
-        generateCalls.append((path, projectOnly))
-        try generateStub?(path, projectOnly)
-    }
-}

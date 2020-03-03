@@ -14,19 +14,16 @@ final class FocusCommandTests: TuistUnitTestCase {
     var subject: FocusCommand!
     var parser: ArgumentParser!
     var opener: MockOpener!
-    var generator: MockGenerator!
-    var manifestLoader: MockManifestLoader!
+    var generator: MockProjectGenerator!
 
     override func setUp() {
         super.setUp()
         parser = ArgumentParser.test()
         opener = MockOpener()
-        generator = MockGenerator()
-        manifestLoader = MockManifestLoader()
+        generator = MockProjectGenerator()
 
         subject = FocusCommand(parser: parser,
                                generator: generator,
-                               manifestLoader: manifestLoader,
                                opener: opener)
     }
 
@@ -34,7 +31,6 @@ final class FocusCommandTests: TuistUnitTestCase {
         parser = nil
         opener = nil
         generator = nil
-        manifestLoader = nil
         subject = nil
         super.tearDown()
     }
@@ -50,10 +46,7 @@ final class FocusCommandTests: TuistUnitTestCase {
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
         let result = try parser.parse([FocusCommand.command])
         let error = NSError.test()
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-        generator.generateProjectWorkspaceStub = { _, _ in
+        generator.generateStub = { _, _ in
             throw error
         }
         XCTAssertThrowsError(try subject.run(with: result)) {
@@ -63,13 +56,9 @@ final class FocusCommandTests: TuistUnitTestCase {
 
     func test_run() throws {
         let result = try parser.parse([FocusCommand.command])
-        let graph = Graph.test()
         let workspacePath = AbsolutePath("/test.xcworkspace")
-        manifestLoader.manifestsAtStub = { _ in
-            Set([.project])
-        }
-        generator.generateProjectWorkspaceStub = { _, _ in
-            (workspacePath, graph)
+        generator.generateStub = { _, _ in
+            workspacePath
         }
         try subject.run(with: result)
 

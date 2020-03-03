@@ -5,10 +5,15 @@ import TuistGenerator
 import TuistLoader
 
 protocol ProjectGenerating {
-    func generate(path: AbsolutePath, projectOnly: Bool) throws
+    @discardableResult
+    func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
 }
 
-class ProjectGenerator: ProjectGenerating {
+protocol DetailedProjectGenerating {
+    func generate(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing)
+}
+
+class ProjectGenerator: ProjectGenerating, DetailedProjectGenerating {
     private let manifestLoader: ManifestLoading = ManifestLoader()
     private let manifestLinter: ManifestLinting = ManifestLinter()
     private let graphLinter: GraphLinting = GraphLinter()
@@ -26,11 +31,16 @@ class ProjectGenerator: ProjectGenerating {
         graphLoader = GraphLoader(modelLoader: modelLoader)
     }
 
-    func generate(path: AbsolutePath, projectOnly: Bool) throws {
+    func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
+        let (generatedPath, _) = try generate(path: path, projectOnly: projectOnly)
+        return generatedPath
+    }
+
+    func generate(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
         let manifests = manifestLoader.manifests(at: path)
 
         if projectOnly {
-            try generateProject(path: path)
+            return try generateProject(path: path)
         } else if manifests.contains(.workspace) {
             return try generateWorkspace(path: path)
         } else if manifests.contains(.project) {
@@ -40,7 +50,7 @@ class ProjectGenerator: ProjectGenerating {
         }
     }
 
-    private func generateProject(path: AbsolutePath) throws {
+    private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         let (graph, project) = try graphLoader.loadProject(path: path)
 
@@ -55,9 +65,11 @@ class ProjectGenerator: ProjectGenerating {
 
         // Post Generate Actions
         try postGenerationActions(for: graph, workspaceName: projectDescriptor.path.basename)
+
+        return (projectDescriptor.path, graph)
     }
 
-    private func generateWorkspace(path: AbsolutePath) throws {
+    private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
 
@@ -74,9 +86,11 @@ class ProjectGenerator: ProjectGenerating {
 
         // Post Generate Actions
         try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.path.basename)
+
+        return (workspaceDescriptor.path, graph)
     }
 
-    private func generateProjectWorkspace(path: AbsolutePath) throws {
+    private func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         let (graph, project) = try graphLoader.loadProject(path: path)
 
@@ -92,6 +106,8 @@ class ProjectGenerator: ProjectGenerating {
 
         // Post Generate Actions
         try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.path.basename)
+
+        return (workspaceDescriptor.path, graph)
     }
 
     private func lint(graph: Graphing) throws {
