@@ -101,6 +101,8 @@ class ScaffoldCommand: NSObject, Command {
         try templateGenerator.generate(at: templateDirectory,
                                        to: path,
                                        attributes: arguments.get(attributesArgument) ?? [])
+        
+        Printer.shared.print(success: "Template \(template) was successfully generated")
     }
 
     // MARK: - Helpers
