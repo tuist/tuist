@@ -60,7 +60,7 @@ class ScaffoldCommand: NSObject, Command {
                                      completion: nil)
         templateArgument = subParser.add(positional: "template",
                                          kind: String.self,
-                                         optional: false,
+                                         optional: true,
                                          usage: "Name of template you want to use",
                                          completion: nil)
         pathArgument = subParser.add(option: "--path",
@@ -81,9 +81,7 @@ class ScaffoldCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        try verifyDirectoryIsEmpty(path: path)
-        
-        let directories = try templatesDirectoryLocator.templateDirectories(at: FileHandler.shared.currentPath)
+        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {
@@ -93,6 +91,8 @@ class ScaffoldCommand: NSObject, Command {
             }
             return
         }
+        
+        try verifyDirectoryIsEmpty(path: path)
         
         guard let template = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
         

@@ -12,7 +12,7 @@ class BuildCopier: BuildCopying {
     /// Files that should be copied (if they exist).
     static let files: [String] = [
         "tuist",
-        "Templates"
+        "Templates",
         "ProjectDescription.swiftmodule",
         "ProjectDescription.swiftdoc",
         "ProjectDescription.swiftinterface",

@@ -5,11 +5,10 @@ let platformAttribute: Template.Attribute = .optional("platform", default: "ios"
 
 let testContents = """
 // this is test \(nameAttribute) content
-
 """
 
 let template = Template(
-    description: "Custom \(nameAttribute)",
+    description: "Custom template",
     attributes: [
         nameAttribute,
         platformAttribute

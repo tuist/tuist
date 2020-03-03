@@ -193,7 +193,7 @@ graph.dot
 """
 
 let template = Template(
-    description: "Custom \(nameAttribute)",
+    description: "Default template",
     attributes: [
         nameAttribute,
         platformAttribute,
