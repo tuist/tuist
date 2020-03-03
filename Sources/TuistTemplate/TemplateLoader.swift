@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistSupport
-import TemplateDescription
+import ProjectDescription
 import TuistLoader
 
 public enum TemplateLoaderError: FatalError, Equatable {
@@ -38,7 +38,7 @@ public protocol TemplateLoading {
 public class TemplateLoader: TemplateLoading {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let resourceLocator: ResourceLocating
-    private let templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding
+    private let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
@@ -46,15 +46,15 @@ public class TemplateLoader: TemplateLoading {
     public convenience init() {
         self.init(templatesDirectoryLocator: TemplatesDirectoryLocator(),
                   resourceLocator: ResourceLocator(),
-                  templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilder())
+                  projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilder())
     }
     
     init(templatesDirectoryLocator: TemplatesDirectoryLocating,
          resourceLocator: ResourceLocating,
-         templateDescriptionHelpersBuilder: TemplateDescriptionHelpersBuilding) {
+         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding) {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.resourceLocator = resourceLocator
-        self.templateDescriptionHelpersBuilder = templateDescriptionHelpersBuilder
+        self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         decoder = JSONDecoder()
         encoder = JSONEncoder()
     }
@@ -65,7 +65,7 @@ public class TemplateLoader: TemplateLoading {
             throw TemplateLoaderError.manifestNotFound(manifestPath)
         }
         let data = try loadManifestData(at: manifestPath)
-        let manifest = try decoder.decode(TemplateDescription.Template.self, from: data)
+        let manifest = try decoder.decode(ProjectDescription.Template.self, from: data)
         return try TuistTemplate.Template.from(manifest: manifest,
                                                at: path)
     }
@@ -86,27 +86,27 @@ public class TemplateLoader: TemplateLoading {
     // MARK: - Helpers
     
     private func loadManifestData(at path: AbsolutePath, additionalArguments: [String] = []) throws -> Data {
-        let templateDescriptionPath = try resourceLocator.templateDescription()
+        let projectDescriptionPath = try resourceLocator.projectDescription()
 
         var arguments: [String] = [
             "/usr/bin/xcrun",
             "swiftc",
             "--driver-mode=swift",
             "-suppress-warnings",
-            "-I", templateDescriptionPath.parentDirectory.pathString,
-            "-L", templateDescriptionPath.parentDirectory.pathString,
-            "-F", templateDescriptionPath.parentDirectory.pathString,
-            "-lTemplateDescription",
+            "-I", projectDescriptionPath.parentDirectory.pathString,
+            "-L", projectDescriptionPath.parentDirectory.pathString,
+            "-F", projectDescriptionPath.parentDirectory.pathString,
+            "-lProjectDescription",
         ]
         
         // Helpers
-        let templateDesciptionHelpersModulePath = try templateDescriptionHelpersBuilder.build(at: path, templateDescriptionPath: templateDescriptionPath)
+        let templateDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
         if let templateDesciptionHelpersModulePath = templateDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
                 "-I", templateDesciptionHelpersModulePath.parentDirectory.pathString,
                 "-L", templateDesciptionHelpersModulePath.parentDirectory.pathString,
                 "-F", templateDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-lTemplateDescriptionHelpers",
+                "-lProjectDescriptionHelpers",
             ])
         }
 
@@ -124,7 +124,7 @@ public class TemplateLoader: TemplateLoading {
 }
 
 extension TuistTemplate.Template {
-    static func from(manifest: TemplateDescription.Template, at path: AbsolutePath) throws -> TuistTemplate.Template {
+    static func from(manifest: ProjectDescription.Template, at path: AbsolutePath) throws -> TuistTemplate.Template {
         let attributes = try manifest.attributes.map(TuistTemplate.Template.Attribute.from)
         let files = try manifest.files.map { (path: RelativePath($0.path),
                                               contents: try TuistTemplate.Template.Contents.from(manifest: $0.contents,
@@ -138,7 +138,7 @@ extension TuistTemplate.Template {
 }
 
 extension TuistTemplate.Template.Attribute {
-    static func from(manifest: TemplateDescription.Template.Attribute) throws -> TuistTemplate.Template.Attribute {
+    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistTemplate.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)
@@ -149,7 +149,7 @@ extension TuistTemplate.Template.Attribute {
 }
 
 extension TuistTemplate.Template.Contents {
-    static func from(manifest: TemplateDescription.Template.Contents,
+    static func from(manifest: ProjectDescription.Template.Contents,
                      at path: AbsolutePath) throws -> TuistTemplate.Template.Contents {
         switch manifest {
         case let .static(contents):
@@ -161,7 +161,7 @@ extension TuistTemplate.Template.Contents {
 }
 
 extension TuistTemplate.ParsedAttribute {
-    static func from(manifest: TemplateDescription.ParsedAttribute) throws -> TuistTemplate.ParsedAttribute {
+    static func from(manifest: ProjectDescription.ParsedAttribute) throws -> TuistTemplate.ParsedAttribute {
         TuistTemplate.ParsedAttribute(name: manifest.name,
                                       value: manifest.value)
     }

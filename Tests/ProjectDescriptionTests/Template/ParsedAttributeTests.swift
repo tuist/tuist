@@ -1,7 +1,7 @@
 import TuistSupportTesting
 import XCTest
 
-@testable import TemplateDescription
+@testable import ProjectDescription
 
 class ParsedAttributeTests: XCTestCase {
     func test_parsed_attribute_codable() throws {

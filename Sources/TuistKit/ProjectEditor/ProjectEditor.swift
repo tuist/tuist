@@ -75,10 +75,8 @@ final class ProjectEditor: ProjectEditing {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         }
         var templates: [AbsolutePath] = []
-        var templateHelpers: [AbsolutePath] = []
         if let templatesDirectory = templatesDirectoryLocator.locateCustom(at: at) {
-            templateHelpers = FileHandler.shared.glob(templatesDirectory, glob: "\(Constants.templateHelpersDirectoryName)/**/*.swift")
-            templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift").filter { !templateHelpers.contains($0) }
+            templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift")
         }
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
@@ -90,7 +88,6 @@ final class ProjectEditor: ProjectEditing {
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        templates: templates,
-                                                       templateHelpers: templateHelpers,
                                                        projectDescriptionPath: projectDesciptionPath)
         return try generator.generateProject(project,
                                              graph: graph,

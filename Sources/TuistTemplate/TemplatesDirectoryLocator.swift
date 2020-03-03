@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistSupport
+import TuistLoader
 
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the tuist built-in templates directory if it exists.
@@ -15,12 +16,12 @@ public protocol TemplatesDirectoryLocating {
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
-    private let fileHandler: FileHandling = FileHandler.shared
-    /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
-    private var cache: [AbsolutePath: AbsolutePath] = [:]
-
+    private let rootDirectoryLocator: RootDirectoryLocating
+    
     /// Default constructor.
-    public init() { }
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
 
     // MARK: - TemplatesDirectoryLocating
 
@@ -30,6 +31,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
             .removingLastComponent()
             .removingLastComponent()
             .removingLastComponent()
+            .appending(component: "Tuist")
         #else
         let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
         #endif
@@ -50,12 +52,8 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     }
     
     public func locate(from path: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = locate(from: path, source: path) else { return nil }
-        if fileHandler.exists(rootDirectory.appending(component: Constants.templatesDirectoryName)) {
-            return rootDirectory.appending(component: Constants.templatesDirectoryName)
-        } else {
-            return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
-        }
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+        return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
     }
     
     public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
@@ -63,45 +61,8 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         let templates = try templatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         let customTemplatesDirectory = locateCustom(at: path)
         let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
-        return (templates + customTemplates).filter { $0.basename != Constants.templateHelpersDirectoryName }
-    }
-    
-    // MARK: - Helpers
-    
-    private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
-        if let cachedDirectory = cached(path: path) {
-            return cachedDirectory
-        } else if fileHandler.exists(path.appending(component: Constants.templatesDirectoryName)) {
-            cache(rootDirectory: path, for: source)
-            return path
-        } else if fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)),
-            fileHandler.isFolder(path.appending(component: Constants.tuistDirectoryName)) {
-            cache(rootDirectory: path, for: source)
-            return path
-        } else if fileHandler.exists(path.appending(RelativePath(".git"))) {
-            cache(rootDirectory: path, for: source)
-            return path
-        } else if !path.isRoot {
-            return locate(from: path.parentDirectory, source: source)
-        }
-        return nil
-    }
-    
-    private func cached(path: AbsolutePath) -> AbsolutePath? {
-        cache[path]
+        return templates + customTemplates
     }
 
-    /// This method caches the root directory of path, and all its parents up to the root directory.
-    /// - Parameters:
-    ///   - rootDirectory: Path to the root directory.
-    ///   - path: Path for which we are caching the root directory.
-    private func cache(rootDirectory: AbsolutePath, for path: AbsolutePath) {
-        if path != rootDirectory {
-            cache[path] = rootDirectory
-            cache(rootDirectory: rootDirectory, for: path.parentDirectory)
-        } else if path == rootDirectory {
-            cache[path] = rootDirectory
-        }
-    }
 }
 

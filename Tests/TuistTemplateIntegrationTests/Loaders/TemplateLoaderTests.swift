@@ -23,7 +23,7 @@ final class TemplateLoaderTests: TuistTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let content = """
-        import TemplateDescription
+        import ProjectDescription
         
         let template = Template(
             description: "Template description"
@@ -46,7 +46,7 @@ final class TemplateLoaderTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let content = """
         import Foundation
-        import TemplateDescription
+        import ProjectDescription
 
         let content = Content {
             let name = try getAttribute(for: "name")

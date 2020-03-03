@@ -1,6 +1,6 @@
 import Foundation
-import TemplateDescription
-import TemplateDescriptionHelpers
+import ProjectDescription
+import ProjectDescriptionHelpers
 
 let xcplaygroundContent = Content {
     let platform = try Platform.getFromAttributes()

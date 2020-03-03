@@ -1,4 +1,4 @@
-import TemplateDescription
+import ProjectDescription
 import TuistSupportTesting
 import XCTest
 

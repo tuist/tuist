@@ -8,7 +8,6 @@ protocol ProjectEditorMapping: AnyObject {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             templateHelpers: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph)
 }
 
@@ -18,7 +17,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             templateHelpers: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
         // Settings
         let projectSettings = Settings(base: [:],
@@ -35,7 +33,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
         }
         if !templates.isEmpty {
-            manifestsDependencies.append(.target(name: "TemplateDescriptionHelpers"))
+            manifestsDependencies.append(.target(name: "Templates"))
         }
         let manifestsTarget = Target(name: "Manifests",
                                      platform: .macOS,
@@ -58,17 +56,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                                                         targetSettings: targetSettings,
                                                         sourcePaths: templates)
         }
-        var templateHelpersTarget: Target?
-        if !templateHelpers.isEmpty {
-            templateHelpersTarget = Target.editorHelperTarget(name: "TemplateDescriptionHelpers",
-                                                              targetSettings: targetSettings,
-                                                              sourcePaths: templateHelpers)
-        }
+
         var targets: [Target] = []
         targets.append(manifestsTarget)
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
-        if let templateHelpersTarget = templateHelpersTarget { targets.append(templateHelpersTarget) }
 
         // Project
         let project = Project(path: sourceRootPath,
@@ -88,15 +80,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             dependencies.append(helpersNode)
         }
         if let templatesTarget = templatesTarget {
-            let templatesDependencies: [TargetNode]
-            if let templateHelpersTarget = templateHelpersTarget {
-                let templateHelpersNode = TargetNode(project: project, target: templateHelpersTarget, dependencies: [])
-                cache.add(targetNode: templateHelpersNode)
-                templatesDependencies = [templateHelpersNode]
-            } else {
-                templatesDependencies = []
-            }
-            let templatesNode = TargetNode(project: project, target: templatesTarget, dependencies: templatesDependencies)
+            let templatesNode = TargetNode(project: project, target: templatesTarget, dependencies: [])
             cache.add(targetNode: templatesNode)
             dependencies.append(templatesNode)
         }

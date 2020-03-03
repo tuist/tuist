@@ -1,6 +1,6 @@
 import Foundation
-import TemplateDescription
-import TemplateDescriptionHelpers
+import ProjectDescription
+import ProjectDescriptionHelpers
 
 let kitFrameworkProjectContent = Content {
     let name = try getAttribute(for: "name")

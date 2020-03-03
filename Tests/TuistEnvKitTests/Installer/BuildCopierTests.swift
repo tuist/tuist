@@ -22,10 +22,6 @@ final class BuildCopierTests: XCTestCase {
             "ProjectDescription.swiftdoc",
             "ProjectDescription.swiftinterface",
             "libProjectDescription.dylib",
-            "TemplateDescription.swiftmodule",
-            "TemplateDescription.swiftdoc",
-            "TemplateDescription.swiftinterface",
-            "libTemplateDescription.dylib",
         ])
     }
 

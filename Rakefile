@@ -95,15 +95,6 @@ def package
     "-Xswiftc", "-emit-module-interface-path",
     "-Xswiftc", ".build/release/ProjectDescription.swiftinterface"
   )
-  system(
-    "swift", "build",
-    "--product", "TemplateDescription",
-    "--configuration", "release",
-    "-Xswiftc", "-enable-library-evolution",
-    "-Xswiftc", "-emit-module-interface",
-    "-Xswiftc", "-emit-module-interface-path",
-    "-Xswiftc", ".build/release/TemplateDescription.swiftinterface"
-  )
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
 
   Dir.chdir(".build/release") do
@@ -111,7 +102,6 @@ def package
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
       "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
-      "TemplateDescription.swiftmodule", " TemplateDescription.swiftdoc", "libTemplateDescription.dylib", "TemplateDescription.swiftinterface",
       "../../Templates"
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")

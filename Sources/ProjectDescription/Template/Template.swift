@@ -29,7 +29,7 @@ public struct Template: Codable, Equatable {
         /// Can not contain any additional logic apart from plain `String` from `arguments`
         case `static`(String)
         /// Generated content is defined in a different file from `Template.swift`
-        /// Can contain additional logic and anything that is defined in `TemplateDescriptionHelpers`
+        /// Can contain additional logic and anything that is defined in `ProjectDescriptionHelpers`
         case generated(String)
         
         private enum CodingKeys: String, CodingKey {

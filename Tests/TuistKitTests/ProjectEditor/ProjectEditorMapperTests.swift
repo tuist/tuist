@@ -41,7 +41,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let manifestsTarget = project.targets.first
         let helpersTarget = project.targets.first { $0.name == "ProjectDescriptionHelpers" }
         let templatesTarget = project.targets.first { $0.name == "Templates" }
-        let templateHelpersTarget = project.targets.first { $0.name == "TemplateDescriptionHelpers" }
         let expectedManifestsTarget = Target(name: "Manifests",
                                              platform: .macOS,
                                              product: .staticFramework,
@@ -50,9 +49,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                              settings: expectedSettings(sourceRootPath: sourceRootPath),
                                              sources: manifestPaths.map { (path: $0, compilerFlags: nil) },
                                              filesGroup: .group(name: "Manifests"),
-                                             dependencies: [
-                                                .target(name: "ProjectDescriptionHelpers"),
-                                                .target(name: "TemplateDescriptionHelpers")])
+                                             dependencies: [.target(name: "ProjectDescriptionHelpers")])
         let expectedHelpersTarget = Target(name: "ProjectDescriptionHelpers",
                                            platform: .macOS,
                                            product: .staticFramework,
@@ -60,15 +57,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
                                            settings: expectedSettings(sourceRootPath: sourceRootPath),
                                            sources: helperPaths.map { (path: $0, compilerFlags: nil) },
-                                           filesGroup: .group(name: "Manifests"),
-                                           dependencies: [])
-        let expectedTemplateHelpersTarget = Target(name: "TemplateDescriptionHelpers",
-                                           platform: .macOS,
-                                           product: .staticFramework,
-                                           productName: "TemplateDescriptionHelpers",
-                                           bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
-                                           settings: expectedSettings(sourceRootPath: sourceRootPath),
-                                           sources: templateHelpers.map { (path: $0, compilerFlags: nil) },
                                            filesGroup: .group(name: "Manifests"),
                                            dependencies: [])
         let expectedTemplatesTarget = Target(name: "Templates",
@@ -94,9 +82,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertTrue(targetNodes.contains { $0.target == manifestsTarget })
         XCTAssertTrue(targetNodes.contains { $0.target == helpersTarget })
         XCTAssertTrue(targetNodes.contains { $0.target == templatesTarget })
-        XCTAssertTrue(targetNodes.contains { $0.target == templateHelpersTarget })
         XCTAssertEqual(targetNodes.first?.dependencies, targetNodes.filter { $0.name == "ProjectDescriptionHelpers" || $0.name == "Templates" })
-        XCTAssertEqual(targetNodes.last?.dependencies, targetNodes.filter { $0.name == "TemplateDescriptionHelpers" })
     }
 
     func test_edit_when_there_are_no_helpers() throws {

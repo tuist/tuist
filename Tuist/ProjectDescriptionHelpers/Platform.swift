@@ -1,5 +1,5 @@
 import Foundation
-import TemplateDescription
+import ProjectDescription
 
 enum PlatformError: Error, CustomStringConvertible {
     case parseFailed(String)
@@ -12,18 +12,19 @@ enum PlatformError: Error, CustomStringConvertible {
     }
 }
 
-public enum Platform: String {
-    case iOS = "ios"
-    case macOS = "macos"
-    case tvOS = "tvos"
-    case watchOS = "watchos"
-    
-    public var caseValue: String {
+import ProjectDescription
+
+public extension Platform {
+    var caseValue: String {
         switch self {
-        case .iOS: return "iOS"
-        case .macOS: return "macOS"
-        case .tvOS: return "tvOS"
-        case .watchOS: return "watchOS"
+        case .iOS:
+            return "iOS"
+        case .macOS:
+            return "macOS"
+        case .watchOS:
+            return "watchOS"
+        case .tvOS:
+            return "tvOS"
         }
     }
 }

@@ -1,4 +1,4 @@
-import TemplateDescription
+import ProjectDescription
 
 let nameAttribute: Template.Attribute = .required("name")
 let platformAttribute: Template.Attribute = .optional("platform", default: "ios")
@@ -11,7 +11,7 @@ let testContents = """
 let template = Template(
     description: "Custom \(nameAttribute)",
     attributes: [
-        nameArgument,
+        nameAttribute,
         platformAttribute
     ],
     files: [
