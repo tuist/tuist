@@ -64,6 +64,4 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return (templates + customTemplates).filter(FileHandler.shared.isFolder)
     }
-
 }
-

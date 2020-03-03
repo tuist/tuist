@@ -24,7 +24,6 @@ enum ScaffoldCommandError: FatalError, Equatable {
     }
 }
 
-// swiftlint:disable:next type_body_length
 class ScaffoldCommand: NSObject, Command {
     // MARK: - Attributes
 

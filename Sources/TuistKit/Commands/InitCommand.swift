@@ -44,7 +44,6 @@ enum InitCommandError: FatalError, Equatable {
     }
 }
 
-// swiftlint:disable:next type_body_length
 class InitCommand: NSObject, Command {
     // MARK: - Attributes
 
