@@ -97,7 +97,7 @@ class ProjectGenerator: ProjectGenerating {
     private func lint(graph: Graphing) throws {
         let tuistConfig = try graphLoader.loadTuistConfig(path: graph.entryPath)
 
-        try environmentLinter.lint(config: tuistConfig)
+        try environmentLinter.lint(config: tuistConfig).printAndThrowIfNeeded()
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
     }
 
