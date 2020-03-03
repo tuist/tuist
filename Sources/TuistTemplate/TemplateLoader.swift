@@ -8,7 +8,9 @@ import TuistLoader
 public enum TemplateLoaderError: FatalError, Equatable {
     public var type: ErrorType { .abort }
     
+    /// Template manifest was not found
     case manifestNotFound(AbsolutePath)
+    /// Could not find file for generating content
     case generateFileNotFound(AbsolutePath)
     
     public var description: String {

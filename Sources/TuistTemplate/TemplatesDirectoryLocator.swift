@@ -27,11 +27,12 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     public func locate() -> AbsolutePath? {
         #if DEBUG
+        // Used only for debug purposed to find templates in your tuist working directory
         let bundlePath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
             .removingLastComponent()
             .removingLastComponent()
             .removingLastComponent()
-            .appending(component: "Tuist")
+            .appending(component: Constants.tuistDirectoryName)
         #else
         let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
         #endif
@@ -40,7 +41,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
             bundlePath.parentDirectory,
         ]
         let candidates = paths.map { path in
-            path.appending(component: "Templates")
+            path.appending(component: Constants.templatesDirectoryName)
         }
         return candidates.first(where: { FileHandler.shared.exists($0) })
     }
