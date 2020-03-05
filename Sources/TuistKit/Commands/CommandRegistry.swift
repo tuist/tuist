@@ -32,7 +32,7 @@ public final class CommandRegistry {
         register(command: LintCommand.self)
         register(command: SigningCommand.self)
         register(command: CloudCommand.self)
-        register(rawCommand: BuildCommand.self)
+        register(command: BuildCommand.self)
     }
 
     init(errorHandler: ErrorHandling,
