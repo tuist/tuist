@@ -21,6 +21,8 @@ This document contains a list of recommendations for conventions that we'd follo
 
 ## File structure
 
+- **Reflect the targets in the folders structure:** That makes it easy to know which files belong to which target.
+- **Don't include a file in more than one target:** If you need to share a file among multiple targets, extract it into a shared library or framework that the others can import.
 - **Keep it simple:** Although the API for defining a list of files is very flexible, we discourage having a complex file structure because they increase the project generation time and make it hard for developers to spot at glance what belongs to what. A complex file structure is a structure where files of different nature are placed alongside and require the usage of glob patterns and excluded files that are expensive to resolve.
 
 ```swift
@@ -30,3 +32,7 @@ let target = Target(name: "MyFramework", sources: ["MyFramework/Sources"])
 // Discouraged
 let target = Target(name: "MyFramework", sources: ["MyFramework/**/*.swift"])
 ```
+
+## Schemes
+
+- **All the scheme's targets have the same platform:** Although it's possible to add targets to a scheme whose product is for different platforms, avoid it because commands like `tuist build` are designed around this assumption.
