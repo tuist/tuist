@@ -22,15 +22,15 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
     public func write(project: ProjectDescriptor) throws {
         let project = enrichingXcodeProjWithSchemes(descriptor: project)
-        try project.xcodeProj.write(path: project.path.path)
-        try project.schemes.forEach { try write(scheme: $0, xccontainerPath: project.path) }
+        try project.xcodeProj.write(path: project.xcodeprojPath.path)
+        try project.schemes.forEach { try write(scheme: $0, xccontainerPath: project.xcodeprojPath) }
         try project.sideEffects.forEach(perform)
     }
 
     public func write(workspace: WorkspaceDescriptor) throws {
         try workspace.projects.forEach(write)
-        try workspace.xcworkspace.write(path: workspace.path.path, override: true)
-        try workspace.schemes.forEach { try write(scheme: $0, xccontainerPath: workspace.path) }
+        try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
+        try workspace.schemes.forEach { try write(scheme: $0, xccontainerPath: workspace.xcworkspacePath) }
         try workspace.sideEffects.forEach(perform)
     }
 
@@ -47,6 +47,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         xcodeProj.sharedData = sharedData
 
         return ProjectDescriptor(path: descriptor.path,
+                                 xcodeprojPath: descriptor.xcodeprojPath,
                                  xcodeProj: descriptor.xcodeProj,
                                  schemes: userSchemes,
                                  sideEffects: descriptor.sideEffects)

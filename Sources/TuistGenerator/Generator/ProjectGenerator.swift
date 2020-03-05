@@ -134,7 +134,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   graph: graph)
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        return ProjectDescriptor(path: xcodeprojPath,
+        return ProjectDescriptor(path: project.path,
+                                 xcodeprojPath: xcodeprojPath,
                                  xcodeProj: xcodeProj,
                                  schemes: schemes,
                                  sideEffects: sideEffects)

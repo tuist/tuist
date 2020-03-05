@@ -64,9 +64,9 @@ class ProjectGenerator: ProjectGenerating, DetailedProjectGenerating {
         try writer.write(project: projectDescriptor)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: projectDescriptor.path.basename)
+        try postGenerationActions(for: graph, workspaceName: projectDescriptor.xcodeprojPath.basename)
 
-        return (projectDescriptor.path, graph)
+        return (projectDescriptor.xcodeprojPath, graph)
     }
 
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
@@ -85,9 +85,9 @@ class ProjectGenerator: ProjectGenerating, DetailedProjectGenerating {
         try writer.write(workspace: workspaceDescriptor)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.path.basename)
+        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
 
-        return (workspaceDescriptor.path, graph)
+        return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
     private func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
@@ -105,9 +105,9 @@ class ProjectGenerator: ProjectGenerating, DetailedProjectGenerating {
         try writer.write(workspace: workspaceDescriptor)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.path.basename)
+        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
 
-        return (workspaceDescriptor.path, graph)
+        return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
     private func lint(graph: Graphing) throws {

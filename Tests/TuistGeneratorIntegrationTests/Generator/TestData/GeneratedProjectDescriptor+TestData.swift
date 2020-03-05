@@ -6,6 +6,7 @@ import XcodeProj
 
 extension ProjectDescriptor {
     static func test(path: AbsolutePath,
+                     xcodeprojPath: AbsolutePath? = nil,
                      schemes: [SchemeDescriptor] = [],
                      sideEffects: [SideEffect] = []) -> ProjectDescriptor {
         let mainGroup = PBXGroup()
@@ -22,6 +23,7 @@ extension ProjectDescriptor {
         pbxproj.rootObject = pbxProject
         let xcodeProj = XcodeProj(workspace: XCWorkspace(), pbxproj: pbxproj)
         return ProjectDescriptor(path: path,
+                                 xcodeprojPath: xcodeprojPath ?? path.appending(component: "Test.xcodeproj"),
                                  xcodeProj: xcodeProj,
                                  schemes: schemes,
                                  sideEffects: sideEffects)

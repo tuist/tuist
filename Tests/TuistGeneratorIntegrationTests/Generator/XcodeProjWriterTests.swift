@@ -19,7 +19,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
-        let descriptor = ProjectDescriptor.test(path: xcodeProjPath)
+        let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath)
 
         // When
         try subject.write(project: descriptor)
@@ -36,7 +36,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let contents = "Testing".data(using: .utf8)!
         let sideEffect = SideEffect.file(.init(path: filePath,
                                                contents: contents))
-        let descriptor = ProjectDescriptor.test(path: xcodeProjPath,
+        let descriptor = ProjectDescriptor.test(path: path,
+                                                xcodeprojPath: xcodeProjPath,
                                                 sideEffects: [sideEffect])
 
         // When
@@ -57,7 +58,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         try fileHandler.touch(filePath)
 
         let sideEffect = SideEffect.file(GeneratedFile(path: filePath, state: .absent))
-        let descriptor = ProjectDescriptor.test(path: xcodeProjPath,
+        let descriptor = ProjectDescriptor.test(path: path,
+                                                xcodeprojPath: xcodeProjPath,
                                                 sideEffects: [sideEffect])
 
         // When
@@ -76,7 +78,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         ])
 
         let xcodeProjPath = path.appending(component: "Foo.xcodeproj")
-        let descriptor = ProjectDescriptor.test(path: xcodeProjPath)
+        let descriptor = ProjectDescriptor.test(path: path,
+                                                xcodeprojPath: xcodeProjPath)
 
         // When
         try (0 ..< 2).forEach { _ in
@@ -102,7 +105,9 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // When
         try schemesWriteOperations.forEach {
-            let descriptor = ProjectDescriptor.test(path: xcodeProjPath, schemes: $0)
+            let descriptor = ProjectDescriptor.test(path: path,
+                                                    xcodeprojPath: xcodeProjPath,
+                                                    schemes: $0)
             try subject.write(project: descriptor)
         }
 
@@ -120,7 +125,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let userScheme = SchemeDescriptor.test(name: "UserScheme", shared: false)
-        let descriptor = ProjectDescriptor.test(path: xcodeProjPath, schemes: [userScheme])
+        let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath, schemes: [userScheme])
 
         // When
         try subject.write(project: descriptor)

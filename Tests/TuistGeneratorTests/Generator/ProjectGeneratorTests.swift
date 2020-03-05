@@ -78,7 +78,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let got = try subject.generate(project: project, graph: graph)
 
         // Then
-        XCTAssertEqual(got.path.basename, "SomeAwesomeName.xcodeproj")
+        XCTAssertEqual(got.xcodeprojPath.basename, "SomeAwesomeName.xcodeproj")
     }
 
     func test_objectVersion_when_xcode11_and_spm() throws {

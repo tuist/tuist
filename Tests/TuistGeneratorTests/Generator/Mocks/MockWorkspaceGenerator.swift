@@ -17,6 +17,7 @@ final class MockWorkspaceGenerator: WorkspaceGenerating {
 
     private var stub: WorkspaceDescriptor {
         WorkspaceDescriptor(path: "/test",
+                            xcworkspacePath: "/test/Test.xcworkspace",
                             xcworkspace: XCWorkspace(),
                             projects: [],
                             schemes: [],

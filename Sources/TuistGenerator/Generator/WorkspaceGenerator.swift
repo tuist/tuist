@@ -82,11 +82,11 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             let targets = pbxproj.nativeTargets.map {
                 ($0.name, $0)
             }
-            return (project.path.parentDirectory, // TODO: distinguish between XcodeProj path and Project path
+            return (project.path,
                     GeneratedProject(pbxproj: pbxproj,
-                                     path: project.path,
+                                     path: project.xcodeprojPath,
                                      targets: Dictionary(targets, uniquingKeysWith: { $1 }),
-                                     name: project.path.basename))
+                                     name: project.xcodeprojPath.basename))
         })
 
         // Workspace structure
@@ -109,7 +109,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                                                     generatedProjects: generatedProjects,
                                                                     graph: graph)
 
-        return WorkspaceDescriptor(path: workspacePath,
+        return WorkspaceDescriptor(path: path,
+                                   xcworkspacePath: workspacePath,
                                    xcworkspace: xcWorkspace,
                                    projects: projects,
                                    schemes: schemes,

@@ -74,7 +74,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         var generatedProject: Project?
         generator.generateProjectWithConfigStub = { project, _, _ in
             generatedProject = project
-            return .test(path: directory.appending(component: "Edit.xcodeproj"))
+            return .test(xcodeprojPath: directory.appending(component: "Edit.xcodeproj"))
         }
 
         // When

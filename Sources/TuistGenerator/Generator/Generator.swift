@@ -137,7 +137,7 @@ public class Generator: Generating {
                                                        xcodeprojPath: xcodeprojPath)
 
         try writer.write(project: descriptor)
-        return descriptor.path
+        return descriptor.xcodeprojPath
     }
 
     public func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graphing) {
@@ -153,7 +153,7 @@ public class Generator: Generating {
                                                        xcodeprojPath: nil)
 
         try writer.write(project: descriptor)
-        return (descriptor.path, graph)
+        return (descriptor.xcodeprojPath, graph)
     }
 
     public func generateProjectWorkspace(at path: AbsolutePath,
@@ -174,9 +174,9 @@ public class Generator: Generating {
                                                          graph: graph)
         try writer.write(workspace: descriptor)
 
-        try postGenerationActions(for: graph, workspaceName: descriptor.path.basename)
+        try postGenerationActions(for: graph, workspaceName: descriptor.xcworkspacePath.basename)
 
-        return (descriptor.path, graph)
+        return (descriptor.xcworkspacePath, graph)
     }
 
     public func generateWorkspace(at path: AbsolutePath,
@@ -195,9 +195,9 @@ public class Generator: Generating {
                                                          graph: graph)
         try writer.write(workspace: descriptor)
 
-        try postGenerationActions(for: graph, workspaceName: descriptor.path.basename)
+        try postGenerationActions(for: graph, workspaceName: descriptor.xcworkspacePath.basename)
 
-        return (descriptor.path, graph)
+        return (descriptor.xcworkspacePath, graph)
     }
 
     private func postGenerationActions(for graph: Graph, workspaceName: String) throws {

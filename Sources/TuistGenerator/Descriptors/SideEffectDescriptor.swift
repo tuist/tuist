@@ -2,8 +2,12 @@ import Basic
 import Foundation
 import XcodeProj
 
+/// Generation Side Effect
 public enum SideEffect {
+    /// Create / Remove a file
     case file(GeneratedFile)
+
+    /// Perform a command
     case command(GeneratedCommand)
 }
 

@@ -94,6 +94,6 @@ final class ProjectEditor: ProjectEditing {
                                                        graph: graph,
                                                        config: config)
         try writer.write(project: descriptor)
-        return descriptor.path
+        return descriptor.xcodeprojPath
     }
 }

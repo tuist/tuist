@@ -66,7 +66,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         let descriptor = try subject.generateWorkspace(workspace: workspace, graph: graph)
         try writer.write(workspace: descriptor)
 
-        return descriptor.path
+        return descriptor.xcworkspacePath
     }
 
     private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
