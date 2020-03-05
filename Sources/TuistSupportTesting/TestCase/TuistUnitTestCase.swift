@@ -29,10 +29,6 @@ public class TuistUnitTestCase: TuistTestCase {
         system = nil
         System.shared = System()
 
-        // Printer
-        printer = nil
-        Printer.shared = Printer()
-
         // Xcode controller
         xcodeController = nil
         XcodeController.shared = XcodeController()

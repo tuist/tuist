@@ -33,14 +33,21 @@ public extension XCTestCase {
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
     }
 
-    func XCTAssertStandardOutput(_ printer: MockPrinter, pattern: String, file: StaticString = #file, line: UInt = #line) {
-        XCTAssertTrue(printer.standardOutputMatches(with: pattern), """
-        The pattern:
-        \(pattern)
+    func XCTAssertStandardOutput(pattern: String, file: StaticString = #file, line: UInt = #line) {
         
-        Does not match the standard output:
-        \(printer.standardOutput)
-        """, file: file, line: line)
+        let standardOutput = TestingLogHandler.collected[.warning, <=]
+        
+        let message = """
+        The standard output:
+        ===========
+        \(standardOutput)
+        
+        Doesn't contain the expected output:
+        ===========
+        \(pattern)
+        """
+                
+        XCTAssertTrue(standardOutput.contains(pattern), message, file: file, line: line)
     }
 
     func XCTTry<T>(_ closure: @autoclosure @escaping () throws -> T, file: StaticString = #file, line: UInt = #line) -> T {

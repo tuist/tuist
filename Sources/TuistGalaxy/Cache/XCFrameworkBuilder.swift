@@ -77,7 +77,7 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
         let outputDirectory = try TemporaryDirectory(removeTreeOnDeinit: false)
         let derivedDataPath = try TemporaryDirectory(removeTreeOnDeinit: true)
 
-        logger.info("Building .xcframework for \(target.productName)".section())
+        logger.info("Building .xcframework for \(target.productName)")
 
         // Build for the device
         let deviceArchivePath = derivedDataPath.path.appending(component: "device.xcarchive")
@@ -88,7 +88,7 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
         deviceArguments.append(contentsOf: ["-archivePath", deviceArchivePath.pathString])
         deviceArguments.append(contentsOf: arguments)
         
-        logger.info("Building \(target.productName) for device".subsection())
+        logger.info("Building \(target.productName) for device")
 
         try runCommand(deviceArguments)
 
@@ -103,13 +103,13 @@ final class XCFrameworkBuilder: XCFrameworkBuilding {
             simulatorArguments.append(contentsOf: ["-archivePath", simulatorArchivePath!.pathString])
             simulatorArguments.append(contentsOf: arguments)
             
-            logger.info("Building \(target.productName) for simulator".subsection())
+            logger.info("Building \(target.productName) for simulator")
             
             try runCommand(simulatorArguments)
         }
 
         // Build the xcframework
-        logger.info("Exporting xcframework for \(target.productName)".subsection())
+        logger.info("Exporting xcframework for \(target.productName)")
 
         let xcframeworkPath = outputDirectory.path.appending(component: "\(target.productName).xcframework")
         let xcframeworkArguments = xcodebuildXcframeworkCommand(deviceArchivePath: deviceArchivePath,

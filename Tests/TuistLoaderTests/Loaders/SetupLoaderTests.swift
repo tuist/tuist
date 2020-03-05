@@ -62,7 +62,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(lintedUps.count, 2)
         XCTAssertTrue(mockUp1 === lintedUps[0])
         XCTAssertTrue(mockUp2 === lintedUps[1])
-        XCTAssertPrinterOutputContains("Configuring 2\n")
+        XCTAssertPrinterOutputContains("Configuring 2")
     }
 
     func test_meet_when_loadSetup_throws() {
