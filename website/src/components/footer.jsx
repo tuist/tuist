@@ -22,7 +22,7 @@ export default () => {
   const copyrightMessage =
     'Tuist © Copyright 2019. All rights reserved. Crafted with ♥ by Pedro Piñera & the contributors.'
   const linkStyle = {
-    fontSize: [3, 2],
+    fontSize: 2,
     color: 'gray5',
     '&:hover': { textDecoration: 'underline' },
     '&:focus-visible': { textDecoration: 'underline' },
