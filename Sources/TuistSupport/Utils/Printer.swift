@@ -143,12 +143,16 @@ extension Logger {
 
         log(
             level: .notice, Logger.Message(stringLiteral: printableString.rawString),
-            metadata: metadata()?.merging(.pretty, uniquingKeysWith: { $1 }),
+            metadata: metadata().map { $0.merging(.pretty, uniquingKeysWith: { $1 }) } ?? .pretty,
             file: file,
             function: function,
             line: line
         )
 
-        FileHandle.standardOutput.print(printableString.pretty)
+        if Environment.shared.shouldOutputBeColoured {
+            FileHandle.standardOutput.print(printableString.pretty)
+        } else {
+            FileHandle.standardOutput.print(printableString.rawString)
+        }
     }
 }
