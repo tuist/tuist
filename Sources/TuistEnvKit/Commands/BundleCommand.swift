@@ -51,7 +51,6 @@ final class BundleCommand: Command {
          versionsController: VersionsControlling,
          installer: Installing) {
         let subParser = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
-        _ = subParser.add(option: "--verbose", shortName: "-v", kind: Bool.self)
         self.versionsController = versionsController
         self.installer = installer
     }
