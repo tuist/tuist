@@ -66,7 +66,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         let toDelete = Set(existing).subtracting(new)
 
         let deletions = toDelete.map {
-            SideEffect.delete($0)
+            SideEffect.file(GeneratedFile(path: $0, state: .absent))
         }
 
         // Generate the Info.plist

@@ -63,17 +63,24 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private func perform(sideEffect: SideEffect) throws {
         switch sideEffect {
         case let .file(file):
-            try write(file: file)
-        case let .delete(path):
-            try fileHandler.delete(path)
+            try process(file: file)
         case let .command(command):
             try perform(command: command)
         }
     }
 
-    private func write(file: GeneratedFile) throws {
-        try fileHandler.createFolder(file.path.parentDirectory)
-        try file.contents.write(to: file.path.url)
+    private func process(file: GeneratedFile) throws {
+        switch file.state {
+        case .present:
+            try fileHandler.createFolder(file.path.parentDirectory)
+            if let contents = file.contents {
+                try contents.write(to: file.path.url)
+            } else {
+                try fileHandler.touch(file.path)
+            }
+        case .absent:
+            try fileHandler.delete(file.path)
+        }
     }
 
     private func perform(command: GeneratedCommand) throws {

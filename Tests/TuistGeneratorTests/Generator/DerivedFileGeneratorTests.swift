@@ -35,7 +35,8 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
 
         // Then
         let file = try XCTUnwrap(sideEffects.files.first)
-        let content = try PropertyListSerialization.propertyList(from: file.contents, options: [], format: nil)
+        let contents = try XCTUnwrap(file.contents)
+        let content = try PropertyListSerialization.propertyList(from: contents, options: [], format: nil)
         XCTAssertTrue(NSDictionary(dictionary: (content as? [String: Any]) ?? [:])
             .isEqual(to: ["a": "b"]))
     }
@@ -58,7 +59,7 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(infoPlistContentProvider.contentArgs.first?.target == target)
         XCTAssertTrue(infoPlistContentProvider.contentArgs.first?.extendedWith["a"] == "b")
 
-        let writtenData = file.contents
+        let writtenData = try XCTUnwrap(file.contents)
         let content = try PropertyListSerialization.propertyList(from: writtenData, options: [], format: nil)
         XCTAssertTrue(NSDictionary(dictionary: (content as? [String: Any]) ?? [:])
             .isEqual(to: ["test": "value"]))
@@ -101,8 +102,13 @@ private extension Array where Element == SideEffect {
     var deletions: [AbsolutePath] {
         compactMap {
             switch $0 {
-            case let .delete(path):
-                return path
+            case let .file(file):
+                switch file.state {
+                case .absent:
+                    return file.path
+                default:
+                    return nil
+                }
             default:
                 return nil
             }

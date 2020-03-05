@@ -56,7 +56,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let fileHandler = FileHandler.shared
         try fileHandler.touch(filePath)
 
-        let sideEffect = SideEffect.delete(filePath)
+        let sideEffect = SideEffect.file(GeneratedFile(path: filePath, state: .absent))
         let descriptor = ProjectDescriptor.test(path: xcodeProjPath,
                                                 sideEffects: [sideEffect])
 
