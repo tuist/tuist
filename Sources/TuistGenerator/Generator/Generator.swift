@@ -71,6 +71,8 @@ public class Generator: Generating {
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating
     private let writer: XcodeProjWriting
+    private let cocoapodsInteractor: CocoaPodsInteracting
+    private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     /// Instance to lint the Tuist configuration against the system.
     private let environmentLinter: EnvironmentLinting
@@ -90,12 +92,17 @@ public class Generator: Generating {
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
                                                     schemesGenerator: schemesGenerator)
         let writer = XcodeProjWriter()
+        let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
+        let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
+
         self.init(graphLoader: graphLoader,
                   graphLinter: graphLinter,
                   workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator,
                   environmentLinter: environmentLinter,
-                  writer: writer)
+                  writer: writer,
+                  cocoapodsInteractor: cocoapodsInteractor,
+                  swiftPackageManagerInteractor: swiftPackageManagerInteractor)
     }
 
     init(graphLoader: GraphLoading,
@@ -103,13 +110,17 @@ public class Generator: Generating {
          workspaceGenerator: WorkspaceGenerating,
          projectGenerator: ProjectGenerating,
          environmentLinter: EnvironmentLinting,
-         writer: XcodeProjWriting) {
+         writer: XcodeProjWriting,
+         cocoapodsInteractor: CocoaPodsInteracting,
+         swiftPackageManagerInteractor: SwiftPackageManagerInteracting) {
         self.graphLoader = graphLoader
         self.graphLinter = graphLinter
         self.workspaceGenerator = workspaceGenerator
         self.projectGenerator = projectGenerator
         self.environmentLinter = environmentLinter
         self.writer = writer
+        self.cocoapodsInteractor = cocoapodsInteractor
+        self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
     public func generateProject(_ project: Project,
@@ -162,6 +173,9 @@ public class Generator: Generating {
                                                          path: path,
                                                          graph: graph)
         try writer.write(workspace: descriptor)
+
+        try postGenerationActions(for: graph, workspaceName: descriptor.path.basename)
+
         return (descriptor.path, graph)
     }
 
@@ -180,6 +194,14 @@ public class Generator: Generating {
                                                          path: path,
                                                          graph: graph)
         try writer.write(workspace: descriptor)
+
+        try postGenerationActions(for: graph, workspaceName: descriptor.path.basename)
+
         return (descriptor.path, graph)
+    }
+
+    private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
+        try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
+        try cocoapodsInteractor.install(graph: graph)
     }
 }
