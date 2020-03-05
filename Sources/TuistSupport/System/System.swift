@@ -206,9 +206,9 @@ public final class System: Systeming {
     public var env: [String: String] {
         ProcessInfo.processInfo.environment.filter { System.acceptedEnvironmentVariables.contains($0.key) }
     }
-    
+
     func escaped(arguments: [String]) -> String {
-        arguments.map({ $0.spm_shellEscaped() }).joined(separator: " ")
+        arguments.map { $0.spm_shellEscaped() }.joined(separator: " ")
     }
 
     // MARK: - Init
@@ -226,13 +226,13 @@ public final class System: Systeming {
                                                          stderr: { _ in }),
                               verbose: false,
                               startNewProcessGroup: false)
-        
+
         logger.debug("\(escaped(arguments: arguments)))")
 
         try process.launch()
         let result = try process.waitUntilExit()
         let output = try result.utf8Output()
-        
+
         logger.debug("\(output)")
 
         try result.throwIfErrored()
@@ -298,13 +298,13 @@ public final class System: Systeming {
                               outputRedirection: .collect,
                               verbose: verbose,
                               startNewProcessGroup: false)
-        
+
         logger.debug("\(escaped(arguments: arguments)))")
 
         try process.launch()
         let result = try process.waitUntilExit()
         let output = try result.utf8Output()
-        
+
         logger.debug("\(output)")
 
         try result.throwIfErrored()
@@ -385,13 +385,13 @@ public final class System: Systeming {
                               startNewProcessGroup: false)
 
         logger.debug("\(escaped(arguments: arguments)))")
-        
+
         try process.launch()
         let result = try process.waitUntilExit()
         let output = try result.utf8Output()
-        
+
         logger.debug("\(output)")
-        
+
         try result.throwIfErrored()
     }
 
@@ -461,7 +461,7 @@ public final class System: Systeming {
                               outputRedirection: .none,
                               verbose: verbose,
                               startNewProcessGroup: true)
-        
+
         logger.debug("\(escaped(arguments: arguments)))")
 
         try process.launch()

@@ -62,7 +62,7 @@ class GenerateCommand: NSObject, Command {
                                    projectOnly: projectOnly)
 
         let time = String(format: "%.3f", timer.stop())
-        
+
         logger.notice("Project generated.", metadata: .success)
         logger.notice("Total time taken: \(time)s")
     }

@@ -34,9 +34,8 @@ public extension XCTestCase {
     }
 
     func XCTAssertStandardOutput(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        
         let standardOutput = TestingLogHandler.collected[.warning, <=]
-        
+
         let message = """
         The standard output:
         ===========
@@ -46,7 +45,7 @@ public extension XCTestCase {
         ===========
         \(pattern)
         """
-                
+
         XCTAssertTrue(standardOutput.contains(pattern), message, file: file, line: line)
     }
 

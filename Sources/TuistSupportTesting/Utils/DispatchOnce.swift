@@ -1,7 +1,6 @@
 import Foundation
 
 extension DispatchQueue {
-
     private static var _once = [String]()
 
     /**
@@ -12,7 +11,6 @@ extension DispatchQueue {
      - parameter block: Block to execute once
      */
     public class func once(token: String, block: () -> Void) {
-        
         objc_sync_enter(self)
         defer { objc_sync_exit(self) }
 

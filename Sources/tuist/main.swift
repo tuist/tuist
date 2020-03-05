@@ -1,5 +1,5 @@
-import Foundation
 import enum Basic.ProcessEnv
+import Foundation
 import enum TuistSupport.LogOutput
 
 if CommandLine.arguments.contains("--verbose") {

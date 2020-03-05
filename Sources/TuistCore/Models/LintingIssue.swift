@@ -49,7 +49,7 @@ public extension Array where Element == LintingIssue {
         for issue in errorIssues {
             logger.error("\(issue.description)")
         }
-        
+
         if !errorIssues.isEmpty { throw LintingError() }
     }
 }

@@ -2,33 +2,31 @@ import Foundation
 import Logging
 
 public struct StandardLogHandler: LogHandler {
-    
     public var logLevel: Logger.Level
-    
+
     public let label: String
-    
+
     public init(label: String) {
         self.init(label: label, logLevel: .info)
     }
-    
+
     public init(label: String, logLevel: Logger.Level) {
         self.label = label
         self.logLevel = logLevel
     }
-    
+
     public func log(
         level: Logger.Level,
         message: Logger.Message,
         metadata: Logger.Metadata?,
-        file: String, function: String, line: UInt
+        file _: String, function _: String, line _: UInt
     ) {
-        
         if metadata?.keys.contains(Logger.Metadata.prettyKey) == true {
             return
         }
-        
+
         let string: String
-        
+
         switch metadata?[Logger.Metadata.tuist] {
         case Logger.Metadata.successKey?:
             string = message.description.green().bold()
@@ -37,7 +35,7 @@ public struct StandardLogHandler: LogHandler {
         case Logger.Metadata.subsectionKey?:
             string = message.description.cyan()
         default:
-        
+
             switch level {
             case .critical:
                 string = message.description.red().bold()
@@ -48,12 +46,11 @@ public struct StandardLogHandler: LogHandler {
             case .notice, .info, .debug, .trace:
                 string = message.description
             }
-            
         }
-        
+
         output(for: level).print(string)
     }
-    
+
     func output(for level: Logger.Level) -> FileHandle {
         level < .error ? .standardOutput : .standardError
     }
@@ -64,25 +61,20 @@ public struct StandardLogHandler: LogHandler {
         get { metadata[key] }
         set { metadata[key] = newValue }
     }
-
 }
 
 extension FileHandle {
-    
     func print(_ string: String, terminator: String = "\n") {
         string.data(using: .utf8)
             .map(write)
         terminator.data(using: .utf8)
             .map(write)
     }
-    
 }
 
 func ~= (lhs: String, rhs: Logger.MetadataValue) -> Bool {
-    
     switch rhs {
     case let .string(s): return lhs == s
     default: return false
     }
-    
 }

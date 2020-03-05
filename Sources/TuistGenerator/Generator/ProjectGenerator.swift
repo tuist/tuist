@@ -76,7 +76,6 @@ final class ProjectGenerator: ProjectGenerating {
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil,
                   xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProject {
-
         logger.notice("Generating project \(project.name)")
 
         // Getting the path.

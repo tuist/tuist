@@ -82,7 +82,7 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
             // The installation of Pods might fail if the local repository that contains the specs
             // is outdated.
             logger.notice("Installing CocoaPods dependencies defined in \(node.podfilePath)", metadata: .section)
-            
+
             var mightNeedRepoUpdate: Bool = false
             let outputClosure: ([UInt8]) -> Void = { bytes in
                 let content = String(data: Data(bytes), encoding: .utf8)

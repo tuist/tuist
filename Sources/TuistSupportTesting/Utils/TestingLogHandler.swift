@@ -5,26 +5,25 @@
 //  Created by Atkinson, Oliver (Developer) on 20/02/2020.
 //
 
-import TuistSupport
 import Foundation
+import TuistSupport
 
 public struct TestingLogHandler: LogHandler {
-    
     static var collected: [Logger.Level: [String]] = [:]
-    
+
     public var logLevel: Logger.Level
     public let label: String
-    
+
     public init(label: String) {
         self.label = label
-        self.logLevel = .trace
+        logLevel = .trace
     }
-    
+
     public func log(
         level: Logger.Level,
         message: Logger.Message,
-        metadata: Logger.Metadata?,
-        file: String, function: String, line: UInt
+        metadata _: Logger.Metadata?,
+        file _: String, function _: String, line _: UInt
     ) {
         Self.collected[level, default: []].append(message.description)
     }
@@ -35,11 +34,9 @@ public struct TestingLogHandler: LogHandler {
         get { metadata[key] }
         set { metadata[key] = newValue }
     }
-
 }
 
 extension Dictionary where Key == Logger.Level, Value == [String] {
-    
     public subscript(_ key: Key, _ comparison: (Key, Key) -> Bool) -> String {
         let level = [Key](repeating: key, count: keys.count)
         return zip(level, keys)
@@ -49,5 +46,4 @@ extension Dictionary where Key == Logger.Level, Value == [String] {
             .joined()
             .joined(separator: "\n")
     }
-    
 }

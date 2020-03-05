@@ -16,7 +16,6 @@ public class TuistUnitTestCase: TuistTestCase {
         // Xcode controller
         xcodeController = MockXcodeController()
         XcodeController.shared = xcodeController
-
     }
 
     public override func tearDown() {

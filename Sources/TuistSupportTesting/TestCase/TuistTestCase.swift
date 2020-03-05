@@ -29,7 +29,7 @@ public final class MockFileHandler: FileHandler {
 
 public class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
-        
+
     public override static func setUp() {
         super.setUp()
         DispatchQueue.once(token: "io.tuist.test.logging") {
@@ -50,14 +50,13 @@ public class TuistTestCase: XCTestCase {
         } catch {
             XCTFail("Failed to setup environment")
         }
-        
+
         // FileHandler
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
         FileHandler.shared = fileHandler
     }
 
     public override func tearDown() {
-        
         temporaryDirectory = nil
         super.tearDown()
     }
@@ -95,15 +94,19 @@ public class TuistTestCase: XCTestCase {
     public func XCTAssertPrinterOutputContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
         XCTAssertPrinterContains(expected, at: .warning, >=, file: file, line: line)
     }
-    
+
     public func XCTAssertPrinterErrorContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
         XCTAssertPrinterContains(expected, at: .error, <=, file: file, line: line)
     }
 
-    public func XCTAssertPrinterContains(_ expected: String, at level: Logger.Level, _ comparison: (Logger.Level, Logger.Level) -> Bool, file: StaticString = #file, line: UInt = #line) {
-        
+    public func XCTAssertPrinterContains(
+        _ expected: String,
+        at level: Logger.Level,
+        _ comparison: (Logger.Level, Logger.Level) -> Bool,
+        file: StaticString = #file, line: UInt = #line
+    ) {
         let standardError = TestingLogHandler.collected[level, comparison]
-        
+
         let message = """
         The standard error:
         ===========
@@ -113,7 +116,7 @@ public class TuistTestCase: XCTestCase {
         ===========
         \(expected)
         """
-        
+
         XCTAssertTrue(standardError.contains(expected), message, file: file, line: line)
     }
 
@@ -125,4 +128,3 @@ public class TuistTestCase: XCTestCase {
         return destinationPath
     }
 }
-

@@ -17,7 +17,7 @@ extension PrintableString: CustomStringConvertible, CustomDebugStringConvertible
     public var description: String {
         pretty
     }
-    
+
     public var debugDescription: String {
         rawString
     }
@@ -74,7 +74,7 @@ extension PrintableString {
         public init(stringLiteral: String) {
             self = .raw(stringLiteral)
         }
-        
+
         public var unformatted: String {
             switch self {
             case let .raw(string):
@@ -120,7 +120,6 @@ extension PrintableString {
 }
 
 extension Logger {
-    
     /// Log a message passing with the `Logger.Level.notice` log level.
     ///
     /// `pretty` is always printed to the console, and is omitted to the logger as `notice`.
@@ -140,19 +139,16 @@ extension Logger {
         metadata: @autoclosure () -> Logger.Metadata? = nil,
         file: String = #file, function: String = #function, line: UInt = #line
     ) {
-        
         let printableString = message()
-        
-        self.log(
+
+        log(
             level: .notice, Logger.Message(stringLiteral: printableString.rawString),
             metadata: metadata()?.merging(.pretty, uniquingKeysWith: { $1 }),
             file: file,
             function: function,
             line: line
         )
-        
+
         FileHandle.standardOutput.print(printableString.pretty)
-        
     }
-    
 }

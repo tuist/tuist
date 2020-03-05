@@ -89,7 +89,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let workspaceName = "\(graph.name).xcworkspace"
 
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
-    
+
         /// Projects
 
         var generatedProjects = [AbsolutePath: GeneratedProject]()

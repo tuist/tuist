@@ -35,7 +35,7 @@ class EditCommand: NSObject, Command {
                                           shortName: "-P",
                                           kind: Bool.self,
                                           usage: "It creates the project in the current directory or the one indicated by -p and doesn't block the process.") // swiftlint:disable:this line_length
-                
+
         self.projectEditor = projectEditor
         self.opener = opener
     }

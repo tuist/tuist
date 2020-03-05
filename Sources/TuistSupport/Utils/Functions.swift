@@ -6,7 +6,7 @@
 /// - Parameter keyPath: A key path.
 /// - Returns: A getter function.
 public func get<Root, Value>(_ keyPath: KeyPath<Root, Value>) -> (Root) -> Value {
-    return { root in root[keyPath: keyPath] }
+    { root in root[keyPath: keyPath] }
 }
 
 /// Produces a logical AND function for two given closures. Useful for composing predicates with functions.
@@ -19,7 +19,7 @@ public func get<Root, Value>(_ keyPath: KeyPath<Root, Value>) -> (Root) -> Value
 ///
 /// - Returns: A predicate function.
 public func and<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) -> (T) -> Bool {
-    return { lhs($0) && rhs($0) }
+    { lhs($0) && rhs($0) }
 }
 
 /// Produces a logical OR function for two given closures. Useful for composing predicates with functions.
@@ -32,13 +32,13 @@ public func and<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) -
 ///
 /// - Returns: A predicate function.
 public func or<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) -> (T) -> Bool {
-    return { lhs($0) || rhs($0) }
+    { lhs($0) || rhs($0) }
 }
 
 public func pipe<Root, Value, T>(_ lhs: @escaping (Root) -> Value, _ rhs: @escaping (Value) -> T) -> (Root) -> T {
-    return { rhs(lhs($0)) }
+    { rhs(lhs($0)) }
 }
 
 public func flip<A, B>(_ ƒ: @escaping (A) -> () -> B) -> () -> (A) -> B {
-    return { { ƒ($0)() } }
+    { { ƒ($0)() } }
 }

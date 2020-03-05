@@ -42,7 +42,7 @@ public final class CommandRegistry {
     }
 
     public static func processArguments() -> [String] {
-        Array(ProcessInfo.processInfo.arguments).filter{ $0 != "--verbose" }
+        Array(ProcessInfo.processInfo.arguments).filter { $0 != "--verbose" }
     }
 
     // MARK: - Internal

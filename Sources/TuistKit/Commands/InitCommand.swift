@@ -97,7 +97,6 @@ class InitCommand: NSObject, Command {
         try generateGitIgnore(path: path)
 
         logger.notice("Project generated at path \(path.pathString).", metadata: .success)
-        
     }
 
     // MARK: - Fileprivate

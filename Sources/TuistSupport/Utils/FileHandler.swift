@@ -257,9 +257,8 @@ public class FileHandler: FileHandling {
     }
 
     public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
-        
         logger.debug("Traversing \(from) to locate \(path)")
-        
+
         let tuistConfigPath = from.appending(component: path)
 
         if FileHandler.shared.exists(tuistConfigPath) {
