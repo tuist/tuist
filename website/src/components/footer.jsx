@@ -22,7 +22,8 @@ export default () => {
   const copyrightMessage =
     'Tuist © Copyright 2019. All rights reserved. Crafted with ♥ by Pedro Piñera & the contributors.'
   const linkStyle = {
-    color: 'white',
+    fontSize: 2,
+    color: 'gray5',
     '&:hover': { textDecoration: 'underline' },
     '&:focus-visible': { textDecoration: 'underline' },
   }
@@ -66,9 +67,9 @@ export default () => {
                   sx={{ height: 30, width: 30 }}
                   alt="Tuist's logotype"
                 />
-                <Styled.h3 sx={{ color: 'white', ml: 2, my: 0 }}>
+                <Styled.h2 sx={{ color: 'white', ml: 2, my: 0 }}>
                   Tuist
-                </Styled.h3>
+                </Styled.h2>
               </div>
             </div>
             <div
@@ -79,9 +80,9 @@ export default () => {
                 alignItems: 'center',
               }}
             >
-              <Styled.h3 sx={{ color: 'white', mb: 9, mt: 0 }}>
+              <Styled.h2 sx={{ color: 'white', mb: 9, mt: 0 }}>
                 Documentation
-              </Styled.h3>
+              </Styled.h2>
               <Link to="/docs/usage/getting-started/" sx={linkStyle}>
                 Getting started
               </Link>
@@ -113,7 +114,9 @@ export default () => {
                 alignItems: 'center',
               }}
             >
-              <Styled.h3 sx={{ color: 'white', mb: 9, mt: 0 }}>Other</Styled.h3>
+              <Styled.h2 sx={{ color: 'white', mb: 9, mt: [3, 0] }}>
+                Other
+              </Styled.h2>
               <a
                 sx={linkStyle}
                 target="__blank"

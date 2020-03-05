@@ -27,7 +27,7 @@ public struct DetailedLogHandler: LogHandler {
         file: String, function: String, line: UInt
     ) {
         
-        var log: String = "\(timestamp()) \(level.rawValue, .bold) \(label)"
+        var log: String = "\(timestamp()) \(level.rawValue, .highlight) \(label)"
         
         let mergedMetadata = metadata.map{ self.metadata.merging($0, uniquingKeysWith: { $1 }) } ?? self.metadata
         

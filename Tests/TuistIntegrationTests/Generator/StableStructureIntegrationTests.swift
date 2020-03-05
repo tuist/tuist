@@ -31,7 +31,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         try (0 ..< 10).forEach { _ in
             let subject = Generator(modelLoader: try createModelLoader())
 
-            let workspacePath = try subject.generateWorkspace(at: temporaryPath, workspaceFiles: [])
+            let (workspacePath, _) = try subject.generateWorkspace(at: temporaryPath, workspaceFiles: [])
 
             let workspace = try XCWorkspace(path: workspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: workspace)

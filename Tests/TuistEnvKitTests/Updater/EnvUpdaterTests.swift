@@ -5,18 +5,18 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class EnvUpdaterTests: TuistUnitTestCase {
-    var githubClient: MockGitHubClient!
+    var googleCloudStorageClient: MockGoogleCloudStorageClient!
     var subject: EnvUpdater!
 
     override func setUp() {
         super.setUp()
 
-        githubClient = MockGitHubClient()
-        subject = EnvUpdater(githubClient: githubClient)
+        googleCloudStorageClient = MockGoogleCloudStorageClient()
+        subject = EnvUpdater(googleCloudStorageClient: googleCloudStorageClient)
     }
 
     override func tearDown() {
-        githubClient = nil
+        googleCloudStorageClient = nil
         subject = nil
 
         super.tearDown()
@@ -25,10 +25,9 @@ final class EnvUpdaterTests: TuistUnitTestCase {
     func test_update() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        fileHandler.stubInTemporaryDirectory = temporaryPath
         let downloadURL = URL(string: "https://file.download.com/tuistenv.zip")!
-        let release = Release.test(assets: [Release.Asset(downloadURL: downloadURL, name: "tuistenv.zip")])
-        githubClient.releasesStub = { [release] }
-
+        googleCloudStorageClient.latestTuistEnvBundleURLStub = downloadURL
         let downloadPath = temporaryPath.appending(component: "tuistenv.zip")
         system.succeedCommand(["/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, downloadURL.absoluteString])
         system.succeedCommand(["/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/"])

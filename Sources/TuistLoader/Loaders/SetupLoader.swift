@@ -50,7 +50,7 @@ public class SetupLoader: SetupLoading {
             .printAndThrowIfNeeded()
         try setup.forEach { command in
             if try !command.isMet(projectPath: path) {
-                logger.info("Configuring \(command.name)".subsection())
+                logger.info("Configuring \(command.name)".as(.subsection))
                 try command.meet(projectPath: path)
             }
         }

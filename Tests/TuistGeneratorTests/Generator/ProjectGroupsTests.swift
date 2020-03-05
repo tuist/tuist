@@ -48,7 +48,7 @@ final class ProjectGroupsTests: XCTestCase {
                                          sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
-        let main = subject.main
+        let main = subject.sortedMain
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
         XCTAssertEqual(main.children.count, 5)
@@ -96,6 +96,7 @@ final class ProjectGroupsTests: XCTestCase {
         playgrounds.pathsStub = { _ in
             [AbsolutePath("/Playgrounds/Test.playground")]
         }
+
         let target1 = Target.test(filesGroup: .group(name: "B"))
         let target2 = Target.test(filesGroup: .group(name: "C"))
         let target3 = Target.test(filesGroup: .group(name: "A"))
@@ -111,7 +112,7 @@ final class ProjectGroupsTests: XCTestCase {
                                          playgrounds: playgrounds)
 
         // Then
-        let paths = subject.main.children.compactMap { $0.nameOrPath }
+        let paths = subject.sortedMain.children.compactMap { $0.nameOrPath }
         XCTAssertEqual(paths, [
             "P",
             "B",

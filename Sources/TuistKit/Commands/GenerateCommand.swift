@@ -63,7 +63,7 @@ class GenerateCommand: NSObject, Command {
 
         let time = String(format: "%.3f", timer.stop())
         
-        logger.info("Project generated.".success())
+        logger.info("Project generated.".as(.success))
         logger.info("Total time taken: \(time)s")
     }
 

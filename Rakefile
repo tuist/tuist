@@ -23,7 +23,7 @@ end
 
 desc("Swift format check")
 task :swift_format do
-  Kernel.system("swiftformat", "--lint", ".") || abort 
+  Kernel.system("swiftformat", "--lint", ".") || abort
 end
 
 desc("Lints the Ruby code style")
@@ -55,11 +55,11 @@ task :package_commit do
 
   bucket = storage.bucket("tuist-builds")
 
-  sha = %x(git rev-parse --short HEAD).strip.chomp
+  sha = %x(git rev-parse HEAD).strip.chomp
   print_section("Uploading tuist-#{sha}")
   file = bucket.create_file(
     "build/tuist.zip",
-    "tuist-#{sha}.zip"
+    "#{sha}.zip"
   )
 
   file.acl.public!

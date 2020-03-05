@@ -43,7 +43,7 @@ extension Platform {
     public var xcodeSimulatorDestination: String? {
         switch self {
         case .macOS: return nil
-        default: return "\(caseValue) Simulator"
+        default: return "platform=\(caseValue) Simulator"
         }
     }
 

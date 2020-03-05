@@ -4,10 +4,9 @@ import XCTest
 
 @testable import TuistSupport
 
-// This mock file handler is used to override both, the current path and the temporary directory
-// returned by the inTemporaryDirectory method. The temporary directory is lazily created if either
-// the test case or subject consume the API.
-private class MockFileHandler: FileHandler {
+// This mock file handler is used to override the current path to a temporary directory.
+// The temporary directory is lazily created if either the test case or subject consume the API.
+public final class MockFileHandler: FileHandler {
     let temporaryDirectory: () throws -> (AbsolutePath)
 
     init(temporaryDirectory: @escaping () throws -> (AbsolutePath)) {
@@ -16,17 +15,20 @@ private class MockFileHandler: FileHandler {
     }
 
     // swiftlint:disable:next force_try
-    override var currentPath: AbsolutePath { try! self.temporaryDirectory() }
+    public override var currentPath: AbsolutePath { try! temporaryDirectory() }
 
-    override func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
-        try closure(temporaryDirectory())
+    public var stubInTemporaryDirectory: AbsolutePath?
+    public override func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
+        guard let stubInTemporaryDirectory = stubInTemporaryDirectory else {
+            try super.inTemporaryDirectory(closure)
+            return
+        }
+        try closure(stubInTemporaryDirectory)
     }
 }
 
 public class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
-    
-    var collectedLogs: [String] = [ ]
         
     public override static func setUp() {
         super.setUp()
@@ -35,11 +37,23 @@ public class TuistTestCase: XCTestCase {
         }
     }
 
+    public var fileHandler: MockFileHandler!
+    public var environment: MockEnvironment!
+
     public override func setUp() {
         super.setUp()
 
+        do {
+            // Environment
+            environment = try MockEnvironment()
+            Environment.shared = environment
+        } catch {
+            XCTFail("Failed to setup environment")
+        }
+        
         // FileHandler
-        FileHandler.shared = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
+        fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
+        FileHandler.shared = fileHandler
     }
 
     public override func tearDown() {

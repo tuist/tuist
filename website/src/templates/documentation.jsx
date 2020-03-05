@@ -4,13 +4,10 @@ import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { graphql, Link, withPrefix } from 'gatsby'
 import Layout from '../components/layout'
 import Footer from '../components/footer'
-import {
-  GatsbySeo,
-  ArticleJsonLd,
-  BreadcrumbJsonLd,
-} from 'gatsby-plugin-next-seo'
+import { ArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
 import moment from 'moment'
+import SEO from '../components/SEO'
 
 const DocumentationPage = ({
   data: {
@@ -24,7 +21,7 @@ const DocumentationPage = ({
   const page = mdx
   return (
     <Layout>
-      <GatsbySeo
+      <SEO
         title={page.frontmatter.name}
         description={page.frontmatter.excerpt}
       />
@@ -87,11 +84,15 @@ const DocumentationPage = ({
                         to={file.childMdx.fields.slug}
                         sx={{ color: current ? 'primary' : 'gray2' }}
                       >
-                        <Styled.h4
-                          sx={{ textAlign: ['center', 'left'], mt: 3 }}
+                        <div
+                          sx={{
+                            textAlign: ['center', 'left'],
+                            my: 3,
+                            fontSize: 2,
+                          }}
                         >
                           {file.childMdx.frontmatter.name}
-                        </Styled.h4>
+                        </div>
                       </Link>
                     )
                   })}

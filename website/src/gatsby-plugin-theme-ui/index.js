@@ -1,6 +1,6 @@
 import prismTheme from '@theme-ui/prism/presets/night-owl.json'
 import { system } from '@theme-ui/presets'
-import { darken } from '@theme-ui/color'
+import prism from '@theme-ui/prism/presets/theme-ui'
 
 // Breakpoints
 const breakpoints = ['40em', '52em', '64em', '80em']
@@ -59,7 +59,7 @@ const colors = {
   primaryAlpha: 'rgba(49,149,230, 0.1)',
   primaryComplementary: 'white',
   secondary: '#6F52DA',
-  accent: '#64c4ed',
+  accent: '#097a32',
   muted: '#F2F2F2',
   // New colors
   gray1: '#333333',
@@ -83,6 +83,7 @@ const styles = {
     fontFamily: 'body',
     lineHeight: 'body',
     fontWeight: 'body',
+    fontSize: 2,
   },
   a: {
     color: 'secondary',
@@ -100,13 +101,17 @@ const styles = {
     mb: 3,
   },
   pre: {
-    ...prismTheme,
-    margin: 3,
-    padding: 3,
-    borderRadius: 2,
+    fontFamily: 'monospace',
+    fontSize: 1,
+    bg: 'muted',
+    p: 3,
+    borderRadius: 8,
+    overflowX: 'auto',
+    variant: 'prism',
   },
   code: {
-    fontSize: 0,
+    fontFamily: 'monospace',
+    color: 'secondary',
   },
   blockquote: {
     bg: 'muted',
@@ -120,7 +125,7 @@ const styles = {
   h1: {
     ...heading,
     fontWeight: 'heading',
-    marginTop: 2,
+    marginTop: 4,
     color: 'primary',
   },
   h2: {
@@ -145,7 +150,7 @@ const styles = {
   h6: {
     ...heading,
     fontWeight: 'body',
-    marginTop: 3,
+    marginTop: 2,
   },
   ul: {
     pl: 4,
@@ -162,6 +167,7 @@ export default {
   fontSizes,
   fontWeights,
   lineHeights,
+  prism,
   styles,
   colors,
 }

@@ -18,7 +18,7 @@ final class DeprecatorTests: TuistUnitTestCase {
     }
 
     func test_notify() {
-        subject.notify(deprecation: "foo", suggestion: "bar")
+        subject.notify(deprecation: "foo", suggestion: "Use bar")
         XCTAssertPrinterOutputContains("foo will be deprecated in the next major release. Use bar instead.")
     }
 }

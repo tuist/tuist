@@ -1,11 +1,76 @@
+public enum ConsolePrettyToken: String {
+    
+    case highlight
+    case success
+    case section
+    case subsection
+    case command
+    
+    var tokens: Set<ConsoleToken> {
+        switch self {
+        case .highlight:
+            return [ .bold ]
+        case .success:
+            return [ .green, .bold ]
+        case .section:
+            return [ .lightCyan, .bold ]
+        case .subsection:
+            return [ .lightCyan ]
+        case .command:
+            return [ .white, .bold ]
+        }
+    }
+    
+}
+
+extension String {
+    
+    public func `as`(_ token: ConsolePrettyToken...) -> Logger.Message {
+        return Logger.Message("\(self, token)")
+    }
+    
+}
+
+extension String.StringInterpolation {
+
+    public mutating func appendInterpolation(_ value: String, _ first: ConsolePrettyToken, rest: ConsolePrettyToken...) {
+        appendInterpolation(value, [ first ] + rest)
+    }
+    
+    public mutating func appendInterpolation(_ value: String, _ token: [ConsolePrettyToken]) {
+        let tokens = token.flatMap({ $0.tokens })
+        appendInterpolation(value, Set(tokens))
+    }
+    
+    internal mutating func appendInterpolation(_ value: String, _ token: Set<ConsoleToken>) {
+        
+        if Environment.shared.shouldOutputBeColoured {
+            appendLiteral(value.apply(token))
+        } else {
+            appendLiteral(value)
+        }
+
+    }
+    
+}
+
+extension Set where Element == ConsoleToken {
+    func apply(to string: String) -> String {
+        reduce(string) { $1.apply($0) }
+    }
+}
+
+extension String {
+    func apply(_ token: Set<ConsoleToken>) -> String {
+        token.apply(to: self)
+    }
+}
+
 /// A token used in the console to colourize output. This OptionSet is used to
 /// allow for consumers to specify one-or-many different tokens to apply to the
 /// formatting of a string rendered inside the console. See ColourizeSwift for
 /// implementation details on how this unfolds when it arrives in Terminal.app.
-public enum ConsoleToken: String {
-    
-    public static let key: String = "console-attributes"
-
+enum ConsoleToken: String {
     case black
     case blue
     case cyan
@@ -143,77 +208,4 @@ public enum ConsoleToken: String {
         
     }
 
-}
-
-extension Set where Element == ConsoleToken {
-    func apply(to string: String) -> String {
-        reduce(string) { $1.apply($0) }
-    }
-}
-
-extension String {
-    func apply(_ token: Set<ConsoleToken>) -> String {
-        token.apply(to: self)
-    }
-}
-
-/// Provide API on anything `CustomStringConvertible` to allow for colouring inside the console
-typealias Colorize = CustomStringConvertible
-
-extension Colorize {
-    
-    public func cyan() -> Logger.Message {
-        "\(description, .cyan)"
-    }
-    
-    public func red() -> Logger.Message {
-        "\(description, .red)"
-    }
-
-    public func green() -> Logger.Message {
-        "\(description, .green)"
-    }
-    
-    public func yellow() -> Logger.Message {
-        "\(description, .yellow)"
-    }
-    
-    public func bold() -> Logger.Message {
-        "\(description, .bold)"
-    }
-    
-}
-
-extension Colorize {
-    
-    public func section() -> Logger.Message {
-        "\(description, .cyan, .bold)"
-    }
-    
-    public func subsection() -> Logger.Message {
-        "\(description, .cyan)"
-    }
-    
-    public func success() -> Logger.Message {
-        "\(description, .green, .bold)"
-    }
-    
-}
-
-extension String.StringInterpolation {
-
-    public mutating func appendInterpolation(_ value: String, _ token: ConsoleToken...) {
-        appendInterpolation(value, Set(token))
-    }
-    
-    public mutating func appendInterpolation(_ value: String, _ token: Set<ConsoleToken>) {
-        
-        if Environment.shared.shouldOutputBeColoured {
-            appendLiteral(value.apply(token))
-        } else {
-            appendLiteral(value)
-        }
-
-    }
-    
 }

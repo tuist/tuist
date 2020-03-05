@@ -3,38 +3,33 @@ import SPMUtility
 import TuistCore
 import TuistSupport
 
-protocol GraphLinting: AnyObject {
+public protocol GraphLinting: AnyObject {
     func lint(graph: Graphing) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
-class GraphLinter: GraphLinting {
+public class GraphLinter: GraphLinting {
     // MARK: - Attributes
 
-    let projectLinter: ProjectLinting
+    private let projectLinter: ProjectLinting
+    private let staticProductsLinter: StaticProductsGraphLinting
 
     // MARK: - Init
 
-    init(projectLinter: ProjectLinting = ProjectLinter()) {
-        self.projectLinter = projectLinter
+    public convenience init() {
+        self.init(projectLinter: ProjectLinter(),
+                  staticProductsLinter: StaticProductsGraphLinter())
     }
 
-    struct StaticDepedencyWarning: Hashable {
-        let fromTargetNode: TargetNode
-        let toTargetNode: GraphNode
-
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(toTargetNode)
-        }
-
-        static func == (lhs: StaticDepedencyWarning, rhs: StaticDepedencyWarning) -> Bool {
-            lhs.toTargetNode == rhs.toTargetNode
-        }
+    init(projectLinter: ProjectLinting,
+         staticProductsLinter: StaticProductsGraphLinting) {
+        self.projectLinter = projectLinter
+        self.staticProductsLinter = staticProductsLinter
     }
 
     // MARK: - GraphLinting
 
-    func lint(graph: Graphing) -> [LintingIssue] {
+    public func lint(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
         issues.append(contentsOf: lintDependencies(graph: graph))
@@ -48,13 +43,12 @@ class GraphLinter: GraphLinting {
     func lintDependencies(graph: Graphing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         var evaluatedNodes: [GraphNode] = []
-        var linkedStaticProducts = Set<StaticDepedencyWarning>()
         graph.entryNodes.forEach {
             issues.append(contentsOf: lintGraphNode(node: $0,
-                                                    evaluatedNodes: &evaluatedNodes,
-                                                    linkedStaticProducts: &linkedStaticProducts))
+                                                    evaluatedNodes: &evaluatedNodes))
         }
 
+        issues.append(contentsOf: staticProductsLinter.lint(graph: graph))
         issues.append(contentsOf: lintCarthageDependencies(graph: graph))
         issues.append(contentsOf: lintCocoaPodsDependencies(graph: graph))
         issues.append(contentsOf: lintPackageDependencies(graph: graph))
@@ -63,8 +57,7 @@ class GraphLinter: GraphLinting {
     }
 
     private func lintGraphNode(node: GraphNode,
-                               evaluatedNodes: inout [GraphNode],
-                               linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
+                               evaluatedNodes: inout [GraphNode]) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         defer { evaluatedNodes.append(node) }
 
@@ -74,43 +67,17 @@ class GraphLinter: GraphLinting {
         targetNode.dependencies.forEach { toNode in
             if let toTargetNode = toNode as? TargetNode {
                 issues.append(contentsOf: lintDependency(from: targetNode,
-                                                         to: toTargetNode,
-                                                         linkedStaticProducts: &linkedStaticProducts))
-            } else if let toPackageNode = toNode as? PackageProductNode {
-                issues.append(contentsOf: lintPackageDependency(from: targetNode,
-                                                                to: toPackageNode,
-                                                                linkedStaticProducts: &linkedStaticProducts))
+                                                         to: toTargetNode))
             }
             issues.append(contentsOf: lintGraphNode(node: toNode,
-                                                    evaluatedNodes: &evaluatedNodes,
-                                                    linkedStaticProducts: &linkedStaticProducts))
+                                                    evaluatedNodes: &evaluatedNodes))
         }
 
         return issues
     }
 
-    /// Package dependencies are also static products, so we need to perform the same check as for them
-    private func lintPackageDependency(from: TargetNode,
-                                       to: PackageProductNode,
-                                       linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
-        guard from.target.canLinkStaticProducts() else {
-            return []
-        }
-        let warning = StaticDepedencyWarning(fromTargetNode: from,
-                                             toTargetNode: to)
-        let (inserted, oldMember) = linkedStaticProducts.insert(warning)
-        guard inserted == false else {
-            return []
-        }
-
-        let reason = "Package \(to.name) has been linked against \(oldMember.fromTargetNode.target.name) and \(from.target.name), it is a static product so may introduce unwanted side effects."
-        let issue = LintingIssue(reason: reason, severity: .warning)
-        return [issue]
-    }
-
     private func lintDependency(from: TargetNode,
-                                to: TargetNode,
-                                linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
+                                to: TargetNode) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let fromTarget = LintableTarget(platform: from.target.platform,
@@ -131,29 +98,7 @@ class GraphLinter: GraphLinting {
             issues.append(issue)
         }
 
-        issues.append(contentsOf: lintStaticDependencies(from: from,
-                                                         to: to,
-                                                         linkedStaticProducts: &linkedStaticProducts))
-
         return issues
-    }
-
-    private func lintStaticDependencies(from: TargetNode,
-                                        to: TargetNode,
-                                        linkedStaticProducts: inout Set<StaticDepedencyWarning>) -> [LintingIssue] {
-        guard to.target.product.isStatic, from.target.canLinkStaticProducts() else {
-            return []
-        }
-        let warning = StaticDepedencyWarning(fromTargetNode: from,
-                                             toTargetNode: to)
-        let (inserted, oldMember) = linkedStaticProducts.insert(warning)
-        guard inserted == false else {
-            return []
-        }
-
-        let reason = "Target \(to.target.name) has been linked against \(oldMember.fromTargetNode.target.name) and \(from.target.name), it is a static product so may introduce unwanted side effects."
-        let issue = LintingIssue(reason: reason, severity: .warning)
-        return [issue]
     }
 
     private func lintMismatchingConfigurations(graph: Graphing) -> [LintingIssue] {

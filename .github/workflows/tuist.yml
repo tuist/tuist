@@ -1,6 +1,20 @@
 name: Tuist
 
-on: ['push']
+on:
+  push:
+    branches:    
+      - master
+    paths:
+      - Sources/**/*
+      - Tests/**/*
+      - fixtures/**/*
+      - .github/workflows/tuist.yml
+  pull_request:
+    paths:
+      - Sources/**/*
+      - Tests/**/*
+      - fixtures/**/*
+      - .github/workflows/tuist.yml
 
 jobs:
   unit_tests:
@@ -50,6 +64,7 @@ jobs:
       - name: Run tests
         run: bundle exec rake features
   upload:
+    if: github.ref == 'refs/heads/master'
     name: Upload
     runs-on: macOS-latest
     steps:

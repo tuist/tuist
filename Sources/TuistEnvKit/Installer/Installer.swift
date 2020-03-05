@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import RxBlocking
 import TuistSupport
 
 /// Protocol that defines the interface of an instance that can install versions of Tuist.
@@ -55,16 +56,16 @@ final class Installer: Installing {
 
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
-    let githubClient: GitHubClienting
+    let googleCloudStorageClient: GoogleCloudStorageClienting
 
     // MARK: - Init
 
     init(buildCopier: BuildCopying = BuildCopier(),
          versionsController: VersionsControlling = VersionsController(),
-         githubClient: GitHubClienting = GitHubClient()) {
+         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
         self.buildCopier = buildCopier
         self.versionsController = versionsController
-        self.githubClient = githubClient
+        self.googleCloudStorageClient = googleCloudStorageClient
     }
 
     // MARK: - Installing
@@ -83,10 +84,7 @@ final class Installer: Installing {
             return
         }
 
-        var bundleURL: URL?
-        do {
-            bundleURL = try self.bundleURL(version: version)
-        } catch {}
+        let bundleURL: URL? = try googleCloudStorageClient.tuistBundleURL(version: version).toBlocking().first() ?? nil
 
         if let bundleURL = bundleURL {
             try installFromBundle(bundleURL: bundleURL,
@@ -98,25 +96,14 @@ final class Installer: Installing {
         }
     }
 
-    func bundleURL(version: String) throws -> URL? {
-        guard let release = try? githubClient.release(tag: version) else {
-            logger.warning("The release \(version) couldn't be obtained from GitHub")
-            return nil
-        }
-        guard let bundleAsset = release.assets.first(where: { $0.name == Constants.bundleName }) else {
-            logger.warning("The release \(version) is not bundled")
-            return nil
-        }
-        return bundleAsset.downloadURL
-    }
-
     func installFromBundle(bundleURL: URL,
                            version: String,
                            temporaryDirectory: TemporaryDirectory) throws {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
-            logger.info("Downloading version from \(bundleURL.absoluteString)")
+            logger.info("Downloading version \(version)")
+
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
             try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 
@@ -129,6 +116,7 @@ final class Installer: Installing {
         })
     }
 
+    // swiftlint:disable:next function_body_length
     func installFromSource(version: String,
                            temporaryDirectory: TemporaryDirectory) throws {
         try versionsController.install(version: version) { installationDirectory in
@@ -137,33 +125,56 @@ final class Installer: Installing {
 
             // Cloning and building
             logger.info("Pulling source code")
-            try System.shared.run("/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString)
+            _ = try System.shared.observable(["/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString])
+                .mapToString()
+                .printStandardError()
+                .toBlocking()
+                .last()
 
-            do {
-                try System.shared.run("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version)
-            } catch let error as TuistSupport.SystemError {
-                if error.description.contains("did not match any file(s) known to git") {
+            let gitCheckoutResult = System.shared.observable(["/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version])
+                .mapToString()
+                .toBlocking()
+                .materialize()
+
+            if case let .failed(elements, error) = gitCheckoutResult {
+                if elements.map({ $0.value }).first(where: { $0.contains("did not match any file(s) known to git") }) != nil {
                     throw InstallerError.versionNotFound(version)
+                } else {
+                    throw error
                 }
-                throw error
             }
 
             logger.info("Building using Swift (it might take a while)")
-            let swiftPath = try System.shared.capture("/usr/bin/xcrun", "-f", "swift").spm_chuzzle()!
+            let swiftPath = try System.shared
+                .observable(["/usr/bin/xcrun", "-f", "swift"])
+                .mapToString()
+                .collectOutput()
+                .toBlocking()
+                .last()!
+                .standardOutput
+                .spm_chuzzle()!
 
-            try System.shared.run(swiftPath, "build",
-                                  "--product", "tuist",
-                                  "--package-path", temporaryDirectory.path.pathString,
-                                  "--configuration", "release")
+            _ = try System.shared.observable([swiftPath, "build",
+                                              "--product", "tuist",
+                                              "--package-path", temporaryDirectory.path.pathString,
+                                              "--configuration", "release"])
+                .mapToString()
+                .printStandardError()
+                .toBlocking()
+                .last()
 
-            try System.shared.run(swiftPath, "build",
-                                  "--product", "ProjectDescription",
-                                  "--package-path", temporaryDirectory.path.pathString,
-                                  "--configuration", "release",
-                                  "-Xswiftc", "-enable-library-evolution",
-                                  "-Xswiftc", "-emit-module-interface",
-                                  "-Xswiftc", "-emit-module-interface-path",
-                                  "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString) // swiftlint:disable:this line_length
+            _ = try System.shared.observable([swiftPath, "build",
+                                              "--product", "ProjectDescription",
+                                              "--package-path", temporaryDirectory.path.pathString,
+                                              "--configuration", "release",
+                                              "-Xswiftc", "-enable-library-evolution",
+                                              "-Xswiftc", "-emit-module-interface",
+                                              "-Xswiftc", "-emit-module-interface-path",
+                                              "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString]) // swiftlint:disable:this line_length
+                .mapToString()
+                .printStandardError()
+                .toBlocking()
+                .last()
 
             if FileHandler.shared.exists(installationDirectory) {
                 try FileHandler.shared.delete(installationDirectory)

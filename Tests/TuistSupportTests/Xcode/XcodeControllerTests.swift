@@ -29,6 +29,28 @@ final class XcodeControllerTests: TuistUnitTestCase {
         XCTAssertNil(xcode)
     }
 
+    func test_selected_is_cached() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try FileHandler.shared.createFolder(contentsPath)
+        let infoPlistPath = contentsPath.appending(component: "Info.plist")
+        let developerPath = contentsPath.appending(component: "Developer")
+        let infoPlist = Xcode.InfoPlist(version: "11.3")
+        let infoPlistData = try PropertyListEncoder().encode(infoPlist)
+        try infoPlistData.write(to: infoPlistPath.url)
+
+        system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
+
+        // When
+        _ = try subject.selected()
+
+        // Then
+        // Testing that on the second run the value is cached and does not trigger a terminal command
+        system.errorCommand(["xcode-select", "-p"])
+        XCTAssertNotNil(try subject.selected())
+    }
+
     func test_selected_when_xcodeSelectReturnsThePath() throws {
         // Given
         let temporaryPath = try self.temporaryPath()

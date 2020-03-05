@@ -3,42 +3,36 @@ import Foundation
 import ProjectDescription
 @testable import TuistLoader
 
-final class MockManifestLoader: ManifestLoading {
-    var loadProjectCount: UInt = 0
-    var loadProjectStub: ((AbsolutePath) throws -> ProjectDescription.Project)?
+public final class MockManifestLoader: ManifestLoading {
+    public var loadProjectCount: UInt = 0
+    public var loadProjectStub: ((AbsolutePath) throws -> ProjectDescription.Project)?
 
-    var loadWorkspaceCount: UInt = 0
-    var loadWorkspaceStub: ((AbsolutePath) throws -> ProjectDescription.Workspace)?
+    public var loadWorkspaceCount: UInt = 0
+    public var loadWorkspaceStub: ((AbsolutePath) throws -> ProjectDescription.Workspace)?
 
-    var manifestsAtCount: UInt = 0
-    var manifestsAtStub: ((AbsolutePath) -> Set<Manifest>)?
+    public var manifestsAtCount: UInt = 0
+    public var manifestsAtStub: ((AbsolutePath) -> Set<Manifest>)?
 
-    var manifestPathCount: UInt = 0
-    var manifestPathStub: ((AbsolutePath, Manifest) throws -> AbsolutePath)?
+    public var manifestPathCount: UInt = 0
+    public var manifestPathStub: ((AbsolutePath, Manifest) throws -> AbsolutePath)?
 
-    var loadSetupCount: UInt = 0
-    var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
+    public var loadSetupCount: UInt = 0
+    public var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
 
-    var loadTuistConfigCount: UInt = 0
-    var loadTuistConfigStub: ((AbsolutePath) throws -> ProjectDescription.TuistConfig)?
+    public var loadTuistConfigCount: UInt = 0
+    public var loadTuistConfigStub: ((AbsolutePath) throws -> ProjectDescription.TuistConfig)?
 
-    var loadGalaxyCount: UInt = 0
-    var loadGalaxyStub: ((AbsolutePath) throws -> ProjectDescription.Galaxy)?
+    public init() {}
 
-    func loadGalaxy(at path: AbsolutePath) throws -> ProjectDescription.Galaxy {
-        loadGalaxyCount += 1
-        return try loadGalaxyStub?(path) ?? ProjectDescription.Galaxy.test()
-    }
-
-    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
+    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
         try loadProjectStub?(path) ?? ProjectDescription.Project.test()
     }
 
-    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
         try loadWorkspaceStub?(path) ?? ProjectDescription.Workspace.test()
     }
 
-    func manifests(at path: AbsolutePath) -> Set<Manifest> {
+    public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         manifestsAtCount += 1
         return manifestsAtStub?(path) ?? Set()
     }
@@ -48,12 +42,12 @@ final class MockManifestLoader: ManifestLoading {
         return try manifestPathStub?(path, manifest) ?? TemporaryDirectory(removeTreeOnDeinit: true).path
     }
 
-    func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
         loadSetupCount += 1
         return try loadSetupStub?(path) ?? []
     }
 
-    func loadTuistConfig(at path: AbsolutePath) throws -> TuistConfig {
+    public func loadTuistConfig(at path: AbsolutePath) throws -> TuistConfig {
         loadTuistConfigCount += 1
         return try loadTuistConfigStub?(path) ?? ProjectDescription.TuistConfig.test()
     }

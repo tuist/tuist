@@ -16,7 +16,8 @@ import Swift from '../../assets/swift.svg'
 import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import Quote from '../../assets/quote.svg'
-import { GatsbySeo } from 'gatsby-plugin-next-seo'
+import SEO from '../components/SEO'
+import Soundcloud from '../../assets/soundcloud.svg'
 
 const PressableButton = posed.div({
   hoverable: true,
@@ -121,13 +122,14 @@ const Steroids = () => {
               title="GET STARTED"
               link="/docs/usage/getting-started/"
             />
-            {/* <div sx={{ color: 'gray4', mt: 4 }}>
+            <div sx={{ color: 'gray4', mt: 4 }}>
               Trusted by the following companies and projects:
             </div>
             <div sx={{ mt: 3 }}>
-              <Soundcloud sx={{ height: 30 }} />
-              <Mytaxi sx={{ ml: 3, height: 30 }} />
-            </div> */}
+              <a href="https://soundcloud.com" target="__blank">
+                <Soundcloud sx={{ height: 30 }} />
+              </a>
+            </div>
           </div>
           <div sx={{ display: 'block' }}>
             <Swift sx={{ alignSelf: 'flex-start', ml: [0, 6] }} />
@@ -418,7 +420,7 @@ const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
           p: 3,
         }}
       >
-        <Quote>"{testimony}"</Quote>
+        {testimony}
       </div>
       <div
         sx={{
@@ -496,7 +498,7 @@ const FloatingBalls = ({ bg }) => {
           <Ball
             size={Math.random() * 50}
             color={color}
-            key="index"
+            key={index}
             top={top}
             left={left}
           />
@@ -545,6 +547,7 @@ const Reflections = () => {
               }}
             >
               <Reflection
+                key="0"
                 name="OLIVER ATKINSON"
                 testimony="It has really helped out the team and project by creating an environment where defining new modules is easy, modularity allows us to focus and become experts in our individual domains."
                 role="SENIOR IOS ENGINEER"
@@ -552,6 +555,7 @@ const Reflections = () => {
                 avatarUrl="https://en.gravatar.com/userimage/41347978/456ffd8f0ef3f52c6e38f9003f4c51fa.jpg?size=460"
               />
               <Reflection
+                key="1"
                 name="TYLER NEVELDINE"
                 testimony="Tuist centralizes our entire workspace’s configuration and describes it in a language that we all understand. This increases the readability and approachability of our project tenfold."
                 role="IOS LEAD"
@@ -559,6 +563,7 @@ const Reflections = () => {
                 avatarUrl="https://pbs.twimg.com/profile_images/999765687777148928/wSJxk3Ni_400x400.jpg"
               />
               <Reflection
+                key="2"
                 name="ROMAIN BOULAY"
                 testimony="Tuist has delivered more than the SoundCloud iOS Collective expected! We aimed to make modularization more accessible and maintainable. We got this... and better build times!."
                 role="IOS LEAD"
@@ -723,8 +728,7 @@ const Contribute = () => {
 const IndexPage = () => {
   return (
     <Layout>
-      <GatsbySeo titleTemplate="%s" title="Tuist" />
-
+      <SEO title="Xcode on steroids" />
       <Steroids />
       <Workspaces />
       <Principles />

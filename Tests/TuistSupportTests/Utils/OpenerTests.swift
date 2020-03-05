@@ -37,14 +37,6 @@ final class OpenerTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(try subject.open(path: path), OpeningError.notFound(path))
     }
 
-    func test_open() throws {
-        let temporaryPath = try self.temporaryPath()
-        let path = temporaryPath.appending(component: "tool")
-        try FileHandler.shared.touch(path)
-        system.succeedCommand("/usr/bin/open", "-W", path.pathString)
-        try subject.open(path: path)
-    }
-
     func test_open_when_wait_is_false() throws {
         let temporaryPath = try self.temporaryPath()
         let path = temporaryPath.appending(component: "tool")
