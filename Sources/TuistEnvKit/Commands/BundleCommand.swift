@@ -67,7 +67,7 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        logger.notice("Bundling the version \(version) in the directory \(binFolderPath.pathString)".section())
+        logger.notice("Bundling the version \(version) in the directory \(binFolderPath.pathString)", metadata: .section)
 
         let versionPath = versionsController.path(version: version)
 
@@ -83,6 +83,6 @@ final class BundleCommand: Command {
         }
         try FileHandler.shared.copy(from: versionPath, to: binFolderPath)
 
-        logger.notice("tuist bundled successfully at \(binFolderPath.pathString)".success())
+        logger.notice("tuist bundled successfully at \(binFolderPath.pathString)", metadata: .success)
     }
 }
