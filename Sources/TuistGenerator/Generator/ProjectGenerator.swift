@@ -77,7 +77,7 @@ final class ProjectGenerator: ProjectGenerating {
                   sourceRootPath: AbsolutePath? = nil,
                   xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProject {
 
-        logger.info("Generating project \(project.name)")
+        logger.notice("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path

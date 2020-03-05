@@ -63,9 +63,9 @@ class CommandRunner: CommandRunning {
 
         switch resolvedVersion {
         case let .bin(path):
-            logger.info("Using bundled version at path \(path.pathString)")
+            logger.notice("Using bundled version at path \(path.pathString)")
         case let .versionFile(path, value):
-            logger.info("Using version \(value) defined at \(path.pathString)")
+            logger.notice("Using version \(value) defined at \(path.pathString)")
         default:
             break
         }
@@ -100,7 +100,7 @@ class CommandRunner: CommandRunning {
 
     func runVersion(_ version: String) throws {
         if !versionsController.versions().contains(where: { $0.description == version }) {
-            logger.info("Version \(version) not found locally. Installing...")
+            logger.notice("Version \(version) not found locally. Installing...")
             try installer.install(version: version, force: false)
         }
 

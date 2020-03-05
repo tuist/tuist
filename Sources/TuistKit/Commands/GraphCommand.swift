@@ -45,11 +45,11 @@ class GraphCommand: NSObject, Command {
 
         let path = FileHandler.shared.currentPath.appending(component: "graph.dot")
         if FileHandler.shared.exists(path) {
-            logger.info("Deleting existing graph at \(path.pathString)")
+            logger.notice("Deleting existing graph at \(path.pathString)")
             try FileHandler.shared.delete(path)
         }
 
         try FileHandler.shared.write(graph, path: path, atomically: true)
-        logger.info("Graph exported to \(path.pathString)", metadata: .success)
+        logger.notice("Graph exported to \(path.pathString)", metadata: .success)
     }
 }

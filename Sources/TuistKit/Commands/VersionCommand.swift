@@ -18,6 +18,6 @@ class VersionCommand: NSObject, Command {
     // MARK: - Command
 
     func run(with _: ArgumentParser.Result) {
-        logger.info("\(Constants.version)")
+        logger.notice("\(Constants.version)")
     }
 }

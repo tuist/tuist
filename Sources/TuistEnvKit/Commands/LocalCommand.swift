@@ -46,19 +46,19 @@ class LocalCommand: Command {
     // MARK: - Fileprivate
 
     private func printLocalVersions() throws {
-        logger.info("The following versions are available in the local environment:".section())
+        logger.notice("The following versions are available in the local environment:".section())
         let versions = versionController.semverVersions()
         let output = versions.sorted().reversed().map { "- \($0)" }.joined(separator: "\n")
-        logger.info("\(output)")
+        logger.notice("\(output)")
     }
 
     private func createVersionFile(version: String) throws {
         let currentPath = FileHandler.shared.currentPath
-        logger.info("Generating \(Constants.versionFileName) file with version \(version)".section())
+        logger.notice("Generating \(Constants.versionFileName) file with version \(version)".section())
         let tuistVersionPath = currentPath.appending(component: Constants.versionFileName)
         try "\(version)".write(to: URL(fileURLWithPath: tuistVersionPath.pathString),
                                atomically: true,
                                encoding: .utf8)
-        logger.info("File generated at path \(tuistVersionPath.pathString)".success())
+        logger.notice("File generated at path \(tuistVersionPath.pathString)".success())
     }
 }

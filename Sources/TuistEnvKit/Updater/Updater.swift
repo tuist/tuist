@@ -39,17 +39,17 @@ final class Updater: Updating {
         }
 
         if force {
-            logger.info("Forcing the update of version \(highestRemoteVersion)")
+            logger.notice("Forcing the update of version \(highestRemoteVersion)")
             try installer.install(version: highestRemoteVersion.description, force: true)
         } else if let highestLocalVersion = versionsController.semverVersions().sorted().last {
             if highestRemoteVersion <= highestLocalVersion {
-                logger.info("There are no updates available")
+                logger.notice("There are no updates available")
             } else {
-                logger.info("Installing new version available \(highestRemoteVersion)")
+                logger.notice("Installing new version available \(highestRemoteVersion)")
                 try installer.install(version: highestRemoteVersion.description, force: false)
             }
         } else {
-            logger.info("No local versions available. Installing the latest version \(highestRemoteVersion)")
+            logger.notice("No local versions available. Installing the latest version \(highestRemoteVersion)")
             try installer.install(version: highestRemoteVersion.description, force: false)
         }
     }

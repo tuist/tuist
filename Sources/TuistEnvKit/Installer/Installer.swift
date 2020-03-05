@@ -78,7 +78,7 @@ final class Installer: Installing {
     func install(version: String, temporaryDirectory: TemporaryDirectory, force: Bool = false) throws {
         // We ignore the Swift version and install from the soruce code
         if force {
-            logger.info("Forcing the installation of \(version) from the source code")
+            logger.notice("Forcing the installation of \(version) from the source code")
             try installFromSource(version: version,
                                   temporaryDirectory: temporaryDirectory)
             return
@@ -102,17 +102,17 @@ final class Installer: Installing {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
-            logger.info("Downloading version \(version)")
+            logger.notice("Downloading version \(version)")
 
             let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
             try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 
             // Unzip
-            logger.info("Installing...")
+            logger.notice("Installing...")
             try System.shared.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
-            logger.info("Version \(version) installed")
+            logger.notice("Version \(version) installed")
         })
     }
 
@@ -124,7 +124,7 @@ final class Installer: Installing {
             let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
 
             // Cloning and building
-            logger.info("Pulling source code")
+            logger.notice("Pulling source code")
             _ = try System.shared.observable(["/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString])
                 .mapToString()
                 .printStandardError()
@@ -144,7 +144,7 @@ final class Installer: Installing {
                 }
             }
 
-            logger.info("Building using Swift (it might take a while)")
+            logger.notice("Building using Swift (it might take a while)")
             let swiftPath = try System.shared
                 .observable(["/usr/bin/xcrun", "-f", "swift"])
                 .mapToString()
@@ -185,7 +185,7 @@ final class Installer: Installing {
                                  to: installationDirectory)
 
             try createTuistVersionFile(version: version, path: installationDirectory)
-            logger.info("Version \(version) installed")
+            logger.notice("Version \(version) installed")
         }
     }
 

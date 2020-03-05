@@ -96,7 +96,7 @@ class InitCommand: NSObject, Command {
         try generateTuistConfig(path: path)
         try generateGitIgnore(path: path)
 
-        logger.info("Project generated at path \(path.pathString).", metadata: .success)
+        logger.notice("Project generated at path \(path.pathString).", metadata: .success)
         
     }
 

@@ -63,8 +63,8 @@ class GenerateCommand: NSObject, Command {
 
         let time = String(format: "%.3f", timer.stop())
         
-        logger.info("Project generated.", metadata: .success)
-        logger.info("Total time taken: \(time)s")
+        logger.notice("Project generated.", metadata: .success)
+        logger.notice("Total time taken: \(time)s")
     }
 
     // MARK: - Fileprivate

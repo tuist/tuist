@@ -62,7 +62,7 @@ final class CacheController: CacheControlling {
         try graphContentHasher.contentHashes(for: graph)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
-                    logger.notice("The target \(target.name, .highlight) with hash \(hash, .highlight) is already in the cache. Skipping...")
+                    logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
                     return false
                 }
                 return true

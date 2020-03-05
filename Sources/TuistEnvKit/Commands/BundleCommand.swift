@@ -67,13 +67,13 @@ final class BundleCommand: Command {
         }
 
         let version = try String(contentsOf: versionFilePath.url)
-        logger.info("Bundling the version \(version) in the directory \(binFolderPath.pathString)".section())
+        logger.notice("Bundling the version \(version) in the directory \(binFolderPath.pathString)".section())
 
         let versionPath = versionsController.path(version: version)
 
         // Installing
         if !FileHandler.shared.exists(versionPath) {
-            logger.info("Version \(version) not available locally. Installing...")
+            logger.notice("Version \(version) not available locally. Installing...")
             try installer.install(version: version, force: false)
         }
 
@@ -83,6 +83,6 @@ final class BundleCommand: Command {
         }
         try FileHandler.shared.copy(from: versionPath, to: binFolderPath)
 
-        logger.info("tuist bundled successfully at \(binFolderPath.pathString)".success())
+        logger.notice("tuist bundled successfully at \(binFolderPath.pathString)".success())
     }
 }

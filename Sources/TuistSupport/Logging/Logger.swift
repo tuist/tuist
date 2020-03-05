@@ -6,7 +6,9 @@ let logger = Logger(label: "io.tuist.support")
 public struct LoggingConfig {
     
     public enum LoggerType {
-        case console, detailed, osLog
+        case console
+        case detailed
+        case osLog
     }
     
     public var loggerType: LoggerType
@@ -15,6 +17,7 @@ public struct LoggingConfig {
 }
 
 extension LoggingConfig {
+    
     public static var `default`:  LoggingConfig {
         
         let environment = ProcessInfo.processInfo.environment
@@ -31,8 +34,8 @@ extension LoggingConfig {
             return .init(loggerType: .console, verbose: verbose)
         }
         
-        
     }
+    
 }
 
 public enum LogOutput {

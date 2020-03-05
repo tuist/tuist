@@ -22,28 +22,36 @@ public struct StandardLogHandler: LogHandler {
         metadata: Logger.Metadata?,
         file: String, function: String, line: UInt
     ) {
-
-        let log: Logger.Message
         
-        if Environment.shared.shouldOutputBeColoured {
-            
-            switch metadata?[Logger.Metadata.colored] {
-            case .string(Logger.Metadata.successKey)?:
-                log = Logger.Message(stringLiteral: message.description.apply([ .green, .bold ]))
-            case .string(Logger.Metadata.sectionKey)?:
-                log = Logger.Message(stringLiteral: message.description.apply([ .cyan, .bold ]))
-            case .string(Logger.Metadata.subsectionKey)?:
-                log = Logger.Message(stringLiteral: message.description.apply([ .cyan ]))
-            default:
-                log = message.colorize(for: level)
+        if metadata?.keys.contains(Logger.Metadata.prettyKey) == true {
+            return
+        }
+        
+        let string: String
+        
+        switch metadata?[Logger.Metadata.tuist] {
+        case Logger.Metadata.successKey?:
+            string = message.description.green().bold()
+        case Logger.Metadata.sectionKey?:
+            string = message.description.cyan().bold()
+        case Logger.Metadata.subsectionKey?:
+            string = message.description.cyan()
+        default:
+        
+            switch level {
+            case .critical:
+                string = message.description.red().bold()
+            case .error:
+                string = message.description.red()
+            case .warning:
+                string = message.description.yellow()
+            case .notice, .info, .debug, .trace:
+                string = message.description
             }
             
-        } else {
-            log = message
         }
-
-        output(for: level).print(log.description)
-
+        
+        output(for: level).print(string)
     }
     
     func output(for level: Logger.Level) -> FileHandle {
@@ -66,6 +74,15 @@ extension FileHandle {
             .map(write)
         terminator.data(using: .utf8)
             .map(write)
+    }
+    
+}
+
+func ~= (lhs: String, rhs: Logger.MetadataValue) -> Bool {
+    
+    switch rhs {
+    case let .string(s): return lhs == s
+    default: return false
     }
     
 }
