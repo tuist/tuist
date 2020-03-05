@@ -3,8 +3,15 @@ import Foundation
 import TuistCore
 import TuistSupport
 
+/// Project Generation Configuration
+///
+/// Allow specifying additional generation options
+/// for an individual project.
 public struct ProjectGenerationConfig {
+    /// The source root path of the generated Xcode project
     public var sourceRootPath: AbsolutePath?
+
+    /// The xcodeproj file path
     public var xcodeprojPath: AbsolutePath?
 
     public init(sourceRootPath: AbsolutePath? = nil,
@@ -16,16 +23,46 @@ public struct ProjectGenerationConfig {
 
 /// Descriptor Generator
 ///
-/// Produces a side effect free representation of a generated project or workspace
+/// This component genertes`XcodeProj` representations of a given graph model.
+/// No sideeffects take place as a result of this generation.
+///
+/// - Seealso: `GraphLoader`
+/// - Seealso: `GraphLinter`
+/// - Seealso: `XcodeProjWriter`
 ///
 public protocol DescriptorGenerating {
+    /// Generate an individual project descriptor
+    ///
+    /// - Parameters:
+    ///   - project: Project model
+    ///   - graph: Graph model
+    ///
+    /// - Seealso: `GraphLoader`
     func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor
+
+    /// Generate an individual project descriptor with some additional configuration
+    ///
+    /// - Parameters:
+    ///   - project: Project model
+    ///   - graph: Graph model
+    ///   - config: The project generation configuration
+    ///
+    /// - Seealso: `GraphLoader`
     func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor
+
+    /// Generate a workspace descriptor
+    ///
+    /// - Parameters:
+    ///   - project: Workspace model
+    ///   - graph: Graph model
+    ///
+    /// - Seealso: `GraphLoader`
     func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor
 }
 
 // MARK: -
 
+/// Default implementation of `DescriptorGenerating`
 public final class DescriptorGenerator: DescriptorGenerating {
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating

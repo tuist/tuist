@@ -4,6 +4,11 @@ import TuistCore
 import TuistSupport
 
 /// A component responsible for generating Xcode projects & workspaces
+@available(
+    *,
+    deprecated,
+    message: "Generating is deprecated and will be removed in a future Tuist version. Please use `DescriptorGenerating` instead."
+)
 public protocol Generating {
     /// Generates an Xcode project at a given path. Only the specified project is generated (excluding its dependencies).
     ///
@@ -55,6 +60,11 @@ public protocol Generating {
 ///
 /// - seealso: Generating
 /// - seealso: GeneratorModelLoading
+@available(
+    *,
+    deprecated,
+    message: "Generator is deprecated and will be removed in a future Tuist version. Please use `DescriptorGenerator` instead."
+)
 public class Generator: Generating {
     private let graphLoader: GraphLoading
     private let graphLinter: GraphLinting
