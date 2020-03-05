@@ -1,10 +1,10 @@
-// swift-tools-version:5.0
+// swift-tools-version:5.1
 
 import PackageDescription
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v10_11)],
+    platforms: [.macOS(.v10_15)],
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
@@ -33,6 +33,7 @@ let package = Package(
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.7.3")),
+        .package(url: "https://github.com/apple/swift-crypto", .upToNextMajor(from: "1.0.0")),
     ],
     targets: [
         .target(
@@ -53,7 +54,7 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistSigning"]
         ),
         .testTarget(
             name: "TuistKitTests",
@@ -146,6 +147,14 @@ let package = Package(
         .testTarget(
             name: "TuistAutomationIntegrationTests",
             dependencies: ["TuistAutomation", "TuistSupportTesting"]
+        ),
+        .target(
+            name: "TuistSigning",
+            dependencies: ["TuistCore", "TuistSupport", "Crypto"]
+        ),
+        .testTarget(
+            name: "TuistSigningTests",
+            dependencies: ["TuistSigning", "TuistSupportTesting"]
         ),
         .target(
             name: "TuistLoader",

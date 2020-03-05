@@ -83,6 +83,15 @@
         }
       },
       {
+        "package": "swift-crypto",
+        "repositoryURL": "https://github.com/apple/swift-crypto",
+        "state": {
+          "branch": null,
+          "revision": "9be4a93a76d4b80105044747b35d456de7289c87",
+          "version": "1.0.0"
+        }
+      },
+      {
         "package": "llbuild",
         "repositoryURL": "https://github.com/apple/swift-llbuild.git",
         "state": {

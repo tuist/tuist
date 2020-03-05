@@ -29,6 +29,7 @@ public final class CommandRegistry {
         register(command: EditCommand.self)
         register(command: CacheCommand.self)
         register(command: LintCommand.self)
+        register(command: EncryptCommand.self)
         register(rawCommand: BuildCommand.self)
     }
 
