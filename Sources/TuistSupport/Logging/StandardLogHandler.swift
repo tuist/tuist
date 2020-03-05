@@ -26,7 +26,18 @@ public struct StandardLogHandler: LogHandler {
         let log: Logger.Message
         
         if Environment.shared.shouldOutputBeColoured {
-            log = message.colorize(for: level)
+            
+            switch metadata?[Logger.Metadata.colored] {
+            case .string(Logger.Metadata.successKey)?:
+                log = Logger.Message(stringLiteral: message.description.apply([ .green, .bold ]))
+            case .string(Logger.Metadata.sectionKey)?:
+                log = Logger.Message(stringLiteral: message.description.apply([ .cyan, .bold ]))
+            case .string(Logger.Metadata.subsectionKey)?:
+                log = Logger.Message(stringLiteral: message.description.apply([ .cyan ]))
+            default:
+                log = message.colorize(for: level)
+            }
+            
         } else {
             log = message
         }

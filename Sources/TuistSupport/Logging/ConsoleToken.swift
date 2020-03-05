@@ -1,32 +1,39 @@
 public enum ConsolePrettyToken: String {
     
     case highlight
-    case success
-    case section
-    case subsection
     case command
+    case keystroke
     
     var tokens: Set<ConsoleToken> {
         switch self {
         case .highlight:
             return [ .bold ]
-        case .success:
-            return [ .green, .bold ]
-        case .section:
-            return [ .lightCyan, .bold ]
-        case .subsection:
-            return [ .lightCyan ]
         case .command:
             return [ .white, .bold ]
+        case .keystroke:
+            return [ .cyan ]
         }
     }
     
 }
 
-extension String {
+extension Logger.Metadata {
     
-    public func `as`(_ token: ConsolePrettyToken...) -> Logger.Message {
-        return Logger.Message("\(self, token)")
+    public static let colored: String = "is"
+    
+    public static let successKey: String = "success"
+    public static var success: Logger.Metadata {
+        return [ colored: .string(successKey) ]
+    }
+    
+    public static let sectionKey: String = "section"
+    public static var section: Logger.Metadata {
+        return [ colored: .string(sectionKey) ]
+    }
+    
+    public static let subsectionKey: String = "subsection"
+    public static var subsection: Logger.Metadata {
+        return [ colored: .string(subsectionKey) ]
     }
     
 }

@@ -30,7 +30,13 @@ public struct UnhandledError: FatalError {
     public let type: ErrorType = .bug
 
     /// Error description.
-    public var description: String { "UnhandledError - \(error.localizedDescription)\n\(error)" }
+    public var description: String {
+        """
+        We received an error that we couldn't handle:
+            - Localized description: \(error.localizedDescription)
+            - Error: \(error)"
+        """
+    }
 }
 
 /// Fatal error protocol.

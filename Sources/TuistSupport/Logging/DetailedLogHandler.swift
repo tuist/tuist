@@ -27,19 +27,15 @@ public struct DetailedLogHandler: LogHandler {
         file: String, function: String, line: UInt
     ) {
         
-        var log: String = "\(timestamp()) \(level.rawValue, .highlight) \(label)"
+        var log: String = "\(timestamp()) \(level.rawValue) \(label)"
         
-        let mergedMetadata = metadata.map{ self.metadata.merging($0, uniquingKeysWith: { $1 }) } ?? self.metadata
+        let mergedMetadata = metadata.map { self.metadata.merging($0, uniquingKeysWith: { $1 }) } ?? self.metadata
         
         if mergedMetadata.isEmpty == false {
             log.append(mergedMetadata.pretty)
         }
         
-        if Environment.shared.shouldOutputBeColoured {
-            log.append(message.colorize(for: level).description)
-        } else {
-            log.append(message.description)
-        }
+        log.append(message.description)
 
         output(for: level).log(level: level, message: message, metadata: metadata, file: file, function: function, line: line)
         

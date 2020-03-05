@@ -99,7 +99,7 @@ class LintCommand: NSObject, Command {
         issues.append(contentsOf: graphLinter.lint(graph: graph))
 
         if issues.isEmpty {
-            logger.notice("No linting issues found".as(.success))
+            logger.notice("No linting issues found", metadata: .success)
         } else {
             try issues.printAndThrowIfNeeded()
         }

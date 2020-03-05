@@ -1,30 +1,58 @@
 @_exported import Logging
+import class Foundation.ProcessInfo
+
 let logger = Logger(label: "io.tuist.support")
 
-import class Foundation.ProcessInfo
+public struct LoggingConfig {
+    
+    public enum LoggerType {
+        case console, detailed, osLog
+    }
+    
+    public var loggerType: LoggerType
+    public var verbose: Bool
+    
+}
+
+extension LoggingConfig {
+    public static var `default`:  LoggingConfig {
+        
+        let environment = ProcessInfo.processInfo.environment
+        
+        let os_log   = environment["TUIST_OS_LOG"]       != nil
+        let detailed = environment["TUIST_DETAILED_LOG"] != nil
+        let verbose  = environment["TUIST_VERBOSE"]      != nil
+        
+        if os_log {
+            return .init(loggerType: .osLog, verbose: verbose)
+        } else if detailed {
+            return .init(loggerType: .detailed, verbose: verbose)
+        } else {
+            return .init(loggerType: .console, verbose: verbose)
+        }
+        
+        
+    }
+}
 
 public enum LogOutput {
     
     static var environment = ProcessInfo.processInfo.environment
     
-    public static func bootstrap() {
-                
-        let os_log   = environment["TUIST_OS_LOG"]       != nil
-        let detailed = environment["TUIST_DETAILED_LOG"] != nil
+    public static func bootstrap(config: LoggingConfig = .default) {
         
         let handler: VerboseLogHandler.Type
         
-        if os_log {
+        switch config.loggerType {
+        case .osLog:
             handler = OSLogHandler.self
-        } else if detailed {
+        case .detailed:
             handler = DetailedLogHandler.self
-        } else {
+        case .console:
             handler = StandardLogHandler.self
         }
         
-        let verbose = environment["TUIST_VERBOSE"] != nil
-        
-        if verbose {
+        if config.verbose {
             LoggingSystem.bootstrap(handler.verbose)
         } else {
             LoggingSystem.bootstrap(handler.init)

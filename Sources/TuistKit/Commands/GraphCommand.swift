@@ -50,6 +50,6 @@ class GraphCommand: NSObject, Command {
         }
 
         try FileHandler.shared.write(graph, path: path, atomically: true)
-        logger.info("Graph exported to \(path.pathString)".as(.success))
+        logger.info("Graph exported to \(path.pathString)", metadata: .success)
     }
 }

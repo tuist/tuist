@@ -80,7 +80,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
         let outputDirectory = try TemporaryDirectory(removeTreeOnDeinit: false)
         let temporaryPath = try TemporaryDirectory(removeTreeOnDeinit: false)
 
-        logger.notice("Building .xcframework for \(target.name)".as(.section))
+        logger.notice("Building .xcframework for \(target.name)", metadata: .section)
 
         // Build for the device
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
@@ -95,7 +95,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                    .buildSetting("SKIP_INSTALL", "NO"),
                                                                    .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"))
             .do(onSubscribed: {
-                logger.notice("Building \(target.name) for device".as(.subsection))
+                logger.notice("Building \(target.name) for device", metadata: .subsection)
             })
 
         // Build for the simulator
@@ -113,7 +113,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                       .buildSetting("SKIP_INSTALL", "NO"),
                                                                       .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"))
                 .do(onSubscribed: {
-                    logger.notice("Building \(target.name) for simulator".as(.subsection))
+                    logger.notice("Building \(target.name) for simulator", metadata: .subsection)
                 })
         }
 
@@ -125,7 +125,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
         let xcframeworkPath = outputDirectory.path.appending(component: "\(target.productName).xcframework")
         let xcframeworkObservable = xcodeBuildController.createXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
             .do(onSubscribed: {
-                logger.notice("Exporting xcframework for \(target.platform.caseValue)".as(.subsection))
+                logger.notice("Exporting xcframework for \(target.platform.caseValue)", metadata: .subsection)
             })
 
         return deviceArchiveObservable

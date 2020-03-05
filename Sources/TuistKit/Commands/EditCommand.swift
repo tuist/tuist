@@ -52,10 +52,10 @@ class EditCommand: NSObject, Command {
                 try! FileHandler.shared.delete(EditCommand.temporaryDirectory.path)
                 exit(0)
             }
-            logger.info("Opening Xcode to edit the project. Press \("CTRL + C".green().bold()) once you are done editing")
+            logger.info("Opening Xcode to edit the project. Press \("CTRL + C", .keystroke) once you are done editing")
             try opener.open(path: xcodeprojPath, wait: true)
         } else {
-            logger.info("Xcode project generated at \(xcodeprojPath.pathString)".as(.success))
+            logger.info("Xcode project generated at \(xcodeprojPath.pathString)", metadata: .success)
         }
     }
 
