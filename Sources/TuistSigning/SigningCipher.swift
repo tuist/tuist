@@ -18,10 +18,13 @@ public final class SigningCipher: SigningCiphering {
             .map {
                 try AES.GCM.seal($0, using: masterKey)
             }
-            .map(\.combined!)
         
         try zip(cipheredKeys, signingKeyFiles).forEach {
-            try $0.write(to: $1.url)
+            guard let combinedData = $0.combined else {
+                Printer.shared.print(warning: "Could not encode file at: \($1.pathString)")
+                return
+            }
+            try combinedData.write(to: $1.url)
         }
     }
     
