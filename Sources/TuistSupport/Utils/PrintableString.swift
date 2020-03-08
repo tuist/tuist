@@ -123,7 +123,6 @@ extension Logger {
     /// Log a message passing with the `Logger.Level.notice` log level.
     ///
     /// `pretty` is always printed to the console, and is omitted to the logger as `notice`.
-    /// The standard swift-log API will recieve the
     ///
     /// - parameters:
     ///    - message: The message to be logged. `message` can be used with any string interpolation literal.

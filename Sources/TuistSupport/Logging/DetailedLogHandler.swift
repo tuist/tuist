@@ -29,8 +29,8 @@ public struct DetailedLogHandler: LogHandler {
 
         let mergedMetadata = metadata.map { self.metadata.merging($0, uniquingKeysWith: { $1 }) } ?? self.metadata
 
-        if mergedMetadata.isEmpty == false {
-            log.append(mergedMetadata.pretty)
+        if mergedMetadata.isNotEmpty {
+            log.append(mergedMetadata.prettyDescription)
         }
 
         log.append(message.description)
@@ -56,6 +56,10 @@ public struct DetailedLogHandler: LogHandler {
             stderr.logLevel = newValue
         }
     }
+}
+
+extension Collection {
+    var isNotEmpty: Bool { !isEmpty }
 }
 
 func timestamp() -> String {

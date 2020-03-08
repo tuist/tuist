@@ -52,8 +52,7 @@ final class CacheController: CacheControlling {
         let completables = try cacheableTargets.map { try buildAndCacheXCFramework(path: path, target: $0.key, hash: $0.value) }
         _ = try Completable.zip(completables).toBlocking().last()
 
-        // success
-        logger.notice("All cacheable frameworks have been cached successfully")
+        logger.notice("All cacheable frameworks have been cached successfully", metadata: .success)
     }
 
     /// Returns all the targets that are cacheable and their hashes.

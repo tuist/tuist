@@ -21,7 +21,6 @@ public struct StandardLogHandler: LogHandler {
         metadata: Logger.Metadata?,
         file _: String, function _: String, line _: UInt
     ) {
-        
         if let metadata = metadata, metadata[Logger.Metadata.tuist] == .string(Logger.Metadata.prettyKey) {
             return
         }

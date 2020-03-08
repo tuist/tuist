@@ -27,9 +27,9 @@ public struct OSLogHandler: LogHandler {
         let metadataLog: String?
 
         if let metadata = metadata, !metadata.isEmpty {
-            metadataLog = self.metadata.merging(metadata, uniquingKeysWith: { $1 }).pretty
+            metadataLog = self.metadata.merging(metadata, uniquingKeysWith: { $1 }).prettyDescription
         } else if !self.metadata.isEmpty {
-            metadataLog = self.metadata.pretty
+            metadataLog = self.metadata.prettyDescription
         } else {
             metadataLog = nil
         }
@@ -46,7 +46,7 @@ public struct OSLogHandler: LogHandler {
 }
 
 extension Logger.Metadata {
-    var pretty: String {
+    var prettyDescription: String {
         map { "\($0)=\($1)" }.joined(separator: " ")
     }
 }
