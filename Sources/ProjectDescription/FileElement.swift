@@ -66,6 +66,8 @@ extension FileElement: ExpressibleByStringLiteral {
     }
 }
 
+extension FileElement: ExpressibleByStringInterpolation {}
+
 extension Array: ExpressibleByUnicodeScalarLiteral where Element == FileElement {
     public typealias UnicodeScalarLiteralType = String
 }
