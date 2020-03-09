@@ -23,7 +23,7 @@
     "gatsby": "^2.19.24",
     "gatsby-image": "^2.2.42",
     "gatsby-plugin-favicon": "3.1.6",
-    "gatsby-plugin-feed": "^2.3.27",
+    "gatsby-plugin-feed": "^2.3.28",
     "gatsby-plugin-manifest": "2.2.42",
     "gatsby-plugin-mdx": "^1.0.74",
     "gatsby-plugin-meta-redirect": "^1.1.1",
