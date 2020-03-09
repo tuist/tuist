@@ -197,6 +197,9 @@ let project = Project.featureFramework(
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
+          borderColor: 'gray4',
+          borderStyle: 'solid',
+          borderWidth: 1,
           flex: 1,
           py: 1,
           px: 2,
@@ -209,12 +212,15 @@ let project = Project.featureFramework(
       </div>
       <div
         sx={{
-          bg: 'black',
+          bg: 'muted',
           borderBottomLeftRadius: radius,
           borderBottomRightRadius: radius,
+          borderColor: 'gray4',
+          borderStyle: 'solid',
+          borderWidth: '0px 1px 1px 1px',
         }}
       >
-        <Code className="language-swift" my="0" showCopy={false} bg="black">
+        <Code className="language-swift" my="0" showCopy={false} bg="muted">
           {exampleCode}
         </Code>
       </div>
