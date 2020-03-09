@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public protocol RootDirectoryLocating {
+protocol RootDirectoryLocating {
     /// Given a path, it finds the root directory by traversing up the hierarchy.
     /// The root directory is considered the directory that contains a Tuist/ directory or the directory where the
     /// git repository is defined if no Tuist/ directory is found.
@@ -10,7 +10,7 @@ public protocol RootDirectoryLocating {
     func locate(from path: AbsolutePath) -> AbsolutePath?
 }
 
-public final class RootDirectoryLocator: RootDirectoryLocating {
+final class RootDirectoryLocator: RootDirectoryLocating {
     private let fileHandler: FileHandling = FileHandler.shared
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     fileprivate var cache: [AbsolutePath: AbsolutePath] = [:]
@@ -19,13 +19,13 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     static var shared: RootDirectoryLocating = RootDirectoryLocator()
 
     /// Constructor
-    public init() {}
+    internal init() {}
 
     /// Given a path, it finds the root directory by traversing up the hierarchy.
     /// The root directory is considered the directory that contains a Tuist/ directory or the directory where the
     /// git repository is defined if no Tuist/ directory is found.
     /// - Parameter path: Path for which we'll look the root directory.
-    public func locate(from path: AbsolutePath) -> AbsolutePath? {
+    func locate(from path: AbsolutePath) -> AbsolutePath? {
         locate(from: path, source: path)
     }
 

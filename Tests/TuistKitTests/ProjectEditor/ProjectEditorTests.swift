@@ -8,7 +8,6 @@ import XCTest
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
-@testable import TuistTemplateTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {
@@ -26,7 +25,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
     var resourceLocator: MockResourceLocator!
     var manifestFilesLocator: MockManifestFilesLocator!
     var helpersDirectoryLocator: MockHelpersDirectoryLocator!
-    var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var subject: ProjectEditor!
 
     override func setUp() {
@@ -36,13 +34,11 @@ final class ProjectEditorTests: TuistUnitTestCase {
         resourceLocator = MockResourceLocator()
         manifestFilesLocator = MockManifestFilesLocator()
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
-        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         subject = ProjectEditor(generator: generator,
                                 projectEditorMapper: projectEditorMapper,
                                 resourceLocator: resourceLocator,
                                 manifestFilesLocator: manifestFilesLocator,
-                                helpersDirectoryLocator: helpersDirectoryLocator,
-                                templatesDirectoryLocator: templatesDirectoryLocator)
+                                helpersDirectoryLocator: helpersDirectoryLocator)
     }
 
     override func tearDown() {
@@ -52,7 +48,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         resourceLocator = nil
         manifestFilesLocator = nil
         helpersDirectoryLocator = nil
-        templatesDirectoryLocator = nil
         subject = nil
     }
 
