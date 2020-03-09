@@ -14,7 +14,7 @@ class TemplateTests: XCTestCase {
             ],
             files: [
                 .static(path: "static.swift", contents: "content"),
-                .generated(path: "generated.swift", generateFilePath: "generate.swift"),
+                .generated(path: "generated.swift", templatePath: "generate.swift"),
             ],
             directories: [
                 "{{ name }}",
