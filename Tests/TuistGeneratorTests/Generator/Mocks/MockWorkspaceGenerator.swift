@@ -19,8 +19,8 @@ final class MockWorkspaceGenerator: WorkspaceGenerating {
         WorkspaceDescriptor(path: "/test",
                             xcworkspacePath: "/test/Test.xcworkspace",
                             xcworkspace: XCWorkspace(),
-                            projects: [],
-                            schemes: [],
-                            sideEffects: [])
+                            projectDescriptors: [],
+                            schemeDescriptors: [],
+                            sideEffectDescriptors: [])
     }
 }

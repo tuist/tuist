@@ -23,45 +23,45 @@ public final class XcodeProjWriter: XcodeProjWriting {
     public func write(project: ProjectDescriptor) throws {
         let project = enrichingXcodeProjWithSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.xcodeprojPath.path)
-        try project.schemes.forEach { try write(scheme: $0, xccontainerPath: project.xcodeprojPath) }
-        try project.sideEffects.forEach(perform)
+        try project.schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: project.xcodeprojPath) }
+        try project.sideEffectDescriptors.forEach(perform)
     }
 
     public func write(workspace: WorkspaceDescriptor) throws {
-        try workspace.projects.forEach(write)
+        try workspace.projectDescriptors.forEach(write)
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
-        try workspace.schemes.forEach { try write(scheme: $0, xccontainerPath: workspace.xcworkspacePath) }
-        try workspace.sideEffects.forEach(perform)
+        try workspace.schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: workspace.xcworkspacePath) }
+        try workspace.sideEffectDescriptors.forEach(perform)
     }
 
     // MARK: -
 
     private func enrichingXcodeProjWithSchemes(descriptor: ProjectDescriptor) -> ProjectDescriptor {
-        let sharedSchemes = descriptor.schemes.filter { $0.shared }
-        let userSchemes = descriptor.schemes.filter { !$0.shared }
+        let sharedSchemes = descriptor.schemeDescriptors.filter { $0.shared }
+        let userSchemes = descriptor.schemeDescriptors.filter { !$0.shared }
 
         let xcodeProj = descriptor.xcodeProj
         let sharedData = xcodeProj.sharedData ?? XCSharedData(schemes: [])
 
-        sharedData.schemes.append(contentsOf: sharedSchemes.map { $0.scheme })
+        sharedData.schemes.append(contentsOf: sharedSchemes.map { $0.xcScheme })
         xcodeProj.sharedData = sharedData
 
         return ProjectDescriptor(path: descriptor.path,
                                  xcodeprojPath: descriptor.xcodeprojPath,
                                  xcodeProj: descriptor.xcodeProj,
-                                 schemes: userSchemes,
-                                 sideEffects: descriptor.sideEffects)
+                                 schemeDescriptors: userSchemes,
+                                 sideEffectDescriptors: descriptor.sideEffectDescriptors)
     }
 
     private func write(scheme: SchemeDescriptor,
                        xccontainerPath: AbsolutePath) throws {
         let schemeDirectory = self.schemeDirectory(path: xccontainerPath, shared: scheme.shared)
-        let schemePath = schemeDirectory.appending(component: "\(scheme.scheme.name).xcscheme")
+        let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
         try fileHandler.createFolder(schemeDirectory)
-        try scheme.scheme.write(path: schemePath.path, override: true)
+        try scheme.xcScheme.write(path: schemePath.path, override: true)
     }
 
-    private func perform(sideEffect: SideEffect) throws {
+    private func perform(sideEffect: SideEffectDescriptor) throws {
         switch sideEffect {
         case let .file(file):
             try process(file: file)
@@ -70,7 +70,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         }
     }
 
-    private func process(file: GeneratedFile) throws {
+    private func process(file: FileDescriptor) throws {
         switch file.state {
         case .present:
             try fileHandler.createFolder(file.path.parentDirectory)

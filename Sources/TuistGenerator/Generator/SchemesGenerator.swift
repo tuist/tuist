@@ -160,7 +160,7 @@ final class SchemesGenerator: SchemesGenerating {
                                 analyzeAction: generatedAnalyzeAction,
                                 archiveAction: generatedArchiveAction)
 
-        return SchemeDescriptor(scheme: xcscheme, shared: scheme.shared)
+        return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared)
     }
 
     /// Generates the scheme build action.

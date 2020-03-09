@@ -9,21 +9,21 @@ public struct WorkspaceDescriptor {
     /// Path to the xcworkspace file
     public var xcworkspacePath: AbsolutePath
     public var xcworkspace: XCWorkspace
-    public var projects: [ProjectDescriptor]
-    public var schemes: [SchemeDescriptor]
-    public var sideEffects: [SideEffect]
+    public var projectDescriptors: [ProjectDescriptor]
+    public var schemeDescriptors: [SchemeDescriptor]
+    public var sideEffectDescriptors: [SideEffectDescriptor]
 
     public init(path: AbsolutePath,
                 xcworkspacePath: AbsolutePath,
                 xcworkspace: XCWorkspace,
-                projects: [ProjectDescriptor],
-                schemes: [SchemeDescriptor],
-                sideEffects: [SideEffect]) {
+                projectDescriptors: [ProjectDescriptor],
+                schemeDescriptors: [SchemeDescriptor],
+                sideEffectDescriptors: [SideEffectDescriptor]) {
         self.path = path
         self.xcworkspacePath = xcworkspacePath
         self.xcworkspace = xcworkspace
-        self.projects = projects
-        self.schemes = schemes
-        self.sideEffects = sideEffects
+        self.projectDescriptors = projectDescriptors
+        self.schemeDescriptors = schemeDescriptors
+        self.sideEffectDescriptors = sideEffectDescriptors
     }
 }

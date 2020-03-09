@@ -112,9 +112,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         return WorkspaceDescriptor(path: path,
                                    xcworkspacePath: workspacePath,
                                    xcworkspace: xcWorkspace,
-                                   projects: projects,
-                                   schemes: schemes,
-                                   sideEffects: [])
+                                   projectDescriptors: projects,
+                                   schemeDescriptors: schemes,
+                                   sideEffectDescriptors: [])
     }
 
     /// Create a XCWorkspaceDataElement.file from a path string.

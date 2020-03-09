@@ -9,12 +9,12 @@ extension WorkspaceDescriptor {
                      xcworkspacePath: AbsolutePath = AbsolutePath("/Test/Project.xcworkspace"),
                      projects: [ProjectDescriptor] = [],
                      schemes: [SchemeDescriptor] = [],
-                     sideEffects: [SideEffect] = []) -> WorkspaceDescriptor {
+                     sideEffects: [SideEffectDescriptor] = []) -> WorkspaceDescriptor {
         WorkspaceDescriptor(path: path,
                             xcworkspacePath: xcworkspacePath,
                             xcworkspace: XCWorkspace(),
-                            projects: projects,
-                            schemes: schemes,
-                            sideEffects: sideEffects)
+                            projectDescriptors: projects,
+                            schemeDescriptors: schemes,
+                            sideEffectDescriptors: sideEffects)
     }
 }

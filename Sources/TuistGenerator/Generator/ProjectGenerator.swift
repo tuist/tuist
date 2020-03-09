@@ -137,8 +137,8 @@ final class ProjectGenerator: ProjectGenerating {
         return ProjectDescriptor(path: project.path,
                                  xcodeprojPath: xcodeprojPath,
                                  xcodeProj: xcodeProj,
-                                 schemes: schemes,
-                                 sideEffects: sideEffects)
+                                 schemeDescriptors: schemes,
+                                 sideEffectDescriptors: sideEffects)
     }
 
     // MARK: - Fileprivate

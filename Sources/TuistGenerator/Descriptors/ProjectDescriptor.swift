@@ -10,18 +10,18 @@ public class ProjectDescriptor {
     public var xcodeprojPath: AbsolutePath
 
     public var xcodeProj: XcodeProj
-    public var schemes: [SchemeDescriptor]
-    public var sideEffects: [SideEffect]
+    public var schemeDescriptors: [SchemeDescriptor]
+    public var sideEffectDescriptors: [SideEffectDescriptor]
 
     public init(path: AbsolutePath,
                 xcodeprojPath: AbsolutePath,
                 xcodeProj: XcodeProj,
-                schemes: [SchemeDescriptor],
-                sideEffects: [SideEffect]) {
+                schemeDescriptors: [SchemeDescriptor],
+                sideEffectDescriptors: [SideEffectDescriptor]) {
         self.path = path
         self.xcodeprojPath = xcodeprojPath
         self.xcodeProj = xcodeProj
-        self.schemes = schemes
-        self.sideEffects = sideEffects
+        self.schemeDescriptors = schemeDescriptors
+        self.sideEffectDescriptors = sideEffectDescriptors
     }
 }

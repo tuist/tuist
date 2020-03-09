@@ -2,28 +2,42 @@ import Basic
 import Foundation
 import XcodeProj
 
-/// Generation Side Effect
-public enum SideEffect {
+/// Side Effect Descriptor
+///
+/// Describes a side effect that needs to take place without performing it
+/// immediately within a component. This allows components to be side effect free,
+/// determenistic and much easier to test.
+public enum SideEffectDescriptor {
     /// Create / Remove a file
-    case file(GeneratedFile)
+    case file(FileDescriptor)
 
     /// Perform a command
     case command(GeneratedCommand)
 }
 
-public struct GeneratedFile {
+public struct FileDescriptor {
     public enum State {
         case present
         case absent
     }
 
+    /// Path to the file
     public var path: AbsolutePath
+
+    /// The contents of the file
     public var contents: Data?
+
+    /// The desired state of the file (`.present` creates a fiile, `.absent` deletes a file)
     public var state: State
 
+    /// Creates a File Descriptor
+    /// - Parameters:
+    ///   - path: Path to the file
+    ///   - contents: The contents of the file (Optional)
+    ///   - state: The desired state of the file (`.present` creates a fiile, `.absent` deletes a file)
     public init(path: AbsolutePath,
                 contents: Data? = nil,
-                state: GeneratedFile.State = .present) {
+                state: FileDescriptor.State = .present) {
         self.path = path
         self.contents = contents
         self.state = state

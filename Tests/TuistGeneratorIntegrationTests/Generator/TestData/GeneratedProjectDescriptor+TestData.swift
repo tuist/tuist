@@ -8,7 +8,7 @@ extension ProjectDescriptor {
     static func test(path: AbsolutePath,
                      xcodeprojPath: AbsolutePath? = nil,
                      schemes: [SchemeDescriptor] = [],
-                     sideEffects: [SideEffect] = []) -> ProjectDescriptor {
+                     sideEffects: [SideEffectDescriptor] = []) -> ProjectDescriptor {
         let mainGroup = PBXGroup()
         let configurationList = XCConfigurationList()
         let pbxProject = PBXProject(name: "Test",
@@ -25,7 +25,7 @@ extension ProjectDescriptor {
         return ProjectDescriptor(path: path,
                                  xcodeprojPath: xcodeprojPath ?? path.appending(component: "Test.xcodeproj"),
                                  xcodeProj: xcodeProj,
-                                 schemes: schemes,
-                                 sideEffects: sideEffects)
+                                 schemeDescriptors: schemes,
+                                 sideEffectDescriptors: sideEffects)
     }
 }

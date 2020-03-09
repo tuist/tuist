@@ -19,7 +19,7 @@ final class MockProjectGenerator: ProjectGenerating {
         ProjectDescriptor(path: "/test",
                           xcodeprojPath: "/test/test.xcodeproj",
                           xcodeProj: XcodeProj(workspace: XCWorkspace(), pbxproj: PBXProj()),
-                          schemes: [],
-                          sideEffects: [])
+                          schemeDescriptors: [],
+                          sideEffectDescriptors: [])
     }
 }

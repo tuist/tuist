@@ -2,11 +2,11 @@ import Foundation
 import XcodeProj
 
 public struct SchemeDescriptor {
-    public var scheme: XCScheme
+    public var xcScheme: XCScheme
     public var shared: Bool
 
-    public init(scheme: XCScheme, shared: Bool) {
-        self.scheme = scheme
+    public init(xcScheme: XCScheme, shared: Bool) {
+        self.xcScheme = xcScheme
         self.shared = shared
     }
 }

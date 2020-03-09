@@ -34,8 +34,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
         let contents = "Testing".data(using: .utf8)!
-        let sideEffect = SideEffect.file(.init(path: filePath,
-                                               contents: contents))
+        let sideEffect = SideEffectDescriptor.file(.init(path: filePath,
+                                                         contents: contents))
         let descriptor = ProjectDescriptor.test(path: path,
                                                 xcodeprojPath: xcodeProjPath,
                                                 sideEffects: [sideEffect])
@@ -57,7 +57,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let fileHandler = FileHandler.shared
         try fileHandler.touch(filePath)
 
-        let sideEffect = SideEffect.file(GeneratedFile(path: filePath, state: .absent))
+        let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: filePath, state: .absent))
         let descriptor = ProjectDescriptor.test(path: path,
                                                 xcodeprojPath: xcodeProjPath,
                                                 sideEffects: [sideEffect])
