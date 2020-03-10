@@ -119,11 +119,11 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                                     targets: [appTarget] + frameworkTargets + appUnitTestsTargets,
                                     schemes: schemes)
         let workspace = try createWorkspace(projects: ["App"])
-        let tuistConfig = createConfig()
+        let config = createConfig()
 
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
-        modelLoader.mockConfig { _ in tuistConfig }
+        modelLoader.mockConfig { _ in config }
         return modelLoader
     }
 

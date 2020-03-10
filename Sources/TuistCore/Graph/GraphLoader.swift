@@ -11,9 +11,9 @@ public protocol GraphLoading: AnyObject {
     /// - Parameter path: Path to the directory that contains the workspace.
     func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace)
 
-    /// Loads the TuistConfig.
+    /// Loads the configuration.
     ///
-    /// - Parameter path: Directory from which look up and load the TuistConfig.
+    /// - Parameter path: Directory from which look up and load the Config.
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Config.swift can't be parsed.
     func loadConfig(path: AbsolutePath) throws -> Config

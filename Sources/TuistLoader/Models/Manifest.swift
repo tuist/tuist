@@ -3,9 +3,19 @@ import Foundation
 public enum Manifest: CaseIterable {
     case project
     case workspace
-    case tuistConfig
+    case config
     case setup
     case galaxy
+
+    /// This was introduced to rename a file name without breaking existing projects.
+    public var deprecatedFileName: String? {
+        switch self {
+        case .config:
+            return "TuistConfig.swift"
+        default:
+            return nil
+        }
+    }
 
     public var fileName: String {
         switch self {
@@ -13,8 +23,8 @@ public enum Manifest: CaseIterable {
             return "Project.swift"
         case .workspace:
             return "Workspace.swift"
-        case .tuistConfig:
-            return "TuistConfig.swift"
+        case .config:
+            return "Config.swift"
         case .setup:
             return "Setup.swift"
         case .galaxy:

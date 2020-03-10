@@ -27,8 +27,8 @@ public protocol GeneratorModelLoading {
 
     /// Load a Config model at the specified path
     ///
-    /// - Parameter path: The absolute path for the tuistconfig model to load
-    /// - Returns: The tuistconfig loaded from the specified path
-    /// - Throws: Error encountered during the loading process (e.g. Missing tuistconfig)
+    /// - Parameter path: The absolute path for the Config model to load
+    /// - Returns: The config loaded from the specified path
+    /// - Throws: Error encountered during the loading process (e.g. Missing Config file)
     func loadConfig(at path: AbsolutePath) throws -> Config
 }

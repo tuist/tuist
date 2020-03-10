@@ -102,7 +102,7 @@ public protocol FileHandling: AnyObject {
     /// Traverses the parent directories until the given path is found.
     ///
     /// - Parameters:
-    ///   - from: A path to a directory from which search the TuistConfig.swift.
+    ///   - from: A path to a directory from which search the Config.swift.
     /// - Returns: The found path.
     func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
 
@@ -259,10 +259,10 @@ public class FileHandler: FileHandling {
     public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
         logger.debug("Traversing \(from) to locate \(path)")
 
-        let tuistConfigPath = from.appending(component: path)
+        let configPath = from.appending(component: path)
 
-        if FileHandler.shared.exists(tuistConfigPath) {
-            return tuistConfigPath
+        if FileHandler.shared.exists(configPath) {
+            return configPath
         } else if from == AbsolutePath("/") {
             return nil
         } else {

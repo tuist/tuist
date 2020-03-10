@@ -50,10 +50,10 @@ public protocol GraphLoaderCaching: AnyObject {
     // MARK: - Config
 
     /// It returns a Tuist configuration if it exists at the given directory.
-    /// - Parameter path: Path to the directory that contains the TuistConfig.
+    /// - Parameter path: Path to the directory that contains the Config.
     func config(_ path: AbsolutePath) -> Config?
 
-    /// Caches a TuistConfig representation.
+    /// Caches a Config representation.
     /// - Parameters:
     ///   - config: Tuist configuration.
     ///   - path: Path to the directory that contains th

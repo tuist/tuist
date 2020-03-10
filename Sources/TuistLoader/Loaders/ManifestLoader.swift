@@ -51,12 +51,12 @@ public enum ManifestLoaderError: FatalError, Equatable {
 }
 
 public protocol ManifestLoading {
-    /// Loads the TuistConfig.swift in the given directory.
+    /// Loads the Config.swift in the given directory.
     ///
-    /// - Parameter path: Path to the directory that contains the TuistConfig.swift file.
-    /// - Returns: Loaded TuistConfig.swift file.
+    /// - Parameter path: Path to the directory that contains the Config.swift file.
+    /// - Returns: Loaded Config.swift file.
     /// - Throws: An error if the file has a syntax error.
-    func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.Config
+    func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config
 
     /// Loads the Project.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Project.swift.
@@ -104,8 +104,8 @@ public class ManifestLoader: ManifestLoading {
         Set(manifestFilesLocator.locate(at: path).map { $0.0 })
     }
 
-    public func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
-        try loadManifest(.tuistConfig, at: path)
+    public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
+        try loadManifest(.config, at: path)
     }
 
     public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
@@ -134,12 +134,19 @@ public class ManifestLoader: ManifestLoading {
     // MARK: - Private
 
     private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
-        let manifestPath = path.appending(component: manifest.fileName)
-        guard FileHandler.shared.exists(manifestPath) else {
-            throw ManifestLoaderError.manifestNotFound(manifest, path)
+        var fileNames = [manifest.fileName]
+        if let deprecatedFileName = manifest.deprecatedFileName {
+            fileNames.insert(deprecatedFileName, at: 0)
         }
-        let data = try loadManifestData(at: manifestPath)
-        return try decoder.decode(T.self, from: data)
+
+        for fileName in fileNames {
+            let manifestPath = path.appending(component: fileName)
+            if !FileHandler.shared.exists(manifestPath) { continue }
+            let data = try loadManifestData(at: manifestPath)
+            return try decoder.decode(T.self, from: data)
+        }
+
+        throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
     private func loadManifestData(at path: AbsolutePath) throws -> Data {
