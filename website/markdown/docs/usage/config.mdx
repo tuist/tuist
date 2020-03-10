@@ -1,7 +1,7 @@
 ---
 name: Configuration
 order: 5
-excerpt: This page documents how to use the TuistConfig manifest file to configure Tuist's functionalities globally.
+excerpt: This page documents how to use the Config manifest file to configure Tuist's functionalities globally.
 ---
 
 import PropertiesTable from '../components/properties-table'
@@ -10,28 +10,28 @@ import EnumTable from '../components/enum'
 
 # Configuration
 
-Tuist can be configured through a `TuistConfig.swift` manifest.
-When Tuist is executed, it traverses up the directories to find a `TuistConfig.swift` file.
+Tuist can be configured through a `Config.swift` manifest.
+When Tuist is executed, it traverses up the directories to find a `Tuist` directory that contains a `Config.swift` file.
 Defining a configuration manifest **is not required** but recommended to ensure a consistent behavior across all the projects that are part of the repository.
 
-We recommend creating the `TuistConfig.swift` in the root directory of the repository. For example, let's say we have the following directory scheme:
+The example below shows a project that has a global `Config.swift` file that will be used when Tuist is run from any of the subdirectories:
 
 ```bash
 /.git
 .gitignore
-/TuistConfig.swift # Configuration manifest
+/Tuist/Config.swift # Configuration manifest
 /Framework/Project.swift
 /App/Project.swift
 ```
 
 That way, when Tuist runs in any of the subdirectories, it'll use the root configuration.
 
-The structure is similar to the project manifest. We need to create a root variable, `config` of type `TuistConfig`:
+The structure is similar to the project manifest. We need to create a root variable, `config` of type `Config`:
 
 ```swift
 import ProjectDescription
 
-let config = TuistConfig(
+let config = Config(
   compatibleXcodeVersions: ["10.3"],
   generationOptions: [
     .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix")
@@ -39,7 +39,7 @@ let config = TuistConfig(
 )
 ```
 
-## TuistConfig
+## Config
 
 It allows configuring Tuist and share the configuration across several projects.
 
