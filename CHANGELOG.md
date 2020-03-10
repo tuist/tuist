@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix `TargetAction` when `PROJECT_DIR` includes a space https://github.com/tuist/tuist/pull/1037 by @fortmarek
+- Fix code example compilation issues in "Project description helpers" documentation https://github.com/tuist/tuist/pull/1081 by @chojnac
 
 ### Added
 
