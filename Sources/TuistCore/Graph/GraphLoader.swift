@@ -14,9 +14,9 @@ public protocol GraphLoading: AnyObject {
     /// Loads the TuistConfig.
     ///
     /// - Parameter path: Directory from which look up and load the TuistConfig.
-    /// - Returns: Loaded TuistConfig object.
-    /// - Throws: An error if the TuistConfig.swift can't be parsed.
-    func loadTuistConfig(path: AbsolutePath) throws -> TuistConfig
+    /// - Returns: Loaded Config object.
+    /// - Throws: An error if the Config.swift can't be parsed.
+    func loadConfig(path: AbsolutePath) throws -> Config
 }
 
 public class GraphLoader: GraphLoading {
@@ -76,15 +76,15 @@ public class GraphLoader: GraphLoading {
         return (graph, workspace)
     }
 
-    public func loadTuistConfig(path: AbsolutePath) throws -> TuistConfig {
+    public func loadConfig(path: AbsolutePath) throws -> Config {
         let cache = GraphLoaderCache()
 
-        if let tuistConfig = cache.tuistConfig(path) {
-            return tuistConfig
+        if let config = cache.config(path) {
+            return config
         } else {
-            let tuistConfig = try modelLoader.loadTuistConfig(at: path)
-            cache.add(tuistConfig: tuistConfig, path: path)
-            return tuistConfig
+            let config = try modelLoader.loadConfig(at: path)
+            cache.add(config: config, path: path)
+            return config
         }
     }
 

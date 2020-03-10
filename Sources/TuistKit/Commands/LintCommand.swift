@@ -90,7 +90,7 @@ class LintCommand: NSObject, Command {
         }
 
         logger.notice("Running linters")
-        let config = try graphLoader.loadTuistConfig(path: path)
+        let config = try graphLoader.loadConfig(path: path)
 
         var issues: [LintingIssue] = []
         logger.notice("Linting the environment")

@@ -22,7 +22,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     public func loadProject(at path: AbsolutePath) throws -> TuistCore.Project {
         let manifest = try manifestLoader.loadProject(at: path)
-        let tuistConfig = try loadTuistConfig(at: path)
+        let tuistConfig = try loadConfig(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         try manifestLinter.lint(project: manifest).printAndThrowIfNeeded()
         let project = try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -39,17 +39,16 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         return workspace
     }
 
-    public func loadTuistConfig(at path: AbsolutePath) throws -> TuistCore.TuistConfig {
+    public func loadConfig(at path: AbsolutePath) throws -> TuistCore.Config {
         guard let tuistConfigPath = FileHandler.shared.locateDirectoryTraversingParents(from: path, path: Manifest.tuistConfig.fileName) else {
-            return TuistCore.TuistConfig.default
+            return TuistCore.Config.default
         }
 
         let manifest = try manifestLoader.loadTuistConfig(at: tuistConfigPath.parentDirectory)
-        return try TuistCore.TuistConfig.from(manifest: manifest)
+        return try TuistCore.Config.from(manifest: manifest)
     }
 
-    private func enriched(model: TuistCore.Project,
-                          with config: TuistCore.TuistConfig) throws -> TuistCore.Project {
+    private func enriched(model: TuistCore.Project, with config: TuistCore.Config) throws -> TuistCore.Project {
         var enrichedModel = model
 
         // Xcode project file name
@@ -59,8 +58,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         return enrichedModel
     }
 
-    private func xcodeFileNameOverride(from config: TuistCore.TuistConfig,
-                                       for model: TuistCore.Project) -> String? {
+    private func xcodeFileNameOverride(from config: TuistCore.Config, for model: TuistCore.Project) -> String? {
         var xcodeFileName = config.generationOptions.compactMap { item -> String? in
             switch item {
             case let .xcodeProjectName(projectName):

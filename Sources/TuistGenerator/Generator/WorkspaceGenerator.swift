@@ -28,14 +28,12 @@ protocol WorkspaceGenerating: AnyObject {
     ///   - workspace: Workspace model.
     ///   - path: Path to the directory where the generation command is executed from.
     ///   - graph: In-memory representation of the graph.
-    ///   - tuistConfig: Tuist configuration.
     /// - Returns: Path to the generated workspace.
     /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing,
-                  tuistConfig: TuistConfig) throws -> AbsolutePath
+                  graph: Graphing) throws -> AbsolutePath
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -78,14 +76,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     ///   - workspace: Workspace model.
     ///   - path: Path to the directory where the generation command is executed from.
     ///   - graph: In-memory representation of the graph.
-    ///   - tuistConfig: Tuist configuration.
     /// - Returns: Path to the generated workspace.
     /// - Throws: An error if the generation fails.
     @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing,
-                  tuistConfig _: TuistConfig) throws -> AbsolutePath {
+                  graph: Graphing) throws -> AbsolutePath {
         let workspaceName = "\(graph.name).xcworkspace"
 
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)

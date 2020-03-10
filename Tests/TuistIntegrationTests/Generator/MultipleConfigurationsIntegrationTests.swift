@@ -314,18 +314,17 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let appTarget = try createAppTarget(settings: targetSettings)
         let project = createProject(path: try pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
         let workspace = try createWorkspace(projects: ["App"])
-        let tuistConfig = createTuistConfig()
+        let config = createConfig()
 
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
-        modelLoader.mockTuistConfig { _ in tuistConfig }
+        modelLoader.mockConfig { _ in config }
 
         return modelLoader
     }
 
-    private func createTuistConfig() -> TuistConfig {
-        TuistConfig(compatibleXcodeVersions: .all,
-                    generationOptions: [])
+    private func createConfig() -> Config {
+        Config(compatibleXcodeVersions: .all, generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) throws -> Workspace {

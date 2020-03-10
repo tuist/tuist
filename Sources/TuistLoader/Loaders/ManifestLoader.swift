@@ -56,7 +56,7 @@ public protocol ManifestLoading {
     /// - Parameter path: Path to the directory that contains the TuistConfig.swift file.
     /// - Returns: Loaded TuistConfig.swift file.
     /// - Throws: An error if the file has a syntax error.
-    func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig
+    func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.Config
 
     /// Loads the Project.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Project.swift.
@@ -104,7 +104,7 @@ public class ManifestLoader: ManifestLoading {
         Set(manifestFilesLocator.locate(at: path).map { $0.0 })
     }
 
-    public func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.TuistConfig {
+    public func loadTuistConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
         try loadManifest(.tuistConfig, at: path)
     }
 

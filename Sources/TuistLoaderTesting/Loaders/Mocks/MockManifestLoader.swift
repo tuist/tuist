@@ -20,7 +20,7 @@ public final class MockManifestLoader: ManifestLoading {
     public var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
 
     public var loadTuistConfigCount: UInt = 0
-    public var loadTuistConfigStub: ((AbsolutePath) throws -> ProjectDescription.TuistConfig)?
+    public var loadTuistConfigStub: ((AbsolutePath) throws -> ProjectDescription.Config)?
 
     public init() {}
 
@@ -47,8 +47,8 @@ public final class MockManifestLoader: ManifestLoading {
         return try loadSetupStub?(path) ?? []
     }
 
-    public func loadTuistConfig(at path: AbsolutePath) throws -> TuistConfig {
+    public func loadTuistConfig(at path: AbsolutePath) throws -> Config {
         loadTuistConfigCount += 1
-        return try loadTuistConfigStub?(path) ?? ProjectDescription.TuistConfig.test()
+        return try loadTuistConfigStub?(path) ?? ProjectDescription.Config.test()
     }
 }

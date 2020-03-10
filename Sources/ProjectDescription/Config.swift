@@ -1,7 +1,9 @@
 import Foundation
 
+public typealias TuistConfig = Config
+
 /// This model allows to configure Tuist.
-public struct TuistConfig: Codable, Equatable {
+public struct Config: Codable, Equatable {
     /// Contains options related to the project generation.
     ///
     /// - xcodeProjectName(TemplateString): When passed, Tuist generates the project with the specific name on disk instead of using the project name.
@@ -28,7 +30,7 @@ public struct TuistConfig: Codable, Equatable {
     }
 }
 
-extension TuistConfig.GenerationOptions {
+extension Config.GenerationOptions {
     enum CodingKeys: String, CodingKey {
         case xcodeProjectName
     }
@@ -53,17 +55,5 @@ extension TuistConfig.GenerationOptions {
             var associatedValues = container.nestedUnkeyedContainer(forKey: .xcodeProjectName)
             try associatedValues.encode(templateProjectName)
         }
-    }
-}
-
-public func == (lhs: TuistConfig, rhs: TuistConfig) -> Bool {
-    guard lhs.generationOptions == rhs.generationOptions else { return false }
-    return true
-}
-
-public func == (lhs: TuistConfig.GenerationOptions, rhs: TuistConfig.GenerationOptions) -> Bool {
-    switch (lhs, rhs) {
-    case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
-        return lhs.rawString == rhs.rawString
     }
 }
