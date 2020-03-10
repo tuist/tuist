@@ -29,15 +29,27 @@ public final class MockFileHandler: FileHandler {
 
 public class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
-    public var printer: MockPrinter!
+
+    public override static func setUp() {
+        super.setUp()
+        DispatchQueue.once(token: "io.tuist.test.logging") {
+            LoggingSystem.bootstrap(TestingLogHandler.init)
+        }
+    }
+
     public var fileHandler: MockFileHandler!
+    public var environment: MockEnvironment!
 
     public override func setUp() {
         super.setUp()
 
-        // Printer
-        printer = MockPrinter()
-        Printer.shared = printer
+        do {
+            // Environment
+            environment = try MockEnvironment()
+            Environment.shared = environment
+        } catch {
+            XCTFail("Failed to setup environment")
+        }
 
         // FileHandler
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
@@ -45,10 +57,6 @@ public class TuistTestCase: XCTestCase {
     }
 
     public override func tearDown() {
-        // Printer
-        printer = nil
-        Printer.shared = Printer()
-
         temporaryDirectory = nil
         super.tearDown()
     }
@@ -84,29 +92,32 @@ public class TuistTestCase: XCTestCase {
     }
 
     public func XCTAssertPrinterOutputContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
-        let message = """
-        The standard output:
-        ===========
-        \(printer.standardOutput)
-        
-        Doesn't contain the expected output:
-        ===========
-        \(expected)
-        """
-        XCTAssertTrue(printer.standardOutputMatches(with: expected), message, file: file, line: line)
+        XCTAssertPrinterContains(expected, at: .warning, >=, file: file, line: line)
     }
 
     public func XCTAssertPrinterErrorContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
+        XCTAssertPrinterContains(expected, at: .error, <=, file: file, line: line)
+    }
+
+    public func XCTAssertPrinterContains(
+        _ expected: String,
+        at level: Logger.Level,
+        _ comparison: (Logger.Level, Logger.Level) -> Bool,
+        file: StaticString = #file, line: UInt = #line
+    ) {
+        let standardError = TestingLogHandler.collected[level, comparison]
+
         let message = """
         The standard error:
         ===========
-        \(printer.standardError)
+        \(standardError)
         
         Doesn't contain the expected output:
         ===========
         \(expected)
         """
-        XCTAssertTrue(printer.standardErrorMatches(with: expected), message, file: file, line: line)
+
+        XCTAssertTrue(standardError.contains(expected), message, file: file, line: line)
     }
 
     public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {

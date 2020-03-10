@@ -51,7 +51,7 @@ final class UpdateCommand: Command {
     /// - Throws: An error if the update process fails.
     func run(with result: ArgumentParser.Result) throws {
         let force = result.get(forceArgument) ?? false
-        Printer.shared.print(section: "Checking for updates...")
+        logger.notice("Checking for updates...", metadata: .section)
         try updater.update(force: force)
     }
 }

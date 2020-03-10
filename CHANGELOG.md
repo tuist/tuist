@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
+- Add `--verbose`  https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
 
 ## 1.3.0
 

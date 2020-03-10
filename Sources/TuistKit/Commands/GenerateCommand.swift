@@ -62,8 +62,9 @@ class GenerateCommand: NSObject, Command {
                                    projectOnly: projectOnly)
 
         let time = String(format: "%.3f", timer.stop())
-        Printer.shared.print(success: "Project generated.")
-        Printer.shared.print("Total time taken: \(time)s")
+
+        logger.notice("Project generated.", metadata: .success)
+        logger.notice("Total time taken: \(time)s")
     }
 
     // MARK: - Fileprivate

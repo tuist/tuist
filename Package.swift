@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v10_11)],
+    platforms: [.macOS(.v10_12)],
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
@@ -32,6 +32,7 @@ let package = Package(
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
+        .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.2.0")),
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.7.3")),
     ],
     targets: [
@@ -89,7 +90,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SPMUtility", "RxSwift", "RxRelay"]
+            dependencies: ["SPMUtility", "RxSwift", "RxRelay", "Logging"]
         ),
         .target(
             name: "TuistSupportTesting",

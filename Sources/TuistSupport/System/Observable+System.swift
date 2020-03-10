@@ -12,7 +12,7 @@ public extension Observable where Element == SystemEvent<Data> {
 public extension Observable where Element == SystemEvent<String> {
     /// Returns an observable that prints the standard error.
     func printStandardError() -> Observable<SystemEvent<String>> {
-        self.do(onNext: { event in
+        `do`(onNext: { event in
             switch event {
             case let .standardError(error):
                 if let data = error.data(using: .utf8) {

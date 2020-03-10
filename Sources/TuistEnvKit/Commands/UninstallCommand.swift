@@ -40,9 +40,9 @@ final class UninstallCommand: Command {
         let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {
             try versionsController.uninstall(version: version)
-            Printer.shared.print(success: "Version \(version) uninstalled")
+            logger.notice("Version \(version) uninstalled", metadata: .success)
         } else {
-            Printer.shared.print(warning: "Version \(version) cannot be uninstalled because it's not installed")
+            logger.warning("Version \(version) cannot be uninstalled because it's not installed")
         }
     }
 }

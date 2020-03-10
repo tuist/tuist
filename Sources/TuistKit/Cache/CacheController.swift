@@ -46,13 +46,13 @@ final class CacheController: CacheControlling {
     func cache(path: AbsolutePath) throws {
         let (path, graph) = try generator.generateWorkspace(at: path, manifestLoader: manifestLoader)
 
-        Printer.shared.print(section: "Hashing cacheable frameworks")
+        logger.notice("Hashing cacheable frameworks")
         let cacheableTargets = try self.cacheableTargets(graph: graph)
 
         let completables = try cacheableTargets.map { try buildAndCacheXCFramework(path: path, target: $0.key, hash: $0.value) }
         _ = try Completable.zip(completables).toBlocking().last()
 
-        Printer.shared.print(success: "All cacheable frameworks have been cached successfully")
+        logger.notice("All cacheable frameworks have been cached successfully", metadata: .success)
     }
 
     /// Returns all the targets that are cacheable and their hashes.
@@ -61,7 +61,7 @@ final class CacheController: CacheControlling {
         try graphContentHasher.contentHashes(for: graph)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
-                    Printer.shared.print("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
+                    logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
                     return false
                 }
                 return true

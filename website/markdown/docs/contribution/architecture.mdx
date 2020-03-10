@@ -37,12 +37,24 @@ The project is organized in several targets that are defined in the `Package.swi
 
 All generic utilities live in the `TuistSupport` framework. This section documents some of the utilities and how to use them.
 
-### Printer
+### Logger
 
 When printing output for the user, this is the utility that should be used over the global `print` method. The utility provides formatting that varies depending on the terminal the process is run from, and determines whether the standard output or error should be used based on the type of content being output.
 
-The methods from the public interface take a `PrintableString` as an input. Printable strings support interpolating formatted strings. For instance, if we want to tell users they need to run a command, we can do the following:
+If you want to print and do not want any special formatting you can use the normal `swift-log` API for printing. There is a variable in each tuist module called `logger` - any new modules should also adopt this style of logging to fit within the rest of the Tuist system.
 
 ```swift
-Printer.shared.print("Please run the folling command to setup the environment: \(.command("tuist up"))")
+logger.critical("") // Use `critical` for unrecoverable, system errors.
+logger.error("") // Use `error` for user errors, particularly problems with their machine, manifest or configuration.
+logger.warning("") // Use `warning` to highlight potential issues.
+logger.notice("") // Use `notice` to log to console, this is the normal level of logging.
+logger.info("") // Use `info` to provide small meta messages, this will be printed but won't be promenant.
+logger.debug("") // Use `debug` to print in verbose mode.
+logger.pretty("") // Use `pretty` to print a string with formatted interpolations, useful for highlighting certain elements in the string.
+```
+
+The `logger.pretty` takes a `PrintableString` as an input. Printable strings support interpolating formatted strings. For instance, if we want to tell users they need to run a command, we can do the following:
+
+```swift
+logger.pretty("Please run the folling command to setup the environment: \(.command("tuist up"))")
 ```

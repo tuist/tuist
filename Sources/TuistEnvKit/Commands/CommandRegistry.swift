@@ -81,6 +81,6 @@ public final class CommandRegistry {
     // MARK: - Static
 
     static func processArguments() -> [String] {
-        Array(ProcessInfo.processInfo.arguments)
+        CommandRunner.arguments()
     }
 }
