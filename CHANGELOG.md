@@ -14,6 +14,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
 - Add `--verbose`  https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
 
+### Changed
+- Rename `TuistConfig.swift` to `Config.swift` https://github.com/tuist/tuist/pull/1083 by @pepibumur. 
+
 ## 1.3.0
 
 ### Added
