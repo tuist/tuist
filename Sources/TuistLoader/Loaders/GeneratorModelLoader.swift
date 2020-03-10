@@ -63,8 +63,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         // We first try to load the deprecated file. If it doesn't exist, we load the new file name.
         let fileNames = [Manifest.config]
             .flatMap { [$0.deprecatedFileName, $0.fileName] }
-            .filter { $0 != nil }
-            .map { $0! }
+            .compactMap { $0 }
 
         for fileName in fileNames {
             guard let configPath = FileHandler.shared.locateDirectoryTraversingParents(from: path, path: fileName) else {
