@@ -128,7 +128,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     private func createConfig() -> Config {
-        Config(compatibleXcodeVersions: .all, generationOptions: [])
+        Config(compatibleXcodeVersions: .all, cloudURL: nil, generationOptions: [])
     }
 
     private func createWorkspace(projects: [String]) throws -> Workspace {

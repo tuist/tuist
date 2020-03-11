@@ -17,15 +17,21 @@ public struct Config: Codable, Equatable {
     /// List of Xcode versions that the project supports.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
+    /// URL to the server that caching and insights will interact with.
+    public let cloudURL: String?
+
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
-    ///   - compatibleXcodeVersions: .
+    ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
+    ///   - cloudURL: URL to the server that caching and insights will interact with.
     ///   - generationOptions: List of Xcode versions that the project supports. An empty list means that
     public init(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+                cloudURL: String? = nil,
                 generationOptions: [GenerationOptions]) {
-        self.generationOptions = generationOptions
         self.compatibleXcodeVersions = compatibleXcodeVersions
+        self.generationOptions = generationOptions
+        self.cloudURL = cloudURL
         dumpIfNeeded(self)
     }
 }

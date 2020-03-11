@@ -12,11 +12,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
-- Add `--verbose`  https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
+- Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
 - `TuistInsights` target https://github.com/tuist/tuist/pull/1084 by @pepibumur.
+- Add `cloudURL` attribute to `Config` https://github.com/tuist/tuist/pull/1085 by @pepibumur.
+- Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
 
 ### Changed
-- Rename `TuistConfig.swift` to `Config.swift` https://github.com/tuist/tuist/pull/1083 by @pepibumur. 
+
+- Rename `TuistConfig.swift` to `Config.swift` https://github.com/tuist/tuist/pull/1083 by @pepibumur.
 
 ## 1.3.0
 
