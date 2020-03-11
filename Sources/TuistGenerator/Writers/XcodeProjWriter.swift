@@ -84,7 +84,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         }
     }
 
-    private func perform(command: GeneratedCommand) throws {
+    private func perform(command: CommandDescriptor) throws {
         try system.run(command.command)
     }
 
