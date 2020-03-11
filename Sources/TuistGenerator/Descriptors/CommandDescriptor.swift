@@ -1,5 +1,11 @@
 import Foundation
 
+/// Command Descriptor
+///
+/// Describes a command that needs to be executed as part of
+/// generating a project or workspace.
+///
+/// - seealso: `SideEffectsDescriptor`
 public struct CommandDescriptor {
     public var command: [String]
 

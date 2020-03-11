@@ -1,6 +1,12 @@
 import Basic
 import Foundation
 
+/// File Descriptor
+///
+/// Describes a file operation that needs to take place as
+/// part of generating a project or workspace.
+///
+/// - seealso: `SideEffectsDescriptor`
 public struct FileDescriptor {
     public enum State {
         case present
