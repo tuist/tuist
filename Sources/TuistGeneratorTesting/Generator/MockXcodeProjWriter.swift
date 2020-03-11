@@ -2,7 +2,7 @@
 import Foundation
 @testable import TuistGenerator
 
-class MockXcodeProjWriter: XcodeProjWriting {
+final class MockXcodeProjWriter: XcodeProjWriting {
     var writeProjectCalls: [ProjectDescriptor] = []
     func write(project: ProjectDescriptor) throws {
         writeProjectCalls.append(project)

@@ -5,6 +5,7 @@ import TuistLoader
 import TuistSupport
 import XCTest
 
+@testable import TuistGeneratorTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting

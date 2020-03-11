@@ -2,6 +2,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistGeneratorTesting
 import TuistSupport
 import XcodeProj
 import XCTest
@@ -12,6 +13,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
     private var subject: XcodeProjWriter!
 
     override func setUp() {
+        super.setUp()
         subject = XcodeProjWriter()
     }
 

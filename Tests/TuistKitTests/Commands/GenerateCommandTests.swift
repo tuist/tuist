@@ -22,6 +22,9 @@ final class GenerateCommandTests: TuistUnitTestCase {
         generator = MockProjectGenerator()
         parser = ArgumentParser.test()
         clock = StubClock()
+        generator.generateStub = { _, _ in
+            AbsolutePath("/Test")
+        }
 
         subject = GenerateCommand(parser: parser,
                                   generator: generator,

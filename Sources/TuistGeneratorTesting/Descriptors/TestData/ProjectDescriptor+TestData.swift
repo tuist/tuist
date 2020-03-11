@@ -4,8 +4,8 @@ import Foundation
 import XcodeProj
 @testable import TuistGenerator
 
-extension ProjectDescriptor {
-    static func test(path: AbsolutePath,
+public extension ProjectDescriptor {
+    static func test(path: AbsolutePath = AbsolutePath("/Test"),
                      xcodeprojPath: AbsolutePath? = nil,
                      schemes: [SchemeDescriptor] = [],
                      sideEffects: [SideEffectDescriptor] = []) -> ProjectDescriptor {

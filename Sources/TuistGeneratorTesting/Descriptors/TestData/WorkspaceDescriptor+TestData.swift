@@ -4,7 +4,7 @@ import Foundation
 import XcodeProj
 @testable import TuistGenerator
 
-extension WorkspaceDescriptor {
+public extension WorkspaceDescriptor {
     static func test(path: AbsolutePath = AbsolutePath("/Test"),
                      xcworkspacePath: AbsolutePath = AbsolutePath("/Test/Project.xcworkspace"),
                      projects: [ProjectDescriptor] = [],
