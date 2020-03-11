@@ -256,3 +256,9 @@ Scenario: The project is an iOS application with xcframeworks (ios_app_with_xcfr
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'MyFramework' with architecture 'arm64'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
 
+
+Scenario: The project is an iOS application with a deprecated configuration name (app_with_old_config_name)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture app_with_old_config_name into the working directory
+    Then tuist generates the project

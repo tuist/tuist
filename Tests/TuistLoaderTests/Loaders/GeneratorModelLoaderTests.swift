@@ -199,8 +199,8 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                                 ]),
         ]
         let configs = [
-            temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
-                                                                                   .xcodeProjectName("two \(.projectName) three")]),
+            temporaryPath: ProjectDescription.Config.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
+                                                                              .xcodeProjectName("two \(.projectName) three")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
@@ -340,7 +340,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
-                              configs: [AbsolutePath: ProjectDescription.TuistConfig] = [:]) -> ManifestLoading {
+                              configs: [AbsolutePath: ProjectDescription.Config] = [:]) -> ManifestLoading {
         let manifestLoader = MockManifestLoader()
         manifestLoader.loadProjectStub = { path in
             guard let manifest = projects[path] else {
@@ -348,7 +348,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
             }
             return manifest
         }
-        manifestLoader.loadTuistConfigStub = { path in
+        manifestLoader.loadConfigStub = { path in
             guard let manifest = configs[path] else {
                 throw ManifestLoaderError.manifestNotFound(path)
             }
@@ -361,7 +361,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
             }
 
             if configs[path] != nil {
-                manifests.insert(.tuistConfig)
+                manifests.insert(.config)
             }
             return manifests
         }

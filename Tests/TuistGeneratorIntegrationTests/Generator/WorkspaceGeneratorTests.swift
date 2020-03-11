@@ -48,8 +48,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // When
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: temporaryPath,
-                                                 graph: graph,
-                                                 tuistConfig: .test())
+                                                 graph: graph)
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
@@ -75,8 +74,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         XCTAssertNoThrow(
             try subject.generate(workspace: workspace,
                                  path: temporaryPath,
-                                 graph: graph,
-                                 tuistConfig: .test())
+                                 graph: graph)
         )
     }
 
@@ -95,8 +93,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         try (0 ..< 2).forEach { _ in
             try subject.generate(workspace: workspace,
                                  path: temporaryPath,
-                                 graph: graph,
-                                 tuistConfig: .test())
+                                 graph: graph)
         }
 
         // Then
@@ -118,8 +115,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // When
         let workspacePath = try subject.generate(workspace: workspace,
                                                  path: temporaryPath,
-                                                 graph: graph,
-                                                 tuistConfig: .test())
+                                                 graph: graph)
 
         // Then
         let xcworkspace = try XCWorkspace(pathString: workspacePath.pathString)
@@ -143,8 +139,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // When
         _ = try subject.generate(workspace: workspace,
                                  path: temporaryPath,
-                                 graph: graph,
-                                 tuistConfig: .test())
+                                 graph: graph)
 
         // Then
         XCTAssertEqual(cocoapodsInteractor.installArgs.count, 1)
@@ -175,16 +170,14 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // When
         try subject.generate(workspace: workspace,
                              path: temporaryPath,
-                             graph: graph,
-                             tuistConfig: .test())
+                             graph: graph)
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
 
         XCTAssertNoThrow(try subject.generate(workspace: workspace,
                                               path: temporaryPath,
-                                              graph: graph,
-                                              tuistConfig: .test()))
+                                              graph: graph))
     }
 
     func test_generate_linksRootPackageResolved_before_resolving() throws {
@@ -214,8 +207,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // When
         try subject.generate(workspace: workspace,
                              path: temporaryPath,
-                             graph: graph,
-                             tuistConfig: .test())
+                             graph: graph)
 
         // Then
         let workspacePackageResolvedPath = temporaryPath.appending(RelativePath("\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
@@ -246,8 +238,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         // When
         try subject.generate(workspace: workspace,
                              path: temporaryPath,
-                             graph: graph,
-                             tuistConfig: .test())
+                             graph: graph)
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))

@@ -1,9 +1,9 @@
 import Foundation
 @testable import ProjectDescription
 
-extension TuistConfig {
-    public static func test(generationOptions: [TuistConfig.GenerationOptions] = []) -> TuistConfig {
-        TuistConfig(generationOptions: generationOptions)
+extension Config {
+    public static func test(generationOptions: [Config.GenerationOptions] = []) -> Config {
+        Config(generationOptions: generationOptions)
     }
 }
 

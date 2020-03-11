@@ -115,8 +115,8 @@ public class Generator: Generating {
     }
 
     public func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graphing) {
-        let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-        try environmentLinter.lint(config: tuistConfig).printAndThrowIfNeeded()
+        let config = try graphLoader.loadConfig(path: path)
+        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
 
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
@@ -130,8 +130,8 @@ public class Generator: Generating {
 
     public func generateProjectWorkspace(at path: AbsolutePath,
                                          workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graphing) {
-        let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-        try environmentLinter.lint(config: tuistConfig).printAndThrowIfNeeded()
+        let config = try graphLoader.loadConfig(path: path)
+        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
 
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
@@ -143,15 +143,14 @@ public class Generator: Generating {
 
         let workspacePath = try workspaceGenerator.generate(workspace: workspace,
                                                             path: path,
-                                                            graph: graph,
-                                                            tuistConfig: tuistConfig)
+                                                            graph: graph)
         return (workspacePath, graph)
     }
 
     public func generateWorkspace(at path: AbsolutePath,
                                   workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graphing) {
-        let tuistConfig = try graphLoader.loadTuistConfig(path: path)
-        try environmentLinter.lint(config: tuistConfig).printAndThrowIfNeeded()
+        let config = try graphLoader.loadConfig(path: path)
+        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
@@ -161,8 +160,7 @@ public class Generator: Generating {
 
         let workspacePath = try workspaceGenerator.generate(workspace: updatedWorkspace,
                                                             path: path,
-                                                            graph: graph,
-                                                            tuistConfig: tuistConfig)
+                                                            graph: graph)
         return (workspacePath, graph)
     }
 }
