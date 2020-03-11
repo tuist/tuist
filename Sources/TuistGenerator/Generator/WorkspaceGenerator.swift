@@ -28,12 +28,11 @@ protocol WorkspaceGenerating: AnyObject {
     ///   - workspace: Workspace model.
     ///   - path: Path to the directory where the generation command is executed from.
     ///   - graph: In-memory representation of the graph.
-    /// - Returns: Path to the generated workspace.
+    /// - Returns: Generated workspace descriptor
     /// - Throws: An error if the generation fails.
-    @discardableResult
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath
+                  graph: Graphing) throws -> WorkspaceDescriptor
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -41,61 +40,54 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     private let projectGenerator: ProjectGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
-    private let cocoapodsInteractor: CocoaPodsInteracting
     private let schemesGenerator: SchemesGenerating
 
     // MARK: - Init
 
-    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
+    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator)
         self.init(projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  cocoapodsInteractor: cocoapodsInteractor,
                   schemesGenerator: SchemesGenerator())
     }
 
     init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         cocoapodsInteractor: CocoaPodsInteracting,
          schemesGenerator: SchemesGenerating) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
-        self.cocoapodsInteractor = cocoapodsInteractor
         self.schemesGenerator = schemesGenerator
     }
 
     // MARK: - WorkspaceGenerating
 
-    /// Generates the given workspace.
-    ///
-    /// - Parameters:
-    ///   - workspace: Workspace model.
-    ///   - path: Path to the directory where the generation command is executed from.
-    ///   - graph: In-memory representation of the graph.
-    /// - Returns: Path to the generated workspace.
-    /// - Throws: An error if the generation fails.
-    @discardableResult
-    func generate(workspace: Workspace,
-                  path: AbsolutePath,
-                  graph: Graphing) throws -> AbsolutePath {
+    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> WorkspaceDescriptor {
         let workspaceName = "\(graph.name).xcworkspace"
 
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-
-        var generatedProjects = [AbsolutePath: GeneratedProject]()
-        try graph.projects.forEach { project in
-            let generatedProject = try projectGenerator.generate(project: project,
-                                                                 graph: graph,
-                                                                 sourceRootPath: project.path,
-                                                                 xcodeprojPath: nil)
-            generatedProjects[project.path] = generatedProject
+        let projects = try graph.projects.map { project in
+            try projectGenerator.generate(project: project,
+                                          graph: graph,
+                                          sourceRootPath: project.path,
+                                          xcodeprojPath: nil)
         }
+
+        let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
+            let pbxproj = project.xcodeProj.pbxproj
+            let targets = pbxproj.nativeTargets.map {
+                ($0.name, $0)
+            }
+            return (project.path,
+                    GeneratedProject(pbxproj: pbxproj,
+                                     path: project.xcodeprojPath,
+                                     targets: Dictionary(targets, uniquingKeysWith: { $1 }),
+                                     name: project.xcodeprojPath.basename))
+        })
 
         // Workspace structure
         let structure = workspaceStructureGenerator.generateStructure(path: path,
@@ -111,128 +103,18 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                                       path: path)
         }
 
-        try write(workspace: workspace,
-                  xcworkspace: xcWorkspace,
-                  generatedProjects: generatedProjects,
-                  graph: graph,
-                  to: workspacePath)
-
         // Schemes
 
-        try writeSchemes(workspace: workspace,
-                         xcworkspace: xcWorkspace,
-                         generatedProjects: generatedProjects,
-                         graph: graph,
-                         to: workspacePath)
+        let schemes = try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
+                                                                    generatedProjects: generatedProjects,
+                                                                    graph: graph)
 
-        // SPM
-
-        try generatePackageDependencyManager(at: path,
-                                             workspace: workspace,
-                                             workspaceName: workspaceName,
-                                             graph: graph)
-
-        // CocoaPods
-
-        try cocoapodsInteractor.install(graph: graph)
-
-        return workspacePath
-    }
-
-    private func generatePackageDependencyManager(
-        at path: AbsolutePath,
-        workspace _: Workspace,
-        workspaceName: String,
-        graph: Graphing
-    ) throws {
-        let packages = graph.packages
-
-        if packages.isEmpty {
-            return
-        }
-
-        let hasRemotePackage = packages.first(where: { node in
-            switch node.package {
-            case .remote: return true
-            case .local: return false
-            }
-        }) != nil
-
-        let rootPackageResolvedPath = path.appending(component: ".package.resolved")
-        let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
-        let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
-
-        if hasRemotePackage, FileHandler.shared.exists(rootPackageResolvedPath) {
-            try FileHandler.shared.createFolder(workspacePackageResolvedFolderPath)
-            if FileHandler.shared.exists(workspacePackageResolvedPath) {
-                try FileHandler.shared.delete(workspacePackageResolvedPath)
-            }
-            try FileHandler.shared.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
-        }
-
-        let workspacePath = path.appending(component: workspaceName)
-        // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
-        try System.shared.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-
-        if hasRemotePackage {
-            if FileHandler.shared.exists(rootPackageResolvedPath) {
-                try FileHandler.shared.delete(rootPackageResolvedPath)
-            }
-
-            try FileHandler.shared.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
-        }
-    }
-
-    private func write(workspace _: Workspace,
-                       xcworkspace: XCWorkspace,
-                       generatedProjects _: [AbsolutePath: GeneratedProject],
-                       graph _: Graphing,
-                       to: AbsolutePath) throws {
-        let workspaceDataFile = "contents.xcworkspacedata"
-        let fileHandler = FileHandler.shared
-
-        // If the workspace doesn't exist we can write it because there isn't any
-        // Xcode instance that might depend on it.
-        if !fileHandler.exists(to.appending(component: workspaceDataFile)) {
-            try xcworkspace.write(path: to.path)
-            return
-        }
-
-        // If the workspace exists, we want to reduce the likeliness of causing
-        // Xcode not to be able to reload the workspace.
-        // We only replace the current one if something has changed.
-        try fileHandler.inTemporaryDirectory { temporaryPath in
-            let temporaryPath = temporaryPath.appending(component: to.basename)
-            try xcworkspace.write(path: temporaryPath.path)
-
-            let workspaceData: (AbsolutePath) throws -> Data = {
-                let dataPath = $0.appending(component: workspaceDataFile)
-                return try Data(contentsOf: dataPath.url)
-            }
-
-            let currentData = try workspaceData(to)
-            let currentWorkspaceData = try workspaceData(temporaryPath)
-
-            guard currentData != currentWorkspaceData else {
-                return
-            }
-
-            try fileHandler.createFolder(to)
-            try fileHandler.replace(to.appending(component: workspaceDataFile),
-                                    with: temporaryPath.appending(component: workspaceDataFile))
-        }
-    }
-
-    private func writeSchemes(workspace: Workspace,
-                              xcworkspace _: XCWorkspace,
-                              generatedProjects: [AbsolutePath: GeneratedProject],
-                              graph: Graphing,
-                              to path: AbsolutePath) throws {
-        try schemesGenerator.wipeSchemes(at: path)
-        try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
-                                                      xcworkspacePath: path,
-                                                      generatedProjects: generatedProjects,
-                                                      graph: graph)
+        return WorkspaceDescriptor(path: path,
+                                   xcworkspacePath: workspacePath,
+                                   xcworkspace: xcWorkspace,
+                                   projectDescriptors: projects,
+                                   schemeDescriptors: schemes,
+                                   sideEffectDescriptors: [])
     }
 
     /// Create a XCWorkspaceDataElement.file from a path string.

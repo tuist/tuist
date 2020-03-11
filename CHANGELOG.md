@@ -21,6 +21,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Rename `TuistConfig.swift` to `Config.swift` https://github.com/tuist/tuist/pull/1083 by @pepibumur.
 
+### Changed
+
+- Generator update - leveraging intermediate descriptors https://github.com/tuist/tuist/pull/1007 by @kwridan
+  - Note: `TuistGenerator.Generator` is now deprecated and will be removed in a future version of Tuist.
+
 ## 1.3.0
 
 ### Added

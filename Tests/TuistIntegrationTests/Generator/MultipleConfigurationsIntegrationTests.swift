@@ -22,13 +22,13 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
-        let modelLoader = try createModelLoader(projectSettings: Settings(configurations: [:]),
-                                                targetSettings: nil)
-        let subject = Generator(modelLoader: modelLoader)
+        let projectSettings: Settings = Settings(configurations: [:])
+        let targetSettings: Settings? = nil
 
         // When / Then
-        XCTAssertThrowsError(try subject.generateWorkspace(at: temporaryPath, workspaceFiles: []))
+        XCTAssertThrowsError(
+            try generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
+        )
     }
 
     func testGenerateWhenSingleDebugConfigurationInProject() throws {
@@ -290,9 +290,17 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {
         let temporaryPath = try self.temporaryPath()
+
         let modelLoader = try createModelLoader(projectSettings: projectSettings, targetSettings: targetSettings)
-        let subject = Generator(modelLoader: modelLoader)
-        _ = try subject.generateWorkspace(at: temporaryPath, workspaceFiles: [])
+        let subject = DescriptorGenerator()
+        let writer = XcodeProjWriter()
+        let linter = GraphLinter()
+        let graphLoader = GraphLoader(modelLoader: modelLoader)
+
+        let (graph, workspace) = try graphLoader.loadWorkspace(path: temporaryPath)
+        try linter.lint(graph: graph).printAndThrowIfNeeded()
+        let descriptor = try subject.generateWorkspace(workspace: workspace, graph: graph)
+        try writer.write(workspace: descriptor)
     }
 
     private func setupTestProject() throws {
@@ -313,7 +321,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let modelLoader = MockGeneratorModelLoader(basePath: temporaryPath)
         let appTarget = try createAppTarget(settings: targetSettings)
         let project = createProject(path: try pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
-        let workspace = try createWorkspace(projects: ["App"])
+        let workspace = try createWorkspace(path: temporaryPath, projects: ["App"])
         let config = createConfig()
 
         modelLoader.mockProject("App") { _ in project }
@@ -327,8 +335,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         Config(compatibleXcodeVersions: .all, cloudURL: nil, generationOptions: [])
     }
 
-    private func createWorkspace(projects: [String]) throws -> Workspace {
-        Workspace(path: AbsolutePath("/"), name: "Workspace", projects: try projects.map { try pathTo($0) })
+    private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
+        Workspace(path: path, name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {

@@ -17,10 +17,7 @@ protocol CacheControlling {
 
 final class CacheController: CacheControlling {
     /// Xcode project generator.
-    private let generator: Generating
-
-    /// Manifest loader.
-    private let manifestLoader: ManifestLoading
+    private let generator: ProjectGenerating
 
     /// Utility to build the xcframeworks.
     private let xcframeworkBuilder: XCFrameworkBuilding
@@ -31,20 +28,18 @@ final class CacheController: CacheControlling {
     /// Cache.
     private let cache: CacheStoraging
 
-    init(generator: Generating = Generator(),
-         manifestLoader: ManifestLoading = ManifestLoader(),
+    init(generator: ProjectGenerating = ProjectGenerator(),
          xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController()),
          cache: CacheStoraging = Cache(),
          graphContentHasher: GraphContentHashing = GraphContentHasher()) {
         self.generator = generator
-        self.manifestLoader = manifestLoader
         self.xcframeworkBuilder = xcframeworkBuilder
         self.cache = cache
         self.graphContentHasher = graphContentHasher
     }
 
     func cache(path: AbsolutePath) throws {
-        let (path, graph) = try generator.generateWorkspace(at: path, manifestLoader: manifestLoader)
+        let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         logger.notice("Hashing cacheable frameworks")
         let cacheableTargets = try self.cacheableTargets(graph: graph)
