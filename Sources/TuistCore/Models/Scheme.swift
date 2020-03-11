@@ -45,7 +45,7 @@ public struct Scheme: Equatable {
             runAction?.executable.map { [$0] },
             archiveAction?.preActions.compactMap(\.target),
             archiveAction?.postActions.compactMap(\.target),
-            profileAction?.executable.map { [$0] }
+            profileAction?.executable.map { [$0] },
         ]
 
         let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()

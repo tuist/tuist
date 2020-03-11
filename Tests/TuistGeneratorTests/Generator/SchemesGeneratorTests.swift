@@ -599,6 +599,7 @@ final class SchemesGeneratorTests: XCTestCase {
     }
 
     // MARK: - Analyze Action Tests
+
     func test_schemeAnalyzeAction() throws {
         // Given
         let projectPath = AbsolutePath("/Project")
