@@ -17,6 +17,11 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         subject = XcodeProjWriter()
     }
 
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
+    }
+
     func test_writeProject() throws {
         // Given
         let path = try temporaryPath()

@@ -17,6 +17,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         subject = SwiftPackageManagerInteractor()
     }
 
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
+    }
+
     func test_generate_addsPackageDependencyManager() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
