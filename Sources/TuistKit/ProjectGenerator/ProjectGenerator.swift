@@ -7,13 +7,10 @@ import TuistLoader
 protocol ProjectGenerating {
     @discardableResult
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing)
 }
 
-protocol DetailedProjectGenerating {
-    func generate(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing)
-}
-
-class ProjectGenerator: ProjectGenerating, DetailedProjectGenerating {
+class ProjectGenerator: ProjectGenerating {
     private let manifestLoader: ManifestLoading = ManifestLoader()
     private let manifestLinter: ManifestLinting = ManifestLinter()
     private let graphLinter: GraphLinting = GraphLinter()
@@ -32,11 +29,11 @@ class ProjectGenerator: ProjectGenerating, DetailedProjectGenerating {
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
-        let (generatedPath, _) = try generate(path: path, projectOnly: projectOnly)
+        let (generatedPath, _) = try generateWithGraph(path: path, projectOnly: projectOnly)
         return generatedPath
     }
 
-    func generate(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
         let manifests = manifestLoader.manifests(at: path)
 
         if projectOnly {

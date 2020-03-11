@@ -17,7 +17,7 @@ protocol CacheControlling {
 
 final class CacheController: CacheControlling {
     /// Xcode project generator.
-    private let generator: DetailedProjectGenerating
+    private let generator: ProjectGenerating
 
     /// Utility to build the xcframeworks.
     private let xcframeworkBuilder: XCFrameworkBuilding
@@ -28,7 +28,7 @@ final class CacheController: CacheControlling {
     /// Cache.
     private let cache: CacheStoraging
 
-    init(generator: DetailedProjectGenerating = ProjectGenerator(),
+    init(generator: ProjectGenerating = ProjectGenerator(),
          xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController()),
          cache: CacheStoraging = Cache(),
          graphContentHasher: GraphContentHashing = GraphContentHasher()) {
@@ -39,7 +39,7 @@ final class CacheController: CacheControlling {
     }
 
     func cache(path: AbsolutePath) throws {
-        let (path, graph) = try generator.generate(path: path, projectOnly: false)
+        let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         logger.notice("Hashing cacheable frameworks")
         let cacheableTargets = try self.cacheableTargets(graph: graph)

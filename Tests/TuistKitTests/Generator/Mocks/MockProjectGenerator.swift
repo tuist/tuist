@@ -19,20 +19,14 @@ final class MockProjectGenerator: ProjectGenerating {
         generateCalls.append((path, projectOnly))
         return try generateStub(path, projectOnly)
     }
-}
 
-class MockDetailedProjectGenerator: DetailedProjectGenerating {
-    enum MockError: Error {
-        case stubNotImplemented
-    }
-
-    var generateCalls: [(path: AbsolutePath, projectOnly: Bool)] = []
-    var generateStub: ((AbsolutePath, Bool) throws -> (AbsolutePath, Graphing))?
-    func generate(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
-        guard let generateStub = generateStub else {
+    var generateWithGraphCalls: [(path: AbsolutePath, projectOnly: Bool)] = []
+    var generateWithGraphStub: ((AbsolutePath, Bool) throws -> (AbsolutePath, Graphing))?
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
+        guard let generateWithGraphStub = generateWithGraphStub else {
             throw MockError.stubNotImplemented
         }
-        generateCalls.append((path, projectOnly))
-        return try generateStub(path, projectOnly)
+        generateWithGraphCalls.append((path, projectOnly))
+        return try generateWithGraphStub(path, projectOnly)
     }
 }

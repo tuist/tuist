@@ -12,7 +12,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CacheControllerTests: TuistUnitTestCase {
-    var generator: MockDetailedProjectGenerator!
+    var generator: MockProjectGenerator!
     var graphContentHasher: MockGraphContentHasher!
     var xcframeworkBuilder: MockXCFrameworkBuilder!
     var manifestLoader: MockManifestLoader!
@@ -20,7 +20,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var subject: CacheController!
 
     override func setUp() {
-        generator = MockDetailedProjectGenerator()
+        generator = MockProjectGenerator()
         xcframeworkBuilder = MockXCFrameworkBuilder()
         cache = MockCacheStorage()
         manifestLoader = MockManifestLoader()
@@ -66,7 +66,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateStub = { (loadPath, _) -> (AbsolutePath, Graphing) in
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graphing) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
