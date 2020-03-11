@@ -67,7 +67,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> WorkspaceDescriptor {
         let workspaceName = "\(graph.name).xcworkspace"
 
-        Printer.shared.print(section: "Generating workspace \(workspaceName)")
+        logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
         let projects = try graph.projects.map { project in
