@@ -19,12 +19,18 @@ extension TuistCore.Scheme {
                                                                                   generatorPaths: generatorPaths) }
         let archiveAction = try manifest.archiveAction.map { try TuistCore.ArchiveAction.from(manifest: $0,
                                                                                               generatorPaths: generatorPaths) }
+        let profileAction = try manifest.profileAction.map { try TuistCore.ProfileAction.from(manifest: $0,
+                                                                                              generatorPaths: generatorPaths) }
+        let analyzeAction = try manifest.analyzeAction.map { try TuistCore.AnalyzeAction.from(manifest: $0,
+                                                                                              generatorPaths: generatorPaths) }
 
         return Scheme(name: name,
                       shared: shared,
                       buildAction: buildAction,
                       testAction: testAction,
                       runAction: runAction,
-                      archiveAction: archiveAction)
+                      archiveAction: archiveAction,
+                      profileAction: profileAction,
+                      analyzeAction: analyzeAction)
     }
 }
