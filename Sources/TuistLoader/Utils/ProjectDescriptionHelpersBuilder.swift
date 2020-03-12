@@ -5,7 +5,7 @@ import TuistSupport
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
 /// from any manifest being loaded.
-protocol ProjectDescriptionHelpersBuilding: AnyObject {
+public protocol ProjectDescriptionHelpersBuilding: AnyObject {
     /// Builds the helpers module and returns it.
     /// - Parameters:
     ///   - at: Path to the directory that contains the manifest being loaded.
@@ -13,7 +13,7 @@ protocol ProjectDescriptionHelpersBuilding: AnyObject {
     func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath?
 }
 
-final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
+public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
     fileprivate var builtHelpers: [AbsolutePath: AbsolutePath] = [:]
@@ -28,13 +28,13 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     /// - Parameters:
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
-    init(cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
+    public init(cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
          helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
+    public func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
         guard let helpersDirectory = helpersDirectoryLocator.locate(at: at) else { return nil }
         if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
 

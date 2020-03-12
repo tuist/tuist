@@ -119,6 +119,7 @@ public protocol FileHandling: AnyObject {
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
+    func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
 }
 
 public class FileHandler: FileHandling {
@@ -253,5 +254,9 @@ public class FileHandler: FileHandling {
         } else {
             return locateDirectoryTraversingParents(from: from.parentDirectory, path: path)
         }
+    }
+
+    public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
+        try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
     }
 }

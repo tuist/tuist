@@ -25,6 +25,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let sourceRootPath = try temporaryPath()
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
+        let templates = [sourceRootPath].map { $0.appending(component: "template") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
 
@@ -33,12 +34,13 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            sourceRootPath: sourceRootPath,
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
+                                           templates: templates,
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
         let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
-        XCTAssertEqual(targetNodes.count, 2)
-        XCTAssertEqual(targetNodes.first?.dependencies, [targetNodes.last!])
+        XCTAssertEqual(targetNodes.count, 3)
+        XCTAssertEqual(targetNodes.first?.dependencies, Array(targetNodes.dropFirst()))
 
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.first)
@@ -50,11 +52,11 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
         XCTAssertEqual(manifestsTarget.sources.map { $0.path }, manifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
+        XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers"), .target(name: "Templates")])
 
         // Generated Helpers target
-        let helpersTarget = try XCTUnwrap(project.targets.last)
-        XCTAssertEqual(targetNodes.last?.target, helpersTarget)
+        let helpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
+        XCTAssertEqual(targetNodes.dropLast().last?.target, helpersTarget)
 
         XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
         XCTAssertEqual(helpersTarget.platform, .macOS)
@@ -63,6 +65,19 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(helpersTarget.sources.map { $0.path }, helperPaths)
         XCTAssertEqual(helpersTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(helpersTarget.dependencies, [])
+
+        // Generated Templates target
+
+        let templatesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Templates" }))
+        XCTAssertEqual(targetNodes.last?.target, templatesTarget)
+
+        XCTAssertEqual(templatesTarget.name, "Templates")
+        XCTAssertEqual(templatesTarget.platform, .macOS)
+        XCTAssertEqual(templatesTarget.product, .staticFramework)
+        XCTAssertEqual(templatesTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
+        XCTAssertEqual(templatesTarget.sources.map { $0.path }, templates)
+        XCTAssertEqual(templatesTarget.filesGroup, .group(name: "Manifests"))
+        XCTAssertEqual(templatesTarget.dependencies, [])
 
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath)
@@ -92,6 +107,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let sourceRootPath = try temporaryPath()
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
+        let templates: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
 
@@ -100,6 +116,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            sourceRootPath: sourceRootPath,
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
+                                           templates: templates,
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
