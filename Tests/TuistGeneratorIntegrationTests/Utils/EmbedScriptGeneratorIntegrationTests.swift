@@ -24,7 +24,7 @@ final class EmbedScriptGeneratorIntegrationTests: TuistTestCase {
         // Given
         let carthagePath = try temporaryFixture("Carthage/")
         let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
-        let framework = FrameworkNode(path: frameworkPath)
+        let framework = FrameworkNode.test(path: frameworkPath)
 
         // When
         let got = try subject.script(sourceRootPath: carthagePath, frameworkPaths: [framework.path])

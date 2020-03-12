@@ -73,6 +73,6 @@ public class LibraryNode: PrecompiledNode {
         try container.encode(name, forKey: .name)
         try container.encode(product, forKey: .product)
         try container.encode(architectures.map(\.rawValue), forKey: .architectures)
-        try container.encode("library", forKey: .type)
+        try container.encode("precompiled", forKey: .type)
     }
 }

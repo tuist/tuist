@@ -57,7 +57,7 @@ public class FrameworkNode: PrecompiledNode {
         try container.encode(name, forKey: .name)
         try container.encode(product, forKey: .product)
         try container.encode(architectures.map(\.rawValue), forKey: .architectures)
-        try container.encode("framework", forKey: .type)
+        try container.encode("precompiled", forKey: .type)
     }
 
     /// Given a framework path it returns the path to its binary.
