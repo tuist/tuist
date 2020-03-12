@@ -8,28 +8,14 @@ public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// - Parameter frameworkPath: Path to the .framework directory.
     func dsymPath(frameworkPath: AbsolutePath) -> AbsolutePath?
 
-    /// Given a framework, it returns the path to its dSYMs if they exist
-    /// in the same framework directory.
-    /// - Parameter framework: Framework instance.
-    func dsymPath(framework: FrameworkNode) -> AbsolutePath?
-
     /// Given the path to a framework, it returns the list of .bcsymbolmap files that
     /// are associated to the framework and that are present in the same directory.
     /// - Parameter frameworkPath: Path to the .framework directory.
     func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath]
 
-    /// Given  a framework, it returns the list of .bcsymbolmap files that
-    /// are associated to the framework and that are present in the same directory.
-    /// - Parameter framework: Framework instance.
-    func bcsymbolmapPaths(framework: FrameworkNode) throws -> [AbsolutePath]
-
     /// Returns the product for the framework at the given path.
     /// - Parameter frameworkPath: Path to the .framework directory.
     func product(frameworkPath: AbsolutePath) throws -> Product
-
-    /// Returns the product for the given framework.
-    /// - Parameter framework: Framework instance.
-    func product(framework: FrameworkNode) throws -> Product
 }
 
 public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMetadataProviding {
@@ -37,10 +23,6 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         let path = AbsolutePath("\(frameworkPath.pathString).dSYM")
         if FileHandler.shared.exists(path) { return path }
         return nil
-    }
-
-    public func dsymPath(framework: FrameworkNode) -> AbsolutePath? {
-        dsymPath(frameworkPath: framework.path)
     }
 
     public func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
@@ -52,10 +34,6 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
             .sorted()
     }
 
-    public func bcsymbolmapPaths(framework: FrameworkNode) throws -> [AbsolutePath] {
-        try bcsymbolmapPaths(frameworkPath: framework.path)
-    }
-
     public func product(frameworkPath: AbsolutePath) throws -> Product {
         let binaryPath = FrameworkNode.binaryPath(frameworkPath: frameworkPath)
         switch try linking(binaryPath: binaryPath) {
@@ -64,9 +42,5 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         case .static:
             return .staticFramework
         }
-    }
-
-    public func product(framework: FrameworkNode) throws -> Product {
-        try product(frameworkPath: framework.path)
     }
 }

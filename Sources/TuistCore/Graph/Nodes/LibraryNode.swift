@@ -50,6 +50,6 @@ public class LibraryNode: PrecompiledNode {
         try container.encode(try metadataProvider.product(library: self), forKey: .product)
         let archs = try metadataProvider.architectures(precompiled: self)
         try container.encode(archs.map(\.rawValue), forKey: .architectures)
-        try container.encode("precompiled", forKey: .type)
+        try container.encode("library", forKey: .type)
     }
 }
