@@ -84,9 +84,10 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)
 
         // Xcode project organization name
-        let organizationName = organizationNameOverride(from: config)
-        enrichedModel = enrichedModel.replacing(organizationName: organizationName)
-
+        if let organizationName = organizationNameOverride(from: config) {
+            enrichedModel = enrichedModel.replacing(organizationName: organizationName)
+        }
+        
         return enrichedModel
     }
 
