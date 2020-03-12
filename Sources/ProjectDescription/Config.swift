@@ -7,6 +7,7 @@ public struct Config: Codable, Equatable {
     /// Contains options related to the project generation.
     ///
     /// - xcodeProjectName(TemplateString): When passed, Tuist generates the project with the specific name on disk instead of using the project name.
+    /// - organizationName(Strig): When passed, Tuist generates the project with the specific organization name.
     public enum GenerationOptions: Encodable, Decodable, Equatable {
         case xcodeProjectName(TemplateString)
         case organizationName(String)
@@ -26,7 +27,7 @@ public struct Config: Codable, Equatable {
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
     ///   - cloudURL: URL to the server that caching and insights will interact with.
-    ///   - generationOptions: List of Xcode versions that the project supports. An empty list means that
+    ///   - generationOptions: List of options to use when generating the project.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
                 cloudURL: String? = nil,
                 generationOptions: [GenerationOptions]) {
@@ -85,7 +86,7 @@ public func == (lhs: TuistConfig.GenerationOptions, rhs: TuistConfig.GenerationO
         return lhs.rawString == rhs.rawString
     case let (.organizationName(lhs), .organizationName(rhs)):
         return lhs == rhs
-    default: 
+    default:
         return false
     }
 }

@@ -108,7 +108,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
     }
 
     private func organizationNameOverride(from config: TuistCore.Config) -> String? {
-        return config.generationOptions.compactMap { item -> String? in
+        config.generationOptions.compactMap { item -> String? in
             switch item {
             case let .organizationName(name):
                 return name
