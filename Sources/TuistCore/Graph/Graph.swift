@@ -382,7 +382,7 @@ public class Graph: Graphing {
 
         var references: Set<GraphDependencyReference> = Set([])
 
-        let isDynamicAndLinkable = frameworkUsesDynamicLinking()
+        let isDynamicAndLinkable = { (node: FrameworkNode) in node.linking == .dynamic }
 
         /// Precompiled frameworks
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)
@@ -572,12 +572,5 @@ public class Graph: Graphing {
         ]
 
         return validProducts.contains(targetNode.target.product)
-    }
-
-    // swiftlint:disable:next line_length
-    fileprivate func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool { { frameworkNode in
-        let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
-        return isDynamicLink ?? false
-    }
     }
 }

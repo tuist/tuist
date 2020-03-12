@@ -36,35 +36,18 @@ public protocol PrecompiledMetadataProviding {
     /// - Parameter binaryPath: Binary path.
     func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture]
 
-    /// It returns the supported architectures of the precompiled framework or library.
-    /// - Parameter precompiled: Precompiled framework or library.
-    func architectures(precompiled: PrecompiledNode) throws -> [BinaryArchitecture]
-
     /// Return how other binaries should link the binary at the given path.
     /// - Parameter binaryPath: Path to the binary.
     func linking(binaryPath: AbsolutePath) throws -> BinaryLinking
-
-    /// Return how other binaries should link the given precompiled framework or library.
-    /// - Parameter precompiled: Precompiled framework or library.
-    func linking(precompiled: PrecompiledNode) throws -> BinaryLinking
 
     /// It uses 'dwarfdump' to dump the UUIDs of each architecture.
     /// The UUIDs allows us to know which .bcsymbolmap files belong to this binary.
     /// - Parameter binaryPath: Path to the binary.
     func uuids(binaryPath: AbsolutePath) throws -> Set<UUID>
-
-    /// It uses 'dwarfdump' to dump the UUIDs of each architecture.
-    /// The UUIDs allows us to know which .bcsymbolmap files belong to this binary.
-    /// - Parameter precompiled: Precompiled framework or library.
-    func uuids(precompiled: PrecompiledNode) throws -> Set<UUID>
 }
 
 public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     public init() {}
-
-    public func architectures(precompiled: PrecompiledNode) throws -> [BinaryArchitecture] {
-        try architectures(binaryPath: precompiled.binaryPath)
-    }
 
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
         let result = try System.shared.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
@@ -87,17 +70,9 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         return architectures
     }
 
-    public func linking(precompiled: PrecompiledNode) throws -> BinaryLinking {
-        try linking(binaryPath: precompiled.binaryPath)
-    }
-
     public func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
         let result = try System.shared.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static
-    }
-
-    public func uuids(precompiled: PrecompiledNode) throws -> Set<UUID> {
-        try uuids(binaryPath: precompiled.binaryPath)
     }
 
     public func uuids(binaryPath: AbsolutePath) throws -> Set<UUID> {

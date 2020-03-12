@@ -30,20 +30,26 @@ public class GraphLoader: GraphLoading {
     /// Utility to load xcframework nodes by parsing their information from disk.
     fileprivate let xcframeworkNodeLoader: XCFrameworkNodeLoading
 
+    /// Utility to load library nodes by parsing their information from disk.
+    fileprivate let libraryNodeLoader: LibraryNodeLoading
+
     // MARK: - Init
 
     public convenience init(modelLoader: GeneratorModelLoading) {
         self.init(modelLoader: modelLoader,
                   frameworkNodeLoader: FrameworkNodeLoader(),
-                  xcframeworkNodeLoader: XCFrameworkNodeLoader())
+                  xcframeworkNodeLoader: XCFrameworkNodeLoader(),
+                  libraryNodeLoader: LibraryNodeLoader())
     }
 
     init(modelLoader: GeneratorModelLoading,
          frameworkNodeLoader: FrameworkNodeLoading,
-         xcframeworkNodeLoader: XCFrameworkNodeLoading) {
+         xcframeworkNodeLoader: XCFrameworkNodeLoading,
+         libraryNodeLoader: LibraryNodeLoading) {
         self.modelLoader = modelLoader
         self.frameworkNodeLoader = frameworkNodeLoader
         self.xcframeworkNodeLoader = xcframeworkNodeLoader
+        self.libraryNodeLoader = libraryNodeLoader
     }
 
     // MARK: - GraphLoading
@@ -247,26 +253,11 @@ public class GraphLoader: GraphLoading {
                                      swiftModuleMap: AbsolutePath?,
                                      libraryPath: AbsolutePath,
                                      graphLoaderCache: GraphLoaderCaching) throws -> LibraryNode {
-        // TODO: Validate using linters
-        if !FileHandler.shared.exists(libraryPath) {
-            throw GraphLoadingError.missingFile(libraryPath)
-        }
         if let libraryNode = graphLoaderCache.precompiledNode(libraryPath) as? LibraryNode { return libraryNode }
+        let libraryNode = try libraryNodeLoader.load(path: libraryPath,
+                                                     publicHeaders: publicHeaders,
+                                                     swiftModuleMap: swiftModuleMap)
 
-        // TODO: Validate using linters
-        if !FileHandler.shared.exists(publicHeaders) {
-            throw GraphLoadingError.missingFile(publicHeaders)
-        }
-
-        // TODO: Validate using linters
-        if let swiftModuleMap = swiftModuleMap {
-            if !FileHandler.shared.exists(swiftModuleMap) {
-                throw GraphLoadingError.missingFile(swiftModuleMap)
-            }
-        }
-        let libraryNode = LibraryNode(path: libraryPath,
-                                      publicHeaders: publicHeaders,
-                                      swiftModuleMap: swiftModuleMap)
         graphLoaderCache.add(precompiledNode: libraryNode)
         return libraryNode
     }

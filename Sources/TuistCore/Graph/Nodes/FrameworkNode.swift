@@ -4,16 +4,19 @@ import TuistSupport
 
 public class FrameworkNode: PrecompiledNode {
     /// Path to the associated .dSYM
-    let dsymPath: AbsolutePath?
+    public let dsymPath: AbsolutePath?
 
     /// Paths to the bcsymbolmap files.
-    let bcsymbolmapPaths: [AbsolutePath]
+    public let bcsymbolmapPaths: [AbsolutePath]
 
     /// Returns the type of linking
-    let linking: BinaryLinking
+    public let linking: BinaryLinking
 
     /// The architectures supported by the binary.
-    let architectures: [BinaryArchitecture]
+    public let architectures: [BinaryArchitecture]
+
+    /// Framework dependencies.
+    public let dependencies: [FrameworkNode]
 
     /// Returns the type of product.
     public var product: Product {
@@ -38,11 +41,13 @@ public class FrameworkNode: PrecompiledNode {
          dsymPath: AbsolutePath?,
          bcsymbolmapPaths: [AbsolutePath],
          linking: BinaryLinking,
-         architectures: [BinaryArchitecture] = []) {
+         architectures: [BinaryArchitecture] = [],
+         dependencies: [FrameworkNode] = []) {
         self.dsymPath = dsymPath
         self.bcsymbolmapPaths = bcsymbolmapPaths
         self.linking = linking
         self.architectures = architectures
+        self.dependencies = dependencies
         super.init(path: path)
     }
 
