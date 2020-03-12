@@ -34,7 +34,8 @@ import ProjectDescription
 let config = Config(
   compatibleXcodeVersions: ["10.3"],
   generationOptions: [
-    .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix")
+    .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix"),
+    .organizationName("Tuist")
   ]
 )
 ```
@@ -95,6 +96,10 @@ Generation options allow customizing the generation of Xcode projects.
     {
       case: '.xcodeProjectName(TemplateString)',
       description: 'Customise the name of the generated .xcodeproj.',
+    },
+    {
+      case: '.organizationName(String)',
+      description: 'Customise the organization name of the generated .xcodeproj.',
     },
   ]}
 />
