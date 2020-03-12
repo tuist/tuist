@@ -33,6 +33,7 @@ class ScaffoldCommand: NSObject, Command {
     private let pathArgument: OptionArgument<String>
     private let templateArgument: PositionalArgument<String>
     private var attributesArguments: [String: OptionArgument<String>] = [:]
+    private let subParser: ArgumentParser
 
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
@@ -48,7 +49,7 @@ class ScaffoldCommand: NSObject, Command {
     init(parser: ArgumentParser,
          templateLoader: TemplateLoading,
          templatesDirectoryLocator: TemplatesDirectoryLocating) {
-        let subParser = parser.add(subparser: ScaffoldCommand.command, overview: ScaffoldCommand.overview)
+        subParser = parser.add(subparser: ScaffoldCommand.command, overview: ScaffoldCommand.overview)
         listArgument = subParser.add(option: "--list",
                                      shortName: "-l",
                                      kind: Bool.self,
@@ -86,7 +87,7 @@ class ScaffoldCommand: NSObject, Command {
         
         attributesArguments = template.attributes.reduce([:]) {
             var mutableDictionary = $0
-            mutableDictionary[$1.name] = parser.add(option: "--\($1.name)",
+            mutableDictionary[$1.name] = subParser.add(option: "--\($1.name)",
                                                     kind: String.self)
             return mutableDictionary
         }

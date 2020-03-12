@@ -40,7 +40,7 @@ public struct Template {
     }
 
     public enum Contents {
-        case `static`(String)
-        case generated(AbsolutePath)
+        case string(String)
+        case file(AbsolutePath)
     }
 }

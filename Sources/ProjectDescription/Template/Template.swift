@@ -25,12 +25,12 @@ public struct Template: Codable, Equatable {
 
     /// Enum containing information about how to generate file
     public enum Contents: Codable, Equatable {
-        /// Static Contents is defined in `Template.swift` and contains a simple `String`
+        /// String Contents is defined in `Template.swift` and contains a simple `String`
         /// Can not contain any additional logic apart from plain `String` from `arguments`
-        case `static`(String)
-        /// Generated content is defined in a different file from `Template.swift`
+        case string(String)
+        /// File content is defined in a different file from `Template.swift`
         /// Can contain additional logic and anything that is defined in `ProjectDescriptionHelpers`
-        case generated(String)
+        case file(String)
 
         private enum CodingKeys: String, CodingKey {
             case type
@@ -41,10 +41,10 @@ public struct Template: Codable, Equatable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let value = try container.decode(String.self, forKey: .value)
             let type = try container.decode(String.self, forKey: .type)
-            if type == "static" {
-                self = .static(value)
-            } else if type == "generated" {
-                self = .generated(value)
+            if type == "string" {
+                self = .string(value)
+            } else if type == "file" {
+                self = .file(value)
             } else {
                 fatalError("Argument '\(type)' not supported")
             }
@@ -54,11 +54,11 @@ public struct Template: Codable, Equatable {
             var container = encoder.container(keyedBy: CodingKeys.self)
 
             switch self {
-            case let .static(contents):
-                try container.encode("static", forKey: .type)
+            case let .string(contents):
+                try container.encode("string", forKey: .type)
                 try container.encode(contents, forKey: .value)
-            case let .generated(path):
-                try container.encode("generated", forKey: .type)
+            case let .file(path):
+                try container.encode("file", forKey: .type)
                 try container.encode(path, forKey: .value)
             }
         }
@@ -121,18 +121,18 @@ public struct Template: Codable, Equatable {
 public extension Template.File {
     /// - Parameters:
     ///     - path: Path where to generate file
-    ///     - contents: Contents for generated file
-    /// - Returns: `Template.File` that is `.static`
-    static func `static`(path: String, contents: String) -> Template.File {
-        Template.File(path: path, contents: .static(contents))
+    ///     - contents: String Contents
+    /// - Returns: `Template.File` that is `.string`
+    static func string(path: String, contents: String) -> Template.File {
+        Template.File(path: path, contents: .string(contents))
     }
 
     /// - Parameters:
     ///     - path: Path where to generate file
-    ///     - generateFilePath: Path of file where the generated content is defined
-    /// - Returns: `Template.File` that is `.generated`
-    static func generated(path: String, generateFilePath: String) -> Template.File {
-        Template.File(path: path, contents: .generated(generateFilePath))
+    ///     - templatePath: Path of file where the template is defined
+    /// - Returns: `Template.File` that is `.file`
+    static func file(path: String, templatePath: String) -> Template.File {
+        Template.File(path: path, contents: .file(templatePath))
     }
 }
 

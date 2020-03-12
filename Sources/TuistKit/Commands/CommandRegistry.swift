@@ -76,7 +76,10 @@ public final class CommandRegistry {
 
                 // Normal command
             } else {
-                guard let parsedArguments = try parse() else { return }
+                guard let parsedArguments = try parse() else {
+                    parser.printUsage(on: stdoutStream)
+                    return
+                }
                 try process(arguments: parsedArguments)
             }
         } catch let error as FatalError {

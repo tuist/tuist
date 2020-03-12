@@ -134,10 +134,10 @@ extension TuistTemplate.Template.Contents {
     static func from(manifest: ProjectDescription.Template.Contents,
                      at path: AbsolutePath) throws -> TuistTemplate.Template.Contents {
         switch manifest {
-        case let .static(contents):
-            return .static(contents)
-        case let .generated(generatePath):
-            return .generated(path.appending(component: generatePath))
+        case let .string(contents):
+            return .string(contents)
+        case let .file(generatePath):
+            return .file(path.appending(component: generatePath))
         }
     }
 }

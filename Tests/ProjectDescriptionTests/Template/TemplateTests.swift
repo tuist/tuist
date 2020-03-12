@@ -13,8 +13,8 @@ class TemplateTests: XCTestCase {
                 .optional("bName", default: ""),
             ],
             files: [
-                .static(path: "static.swift", contents: "content"),
-                .generated(path: "generated.swift", generateFilePath: "generate.swift"),
+                .string(path: "static.swift", contents: "content"),
+                .file(path: "generated.swift", templatePath: "generate.swift"),
             ],
             directories: [
                 "{{ name }}",
