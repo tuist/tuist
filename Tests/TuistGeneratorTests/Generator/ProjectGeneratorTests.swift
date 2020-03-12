@@ -200,4 +200,23 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
             "en",
         ])
     }
+
+    func test_generate_setsOrganizationName() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(entryPath: path)
+        let project = Project.test(path: path,
+                                   organizationName: "tuist",
+                                   targets: [])
+
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
+        XCTAssertEqual(attributes, [
+            "ORGANIZATION": "tuist",
+        ])
+    }
 }

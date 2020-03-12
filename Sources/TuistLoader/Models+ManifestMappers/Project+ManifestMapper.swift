@@ -30,6 +30,7 @@ extension TuistCore.Project {
     func adding(target: TuistCore.Target) -> TuistCore.Project {
         Project(path: path,
                 name: name,
+                organizationName: organizationName,
                 fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,
@@ -42,6 +43,20 @@ extension TuistCore.Project {
     func replacing(fileName: String?) -> TuistCore.Project {
         Project(path: path,
                 name: name,
+                organizationName: organizationName,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                additionalFiles: additionalFiles)
+    }
+
+    func replacing(organizationName: String?) -> TuistCore.Project {
+        Project(path: path,
+                name: name,
+                organizationName: organizationName,
                 fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,

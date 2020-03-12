@@ -53,6 +53,8 @@ extension TuistCore.Config.GenerationOption {
         switch manifest {
         case let .xcodeProjectName(templateString):
             return .xcodeProjectName(templateString.description)
+        case let .organizationName(name):
+            return .organizationName(name)
         }
     }
 }

@@ -5,6 +5,7 @@ import Foundation
 public extension Project {
     static func test(path: AbsolutePath = AbsolutePath("/Project"),
                      name: String = "Project",
+                     organizationName: String? = nil,
                      fileName: String? = nil,
                      settings: Settings = Settings.test(),
                      filesGroup: ProjectGroup = .group(name: "Project"),
@@ -14,6 +15,7 @@ public extension Project {
                      additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 name: name,
+                organizationName: organizationName,
                 fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,

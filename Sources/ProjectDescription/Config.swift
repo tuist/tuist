@@ -9,6 +9,7 @@ public struct Config: Codable, Equatable {
     /// - xcodeProjectName(TemplateString): When passed, Tuist generates the project with the specific name on disk instead of using the project name.
     public enum GenerationOptions: Encodable, Decodable, Equatable {
         case xcodeProjectName(TemplateString)
+        case organizationName(String)
     }
 
     /// Generation options.
@@ -38,7 +39,7 @@ public struct Config: Codable, Equatable {
 
 extension Config.GenerationOptions {
     enum CodingKeys: String, CodingKey {
-        case xcodeProjectName
+        case xcodeProjectName, organizationName
     }
 
     public init(from decoder: Decoder) throws {
@@ -48,6 +49,12 @@ extension Config.GenerationOptions {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .xcodeProjectName)
             let templateProjectName = try associatedValues.decode(TemplateString.self)
             self = .xcodeProjectName(templateProjectName)
+            return
+        }
+        if container.allKeys.contains(.organizationName), try container.decodeNil(forKey: .organizationName) == false {
+            var associatedValues = try container.nestedUnkeyedContainer(forKey: .organizationName)
+            let organizationName = try associatedValues.decode(String.self)
+            self = .organizationName(organizationName)
             return
         }
         throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
@@ -60,6 +67,25 @@ extension Config.GenerationOptions {
         case let .xcodeProjectName(templateProjectName):
             var associatedValues = container.nestedUnkeyedContainer(forKey: .xcodeProjectName)
             try associatedValues.encode(templateProjectName)
+        case let .organizationName(name):
+            var associatedValues = container.nestedUnkeyedContainer(forKey: .organizationName)
+            try associatedValues.encode(name)
         }
+    }
+}
+
+public func == (lhs: TuistConfig, rhs: TuistConfig) -> Bool {
+    guard lhs.generationOptions == rhs.generationOptions else { return false }
+    return true
+}
+
+public func == (lhs: TuistConfig.GenerationOptions, rhs: TuistConfig.GenerationOptions) -> Bool {
+    switch (lhs, rhs) {
+    case let (.xcodeProjectName(lhs), .xcodeProjectName(rhs)):
+        return lhs.rawString == rhs.rawString
+    case let (.organizationName(lhs), .organizationName(rhs)):
+        return lhs == rhs
+    default: 
+        return false
     }
 }

@@ -5,8 +5,10 @@ import XCTest
 final class ConfigTests: XCTestCase {
     func test_config_toJSON() throws {
         let config = Config(cloudURL: "https://tuist.io",
-                            generationOptions:
-                            [.xcodeProjectName("someprefix-\(.projectName)")])
+                            generationOptions: [
+                                .xcodeProjectName("someprefix-\(.projectName)"),
+                                .organizationName("TestOrg"),
+                            ])
 
         XCTAssertCodable(config)
     }
