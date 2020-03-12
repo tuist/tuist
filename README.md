@@ -26,7 +26,7 @@ The example below shows how projects are defined with Tuist:
 import ProjectDescription
 
 let project = Project(name: "App",
-                      organization: "tuist",
+                      organizationName: "tuist",
                       targets: [
                         Target(name: "App",
                                platform: .iOS,
