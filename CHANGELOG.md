@@ -4,14 +4,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-### Added
+### Fixed
 
-- Allow specifying Project Organization name via new `organizationName` parameter to `Project` initializer or via `Config` new GenerationOption. https://github.com/tuist/tuist/pull/1062 by @c0diq
 - Fix `TargetAction` when `PROJECT_DIR` includes a space https://github.com/tuist/tuist/pull/1037 by @fortmarek
 - Fix code example compilation issues in "Project description helpers" documentation https://github.com/tuist/tuist/pull/1081 by @chojnac
 
 ### Added
 
+- Allow specifying Project Organization name via new `organizationName` parameter to `Project` initializer or via `Config` new GenerationOption. https://github.com/tuist/tuist/pull/1062 by @c0diq
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
 - Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
 - `TuistInsights` target https://github.com/tuist/tuist/pull/1084 by @pepibumur.
