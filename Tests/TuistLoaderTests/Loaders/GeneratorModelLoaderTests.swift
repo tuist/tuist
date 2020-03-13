@@ -228,6 +228,34 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                                 ]),
         ]
         let configs = [
+            temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: []),
+        ]
+        let manifestLoader = createManifestLoader(with: manifests, configs: configs)
+        let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
+                                           manifestLinter: manifestLinter)
+
+        // When
+        let model = try subject.loadProject(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(model.organizationName, "SomeOrganization")
+    }
+
+    func test_loadProject_withCustomOrganizationNameFromConfig() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
+            "TuistConfig.swift",
+        ])
+
+        let manifests = [
+            temporaryPath: ProjectManifest.test(name: "SomeProject",
+                                                organizationName: "SomeOrganization",
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
+        ]
+        let configs = [
             temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.organizationName("tuist")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)

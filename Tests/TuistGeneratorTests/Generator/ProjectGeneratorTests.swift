@@ -216,7 +216,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
         let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
         XCTAssertEqual(attributes, [
-            "ORGANIZATION": "tuist",
+            "ORGANIZATIONNAME": "tuist",
         ])
     }
 }
