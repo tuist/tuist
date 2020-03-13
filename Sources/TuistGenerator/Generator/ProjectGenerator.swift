@@ -150,6 +150,7 @@ final class ProjectGenerator: ProjectGenerating {
                                     pbxproj: PBXProj) throws -> PBXProject {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
+        let attributes = project.organizationName.map { ["ORGANIZATIONNAME": $0] } ?? [:]
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
@@ -161,7 +162,8 @@ final class ProjectGenerator: ProjectGenerating {
                                     projectDirPath: "",
                                     projects: [],
                                     projectRoots: [],
-                                    targets: [])
+                                    targets: [],
+                                    attributes: attributes)
         pbxproj.add(object: pbxProject)
         pbxproj.rootObject = pbxProject
         return pbxProject

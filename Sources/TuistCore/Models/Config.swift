@@ -9,6 +9,7 @@ public struct Config: Equatable, Hashable {
     /// - xcodeProjectName: Name used for the Xcode project
     public enum GenerationOption: Hashable, Equatable {
         case xcodeProjectName(String)
+        case organizationName(String)
     }
 
     /// Generation options.

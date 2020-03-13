@@ -19,10 +19,12 @@ extension Workspace {
 
 extension Project {
     public static func test(name: String = "Project",
+                            organizationName: String? = nil,
                             settings: Settings? = nil,
                             targets: [Target] = [],
                             additionalFiles: [FileElement] = []) -> Project {
         Project(name: name,
+                organizationName: organizationName,
                 settings: settings,
                 targets: targets,
                 additionalFiles: additionalFiles)

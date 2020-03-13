@@ -15,6 +15,7 @@ Projects are defined in `Project.swift` files, which we refer to as manifest fil
 ```swift
 
 let project = Project(name: "MyProject",
+                      organizationName: "MyOrg",
                       targets: [
                           Target(name: "App",
                                  platform: .iOS,
@@ -64,6 +65,14 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
         "Name of the project. It's used to determine the name of the generated Xcode project.",
       type: 'String',
       optional: false,
+      default: '',
+    },
+    {
+      name: 'OrganizationName',
+      description:
+        "Name of the organization used by Xcode as copyright when generating new files.",
+      type: 'String',
+      optional: true,
       default: '',
     },
     {

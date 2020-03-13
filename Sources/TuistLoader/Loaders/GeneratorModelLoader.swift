@@ -83,6 +83,11 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         let xcodeFileName = xcodeFileNameOverride(from: config, for: model)
         enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)
 
+        // Xcode project organization name
+        if let organizationName = organizationNameOverride(from: config) {
+            enrichedModel = enrichedModel.replacing(organizationName: organizationName)
+        }
+
         return enrichedModel
     }
 
@@ -91,6 +96,8 @@ public class GeneratorModelLoader: GeneratorModelLoading {
             switch item {
             case let .xcodeProjectName(projectName):
                 return projectName.description
+            default:
+                return nil
             }
         }.first
 
@@ -99,5 +106,16 @@ public class GeneratorModelLoader: GeneratorModelLoading {
                                                             with: model.name)
 
         return xcodeFileName
+    }
+
+    private func organizationNameOverride(from config: TuistCore.Config) -> String? {
+        config.generationOptions.compactMap { item -> String? in
+            switch item {
+            case let .organizationName(name):
+                return name
+            default:
+                return nil
+            }
+        }.first
     }
 }
