@@ -10,7 +10,7 @@ update_configs:
     automerged_updates:
       - match:
           dependency_type: 'development'
-          update_type: 'minor'
+          update_type: 'semver:minor'
       - match:
           dependency_type: 'production'
           update_type: 'semver:minor'
@@ -24,7 +24,7 @@ update_configs:
     automerged_updates:
       - match:
           dependency_type: 'development'
-          update_type: 'minor'
+          update_type: 'semver:minor'
       - match:
           dependency_type: 'production'
           update_type: 'semver:minor'
