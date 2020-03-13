@@ -87,7 +87,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         if let organizationName = organizationNameOverride(from: config) {
             enrichedModel = enrichedModel.replacing(organizationName: organizationName)
         }
-        
+
         return enrichedModel
     }
 
