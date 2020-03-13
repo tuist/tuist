@@ -7,6 +7,13 @@ update_configs:
       - 'tuist/core'
     default_labels:
       - 'dependencies'
+    automerged_updates:
+      - match:
+          dependency_type: 'development'
+          update_type: 'minor'
+      - match:
+          dependency_type: 'production'
+          update_type: 'semver:minor'
   - package_manager: 'javascript'
     directory: '/website'
     update_schedule: 'weekly'
@@ -14,3 +21,10 @@ update_configs:
       - 'tuist/core'
     default_labels:
       - 'dependencies'
+    automerged_updates:
+      - match:
+          dependency_type: 'development'
+          update_type: 'minor'
+      - match:
+          dependency_type: 'production'
+          update_type: 'semver:minor'
