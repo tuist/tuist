@@ -8,7 +8,7 @@ public class GraphLoaderCache: GraphLoaderCaching {
 
     // MARK: - GraphLoaderCaching
 
-    var tuistConfigs: [AbsolutePath: TuistConfig] = [:]
+    var configs: [AbsolutePath: Config] = [:]
     public var projects: [AbsolutePath: Project] = [:]
     public var packages: [AbsolutePath: [PackageNode]] = [:]
     public var precompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
@@ -50,12 +50,12 @@ public class GraphLoaderCache: GraphLoaderCaching {
         packageNodes[package.path] = package
     }
 
-    public func tuistConfig(_ path: AbsolutePath) -> TuistConfig? {
-        tuistConfigs[path]
+    public func config(_ path: AbsolutePath) -> Config? {
+        configs[path]
     }
 
-    public func add(tuistConfig: TuistConfig, path: AbsolutePath) {
-        tuistConfigs[path] = tuistConfig
+    public func add(config: Config, path: AbsolutePath) {
+        configs[path] = config
     }
 
     public func project(_ path: AbsolutePath) -> Project? {

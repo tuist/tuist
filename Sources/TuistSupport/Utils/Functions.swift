@@ -34,3 +34,6 @@ public func or<T>(_ lhs: @escaping (T) -> Bool, _ rhs: @escaping (T) -> Bool) ->
 
 public func pipe<Root, Value, T>(_ lhs: @escaping (Root) -> Value, _ rhs: @escaping (Value) -> T) -> (Root) -> T { { rhs(lhs($0)) }
 }
+
+public func flip<A, B>(_ ƒ: @escaping (A) -> () -> B) -> () -> (A) -> B { { { ƒ($0)() } }
+}

@@ -102,7 +102,7 @@ public protocol FileHandling: AnyObject {
     /// Traverses the parent directories until the given path is found.
     ///
     /// - Parameters:
-    ///   - from: A path to a directory from which search the TuistConfig.swift.
+    ///   - from: A path to a directory from which search the Config.swift.
     /// - Returns: The found path.
     func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
 
@@ -165,22 +165,28 @@ public class FileHandler: FileHandling {
     }
 
     public func exists(_ path: AbsolutePath) -> Bool {
-        fileManager.fileExists(atPath: path.pathString)
+        let exists = fileManager.fileExists(atPath: path.pathString)
+        logger.debug("Checking if \(path) exists... \(exists)")
+        return exists
     }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
+        logger.debug("Copying file from \(from) to \(to)")
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     public func move(from: AbsolutePath, to: AbsolutePath) throws {
+        logger.debug("Moving file from \(from) to \(to)")
         try fileManager.moveItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     public func readFile(_ at: AbsolutePath) throws -> Data {
-        try Data(contentsOf: at.url)
+        logger.debug("Reading contents of file at path \(at)")
+        return try Data(contentsOf: at.url)
     }
 
     public func readTextFile(_ at: AbsolutePath) throws -> String {
+        logger.debug("Reading contents of text file at path \(at)")
         let data = try Data(contentsOf: at.url)
         if let content = String(data: data, encoding: .utf8) {
             return content
@@ -190,6 +196,7 @@ public class FileHandler: FileHandling {
     }
 
     public func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T {
+        logger.debug("Reading contents of plist file at path \(at)")
         guard let data = fileManager.contents(atPath: at.pathString) else {
             throw FileHandlerError.fileNotFound(at)
         }
@@ -197,16 +204,19 @@ public class FileHandler: FileHandling {
     }
 
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
+        logger.debug("Creating a link from \(atPath) to \(toPath)")
         try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }
 
     public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        logger.debug("Writing contents to file \(path) atomically \(atomically)")
         do {
             try content.write(to: path.url, atomically: atomically, encoding: .utf8)
         } catch {}
     }
 
     public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath? {
+        logger.debug("Traversing \(from) to locate \(path)")
         let extendedPath = from.appending(RelativePath(path))
         if exists(extendedPath) {
             return extendedPath
@@ -222,16 +232,19 @@ public class FileHandler: FileHandling {
     }
 
     public func createFolder(_ path: AbsolutePath) throws {
+        logger.debug("Creating folder at path \(path)")
         try fileManager.createDirectory(at: path.url,
                                         withIntermediateDirectories: true,
                                         attributes: nil)
     }
 
     public func delete(_ path: AbsolutePath) throws {
+        logger.debug("Deleting item at path \(path)")
         try fileManager.removeItem(atPath: path.pathString)
     }
 
     public func touch(_ path: AbsolutePath) throws {
+        logger.debug("Touching \(path)")
         try fileManager.createDirectory(at: path.removingLastComponent().url,
                                         withIntermediateDirectories: true,
                                         attributes: nil)
@@ -245,10 +258,12 @@ public class FileHandler: FileHandling {
     }
 
     public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
-        let tuistConfigPath = from.appending(component: path)
+        logger.debug("Traversing \(from) to locate \(path)")
 
-        if FileHandler.shared.exists(tuistConfigPath) {
-            return tuistConfigPath
+        let configPath = from.appending(component: path)
+
+        if FileHandler.shared.exists(configPath) {
+            return configPath
         } else if from == AbsolutePath("/") {
             return nil
         } else {

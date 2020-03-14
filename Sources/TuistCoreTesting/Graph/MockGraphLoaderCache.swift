@@ -16,8 +16,8 @@ public final class MockGraphLoaderCache: GraphLoaderCaching {
     var precompiledNodeStub: ((AbsolutePath) -> PrecompiledNode?)?
     var addTargetNodeArgs: [TargetNode] = []
     var targetNodeStub: ((AbsolutePath, String) -> TargetNode?)?
-    var tuistConfigStub: [AbsolutePath: TuistConfig] = [:]
-    var addTuistConfigArgs: [(tuistConfig: TuistConfig, path: AbsolutePath)] = []
+    var configStub: [AbsolutePath: Config] = [:]
+    var addConfigArgs: [(config: Config, path: AbsolutePath)] = []
     public var cocoapodsNodes: [AbsolutePath: CocoaPodsNode] = [:]
     var cocoapodsStub: [AbsolutePath: CocoaPodsNode] = [:]
     var addCococaPodsArgs: [CocoaPodsNode] = []
@@ -42,12 +42,12 @@ public final class MockGraphLoaderCache: GraphLoaderCaching {
         addCococaPodsArgs.append(cocoapods)
     }
 
-    public func tuistConfig(_ path: AbsolutePath) -> TuistConfig? {
-        tuistConfigStub[path]
+    public func config(_ path: AbsolutePath) -> Config? {
+        configStub[path]
     }
 
-    public func add(tuistConfig: TuistConfig, path: AbsolutePath) {
-        addTuistConfigArgs.append((tuistConfig: tuistConfig, path: path))
+    public func add(config: Config, path: AbsolutePath) {
+        addConfigArgs.append((config: config, path: path))
     }
 
     public func project(_ path: AbsolutePath) -> Project? {

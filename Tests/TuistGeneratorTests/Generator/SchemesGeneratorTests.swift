@@ -519,8 +519,9 @@ final class SchemesGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [appTargetReference])
         let testAction = TestAction.test(targets: [TestableTarget(target: appTargetReference)])
         let runAction = RunAction.test(configurationName: "Release", executable: appTargetReference, arguments: nil)
+        let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: appTargetReference, arguments: nil)
 
-        let scheme = Scheme.test(name: "App", buildAction: buildAction, testAction: testAction, runAction: runAction)
+        let scheme = Scheme.test(name: "App", buildAction: buildAction, testAction: testAction, runAction: runAction, profileAction: profileAction)
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
 
@@ -541,7 +542,7 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(buildable.blueprintName, target.name)
         XCTAssertEqual(buildable.buildableIdentifier, "primary")
 
-        XCTAssertEqual(result.buildConfiguration, "Release")
+        XCTAssertEqual(result.buildConfiguration, "Beta Release")
         XCTAssertEqual(result.preActions, [])
         XCTAssertEqual(result.postActions, [])
         XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
@@ -562,7 +563,8 @@ final class SchemesGeneratorTests: XCTestCase {
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
         let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))])
-        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
+        let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: nil)
+        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil, profileAction: profileAction)
 
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
@@ -578,7 +580,7 @@ final class SchemesGeneratorTests: XCTestCase {
         let buildable = result.buildableProductRunnable?.buildableReference
 
         XCTAssertNil(buildable)
-        XCTAssertEqual(result.buildConfiguration, "Release")
+        XCTAssertEqual(result.buildConfiguration, "Beta Release")
         XCTAssertEqual(result.preActions, [])
         XCTAssertEqual(result.postActions, [])
         XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
@@ -590,19 +592,21 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertNil(result.environmentVariables)
         XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
 
-        XCTAssertEqual(result.buildConfiguration, "Release")
         XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
         XCTAssertEqual(result.macroExpansion?.buildableName, "libLibrary.dylib")
         XCTAssertEqual(result.macroExpansion?.blueprintName, "Library")
         XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
     }
 
+    // MARK: - Analyze Action Tests
+
     func test_schemeAnalyzeAction() throws {
         // Given
         let projectPath = AbsolutePath("/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
-        let scheme = Scheme.test(buildAction: buildAction)
+        let analyzeAction = AnalyzeAction.test(configurationName: "Beta Release")
+        let scheme = Scheme.test(buildAction: buildAction, analyzeAction: analyzeAction)
 
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
@@ -615,7 +619,7 @@ final class SchemesGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Debug")
+        XCTAssertEqual(result.buildConfiguration, "Beta Release")
     }
 
     func test_defaultSchemeArchiveAction() {

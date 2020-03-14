@@ -1,9 +1,9 @@
 import Foundation
 @testable import ProjectDescription
 
-extension TuistConfig {
-    public static func test(generationOptions: [TuistConfig.GenerationOptions] = []) -> TuistConfig {
-        TuistConfig(generationOptions: generationOptions)
+extension Config {
+    public static func test(generationOptions: [Config.GenerationOptions] = []) -> Config {
+        Config(generationOptions: generationOptions)
     }
 }
 
@@ -19,10 +19,12 @@ extension Workspace {
 
 extension Project {
     public static func test(name: String = "Project",
+                            organizationName: String? = nil,
                             settings: Settings? = nil,
                             targets: [Target] = [],
                             additionalFiles: [FileElement] = []) -> Project {
         Project(name: name,
+                organizationName: organizationName,
                 settings: settings,
                 targets: targets,
                 additionalFiles: additionalFiles)

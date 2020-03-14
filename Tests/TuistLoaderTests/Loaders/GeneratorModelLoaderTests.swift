@@ -199,8 +199,8 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                                 ]),
         ]
         let configs = [
-            temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
-                                                                                   .xcodeProjectName("two \(.projectName) three")]),
+            temporaryPath: ProjectDescription.Config.test(generationOptions: [.xcodeProjectName("one \(.projectName) two"),
+                                                                              .xcodeProjectName("two \(.projectName) three")]),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
         let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
@@ -211,6 +211,62 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.fileName, "one SomeProject two")
+    }
+
+    func test_loadProject_withCustomOrganizationName() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
+            "TuistConfig.swift",
+        ])
+
+        let manifests = [
+            temporaryPath: ProjectManifest.test(name: "SomeProject",
+                                                organizationName: "SomeOrganization",
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
+        ]
+        let configs = [
+            temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: []),
+        ]
+        let manifestLoader = createManifestLoader(with: manifests, configs: configs)
+        let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
+                                           manifestLinter: manifestLinter)
+
+        // When
+        let model = try subject.loadProject(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(model.organizationName, "SomeOrganization")
+    }
+
+    func test_loadProject_withCustomOrganizationNameFromConfig() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        try createFiles([
+            "TuistConfig.swift",
+        ])
+
+        let manifests = [
+            temporaryPath: ProjectManifest.test(name: "SomeProject",
+                                                organizationName: "SomeOrganization",
+                                                additionalFiles: [
+                                                    .folderReference(path: "Stubs"),
+                                                ]),
+        ]
+        let configs = [
+            temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: [.organizationName("tuist")]),
+        ]
+        let manifestLoader = createManifestLoader(with: manifests, configs: configs)
+        let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
+                                           manifestLinter: manifestLinter)
+
+        // When
+        let model = try subject.loadProject(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(model.organizationName, "tuist")
     }
 
     func test_loadWorkspace() throws {
@@ -340,7 +396,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
-                              configs: [AbsolutePath: ProjectDescription.TuistConfig] = [:]) -> ManifestLoading {
+                              configs: [AbsolutePath: ProjectDescription.Config] = [:]) -> ManifestLoading {
         let manifestLoader = MockManifestLoader()
         manifestLoader.loadProjectStub = { path in
             guard let manifest = projects[path] else {
@@ -348,7 +404,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
             }
             return manifest
         }
-        manifestLoader.loadTuistConfigStub = { path in
+        manifestLoader.loadConfigStub = { path in
             guard let manifest = configs[path] else {
                 throw ManifestLoaderError.manifestNotFound(path)
             }
@@ -361,7 +417,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
             }
 
             if configs[path] != nil {
-                manifests.insert(.tuistConfig)
+                manifests.insert(.config)
             }
             return manifests
         }

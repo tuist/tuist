@@ -5,7 +5,6 @@ import TuistCore
 import TuistSupport
 import XCTest
 
-@testable import TuistAutomation
 @testable import TuistSupportTesting
 
 final class XcodeBuildTargetTests: TuistUnitTestCase {

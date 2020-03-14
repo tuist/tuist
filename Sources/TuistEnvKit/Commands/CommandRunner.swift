@@ -63,9 +63,9 @@ class CommandRunner: CommandRunning {
 
         switch resolvedVersion {
         case let .bin(path):
-            Printer.shared.print("Using bundled version at path \(path.pathString)")
+            logger.notice("Using bundled version at path \(path.pathString)")
         case let .versionFile(path, value):
-            Printer.shared.print("Using version \(value) defined at \(path.pathString)")
+            logger.notice("Using version \(value) defined at \(path.pathString)")
         default:
             break
         }
@@ -100,7 +100,7 @@ class CommandRunner: CommandRunning {
 
     func runVersion(_ version: String) throws {
         if !versionsController.versions().contains(where: { $0.description == version }) {
-            Printer.shared.print("Version \(version) not found locally. Installing...")
+            logger.notice("Version \(version) not found locally. Installing...")
             try installer.install(version: version, force: false)
         }
 
@@ -109,7 +109,13 @@ class CommandRunner: CommandRunning {
     }
 
     func runAtPath(_ path: AbsolutePath) throws {
-        var args = [path.appending(component: Constants.binName).pathString]
+        var args: [String] = []
+
+        if CommandLine.arguments.contains("--verbose") {
+            args.append("TUIST_VERBOSE=true")
+        }
+
+        args.append(path.appending(component: Constants.binName).pathString)
         args.append(contentsOf: Array(arguments().dropFirst()))
 
         var environment = ProcessInfo.processInfo.environment
@@ -125,6 +131,6 @@ class CommandRunner: CommandRunning {
     // MARK: - Static
 
     static func arguments() -> [String] {
-        Array(ProcessInfo.processInfo.arguments)
+        Array(ProcessInfo.processInfo.arguments).filter { $0 != "--verbose" }
     }
 }

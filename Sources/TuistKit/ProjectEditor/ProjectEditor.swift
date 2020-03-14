@@ -34,7 +34,7 @@ protocol ProjectEditing: AnyObject {
 
 final class ProjectEditor: ProjectEditing {
     /// Project generator.
-    let generator: Generating
+    let generator: DescriptorGenerating
 
     /// Project editor mapper.
     let projectEditorMapper: ProjectEditorMapping
@@ -51,17 +51,22 @@ final class ProjectEditor: ProjectEditing {
     /// Utiltity to locate the custom templates directory
     let templatesDirectoryLocator: TemplatesDirectoryLocating
 
-    init(generator: Generating = Generator(),
+    /// Xcode Project writer
+    private let writer: XcodeProjWriting
+
+    init(generator: DescriptorGenerating = DescriptorGenerator(),
          projectEditorMapper: ProjectEditorMapping = ProjectEditorMapper(),
          resourceLocator: ResourceLocating = ResourceLocator(),
          manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
          helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
+         writer: XcodeProjWriting = XcodeProjWriter(),
          templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator()) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
         self.resourceLocator = resourceLocator
         self.manifestFilesLocator = manifestFilesLocator
         self.helpersDirectoryLocator = helpersDirectoryLocator
+        self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
     }
 
@@ -93,9 +98,13 @@ final class ProjectEditor: ProjectEditing {
                                                        helpers: helpers,
                                                        templates: templates,
                                                        projectDescriptionPath: projectDesciptionPath)
-        return try generator.generateProject(project,
-                                             graph: graph,
-                                             sourceRootPath: project.path,
+
+        let config = ProjectGenerationConfig(sourceRootPath: project.path,
                                              xcodeprojPath: xcodeprojPath)
+        let descriptor = try generator.generateProject(project: project,
+                                                       graph: graph,
+                                                       config: config)
+        try writer.write(project: descriptor)
+        return descriptor.xcodeprojPath
     }
 }

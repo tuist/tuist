@@ -5,6 +5,7 @@ import TuistLoader
 import TuistSupport
 import XCTest
 
+@testable import TuistGeneratorTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
@@ -21,27 +22,30 @@ final class ProjectEditorErrorTests: TuistUnitTestCase {
 }
 
 final class ProjectEditorTests: TuistUnitTestCase {
-    var generator: MockGenerator!
+    var generator: MockDescriptorGenerator!
     var projectEditorMapper: MockProjectEditorMapper!
     var resourceLocator: MockResourceLocator!
     var manifestFilesLocator: MockManifestFilesLocator!
     var helpersDirectoryLocator: MockHelpersDirectoryLocator!
+    var writer: MockXcodeProjWriter!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var subject: ProjectEditor!
 
     override func setUp() {
         super.setUp()
-        generator = MockGenerator()
+        generator = MockDescriptorGenerator()
         projectEditorMapper = MockProjectEditorMapper()
         resourceLocator = MockResourceLocator()
         manifestFilesLocator = MockManifestFilesLocator()
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
+        writer = MockXcodeProjWriter()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         subject = ProjectEditor(generator: generator,
                                 projectEditorMapper: projectEditorMapper,
                                 resourceLocator: resourceLocator,
                                 manifestFilesLocator: manifestFilesLocator,
                                 helpersDirectoryLocator: helpersDirectoryLocator,
+                                writer: writer,
                                 templatesDirectoryLocator: templatesDirectoryLocator)
     }
 
@@ -74,9 +78,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = (project, graph)
         var generatedProject: Project?
-        generator.generateProjectStub = { project, _, _ in
+        generator.generateProjectWithConfigStub = { project, _, _ in
             generatedProject = project
-            return directory.appending(component: "Edit.xcodeproj")
+            return .test(xcodeprojPath: directory.appending(component: "Edit.xcodeproj"))
         }
 
         // When

@@ -15,6 +15,7 @@ Projects are defined in `Project.swift` files, which we refer to as manifest fil
 ```swift
 
 let project = Project(name: "MyProject",
+                      organizationName: "MyOrg",
                       targets: [
                           Target(name: "App",
                                  platform: .iOS,
@@ -64,6 +65,14 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
         "Name of the project. It's used to determine the name of the generated Xcode project.",
       type: 'String',
       optional: false,
+      default: '',
+    },
+    {
+      name: 'OrganizationName',
+      description:
+        "Name of the organization used by Xcode as copyright when generating new files.",
+      type: 'String',
+      optional: true,
       default: '',
     },
     {
@@ -679,6 +688,22 @@ typeLink: '#archive-action',
 optional: true,
 default: 'nil',
 },
+{
+name: 'Profile action',
+description: 'Action that profiles the project.',
+type: 'ProfileAction',
+typeLink: '#profile-action',
+optional: true,
+default: 'nil',
+},
+{
+name: 'Analyze action',
+description: 'Action that analyze the project.',
+type: 'AnalyzeAction',
+typeLink: '#analyze-action',
+optional: true,
+default: 'nil',
+},
 ]}
 />
 
@@ -991,6 +1016,88 @@ Arguments contain commandline arguments passed on launch and Environment variabl
       type: '[ExecutionAction]',
       optional: true,
       default: '[]',
+    },
+  ]}
+/>
+
+### Profile action
+
+It represents the scheme action that profiles the built products on the supported platforms:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Config',
+      description:
+        'Indicates the build configuration the product should be profiled with.',
+      type: 'PresetBuildConfiguration',
+      typeLink: '#preset-build-configuration',
+      optional: true,
+      default: '.release',
+    },
+    {
+      name: 'Executable',
+      description: 'The name of the executable or target to profile.',
+      type: 'TargetReference',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Arguments',
+      description:
+        'Commandline arguments passed on launch and environment variables.',
+      type: 'Arguments',
+      typeLink: '#arguments',
+      optional: true,
+      default: 'nil',
+    },
+  ]}
+/>
+
+Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Configuration Name',
+      description:
+        'Indicates the build configuration the product should be profiled with.',
+      type: 'String',
+      optional: false,
+      default: '',
+    },
+  ]}
+/>
+
+### Analyze action
+
+It represents the scheme action that analyzes the built products:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Config',
+      description:
+        'Indicates the build configuration the product should be analyzed with.',
+      type: 'PresetBuildConfiguration',
+      typeLink: '#preset-build-configuration',
+      optional: true,
+      default: '.debug',
+    }
+  ]}
+/>
+
+Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Configuration Name',
+      description:
+        'Indicates the build configuration the product should be analyzed with.',
+      type: 'String',
+      optional: false,
+      default: '',
     },
   ]}
 />

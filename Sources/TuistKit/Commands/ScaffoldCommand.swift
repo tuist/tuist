@@ -100,7 +100,7 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        Printer.shared.print("Scaffold is a feature that is currently being worked on")
+        logger.warning("Scaffold is a feature that is currently being worked on")
 
         guard let template = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
 
@@ -111,7 +111,7 @@ class ScaffoldCommand: NSObject, Command {
         if shouldList {
             try templateDirectories.forEach {
                 let template = try templateLoader.loadTemplate(at: $0)
-                Printer.shared.print("\($0.basename): \(template.description)")
+                logger.info("\($0.basename): \(template.description)")
             }
             return
         }
@@ -123,7 +123,7 @@ class ScaffoldCommand: NSObject, Command {
 
         // TODO: Generate templates
 
-        Printer.shared.print(success: "Template \(template) was successfully generated")
+        logger.notice("Template \(template) was successfully generated", metadata: .success)
     }
 
     // MARK: - Helpers

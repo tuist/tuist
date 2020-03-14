@@ -47,17 +47,17 @@ public protocol GraphLoaderCaching: AnyObject {
     ///   - name: Name of the target.
     func targetNode(_ path: AbsolutePath, name: String) -> TargetNode?
 
-    // MARK: - TuistConfig
+    // MARK: - Config
 
     /// It returns a Tuist configuration if it exists at the given directory.
-    /// - Parameter path: Path to the directory that contains the TuistConfig.
-    func tuistConfig(_ path: AbsolutePath) -> TuistConfig?
+    /// - Parameter path: Path to the directory that contains the Config.
+    func config(_ path: AbsolutePath) -> Config?
 
-    /// Caches a TuistConfig representation.
+    /// Caches a Config representation.
     /// - Parameters:
-    ///   - tuistConfig: Tuist configuration.
+    ///   - config: Tuist configuration.
     ///   - path: Path to the directory that contains th
-    func add(tuistConfig: TuistConfig, path: AbsolutePath)
+    func add(config: Config, path: AbsolutePath)
 
     // MARK: - CocoaPods
 

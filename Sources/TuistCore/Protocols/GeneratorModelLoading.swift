@@ -25,10 +25,10 @@ public protocol GeneratorModelLoading {
     /// - Throws: Error encountered during the loading process (e.g. Missing workspace)
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace
 
-    /// Load a TusitConfig model at the specified path
+    /// Load a Config model at the specified path
     ///
-    /// - Parameter path: The absolute path for the tuistconfig model to load
-    /// - Returns: The tuistconfig loaded from the specified path
-    /// - Throws: Error encountered during the loading process (e.g. Missing tuistconfig)
-    func loadTuistConfig(at path: AbsolutePath) throws -> TuistConfig
+    /// - Parameter path: The absolute path for the Config model to load
+    /// - Returns: The config loaded from the specified path
+    /// - Throws: Error encountered during the loading process (e.g. Missing Config file)
+    func loadConfig(at path: AbsolutePath) throws -> Config
 }

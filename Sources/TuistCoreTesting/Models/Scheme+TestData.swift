@@ -8,12 +8,16 @@ public extension Scheme {
                      buildAction: BuildAction? = BuildAction.test(),
                      testAction: TestAction? = TestAction.test(),
                      runAction: RunAction? = RunAction.test(),
-                     archiveAction: ArchiveAction? = ArchiveAction.test()) -> Scheme {
+                     archiveAction: ArchiveAction? = ArchiveAction.test(),
+                     profileAction: ProfileAction? = ProfileAction.test(),
+                     analyzeAction: AnalyzeAction? = AnalyzeAction.test()) -> Scheme {
         Scheme(name: name,
                shared: shared,
                buildAction: buildAction,
                testAction: testAction,
                runAction: runAction,
-               archiveAction: archiveAction)
+               archiveAction: archiveAction,
+               profileAction: profileAction,
+               analyzeAction: analyzeAction)
     }
 }

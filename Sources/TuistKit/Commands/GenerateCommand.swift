@@ -13,32 +13,25 @@ class GenerateCommand: NSObject, Command {
 
     // MARK: - Attributes
 
-    private let generator: Generating
-    private let manifestLoader: ManifestLoading
     private let clock: Clock
+    private let generator: ProjectGenerating
     let pathArgument: OptionArgument<String>
     let projectOnlyArgument: OptionArgument<Bool>
 
     // MARK: - Init
 
     required convenience init(parser: ArgumentParser) {
-        let manifestLoader = ManifestLoader()
-        let manifestLinter = ManifestLinter()
-        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader, manifestLinter: manifestLinter)
-        let generator = Generator(modelLoader: modelLoader)
+        let projectGenerator = ProjectGenerator()
         self.init(parser: parser,
-                  generator: generator,
-                  manifestLoader: manifestLoader,
+                  generator: projectGenerator,
                   clock: WallClock())
     }
 
     init(parser: ArgumentParser,
-         generator: Generating,
-         manifestLoader: ManifestLoading,
+         generator: ProjectGenerating,
          clock: Clock) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.generator = generator
-        self.manifestLoader = manifestLoader
         self.clock = clock
 
         pathArgument = subParser.add(option: "--path",
@@ -57,13 +50,12 @@ class GenerateCommand: NSObject, Command {
         let path = self.path(arguments: arguments)
         let projectOnly = arguments.get(projectOnlyArgument) ?? false
 
-        _ = try generator.generate(at: path,
-                                   manifestLoader: manifestLoader,
-                                   projectOnly: projectOnly)
+        try generator.generate(path: path, projectOnly: projectOnly)
 
         let time = String(format: "%.3f", timer.stop())
-        Printer.shared.print(success: "Project generated.")
-        Printer.shared.print("Total time taken: \(time)s")
+
+        logger.notice("Project generated.", metadata: .success)
+        logger.notice("Total time taken: \(time)s")
     }
 
     // MARK: - Fileprivate
