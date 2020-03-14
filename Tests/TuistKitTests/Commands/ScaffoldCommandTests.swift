@@ -57,4 +57,23 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         let result = try parser.parse([ScaffoldCommand.command, templateName])
         XCTAssertThrowsSpecific(try subject.run(with: result), ScaffoldCommandError.templateNotFound(templateName))
     }
+    
+    func test_adds_attributes_when_parsing() throws {
+        // Given
+        templateLoader.loadTemplateStub = { _ in
+            Template(description: "test",
+                     attributes: [.required("name")])
+        }
+        
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [try self.temporaryPath().appending(component: "template")]
+        }
+        
+        // When
+        let result = try subject.parse(with: parser,
+                                       arguments: [ScaffoldCommand.command, "template", "--name", "test"])
+        
+        // Then
+        XCTAssertEqual(try result.get("--name"), "test")
+    }
 }

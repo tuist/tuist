@@ -92,7 +92,7 @@ class ScaffoldCommand: NSObject, Command {
         attributesArguments = template.attributes.reduce([:]) {
             var mutableDictionary = $0
             mutableDictionary[$1.name] = subParser.add(option: "--\($1.name)",
-                                                    kind: String.self)
+                                                       kind: String.self)
             return mutableDictionary
         }
         
