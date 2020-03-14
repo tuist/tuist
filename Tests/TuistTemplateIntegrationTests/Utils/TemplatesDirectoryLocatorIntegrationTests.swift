@@ -85,8 +85,6 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         let got = try subject.templateDirectories(at: temporaryDirectory.appending(RelativePath("this/is/a/directory")))
         // Then
         XCTAssertEqual([
-            AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
-                .appending(RelativePath("../../../../Tuist/Templates/default")),
             temporaryDirectory.appending(RelativePath("this/Tuist/Templates/template_one")),
             temporaryDirectory.appending(RelativePath("this/Tuist/Templates/template_two")),
         ], got)

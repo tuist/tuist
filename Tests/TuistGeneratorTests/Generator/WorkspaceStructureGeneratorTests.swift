@@ -352,6 +352,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func locateDirectory(_: String, traversingFrom _: AbsolutePath) -> AbsolutePath? {
             nil
         }
+        
+        func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
+            []
+        }
 
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {
             []

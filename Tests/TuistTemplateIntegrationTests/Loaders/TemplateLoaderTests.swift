@@ -42,31 +42,6 @@ final class TemplateLoaderTests: TuistTestCase {
         XCTAssertEqual(got.description, "Template description")
     }
 
-    func test_loadGenerateFile() throws {
-        let temporaryPath = try self.temporaryPath()
-        let content = """
-        import Foundation
-        import ProjectDescription
-
-        let content = Content {
-            let name = try getAttribute(for: "name")
-            return "name: \\(name)"
-        }
-
-        """
-        let expectedContent = "name: test name"
-        let generateFilePath = temporaryPath.appending(component: "Generate.swift")
-        try content.write(to: generateFilePath.url,
-                          atomically: true,
-                          encoding: .utf8)
-        // When
-        let got = try subject.loadGenerateFile(at: generateFilePath,
-                                               parsedAttributes: [ParsedAttribute(name: "name", value: "test name")])
-
-        // Then
-        XCTAssertEqual(got, expectedContent)
-    }
-
     func test_load_invalidFormat() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
