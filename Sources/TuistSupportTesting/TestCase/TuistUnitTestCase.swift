@@ -5,7 +5,6 @@ import XCTest
 
 public class TuistUnitTestCase: TuistTestCase {
     public var system: MockSystem!
-    public var environment: MockEnvironment!
     public var xcodeController: MockXcodeController!
 
     public override func setUp() {
@@ -17,21 +16,12 @@ public class TuistUnitTestCase: TuistTestCase {
         // Xcode controller
         xcodeController = MockXcodeController()
         XcodeController.shared = xcodeController
-
-        // Environment
-        // swiftlint:disable force_try
-        environment = try! MockEnvironment()
-        Environment.shared = environment
     }
 
     public override func tearDown() {
         // System
         system = nil
         System.shared = System()
-
-        // Printer
-        printer = nil
-        Printer.shared = Printer()
 
         // Xcode controller
         xcodeController = nil

@@ -7,11 +7,26 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix `TargetAction` when `PROJECT_DIR` includes a space https://github.com/tuist/tuist/pull/1037 by @fortmarek
+- Fix code example compilation issues in "Project description helpers" documentation https://github.com/tuist/tuist/pull/1081 by @chojnac
 
 ### Added
 
 - New `ProjectDescription` models for `scaffold` command https://github.com/tuist/tuist/pull/1082 by @fortmarek
+- Allow specifying Project Organization name via new `organizationName` parameter to `Project` initializer or via `Config` new GenerationOption. https://github.com/tuist/tuist/pull/1062 by @c0diq
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
+- Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
+- `TuistInsights` target https://github.com/tuist/tuist/pull/1084 by @pepibumur.
+- Add `cloudURL` attribute to `Config` https://github.com/tuist/tuist/pull/1085 by @pepibumur.
+- Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
+
+### Changed
+
+- Rename `TuistConfig.swift` to `Config.swift` https://github.com/tuist/tuist/pull/1083 by @pepibumur.
+
+### Changed
+
+- Generator update - leveraging intermediate descriptors https://github.com/tuist/tuist/pull/1007 by @kwridan
+  - Note: `TuistGenerator.Generator` is now deprecated and will be removed in a future version of Tuist.
 
 ## 1.3.0
 

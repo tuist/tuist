@@ -301,3 +301,15 @@ A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
 ## ios_app_with_incompatible_dependencies
 
 An iOS app that has a dependency with a dependency with a framework for macOS.
+
+## app_with_old_config_name
+
+An iOS app where the configuration is defined following the deprecated naming `TuistConfig`.
+
+## app_with_organization_name_config
+
+An iOS app where the organization name is defined at the `Config` level.
+
+## app_with_organization_name_project
+
+An iOS app where the organization name is defined at the `Project` level.

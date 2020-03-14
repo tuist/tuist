@@ -14,7 +14,9 @@ let betaScheme = Scheme(name: "App-Beta",
                         shared: true,
                         buildAction: BuildAction(targets: ["App"]),
                         runAction: RunAction(configurationName: "Beta", executable: "App"),
-                        archiveAction: ArchiveAction(configurationName: "Beta"))
+                        archiveAction: ArchiveAction(configurationName: "Beta"),
+                        profileAction: ProfileAction(configurationName: "Release", executable: "App"),
+                        analyzeAction: AnalyzeAction(configurationName: "Debug"))
 
 let project = Project(name: "MainApp",
                       settings: settings,

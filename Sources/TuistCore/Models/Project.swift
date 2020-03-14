@@ -11,6 +11,9 @@ public struct Project: Equatable, CustomStringConvertible {
     /// Project name.
     public let name: String
 
+    /// Organization name.
+    public let organizationName: String?
+
     /// Project file name.
     public let fileName: String
 
@@ -39,6 +42,7 @@ public struct Project: Equatable, CustomStringConvertible {
     /// - Parameters:
     ///   - path: Path to the folder that contains the project manifest.
     ///   - name: Project name.
+    ///   - organizationName: Organization name.
     ///   - settings: The settings to apply at the project level
     ///   - filesGroup: The root group to place project files within
     ///   - targets: The project targets
@@ -46,6 +50,7 @@ public struct Project: Equatable, CustomStringConvertible {
     ///                      *(Those won't be included in any build phases)*
     public init(path: AbsolutePath,
                 name: String,
+                organizationName: String? = nil,
                 fileName: String? = nil,
                 settings: Settings,
                 filesGroup: ProjectGroup,
@@ -55,6 +60,7 @@ public struct Project: Equatable, CustomStringConvertible {
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
+        self.organizationName = organizationName
         self.fileName = fileName ?? name
         self.targets = targets
         self.packages = packages

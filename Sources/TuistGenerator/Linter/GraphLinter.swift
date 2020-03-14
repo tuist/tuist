@@ -17,8 +17,10 @@ public class GraphLinter: GraphLinting {
     // MARK: - Init
 
     public convenience init() {
-        self.init(projectLinter: ProjectLinter(),
-                  staticProductsLinter: StaticProductsGraphLinter())
+        let projectLinter = ProjectLinter()
+        let staticProductsLinter = StaticProductsGraphLinter()
+        self.init(projectLinter: projectLinter,
+                  staticProductsLinter: staticProductsLinter)
     }
 
     init(projectLinter: ProjectLinting,

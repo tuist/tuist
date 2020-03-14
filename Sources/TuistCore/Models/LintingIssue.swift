@@ -42,13 +42,14 @@ public extension Array where Element == LintingIssue {
         let errorIssues = filter { $0.severity == .error }
         let warningIssues = filter { $0.severity == .warning }
 
-        warningIssues.forEach { issue in
-            Printer.shared.print(warning: "\(issue.description)")
+        for issue in warningIssues {
+            logger.warning("\(issue.description)")
         }
 
-        errorIssues.forEach { issue in
-            Printer.shared.print(errorMessage: "\(issue.description)")
+        for issue in errorIssues {
+            logger.error("\(issue.description)")
         }
+
         if !errorIssues.isEmpty { throw LintingError() }
     }
 }

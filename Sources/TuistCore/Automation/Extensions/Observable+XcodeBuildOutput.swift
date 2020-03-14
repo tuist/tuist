@@ -4,7 +4,7 @@ import TuistSupport
 
 public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
     func printFormattedOutput() -> Observable<SystemEvent<XcodeBuildOutput>> {
-        self.do(onNext: { event in
+        `do`(onNext: { event in
             switch event {
             case let .standardError(error):
                 let string = error.formatted ?? error.raw

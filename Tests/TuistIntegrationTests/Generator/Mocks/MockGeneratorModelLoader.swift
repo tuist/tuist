@@ -6,7 +6,7 @@ import TuistSupport
 class MockGeneratorModelLoader: GeneratorModelLoading {
     private var projects = [String: (AbsolutePath) throws -> Project]()
     private var workspaces = [String: (AbsolutePath) throws -> Workspace]()
-    private var tuistConfigs = [String: (AbsolutePath) throws -> TuistConfig]()
+    private var configs = [String: (AbsolutePath) throws -> Config]()
 
     private let basePath: AbsolutePath
 
@@ -24,8 +24,8 @@ class MockGeneratorModelLoader: GeneratorModelLoading {
         try workspaces[path.pathString]!(path)
     }
 
-    func loadTuistConfig(at path: AbsolutePath) throws -> TuistConfig {
-        try tuistConfigs[path.pathString]!(path)
+    func loadConfig(at path: AbsolutePath) throws -> Config {
+        try configs[path.pathString]!(path)
     }
 
     // MARK: - Mock
@@ -38,7 +38,7 @@ class MockGeneratorModelLoader: GeneratorModelLoading {
         workspaces[basePath.appending(component: path).pathString] = loadClosure
     }
 
-    func mockTuistConfig(_ path: String = "", loadClosure: @escaping (AbsolutePath) throws -> TuistConfig) {
-        tuistConfigs[basePath.appending(component: path).pathString] = loadClosure
+    func mockConfig(_ path: String = "", loadClosure: @escaping (AbsolutePath) throws -> Config) {
+        configs[basePath.appending(component: path).pathString] = loadClosure
     }
 }

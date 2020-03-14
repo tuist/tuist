@@ -7,14 +7,14 @@ public protocol EnvironmentLinting {
     ///
     /// - Parameter config: Tuist configuration to be linted against the system.
     /// - Returns: A list of linting issues.
-    func lint(config: TuistConfig) throws -> [LintingIssue]
+    func lint(config: Config) throws -> [LintingIssue]
 }
 
 public class EnvironmentLinter: EnvironmentLinting {
     /// Default constructor.
     public init() {}
 
-    public func lint(config: TuistConfig) throws -> [LintingIssue] {
+    public func lint(config: Config) throws -> [LintingIssue] {
         var issues = [LintingIssue]()
 
         issues.append(contentsOf: try lintXcodeVersion(config: config))
@@ -28,7 +28,7 @@ public class EnvironmentLinter: EnvironmentLinting {
     /// - Parameter config: Tuist configuration.
     /// - Returns: An array with a linting issue if the selected version is not compatible.
     /// - Throws: An error if there's an error obtaining the selected Xcode version.
-    func lintXcodeVersion(config: TuistConfig) throws -> [LintingIssue] {
+    func lintXcodeVersion(config: Config) throws -> [LintingIssue] {
         guard case let CompatibleXcodeVersions.list(compatibleVersions) = config.compatibleXcodeVersions else {
             return []
         }

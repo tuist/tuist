@@ -17,10 +17,7 @@ protocol CacheControlling {
 
 final class CacheController: CacheControlling {
     /// Xcode project generator.
-    private let generator: Generating
-
-    /// Manifest loader.
-    private let manifestLoader: ManifestLoading
+    private let generator: ProjectGenerating
 
     /// Utility to build the xcframeworks.
     private let xcframeworkBuilder: XCFrameworkBuilding
@@ -31,28 +28,26 @@ final class CacheController: CacheControlling {
     /// Cache.
     private let cache: CacheStoraging
 
-    init(generator: Generating = Generator(),
-         manifestLoader: ManifestLoading = ManifestLoader(),
+    init(generator: ProjectGenerating = ProjectGenerator(),
          xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController()),
          cache: CacheStoraging = Cache(),
          graphContentHasher: GraphContentHashing = GraphContentHasher()) {
         self.generator = generator
-        self.manifestLoader = manifestLoader
         self.xcframeworkBuilder = xcframeworkBuilder
         self.cache = cache
         self.graphContentHasher = graphContentHasher
     }
 
     func cache(path: AbsolutePath) throws {
-        let (path, graph) = try generator.generateWorkspace(at: path, manifestLoader: manifestLoader)
+        let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
-        Printer.shared.print(section: "Hashing cacheable frameworks")
+        logger.notice("Hashing cacheable frameworks")
         let cacheableTargets = try self.cacheableTargets(graph: graph)
 
         let completables = try cacheableTargets.map { try buildAndCacheXCFramework(path: path, target: $0.key, hash: $0.value) }
         _ = try Completable.zip(completables).toBlocking().last()
 
-        Printer.shared.print(success: "All cacheable frameworks have been cached successfully")
+        logger.notice("All cacheable frameworks have been cached successfully", metadata: .success)
     }
 
     /// Returns all the targets that are cacheable and their hashes.
@@ -61,7 +56,7 @@ final class CacheController: CacheControlling {
         try graphContentHasher.contentHashes(for: graph)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
-                    Printer.shared.print("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
+                    logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
                     return false
                 }
                 return true

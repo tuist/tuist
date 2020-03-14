@@ -77,6 +77,7 @@ class InitCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
+
         self.playgroundGenerator = playgroundGenerator
     }
 
@@ -92,10 +93,10 @@ class InitCommand: NSObject, Command {
         try generateWorkspaceSwift(name: name, platform: platform, path: path)
         try generateSwiftFiles(name: name, platform: platform, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
-        try generateTuistConfig(path: path)
+        try generateConfig(path: path)
         try generateGitIgnore(path: path)
 
-        Printer.shared.print(success: "Project generated at path \(path.pathString).")
+        logger.notice("Project generated at path \(path.pathString).", metadata: .success)
     }
 
     // MARK: - Fileprivate
@@ -328,15 +329,19 @@ class InitCommand: NSObject, Command {
         try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
     }
 
-    private func generateTuistConfig(path: AbsolutePath) throws {
+    private func generateConfig(path: AbsolutePath) throws {
         let content = """
         import ProjectDescription
 
-        let config = TuistConfig(generationOptions: [
+        let config = Config(generationOptions: [
         ])
         """
-        let setupPath = path.appending(component: Manifest.tuistConfig.fileName)
-        try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
+        let configPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName)"))
+        if !FileHandler.shared.exists(configPath.parentDirectory) {
+            try FileHandler.shared.createFolder(configPath.parentDirectory)
+        }
+
+        try content.write(to: configPath.url, atomically: true, encoding: .utf8)
     }
 
     // swiftlint:disable:next function_body_length

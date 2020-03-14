@@ -15,8 +15,8 @@ public final class MockGraphLoader: GraphLoading {
         return try loadWorkspaceStub?(path) ?? (Graph.test(), Workspace.test())
     }
 
-    public var loadTuistConfigStub: ((AbsolutePath) throws -> (TuistConfig))?
-    public func loadTuistConfig(path: AbsolutePath) throws -> TuistConfig {
-        try loadTuistConfigStub?(path) ?? TuistConfig.test()
+    public var loadConfigStub: ((AbsolutePath) throws -> (Config))?
+    public func loadConfig(path: AbsolutePath) throws -> Config {
+        try loadConfigStub?(path) ?? Config.test()
     }
 }

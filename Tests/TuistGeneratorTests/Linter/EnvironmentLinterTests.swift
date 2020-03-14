@@ -21,7 +21,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws {
         // Given
-        let config = TuistConfig.test(compatibleXcodeVersions: .list(["3.2.1"]))
+        let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
         xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
 
         // When
@@ -34,7 +34,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() throws {
         // Given
-        let config = TuistConfig.test(compatibleXcodeVersions: .all)
+        let config = Config.test(compatibleXcodeVersions: .all)
         xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
 
         // When
@@ -46,7 +46,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintXcodeVersion_doesntReturnIssues_whenThereIsNoSelectedXcode() throws {
         // Given
-        let config = TuistConfig.test(compatibleXcodeVersions: .list(["3.2.1"]))
+        let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
 
         // When
         let got = try subject.lintXcodeVersion(config: config)
@@ -57,7 +57,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintXcodeVersion_throws_when_theSelectedXcodeCantBeObtained() throws {
         // Given
-        let config = TuistConfig.test(compatibleXcodeVersions: .list(["3.2.1"]))
+        let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
         let error = NSError.test()
         xcodeController.selectedStub = .failure(error)
 
