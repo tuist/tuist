@@ -45,6 +45,30 @@ final class SDKNodeTests: XCTestCase {
         ])
     }
 
+    func test_xctest_sdk_framework_path() throws {
+        // Given
+        let libraries: [(name: String, platform: Platform)] = [
+            ("XCTest.framework", .iOS),
+            ("XCTest.framework", .macOS),
+        ]
+
+        // When
+        let nodes = try libraries.map { try SDKNode(name: $0.name, platform: $0.platform, status: .required) }
+
+        // Then
+        XCTAssertEqual(nodes.map(\.path), [
+            "/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework",
+            "/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework",
+        ])
+    }
+
+    func test_xctest_sdk_framework_unsupported_platforms_path() throws {
+        XCTAssertThrowsSpecific(try SDKNode(name: "XCTest.framework", platform: .tvOS, status: .required),
+                                SDKNode.Error.unsupported(sdk: "XCTest.framework"))
+        XCTAssertThrowsSpecific(try SDKNode(name: "XCTest.framework", platform: .watchOS, status: .required),
+                                SDKNode.Error.unsupported(sdk: "XCTest.framework"))
+    }
+
     func test_sdk_library_paths() throws {
         // Given
         let libraries: [(name: String, platform: Platform)] = [

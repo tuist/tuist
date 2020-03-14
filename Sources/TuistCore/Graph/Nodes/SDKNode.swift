@@ -10,7 +10,6 @@ public class SDKNode: GraphNode {
                 platform: Platform,
                 status: SDKStatus) throws {
         let sdk = AbsolutePath("/\(name)")
-
         // TODO: Validate using a linter
         guard let sdkExtension = sdk.extension,
             let type = Type(rawValue: sdkExtension) else {
@@ -20,19 +19,30 @@ public class SDKNode: GraphNode {
         self.status = status
         self.type = type
 
-        let sdkRootPath = AbsolutePath(platform.xcodeSdkRootPath,
-                                       relativeTo: AbsolutePath("/"))
-
         let path: AbsolutePath
-        switch type {
-        case .framework:
+        let sdkRootPath: AbsolutePath
+        if name == "XCTest.framework" {
+            guard let xcodeDeveloperSdkRootPath = platform.xcodeDeveloperSdkRootPath else {
+                throw Error.unsupported(sdk: name)
+            }
+            sdkRootPath = AbsolutePath(xcodeDeveloperSdkRootPath,
+                                       relativeTo: AbsolutePath("/"))
             path = sdkRootPath
-                .appending(RelativePath("System/Library/Frameworks"))
-                .appending(component: name)
-        case .library:
-            path = sdkRootPath
-                .appending(RelativePath("usr/lib"))
-                .appending(component: name)
+                    .appending(RelativePath("Frameworks"))
+                    .appending(component: name)
+        } else {
+            sdkRootPath = AbsolutePath(platform.xcodeSdkRootPath,
+                                       relativeTo: AbsolutePath("/"))
+            switch type {
+            case .framework:
+                path = sdkRootPath
+                    .appending(RelativePath("System/Library/Frameworks"))
+                    .appending(component: name)
+            case .library:
+                path = sdkRootPath
+                    .appending(RelativePath("usr/lib"))
+                    .appending(component: name)
+            }
         }
 
         super.init(path: path, name: String(name.split(separator: ".").first!))

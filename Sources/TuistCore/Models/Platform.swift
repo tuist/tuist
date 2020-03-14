@@ -98,4 +98,14 @@ extension Platform {
             return "Platforms/WatchOS.platform/Developer/SDKs/WatchOS.sdk"
         }
     }
+
+    public var xcodeDeveloperSdkRootPath: String? {
+        switch self {
+        case .iOS:
+            return "Platforms/iPhoneOS.platform/Developer/Library"
+        case .macOS:
+            return "Platforms/MacOSX.platform/Developer/Library"
+        default: return nil
+        }
+    }
 }
