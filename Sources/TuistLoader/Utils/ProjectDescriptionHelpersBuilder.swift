@@ -29,7 +29,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
     public init(cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
-         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
+                helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }

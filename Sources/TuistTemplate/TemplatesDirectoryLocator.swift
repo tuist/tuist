@@ -27,14 +27,16 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         return customTemplatesDirectory
     }
 
-    public func locate(from path: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
-        return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
-    }
-
     public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
         let customTemplatesDirectory = locateCustom(at: path)
         let customTemplates = try customTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return customTemplates.filter(FileHandler.shared.isFolder)
+    }
+
+    // MARK: - Helpers
+
+    private func locate(from path: AbsolutePath) -> AbsolutePath? {
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+        return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
     }
 }

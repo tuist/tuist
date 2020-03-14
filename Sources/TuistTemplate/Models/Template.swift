@@ -19,16 +19,16 @@ public struct Template {
     public enum Attribute {
         case required(String)
         case optional(String, default: String)
-        
+
         public var isOptional: Bool {
             switch self {
-            case .required(_):
+            case .required:
                 return false
             case .optional(_, default: _):
                 return true
             }
         }
-        
+
         public var name: String {
             switch self {
             case let .required(name):

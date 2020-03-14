@@ -68,26 +68,26 @@ class ScaffoldCommand: NSObject, Command {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
     }
-    
+
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
         guard arguments.count >= 2 else { throw ScaffoldCommandError.templateNotProvided }
         // We want to parse only the name of template, not its arguments which will be dynamically added
         let resultArguments = try parser.parse(Array(arguments.prefix(2)))
-        
+
         if resultArguments.get(listArgument) != nil {
             return try parser.parse(arguments)
         }
-        
+
         guard let templateName = resultArguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
-        
+
         let path = self.path(arguments: resultArguments)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
 
         let templateDirectory = try self.templateDirectory(templateDirectories: directories,
                                                            template: templateName)
-        
+
         let template = try templateLoader.loadTemplate(at: templateDirectory)
-        
+
         // Dynamically add attributes from template to `subParser`
         attributesArguments = template.attributes.reduce([:]) {
             var mutableDictionary = $0
@@ -95,15 +95,15 @@ class ScaffoldCommand: NSObject, Command {
                                                        kind: String.self)
             return mutableDictionary
         }
-        
+
         return try parser.parse(arguments)
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         Printer.shared.print("Scaffold is a feature that is currently being worked on")
-        
+
         guard let template = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
-        
+
         let path = self.path(arguments: arguments)
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
 
@@ -118,12 +118,11 @@ class ScaffoldCommand: NSObject, Command {
 
         try verifyDirectoryIsEmpty(path: path)
 
-        let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
-                                                           template: template)
-        
+        _ = try templateDirectory(templateDirectories: templateDirectories,
+                                  template: template)
+
         // TODO: Generate templates
-        Printer.shared.print("Found template directory at: \(templateDirectory.pathString)")
-        
+
         Printer.shared.print(success: "Template \(template) was successfully generated")
     }
 
@@ -146,7 +145,7 @@ class ScaffoldCommand: NSObject, Command {
             throw ScaffoldCommandError.nonEmptyDirectory(path)
         }
     }
-    
+
     /// Finds template directory
     /// - Parameters:
     ///     - templateDirectories: Paths of available templates

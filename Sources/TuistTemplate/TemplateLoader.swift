@@ -36,7 +36,6 @@ public class TemplateLoader: TemplateLoading {
     private let resourceLocator: ResourceLocating
     private let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
     private let decoder: JSONDecoder
-    private let encoder: JSONEncoder
 
     /// Default constructor.
     public convenience init() {
@@ -52,7 +51,6 @@ public class TemplateLoader: TemplateLoading {
         self.resourceLocator = resourceLocator
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         decoder = JSONDecoder()
-        encoder = JSONEncoder()
     }
 
     public func loadTemplate(at path: AbsolutePath) throws -> TuistTemplate.Template {
