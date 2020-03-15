@@ -29,7 +29,7 @@ export default ({ showCopy = true, my = 25, bg, ...props }) => {
             cursor: 'pointer',
           }}
           onClick={() => {
-            setCopyContent('Copied 👍')
+            setCopyContent('Copied')
             copy(props.children)
             setTimeout(() => {
               setCopyContent(defaultCopyContent)

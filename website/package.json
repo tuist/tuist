@@ -17,6 +17,7 @@
     "@theme-ui/color": "^0.3.1",
     "@theme-ui/presets": "^0.3.0",
     "@theme-ui/prism": "^0.3.0",
+    "@theme-ui/sidenav": "^0.3.1",
     "@theme-ui/typography": "^0.3.0",
     "copy-text-to-clipboard": "^2.1.1",
     "focus-visible": "^5.0.2",
@@ -43,6 +44,7 @@
     "gatsby-remark-social-cards": "https://github.com/pepibumur/gatsby-remark-social-cards.git#0.5.2",
     "gatsby-source-filesystem": "^2.1.50",
     "gatsby-transformer-yaml": "^2.2.26",
+    "is-absolute-url": "^3.0.3",
     "moment": "^2.24.0",
     "polished": "^3.4.4",
     "prettier": "^1.19.1",
@@ -62,7 +64,7 @@
     "remark-slug": "^5.1.2",
     "semantic-ui-react": "^0.88.1",
     "slug": "^2.1.1",
-    "theme-ui": "^0.2.52",
+    "theme-ui": "^0.3.1",
     "url-join": "^4.0.1"
   },
   "keywords": [

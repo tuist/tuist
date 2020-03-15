@@ -1,8 +1,7 @@
 /** @jsx jsx */
-import { jsx, Styled } from 'theme-ui'
+import { jsx, Styled, useThemeUI } from 'theme-ui'
 
 import Layout from '../components/layout'
-import Footer from '../components/footer'
 import { Link } from 'gatsby'
 import { graphql } from 'gatsby'
 import Main from '../components/main'
@@ -11,56 +10,76 @@ import { BreadcrumbJsonLd, BlogJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
 import moment from 'moment'
 import SEO from '../components/SEO'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faClock, faCalendarAlt, faUser } from '@fortawesome/free-regular-svg-icons'
 
 const Post = ({ post, index, authors }) => {
+  const { theme } = useThemeUI();
   const authorHandle = post.frontmatter.author
   const author = findWhere(authors, { handle: authorHandle })
 
   return (
     <article sx={{ mt: index == 0 ? 0 : 5 }} key={index}>
       <header>
-        <Styled.h2
-          sx={{
-            mb: 0,
-            color: 'gray1',
-            '&:hover': { textDecoration: 'underline' },
-            '&:focus': { textDecoration: 'underline' },
-          }}
+
+        <Link
+          to={post.fields.slug}
+          alt={`Open the blog post titled ${post.frontmatter.title}`}
+          sx={{ color: 'primary', textDecoration: 'none', "&:hover": { color: "secondary" } }}
         >
-          <Link
-            to={post.fields.slug}
-            alt={`Open the blog post titled ${post.frontmatter.title}`}
+          <Styled.h2
+            sx={{
+              mb: 0,
+            }}
           >
             {post.frontmatter.title}
-          </Link>
-        </Styled.h2>
+          </Styled.h2>
+        </Link>
         <div
           sx={{
-            mb: 0,
-            color: 'gray3',
+            my: 3,
+            color: 'gray',
             fontSize: 2,
             display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: ['column', 'row'],
+            alignItems: 'flex-start',
           }}
         >
-          Published on {post.fields.date} by{' '}
-          <a
-            sx={{
-              '&:hover': { textDecoration: 'underline' },
-              '&:focus': { textDecoration: 'underline' },
-              ml: 2,
-            }}
-            href={`https://twitter.com/${author.twitter}`}
-            target="__blank"
-            alt={`Open the Twitter profile of ${author.name}`}
-          >
-            {author.name}
-          </a>
-          <img
-            src={author.avatar}
-            sx={{ width: 14, height: 14, borderRadius: 7, ml: 2 }}
-          />
+          <span>
+            <FontAwesomeIcon
+              sx={{ path: { fill: theme.colors.gray } }}
+              icon={faCalendarAlt}
+              size="sm"
+            /> {post.fields.date}
+          </span>
+
+          <span sx={{ ml: [0, 4] }}>
+            <FontAwesomeIcon
+              sx={{ path: { fill: theme.colors.gray } }}
+              icon={faUser}
+              size="sm"
+            />
+            <Styled.a
+              href={`https://twitter.com/${author.twitter}`}
+              target="__blank"
+              alt={`Open the Twitter profile of ${author.name}`}
+              sx={{ ml: 2 }}
+            >
+              {author.name}
+            </Styled.a>
+            <img
+              src={author.avatar}
+              sx={{ width: 14, height: 14, borderRadius: 7, ml: 2 }}
+            />
+          </span>
+
+          <span sx={{ ml: [0, 4] }}>
+            <FontAwesomeIcon
+              sx={{ path: { fill: theme.colors.gray } }}
+              icon={faClock}
+              size="sm"
+            /> {post.timeToRead} min read
+          </span>
         </div>
       </header>
 
@@ -89,12 +108,8 @@ const PostsFooter = ({ currentPage, numPages }) => {
       {!isFirst && (
         <Link
           alt={`Open the page ${currentPage - 1} of blog posts`}
+          sx={{ variant: 'text.gatsby-link' }}
           to={prevPage}
-          sx={{
-            color: 'secondary',
-            '&:hover': { textDecoration: 'underline' },
-            '&:focus': { textDecoration: 'underline' },
-          }}
         >
           Previous page
         </Link>
@@ -103,11 +118,7 @@ const PostsFooter = ({ currentPage, numPages }) => {
         <Link
           alt={`Open the page ${currentPage + 1} of blog posts`}
           to={nextPage}
-          sx={{
-            color: 'secondary',
-            '&:hover': { textDecoration: 'underline' },
-            '&:focus': { textDecoration: 'underline' },
-          }}
+          sx={{ variant: 'text.gatsby-link' }}
         >
           Next page
         </Link>
@@ -169,7 +180,6 @@ const BlogList = ({
         })}
         <PostsFooter {...pageContext} />
       </Main>
-      <Footer />
     </Layout>
   )
 }
@@ -201,6 +211,7 @@ export const blogListQuery = graphql`
       edges {
         node {
           id
+          timeToRead
           fields {
             date
             slug
