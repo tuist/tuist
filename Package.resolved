@@ -38,6 +38,15 @@
         }
       },
       {
+        "package": "CryptoSwift",
+        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift",
+        "state": {
+          "branch": null,
+          "revision": "a44caef0550c346e0ab9172f7c9a3852c1833599",
+          "version": "1.3.0"
+        }
+      },
+      {
         "package": "Guaka",
         "repositoryURL": "https://github.com/nsomar/Guaka.git",
         "state": {
@@ -80,15 +89,6 @@
           "branch": null,
           "revision": "de1685ad202cb586d626ed52d6de904dd34189f3",
           "version": "0.4.1"
-        }
-      },
-      {
-        "package": "swift-crypto",
-        "repositoryURL": "https://github.com/apple/swift-crypto",
-        "state": {
-          "branch": null,
-          "revision": "9be4a93a76d4b80105044747b35d456de7289c87",
-          "version": "1.0.0"
         }
       },
       {

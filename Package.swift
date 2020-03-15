@@ -33,7 +33,7 @@ let package = Package(
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.7.3")),
-        .package(url: "https://github.com/apple/swift-crypto", .upToNextMajor(from: "1.0.0")),
+        .package(url: "https://github.com/krzyzanowskim/CryptoSwift", .upToNextMajor(from: "1.3.0")),
     ],
     targets: [
         .target(
@@ -150,7 +150,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSigning",
-            dependencies: ["TuistCore", "TuistSupport", "Crypto"]
+            dependencies: ["TuistCore", "TuistSupport", "CryptoSwift"]
         ),
         .testTarget(
             name: "TuistSigningTests",
