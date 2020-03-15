@@ -28,7 +28,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 
     public func write(workspace: WorkspaceDescriptor) throws {
-        try workspace.projectDescriptors.forEach(write)
+        try workspace.projectDescriptors.concurrentForEach(write)
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
         try workspace.schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: workspace.xcworkspacePath) }
         try workspace.sideEffectDescriptors.forEach(perform)

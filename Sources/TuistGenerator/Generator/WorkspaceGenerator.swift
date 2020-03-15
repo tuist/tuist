@@ -70,7 +70,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try graph.projects.map { project in
+        let projects = try graph.projects.concurrentMap { project in
             try projectGenerator.generate(project: project,
                                           graph: graph,
                                           sourceRootPath: project.path,
