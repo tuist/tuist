@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Rename `TuistConfig.swift` to `Config.swift` https://github.com/tuist/tuist/pull/1083 by @pepibumur.
+- Optimize `BuildPhaseGenerator`'s method of detecting assets and localized files https://github.com/tuist/tuist/pull/1094 by @kwridan
 
 ### Changed
 
