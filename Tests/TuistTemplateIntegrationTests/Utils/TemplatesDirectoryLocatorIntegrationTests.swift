@@ -25,7 +25,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
 
         // When
-        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateCustom(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
@@ -37,7 +37,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
 
         // When
-        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateCustom(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
@@ -46,10 +46,10 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_a_git_directory_exists() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/.git"])
+        try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
 
         // When
-        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateCustom(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/Tuist/Templates")))
@@ -58,7 +58,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_multiple_tuist_directories_exists() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/Tuist/", "this/is/Tuist/"])
+        try createFolders(["this/is/a/very/nested/Tuist/Templates", "this/is/Tuist/Templates"])
         let paths = [
             "this/is/a/very/directory",
             "this/is/a/very/nested/directory",
@@ -66,7 +66,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
 
         // When
         let got = paths.map {
-            subject.locate(from: temporaryDirectory.appending(RelativePath($0)))
+            subject.locateCustom(at: temporaryDirectory.appending(RelativePath($0)))
         }
 
         // Then
