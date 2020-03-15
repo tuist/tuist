@@ -7,6 +7,8 @@ public protocol Command {
 
     /// A short sentece that describes what the command is for.
     static var overview: String { get }
+    
+    var subcommands: [Command] { get }
 
     /// Initializes the command with the argument parser. ArgumentParser is defined un the SPM Utility package.
     /// The command needs to register itself in the parser. Otherwise, the command won't be avaible.
@@ -19,6 +21,22 @@ public protocol Command {
     /// - Parameter arguments: Result of parsing the arguments that the user passed to the CLI.
     /// - Throws: Errors that are thrown by the underlying command action.
     func run(with arguments: ArgumentParser.Result) throws
+
+    /// If needed, command can do custom parsing
+    /// As default, result from `parser.parse` is used
+    /// - Parameters:
+    ///     - parser: Default parser
+    ///     - argumets: List of arguments that the user passed to the CLI
+    /// - Returns: Result of parsing the arguments that the user passed to the CLI.
+    func parse(with parser: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser)
+}
+
+public extension Command {
+    var subcommands: [Command] { [] }
+    
+    func parse(with parser: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser) {
+        return (try parser.parse(arguments), parser)
+    }
 }
 
 /// Protocol that defines the interface of a command that can be executed but that is not exposed from the CLI.

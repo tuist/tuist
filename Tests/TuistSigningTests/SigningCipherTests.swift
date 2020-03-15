@@ -30,7 +30,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         let certContent = "my-certificate"
         let profileContent = "my-profile"
         let certFile = signingDirectory.appending(component: "CertFile.txt")
-        let profileFile = signingDirectory.appending(component: "ProfileFile.text")
+        let profileFile = signingDirectory.appending(component: "ProfileFile.txt")
         try FileHandler.shared.write(certContent, path: certFile, atomically: true)
         try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
         
