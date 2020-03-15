@@ -5,7 +5,6 @@ import TuistCore
 import TuistSupport
 import TuistSigning
 
-// swiftlint:disable:next type_body_length
 class EncryptCommand: NSObject, Command {
     // MARK: - Attributes
 
