@@ -20,7 +20,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         }
 
         public static var `default`: Config {
-            return Config(projectDescriptorWritingContext: .concurrent)
+            Config(projectDescriptorWritingContext: .concurrent)
         }
     }
 

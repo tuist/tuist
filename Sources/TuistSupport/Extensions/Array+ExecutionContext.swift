@@ -17,11 +17,11 @@ public struct ExecutionContext {
     }
 
     public static var serial: ExecutionContext {
-        return ExecutionContext(executionType: .serial)
+        ExecutionContext(executionType: .serial)
     }
 
     public static var concurrent: ExecutionContext {
-        return ExecutionContext(executionType: .concurrent)
+        ExecutionContext(executionType: .concurrent)
     }
 }
 

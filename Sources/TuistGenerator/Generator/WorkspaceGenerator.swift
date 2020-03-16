@@ -41,7 +41,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         /// descriptors for each project within the workspace / graph
         var projectGenerationContext: ExecutionContext
         static var `default`: Config {
-            return Config(projectGenerationContext: .concurrent)
+            Config(projectGenerationContext: .concurrent)
         }
     }
 
