@@ -1,26 +1,52 @@
 /** @jsx jsx */
-import { jsx, Styled } from 'theme-ui'
+import { jsx, Styled, NavLink } from 'theme-ui'
+import { useState, useRef } from "react";
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { graphql, Link, withPrefix } from 'gatsby'
 import Layout from '../components/layout'
-import Footer from '../components/footer'
 import { ArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
 import moment from 'moment'
 import SEO from '../components/SEO'
+import Links from "../../markdown/docs/links.mdx"
+import { AccordionNav, Sidenav } from '@theme-ui/sidenav'
+import { Location } from '@reach/router'
+import isAbsoluteURL from 'is-absolute-url'
+
+const NavigationLink = ({ href, ...props }) => {
+  const style = {
+    display: 'inline-block',
+    fontWeight: 'bold',
+    color: 'inherit',
+    textDecoration: 'none',
+    ':hover,:focus': {
+      color: 'primary',
+    },
+    '&.active': {
+      color: 'primary',
+    }
+  }
+  const isExternal = isAbsoluteURL(href || '')
+  if (isExternal) {
+    return <a {...props} href={href} sx={style} />
+  }
+  const to = props.to || href
+  return <Link {...props} to={to} sx={style} activeClassName="active" />
+}
 
 const DocumentationPage = ({
   data: {
     mdx,
-    allFile: { nodes: files },
     site: {
-      siteMetadata: { documentationCategories, siteUrl },
+      siteMetadata: { siteUrl },
     },
   },
-}) => {
+}, ...props) => {
+  const ref = useRef(null)
   const page = mdx
+  const [menuOpen, setMenuOpen] = useState(false)
   return (
-    <Layout>
+    <Layout menuOpen={menuOpen} setMenuOpen={setMenuOpen} menuRef={ref}>
       <SEO
         title={page.frontmatter.name}
         description={page.frontmatter.excerpt}
@@ -53,89 +79,55 @@ const DocumentationPage = ({
       <div
         sx={{ display: 'flex', flexDirection: ['column', 'row'], flex: '1' }}
       >
-        <aside
-          sx={{
-            flex: [1, 'none'],
-            px: 3,
-            bg: 'gray6',
-            mt: 2,
-            width: ['none', 200],
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: ['center', 'flex-start'],
+        <div
+          ref={ref}
+          onFocus={e => {
+            // setMenuOpen(true)
           }}
-        >
-          {documentationCategories.map((category, categoryIndex) => {
-            return (
-              <div key={categoryIndex}>
-                <Styled.h3 sx={{ textAlign: ['center', 'left'], mt: 4 }}>
-                  {category.name}
-                </Styled.h3>
-                {files
-                  .filter(file =>
-                    file.relativeDirectory.endsWith(category.folderName)
-                  )
-                  .map((file, fileIndex) => {
-                    const current =
-                      file.childMdx.fields.slug === mdx.fields.slug
-                    return (
-                      <Link
-                        key={`${categoryIndex}-${fileIndex}`}
-                        to={file.childMdx.fields.slug}
-                        sx={{ color: current ? 'primary' : 'gray2' }}
-                      >
-                        <div
-                          sx={{
-                            textAlign: ['center', 'left'],
-                            my: 3,
-                            fontSize: 2,
-                          }}
-                        >
-                          {file.childMdx.frontmatter.name}
-                        </div>
-                      </Link>
-                    )
-                  })}
-              </div>
-            )
-          })}
-        </aside>
+          onBlur={e => {
+            setMenuOpen(false)
+          }}
+          onClick={e => {
+            setMenuOpen(false)
+          }}>
+          <Location
+            children={({ location }) => {
+              return <Links
+                open={menuOpen}
+                components={{ wrapper: Sidenav, a: NavigationLink }}
+                pathname={location.pathname}
+                sx={{
+                  display: [null, 'block'],
+                  width: [250, 400],
+                  mt: [64, 0],
+                  flex: 'none',
+                  pl: [2, 6],
+                  pr: [2, 0],
+                  pt: [0, 5],
+                }}
+              />
+            }}
+          />
+        </div>
+
         <div
           sx={{
-            px: [3, 6],
+            pl: [4, 4],
+            pr: [4, 6],
             pt: 4,
             pb: 6,
             minWidth: 0,
-            boxShadow: theme => `-1px -1px 12px -4px ${theme.colors.gray5}`,
           }}
         >
           <MDXRenderer>{page.body}</MDXRenderer>
         </div>
       </div>
-      <Footer />
     </Layout>
   )
 }
 
 export const query = graphql`
   query($slug: String!) {
-    allFile(
-      filter: { absolutePath: { regex: "/docs/.*/" }, extension: { eq: "mdx" } }
-      sort: { fields: childMdx___frontmatter___order, order: ASC }
-    ) {
-      nodes {
-        relativeDirectory
-        childMdx {
-          excerpt
-          fields {
-            slug
-          }
-          frontmatter {
-            name
-          }
-        }
-      }
-    }
     site {
       siteMetadata {
         title

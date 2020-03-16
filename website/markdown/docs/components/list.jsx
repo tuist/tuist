@@ -18,7 +18,7 @@ const ListItem = ({ children }) => {
   )
 }
 
-const ListIcon = ({ children, name }) => {
+const ListIcon = ({ name }) => {
   let icon
   if (name == 'swift') {
     icon = faSwift
@@ -27,29 +27,29 @@ const ListIcon = ({ children, name }) => {
   }
   return (
     <div>
-      <FontAwesomeIcon sx={{ pr: 3 }} icon={icon} size="sm" />
+      <FontAwesomeIcon sx={{ pr: 3 }} icon={icon} size="sm" sx={{ height: 30, width: 30 }} />
     </div>
   )
 }
 
 const ListContent = ({ children }) => {
   return (
-    <div sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+    <div sx={{ flex: 1, display: 'flex', flexDirection: 'column', ml: 2 }}>
       {children}
     </div>
   )
 }
 
-const ListHeader = ({ children, folder }) => {
+const ListHeader = ({ children }) => {
   return (
-    <div sx={{ mb: 0, color: folder ? 'primary' : 'inherited' }}>
+    <div sx={{ mb: 0, color: 'text' }}>
       {children}
     </div>
   )
 }
 
 const ListDescription = ({ children }) => {
-  return <div sx={{ fontSize: 1, color: 'gray3' }}>{children}</div>
+  return <div sx={{ fontSize: 1, color: 'gray' }}>{children}</div>
 }
 
 const ListList = ({ children }) => {

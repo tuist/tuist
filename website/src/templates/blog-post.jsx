@@ -1,9 +1,8 @@
 /** @jsx jsx */
-import { jsx, Styled } from 'theme-ui'
+import { jsx, Styled, useThemeUI } from 'theme-ui'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 
 import Layout from '../components/layout'
-import Footer from '../components/footer'
 import { graphql } from 'gatsby'
 import moment from 'moment'
 import Main from '../components/main'
@@ -12,6 +11,8 @@ import Share from '../components/share'
 import urljoin from 'url-join'
 import SEO from '../components/SEO'
 import { NewsArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faClock, faCalendarAlt, faUser } from '@fortawesome/free-regular-svg-icons'
 
 const Avatar = ({ author: { avatar, twitter } }) => {
   return (
@@ -30,6 +31,58 @@ const Avatar = ({ author: { avatar, twitter } }) => {
   )
 }
 
+const Subtitle = ({ post, author }) => {
+  const { theme } = useThemeUI();
+  return <div
+    sx={{
+      flex: 1,
+      mb: 0,
+      color: 'gray',
+      fontSize: 2,
+      display: 'flex',
+      alignItems: 'center',
+      flexDirection: ['column', 'row'],
+      justifyContent: 'center',
+    }}
+  >
+    <span>
+      <FontAwesomeIcon
+        sx={{ path: { fill: theme.colors.gray } }}
+        icon={faCalendarAlt}
+        size="sm"
+      /> {post.fields.date}
+    </span>
+
+    <span sx={{ ml: [0, 4] }}>
+      <FontAwesomeIcon
+        sx={{ path: { fill: theme.colors.gray } }}
+        icon={faUser}
+        size="sm"
+      />
+      <Styled.a
+        href={`https://twitter.com/${author.twitter}`}
+        target="__blank"
+        alt={`Open the Twitter profile of ${author.name}`}
+        sx={{ ml: 2 }}
+      >
+        {author.name}
+      </Styled.a>
+      <img
+        src={author.avatar}
+        sx={{ width: 14, height: 14, borderRadius: 7, ml: 2 }}
+      />
+    </span>
+
+    <span sx={{ ml: [0, 4] }}>
+      <FontAwesomeIcon
+        sx={{ path: { fill: theme.colors.gray } }}
+        icon={faClock}
+        size="sm"
+      /> {post.timeToRead} min read
+  </span>
+  </div>
+}
+
 const IndexPage = ({
   data: {
     site: {
@@ -44,9 +97,6 @@ const IndexPage = ({
   const author = authors.find(
     author => author.handle === post.frontmatter.author
   )
-  const subtitle = `Published by ${author.name} on ${moment(
-    post.fields.date
-  ).format('MMMM Do YYYY')}`
 
   const breadcrumb = [
     { position: 1, name: 'Blog', item: urljoin(siteUrl, '/blog') },
@@ -100,22 +150,19 @@ const IndexPage = ({
         <Styled.h1 sx={{ textAlign: 'center', pb: 0, mb: 0 }}>
           {post.frontmatter.title}
         </Styled.h1>
-        <Styled.p sx={{ textAlign: 'center', color: 'gray3', mb: 4 }}>
-          {subtitle}
+        <Styled.p sx={{ textAlign: 'center', color: 'gray', my: 4 }}>
+          <Subtitle post={post} author={author} />
         </Styled.p>
         <div sx={{ pb: 4 }}>
           <MDXRenderer>{post.body}</MDXRenderer>
         </div>
-        <p>
-          <EditPage path={post.fields.path} />
-        </p>
+        <EditPage path={post.fields.path} />
         <Share
           path={post.fields.slug}
           tags={post.frontmatter.categories}
           title={post.frontmatter.title}
         />
       </Main>
-      <Footer />
     </Layout>
   )
 }
@@ -137,6 +184,7 @@ export const query = graphql`
         date
         path
       }
+      timeToRead
       frontmatter {
         title
         categories

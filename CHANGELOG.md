@@ -4,6 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+- Optimize `TargetNode`'s set operations https://github.com/tuist/tuist/pull/1095 by @kwridan
+
+## 1.4.0
+
 ### Fixed
 
 - Fix `TargetAction` when `PROJECT_DIR` includes a space https://github.com/tuist/tuist/pull/1037 by @fortmarek
@@ -16,15 +21,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
 - `TuistInsights` target https://github.com/tuist/tuist/pull/1084 by @pepibumur.
 - Add `cloudURL` attribute to `Config` https://github.com/tuist/tuist/pull/1085 by @pepibumur.
-- Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
 
 ### Changed
 
 - Rename `TuistConfig.swift` to `Config.swift` https://github.com/tuist/tuist/pull/1083 by @pepibumur.
-- Optimize `TargetNode`'s set operations https://github.com/tuist/tuist/pull/1095 by @kwridan
-
-### Changed
-
 - Generator update - leveraging intermediate descriptors https://github.com/tuist/tuist/pull/1007 by @kwridan
   - Note: `TuistGenerator.Generator` is now deprecated and will be removed in a future version of Tuist.
 
