@@ -42,10 +42,11 @@ const DocumentationPage = ({
     },
   },
 }, ...props) => {
+  const ref = useRef(null)
   const page = mdx
   const [menuOpen, setMenuOpen] = useState(false)
   return (
-    <Layout menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
+    <Layout menuOpen={menuOpen} setMenuOpen={setMenuOpen} menuRef={ref}>
       <SEO
         title={page.frontmatter.name}
         description={page.frontmatter.excerpt}
@@ -78,9 +79,11 @@ const DocumentationPage = ({
       <div
         sx={{ display: 'flex', flexDirection: ['column', 'row'], flex: '1' }}
       >
-        <div onFocus={e => {
-          setMenuOpen(true)
-        }}
+        <div
+          ref={ref}
+          onFocus={e => {
+            // setMenuOpen(true)
+          }}
           onBlur={e => {
             setMenuOpen(false)
           }}
@@ -95,10 +98,11 @@ const DocumentationPage = ({
                 pathname={location.pathname}
                 sx={{
                   display: [null, 'block'],
-                  width: [200, 400],
+                  width: [250, 400],
                   mt: [64, 0],
                   flex: 'none',
                   pl: [2, 6],
+                  pr: [2, 0],
                   pt: [0, 5],
                 }}
               />

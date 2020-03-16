@@ -58,7 +58,7 @@ const ColorButton = ({ mode, ...props }) => (
 
 const modes = ["light", "black", "dark", "deep", "hack", "pink"]
 
-export default ({ menuOpen, setMenuOpen }) => {
+export default ({ menuOpen, setMenuOpen, menuRef }) => {
   const hoverStyle = {
     color: 'primary',
   }
@@ -104,11 +104,14 @@ export default ({ menuOpen, setMenuOpen }) => {
           px: [4, 6],
         }}
       >
-        <div sx={{ display: 'flex', flexDirection: 'horizontal' }}>
+        <div sx={{ display: 'flex', flexDirection: 'horizontal', justifyContent: 'center' }}>
           {setMenuOpen && <MenuButton
             sx={{ display: ['inherit', 'none'], zIndex: 1 }}
             onClick={e => {
               setMenuOpen(!menuOpen)
+              if (!menuRef.current) return
+              const navLink = menuRef.current.querySelector('a')
+              if (navLink) navLink.focus()
             }}
           />}
           {setMenuOpen && <div sx={{ flex: 1 }} />}
@@ -140,85 +143,89 @@ export default ({ menuOpen, setMenuOpen }) => {
               <div
                 sx={{
                   display: 'flex',
-                  flexDirection: ['row'],
+                  flexDirection: ['column', 'row'],
                   flex: 1,
                   justifyContent: ['center', 'center', 'flex-end'],
                   alignItems: 'center',
                   mt: [3, 0]
                 }}
               >
+                <div sx={{ display: 'flex', flexDirection: 'row' }}>
+                  <Link
+                    sx={{
+                      ...linkStyle,
+                      ...(isDocs ? hoverStyle : {}),
+                      variant: 'text.header'
+                    }}
+                    to={firstDocumentationPagePath}
+                  >
+                    DOCS
+                </Link>
+                  <Link
+                    sx={{
+                      ...linkStyle,
+                      ...(isBlog ? hoverStyle : {}),
+                      ml: 4,
+                      variant: 'text.header'
+                    }}
+                    to="/blog"
+                    alt="Blog"
+                  >
+                    BLOG
+                </Link>
+                  <Link
+                    sx={{
+                      ...linkStyle,
+                      ...(isFaq ? hoverStyle : {}),
+                      ml: 4,
+                      variant: 'text.header'
+                    }}
+                    to="/faq"
+                    alt="Frequently asked questions"
+                  >
+                    FAQ
+                </Link>
+                </div>
 
-                <Link
-                  sx={{
-                    ...linkStyle,
-                    ...(isDocs ? hoverStyle : {}),
-                    variant: 'text.header'
-                  }}
-                  to={firstDocumentationPagePath}
-                >
-                  DOCS
-                </Link>
-                <Link
-                  sx={{
-                    ...linkStyle,
-                    ...(isBlog ? hoverStyle : {}),
-                    ml: 4,
-                    variant: 'text.header'
-                  }}
-                  to="/blog"
-                  alt="Blog"
-                >
-                  BLOG
-                </Link>
-                <Link
-                  sx={{
-                    ...linkStyle,
-                    ...(isFaq ? hoverStyle : {}),
-                    ml: 4,
-                    variant: 'text.header'
-                  }}
-                  to="/faq"
-                  alt="Frequently asked questions"
-                >
-                  FAQ
-                </Link>
-                <a
-                  sx={{
-                    ...linkStyle,
-                    ml: 4,
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                  }}
-                  target="__blank"
-                  href={githubUrl}
-                  alt="The project's GitHub organization"
-                >
-                  <FontAwesomeIcon
-                    sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
-                    icon={faGithub}
-                    size="lg"
-                  />
-                </a>
-                <a
-                  sx={{
-                    ...linkStyle,
-                    ml: 4,
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                  }}
-                  target="__blank"
-                  href={slackUrl}
-                  alt="Join the organization's Slack channel"
-                >
-                  <FontAwesomeIcon
-                    sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
-                    icon={faSlack}
-                    size="lg"
-                  />
-                </a>
-                <ColorButton mode={mode} onClick={cycleMode} />
+                <div sx={{ flexDirection: 'row', display: 'flex' }}>
+                  <a
+                    sx={{
+                      ...linkStyle,
+                      ml: 4,
+                      display: 'flex',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                    target="__blank"
+                    href={githubUrl}
+                    alt="The project's GitHub organization"
+                  >
+                    <FontAwesomeIcon
+                      sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+                      icon={faGithub}
+                      size="lg"
+                    />
+                  </a>
+                  <a
+                    sx={{
+                      ...linkStyle,
+                      ml: 4,
+                      display: 'flex',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                    target="__blank"
+                    href={slackUrl}
+                    alt="Join the organization's Slack channel"
+                  >
+                    <FontAwesomeIcon
+                      sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+                      icon={faSlack}
+                      size="lg"
+                    />
+                  </a>
+                  <ColorButton mode={mode} onClick={cycleMode} />
+                </div>
               </div>
             )
           }}

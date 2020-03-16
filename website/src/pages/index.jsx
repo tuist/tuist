@@ -119,7 +119,7 @@ const Steroids = () => {
               link="/docs/usage/getting-started/"
             />
 
-            <div sx={{ color: 'secondary', mt: 4 }}>
+            <div sx={{ color: 'secondary', mt: 4, textAlign: 'center' }}>
               Trusted by the following companies and projects:
             </div>
             <div sx={{ mt: 3, display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
@@ -157,7 +157,7 @@ const SectionTitle = ({ title, subtitle, description }) => {
       <div sx={{ fontSize: 3, fontWeight: 'heading', textAlign: 'center' }}>
         {title}
       </div>
-      <div sx={{ color: 'text', mt: 2, textAlign: 'center' }}>
+      <div sx={{ color: 'text', mt: 2, textAlign: 'center', textAlign: 'center' }}>
         {description}
       </div>
     </div>

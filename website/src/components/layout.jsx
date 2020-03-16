@@ -7,11 +7,11 @@ import GlobalStyle from './global-style'
 import Header from '../components/header'
 import Footer from '../components/footer'
 
-const Layout = ({ children, menuOpen, setMenuOpen }) => {
+const Layout = ({ children, menuOpen, setMenuOpen, menuRef }) => {
   return (
     <>
       <GlobalStyle />
-      <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+      <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} menuRef={menuRef} />
       <main sx={{ mb: [3, 6] }}>{children}</main>
       <Footer />
     </>

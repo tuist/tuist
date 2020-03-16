@@ -20,13 +20,15 @@ const PropertiesTable = ({ properties }) => {
         my: 3,
       }}
     >
-      <tr sx={{ bg: 'muted', ...borderStyle, display: ['none', 'table-row'] }}>
-        <th sx={{ ...cellStyle }}>Property</th>
-        <th sx={{ ...cellStyle }}>Description</th>
-        <th sx={{ ...cellStyle }}>Type</th>
-        <th sx={{ ...cellStyle }}>Optional</th>
-        <th sx={{ ...cellStyle }}>Default</th>
-      </tr>
+      <thead>
+        <tr sx={{ bg: 'muted', ...borderStyle, display: ['none', 'table-row'] }}>
+          <th sx={{ ...cellStyle }}>Property</th>
+          <th sx={{ ...cellStyle }}>Description</th>
+          <th sx={{ ...cellStyle }}>Type</th>
+          <th sx={{ ...cellStyle }}>Optional</th>
+          <th sx={{ ...cellStyle }}>Default</th>
+        </tr>
+      </thead>
 
       <tbody>
         {properties.map((prop, index) => {

@@ -26,9 +26,9 @@ const EnumTable = ({ cases }) => {
             <tr key={index}>
               <td sx={{ ...cellStyle }}>
                 <Styled.code>{prop.case}</Styled.code>
-                <p sx={{ display: ['block', 'none'] }}>
+                <div sx={{ display: ['block', 'none'] }}>
                   <ReactMarkdown source={prop.description} />
-                </p>
+                </div>
               </td>
               <td
                 sx={{
