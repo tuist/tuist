@@ -6638,13 +6638,13 @@ gatsby-plugin-feed@^2.3.28:
     lodash.merge "^4.6.2"
     rss "^1.2.2"
 
-gatsby-plugin-manifest@2.2.44:
-  version "2.2.44"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-2.2.44.tgz#1902972d14144ff7b071f13aab3cd9a25d265b30"
-  integrity sha512-Mhq7sXAiFZG0xL8RFqLYEZK9/RBVtn2ubIiIWA5jS4PRfxSx8szvmAbu7H7VvOJTvh/ArGKUbGPEQ0mbJmX1AA==
+gatsby-plugin-manifest@2.2.48:
+  version "2.2.48"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-2.2.48.tgz#a082addd697a9d7c27ce51f1c08690b8215c8283"
+  integrity sha512-RWD2HlKT7TFcXs3SIiZTWjq3Ud4z79cms8pBLXjlNNddatnSNi0ne2RknERCQgmTQvcJ9eNeIzfzVtR3WAcBYA==
   dependencies:
-    "@babel/runtime" "^7.7.6"
-    gatsby-core-utils "^1.0.30"
+    "@babel/runtime" "^7.8.7"
+    gatsby-core-utils "^1.0.34"
     semver "^5.7.1"
     sharp "^0.23.4"
 
