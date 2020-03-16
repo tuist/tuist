@@ -3,7 +3,7 @@ import Foundation
 import SPMUtility
 import TuistLoader
 import TuistSupport
-import TuistTemplate
+import TuistScaffold
 
 enum ScaffoldCommandError: FatalError, Equatable {
     var type: ErrorType { .abort }

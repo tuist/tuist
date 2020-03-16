@@ -9,7 +9,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
-@testable import TuistTemplateTesting
+@testable import TuistScaffoldTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {

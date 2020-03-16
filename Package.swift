@@ -54,11 +54,11 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistTemplate"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistTemplateTesting"]
+            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
@@ -137,16 +137,16 @@ let package = Package(
             dependencies: ["TuistCache", "TuistSupportTesting", "RxBlocking", "TuistCoreTesting"]
         ),
         .target(
-            name: "TuistTemplate",
+            name: "TuistScaffold",
             dependencies: ["SPMUtility", "TuistCore", "TuistSupport", "TuistLoader"]
         ),
         .target(
-            name: "TuistTemplateTesting",
-            dependencies: ["TuistTemplate"]
+            name: "TuistScaffoldTesting",
+            dependencies: ["TuistScaffold"]
         ),
         .testTarget(
-            name: "TuistTemplateIntegrationTests",
-            dependencies: ["TuistTemplate", "TuistSupportTesting"]
+            name: "TuistScaffoldIntegrationTests",
+            dependencies: ["TuistScaffold", "TuistSupportTesting"]
         ),
         .target(
             name: "TuistAutomation",

@@ -4,7 +4,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistSupportTesting
-@testable import TuistTemplate
+@testable import TuistScaffold
 
 final class TemplateLoaderTests: TuistTestCase {
     var subject: TemplateLoader!

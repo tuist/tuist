@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-@testable import TuistTemplate
+@testable import TuistScaffold
 
 public final class MockTemplatesDirectoryLocator: TemplatesDirectoryLocating {
     public var locateCustomStub: ((AbsolutePath) -> AbsolutePath?)?

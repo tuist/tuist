@@ -24,11 +24,11 @@ public enum TemplateLoaderError: FatalError, Equatable {
 }
 
 public protocol TemplateLoading {
-    /// Load `TuistTemplate.Template` at given `path`
+    /// Load `TuistScaffold.Template` at given `path`
     /// - Parameters:
     ///     - path: Path of template manifest file `Template.swift`
-    /// - Returns: Loaded `TuistTemplate.Template`
-    func loadTemplate(at path: AbsolutePath) throws -> TuistTemplate.Template
+    /// - Returns: Loaded `TuistScaffold.Template`
+    func loadTemplate(at path: AbsolutePath) throws -> TuistScaffold.Template
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -53,14 +53,14 @@ public class TemplateLoader: TemplateLoading {
         decoder = JSONDecoder()
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> TuistTemplate.Template {
+    public func loadTemplate(at path: AbsolutePath) throws -> TuistScaffold.Template {
         let manifestPath = path.appending(component: "Template.swift")
         guard FileHandler.shared.exists(manifestPath) else {
             throw TemplateLoaderError.manifestNotFound(manifestPath)
         }
         let data = try loadManifestData(at: manifestPath)
         let manifest = try decoder.decode(ProjectDescription.Template.self, from: data)
-        return try TuistTemplate.Template.from(manifest: manifest,
+        return try TuistScaffold.Template.from(manifest: manifest,
                                                at: path)
     }
 
@@ -103,22 +103,22 @@ public class TemplateLoader: TemplateLoading {
     }
 }
 
-extension TuistTemplate.Template {
-    static func from(manifest: ProjectDescription.Template, at path: AbsolutePath) throws -> TuistTemplate.Template {
-        let attributes = try manifest.attributes.map(TuistTemplate.Template.Attribute.from)
+extension TuistScaffold.Template {
+    static func from(manifest: ProjectDescription.Template, at path: AbsolutePath) throws -> TuistScaffold.Template {
+        let attributes = try manifest.attributes.map(TuistScaffold.Template.Attribute.from)
         let files = try manifest.files.map { (path: RelativePath($0.path),
-                                              contents: try TuistTemplate.Template.Contents.from(manifest: $0.contents,
+                                              contents: try TuistScaffold.Template.Contents.from(manifest: $0.contents,
                                                                                                  at: path)) }
         let directories = manifest.directories.map { RelativePath($0) }
-        return TuistTemplate.Template(description: manifest.description,
+        return TuistScaffold.Template(description: manifest.description,
                                       attributes: attributes,
                                       files: files,
                                       directories: directories)
     }
 }
 
-extension TuistTemplate.Template.Attribute {
-    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistTemplate.Template.Attribute {
+extension TuistScaffold.Template.Attribute {
+    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistScaffold.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)
@@ -128,9 +128,9 @@ extension TuistTemplate.Template.Attribute {
     }
 }
 
-extension TuistTemplate.Template.Contents {
+extension TuistScaffold.Template.Contents {
     static func from(manifest: ProjectDescription.Template.Contents,
-                     at path: AbsolutePath) throws -> TuistTemplate.Template.Contents {
+                     at path: AbsolutePath) throws -> TuistScaffold.Template.Contents {
         switch manifest {
         case let .string(contents):
             return .string(contents)
