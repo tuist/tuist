@@ -32,14 +32,18 @@ public class XcodeController: XcodeControlling {
     /// - Throws: An error if it can't be obtained.
     public func selected() throws -> Xcode? {
         // Return cached value if available
-        guard selectedXcode == nil else { return selectedXcode }
+        if let cached = selectedXcode {
+            return cached
+        }
 
         // e.g. /Applications/Xcode.app/Contents/Developer
         guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
             return nil
         }
-        selectedXcode = try Xcode.read(path: AbsolutePath(path).parentDirectory.parentDirectory)
-        return selectedXcode
+
+        let xcode = try Xcode.read(path: AbsolutePath(path).parentDirectory.parentDirectory)
+        selectedXcode = xcode
+        return xcode
     }
 
     enum XcodeVersionError: FatalError {
