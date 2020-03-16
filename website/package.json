@@ -40,7 +40,7 @@
     "gatsby-redirect-from": "^0.2.1",
     "gatsby-remark-check-links": "^2.1.0",
     "gatsby-remark-images": "^3.1.50",
-    "gatsby-remark-smartypants": "^2.1.22",
+    "gatsby-remark-smartypants": "^2.1.23",
     "gatsby-remark-social-cards": "https://github.com/pepibumur/gatsby-remark-social-cards.git#0.5.2",
     "gatsby-source-filesystem": "^2.1.55",
     "gatsby-transformer-yaml": "^2.2.27",
