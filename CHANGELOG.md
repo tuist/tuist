@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+- Optimize `TargetNode`'s set operations https://github.com/tuist/tuist/pull/1095 by @kwridan
+
 ## 1.4.0
 
 ### Fixed

@@ -48,7 +48,7 @@ public class TargetNode: GraphNode {
             return false
         }
         return path == otherTagetNode.path
-            && target == otherTagetNode.target
+            && name == otherTagetNode.name
     }
 
     // MARK: - Encodable
