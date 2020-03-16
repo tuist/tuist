@@ -13,7 +13,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = WorkspaceGenerator()
+        subject = WorkspaceGenerator(config: .init(projectGenerationContext: .serial))
     }
 
     override func tearDown() {
@@ -97,32 +97,6 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(xcworkspace.data.children, [
             .file(.init(location: .group("Test.xcodeproj"))),
         ])
-    }
-
-    func test_generate_stressTest() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let projects = (0 ..< 20).map {
-            Project.test(path: temporaryPath.appending(component: "Project\($0)"),
-                         name: "Test",
-                         settings: .default,
-                         targets: [Target.test(name: "Project\($0)_Target")])
-        }
-        let graph = Graph.create(projects: projects,
-                                 dependencies: projects.flatMap { project in
-                                     project.targets.map { target in
-                                         (project: project, target: target, dependencies: [])
-                                     }
-        })
-        let workspace = Workspace.test(path: temporaryPath,
-                                       projects: projects.map(\.path))
-
-        // When / Then
-        try (0 ..< 10).forEach { _ in
-            _ = try subject.generate(workspace: workspace,
-                                     path: temporaryPath,
-                                     graph: graph)
-        }
     }
 
     // MARK: - Helpers

@@ -11,13 +11,29 @@ public protocol XcodeProjWriting {
 // MARK: -
 
 public final class XcodeProjWriter: XcodeProjWriting {
+    public struct Config {
+        /// The execution context to use when writing
+        /// the project descriptors within a workspace descriptor
+        public var projectDescriptorWritingContext: ExecutionContext
+        public init(projectDescriptorWritingContext: ExecutionContext) {
+            self.projectDescriptorWritingContext = projectDescriptorWritingContext
+        }
+
+        public static var `default`: Config {
+            return Config(projectDescriptorWritingContext: .concurrent)
+        }
+    }
+
     private let fileHandler: FileHandling
     private let system: Systeming
+    private let config: Config
 
     public init(fileHandler: FileHandling = FileHandler.shared,
-                system: Systeming = System.shared) {
+                system: Systeming = System.shared,
+                config: Config = .default) {
         self.fileHandler = fileHandler
         self.system = system
+        self.config = config
     }
 
     public func write(project: ProjectDescriptor) throws {
@@ -28,7 +44,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 
     public func write(workspace: WorkspaceDescriptor) throws {
-        try workspace.projectDescriptors.concurrentForEach(write)
+        try workspace.projectDescriptors.forEach(context: config.projectDescriptorWritingContext, write)
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
         try workspace.schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: workspace.xcworkspacePath) }
         try workspace.sideEffectDescriptors.forEach(perform)

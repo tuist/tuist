@@ -3,14 +3,14 @@ import XCTest
 
 @testable import TuistSupport
 
-final class ArrayConcurrentTests: XCTestCase {
+final class ArrayExecutionContextTests: XCTestCase {
     func test_concurrentMap_success() {
         // Given
         let numbers = Array(0 ... 1000)
         let transform: (Int) -> String = { "Number \($0)" }
 
         // When
-        let results = numbers.concurrentMap(transform)
+        let results = numbers.map(context: .concurrent, transform)
 
         // Then
         XCTAssertEqual(results, numbers.map(transform))
@@ -27,7 +27,7 @@ final class ArrayConcurrentTests: XCTestCase {
         }
 
         // When / Then
-        XCTAssertThrowsSpecific(try numbers.concurrentMap(transform), TestError.someError)
+        XCTAssertThrowsSpecific(try numbers.map(context: .concurrent, transform), TestError.someError)
     }
 
     func test_concurrentForEach_success() {
@@ -42,7 +42,7 @@ final class ArrayConcurrentTests: XCTestCase {
         }
 
         // When
-        numbers.concurrentForEach(perform)
+        numbers.forEach(context: .concurrent, perform)
 
         // Then
         let resuls = queue.sync {
@@ -61,7 +61,7 @@ final class ArrayConcurrentTests: XCTestCase {
         }
 
         // When / Then
-        XCTAssertThrowsSpecific(try numbers.concurrentForEach(perform), TestError.someError)
+        XCTAssertThrowsSpecific(try numbers.forEach(context: .concurrent, perform), TestError.someError)
     }
 
     // MARK: - Helpers
